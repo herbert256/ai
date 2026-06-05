@@ -88,11 +88,9 @@ fun JudgeEvalManageRow() {
     val runs by engine.runs.collectAsState()
     val run = runs[reportId] ?: return // no judge-eval on this report → no row
 
-    val rowText = buildString {
-        append("${run.doneCount} / ${run.totalCells}")
-        if (run.errorCount > 0) append(" · ${run.errorCount} failed")
-        else if (run.allTerminal) append(" · done")
-    }
+    // Static label — the title of the prompt this batch ran, NOT a live
+    // size / done count (the row no longer ticks as cells complete).
+    val rowText = run.prompt.title.takeIf { it.isNotBlank() } ?: run.prompt.name
     val judgesIcon = com.ai.ui.shared.LocalMetadataIcons.current.judges
         .takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.JUDGES
     Column(modifier = Modifier.fillMaxWidth()) {

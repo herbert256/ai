@@ -93,11 +93,9 @@ fun TournamentManageRow() {
     val runs by engine.runs.collectAsState()
     val run = runs[reportId] ?: return // no tournament on this report → no row
 
-    val rowText = buildString {
-        append("${run.doneCount} / ${run.totalMatches}")
-        if (run.errorCount > 0) append(" · ${run.errorCount} failed")
-        else if (run.allTerminal) append(" · done")
-    }
+    // Static label — the title of the prompt this batch ran, NOT a live
+    // size / done count (the row no longer ticks as matches complete).
+    val rowText = run.tournamentPrompt.title.takeIf { it.isNotBlank() } ?: run.tournamentPrompt.name
     val tournamentIcon = com.ai.ui.shared.LocalMetadataIcons.current.tournament
         .takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.TOURNAMENT
     Column(modifier = Modifier.fillMaxWidth()) {

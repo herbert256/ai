@@ -1122,10 +1122,13 @@ internal fun ColumnScope.GenerationPhase(
                         }
                     }
                     RowTypeCell("fan-out")
-                    val pendingSuffix = if (run.pendingCount > 0) " · ${run.pendingCount} pending" else ""
+                    // Static label — the title of the fan-out prompt, NOT a
+                    // live pair / pending count (the row no longer ticks as
+                    // pairs complete).
+                    val fanOutLabel = fanOutPrompt?.title?.takeIf { it.isNotBlank() } ?: run.metaPromptName
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "${run.metaPromptName} · ${run.pairCount} pairs$pendingSuffix",
+                            fanOutLabel,
                             fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )

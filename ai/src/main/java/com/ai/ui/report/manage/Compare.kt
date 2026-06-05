@@ -195,11 +195,9 @@ fun CompareManageRow() {
     val runs by engine.runs.collectAsState()
     val run = runs[reportId] ?: return // no compare run on this report → no row
 
-    val rowText = buildString {
-        append("${run.doneCount} / ${run.totalCells}")
-        if (run.errorCount > 0) append(" · ${run.errorCount} failed")
-        else if (run.allTerminal) append(" · done")
-    }
+    // Static label — the title of the prompt this batch ran, NOT a live
+    // size / done count (the row no longer ticks as cells complete).
+    val rowText = run.comparePrompt.title.takeIf { it.isNotBlank() } ?: run.comparePrompt.name
     val compareIcon = com.ai.ui.shared.LocalMetadataIcons.current.compare
         .takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.COMPARE
     Column(modifier = Modifier.fillMaxWidth()) {
