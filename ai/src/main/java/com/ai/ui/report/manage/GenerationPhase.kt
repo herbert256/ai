@@ -1204,10 +1204,12 @@ internal fun ColumnScope.GenerationPhase(
                         AnimatedHourglass(fontSize = 16.sp)
                     }
                     RowTypeCell("translate")
-                    val progress = "${run.completed} / ${run.total}"
+                    // Static label — the target language, NOT a live
+                    // completed / total count (matches the finished summary
+                    // row; the row no longer ticks as calls land).
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "$progress · ${run.targetLanguageName.ifBlank { "Translate" }}",
+                            run.targetLanguageName.ifBlank { "Translate" },
                             fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
