@@ -169,16 +169,18 @@ fun IconLookupScreen(ctx: IconLookupContext) {
             }
 
             Spacer(modifier = Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = ctx.onFindAlternativeIcons,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) {
-                Text(
-                    if (ctx.hasActiveFanOut) "View alternative icons"
-                    else "Find alternative icons",
-                    maxLines = 1, softWrap = false
-                )
+            if (ctx.showFindAlternatives) {
+                OutlinedButton(
+                    onClick = ctx.onFindAlternativeIcons,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) {
+                    Text(
+                        if (ctx.hasActiveFanOut) "View alternative icons"
+                        else "Find alternative icons",
+                        maxLines = 1, softWrap = false
+                    )
+                }
             }
             // Manual edit + Select icon — set the icon directly (no fan-out).
             if (ctx.onApplyIcon != null) {
@@ -286,6 +288,11 @@ data class IconLookupContext(
      *  vs. "View alternative icons". True when a per-scope fan-out is
      *  in flight or has results sitting on the live list. */
     val hasActiveFanOut: Boolean,
+    /** Hide the "Find alternative icons" button when false — the
+     *  standalone Report-model route can't host the alternatives picker
+     *  (that lives in the manage overlay stack), so it shows manual edit /
+     *  select only. Defaults true for every manage-flow adapter. */
+    val showFindAlternatives: Boolean = true,
     val onFindAlternativeIcons: () -> Unit,
     /** Apply a chosen emoji directly to this icon scope — drives the
      *  "Manual edit icon" popup and the "Select icon" emoji picker. Each

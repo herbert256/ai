@@ -328,6 +328,9 @@ internal fun AgentIconDetailOverlay(
     onFindAlternativeIcons: (Boolean) -> Unit,
     onApplyIcon: (String) -> Unit,
     onClose: () -> Unit,
+    /** Hide "Find alternative icons" when false (the standalone
+     *  Report-model route can't host the alternatives picker). */
+    showFindAlternatives: Boolean = true,
 ): Boolean {
     val iconPrompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "workers" && it.name == "model-icons"
@@ -378,6 +381,7 @@ internal fun AgentIconDetailOverlay(
             errorMessage = agent.iconErrorMessage,
             traceFile = agentIconTraceFilename,
             hasActiveFanOut = hasActiveAgentFanOut,
+            showFindAlternatives = showFindAlternatives,
             onFindAlternativeIcons = { onFindAlternativeIcons(hasActiveAgentFanOut) },
             onApplyIcon = onApplyIcon,
             onContinueChat = null,

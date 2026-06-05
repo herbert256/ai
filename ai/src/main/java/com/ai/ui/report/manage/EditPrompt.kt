@@ -294,6 +294,9 @@ fun ReportEditModelTitleScreen(
     onFindAlternativeTitles: () -> Unit = {},
     injectedTitle: String? = null,
     onConsumeInjectedTitle: () -> Unit = {},
+    /** Hide "Find alternative titles" when false (the standalone
+     *  Report-model route can't host the alternatives picker). */
+    showFindAlternatives: Boolean = true,
     onUpdate: (newTitle: String) -> Unit
 ) {
     BackHandler { onBack() }
@@ -322,11 +325,13 @@ fun ReportEditModelTitleScreen(
             colors = AppColors.outlinedFieldColors()
         )
         Spacer(modifier = Modifier.weight(1f))
-        OutlinedButton(
-            onClick = onFindAlternativeTitles,
-            modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedButtonColors()
-        ) { Text("Find alternative titles", maxLines = 1, softWrap = false) }
+        if (showFindAlternatives) {
+            OutlinedButton(
+                onClick = onFindAlternativeTitles,
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Find alternative titles", maxLines = 1, softWrap = false) }
+        }
     }
 }
 

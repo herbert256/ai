@@ -1572,7 +1572,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val snapshot0 = _uiState.value.aiSettings
         val testable = AppService.entries
             .sortedBy { it.id }
-            .filter { snapshot0.getProviderState(it) != "inactive" && snapshot0.getApiKey(it).isNotBlank() }
+            .filter { !it.defaultInactive && snapshot0.getProviderState(it) != "inactive" && snapshot0.getApiKey(it).isNotBlank() }
 
         _refreshAllState.value = RefreshAllState(
             catalogSteps = catalogSteps,
@@ -1631,7 +1631,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val snapshot0 = _uiState.value.aiSettings
         val testable = AppService.entries
             .sortedBy { it.id }
-            .filter { snapshot0.getProviderState(it) != "inactive" && snapshot0.getApiKey(it).isNotBlank() }
+            .filter { !it.defaultInactive && snapshot0.getProviderState(it) != "inactive" && snapshot0.getApiKey(it).isNotBlank() }
 
         _refreshAllState.value = RefreshAllState(
             catalogSteps = emptyList(),
