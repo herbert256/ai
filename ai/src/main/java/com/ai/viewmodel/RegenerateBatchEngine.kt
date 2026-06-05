@@ -230,6 +230,14 @@ class RegenerateBatchEngine internal constructor(
         }
     }
 
+    /** True while this report's regenerate-batch is actively progressing —
+     *  a live orchestrator coroutine in THIS process. The Broken-work scan
+     *  reads this so a mid-batch report's RUNNING agents aren't mistaken for
+     *  app-kill-interrupted ones (the inverse of [detectBroken]'s
+     *  RUNNING-but-dead case). */
+    fun isActivelyRunning(reportId: String): Boolean =
+        orchestratorJobs[reportId]?.isActive == true
+
     /** Drop the persisted job + in-memory entry. Used by the
      *  detail screen's "delete" action (future). */
     fun deleteJob(context: Context, reportId: String): Job =

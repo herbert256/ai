@@ -174,6 +174,12 @@ private fun webSearchReplayPrompt(prompt: String): String =
 class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private var reportGenerationJob: Job? = null
+    /** Report id the single [reportGenerationJob] is currently producing, or
+     *  null when no primary generation is in flight. The job itself carries
+     *  no id, so the Broken-work scan reads this to tell a live run's
+     *  PENDING/RUNNING agents (not broken) apart from agents a process kill
+     *  stranded (interrupted). See [isReportGenerating]. */
+    @Volatile private var activeGenerationReportId: String? = null
     @Volatile private var reportRunningInBackground = false
     private val temperatureSweepJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
     private val _temperatureSweepStates = MutableStateFlow<Map<String, TemperatureSweepState>>(emptyMap())
@@ -198,6 +204,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         set.add(job)
         job.invokeOnCompletion { set.remove(job); if (set.isEmpty()) regenerateJobs.remove(reportId, set) }
     }
+
+    /** True while any primary work for [reportId] is live in THIS process —
+     *  the initial generation ([activeGenerationReportId]), a single/all-agent
+     *  regenerate ([regenerateJobs]), or a regenerate-batch run. After a
+     *  process kill all of these are empty, so the report's still-PENDING/
+     *  RUNNING agents correctly read as interrupted. Consumed by the
+     *  Broken-work scan via [BrokenWorkPolicy.agentProblems]. */
+    fun isReportGenerating(reportId: String): Boolean =
+        activeGenerationReportId == reportId ||
+            regenerateJobs[reportId]?.any { it.isActive } == true ||
+            regenerateBatchEngine.isActivelyRunning(reportId)
 
     /** Tracks in-flight fan-meta batches keyed by
      *  (reportId, metaPromptId). Separate map from [fanOutJobs] so
@@ -305,6 +322,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     val translation = TranslationRunManager(appViewModel, this)
     val iconGen = IconGenerationManager(appViewModel, this)
     val secondary = SecondaryRunManager(appViewModel, this)
+    /** The Broken-work scan's result, surfaced for the Reports-hub cards so
+     *  the "problems" card derives from the exact list that lights the ⚠️
+     *  badge — one routine, two surfaces. */
+    val brokenBatches get() = appViewModel.brokenBatches
     /** Round-robin + 429-fallback runner for "workers"-category prompts.
      *  Reusable engine; no batch is converted onto it yet. */
     val workerRunner = WorkerRunner(appViewModel)
@@ -446,6 +467,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 reportSystemPromptId = state.reportSystemPromptId
             )
             val reportId = report.id
+            // Mark this report as the one being generated, so the Broken-work
+            // scan doesn't flag its in-flight PENDING/RUNNING agents as
+            // interrupted. Cleared (guarded) in the finally below.
+            activeGenerationReportId = reportId
             val reportStartMs = System.currentTimeMillis()
             AppLog.i("Report", "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
 
@@ -484,6 +509,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // fires spuriously when an unrelated job
                     // completes.
                     reportRunningInBackground = false
+                    // Clear the live-generation marker, but only if a newer
+                    // run hasn't already claimed it (this job may be the one
+                    // a fresh generateGenericReports just cancelled).
+                    if (activeGenerationReportId == reportId) activeGenerationReportId = null
                     // If the run was cancelled (Stop, or a newer report start
                     // cancelling this shared job), terminalize any rows still
                     // PENDING/RUNNING as STOPPED — otherwise the report reads as
@@ -2014,6 +2043,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // cancel in-flight calls and persist them as ERROR. Same
         // bug class fixed in generateGenericReports.
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            // Track so the Broken-work scan sees a live regenerate (its agents
+            // go PENDING/RUNNING) and doesn't flag them as interrupted; also
+            // lets deleteReport cancel it, like the other regenerate paths.
+            trackRegenerateJob(reportId, coroutineContext[Job]!!)
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             AuditLog.append(reportId, "Regenerating the report")
             val state = appViewModel.uiState.value
@@ -2652,12 +2685,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  on-the-fly from the parsed parts). When a real-agent row points
      *  at an agent that's since been deleted, falls back to the direct
      *  shape so the regenerate still goes through. */
-    fun regenerateAgent(context: Context, reportId: String, agentId: String) {
+    fun regenerateAgent(context: Context, reportId: String, agentId: String): Job {
         // viewModelScope: same survival rationale as
         // generateGenericReports — a screen-scoped scope here would
         // turn the in-flight call into ERROR on disk if the user
-        // navigates away before the new response lands.
-        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        // navigates away before the new response lands. Returns the Job so
+        // the Broken-work recovery can join one agent's regenerate.
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             trackRegenerateJob(reportId, coroutineContext[Job]!!)
             withTracerTags(reportId = reportId, category = "Report regenerate agent") {
             val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
@@ -2781,10 +2815,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  flow + the genericReportsSelectedAgents set the UI iterates). The
      *  Report screen's row click leads to a single-result viewer with a
      *  "Remove model from report" button — that's this. */
-    fun removeAgentFromReport(context: Context, reportId: String, agentId: String) {
+    fun removeAgentFromReport(context: Context, reportId: String, agentId: String): Job {
         // Storage read-modify-write + per-orphan deletes off the main
         // thread — this is fired from a UI click and was blocking it.
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        // Returns the Job so Broken-work recovery can join the removal.
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val removedStatus = ReportStorage.getReport(context, reportId)
                 ?.agents
                 ?.firstOrNull { it.agentId == agentId }

@@ -159,6 +159,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Two states", "Each card shows up to two lines: unfinished (items stranded by an app-kill — started but never finished) and errors (items that failed). The count is per batch run — one fan-out prompt, one translation language, one tournament, and so on."),
             HelpCard("Actions", "Each line carries view / delete / restart. View opens the list of those items. Delete drops them (no API calls; finished items are kept). Restart re-fires errored items or re-dispatches unfinished ones. Fan Meta unfinished can't be deleted — the underlying answer stays."),
             HelpCard("Coverage", "Covers all six batch families — Fan Out, Fan Meta, Tournament, Judge the judges, Compare, and Translation — plus a stalled regenerate job and single Meta / Rerank / Moderation calls, which carry delete / restart too (a single-item entry shows its error message right on the card; regenerate has no item list, so no view). A card drops off once its work is cleared, on the next scan."),
+            HelpCard("Report models", "A \"Report models\" card covers the report's own model responses (not a secondary batch): models that errored, or were left PENDING/RUNNING by an app-kill (shown as interrupted). This is the same condition the Reports hub's \"Reports with problems\" card uses — one routine drives both, so the card and the ⚠️ always agree. Open it to act on each model individually."),
         )
     ),
     "broken_items" to HelpContent(
@@ -167,6 +168,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "The individual items behind one Broken-work line — either the unfinished (never-ran) items or the errored ones for a single batch."),
             HelpCard("Each row", "Shows the model that ran (or was assigned) and, for errors, the failure message. Unfinished rows are placeholders that were queued but never executed."),
             HelpCard("Delete / Restart", "The title-bar icons act on the whole list: delete drops every listed item (no API calls), restart re-fires the errored ones or re-dispatches the unfinished ones. Both return you to the Broken-work list."),
+            HelpCard("Report models", "For a \"Report models\" batch, every model is its own row with its own view / restart / delete: view opens the report, restart regenerates just that model, delete drops its row (no API call)."),
         )
     ),
     "settings_setup" to HelpContent(

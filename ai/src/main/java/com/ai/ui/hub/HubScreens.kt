@@ -30,11 +30,8 @@ import com.ai.data.AnalysisRepository
 import com.ai.data.KnowledgeService
 import com.ai.data.KnowledgeStore
 import com.ai.data.MetadataDefaults
-import com.ai.data.ModelCooldownStore
 import com.ai.data.Report
 import com.ai.data.ReportStatus
-import com.ai.data.SecondaryKind
-import com.ai.data.SecondaryResultStorage
 import com.ai.data.local.LocalEmbedder
 import com.ai.data.ReportStorage
 import com.ai.model.Settings
@@ -214,18 +211,20 @@ data class HomeReportLists(
 
 /** Disk scan that powers both the home screen's Running / Problems
  *  cards and the Reports hub's Problems / Running list cards.
- *  Centralised here so the two screens stay in sync — the filter
- *  rules (active translations counted as Running, errored agents +
- *  stuck-placeholder secondaries counted as Problems, cooled-down
- *  TRANSLATE rows excluded, Running reports excluded from Problems)
- *  used to live inline in HubScreen and were a copy-paste risk.
+ *  Centralised here so the two screens stay in sync.
  *
- *  Pulls the live `translationRuns` StateFlow from the supplied
- *  [reportViewModel] so an in-flight translation flips a report
- *  into Running sub-second. The 5 s [cardsTick] catches background
- *  state changes (resume-from-disk, cooldown clear, etc.). The
- *  [refreshTick] keys onto the screen's resume lifecycle so
- *  navigating back from a delete / reload picks the fresh state. */
+ *  - **Running**: a not-yet-completed report with a PENDING / RUNNING
+ *    agent, or an in-flight translation targeting it.
+ *  - **Problems**: exactly the reports the Broken-work scan flagged —
+ *    the same list ([reportViewModel.brokenBatches]) that lights the
+ *    top-bar ⚠️ badge, so the card and the badge can never disagree.
+ *    One routine, two surfaces.
+ *
+ *  Both `translationRuns` and `brokenBatches` are pulled live from
+ *  [reportViewModel]. The 5 s [cardsTick] catches background
+ *  running-state changes; [refreshTick] keys onto the screen's resume
+ *  lifecycle (and kicks a fresh Broken-work scan so Problems is current
+ *  immediately rather than waiting for the 30 s background tick). */
 @Composable
 fun rememberHomeReportLists(
     refreshTick: Int,
@@ -233,14 +232,13 @@ fun rememberHomeReportLists(
 ): State<HomeReportLists> {
     val context = LocalContext.current
     val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
-    // Report ids running a fan-out / meta batch right now (a run with at
-    // least one queued or in-flight pair, not cancelled) — so their blank
-    // placeholder rows aren't mistaken for stuck problems.
-    val fanOutRuns by reportViewModel.fanOutEngine.runs.collectAsState()
-    val activeSecondaryReportIds = fanOutRuns.values
-        .filter { !it.cancelled && (it.runningCount > 0 || it.queuedCount > 0) }
-        .map { it.reportId }
-        .toSet()
+    val brokenBatches by reportViewModel.brokenBatches.collectAsState()
+    val problemReportIds = remember(brokenBatches) {
+        brokenBatches.mapTo(HashSet()) { it.reportId }
+    }
+    LaunchedEffect(refreshTick) {
+        reportViewModel.secondary.refreshBrokenBatches(context)
+    }
     val cardsTick by produceState(initialValue = 0) {
         while (true) {
             kotlinx.coroutines.delay(5_000L)
@@ -249,27 +247,23 @@ fun rememberHomeReportLists(
     }
     return produceState(
         initialValue = HomeReportLists(emptyList(), emptyList()),
-        refreshTick, cardsTick, translationRuns, activeSecondaryReportIds
+        refreshTick, cardsTick, translationRuns, problemReportIds
     ) {
         value = withContext(Dispatchers.IO) {
-            computeHomeReportLists(context, translationRuns, activeSecondaryReportIds)
+            computeHomeReportLists(context, translationRuns, problemReportIds)
         }
     }
 }
 
-/** Pure-IO computation that produces the Running + Problems splits
- *  for the home / hub list cards. Run on [Dispatchers.IO] by
- *  [rememberHomeReportLists] — kept as a top-level so the same
- *  filter logic can be invoked from any screen-scoped coroutine
- *  without dragging the Compose plumbing along. */
+/** Pure-IO computation that produces the Running + Problems splits for
+ *  the home / hub list cards. Running is derived from agent / translation
+ *  state; Problems is simply the reports the Broken-work scan flagged
+ *  ([problemReportIds]). Run on [Dispatchers.IO] by
+ *  [rememberHomeReportLists]. */
 internal fun computeHomeReportLists(
     context: android.content.Context,
     translationRuns: Map<String, TranslationRunState>,
-    // Report ids with an in-flight secondary batch (fan-out / meta) whose
-    // not-yet-filled placeholder rows (blank content, no error, no
-    // duration) would otherwise trip reportHasProblems' stuck-placeholder
-    // check and surface a false "problem" while the batch is still running.
-    activeSecondaryReportIds: Set<String> = emptySet()
+    problemReportIds: Set<String> = emptySet()
 ): HomeReportLists {
     val all = ReportStorage.getAllReports(context)
     val activeTranslationReportIds = translationRuns.values
@@ -277,19 +271,7 @@ internal fun computeHomeReportLists(
         .map { it.sourceReportId }
         .toSet()
     val running = all.filter { reportIsRunning(it, activeTranslationReportIds) }
-    val runningIds = running.map { it.id }.toSet()
-    val problems = all.filter { r ->
-        // Skip reports that are already showing in the Running card
-        // — disk-side red crosses that are actively being healed
-        // (in-flight retry / resume) shouldn't double up as
-        // "problems". When the running state clears, any persistent
-        // red cross resurfaces here on the next 5 s tick.
-        if (r.id in runningIds) return@filter false
-        // Skip reports with a live fan-out / meta batch — their blank
-        // placeholder rows are mid-flight, not stuck.
-        if (r.id in activeSecondaryReportIds) return@filter false
-        reportHasProblems(r, SecondaryResultStorage.listForReport(context, r.id))
-    }
+    val problems = all.filter { it.id in problemReportIds }
     return HomeReportLists(running, problems)
 }
 
@@ -305,37 +287,6 @@ fun reportIsRunning(
     it.reportStatus == ReportStatus.PENDING ||
         it.reportStatus == ReportStatus.RUNNING
 }) || report.id in activeTranslationReportIds
-
-/** A blank placeholder secondary (no content, no error, no duration)
- *  younger than this is treated as mid-flight, not stuck. Single-call
- *  secondaries (RERANK / MODERATION / COMPARE / single META) aren't
- *  tracked by [activeSecondaryReportIds] (which only covers fan-out /
- *  meta batches via fanOutEngine), so without this grace window their
- *  fresh placeholders would surface as false "problems" the instant
- *  they start. 60 s comfortably covers a normal single API call. */
-private const val STUCK_PLACEHOLDER_GRACE_MS = 60_000L
-
-/** True when [report] has at least one persisted problem — an
- *  ERROR agent, an errored secondary (excluding TRANSLATE rows
- *  whose model is cooled down), or a stuck-placeholder secondary
- *  (no content, no error, no duration) older than the grace window.
- *  Mirrors the predicate the AI Reports hub's "Problems" card uses. */
-fun reportHasProblems(
-    report: Report,
-    secondaries: List<com.ai.data.SecondaryResult>
-): Boolean {
-    if (report.agents.any { it.reportStatus == ReportStatus.ERROR }) return true
-    val now = System.currentTimeMillis()
-    return secondaries.any { sec ->
-        val hasError = sec.errorMessage != null &&
-            !(sec.kind == SecondaryKind.TRANSLATE &&
-                ModelCooldownStore.isUnavailable(sec.providerId, sec.model))
-        val stuckPlaceholder = sec.content.isNullOrBlank() &&
-            sec.errorMessage == null && sec.durationMs == null &&
-            (now - sec.timestamp) > STUCK_PLACEHOLDER_GRACE_MS
-        hasError || stuckPlaceholder
-    }
-}
 
 @Composable
 fun ReportsHubScreen(

@@ -1,5 +1,8 @@
 package com.ai.viewmodel
 
+import com.ai.data.ModelCooldownStore
+import com.ai.data.Report
+import com.ai.data.ReportStatus
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 
@@ -45,7 +48,33 @@ object BrokenWorkPolicy {
             !activeRun &&
             live.nowMs - row.timestamp >= live.stalePlaceholderMs
 
-    private fun errored(row: SecondaryResult): Boolean = row.errorMessage != null
+    /** A row is "errored" when it carries an error message — except a
+     *  TRANSLATE row whose model is merely on cooldown (a 429 retry-after
+     *  bench, not a real failure): that retries on its own, so it must not
+     *  light the ⚠️ or the hub's "problems" card. Folded in from the hub's
+     *  old reportHasProblems so both surfaces apply the same exception. */
+    private fun errored(row: SecondaryResult): Boolean =
+        row.errorMessage != null &&
+            !(row.kind == SecondaryKind.TRANSLATE &&
+                ModelCooldownStore.isUnavailable(row.providerId, row.model))
+
+    /** (interruptedAgentIds, erroredAgentIds) for one report's primary
+     *  agents. Errored = reportStatus ERROR. Interrupted = PENDING/RUNNING
+     *  left behind by a process kill — only when the report has no live
+     *  generation / regenerate job ([reportIsLive] false); a report mid-run
+     *  legitimately has PENDING/RUNNING agents and must not be flagged. This
+     *  is the agent half of the hub's old reportHasProblems, now the single
+     *  routine that also feeds the ⚠️ Broken-work badge. */
+    fun agentProblems(report: Report, reportIsLive: Boolean): Pair<List<String>, List<String>> {
+        val errored = report.agents
+            .filter { it.reportStatus == ReportStatus.ERROR }
+            .map { it.agentId }
+        val interrupted = if (reportIsLive) emptyList()
+            else report.agents
+                .filter { it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING }
+                .map { it.agentId }
+        return interrupted to errored
+    }
 
     private class Acc(val kind: BatchFamilyKind, val key: String, val name: String) {
         var unfinished = 0
@@ -207,7 +236,10 @@ object BrokenWorkPolicy {
                         (row.kind == SecondaryKind.META ||
                             row.kind == SecondaryKind.RERANK ||
                             row.kind == SecondaryKind.MODERATION)
-                BatchFamilyKind.REGENERATE -> false
+                // Agents aren't SecondaryResult rows; the RESPONSES detail uses
+                // its own agent loader, so no row ever matches here.
+                BatchFamilyKind.REGENERATE,
+                BatchFamilyKind.RESPONSES -> false
             }
             if (!inBatch) return@filter false
             val activeRun = when (batch.kind) {
@@ -218,7 +250,8 @@ object BrokenWorkPolicy {
                 BatchFamilyKind.TRANSLATION -> batch.key in live.activeTranslationRunIds
                 BatchFamilyKind.FAN_META -> batch.key in live.activeFanMetaRunKeys
                 BatchFamilyKind.OTHER,
-                BatchFamilyKind.REGENERATE -> false
+                BatchFamilyKind.REGENERATE,
+                BatchFamilyKind.RESPONSES -> false
             }
             when (batch.kind) {
                 BatchFamilyKind.FAN_META -> {
@@ -234,7 +267,7 @@ object BrokenWorkPolicy {
                             live.nowMs - row.timestamp >= live.stalePlaceholderMs
                     }
                 }
-                else -> if (errors) row.errorMessage != null else interrupted(row, live, activeRun = activeRun)
+                else -> if (errors) errored(row) else interrupted(row, live, activeRun = activeRun)
             }
         }
     }

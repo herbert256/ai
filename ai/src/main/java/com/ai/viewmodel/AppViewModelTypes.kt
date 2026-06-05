@@ -39,6 +39,10 @@ enum class BatchFamilyKind(val label: String) {
     COMPARE("Compare"),
     TRANSLATION("Translation"),
     REGENERATE("Regenerate"),
+    /** Primary report agents (model responses) that errored or were stranded
+     *  PENDING/RUNNING by a process kill — not a secondary batch. One entry
+     *  per report; the agent analogue of the secondary batch families. */
+    RESPONSES("Report models"),
     /** Single Meta / Rerank / Moderation secondary calls (not a fan-out batch). */
     OTHER("Meta / Rerank / Moderation"),
 }

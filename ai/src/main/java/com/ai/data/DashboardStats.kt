@@ -6,7 +6,6 @@ import com.ai.model.UsageCategoryStats
 import com.ai.model.UsageReportStats
 import com.ai.ui.admin.ProviderCostGroup
 import com.ai.ui.admin.buildProviderCostGroups
-import com.ai.ui.hub.reportHasProblems
 import com.ai.ui.hub.reportIsRunning
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.viewmodel.TranslationRunState
@@ -448,6 +447,10 @@ private const val MODEL_CACHE_STALE_MS = 7L * 24 * 60 * 60 * 1000
 internal suspend fun computeReportStats(
     context: Context,
     translationRuns: Map<String, TranslationRunState>,
+    // The reports the Broken-work scan flagged (appViewModel.brokenBatches,
+    // grouped by reportId). The "problems" stat counts these so it matches
+    // the hub card and the top-bar ⚠️ exactly — one routine, every surface.
+    problemReportIds: Set<String>,
 ): ReportSectionData = withContext(Dispatchers.IO) {
     val all = ReportStorage.getAllReports(context)
 
@@ -456,16 +459,14 @@ internal suspend fun computeReportStats(
         .map { it.sourceReportId }
         .toSet()
     val running = all.filter { reportIsRunning(it, activeTranslationReportIds) }
-    val runningIds = running.mapTo(HashSet()) { it.id }
+    val problems = all.count { it.id in problemReportIds }
 
-    // One secondary read per report feeds BOTH the problems split and
-    // the by-kind counts.
+    // One secondary read per report feeds the by-kind counts + cost/tokens.
     val secByKind = linkedMapOf(
         SecondaryKind.RERANK to 0, SecondaryKind.META to 0,
         SecondaryKind.MODERATION to 0, SecondaryKind.TRANSLATE to 0
     )
     val metaByName = HashMap<String, Int>()
-    var problems = 0
     var secondaryCost = 0.0
     var secondaryTokens = 0L
     for (r in all) {
@@ -479,7 +480,6 @@ internal suspend fun computeReportStats(
             secondaryCost += (s.inputCost ?: 0.0) + (s.outputCost ?: 0.0)
             s.tokenUsage?.let { secondaryTokens += it.totalTokens.toLong() }
         }
-        if (r.id !in runningIds && reportHasProblems(r, secs)) problems++
     }
 
     // Agent-call rollups (status, tokens, compute, leaderboards) + report-level

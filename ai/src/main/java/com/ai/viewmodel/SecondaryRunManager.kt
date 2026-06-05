@@ -681,6 +681,26 @@ class SecondaryRunManager(
                 timestamp = report.timestamp,
                 errorMessage = if (paused) "Paused on an error" else "Interrupted mid-run"))
         }
+
+        // Primary report agents — ERROR responses, or PENDING/RUNNING agents
+        // a process kill stranded (only when no live generation/regenerate is
+        // running for this report). One synthetic "Report models" entry: the
+        // agent analogue of the secondary batches above. This is the condition
+        // the hub-only reportHasProblems used to carry alone; folding it here
+        // makes the ⚠️ badge and the hub's "problems" card agree.
+        val (interruptedAgents, erroredAgents) = BrokenWorkPolicy.agentProblems(
+            report, reportIsLive = rvm.isReportGenerating(reportId)
+        )
+        if (interruptedAgents.isNotEmpty() || erroredAgents.isNotEmpty()) {
+            val singleError = if (erroredAgents.size == 1 && interruptedAgents.isEmpty())
+                report.agents.firstOrNull { it.agentId == erroredAgents[0] }?.errorMessage else null
+            batches.add(BrokenBatch(reportId, report.title, BatchFamilyKind.RESPONSES, reportId,
+                "Report models",
+                unfinishedCount = interruptedAgents.size,
+                errorCount = erroredAgents.size,
+                timestamp = report.timestamp,
+                errorMessage = singleError))
+        }
         return batches
     }
 

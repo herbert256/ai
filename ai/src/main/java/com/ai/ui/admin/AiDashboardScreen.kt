@@ -771,8 +771,13 @@ fun AiStatReportsScreen(
     val refreshTick = resumeRefreshTick()
     val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
     val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
-    val data by produceState<ReportSectionData?>(null, refreshTick, slowTick, translationRuns) {
-        value = computeReportStats(context, translationRuns)
+    // Problems stat derives from the same Broken-work scan that drives the
+    // hub card + the ⚠️ badge, so the three never disagree.
+    val brokenBatches by reportViewModel.brokenBatches.collectAsState()
+    val problemReportIds = remember(brokenBatches) { brokenBatches.mapTo(HashSet()) { it.reportId } }
+    LaunchedEffect(refreshTick) { reportViewModel.secondary.refreshBrokenBatches(context) }
+    val data by produceState<ReportSectionData?>(null, refreshTick, slowTick, translationRuns, problemReportIds) {
+        value = computeReportStats(context, translationRuns, problemReportIds)
     }
 
     Column(

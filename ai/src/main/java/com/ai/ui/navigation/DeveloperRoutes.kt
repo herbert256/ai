@@ -142,6 +142,22 @@ private suspend fun recoverBrokenBatch(
                 .forEach { it.join() }
             else rvm.secondary.bulkDeleteSecondaryResults(context, rid, targets.map { it.id }).join()
         }
+        BatchFamilyKind.RESPONSES -> {
+            // Primary report agents — restart regenerates the agent, delete
+            // drops it (no API call). ERRORS mode acts on ERROR agents,
+            // UNFINISHED on the PENDING/RUNNING ones a process kill stranded.
+            // [rowIds] null means the whole line (every agent in that mode).
+            val report = ReportStorage.getReport(context, rid) ?: return
+            val modeAgentIds = report.agents.filter {
+                if (errors) it.reportStatus == ReportStatus.ERROR
+                else it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING
+            }.map { it.agentId }
+            val targets = if (rowIds != null) modeAgentIds.filter { it in rowIds } else modeAgentIds
+            targets.map { agentId ->
+                if (restart) rvm.regenerateAgent(context, rid, agentId)
+                else rvm.removeAgentFromReport(context, rid, agentId)
+            }.forEach { it.join() }
+        }
     }
 }
 
@@ -794,6 +810,14 @@ internal fun NavGraphBuilder.developerRoutes(
                 },
                 onDeleteItems = { batch, mode, rowIds ->
                     launchBrokenWorkAction(batch, mode, restart = false, rowIds = rowIds)
+                },
+                onViewAgent = { reportId, _ ->
+                    // Open the report so the user can see the model in context.
+                    com.ai.data.LastReportTracker.record(reportId, view = false)
+                    brokenWorkScope.launch {
+                        reportViewModel.restoreCompletedReport(brokenWorkContext, reportId)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
                 },
                 loadItems = { batch, mode -> loadBrokenItems(brokenWorkContext, batch, mode) },
             )

@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.ReportStatus
+import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
@@ -59,6 +61,8 @@ fun BrokenWorkScreen(
     onDelete: (BrokenBatch, BrokenItemMode) -> Unit,
     onRestartItems: (BrokenBatch, BrokenItemMode, Set<String>) -> Unit,
     onDeleteItems: (BrokenBatch, BrokenItemMode, Set<String>) -> Unit,
+    // Per-agent "view" for the RESPONSES detail — (reportId, agentId).
+    onViewAgent: (String, String) -> Unit = { _, _ -> },
     loadItems: suspend (BrokenBatch, BrokenItemMode) -> List<BrokenItemRow>,
 ) {
     var viewing by remember { mutableStateOf<Pair<BrokenBatch, BrokenItemMode>?>(null) }
@@ -69,6 +73,21 @@ fun BrokenWorkScreen(
     val v = viewing
     if (v != null) {
         val busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(v.first, v.second)) }
+        if (v.first.kind == BatchFamilyKind.RESPONSES) {
+            // Agents get a per-row view / restart / delete detail (not the
+            // checkbox + bulk model the secondary batches use).
+            BrokenAgentsScreen(
+                batch = v.first,
+                mode = v.second,
+                loadItems = loadItems,
+                busy = busy,
+                onBack = { viewing = null },
+                onView = { agentId -> onViewAgent(v.first.reportId, agentId) },
+                onRestart = { agentId -> if (!busy) onRestartItems(v.first, v.second, setOf(agentId)) },
+                onDelete = { agentId -> if (!busy) onDeleteItems(v.first, v.second, setOf(agentId)) },
+            )
+            return
+        }
         BrokenItemsScreen(
             batch = v.first,
             mode = v.second,
@@ -181,7 +200,7 @@ private fun BrokenWorkItem(
                 if (batch.unfinishedCount > 0) {
                     val mode = BrokenItemMode.UNFINISHED
                     CountActionLine(
-                        text = "${batch.unfinishedCount} unfinished",
+                        text = "${batch.unfinishedCount} ${if (batch.kind == BatchFamilyKind.RESPONSES) "interrupted" else "unfinished"}",
                         color = AppColors.WarningAccent,
                         busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(batch, mode)) },
                         canView = canView,
@@ -399,6 +418,105 @@ fun BrokenItemsScreen(
     }
 }
 
+/** Detail for a RESPONSES batch: each broken agent (model response) is its
+ *  own row with per-row view / restart / delete — the layout the user asked
+ *  for, distinct from [BrokenItemsScreen]'s checkbox + bulk model. Agents
+ *  act one at a time, matching the per-line actions on the card. Reloads
+ *  whenever [busy] flips so a restarted / removed model leaves the list. */
+@Composable
+fun BrokenAgentsScreen(
+    batch: BrokenBatch,
+    mode: BrokenItemMode,
+    loadItems: suspend (BrokenBatch, BrokenItemMode) -> List<BrokenItemRow>,
+    busy: Boolean,
+    onBack: () -> Unit,
+    onView: (String) -> Unit,
+    onRestart: (String) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    BackHandler { onBack() }
+    var rows by remember(batch, mode) { mutableStateOf<List<BrokenItemRow>?>(null) }
+    var confirmDelete by remember { mutableStateOf<String?>(null) }
+    // Reload on mount and whenever an action finishes (busy true → false).
+    LaunchedEffect(batch, mode, busy) {
+        rows = withContext(Dispatchers.IO) { loadItems(batch, mode) }
+    }
+    val title = if (mode == BrokenItemMode.ERRORS) "Errored models" else "Interrupted models"
+
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(
+            helpTopic = "broken_items",
+            title = title,
+            subject = "${batch.reportTitle} · ${batch.batchName}",
+            onBackClick = onBack,
+        )
+        if (busy) {
+            Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
+            Spacer(Modifier.height(6.dp))
+        }
+        when (val list = rows) {
+            null -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text("…", color = AppColors.TextTertiary)
+            }
+            else -> if (list.isEmpty()) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    Text("(no items)", color = AppColors.TextTertiary)
+                }
+            } else {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    items(list, key = { it.id }) { row ->
+                        val icons = LocalMetadataIcons.current
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f).padding(end = 6.dp)) {
+                                    Text(
+                                        row.label, fontSize = 13.sp, color = AppColors.TextPrimary,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (row.detail.isNotBlank()) {
+                                        Text(
+                                            row.detail, fontSize = 11.sp,
+                                            color = if (mode == BrokenItemMode.ERRORS) AppColors.DangerAccent else AppColors.TextSecondary,
+                                            maxLines = 3, overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                if (busy) {
+                                    Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
+                                } else {
+                                    IconGlyph(icons.view) { onView(row.id) }
+                                    IconGlyph(icons.delete) { confirmDelete = row.id }
+                                    IconGlyph(icons.reload) { onRestart(row.id) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    confirmDelete?.let { agentId ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("Delete this model?") },
+            text = { Text("Drops the model's row from the report. No API calls are made.") },
+            confirmButton = {
+                TextButton(onClick = { onDelete(agentId); confirmDelete = null }) {
+                    Text("Delete", color = AppColors.DangerAccent)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } }
+        )
+    }
+}
+
 /** The individual SecondaryResult rows of one [batch] in one [mode], read
  *  from disk. Mirrors the per-kind predicates the scan
  *  (SecondaryRunManager.detectBrokenBatchesForReport) groups by — the one
@@ -410,9 +528,22 @@ fun matchingBrokenRows(context: Context, batch: BrokenBatch, mode: BrokenItemMod
     return BrokenWorkPolicy.matchingRows(rows, batch, mode, BrokenWorkLiveState())
 }
 
-/** Display rows for the [BrokenItemsScreen] detail list. */
+/** Display rows for the detail list. RESPONSES rows are primary report
+ *  agents (read from [ReportStorage], not SecondaryResult storage); every
+ *  other kind reuses [matchingBrokenRows]. */
 fun loadBrokenItems(context: Context, batch: BrokenBatch, mode: BrokenItemMode): List<BrokenItemRow> {
     val errors = mode == BrokenItemMode.ERRORS
+    if (batch.kind == BatchFamilyKind.RESPONSES) {
+        val report = ReportStorage.getReport(context, batch.reportId) ?: return emptyList()
+        return report.agents.filter {
+            if (errors) it.reportStatus == ReportStatus.ERROR
+            else it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING
+        }.map { a ->
+            val label = a.model.ifBlank { a.agentName }.ifBlank { "model" }
+            val detail = if (errors) (a.errorMessage ?: "(no message)") else "Interrupted — never finished"
+            BrokenItemRow(a.agentId, label, detail)
+        }
+    }
     return matchingBrokenRows(context, batch, mode).map { r ->
         val label = r.model.ifBlank { r.agentName }.ifBlank { "item" }
         val detail = if (errors) {
