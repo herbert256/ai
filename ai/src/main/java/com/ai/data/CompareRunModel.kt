@@ -37,10 +37,10 @@ typealias CompareCellStatus = BatchItemStatus
 
 /** One (answer, meta-result) similarity score within a compare run. */
 data class CompareCellState(
-    val id: String,                      // SecondaryResult.id (UUID)
+    override val id: String,             // SecondaryResult.id (UUID)
     val agentId: String,                 // the report answer being scored
     val metaResultId: String,            // the meta result it is scored against
-    val status: CompareCellStatus,
+    override val status: CompareCellStatus,
     /** Parsed 0..100 from the row's content; null until scored. */
     val percent: Int? = null,
     val reason: String? = null,
@@ -55,34 +55,28 @@ data class CompareCellState(
     val tokenUsage: TokenUsage? = null,
     val traceFile: String? = null,
     val timestamp: Long = System.currentTimeMillis()
-) {
-    val key: String get() = compareCellKey(agentId, metaResultId)
-    val totalCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
+) : BatchItem<String> {
+    override val key: String get() = compareCellKey(agentId, metaResultId)
+    override val totalCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
 }
 
 /** Entire compare run state for a report. */
 data class CompareRunState(
     val key: CompareRunKey,
-    val reportId: String,
+    override val reportId: String,
     /** Per-run UUID shared by every cell (on [SecondaryResult.compareRunId]). */
     val runId: String,
     val comparePrompt: InternalPrompt,
     /** Cell map keyed by [CompareCellState.key] so a lookup is O(1). */
     val cells: Map<String, CompareCellState> = emptyMap(),
     val cancelled: Boolean = false
-) {
+) : BatchRun<String, CompareCellState> {
+    override val items: Map<String, CompareCellState> get() = cells
     val totalCells: Int get() = cells.size
-    val doneCount: Int get() = cells.values.count { it.status == CompareCellStatus.DONE }
-    val errorCount: Int get() = cells.values.count { it.status == CompareCellStatus.ERROR }
-    val runningCount: Int get() = cells.values.count { it.status == CompareCellStatus.RUNNING }
-    val queuedCount: Int get() = cells.values.count { it.status == CompareCellStatus.PENDING }
-    val totalCost: Double get() = cells.values.sumOf { it.totalCost }
     /** Distinct report answers scored, in first-seen order. */
     val agentIds: List<String> get() = cells.values.map { it.agentId }.distinct()
     /** Distinct meta results scored against, in first-seen order. */
     val metaResultIds: List<String> get() = cells.values.map { it.metaResultId }.distinct()
-    val allTerminal: Boolean get() = cells.isNotEmpty() &&
-        cells.values.all { it.status == CompareCellStatus.DONE || it.status == CompareCellStatus.ERROR }
 
     /** Mean scored percentage across [agentId]'s done cells, or null when none
      *  scored yet. The "Report models" L1 grouping reads this. */

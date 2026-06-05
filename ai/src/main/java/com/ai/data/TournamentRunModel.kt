@@ -46,11 +46,11 @@ typealias MatchStatus = BatchItemStatus
 
 /** One ordered head-to-head judgment within a tournament run. */
 data class MatchState(
-    val id: String,                      // SecondaryResult.id (UUID)
+    override val id: String,             // SecondaryResult.id (UUID)
     val responseAId: String,             // agentId in the @RESPONSE_A@ slot
     val responseBId: String,             // agentId in the @RESPONSE_B@ slot
     val orientation: Int,                // 0 = canonical, 1 = swapped
-    val status: MatchStatus,
+    override val status: MatchStatus,
     /** "provider/model" of the worker that judged this match — null until
      *  the worker chain settles. Drives the "Tournament models" grouping. */
     val judgeModel: String? = null,
@@ -65,16 +65,16 @@ data class MatchState(
     val durationMs: Long? = null,
     val tokenUsage: TokenUsage? = null,
     val timestamp: Long = System.currentTimeMillis()
-) {
-    val key: MatchKey get() = matchKey(responseAId, responseBId, orientation)
-    val totalCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
+) : BatchItem<MatchKey> {
+    override val key: MatchKey get() = matchKey(responseAId, responseBId, orientation)
+    override val totalCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
 }
 
 /** Entire tournament run state for a report. Built by hydration on first
  *  access and mutated by the engine's per-transition update calls. */
 data class TournamentRunState(
     val key: TournamentRunKey,
-    val reportId: String,
+    override val reportId: String,
     /** Per-run UUID shared by every row (carried on
      *  [SecondaryResult.tournamentJudgeRunId]); the 🐞 trace deep-link
      *  and resume both key on it. */
@@ -87,20 +87,13 @@ data class TournamentRunState(
     val aggregateRowId: String? = null,
     val selectedMethod: TournamentMethod = TournamentMethod.COPELAND,
     val cancelled: Boolean = false
-) {
+) : BatchRun<MatchKey, MatchState> {
+    override val items: Map<MatchKey, MatchState> get() = matches
     val totalMatches: Int get() = matches.size
-    val doneCount: Int get() = matches.values.count { it.status == MatchStatus.DONE }
-    val errorCount: Int get() = matches.values.count { it.status == MatchStatus.ERROR }
-    val runningCount: Int get() = matches.values.count { it.status == MatchStatus.RUNNING }
-    val queuedCount: Int get() = matches.values.count { it.status == MatchStatus.PENDING }
-    val totalCost: Double get() = matches.values.sumOf { it.totalCost }
     /** Distinct judging worker models seen so far — the L1 "Judges" stat
      *  and the "Tournament models" grouping keys. */
     val distinctJudgeModels: Set<String>
         get() = matches.values.mapNotNull { it.judgeModel }.toSet()
-    /** True once every match has reached a terminal state. */
-    val allTerminal: Boolean get() = matches.isNotEmpty() &&
-        matches.values.all { it.status == MatchStatus.DONE || it.status == MatchStatus.ERROR }
 }
 
 /** Reverse-map a persisted MATCH [SecondaryResult] row into a

@@ -42,12 +42,12 @@ typealias PairStatus = BatchItemStatus
  *  fields of the on-disk [SecondaryResult] row plus the per-pair
  *  [status] enum. */
 data class PairState(
-    val id: String,                      // SecondaryResult.id (UUID)
+    override val id: String,             // SecondaryResult.id (UUID)
     val answererAgentId: String,
     val sourceAgentId: String,
     val providerId: String,
     val model: String,
-    val status: PairStatus,
+    override val status: PairStatus,
     val content: String? = null,
     val errorMessage: String? = null,
     val inputCost: Double? = null,
@@ -96,9 +96,9 @@ data class PairState(
      *  "Meta model" line. Null on legacy rows / before the batch
      *  recorded cost. */
     val titleModel: String? = null
-) {
-    val key: PairKey get() = pairKey(answererAgentId, sourceAgentId)
-    val totalCost: Double get() =
+) : BatchItem<PairKey> {
+    override val key: PairKey get() = pairKey(answererAgentId, sourceAgentId)
+    override val totalCost: Double get() =
         (inputCost ?: 0.0) + (outputCost ?: 0.0) +
             iconInputCost + iconOutputCost + titleInputCost + titleOutputCost
 }
@@ -163,7 +163,7 @@ data class CombinedReportState(
  *  calls. UI reads from a snapshot of this. */
 data class FanOutRunState(
     val key: FanOutRunKey,
-    val reportId: String,
+    override val reportId: String,
     val metaPrompt: InternalPrompt,
     val scope: SecondaryScope,
     /** Subset of report-agent ids selected as answerers on the
@@ -187,13 +187,10 @@ data class FanOutRunState(
      *  rerunComplete so the new batch fires against the same
      *  translated bodies + prompt as the original run. */
     val sourceLanguage: String? = null
-) {
+) : BatchRun<PairKey, PairState> {
+    override val items: Map<PairKey, PairState> get() = pairs
     val totalPairs: Int get() = pairs.size
-    val doneCount: Int get() = pairs.values.count { it.status == PairStatus.DONE }
-    val errorCount: Int get() = pairs.values.count { it.status == PairStatus.ERROR }
-    val runningCount: Int get() = pairs.values.count { it.status == PairStatus.RUNNING }
-    val queuedCount: Int get() = pairs.values.count { it.status == PairStatus.PENDING }
-    val totalCost: Double get() =
+    override val totalCost: Double get() =
         pairs.values.sumOf { it.totalCost } + combinedReports.sumOf { it.totalCost }
 
     /** UI helper — every pair's answerer key, deduplicated, in

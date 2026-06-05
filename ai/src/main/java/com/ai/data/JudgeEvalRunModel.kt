@@ -43,13 +43,13 @@ typealias JudgeCellStatus = BatchItemStatus
 
 /** One judge's verdict on one match. */
 data class JudgeCellState(
-    val id: String,                      // SecondaryResult.id (UUID)
+    override val id: String,             // SecondaryResult.id (UUID)
     val judgeProviderId: String,         // the judge (this cell's providerId)
     val judgeModel: String,              // the judge (this cell's model)
     val responseAId: String,             // agentId in the @RESPONSE_A@ slot
     val responseBId: String,             // agentId in the @RESPONSE_B@ slot
     val orientation: Int,                // kept for the shared match fields; always 0 here
-    val status: JudgeCellStatus,
+    override val status: JudgeCellStatus,
     /** Parsed from the row's content: "A" | "B" | "tie" | null. */
     val verdict: String? = null,
     val confidence: Double? = null,
@@ -64,17 +64,17 @@ data class JudgeCellState(
      *  the per-row 🐞 deep-link. */
     val traceFile: String? = null,
     val timestamp: Long = System.currentTimeMillis()
-) {
+) : BatchItem<String> {
     val matchKey: MatchKey get() = matchKey(responseAId, responseBId, orientation)
     val judgeKey: String get() = "$judgeProviderId/$judgeModel"
-    val key: String get() = judgeCellKey(judgeProviderId, judgeModel, matchKey)
-    val totalCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
+    override val key: String get() = judgeCellKey(judgeProviderId, judgeModel, matchKey)
+    override val totalCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
 }
 
 /** Entire judge-eval run state for a report. */
 data class JudgeEvalRunState(
     val key: JudgeEvalRunKey,
-    val reportId: String,
+    override val reportId: String,
     /** Per-run UUID shared by every row (on [SecondaryResult.tournamentJudgeRunId]). */
     val runId: String,
     val prompt: InternalPrompt,
@@ -83,21 +83,15 @@ data class JudgeEvalRunState(
     /** SecondaryResult.id of the rolled-up AGGREGATE analysis row. */
     val aggregateRowId: String? = null,
     val cancelled: Boolean = false
-) {
+) : BatchRun<String, JudgeCellState> {
+    override val items: Map<String, JudgeCellState> get() = cells
     val totalCells: Int get() = cells.size
-    val doneCount: Int get() = cells.values.count { it.status == JudgeCellStatus.DONE }
-    val errorCount: Int get() = cells.values.count { it.status == JudgeCellStatus.ERROR }
-    val runningCount: Int get() = cells.values.count { it.status == JudgeCellStatus.RUNNING }
-    val queuedCount: Int get() = cells.values.count { it.status == JudgeCellStatus.PENDING }
-    val totalCost: Double get() = cells.values.sumOf { it.totalCost }
     /** Distinct judges in the run, in first-seen order. */
     val judgeKeys: List<String> get() = cells.values.map { it.judgeKey }.distinct()
     /** Distinct matches in the run. */
     val matchKeys: List<MatchKey> get() = cells.values.map { it.matchKey }.distinct()
     val judgeCount: Int get() = judgeKeys.size
     val matchCount: Int get() = matchKeys.size
-    val allTerminal: Boolean get() = cells.isNotEmpty() &&
-        cells.values.all { it.status == JudgeCellStatus.DONE || it.status == JudgeCellStatus.ERROR }
 }
 
 /** Reverse-map a persisted JUDGES CELL [SecondaryResult] row into a
