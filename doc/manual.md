@@ -666,11 +666,13 @@ doesn't lose typed changes.
 > `META` kind. Compare-with-meta scoring prompts live under **Compare
 > prompts** (`meta_compare`). Fan-out / Fan-in templates live under
 > **Fan out/in prompts**; "Other internal prompts" (chat-title /
-> model-info / model-intro / translate-text / translate-title /
-> second-rerank / second-moderation / test-model) is a fixed list with
-> no Add / Delete. The icon / title / language generators and the
-> Tournament judge prompt live in **Worker prompts**; Find-alternative
-> variants live in **Alternative prompts**.
+> model-info / model-intro / second-rerank / second-moderation /
+> test-model) is a fixed list with no Add / Delete. The icon / title /
+> language generators, the Tournament judge prompt, and the
+> **translate-text / translate-title** prompts (each with its own
+> worker swarm — translation runs through the worker engine now, no
+> model picker) live in **Worker prompts**; Find-alternative variants
+> live in **Alternative prompts**.
 
 ### Refresh
 

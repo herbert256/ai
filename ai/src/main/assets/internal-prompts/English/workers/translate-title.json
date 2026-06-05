@@ -1,0 +1,16 @@
+{
+  "name": "translate-title",
+  "title": "Translate a title",
+  "reference": false,
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "Translate"
+    }
+  ],
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

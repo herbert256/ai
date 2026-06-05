@@ -2375,18 +2375,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
         val translates = byKind[SecondaryKind.TRANSLATE].orEmpty()
         if (translates.isNotEmpty()) {
-            data class TranslateRun(val lang: String, val native: String, val provider: AppService, val model: String)
+            // One fresh run per distinct target language — the translate
+            // worker swarm picks the model, so no provider/model to carry.
+            data class TranslateRun(val lang: String, val native: String)
             val translateRuns = translates
                 .mapNotNull { meta ->
                     val lang = meta.targetLanguage ?: return@mapNotNull null
                     val native = meta.targetLanguageNative ?: lang
-                    val provider = AppService.findById(meta.providerId) ?: return@mapNotNull null
-                    TranslateRun(lang, native, provider, meta.model)
+                    TranslateRun(lang, native)
                 }
                 .distinct()
             for (t in translates) SecondaryResultStorage.delete(context, reportId, t.id)
             for (run in translateRuns) {
-                translation.startTranslation(context, reportId, run.lang, run.native, listOf(run.provider to run.model)).second.join()
+                translation.startTranslation(context, reportId, run.lang, run.native).second.join()
             }
         }
     }

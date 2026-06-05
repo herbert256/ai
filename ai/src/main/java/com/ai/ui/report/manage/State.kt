@@ -113,7 +113,6 @@ internal class ReportsScreenState(
     val showEditParameters: MutableState<Boolean>,
     val showAdvancedParameters: MutableState<Boolean>,
     val showTranslateLanguagePicker: MutableState<Boolean>,
-    val showTranslateModelPicker: MutableState<TargetLanguage?>,
     val models: MutableState<List<ReportModel>>,
     val showDeleteConfirm: MutableState<Boolean>,
     val showRegenerateConfirm: MutableState<Boolean>,
@@ -201,7 +200,6 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val showEditParameters = rememberSaveable { mutableStateOf(false) }
     val showAdvancedParameters = rememberSaveable { mutableStateOf(false) }
     val showTranslateLanguagePicker = rememberSaveable { mutableStateOf(false) }
-    val showTranslateModelPicker = rememberSaveable(stateSaver = TargetLanguageSaver) { mutableStateOf<TargetLanguage?>(null) }
     val models = rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(initialModels) }
     val showDeleteConfirm = remember { mutableStateOf(false) }
     val showRegenerateConfirm = remember { mutableStateOf(false) }
@@ -284,7 +282,6 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         showEditParameters,
         showAdvancedParameters,
         showTranslateLanguagePicker,
-        showTranslateModelPicker,
         models,
         showDeleteConfirm,
         showRegenerateConfirm,

@@ -25,13 +25,17 @@ flow:
    - All model reports
    - Top-N from a chosen rerank
    - Manual selection
-3. **Model picker** — pick the chat model(s) to do the translating.
-4. **Run** — `TranslationRunManager.startTranslation` allocates a
-   fresh `runId`, snapshots the report's translatable items, and
-   fires the runner. Each settled item writes a `SecondaryResult`
-   with `kind = TRANSLATE`. Every item is **persisted as it
-   settles** (`saveOneTranslationItem`), not in one bulk flush at
-   the end, so a crash mid-run keeps the completed translations.
+3. **Run** — there is **no model picker**. The language picker
+   launches the run directly: `TranslationRunManager.startTranslation`
+   allocates a fresh `runId`, snapshots the report's translatable
+   items, and fires the runner. Each item is dispatched through the
+   **translate worker swarm** (see below), so the model is chosen by
+   the `WorkerRunner` fallback chain rather than the user. Each
+   settled item writes a `SecondaryResult` with `kind = TRANSLATE`,
+   attributed to the worker that actually answered. Every item is
+   **persisted as it settles** (`saveOneTranslationItem`), not in
+   one bulk flush at the end, so a crash mid-run keeps the completed
+   translations.
 
 Up front, `startTranslation` writes one empty placeholder
 `SecondaryResult` per planned item (stamped with its eventual
@@ -41,31 +45,36 @@ report *after* the run started don't get spuriously translated.
 
 ## How the runner schedules work
 
-Translation is often the slowest operation in the app, so the
-runner is built around a **shared work queue**, not a fixed
-per-model slice:
+Translation is a **Mode-B worker-swarm batch** — the same failure
+model tournament / fan-meta / icons use. There is no user-picked
+model and no per-model work queue:
 
-- All items go into one unbounded `Channel`. Each distinct picked
-  `(provider, model)` gets a worker that pulls the next item,
-  translates it, and pulls again — so a fast model keeps grabbing
-  work instead of idling.
-- Each provider host gets its own `Semaphore` sized from
-  `ProviderThrottle.limitsFor(host)`, so a multi-model run on
-  (OpenAI + Anthropic + Google) doesn't bottleneck one host on
-  another's rate limit. Workers run with
-  `ProviderThrottle.permitPreAcquired = true`.
-- A failed call is **non-terminal**: the item is re-queued and
-  retried on a *different* model (tracked per-item in `triedBy`),
-  up to a small attempt budget, before `finalizeTranslationError`
-  marks it `ERROR`. With more than three distinct models the
-  inline OkHttp 429/529 retry loops are suppressed
-  (`ProviderThrottle.suppressInlineRetry`) because cross-model
-  requeue recovers faster than a same-model back-off sleep; the
-  long-Retry-After bench check still parks a >1h-rate-limited model
-  on `ModelCooldownStore`.
-- Every worker pulls from the shared queue as fast as its per-host
-  caps allow — there is no cost-vs-speed throttle; translation
-  always runs at full throughput.
+- Each item is dispatched via `runThrottledBatch(... subCap =
+  ApiCallCaps.translation, dynamicHost = true)`, and inside the body
+  `runOneTranslation` calls `rvm.workerRunner.run(prompt, resolved,
+  …)`. Body kind picks the `workers/translate-text` prompt
+  (`@TEXT@`); the four title kinds pick `workers/translate-title`
+  (`@TITLE@`). Both carry a worker swarm (the bundled **Translate**
+  swarm by default).
+- The `WorkerRunner` owns model selection and fallback: it shuffles
+  the swarm each call, and on a **429** parks that worker on a short
+  cooldown and tries the next; on **404/410** it disables the worker
+  for the session; a 200 with a blank translation is a logical miss
+  that also advances. The call only fails when the whole chain is
+  exhausted (`WorkerOutcome.AllRateLimited` / `Failed`), at which
+  point `finalizeTranslationError` marks the item `ERROR` with a
+  blank provider/model. There is no cross-model requeue or per-item
+  attempt budget anymore — the worker chain *is* the retry.
+- `dynamicHost = true` means each worker call self-throttles its own
+  provider host through `ProviderThrottleInterceptor` (sub → global
+  → host order), so a swarm spanning several providers isn't
+  bottlenecked on one host's rate limit. A per-item 180 s ceiling
+  (`withTimeoutOrNull`) bounds a whole chain so a wedged call can't
+  strand the run.
+- The winning worker's `(provider, model)` is recorded on the
+  `SecondaryResult` (and the live `TranslationItem`) for cost
+  attribution and the L1 per-model grouping; usage posts to AI Usage
+  under the item's per-kind `translate/*` type.
 
 ## Multiple concurrent translation runs
 
@@ -125,10 +134,14 @@ that enum (`AGENT_RESPONSE` ↔ `"AGENT"`).
 
 ### Prompts
 
-Two `InternalPrompt` rows in the **`internal`** category drive the
-substitution (both seeded from `assets/internal-prompts/<lang>/internal/`
+Two `InternalPrompt` rows in the **`workers`** category drive the
+substitution (both seeded from `assets/internal-prompts/<lang>/workers/`
 and delta-merged into existing installs on launch, editable via
-Settings → AI Setup → Internal prompts → **Other internal prompts**):
+Settings → AI Setup → Internal prompts → **Worker prompts**). Each
+carries a worker swarm — the bundled **Translate** swarm by default
+(`assets/workers/swarms.json`: gpt-5.4-mini, gemini-2.5-flash,
+mistral-medium, deepseek-chat, claude-haiku, grok). Re-curate that
+swarm to change which models translate:
 
 | Prompt | Used for | Placeholders |
 |---|---|---|
@@ -147,11 +160,11 @@ by `@TITLE@`. If the `translate-title` row hasn't been delta-merged
 yet, the runner falls back to a hard-coded
 `DEFAULT_TRANSLATE_TITLE_TEMPLATE` mirroring that asset.
 
-Parameter / system-prompt resolution for the translation call goes
-through the shared `resolveSecondaryParams` (see
-[parameters.md](parameters.md)); the `translate-text` prompt seeds
-`*NONE` for both, so by default the call carries no preset and the
-App-wide fallbacks apply.
+Like every other `workers`-category prompt, the translate prompts
+run through `WorkerRunner`, which dispatches each worker call with no
+explicit parameter / system-prompt preset — so `max_tokens` falls
+back to the per-provider `defaultMaxTokens`, the same as the icon /
+title / tournament workers.
 
 ## Multi-language fan-out for chat-type Meta runs
 
@@ -291,13 +304,13 @@ so the per-item screens can deep-link a 🐞 straight to the call.
 
 ## Editing the translation prompt
 
-Settings → AI Setup → Internal prompts → **Other internal prompts**
-lists the fixed-name `internal`-category templates (`chat-title` /
-`model-info` / `model-intro` / `translate-text` / `translate-title`
-/ `second-rerank` / `second-moderation` / `test-model`). Edit the
-`text` field of the `translate-text` row (bodies) or
-`translate-title` row (titles); the name is not user-editable for
-these fixed-list templates. Defaults are seeded from
+Settings → AI Setup → Internal prompts → **Worker prompts** lists the
+fixed-name `workers`-category templates, including `translate-text`
+and `translate-title` alongside the icon / title / language /
+tournament workers. Edit the `text` field of the `translate-text`
+row (bodies) or `translate-title` row (titles), and edit each row's
+**worker swarm** to change which models translate; the name is not
+user-editable for these fixed-list templates. Defaults are seeded from
 `assets/internal-prompts/` on a fresh install and delta-merged on
 later launches; existing entries are never overwritten by a re-seed
 unless the user runs Housekeeping → Reset → **"back to

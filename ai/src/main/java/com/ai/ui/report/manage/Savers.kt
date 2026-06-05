@@ -104,11 +104,6 @@ internal val InternalPromptSaver: Saver<InternalPrompt?, Any> = listSaver(
     }
 )
 
-internal val TargetLanguageSaver: Saver<TargetLanguage?, Any> = listSaver(
-    save = { tl -> if (tl == null) emptyList() else listOf(tl.name, tl.native) },
-    restore = { l -> if (l.isEmpty()) null else TargetLanguage(l[0] as String, l[1] as String) }
-)
-
 internal val SecondaryScopeSaver: Saver<SecondaryScope, String> = Saver(
     save = { it.encode() },
     restore = { SecondaryScope.decodeOrAllReports(it) }

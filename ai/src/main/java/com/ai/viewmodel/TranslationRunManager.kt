@@ -8,24 +8,15 @@ import com.ai.data.*
 import com.ai.model.*
 import com.ai.ui.helpers.translationRunGroupingId
 import com.ai.ui.shared.shortModelName
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.asContextElement
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /** Persisted `translateSourceKind` string for a [TranslationKind]. */
@@ -101,6 +92,20 @@ class TranslationRunManager(
     val translationRuns: StateFlow<Map<String, TranslationRunState>> = _translationRuns.asStateFlow()
     internal val translationJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
+    /** The "workers"-category translate prompt — body uses
+     *  `translate-text` (`@TEXT@`), the four title kinds use
+     *  `translate-title` (`@TITLE@`). Both carry their own worker
+     *  swarm now, so a translation run dispatches through the
+     *  [WorkerRunner] fallback chain exactly like tournament /
+     *  fan-meta — no user-picked model. Returns null when the prompt
+     *  isn't present (or was moved out of the workers category). */
+    private fun workerTranslatePrompt(aiSettings: Settings, title: Boolean): InternalPrompt? {
+        val name = if (title) "translate-title" else "translate-text"
+        return aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name.equals(name, ignoreCase = true)
+        }
+    }
+
     /** Snapshot the report's translatable items, kick off the runner.
      *  Concurrency capped at 3 — translations are often the slowest
      *  operation in the app and respecting provider rate limits is
@@ -114,21 +119,12 @@ class TranslationRunManager(
         context: Context,
         sourceReportId: String,
         targetLanguageName: String,
-        targetLanguageNative: String,
-        models: List<Pair<AppService, String>>,
-        paramsIds: List<String> = emptyList(),
-        systemPromptId: String? = null
+        targetLanguageNative: String
     ): Pair<String, Job> {
-        if (models.isEmpty()) {
-            AppLog.w("Translation", "startTranslation called with empty models — skipping")
-            return "" to appViewModel.viewModelScope.launch {}
-        }
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
-            val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, paramsIds, systemPromptId, aiSettings.getInternalPromptByName("translate-text"))
-            val generalSettings = state.generalSettings
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
                 _translationRuns.update { it - runId }
                 return@launch
@@ -262,247 +258,62 @@ class TranslationRunManager(
                 sourceReportId = sourceReportId,
                 targetLanguageName = targetLanguageName,
                 targetLanguageNative = targetLanguageNative,
-                items = itemsWithIds,
-                models = models.distinctBy { (p, m) -> p.id to m }
-                    .map { (p, m) -> "${p.id}|$m" }
+                items = itemsWithIds
             )) }
-            AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via ${models.size} model${if (models.size == 1) "" else "s"}")
-            AuditLog.append(sourceReportId, "Start Translation to $targetLanguageName ($targetLanguageNative) — ${itemsWithIds.size} item(s) via ${models.size} model(s)")
+            AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via the translate worker swarm")
+            AuditLog.append(sourceReportId, "Start Translation to $targetLanguageName ($targetLanguageNative) — ${itemsWithIds.size} item(s) via worker swarm")
 
-            val template = aiSettings.getInternalPromptByName("translate-text")?.text.orEmpty()
-            val titleTemplate = aiSettings.getInternalPromptByName("translate-title")?.text
-                ?.takeIf { it.isNotBlank() } ?: DEFAULT_TRANSLATE_TITLE_TEMPLATE
-
-            // Pre-resolve apiKey / baseUrl / pricing once per
-            // distinct (provider, model) so the inner loop doesn't
-            // hit PricingCache repeatedly for items that share a
-            // model.
-            data class ModelCtx(
-                val provider: AppService, val model: String,
-                val apiKey: String, val baseUrl: String,
-                val pricing: PricingCache.ModelPricing
-            )
-            val ctxByKey: Map<Pair<String, String>, ModelCtx> = models
-                .distinct()
-                .associate { (p, m) ->
-                    (p.id to m) to ModelCtx(
-                        provider = p, model = m,
-                        apiKey = aiSettings.getApiKey(p),
-                        baseUrl = aiSettings.getEffectiveEndpointUrl(p),
-                        pricing = PricingCache.getPricing(context, p, m)
-                    )
+            // Translation now runs through the WorkerRunner swarm — the
+            // same Mode-B fallback chain tournament / fan-meta use. No
+            // user-picked model: each item is handed to the
+            // workers/translate-text (body) or workers/translate-title
+            // (title) prompt, which shuffles its swarm and falls back
+            // on a 429 / miss. An item only ERRORs when the whole chain
+            // is exhausted.
+            val textPrompt = workerTranslatePrompt(aiSettings, title = false)
+            val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
+            if (textPrompt == null && titlePrompt == null) {
+                AppLog.w("Translation", "no workers/translate-text|title prompt — marking all items error")
+                itemsWithIds.forEach {
+                    finalizeTranslationError(context, runId, it, "translate worker prompt missing — add it under AI Setup → Prompt management → Worker prompts")
                 }
-
-            // Per-host suspending caps — mirrors runFanOutPrompt /
-            // rerunFanOutPlaceholders. Each provider host gets its
-            // own concurrent gate sized from ProviderThrottle so a
-            // multi-model run on (OpenAI + Anthropic + Google)
-            // doesn't bottleneck one host on the other's rate
-            // limit.
-            val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = models
-                .map { (p, _) -> providerHost(p) }
-                .distinct()
-                .associateWith { host ->
-                    val (_, concurrent) = ProviderThrottle.limitsFor(host)
-                    kotlinx.coroutines.sync.Semaphore(concurrent)
+                _translationRuns.update { runs ->
+                    val cur = runs[runId] ?: return@update runs
+                    runs + (runId to cur.copy(finished = true))
                 }
+                return@launch
+            }
 
-            // Shared work queue. Items go into one channel; each
-            // distinct picked model gets a worker that pulls the next
-            // item, translates it, and pulls again — so a fast model
-            // keeps grabbing work instead of idling on a fixed slice.
-            // The channel is NOT closed up front: a failed attempt
-            // re-queues its item, and `remaining` (only decremented on
-            // a terminal outcome) closes the channel when the last
-            // item settles. A requeued item is non-terminal so it's
-            // still counted — `remaining` can't hit 0 while one is in
-            // flight, so the requeue `trySend` always lands.
-            val itemQueue = Channel<TranslationItem>(Channel.UNLIMITED)
-            itemsWithIds.forEach { itemQueue.trySend(it) }
-            val remaining = java.util.concurrent.atomic.AtomicInteger(itemsWithIds.size)
-            val attempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
-            val triedBy = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Pair<String, String>>>()
-            val distinctModels = models.distinctBy { (p, m) -> p.id to m }
-            val distinctModelCount = distinctModels.size
-            // Skip the OkHttp 429 / 529 retry loops when the swarm has
-            // > 3 models — the cross-model requeue below is a faster
-            // recovery than a 1-3 s sleep on the same model. With ≤ 3
-            // alternatives we keep the inline retry: fewer models to
-            // bounce between, more value in waiting for the same one
-            // to recover. The fast bench check (long Retry-After) still
-            // runs either way, so a >1h rate limit still parks the
-            // model on ModelCooldownStore. Set via the existing
-            // ProviderThrottle.suppressInlineRetry ThreadLocal (same
-            // knob the bulk health-sweep uses).
-            val suppressInlineRetryOn429And529 = distinctModelCount > 3
-            val callContext: kotlin.coroutines.CoroutineContext =
-                if (suppressInlineRetryOn429And529)
-                    ProviderThrottle.permitPreAcquired.asContextElement(true) +
-                        ProviderThrottle.suppressInlineRetry.asContextElement(true)
-                else
-                    ProviderThrottle.permitPreAcquired.asContextElement(true)
-            // Every worker pulls from the shared queue as fast as its
-            // per-host caps allow (the old cost-aware hesitation is gone —
-            // throughput over spend).
-            // Per-attempt wall-clock budget. The work queue rebalances
-            // *queued* items but can't steal one already in-flight in a
-            // slow worker — so a pathologically slow model (or one
-            // hitting the 120s socket timeout, then the dispatch
-            // layer's internal retry → ~240s) would hold an item
-            // hostage and strand the tail at "960/962" for minutes.
-            // Capping the call here turns that into a Failed attempt:
-            // the item is requeued and a faster model picks it up.
-            val callBudgetMs = 90_000L
-
-            // Tag every translation call's trace with the SOURCE report
-            // id — translations live on that report now, no separate
-            // translated copy to keep traces with.
-            // Category is set per-item in runOneTranslation (each translation
-            // kind gets its own translate/* type); only reportId + runId are
-            // batch-wide here.
+            // Per-item dispatch under the translation flow cap in
+            // dynamic-host mode — each worker call self-throttles its
+            // own provider host (the chain spans providers and changes
+            // on 429-fallback). A per-item 180s ceiling bounds a whole
+            // chain so a wedged call can't strand the run; a timeout
+            // finalizes that item as ERROR.
             withTracerTags(reportId = sourceReportId, runId = runId) {
-                coroutineScope {
-                    distinctModels.map { (p, m) ->
-                        val ctx = ctxByKey[p.id to m]
-                            ?: error("missing ctx for ${p.id}/$m")
-                        launch {
-                            val modelKey = ctx.provider.id to ctx.model
-                            // A benched model stops pulling — its share
-                            // flows to the healthy workers instead.
-                            while (!rvm.isBenched(ctx.provider, ctx.model)) {
-                                val item = itemQueue.receiveCatching().getOrNull() ?: break
-                                val tried = triedBy.computeIfAbsent(item.id) {
-                                    java.util.concurrent.ConcurrentHashMap.newKeySet()
-                                }
-                                // Prefer handing a previously-failed item
-                                // to a model that hasn't tried it yet.
-                                // Requeue + a short delay bounds the
-                                // busy-wait while other workers are
-                                // mid-call.
-                                if (modelKey in tried && tried.size < distinctModelCount) {
-                                    itemQueue.trySend(item)
-                                    delay(100)
-                                    continue
-                                }
-                                tried += modelKey
-                                val host = providerHost(ctx.provider)
-                                val cap = perHostCaps[host]
-                                    ?: kotlinx.coroutines.sync.Semaphore(1)
-                                // Canonical order: global → translation →
-                                // per-host (cap + acquireOrRequeue INSIDE the
-                                // outer caps). The host gate MUST sit inside
-                                // global, never before it — the metadata /
-                                // interceptor path holds global then
-                                // blocking-acquires the per-host permit
-                                // (global→host), so taking the host first here
-                                // would invert the order and deadlock.
-                                val outcome = ApiCallCaps.global.withPermit {
-                                    ApiCallCaps.translation.withPermit {
-                                        cap.withPermit {
-                                            // Non-blocking ProviderThrottle gate — a capped
-                                            // host yields the coroutine (delay, not
-                                            // Thread.sleep) so other items proceed; the
-                                            // OkHttp interceptor skips its own acquire via
-                                            // permitPreAcquired. callContext also pins the
-                                            // 429/529 suppress flag when the swarm is
-                                            // big enough that cross-model requeue beats
-                                            // in-place retry. onThrottled/onCleared mirror
-                                            // the wait into the L1 "Throttled" column.
-                                            val releaser = acquireOrRequeue(
-                                                host,
-                                                onThrottled = { appViewModel.updateThrottledTranslationItems { it + item.id } },
-                                                onCleared = { appViewModel.updateThrottledTranslationItems { it - item.id } }
-                                            )
-                                            try {
-                                                withContext(callContext) {
-                                                    // withTimeoutOrNull cancels just this
-                                                    // call on budget overrun (the HTTP call
-                                                    // gets cancelled with it); the worker
-                                                    // then requeues the item for a faster
-                                                    // model. A null result == timed out.
-                                                    kotlinx.coroutines.withTimeoutOrNull(callBudgetMs) {
-                                                        runOneTranslation(
-                                                            runId, context, ctx.provider, ctx.apiKey,
-                                                            ctx.model, ctx.baseUrl, template, titleTemplate,
-                                                            targetLanguageName, item, ctx.pricing,
-                                                            secondaryParams
-                                                        )
-                                                    } ?: run {
-                                                        AppLog.w("Translation", "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s — reassigning")
-                                                        TranslationOutcome.Failed("${ctx.provider.id}/${ctx.model} timed out after ${callBudgetMs / 1000}s")
-                                                    }
-                                                }
-                                            } finally {
-                                                releaser.release()
-                                            }
-                                        }
-                                    }
-                                }
-                                when (outcome) {
-                                    is TranslationOutcome.Success -> {
-                                        if (remaining.decrementAndGet() == 0) itemQueue.close()
-                                    }
-                                    is TranslationOutcome.Failed -> {
-                                        // Up to 3 attempts across models;
-                                        // only the 3rd failure is terminal.
-                                        val n = attempts.merge(item.id, 1, Int::plus)!!
-                                        if (n >= 3) {
-                                            finalizeTranslationError(
-                                                context, runId, item,
-                                                ctx.provider, ctx.model, ctx.pricing,
-                                                outcome.message
-                                            )
-                                            if (remaining.decrementAndGet() == 0) itemQueue.close()
-                                        } else {
-                                            // Back to PENDING + requeue for
-                                            // another model. Clear the model
-                                            // attribution — a requeued item is
-                                            // unassigned again, so the run
-                                            // screen counts it under "Queue",
-                                            // not the model that just failed it.
-                                            _translationRuns.update { runs ->
-                                                val cur = runs[runId] ?: return@update runs
-                                                runs + (runId to cur.copy(items = cur.items.map {
-                                                    if (it.id == item.id) it.copy(
-                                                        status = TranslationStatus.PENDING,
-                                                        providerId = null,
-                                                        model = null
-                                                    ) else it
-                                                }))
-                                            }
-                                            itemQueue.trySend(item)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }.joinAll()
-                }
-
-                // Degenerate case: every picked model is benched, so
-                // every worker breaks on the `isBenched` guard with
-                // items still non-terminal. Finalize whatever is left
-                // so nothing leaks as PENDING/RUNNING forever.
-                val leftover = _translationRuns.value[runId]?.items.orEmpty()
-                    .filter { it.status != TranslationStatus.DONE && it.status != TranslationStatus.ERROR }
-                if (leftover.isNotEmpty()) {
-                    val (p, m) = models.first()
-                    val ctx = ctxByKey[p.id to m]!!
-                    leftover.forEach {
-                        finalizeTranslationError(
-                            context, runId, it, ctx.provider, ctx.model, ctx.pricing,
-                            "no available model — all picked models are rate-limited"
-                        )
+                runThrottledBatch(
+                    items = itemsWithIds,
+                    hostOf = { null },
+                    subCap = ApiCallCaps.translation,
+                    dynamicHost = true,
+                ) { item ->
+                    // Skip if the report / placeholder row was deleted mid-run.
+                    if (!SecondaryResultStorage.exists(context, sourceReportId, item.persistedRowId ?: "")) {
+                        return@runThrottledBatch
+                    }
+                    val outcome = kotlinx.coroutines.withTimeoutOrNull(180_000) {
+                        runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
+                    } ?: TranslationOutcome.Failed("translation timed out after 180s")
+                    if (outcome is TranslationOutcome.Failed) {
+                        finalizeTranslationError(context, runId, item, outcome.message)
                     }
                 }
 
                 // Per-item rows were already persisted inside
-                // runOneTranslation as each call settled, so the
-                // batch survives a redeploy / OS kill mid-run. Just
-                // bump the parent report's timestamp once at the end
-                // so the History list resorts. Skipped on cancel —
-                // the cancelled item stays unpersisted and the
-                // timestamp bump is moot.
+                // runOneTranslation as each call settled, so the batch
+                // survives a redeploy / OS kill mid-run. Just bump the
+                // parent report's timestamp once at the end so History
+                // resorts. Skipped on cancel.
                 val finalState = _translationRuns.value[runId] ?: return@withTracerTags
                 if (finalState.cancelled) {
                     AppLog.i("Translation", "← cancelled $targetLanguageName for report=$sourceReportId")
@@ -536,17 +347,14 @@ class TranslationRunManager(
     }
 
     /** Mark a translation item ERROR and persist its TRANSLATE row.
-     *  This is the terminal failure path — used after the retry budget
-     *  is exhausted (3 attempts) or when no model is available at all.
-     *  Pulled out of [runOneTranslation] so the retrying caller, not
-     *  the call itself, owns the decision to give up on an item. */
+     *  Terminal failure path — used when the worker chain is exhausted
+     *  (every translate worker rate-limited or missed) or the per-item
+     *  budget runs out. There's no single model to attribute the
+     *  failure to now, so the row carries a blank provider/model. */
     private fun finalizeTranslationError(
         context: Context,
         runId: String,
         item: TranslationItem,
-        provider: AppService,
-        model: String,
-        pricing: PricingCache.ModelPricing,
         message: String
     ) {
         _translationRuns.update { runs ->
@@ -555,153 +363,129 @@ class TranslationRunManager(
                 if (it.id == item.id) it.copy(
                     status = TranslationStatus.ERROR,
                     errorMessage = message,
-                    providerId = provider.id,
-                    model = model
+                    providerId = null,
+                    model = null
                 ) else it
             }))
         }
         val freshRun = _translationRuns.value[runId]
         val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
         if (freshRun != null && freshItem != null) {
-            saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
+            saveOneTranslationItem(context, runId, freshRun, freshItem, null, "", null)
         }
     }
 
+    /** Translate one item through the translate worker swarm. The body
+     *  kind picks [textPrompt] (workers/translate-text, `@TEXT@`); the
+     *  four title kinds pick [titlePrompt] (workers/translate-title,
+     *  `@TITLE@`). The [WorkerRunner] owns model selection + 429 / miss
+     *  fallback across the swarm, so there's no user-picked model and no
+     *  cross-model retry here — the item only fails when the whole chain
+     *  is exhausted. On success the row is attributed to the worker that
+     *  actually answered. */
     private suspend fun runOneTranslation(
         runId: String,
         context: Context,
-        provider: AppService,
-        apiKey: String,
-        model: String,
-        baseUrl: String,
-        template: String,
-        titleTemplate: String,
-        targetLanguageName: String,
         item: TranslationItem,
-        pricing: PricingCache.ModelPricing,
-        secondaryParams: AgentParameters = AgentParameters()
+        targetLanguageName: String,
+        textPrompt: InternalPrompt?,
+        titlePrompt: InternalPrompt?
     ): TranslationOutcome {
-        // Model benched on a >1h 429 by an earlier call — report it as
-        // a failed attempt without touching state or persisting. The
-        // caller retries the item on another model and only finalizes
-        // ERROR once the retry budget is spent.
-        if (rvm.isBenched(provider, model)) {
-            AppLog.w("Translation", "skip benched ${provider.id}/$model — item ${item.id} failed attempt")
-            return TranslationOutcome.Failed("${provider.id}/$model is rate-limited (benched) — skipped")
-        }
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val prompt = (if (item.kind.isTitle) titlePrompt else textPrompt)
+            ?: return TranslationOutcome.Failed("translate worker prompt missing for ${item.kind}")
+        if (prompt.workers.isEmpty())
+            return TranslationOutcome.Failed("translate prompt '${prompt.name}' has no workers configured")
+
+        // RUNNING; provider/model stay null until a worker wins it.
         _translationRuns.update { runs ->
             val cur = runs[runId] ?: return@update runs
             runs + (runId to cur.copy(items = cur.items.map {
                 if (it.id == item.id) it.copy(
-                    status = TranslationStatus.RUNNING,
-                    providerId = provider.id,
-                    model = model
+                    status = TranslationStatus.RUNNING, providerId = null, model = null
                 ) else it
             }))
         }
-        // Belt-and-braces against a coroutine cancellation between
-        // the RUNNING-state set above and the terminal DONE/Failed
-        // update below — a cancelled `runOneTranslation` returns no
-        // outcome to its caller (no `finalizeTranslationError` runs),
-        // so without this catch the item is stranded as RUNNING in
-        // the in-memory run state forever (disk is unaffected). Demote
-        // back to PENDING and rethrow; a subsequent retry/reload will
-        // pick it up cleanly.
+        // Demote RUNNING → PENDING on cancellation so the item isn't
+        // stranded in the in-memory state; a resume/reload re-picks it.
         try {
             AppLog.d("Translation", "→ item ${item.id} \"${item.label}\" kind=${item.kind} srcLen=${item.sourceText.length}")
-            // Title kinds use the short translate-title prompt
-            // (@TITLE@); bodies use the translate prompt (@TEXT@).
             val resolved = if (item.kind.isTitle)
-                titleTemplate
-                    .replace("@LANGUAGE@", targetLanguageName)
-                    .replace("@TITLE@", item.sourceText)
+                prompt.text.replace("@LANGUAGE@", targetLanguageName).replace("@TITLE@", item.sourceText)
             else
-                template
-                    .replace("@LANGUAGE@", targetLanguageName)
-                    .replace("@TEXT@", item.sourceText)
-            val agent = Agent(
-                id = "translate:${provider.id}:$model",
-                name = "Translate / ${provider.id} / $model",
-                provider = provider, model = model, apiKey = apiKey
-            )
+                prompt.text.replace("@LANGUAGE@", targetLanguageName).replace("@TEXT@", item.sourceText)
+
             val callStart = System.currentTimeMillis()
-            // Capture the trace filename so the View → Prompt screen
-            // can wire a 🐞 directly to this exact translation call.
+            // Surface the per-provider throttle wait to the L1 "Throttled"
+            // counter — a worker call is dynamic-host, so its wait happens
+            // inside ProviderThrottle.acquire, not at the batch layer.
+            val observer: (Boolean) -> Unit = { waiting ->
+                if (waiting) appViewModel.updateThrottledTranslationItems { it + item.id }
+                else appViewModel.updateThrottledTranslationItems { it - item.id }
+            }
+            // Capture the winning call's trace filename for the per-item 🐞.
             val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-            val response = try {
-                // Per-item trace category — each translation kind gets its own
-                // translate/* type. Preserves the batch's reportId + runId.
+            val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(observer)) {
                 withTraceCategory(item.traceType) {
                     withTraceFilenameSink(traceSink) {
-                        appViewModel.repository.analyzeWithAgent(
-                            agent, "", resolved, secondaryParams, null, context, baseUrl
-                        )
+                        rvm.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
+                            !resp.analysis.isNullOrBlank()
+                        }
                     }
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AnalysisResponse(provider, null, e.message ?: "Unknown error", agentName = agent.name)
             }
             val callDurationMs = System.currentTimeMillis() - callStart
-            val capturedTraceFile = traceSink.get()
-            val tu = response.tokenUsage
-            val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
-            // A failed call (incl. a benched-on-this-call >1h 429) is
-            // non-terminal here — the caller retries the item on another
-            // model, up to 3 attempts, and only then finalizes ERROR via
-            // finalizeTranslationError. So a failure leaves _translationRuns
-            // untouched (the item stays RUNNING) and persists nothing.
-            if (!response.isSuccess) {
-                AppLog.d(
-                    "Translation",
-                    "← item ${item.id} err ${callDurationMs}ms — ${response.error ?: "Empty response"}"
-                )
-                return TranslationOutcome.Failed(response.error ?: "Empty response")
+
+            if (outcome !is WorkerOutcome.Success) {
+                val msg = if (outcome is WorkerOutcome.AllRateLimited)
+                    "translate: all workers rate-limited"
+                else "translate: no worker produced a translation"
+                AppLog.d("Translation", "← item ${item.id} err ${callDurationMs}ms — $msg")
+                return TranslationOutcome.Failed(msg)
             }
+
+            // Attribute the row to the worker that actually answered.
+            val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+            }
+            val provider = winAgent?.provider ?: outcome.response.service
+            val model = winAgent?.model.orEmpty()
+            val tu = outcome.response.tokenUsage
+            val pricing = if (model.isNotBlank()) PricingCache.getPricing(context, provider, model) else null
+            val costDollars = if (tu != null && pricing != null) PricingCache.computeCost(tu, pricing) else 0.0
+
             _translationRuns.update { runs ->
                 val cur = runs[runId] ?: return@update runs
                 val updated = cur.items.map {
                     if (it.id != item.id) it
                     else it.copy(
                         status = TranslationStatus.DONE,
-                        translatedText = response.analysis,
+                        translatedText = outcome.response.analysis,
                         costDollars = costDollars,
                         tokenUsage = tu,
                         durationMs = callDurationMs,
                         providerId = provider.id,
                         model = model,
-                        traceFile = capturedTraceFile
+                        traceFile = traceSink.get()
                     )
                 }
                 runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
             }
-            // Persist this item as soon as the call settles so the row
-            // survives a process kill mid-batch. Previously the whole
-            // batch was held in-memory and only flushed to disk via
-            // saveTranslationSecondaries after awaitAll(); a redeploy
-            // or an OS kill halfway through silently lost everything.
-            // Use the in-memory runId as the on-disk translationRunId so
-            // every item this batch writes groups under the same run on
-            // the result screen and survives restart with the same
-            // identity.
+            // Persist as soon as the call settles so a process kill mid-batch
+            // keeps the rows that did complete.
             val freshRun = _translationRuns.value[runId]
             val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
             if (freshRun != null && freshItem != null) {
                 saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
             }
-            // Roll the translation call into per-(provider, model) usage so
-            // it shows up on the AI Usage screen alongside report / chat
-            // calls.
-            if (tu != null) {
-                appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, tu,
-                    kind = item.traceType
-                )
+            // Roll the winning worker's spend into AI Usage under this
+            // item's per-kind translate/* type.
+            if (tu != null && model.isNotBlank()) {
+                appViewModel.settingsPrefs.updateUsageStatsAsync(provider, model, tu, kind = item.traceType)
             }
             AppLog.d(
                 "Translation",
-                "← item ${item.id} ok ${callDurationMs}ms" +
+                "← item ${item.id} ok ${callDurationMs}ms via ${provider.id}/$model" +
                     (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
                     " cost=${"%.5f".format(costDollars)}"
             )
@@ -711,9 +495,7 @@ class TranslationRunManager(
                 val cur = runs[runId] ?: return@update runs
                 runs + (runId to cur.copy(items = cur.items.map {
                     if (it.id == item.id && it.status == TranslationStatus.RUNNING) it.copy(
-                        status = TranslationStatus.PENDING,
-                        providerId = null,
-                        model = null
+                        status = TranslationStatus.PENDING, providerId = null, model = null
                     ) else it
                 }))
             }
@@ -731,18 +513,21 @@ class TranslationRunManager(
         runId: String,
         run: TranslationRunState,
         item: TranslationItem,
-        translateProvider: AppService,
+        translateProvider: AppService?,
         translateModel: String,
-        translatePricing: PricingCache.ModelPricing
+        translatePricing: PricingCache.ModelPricing?
     ) {
         val tu = item.tokenUsage
         // Tier-aware split — runOneTranslation already computes the
         // total via PricingCache.computeCost. The persisted in / out
         // halves now go through computeInOutCost so a long-context
         // translation (>200k tokens) doesn't drift from the canonical
-        // total recorded in the parent run.
-        val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, translatePricing) }
-            ?.let { it.first to it.second } ?: (null to null)
+        // total recorded in the parent run. An ERROR row carries no
+        // provider/pricing (the worker chain was exhausted), so the
+        // split is simply null then.
+        val (inCost, outCost) = if (tu != null && translatePricing != null)
+            PricingCache.computeInOutCost(tu, translatePricing).let { it.first to it.second }
+        else (null to null)
         val labelPrefix = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}"
         val srcKind = translateSrcKindOf(item.kind)
         val srcTargetId = translateSrcTargetIdOf(item)
@@ -756,7 +541,7 @@ class TranslationRunManager(
             id = item.persistedRowId ?: java.util.UUID.randomUUID().toString(),
             reportId = run.sourceReportId,
             kind = SecondaryKind.TRANSLATE,
-            providerId = translateProvider.id,
+            providerId = translateProvider?.id ?: "",
             model = translateModel,
             agentName = labelPrefix,
             timestamp = System.currentTimeMillis(),
@@ -1102,11 +887,7 @@ class TranslationRunManager(
         runTranslationSubset(
             context, sourceReportId, runId,
             rows.map { it.translateSourceTargetId.orEmpty() to it.translateSourceKind.orEmpty() },
-            deleteRowIds = rows.map { it.id },
-            // Multi-model runs: avoid retrying on the same model
-            // that just failed. runTranslationSubset round-robins
-            // each failed entry over the other models on the run.
-            switchModelOnFail = true
+            deleteRowIds = rows.map { it.id }
         )
     }
 
@@ -1441,22 +1222,7 @@ class TranslationRunManager(
          *  TRANSLATE row's content) instead of always from Original.
          *  Null preserves the original behavior for the failed-
          *  restart and start-missing callers. */
-        sourceTextOverrides: Map<Pair<String, String>, String>? = null,
-        /** Optional model set to use when the existing target-run
-         *  rows yield no usable (provider, model) tuples — which
-         *  happens when [translateMissingItems] bootstraps a brand-
-         *  new run from blank-provider placeholders. The caller
-         *  picks the models (typically from another existing
-         *  translation run on the same report). Falls back to the
-         *  per-run derivation when null. */
-        modelsOverride: List<Pair<AppService, String>>? = null,
-        /** Restart-failed flag — when true AND the run uses more
-         *  than one (provider, model) tuple, each failed item is
-         *  reassigned to a model OTHER than the one it failed on
-         *  (round-robin over the remaining set). Off by default to
-         *  preserve [startMissingTranslations]' "reuse the recorded
-         *  model" semantics, which has no failed-on model to avoid. */
-        switchModelOnFail: Boolean = false
+        sourceTextOverrides: Map<Pair<String, String>, String>? = null
     ) {
         if (targetKindPairs.isEmpty()) return
         val translateRows = SecondaryResultStorage
@@ -1466,20 +1232,9 @@ class TranslationRunManager(
         val targetLanguageName = anchor.targetLanguage ?: return
         val targetLanguageNative = anchor.targetLanguageNative ?: targetLanguageName
 
-        // Distinct (provider, model) tuples present on the run's
-        // existing rows — this is the model set the original run
-        // launched with. New items (startMissing path) round-robin
-        // over this set; failed-row retries reuse each row's own
-        // recorded (provider, model) so a retry hits the same
-        // model that failed.
-        val runModels: List<Pair<AppService, String>> = translateRows
-            .mapNotNull { r -> AppService.findById(r.providerId)?.let { it to r.model } }
-            .distinct()
-            .ifEmpty { modelsOverride ?: emptyList() }
-        if (runModels.isEmpty()) return
-        // Index BEFORE deletion so a restart-failed flow can read
-        // back each failed row's original (provider, model) and
-        // retry on the same model. Keys are (kind, targetId).
+        // Index the existing rows by (kind, targetId) so we can reuse
+        // each placeholder / prior row's id — the re-dispatch's save
+        // then OVERWRITES it rather than spawning a parallel record.
         val rowByKindTarget: Map<Pair<String, String>, SecondaryResult> = translateRows
             .mapNotNull { r ->
                 val k = r.translateSourceKind ?: return@mapNotNull null
@@ -1579,48 +1334,15 @@ class TranslationRunManager(
         deleteRowIds.forEach { SecondaryResultStorage.delete(context, sourceReportId, it) }
         ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, deleteRowIds.toSet())
 
-        val state = appViewModel.uiState.value
-        val aiSettings = state.aiSettings
-        // Retries/resumes honour the App-wide default (the original
-        // per-launch 🌡️/🎭 pick isn't re-threaded through this path).
-        val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, emptyList(), null, aiSettings.getInternalPromptByName("translate-text"))
-        val template = aiSettings.getInternalPromptByName("translate-text")?.text.orEmpty()
-        val titleTemplate = aiSettings.getInternalPromptByName("translate-title")?.text
-            ?.takeIf { it.isNotBlank() } ?: DEFAULT_TRANSLATE_TITLE_TEMPLATE
-
-        // Pre-resolve per-(provider, model) context — mirrors
-        // startTranslation. Keys are (providerId, model).
-        data class ModelCtx(
-            val provider: AppService, val model: String,
-            val apiKey: String, val baseUrl: String,
-            val pricing: PricingCache.ModelPricing
-        )
-        val ctxByKey: Map<Pair<String, String>, ModelCtx> = runModels
-            .associate { (p, m) ->
-                (p.id to m) to ModelCtx(
-                    provider = p, model = m,
-                    apiKey = aiSettings.getApiKey(p),
-                    baseUrl = aiSettings.getEffectiveEndpointUrl(p),
-                    pricing = PricingCache.getPricing(context, p, m)
-                )
-            }
-
-        // Per-host caps mirror startTranslation. Each host gets
-        // its own concurrent gate, so multi-host runs aren't
-        // bottlenecked on the slowest provider's limit.
-        val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = runModels
-            .map { (p, _) -> providerHost(p) }
-            .distinct()
-            .associateWith { host ->
-                val (_, concurrent) = ProviderThrottle.limitsFor(host)
-                kotlinx.coroutines.sync.Semaphore(concurrent)
-            }
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val textPrompt = workerTranslatePrompt(aiSettings, title = false)
+        val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
 
         // When the in-memory run state is gone (post-kill resume or
         // manual reload on a finished run), seed the fresh state with
         // already-settled rows from disk so the detail screen shows
-        // every entry — the 10 done + the 30 about to retry — not just
-        // the ones currently being re-dispatched.
+        // every entry — the done + the about-to-retry — not just the
+        // ones currently being re-dispatched.
         val deleteSet = deleteRowIds.toSet()
         val persistedItems: List<TranslationItem> = if (_translationRuns.value[runId] == null) {
             reconstructTranslationItemsFromDisk(translateRows, report, secondaries, deleteSet)
@@ -1628,20 +1350,15 @@ class TranslationRunManager(
 
         // Merge our items into _translationRuns under this runId so
         // runOneTranslation can read the active TranslationRunState.
-        // If a state already exists (live run still in flight),
-        // append; otherwise create one seeded with already-settled rows
-        // so the detail screen displays the full set of entries.
         _translationRuns.update { runs ->
             val cur = runs[runId]
             // Dedupe by persistedRowId — if cur.items already has an
             // entry for the same disk row (typical after the reconcile
             // sweep rebuilt the in-memory state with placeholders as
             // PENDING and then handed the same placeholders to us to
-            // dispatch), the new TranslationItem must REPLACE the old
-            // one rather than be appended. Without this, the sweep
-            // would double-count items and the L1 Total would balloon
-            // each cycle. Also re-opens the run (`finished = false`)
-            // because the append is by definition new work.
+            // dispatch), the new TranslationItem must REPLACE the old one
+            // rather than be appended. Also re-opens the run
+            // (`finished = false`) because the append is new work.
             val merged = if (cur != null) {
                 val newIds = items.mapNotNull { it.persistedRowId }.toSet()
                 val keptOld = cur.items.filter { it.persistedRowId !in newIds }
@@ -1652,114 +1369,39 @@ class TranslationRunManager(
                 targetLanguageName = targetLanguageName,
                 targetLanguageNative = targetLanguageNative,
                 items = persistedItems + items,
-                totalCostDollars = persistedItems.sumOf { it.costDollars },
-                models = runModels.map { (p, m) -> "${p.id}|$m" }
+                totalCostDollars = persistedItems.sumOf { it.costDollars }
             )
             runs + (runId to merged)
         }
 
-        // Pair each item with the model context it should run
-        // under. Default: failed-row retries reuse the (provider,
-        // model) recorded on disk so the retry hits the same model
-        // that failed. With [switchModelOnFail] AND a multi-model
-        // run, round-robin over the OTHER models on the run
-        // instead — the failed model has already proved itself
-        // unreliable for this entry. New items (startMissing — no
-        // row yet) always round-robin over the run's distinct
-        // model set.
-        val assignments: List<Pair<TranslationItem, ModelCtx>> = items.mapIndexed { idx, item ->
-            val targetKey = translateSrcKindOf(item.kind) to translateSrcTargetIdOf(item)
-            val originRow = rowByKindTarget[targetKey]
-            val originPair: Pair<String, String>? = originRow?.let { r ->
-                AppService.findById(r.providerId)?.let { p -> p.id to r.model }
+        if (textPrompt == null && titlePrompt == null) {
+            items.forEach { finalizeTranslationError(context, runId, it, "translate worker prompt missing — add it under AI Setup → Prompt management → Worker prompts") }
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                runs + (runId to cur.copy(finished = true))
             }
-            val alternatives: List<Pair<AppService, String>> =
-                if (switchModelOnFail && runModels.size > 1 && originPair != null) {
-                    runModels.filterNot { (p, m) -> (p.id to m) == originPair }
-                } else emptyList()
-            val ctx = when {
-                alternatives.isNotEmpty() -> {
-                    val (p, m) = alternatives[idx % alternatives.size]
-                    ctxByKey[p.id to m]
-                }
-                originPair != null -> ctxByKey[originPair]
-                else -> {
-                    val (p, m) = runModels[idx % runModels.size]
-                    ctxByKey[p.id to m]
-                }
-            }
-            item to (ctx ?: ctxByKey.values.first())
+            return
         }
 
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        // Mirror startTranslation's per-attempt wall-clock budget.
-        // Without this, a pathologically slow (or OkHttp-retry-stuck)
-        // call on the resume/restart path can hold an item RUNNING for
-        // minutes — observed in the wild at 240s+ on SiliconFlow and
-        // 600s+ on OpenAI. Timeout produces a Failed outcome that the
-        // existing finalize path turns into a terminal ERROR row.
-        val callBudgetMs = 90_000L
         try {
-            // Category is set per-item in runOneTranslation (each translation
-            // kind gets its own translate/* type); only reportId + runId are
-            // batch-wide here.
+            // Per-item dispatch through the translate worker swarm under
+            // the translation flow cap (dynamic host — each worker call
+            // self-throttles its own provider). A per-item 180s ceiling
+            // bounds a whole chain; a timeout finalizes that item ERROR.
             withTracerTags(reportId = sourceReportId, runId = runId) {
-                coroutineScope {
-                    assignments.map { (item, ctx) ->
-                        async {
-                            val host = providerHost(ctx.provider)
-                            val cap = perHostCaps[host]
-                                ?: kotlinx.coroutines.sync.Semaphore(1)
-                            // Canonical order: global → translation → per-host
-                            // (cap + acquireOrRequeue INSIDE global) to avoid the
-                            // global↔host deadlock vs the interceptor path.
-                            ApiCallCaps.global.withPermit {
-                              ApiCallCaps.translation.withPermit {
-                                cap.withPermit {
-                                // Non-blocking ProviderThrottle gate — a capped
-                                // host yields the coroutine (delay, not
-                                // Thread.sleep) so other items proceed; the
-                                // OkHttp interceptor skips its own acquire via
-                                // permitPreAcquired.
-                                val releaser = acquireOrRequeue(
-                                    host,
-                                    onThrottled = { appViewModel.updateThrottledTranslationItems { it + item.id } },
-                                    onCleared = { appViewModel.updateThrottledTranslationItems { it - item.id } }
-                                )
-                                try {
-                                            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                                // restart-failed / start-missing path:
-                                                // no cross-model retry — a failed call
-                                                // is finalized ERROR immediately, as
-                                                // before. runOneTranslation no longer
-                                                // self-finalizes, so do it here.
-                                                val outcome = kotlinx.coroutines.withTimeoutOrNull(callBudgetMs) {
-                                                    runOneTranslation(
-                                                        runId, context, ctx.provider, ctx.apiKey,
-                                                        ctx.model, ctx.baseUrl, template, titleTemplate,
-                                                        targetLanguageName, item, ctx.pricing,
-                                                        secondaryParams
-                                                    )
-                                                } ?: run {
-                                                    AppLog.w("Translation", "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s")
-                                                    TranslationOutcome.Failed("${ctx.provider.id}/${ctx.model} timed out after ${callBudgetMs / 1000}s")
-                                                }
-                                                if (outcome is TranslationOutcome.Failed) {
-                                                    finalizeTranslationError(
-                                                        context, runId, item,
-                                                        ctx.provider, ctx.model, ctx.pricing,
-                                                        outcome.message
-                                                    )
-                                                }
-                                            }
-                                } finally {
-                                    releaser.release()
-                                }
-                                }
-                              }
-                            }
-                        }
-                    }.awaitAll()
+                runThrottledBatch(
+                    items = items,
+                    hostOf = { null },
+                    subCap = ApiCallCaps.translation,
+                    dynamicHost = true,
+                ) { item ->
+                    val outcome = kotlinx.coroutines.withTimeoutOrNull(180_000) {
+                        runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
+                    } ?: TranslationOutcome.Failed("translation timed out after 180s")
+                    if (outcome is TranslationOutcome.Failed) {
+                        finalizeTranslationError(context, runId, item, outcome.message)
+                    }
                 }
             }
             ReportStorage.bumpReportTimestamp(context, sourceReportId)
@@ -1895,31 +1537,12 @@ class TranslationRunManager(
                 ?.let { translationRunGroupingId(it) }
             // Bootstrap a new run when the target language has none.
             // This is the "back-translation to Original" case: the
-            // user picked Original on the View screen for a META
-            // they only have in a non-Original language, and the
-            // helper translates into report.languageName which has
-            // no prior run yet. Reuse models from any existing
-            // translation row on the report so the new run inherits
-            // the user's already-trusted translation model choice.
-            val runId: String
-            val modelsOverride: List<Pair<AppService, String>>?
-            if (existingRunId != null) {
-                runId = existingRunId
-                modelsOverride = null
-            } else {
-                val sampleRows = allSecondaries.filter {
-                    it.kind == SecondaryKind.TRANSLATE && it.providerId.isNotBlank()
-                }
-                val mods = sampleRows.mapNotNull { r ->
-                    AppService.findById(r.providerId)?.let { it to r.model }
-                }.distinct()
-                if (mods.isEmpty()) {
-                    AppLog.w("Translate-missing", "No existing translation run for $targetLanguageName and no model to bootstrap from — skipping ${items.size} item(s)")
-                    return@launch
-                }
-                runId = java.util.UUID.randomUUID().toString()
-                modelsOverride = mods
-            }
+            // user picked Original on the View screen for a META they
+            // only have in a non-Original language, and the helper
+            // translates into report.languageName which has no prior
+            // run yet. The translate worker swarm is always available,
+            // so a new run needs only a fresh id — no model to inherit.
+            val runId: String = existingRunId ?: java.util.UUID.randomUUID().toString()
 
             // Persist placeholder TRANSLATE rows — same pattern as
             // addCrossTranslationItems. Map the (sourceKind, targetId)
@@ -1968,10 +1591,8 @@ class TranslationRunManager(
             }
 
             // Dispatch via runTranslationSubset with per-item source
-            // overrides — passes our caller-resolved sourceText
-            // instead of the default Original-derivation. Pass the
-            // model set for the bootstrapped-new-run case so the
-            // subset helper has something to round-robin items over.
+            // overrides — passes our caller-resolved sourceText instead
+            // of the default Original-derivation.
             val pairs = items.map { it.targetId to it.sourceKind }
             val overrides: Map<Pair<String, String>, String> = items.associate {
                 (it.sourceKind to it.targetId) to it.sourceText
@@ -1982,8 +1603,7 @@ class TranslationRunManager(
                 runId = runId,
                 targetKindPairs = pairs,
                 deleteRowIds = emptyList(),
-                sourceTextOverrides = overrides,
-                modelsOverride = modelsOverride
+                sourceTextOverrides = overrides
             )
 
             _translationRuns.update { runs ->

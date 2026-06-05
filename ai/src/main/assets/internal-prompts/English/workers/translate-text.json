@@ -2,7 +2,15 @@
   "name": "translate-text",
   "title": "Translate text into another language",
   "reference": false,
-  "agent": "*select",
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "Translate"
+    }
+  ],
   "parameters": "*NONE",
   "systemPrompt": "*NONE"
 }

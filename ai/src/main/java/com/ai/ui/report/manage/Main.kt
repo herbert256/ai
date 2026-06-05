@@ -264,7 +264,7 @@ fun ReportsScreen(
     /** Item ids currently parked on a provider rate / concurrency gate;
      *  feeds the translation L1 "Throttled" stat. */
     throttledTranslationItems: Set<String> = emptySet(),
-    onStartTranslation: (String, String, String, List<Pair<AppService, String>>, List<String>, String?) -> String? = { _, _, _, _, _, _ -> null },
+    onStartTranslation: (String, String, String) -> String? = { _, _, _ -> null },
     translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
@@ -523,7 +523,6 @@ fun ReportsScreen(
     var showAdvancedParameters by st.showAdvancedParameters
     // Translate flow state.
     var showTranslateLanguagePicker by st.showTranslateLanguagePicker
-    var showTranslateModelPicker by st.showTranslateModelPicker
     // "Find alternative translation" flow — the target L3 item + a
     // picker/candidate toggle. While [altTranslateTarget] is non-null
     // the translation run mount yields so the shared model picker +
@@ -1073,10 +1072,12 @@ fun ReportsScreen(
         return
     }
 
-    // Translate overlays. Order: language picker → model picker →
-    // progress screen. The first two close the picker once a choice is
-    // made; the progress screen sticks around until the run finishes
-    // and the user taps "To translated report" (or Cancel).
+    // Translate overlay. Order: language picker → progress screen.
+    // There's no model picker anymore — the language picker launches the
+    // run directly and the translate worker swarm selects the model (and
+    // falls back on 429 / miss), the same Mode-B path tournament /
+    // fan-meta use. The progress screen sticks around until the run
+    // finishes (or Cancel).
     if (showTranslateLanguagePicker) {
         // Picker overlays opt OUT of the standard TitleBar swipe —
         // these composables are also used outside the AI Report flow
@@ -1086,54 +1087,15 @@ fun ReportsScreen(
             LanguageSelectionScreen(
                 onConfirm = { lang ->
                     showTranslateLanguagePicker = false
-                    translationModels = emptyList()
-                    showTranslateModelPicker = lang
+                    val newRunId = currentReportId?.let {
+                        onStartTranslation(it, lang.name, lang.native)
+                    }
+                    // Land on the Translation L1 page so the user watches
+                    // the run progress instead of the report screen.
+                    if (!newRunId.isNullOrBlank()) openTranslationRunId = newRunId
                 },
                 onBack = { showTranslateLanguagePicker = false },
                 onNavigateHome = onNavigateHome
-            )
-        }
-        return
-    }
-    val pickingTranslateModelFor = showTranslateModelPicker
-    if (pickingTranslateModelFor != null && currentReportId != null) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showTranslateModelPicker = null }, com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null) {
-            ModelSelectionScreen(
-                models = translationModels,
-                aiSettings = aiSettings,
-                title = "Pick translation models",
-                subject = "${pickingTranslateModelFor.name} (${pickingTranslateModelFor.native})",
-                actionLabel = if (translationModels.size <= 1) "Start translation"
-                              else "Start translation — ${translationModels.size} models",
-                actionColor = AppColors.SuccessAccent,
-                helpTopic = "translation_models",
-                onAddAgent = { pickerTarget = PickerTarget.TRANSLATION; showSelectAgent = true },
-                onAddFlock = { pickerTarget = PickerTarget.TRANSLATION; showSelectFlock = true },
-                onAddSwarm = { pickerTarget = PickerTarget.TRANSLATION; showSelectSwarm = true },
-                onAddFromReport = { pickerTarget = PickerTarget.TRANSLATION; showSelectFromReport = true },
-                onAddAllModels = { pickerTarget = PickerTarget.TRANSLATION; showSelectAllModels = true },
-                onRemoveModel = { idx -> translationModels = translationModels.toMutableList().apply { removeAt(idx) } },
-                onClearAll = { translationModels = emptyList() },
-                onAction = { },
-                onActionWithParams = { pIds, spId ->
-                    val newRunId = onStartTranslation(
-                        currentReportId,
-                        pickingTranslateModelFor.name,
-                        pickingTranslateModelFor.native,
-                        translationModels.map { it.provider to it.model },
-                        pIds, spId
-                    )
-                    translationModels = emptyList()
-                    pickerTarget = PickerTarget.NEW_REPORT
-                    showTranslateModelPicker = null
-                    // Land on the Translation L1 page so the user watches the
-                    // run progress instead of the report screen.
-                    if (!newRunId.isNullOrBlank()) openTranslationRunId = newRunId
-                },
-                onBack = {
-                    pickerTarget = PickerTarget.NEW_REPORT
-                    showTranslateModelPicker = null
-                }
             )
         }
         return

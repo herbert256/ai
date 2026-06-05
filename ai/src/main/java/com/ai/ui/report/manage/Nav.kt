@@ -674,10 +674,11 @@ fun ReportsScreenNav(
             .filter { it.sourceReportId == uiState.currentReportId }
             .toList(),
         throttledTranslationItems = throttledTranslationItems,
-        onStartTranslation = { sourceId, langName, langNative, models, paramsIds, systemPromptId ->
+        onStartTranslation = { sourceId, langName, langNative ->
             // Returns the new run's id so Manage can land on the Translation
-            // L1 page immediately (blank when no models → no navigation).
-            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, models, paramsIds, systemPromptId).first
+            // L1 page immediately. No model picker — the translate worker
+            // swarm handles model selection + fallback.
+            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative).first
         },
         translationLifecycle = TranslationLifecycleCallbacks(
             onCancelRun = { runId -> reportViewModel.translation.cancelTranslation(runId) },
