@@ -32,15 +32,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    /** Singleton Job for the app-wide background resume sweep
-     *  ([com.ai.viewmodel.ReportViewModel.startBackgroundResumeSweep]).
+    /** Singleton Job for the app-wide read-only broken-work scan
+     *  ([com.ai.viewmodel.SecondaryRunManager.startBackgroundBrokenScan]).
      *  Lives on AppViewModel so it survives Activity config
-     *  changes — the LaunchedEffect that starts the sweep is
+     *  changes — the LaunchedEffect that starts the scan is
      *  inside a Composable whose lifetime is shorter than the
      *  loop's. Cancel-prior pattern inside the start method
      *  guarantees only one loop runs at a time even if Compose
      *  re-fires the effect. */
     @Volatile var backgroundResumeSweepJob: Job? = null
+
+    /** Reports with interrupted work the background scan has detected but
+     *  deliberately NOT fixed. Drives the ⚠️ top-bar badge (non-empty →
+     *  the right-side AI logo is replaced by a warning that opens the
+     *  Broken-work screen) and that screen's list. Re-published whole on
+     *  every 30 s scan tick, so it clears to empty once nothing is broken.
+     *  Lives outside [UiState] like the other batch-progress flows so a
+     *  scan tick doesn't recompose unrelated screens. */
+    private val _brokenReports = MutableStateFlow<List<BrokenReport>>(emptyList())
+    val brokenReports: StateFlow<List<BrokenReport>> = _brokenReports.asStateFlow()
+    internal fun setBrokenReports(reports: List<BrokenReport>) {
+        _brokenReports.value = reports
+    }
 
     // NOTE: the legacy `runningFanOutPairs` StateFlow was removed — the
     // FanOutEngine's per-pair PairStatus in its StateFlow is now the single

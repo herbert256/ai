@@ -213,6 +213,23 @@ class RegenerateBatchEngine internal constructor(
         }
     }
 
+    /** Read-only counterpart to [reconcile] for the broken-work scan:
+     *  returns true when this report carries a regenerate job that needs
+     *  attention but is NOT progressing on its own —
+     *   - RUNNING with no live orchestrator (app-kill interrupted), or
+     *   - PAUSED_ON_ERROR (stopped on a failing row, awaiting the user).
+     *  Mutates nothing — DONE / CANCELLED and a genuinely-running
+     *  orchestrator (a manual regenerate in flight) report false. */
+    fun detectBroken(context: Context, reportId: String): Boolean {
+        val job = RegenerateBatchStorage.get(context, reportId) ?: return false
+        return when (job.status) {
+            RegenerateJobStatus.DONE,
+            RegenerateJobStatus.CANCELLED -> false
+            RegenerateJobStatus.RUNNING -> orchestratorJobs[reportId]?.isActive != true
+            RegenerateJobStatus.PAUSED_ON_ERROR -> true
+        }
+    }
+
     /** Drop the persisted job + in-memory entry. Used by the
      *  detail screen's "delete" action (future). */
     fun deleteJob(context: Context, reportId: String) {

@@ -411,9 +411,10 @@ appears at the top of the result screen until you tap **Regenerate**.
   them in.
 - Regenerate runs as a **phased batch** (title → icon → language →
   agents → meta → fan-out → fan-in → translations → fan-meta →
-  tournament). If a phase errors it pauses on the failing row; a
-  background sweep auto-resumes once the error clears, or you can
-  Restart manually. Full detail in [regenerate.md](regenerate.md).
+  tournament). If a phase errors it pauses on the failing row; fix
+  the row and tap Restart. A paused or app-killed batch is flagged on
+  the ⚠️ Broken-work screen (the app detects it but no longer resumes
+  it for you). Full detail in [regenerate.md](regenerate.md).
 
 ## Chat
 

@@ -515,6 +515,11 @@ class TournamentEngine internal constructor(
     // Resume on report open / regenerate
     // -----------------------------------------------------------------
 
+    /** Match row ids whose worker Job is live in THIS process — the
+     *  read-only broken-work scan's in-flight exclusion (parallel to
+     *  [FanOutEngine.inFlightRowIds]). Empty after a process kill. */
+    fun inFlightRowIds(): Set<String> = matchJobs.keys.toSet()
+
     /** Re-dispatch every stale match (blank placeholder on disk, no live Job)
      *  — the app-kill recovery + RegeneratePhase.TOURNAMENT path. Bounded by
      *  [BatchResume]. The stale filter is sentinel-independent (content blank

@@ -28,6 +28,7 @@ object NavRoutes {
     const val DOCUMENTATION = "documentation"
     const val DOCUMENTATION_MANUAL = "documentation_manual"
     const val ABOUT = "about"
+    const val AI_BROKEN_WORK = "ai_broken_work"
     const val TRACE_LIST = "trace_list"
     const val TRACE_LIST_FOR_REPORT = "trace_list/{reportId}"
     const val TRACE_LIST_FOR_REPORT_CATEGORY = "trace_list/{reportId}/category/{category}"

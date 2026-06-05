@@ -218,34 +218,14 @@ internal fun rememberReportRuntimeState(
     var secondaryRefreshTick by remember { mutableStateOf(0) }
     val onSecondaryRefresh: () -> Unit = { secondaryRefreshTick++ }
 
-    LaunchedEffect(currentReportId) {
-        val rid = currentReportId ?: return@LaunchedEffect
-        onResumeStaleRuns(rid)
-        kotlinx.coroutines.delay(150)
-        secondaryRefreshTick++
-    }
-
-    LaunchedEffect(currentReportId) {
-        val rid = currentReportId ?: return@LaunchedEffect
-        kotlinx.coroutines.delay(800)
-        val pairs = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.listForReport(context, rid)
-                .filter { it.fanOutSourceAgentId != null }
-        }
-        pairs.groupBy { it.metaPromptId }
-            .forEach { (metaPromptId, rows) ->
-                if (metaPromptId == null) return@forEach
-                // Relaunch any Fan Meta sweep the user started (a pair
-                // already carries a title/icon, an error, or a run id) so an
-                // interrupted batch resumes on report open. The batch is a
-                // no-op when no pair is pending.
-                val metaStarted = rows.any {
-                    !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank() || it.titleRunId != null ||
-                        !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() || it.iconRunId != null
-                }
-                if (metaStarted) fanRuntime.onLaunchFanMetaBatch(rid, metaPromptId)
-            }
-    }
+    // NOTE: opening a report no longer auto-resumes its interrupted work.
+    // The old on-open passes — [onResumeStaleRuns] (translation / fan-out /
+    // tournament / judges / single-meta) and a Fan Meta auto-relaunch — were
+    // removed so the app only ever *detects* broken batches (the read-only
+    // background scan publishes them to the ⚠️ top-bar badge); fixing is
+    // always a manual action now (Regenerate / retry). The resume engines
+    // stay available for those explicit actions. The reload LaunchedEffect
+    // below (keyed on currentReportId) still refreshes the row list on open.
 
     if (fanOutEngine != null) {
         val engineRuns by fanOutEngine.runs.collectAsState()

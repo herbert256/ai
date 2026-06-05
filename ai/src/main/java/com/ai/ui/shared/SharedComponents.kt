@@ -287,6 +287,14 @@ val LocalNavigateToHelp = compositionLocalOf<(String?) -> Unit> { {} }
  *  the removed "AI" text-button used to play. */
 val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
 
+/** Top-bar broken-work badge. When the background scan finds reports
+ *  with interrupted batches, AppNavHost provides a non-null value here;
+ *  [AppTopBarChrome] then replaces the right-side AI logo with a ⚠️ that
+ *  taps through to the Broken-work screen via [onOpen]. Null (the
+ *  default) means nothing is broken — the normal AI logo shows. */
+data class BrokenWorkBadge(val count: Int, val onOpen: () -> Unit)
+val LocalBrokenWork = compositionLocalOf<BrokenWorkBadge?> { null }
+
 /** Provided by AppNavHost so an AI-report screen's top-left 📝 icon can
  *  jump to the AI Reports hub. Used by the report-section screens (New
  *  report, All reports, Search, …) whose top-left glyph is the report
@@ -1514,14 +1522,25 @@ internal fun AppTopBarChrome(
                     modifier = Modifier.weight(1f)
                         .let { base -> if (titleClick != null) base.clickable(onClick = titleClick) else base }
                 )
-                // Right — mirrored AI logo → Home, or the Reports hub on
-                // report Manage / View screens (via LocalReportHubNav).
-                val reportHubNav = LocalReportHubNav.current
-                AiLogoButton(
-                    onClick = reportHubNav ?: navigateHome,
-                    modifier = Modifier.align(Alignment.Top),
-                    size = 44.dp, mirrored = true
-                )
+                // Right — broken-work ⚠️ when the background scan flagged
+                // interrupted batches (taps to the Broken-work screen);
+                // otherwise the mirrored AI logo → Home, or the Reports hub
+                // on report Manage / View screens (via LocalReportHubNav).
+                val brokenWork = LocalBrokenWork.current
+                if (brokenWork != null) {
+                    ReportGlyphIcon(
+                        emoji = com.ai.data.MetadataIconsHolder.current.statusWarning,
+                        boxSize = 44.dp,
+                        modifier = Modifier.align(Alignment.Top).clickable(onClick = brokenWork.onOpen)
+                    )
+                } else {
+                    val reportHubNav = LocalReportHubNav.current
+                    AiLogoButton(
+                        onClick = reportHubNav ?: navigateHome,
+                        modifier = Modifier.align(Alignment.Top),
+                        size = 44.dp, mirrored = true
+                    )
+                }
             }
             // 2nd line — full screen width (not boxed by the icons).
             // Drawn a few dp higher (less gap above the white title) and

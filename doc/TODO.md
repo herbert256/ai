@@ -28,26 +28,24 @@ it does **not** survive:
 
 When the process dies mid-call the on-disk rows stay as blank
 placeholders (content blank, `errorMessage` null, `durationMs`
-null). On the next launch — and on a periodic 30s sweep — the
-resume machinery picks them up:
+null). These are now **detected but not auto-fixed**:
 
-- `SecondaryRunManager.resumeStaleRunsForReport` is the
-  cross-kind on-open orchestrator. It reconciles stalled
-  translation runs, restarts missing translations, then fans out
-  to the per-engine `resumeStaleRunsForReport` on `FanOutEngine`,
-  `TournamentEngine`, and `JudgeEvalEngine`,
-  relaunches interrupted Fan-Meta batches, re-issues
-  single-call Meta/Rerank/Moderation placeholders, calls
-  `RegenerateBatchEngine.reconcile`, and finally marks anything
-  unrecoverable with the `"No data yet"` ❌ marker (the string
-  was `"Interrupted by app restart"` before commit d2cbf97c;
-  `SharedComponents.kt` still maps the old label to the new one).
-- `SecondaryRunManager.startBackgroundResumeSweep` runs that
-  orchestrator every 30s for every report newer than 7 days; its
-  Job is stored on `AppViewModel.backgroundResumeSweepJob`.
+- `SecondaryRunManager.startBackgroundBrokenScan` runs a read-only
+  scan at app start and every 30s across every report newer than 7
+  days, classifying interrupted work (`detectBrokenForReport` /
+  `classifyBrokenRow`, plus `RegenerateBatchEngine.detectBroken` and
+  each engine's `inFlightRowIds()`). It publishes a
+  `List<BrokenReport>` to `AppViewModel.brokenReports`; its Job is
+  stored on `AppViewModel.backgroundResumeSweepJob`. While non-empty
+  the top-bar AI logo becomes a ⚠️ opening `BrokenWorkScreen`.
+- `SecondaryRunManager.resumeStaleRunsForReport` (cross-kind) and the
+  per-engine `resumeStaleRunsForReport` / `RegenerateBatchEngine`
+  `reconcile` are **retained for explicit/manual fixes only**
+  (Regenerate / retry). Nothing automatic re-dispatches or
+  terminalizes a stale row any more.
 
-That is a *recovery* (re-dispatch the placeholder rows from
-scratch), not real background continuation of the in-flight
+A manual resume is a *recovery* (re-dispatch the placeholder rows
+from scratch), not real background continuation of the in-flight
 calls.
 
 For genuinely OS-backgrounded work we would need a foreground

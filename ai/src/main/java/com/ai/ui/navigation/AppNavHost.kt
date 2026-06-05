@@ -50,15 +50,16 @@ fun AppNavHost(
     sharedContent: com.ai.data.SharedContent? = null,
     onSharedContentHandled: () -> Unit = {}
 ) {
-    // App-wide background resume sweep — walks every report
-    // modified in the last 7 days and runs the same per-report
-    // stale-resume pass that fires when a report is opened.
-    // LaunchedEffect(Unit) fires once per composition; the
-    // start method's cancel-prior pattern (Job stored on
-    // AppViewModel) handles Activity rotation cleanly.
+    // App-wide background broken-work scan — walks every report
+    // modified in the last 7 days and detects (read-only) any
+    // interrupted batches, publishing them to AppViewModel.brokenReports
+    // which drives the ⚠️ top-bar badge. It no longer auto-fixes.
+    // LaunchedEffect(Unit) fires once per composition; the start
+    // method's cancel-prior pattern (Job stored on AppViewModel)
+    // handles Activity rotation cleanly.
     val sweepContext = LocalContext.current
     LaunchedEffect(Unit) {
-        reportViewModel.secondary.startBackgroundResumeSweep(sweepContext)
+        reportViewModel.secondary.startBackgroundBrokenScan(sweepContext)
     }
 
     // Bridge for the in-report "refine this answer" chat (🗣️ on Model
@@ -400,7 +401,18 @@ fun AppNavHost(
             systemDark = systemDark,
         )
     }
+    // Broken-work badge for the top bar — non-null only when the
+    // read-only background scan flagged reports with interrupted batches.
+    // A non-null value makes AppTopBarChrome swap the right-side AI logo
+    // for a ⚠️ that opens the Broken-work screen.
+    val brokenReports by appViewModel.brokenReports.collectAsState()
+    val brokenWorkBadge = if (brokenReports.isEmpty()) null
+        else com.ai.ui.shared.BrokenWorkBadge(
+            count = brokenReports.size,
+            onOpen = { navController.navigate(NavRoutes.AI_BROKEN_WORK) }
+        )
     androidx.compose.runtime.CompositionLocalProvider(
+        com.ai.ui.shared.LocalBrokenWork provides brokenWorkBadge,
         com.ai.ui.shared.LocalTopBarLeftIcon provides sectionTopIcon,
         com.ai.ui.report.view.helpers.LocalViewBottomBar provides viewBottomBarState,
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,

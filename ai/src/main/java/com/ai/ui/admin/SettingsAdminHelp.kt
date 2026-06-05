@@ -151,6 +151,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "View traces from Monitor, view audit entries from the Audit log screen, view usage under Statistics / AI Usage, and view/share/clear AppLog files from the Application log screens. Drop verbose logging back to INFO or OFF after troubleshooting.")
         )
     ),
+    "broken_work" to HelpContent(
+        title = "Help - Broken work",
+        cards = listOf(
+            HelpCard("Overview", "Lists reports that carry interrupted batches — work started but never finished because the app was killed or hit an error. A background scan checks every report from the last 7 days at app start and every 30 seconds. While anything is broken, the top-bar AI logo is replaced by a ⚠️ that opens this screen."),
+            HelpCard("What counts", "A blank-but-unfinished placeholder (no result, no error, no duration) for a fan-out pair, tournament match, judge-the-judges cell, translation item, or a single Meta / Rerank / Moderation run — plus a regenerate batch that was interrupted mid-run or paused on an error. Work that is genuinely still running is not listed."),
+            HelpCard("Detection only", "The app no longer fixes these automatically. It only detects and surfaces them; nothing is re-dispatched or marked failed on your behalf. This keeps interrupted work visible instead of silently retried."),
+            HelpCard("Fixing", "Tap a report to open it, then use the existing Regenerate / retry actions on the relevant batch to resume it. Once a report's work completes (or you clear it), it drops off this list and the ⚠️ reverts to the AI logo on the next scan."),
+        )
+    ),
     "settings_setup" to HelpContent(
         title = "Help - Setup",
         cards = listOf(

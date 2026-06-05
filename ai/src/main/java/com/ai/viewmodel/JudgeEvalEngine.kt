@@ -622,6 +622,11 @@ class JudgeEvalEngine internal constructor(
     // Resume on report open / app restart
     // -----------------------------------------------------------------
 
+    /** Judge-cell row ids whose worker Job is live in THIS process — the
+     *  read-only broken-work scan's in-flight exclusion (parallel to
+     *  [FanOutEngine.inFlightRowIds]). Empty after a process kill. */
+    fun inFlightRowIds(): Set<String> = cellJobs.keys.toSet()
+
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             // No global coroutine exception handler exists, so an uncaught

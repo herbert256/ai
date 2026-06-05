@@ -246,9 +246,13 @@ class SecondaryRunManager(
         }
     }
 
-    /** Auto-resume every interrupted Translation, Fan-out, and
-     *  single-call Meta/Rerank/Moderation run on the report. Fires
-     *  on report open (replaces the previous mark-as-errored sweep).
+    /** Resume every interrupted Translation, Fan-out, and
+     *  single-call Meta/Rerank/Moderation run on the report.
+     *  **Manual/explicit use only** now — it is no longer fired on
+     *  report open or by the background loop (that loop is detect-only:
+     *  see [startBackgroundBrokenScan] / [detectBrokenForReport]). Kept
+     *  for explicit user fixes (Regenerate / retry) and the regenerate
+     *  orchestrator.
      *
      *  - **Translation**: groups disk rows by `translationRunId`; for
      *    each runId that isn't already in [_translationRuns], calls
@@ -450,61 +454,129 @@ class SecondaryRunManager(
       }
     }
 
-    /** App-wide background resume sweep. Walks every report whose
-     *  timestamp is within the last 7 days and calls
-     *  [resumeStaleRunsForReport] on it — catches translation /
-     *  fan-out / single-Meta placeholders for reports the user
-     *  hasn't opened recently (the per-report on-open trigger
-     *  inside [com.ai.ui.report.manage.ReportScreen] misses those).
+    /** App-wide background broken-work scan. Walks every report whose
+     *  timestamp is within the last 7 days and asks [detectBrokenForReport]
+     *  which of them carry interrupted work — translation / fan-out /
+     *  tournament / judges / single-Meta placeholders, plus stalled
+     *  regenerate jobs — WITHOUT touching anything. The result is published
+     *  whole to [AppViewModel.setBrokenReports], which drives the ⚠️ top-bar
+     *  badge and the Broken-work screen.
      *
-     *  Idempotent vs already-running work: the called function's
-     *  guards (activeTranslationRunIds snapshot, the active-job
-     *  check inside [reconcileStalledTranslationRun], the
-     *  in-flight dedupe inside [resumeStaleFanOutPairs]) make
-     *  this safe to retrigger.
+     *  Read-only by design: the app no longer auto-resumes interrupted
+     *  batches. The per-report [resumeStaleRunsForReport] orchestrator (and
+     *  each engine's resume) is kept for explicit manual fixes (Regenerate /
+     *  retry), but nothing automatic dispatches or terminalizes any more.
      *
      *  Lifecycle: one loop at a time. The Job is stored on
-     *  [AppViewModel.backgroundResumeSweepJob] so a re-creation
-     *  of ReportViewModel (Activity config change tearing down
-     *  the `remember{}` ReportViewModel inside AppNavHost)
-     *  cancels the prior loop before starting the fresh one. */
-    fun startBackgroundResumeSweep(context: Context) {
+     *  [AppViewModel.backgroundResumeSweepJob] so a re-creation of
+     *  ReportViewModel (Activity config change tearing down the `remember{}`
+     *  ReportViewModel inside AppNavHost) cancels the prior loop before
+     *  starting the fresh one. */
+    fun startBackgroundBrokenScan(context: Context) {
         appViewModel.backgroundResumeSweepJob?.cancel()
         appViewModel.backgroundResumeSweepJob = appViewModel.viewModelScope.launch(
-            rvm.reportLogContext("background-resume-sweep")
+            rvm.reportLogContext("background-broken-scan")
         ) {
             while (kotlinx.coroutines.currentCoroutineContext()[Job]?.isActive == true) {
                 try {
-                    resumeStaleRunsForRecentReports(context)
+                    appViewModel.setBrokenReports(scanBrokenRunsForRecentReports(context))
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    AppLog.w("BgResumeSweep", "iteration failed: ${e.javaClass.simpleName}: ${e.message}")
+                    AppLog.w("BrokenScan", "iteration failed: ${e.javaClass.simpleName}: ${e.message}")
                 }
                 kotlinx.coroutines.delay(30_000L)
             }
         }
     }
 
-    /** Walks every report newer than 7 days and triggers the
-     *  per-report stale-runs resume. Sequential await — a
-     *  parallel fan-out across 100 reports' disk scans would
-     *  saturate IO without giving anything meaningful in return,
-     *  and [resumeStaleRunsForReport] spawns its own per-runId
-     *  launches anyway. */
-    private suspend fun resumeStaleRunsForRecentReports(context: Context) {
+    /** Walks every report newer than 7 days and aggregates the interrupted
+     *  work each one carries into a [BrokenReport]. Sequential per-report
+     *  disk scan — same cost profile as the old resume sweep, minus all
+     *  dispatch. Reports with nothing broken are dropped; the rest sort
+     *  newest-first for the list. */
+    private suspend fun scanBrokenRunsForRecentReports(context: Context): List<BrokenReport> {
         val cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
         val recent = withContext(Dispatchers.IO) {
             ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff }
         }
-        if (recent.isEmpty()) return
-        AppLog.d("BgResumeSweep", "scanning ${recent.size} report${if (recent.size == 1) "" else "s"} (last 7 days)")
-        recent.forEach { report ->
-            // resumeStaleRunsForReport returns the orchestrating
-            // Job; join it so the next iteration's IO doesn't
-            // pile on top. The actual per-runId dispatches it
-            // spawns are fire-and-forget inside their own
-            // viewModelScope launches.
-            resumeStaleRunsForReport(context, report.id).join()
+        if (recent.isEmpty()) return emptyList()
+        val broken = recent.mapNotNull { report -> detectBrokenForReport(context, report) }
+            .sortedByDescending { it.timestamp }
+        AppLog.d("BrokenScan", "scanned ${recent.size} report${if (recent.size == 1) "" else "s"} (7d) → ${broken.size} broken")
+        return broken
+    }
+
+    /** Read-only detection for one report: classifies every blank-but-
+     *  unfinished placeholder (content blank, no error, no duration) that
+     *  isn't currently in flight, plus a stalled regenerate job. Returns
+     *  null when nothing is broken. Mutates NOTHING — it mirrors the
+     *  predicates [resumeStaleRunsForReport] and the engines use, but never
+     *  dispatches, terminalizes, or hydrates. */
+    private fun detectBrokenForReport(context: Context, report: Report): BrokenReport? {
+        val reportId = report.id
+        val rows = SecondaryResultStorage.listForReport(context, reportId)
+        // In-flight exclusion: a row a live worker owns in THIS process must
+        // not be flagged. After a process kill these sets are all empty —
+        // exactly when every blank placeholder really is interrupted.
+        val inFlight = appViewModel.runningSingleSecondaries.value +
+            rvm.fanOutEngine.inFlightRowIds() +
+            rvm.tournamentEngine.inFlightRowIds() +
+            rvm.judgeEvalEngine.inFlightRowIds() +
+            rvm.resumingMetaIds
+        val activeTranslationRunIds = rvm.translation.translationRuns.value.values
+            .filter { !it.isFinished && !it.cancelled }
+            .map { it.runId }
+            .toSet()
+        val kinds = mutableListOf<BrokenKind>()
+        rows.forEach { row ->
+            if (!row.content.isNullOrBlank()) return@forEach
+            if (row.errorMessage != null) return@forEach
+            if (row.durationMs != null) return@forEach
+            if (row.id in inFlight) return@forEach
+            classifyBrokenRow(row, activeTranslationRunIds)?.let { kinds.add(it) }
         }
+        var total = kinds.size
+        if (rvm.regenerateBatchEngine.detectBroken(context, reportId)) {
+            kinds.add(BrokenKind.REGENERATE)
+            total += 1
+        }
+        if (total == 0) return null
+        return BrokenReport(
+            reportId = reportId,
+            title = report.title,
+            timestamp = report.timestamp,
+            kinds = kinds.distinct(),
+            totalCount = total
+        )
+    }
+
+    /** Maps one interrupted placeholder row to its [BrokenKind], or null
+     *  when the row isn't a resumable unit: a tournament / judges aggregate
+     *  row, a translation row still inside an active run, or a COMPARE cell
+     *  (never part of the app-kill recovery set). Mirrors the per-kind
+     *  ownership in [resumeStaleRunsForReport]. The "MATCH" sentinel is the
+     *  shared match/cell role (TournamentEngine.ROLE_MATCH /
+     *  [com.ai.data.JUDGE_ROLE_CELL]). */
+    private fun classifyBrokenRow(
+        row: SecondaryResult,
+        activeTranslationRunIds: Set<String>
+    ): BrokenKind? = when {
+        row.kind == SecondaryKind.COMPARE -> null
+        row.kind == SecondaryKind.TRANSLATE ->
+            if (row.translationRunId != null && row.translationRunId !in activeTranslationRunIds)
+                BrokenKind.TRANSLATION else null
+        row.kind == SecondaryKind.TOURNAMENT ->
+            if (row.tournamentRole == "MATCH") BrokenKind.TOURNAMENT else null
+        row.kind == SecondaryKind.JUDGES ->
+            if (row.tournamentRole == "MATCH") BrokenKind.JUDGES else null
+        row.kind == SecondaryKind.META && row.fanOutSourceAgentId != null && row.fanInOf == null ->
+            BrokenKind.FAN_OUT
+        row.fanOutSourceAgentId == null && row.fanInOf == null && row.translationRunId == null &&
+            (row.kind == SecondaryKind.META || row.kind == SecondaryKind.RERANK ||
+                row.kind == SecondaryKind.MODERATION) ->
+            BrokenKind.META
+        else -> BrokenKind.UNRECOVERABLE
     }
 
     /** TOCTOU-safe re-read + save pair that flips a stuck placeholder

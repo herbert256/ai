@@ -641,9 +641,12 @@ unit tests verify code correctness, not feature correctness here.
   the icon flows are all launched on `appViewModel.viewModelScope`
   (not a report-VM scope) so navigating away doesn't cancel the work.
   The result screen recovers stale placeholders on entry via
-  `restoreCompletedReport` / `hydrateAgentResultsFromStorage`, and a
-  30 s background sweep resumes interrupted secondary/regenerate runs.
-  `deleteReport` cancels every job registered under its `reportId`.
+  `restoreCompletedReport` / `hydrateAgentResultsFromStorage`. A 30 s
+  read-only background scan (`startBackgroundBrokenScan`) *detects*
+  interrupted secondary/regenerate runs and surfaces them on the ⚠️
+  Broken-work screen — it no longer auto-resumes them; the user
+  Restarts / retries manually. `deleteReport` cancels every job
+  registered under its `reportId`.
 - **Removed-agent progress bump.** `executeReportTask` counts each
   launch-time agent slot into a fixed `genericReportsTotal`; every
   early-return branch (benched-model skip, **and** the

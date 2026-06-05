@@ -29,6 +29,33 @@ import kotlinx.coroutines.withContext
 val DEFAULT_UI_CARD_BACKGROUND_ARGB: Int = 0xFF2A3A4A.toInt()
 val DEFAULT_UI_BUTTON_BACKGROUND_ARGB: Int = 0xFF27594E.toInt()
 
+/** The kinds of interrupted work the background scan can detect. Each
+ *  maps to a blank-but-unfinished placeholder on disk (content blank,
+ *  no error, no duration) or a stalled regenerate job. Surfaced as the
+ *  per-report breakdown on the Broken-work screen. */
+enum class BrokenKind(val label: String) {
+    TRANSLATION("translation"),
+    FAN_OUT("fan-out"),
+    TOURNAMENT("tournament"),
+    JUDGES("judges"),
+    META("meta / rerank / moderation"),
+    REGENERATE("regenerate"),
+    UNRECOVERABLE("unrecoverable")
+}
+
+/** One report with interrupted work the app detected but did NOT fix.
+ *  Produced by the read-only background scan and rendered one-per-row on
+ *  the Broken-work screen; tapping a row opens the report. [totalCount]
+ *  counts the individual broken placeholders plus one for a stalled
+ *  regenerate job; [kinds] is the distinct set behind that count. */
+data class BrokenReport(
+    val reportId: String,
+    val title: String,
+    val timestamp: Long,
+    val kinds: List<BrokenKind>,
+    val totalCount: Int
+)
+
 /** How combined provider+model labels render across UI rows.
  *  MODEL_ONLY shows just the model id (the dense default); PROVIDER_AND_MODEL
  *  shows both, joined by " · ", for users who run the same model on

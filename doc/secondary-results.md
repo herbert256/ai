@@ -589,8 +589,19 @@ delete / re-run cost accounting so it isn't silently dropped.
 
 ## Resume orchestration
 
+> **Detect-only by default.** The orchestrator below is **no longer
+> run automatically.** A read-only 30 s background scan
+> (`SecondaryRunManager.startBackgroundBrokenScan`) only *detects*
+> interrupted work and publishes it to `AppViewModel.brokenReports`,
+> which surfaces as the top-bar ⚠️ + the Broken-work screen
+> (`BrokenWorkScreen`). The full resume orchestrator is retained for
+> **explicit/manual** use (Regenerate / retry, regenerate
+> orchestration) — see `detectBrokenForReport` / `classifyBrokenRow`
+> for the read-only counterpart and each engine's `inFlightRowIds()` /
+> `detectBroken` for the in-flight-exclusion + regenerate predicates.
+
 `SecondaryRunManager.resumeStaleRunsForReport` is the cross-kind
-on-open / background resume orchestrator. In order it: reconciles
+resume orchestrator (manual use only). In order it: reconciles
 stalled translation runs, starts missing translations, resumes
 stale fan-out / tournament / judge runs (delegated to their
 engines), relaunches interrupted Fan-Meta batches, re-issues
@@ -600,8 +611,9 @@ and finally marks any unrecoverable rows `❌ No data yet`. Only rows
 interrupted by app death (blank content, null `errorMessage`, null
 `durationMs`) are touched; TOURNAMENT / JUDGES rows are owned by
 their engines and explicitly skipped in the single-call and legacy
-branches. A 30 s app-wide background sweep re-runs this for every
-report newer than 7 days.
+branches. (This orchestrator now runs only on an explicit/manual
+fix — the 30 s app-wide background pass is detect-only, see the note
+above.)
 
 ## Native rerank / moderation endpoints
 

@@ -636,6 +636,23 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) }
             )
         }
+        composable(NavRoutes.AI_BROKEN_WORK) {
+            val brokenWorkContext = LocalContext.current
+            val brokenWorkScope = rememberCoroutineScope()
+            val broken by appViewModel.brokenReports.collectAsState()
+            BrokenWorkScreen(
+                items = broken,
+                onBack = safePopBack,
+                onNavigateHome = navigateHome,
+                onOpenReport = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = false)
+                    brokenWorkScope.launch {
+                        reportViewModel.restoreCompletedReport(brokenWorkContext, reportId)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                }
+            )
+        }
         composable(NavRoutes.AI_API_TEST) {
             ApiTestScreen(onBackClick = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToEditRequest = { navController.navigate(NavRoutes.AI_API_TEST_EDIT) }, viewModel = appViewModel)

@@ -647,18 +647,24 @@ Recovery mechanisms keep the app robust to process death:
 1. `restoreCompletedReport` and `hydrateAgentResultsFromStorage` rebuild
    the in-memory `_agentResults` flow from `ReportStorage` files when the
    user returns to a finished report whose StateFlow was lost.
-2. `resumeStaleRunsForReport` is the cross-kind on-open / background
-   resume orchestrator: it reconciles translations, then defers to each
-   engine (`fanOutEngine` / `tournamentEngine` / `judgeEvalEngine` /
+2. `resumeStaleRunsForReport` is the cross-kind resume orchestrator,
+   **kept for explicit/manual use only** (Regenerate / retry, regenerate
+   orchestration): it reconciles translations, then defers to each engine
+   (`fanOutEngine` / `tournamentEngine` / `judgeEvalEngine` /
    `regenerateBatchEngine`) and finally re-issues interrupted single-call
-   Meta / Rerank / Moderation placeholders. Only rows interrupted by app
-   death (blank content, no error, no duration) are touched, and each row
-   is re-read before being stamped "interrupted" so a cold launch
-   mid-batch doesn't lose progress.
-3. A 30-second app-wide background sweep (`startBackgroundResumeSweep`,
-   `Job` on `AppViewModel.backgroundResumeSweepJob`) re-runs that
-   orchestrator for every report newer than 7 days and auto-resumes a
-   `PAUSED_ON_ERROR` regenerate job once its errored row clears.
+   Meta / Rerank / Moderation placeholders. It is **no longer invoked
+   automatically** — opening a report does not auto-resume its stale work.
+3. A 30-second app-wide **read-only** background scan
+   (`startBackgroundBrokenScan`, `Job` on
+   `AppViewModel.backgroundResumeSweepJob`) walks every report newer than
+   7 days and *detects* interrupted work (blank content, no error, no
+   duration — fan-out / tournament / judges / translation / single-Meta
+   placeholders, plus `RUNNING`-dead / `PAUSED_ON_ERROR` regenerate jobs)
+   without fixing anything. It publishes a `List<BrokenReport>` to
+   `AppViewModel.brokenReports`; while non-empty the top-bar AI logo is
+   replaced by a ⚠️ (`LocalBrokenWork` → `AppTopBarChrome`) that opens the
+   Broken-work screen (`BrokenWorkScreen`, route `AI_BROKEN_WORK`). Each
+   row taps through to its report, where the user resumes work manually.
 4. `rememberSaveable` on key UI state (AI Usage's expanded provider list,
    drill-in scope buckets per `(report, prompt)`, the selected view
    language, the Answer-matrix open flag) survives navigation away and

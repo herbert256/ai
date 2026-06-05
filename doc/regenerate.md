@@ -136,9 +136,9 @@ Notes on specific phases:
   deliberately excluded from the regenerate batch (`isMetaPhaseRow`,
   `RegenerateBatchEngine.kt:884`).
 - `FAN_OUT` and `TOURNAMENT` pass `resetAttempts = true` so a
-  user-initiated regenerate clears the per-session retry counts the
-  30 s background sweep may already have maxed out — otherwise the
-  pair/match would be terminalized instantly and never re-fire.
+  user-initiated regenerate clears any per-session retry counts a
+  prior manual resume ran up — otherwise the pair/match would be
+  terminalized instantly and never re-fire.
 
 `buildTaskList` (`RegenerateBatchEngine.kt:727`) builds the task
 set from the report's *current* contents:
@@ -207,18 +207,21 @@ errored row). No further phases fire until a `restart` succeeds.
 Resume paths, all idempotent:
 
 - **`restart`** (`RegenerateBatchEngine.kt:123`) — Restart button
-  on the detail screen, or the background sweep. For a paused job
-  it only resumes when the paused row is **no longer errored** on
-  disk (`isRowStillErrored`); otherwise no-op (re-running would
+  on the detail screen (the only resume trigger now). For a paused
+  job it only resumes when the paused row is **no longer errored**
+  on disk (`isRowStillErrored`); otherwise no-op (re-running would
   just hit the same error). `CANCELLED` jobs always restart at
   `currentPhase`. `DONE` and an already-live `RUNNING` orchestrator
   are no-ops.
-- **`reconcile`** (`RegenerateBatchEngine.kt:188`) — called every
-  30 s from `ReportViewModel.resumeStaleRunsForReport`. DONE /
-  CANCELLED → no-op; RUNNING with a dead orchestrator (app kill) →
-  revive; RUNNING with a live orchestrator → no-op;
-  PAUSED_ON_ERROR with the row now OK → auto-resume; still errored
-  → no-op.
+- **`reconcile`** (`RegenerateBatchEngine.kt`) — retained for the
+  manual `resumeStaleRunsForReport` orchestrator. DONE / CANCELLED →
+  no-op; RUNNING with a dead orchestrator (app kill) → revive;
+  RUNNING with a live orchestrator → no-op; PAUSED_ON_ERROR with the
+  row now OK → resume; still errored → no-op. **It is no longer
+  called from the background pass** — that pass is now detect-only
+  (`detectBroken`, `RegenerateBatchEngine.kt`) and a
+  RUNNING-but-dead / PAUSED_ON_ERROR job is surfaced on the ⚠️
+  Broken-work screen instead of being auto-revived.
 - **`cancel`** (`RegenerateBatchEngine.kt:164`) — stops the
   orchestrator; in-flight HTTP calls finish themselves and persist.
   Only the orchestrator's own `finally` decrements
@@ -271,8 +274,7 @@ file per report, `ReentrantLock`-guarded, atomic writes, with
 resolved path. `update` is a compound read-modify-write under one
 lock acquisition. `listActiveReports`
 (`RegenerateBatchStorage.kt:104`) returns the reportId of every
-JSON under the dir and feeds the 30 s background sweep. See
-[persistent.md](persistent.md).
+JSON under the dir. See [persistent.md](persistent.md).
 
 ## Find alternative title / icon
 

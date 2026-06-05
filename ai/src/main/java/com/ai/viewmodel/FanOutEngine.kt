@@ -1729,6 +1729,13 @@ class FanOutEngine internal constructor(
     // Resume on report open
     // -----------------------------------------------------------------
 
+    /** Row ids whose per-pair worker Job is live in THIS process. The
+     *  read-only broken-work scan unions this across engines so a pair
+     *  that's legitimately mid-flight isn't mistaken for an interrupted
+     *  placeholder. Empty after a process kill — exactly when every blank
+     *  pair really is stale. */
+    fun inFlightRowIds(): Set<String> = pairJobs.keys.toSet()
+
     /** Resume every stale fan-out pair (a blank placeholder on disk with
      *  no live per-pair Job) across every run on this report — the
      *  app-kill recovery path. Called by the report-open + 30 s

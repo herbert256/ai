@@ -73,8 +73,9 @@ graph TD
     persists a per-report cursor under `<filesDir>/regenerate/<reportId>.json`
     and walks a fixed 10-phase pipeline (`TITLE, ICON, LANGUAGE, AGENTS,
     META, FAN_OUT, FAN_IN, TRANSLATIONS, FAN_META, TOURNAMENT`), pausing on
-    the first errored row and auto-resuming via a 30 s background sweep once
-    the error clears. A killed process resumes mid-batch on next launch. See
+    the first errored row. A paused or app-killed batch is *detected* by the
+    30 s read-only background scan and flagged on the ⚠️ Broken-work screen;
+    the user fixes the row and taps Restart (no auto-resume). See
     [regenerate.md](regenerate.md).
 
 ### The View grid (Result phase)
