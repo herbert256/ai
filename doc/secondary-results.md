@@ -160,13 +160,22 @@ launch the CRUD is the source of truth.
         │       (All present / Selected) when translations exist
         │     ▼
         ▼
-[ Model picker (multi-select) ]
-   • Rerank picker has a "rerank models only" toggle
+[ NO model picker — Rerank / Moderation / Meta / Fan-in run ]
+[ through a dedicated "workers"-category swarm ]
+   • Rerank        → workers/second-rerank     (swarm "Rerank")
+   • Moderation    → workers/second-moderation  (swarm "Moderation",
+     mistral-moderation-latest — only Mistral has native moderation)
+   • chat-type Meta→ workers/meta               (swarm "Meta")
+   • Fan-in        → workers/fan-in             (swarm "Fan-in")
+   The swarm runs a fallback chain (runSecondaryViaSwarm over
+   executeSecondaryTask): a rerank-/moderation-type member auto-uses
+   its native endpoint, chat members take the chat-JSON path; the
+   winning worker is attributed on the row.
         │
         ▼
-[ Run — N independent calls in parallel,                    ]
-[ gated by ProviderThrottle per provider host               ]
-[ (default 60/min + 5 concurrent; see throttle.md)          ]
+[ Run — ONE result via the swarm fallback chain (was: one    ]
+[ call per picked model). 429 parks a worker + tries the next;]
+[ the row ERRORs only when the chain is exhausted.            ]
 [ plus the per-flow ApiCallCaps sub-cap                     ]
    • Multi-language: chat-type META runs once in a seed language,
      then appends cross-translations to the other languages'
