@@ -564,9 +564,62 @@ internal fun NavGraphBuilder.reportRoutes(
                 navController = navController,
                 currentReportId = rid
             ) {
+                // Local Icon-lookup / Edit-title overlays so this standalone
+                // route's model icon + title taps reach the same screens the
+                // manage overlay stack offers. Find-alternatives is hidden
+                // (its picker lives only in the manage overlay stack).
+                val rmAiSettings = com.ai.ui.shared.LocalAiSettings.current
+                val rmDataVersion by com.ai.data.ReportDataVersion.version.collectAsState()
+                val rmReport by produceState<com.ai.data.Report?>(null, rid, rmDataVersion) {
+                    value = withContext(Dispatchers.IO) {
+                        com.ai.ui.report.view.helpers.ViewReportCache.get(rmContext, rid)
+                    }
+                }
+                val agentIconFanOut by appViewModel.agentIconFanOutByAgent.collectAsState()
+                var iconDetailFor by remember { mutableStateOf<String?>(null) }
+                var editTitleFor by remember { mutableStateOf<String?>(null) }
+                val rmAgents = rmReport?.agents
+                val etf = editTitleFor
+                val idf = iconDetailFor
+                val editAgent = etf?.let { id -> rmAgents?.firstOrNull { it.agentId == id } }
+                val iconAgent = idf?.let { id -> rmAgents?.firstOrNull { it.agentId == id } }
+                if (etf != null && editAgent != null) {
+                    com.ai.ui.report.manage.ReportEditModelTitleScreen(
+                        reportId = rid,
+                        agentId = etf,
+                        modelName = "${editAgent.provider} · ${shortModelName(editAgent.model)}",
+                        initialTitle = editAgent.modelTitle.orEmpty(),
+                        traceFilename = editAgent.modelTitleTraceFile,
+                        onNavigateToTraceFile = { fn -> navController.navigate(NavRoutes.traceDetail(fn)) },
+                        onBack = { editTitleFor = null },
+                        showFindAlternatives = false,
+                        onUpdate = { newTitle ->
+                            editTitleFor = null
+                            rmScope.launch { reportViewModel.updateModelTitle(rmContext, rid, etf, newTitle) }
+                        }
+                    )
+                } else if (idf != null && iconAgent != null && rmReport != null) {
+                    com.ai.ui.report.manage.AgentIconDetailOverlay(
+                        agentId = idf,
+                        aiSettings = rmAiSettings,
+                        currentReportId = rid,
+                        loadedReportPrompt = rmReport!!.prompt,
+                        effectiveReportIcon = rmReport!!.icon,
+                        loadedReportTitle = rmReport!!.title,
+                        agentRecordsByAgentId = rmAgents.orEmpty().associateBy { it.agentId },
+                        agentIconFanOutByAgent = agentIconFanOut,
+                        onNavigateToTraceFile = { fn -> navController.navigate(NavRoutes.traceDetail(fn)) },
+                        onFindAlternativeIcons = { },
+                        onApplyIcon = { emoji -> reportViewModel.iconGen.pickAgentIcon(rmContext, rid, idf, emoji) },
+                        onClose = { iconDetailFor = null },
+                        showFindAlternatives = false
+                    )
+                } else {
                 com.ai.ui.report.manage.view.ReportModelScreen(
                     reportId = rid,
                     agentId = aid,
+                    onOpenAgentIcon = { iconDetailFor = it },
+                    onEditModelTitle = { editTitleFor = it },
                     onBack = safePopBack,
                     onNavigateHome = navigateHome,
                     onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
@@ -636,6 +689,7 @@ internal fun NavGraphBuilder.reportRoutes(
                         }
                     }
                 )
+                }
             }
         }
 }
