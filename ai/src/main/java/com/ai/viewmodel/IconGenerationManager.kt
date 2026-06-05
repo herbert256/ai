@@ -2850,6 +2850,14 @@ class IconGenerationManager(
     /** Re-fire fan-meta after clearing every pair's title+icon. */
     fun relaunchFanMetaBatch(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            // Stop any in-flight fan-meta batch BEFORE clearing. join() (not
+            // just cancel()) is load-bearing: clearFanMetaTitleIconState blanks
+            // EVERY pair's title+icon, and runFanMetaBatch below dedups on a
+            // live job — so without the join, a running batch's already-completed
+            // pairs get blanked here but never reprocessed (their runId is nulled
+            // too, so the resume scan misses them): silent lost work. Mirrors
+            // FanOutEngine.clearFanMeta.
+            cancelFanMetaBatch(reportId, metaPromptId)?.join()
             withContext(Dispatchers.IO) {
                 val rows = SecondaryResultStorage
                     .listForReport(context, reportId, SecondaryKind.META)
