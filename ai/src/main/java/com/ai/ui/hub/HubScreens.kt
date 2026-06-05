@@ -315,10 +315,11 @@ fun ReportsHubScreen(
         allReports.filter { it.pinned }.sortedByDescending { it.timestamp }.take(5)
     }
     val homeReportLists by rememberHomeReportLists(refreshTick, reportViewModel)
-    // "Latest" excludes anything already shown under "Running" or "with
-    // problems" so a report surfaces in only one card.
+    // "Latest" excludes anything already shown under "Running" so a report
+    // surfaces in only one card. Problem reports are no longer split into
+    // their own card (the top-bar ⚠️ flags them), so they appear here too.
     val latestReports = remember(allReports, homeReportLists) {
-        val shown = (homeReportLists.running + homeReportLists.problems).mapTo(HashSet()) { it.id }
+        val shown = homeReportLists.running.mapTo(HashSet()) { it.id }
         allReports.filter { !it.pinned && it.id !in shown }.take(5)
     }
     val bumpDelete: (String) -> Unit = { rid ->
@@ -368,11 +369,12 @@ fun ReportsHubScreen(
             ) { Text("All", maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        // Section cards, with empty ones (e.g. Running / Problems) sunk to
-        // the bottom so the populated buckets lead. Examples stays last.
+        // Section cards, with empty ones (e.g. Running) sunk to the bottom so
+        // the populated buckets lead. Examples stays last. Reports with
+        // problems no longer get their own card — the top-bar ⚠️ badge (which
+        // opens the Broken-work screen) is the single problem indicator now.
         val hubCards = listOf(
             Triple(MetadataDefaults.STATUS_PENDING, AppColors.WarningAccent, "Running AI reports") to homeReportLists.running,
-            Triple(MetadataDefaults.STATUS_WARNING, AppColors.DangerAccent, "Reports with problems") to homeReportLists.problems,
             Triple(MetadataDefaults.PIN, AppColors.CautionAccent, "Pinned AI Reports") to pinnedReports,
             Triple(MetadataDefaults.CLOCK_RECENT, AppColors.InfoAccent, "Latest AI Reports") to latestReports,
         ).sortedBy { it.second.isEmpty() }
