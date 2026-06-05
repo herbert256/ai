@@ -29,31 +29,40 @@ import kotlinx.coroutines.withContext
 val DEFAULT_UI_CARD_BACKGROUND_ARGB: Int = 0xFF2A3A4A.toInt()
 val DEFAULT_UI_BUTTON_BACKGROUND_ARGB: Int = 0xFF27594E.toInt()
 
-/** The kinds of interrupted work the background scan can detect. Each
- *  maps to a blank-but-unfinished placeholder on disk (content blank,
- *  no error, no duration) or a stalled regenerate job. Surfaced as the
- *  per-report breakdown on the Broken-work screen. */
-enum class BrokenKind(val label: String) {
-    TRANSLATION("translation"),
-    FAN_OUT("fan-out"),
-    TOURNAMENT("tournament"),
-    JUDGES("judges"),
-    META("meta / rerank / moderation"),
-    REGENERATE("regenerate"),
-    UNRECOVERABLE("unrecoverable")
+/** The batch families surfaced on the Broken-work screen — one card per
+ *  ([BrokenBatch.kind], [BrokenBatch.key]) group the background scan finds. */
+enum class BatchFamilyKind(val label: String) {
+    FAN_OUT("Fan Out"),
+    FAN_META("Fan Meta"),
+    TOURNAMENT("Tournament"),
+    JUDGES("Judges"),
+    COMPARE("Compare"),
+    TRANSLATION("Translation"),
+    REGENERATE("Regenerate"),
+    /** Single Meta / Rerank / Moderation secondary calls (not a fan-out batch). */
+    OTHER("Meta / Rerank / Moderation"),
 }
 
-/** One report with interrupted work the app detected but did NOT fix.
- *  Produced by the read-only background scan and rendered one-per-row on
- *  the Broken-work screen; tapping a row opens the report. [totalCount]
- *  counts the individual broken placeholders plus one for a stalled
- *  regenerate job; [kinds] is the distinct set behind that count. */
-data class BrokenReport(
+/** One batch (run) with work needing attention, produced by the read-only
+ *  background scan and rendered one card per entry on the Broken-work
+ *  screen. A batch can carry [unfinishedCount] stranded placeholders
+ *  (blank, no error, not in flight) and/or [errorCount] errored items;
+ *  the card shows a line for each that is > 0.
+ *
+ *  [key] is the actionable scope used to recover the batch: a fan-out
+ *  runKey (`"reportId|metaPromptId"`) for FAN_OUT / FAN_META, a
+ *  translation runId for TRANSLATION, or the reportId for the
+ *  one-run-per-report kinds (TOURNAMENT / JUDGES / COMPARE / OTHER /
+ *  REGENERATE). */
+data class BrokenBatch(
     val reportId: String,
-    val title: String,
+    val reportTitle: String,
+    val kind: BatchFamilyKind,
+    val key: String,
+    val batchName: String,
+    val unfinishedCount: Int,
+    val errorCount: Int,
     val timestamp: Long,
-    val kinds: List<BrokenKind>,
-    val totalCount: Int
 )
 
 /** How combined provider+model labels render across UI rows.

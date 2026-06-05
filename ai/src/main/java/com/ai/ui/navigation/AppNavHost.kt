@@ -52,7 +52,7 @@ fun AppNavHost(
 ) {
     // App-wide background broken-work scan — walks every report
     // modified in the last 7 days and detects (read-only) any
-    // interrupted batches, publishing them to AppViewModel.brokenReports
+    // interrupted batches, publishing them to AppViewModel.brokenBatches
     // which drives the ⚠️ top-bar badge. It no longer auto-fixes.
     // LaunchedEffect(Unit) fires once per composition; the start
     // method's cancel-prior pattern (Job stored on AppViewModel)
@@ -405,10 +405,10 @@ fun AppNavHost(
     // read-only background scan flagged reports with interrupted batches.
     // A non-null value makes AppTopBarChrome swap the right-side AI logo
     // for a ⚠️ that opens the Broken-work screen.
-    val brokenReports by appViewModel.brokenReports.collectAsState()
-    val brokenWorkBadge = if (brokenReports.isEmpty()) null
+    val brokenBatches by appViewModel.brokenBatches.collectAsState()
+    val brokenWorkBadge = if (brokenBatches.isEmpty()) null
         else com.ai.ui.shared.BrokenWorkBadge(
-            count = brokenReports.size,
+            count = brokenBatches.size,
             onOpen = { navController.navigate(NavRoutes.AI_BROKEN_WORK) }
         )
     androidx.compose.runtime.CompositionLocalProvider(

@@ -639,7 +639,7 @@ internal fun NavGraphBuilder.developerRoutes(
         composable(NavRoutes.AI_BROKEN_WORK) {
             val brokenWorkContext = LocalContext.current
             val brokenWorkScope = rememberCoroutineScope()
-            val broken by appViewModel.brokenReports.collectAsState()
+            val broken by appViewModel.brokenBatches.collectAsState()
             BrokenWorkScreen(
                 items = broken,
                 onBack = safePopBack,

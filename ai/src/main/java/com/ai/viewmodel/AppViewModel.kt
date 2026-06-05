@@ -49,10 +49,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  every 30 s scan tick, so it clears to empty once nothing is broken.
      *  Lives outside [UiState] like the other batch-progress flows so a
      *  scan tick doesn't recompose unrelated screens. */
-    private val _brokenReports = MutableStateFlow<List<BrokenReport>>(emptyList())
-    val brokenReports: StateFlow<List<BrokenReport>> = _brokenReports.asStateFlow()
-    internal fun setBrokenReports(reports: List<BrokenReport>) {
-        _brokenReports.value = reports
+    private val _brokenBatches = MutableStateFlow<List<BrokenBatch>>(emptyList())
+    val brokenBatches: StateFlow<List<BrokenBatch>> = _brokenBatches.asStateFlow()
+    internal fun setBrokenBatches(batches: List<BrokenBatch>) {
+        _brokenBatches.value = batches
     }
 
     // NOTE: the legacy `runningFanOutPairs` StateFlow was removed — the

@@ -348,7 +348,7 @@ class SecondaryRunManager(
      *  single-call Meta/Rerank/Moderation run on the report.
      *  **Manual/explicit use only** now — it is no longer fired on
      *  report open or by the background loop (that loop is detect-only:
-     *  see [startBackgroundBrokenScan] / [detectBrokenForReport]). Kept
+     *  see [startBackgroundBrokenScan] / [detectBrokenBatchesForReport]). Kept
      *  for explicit user fixes (Regenerate / retry) and the regenerate
      *  orchestrator.
      *
@@ -553,11 +553,11 @@ class SecondaryRunManager(
     }
 
     /** App-wide background broken-work scan. Walks every report whose
-     *  timestamp is within the last 7 days and asks [detectBrokenForReport]
+     *  timestamp is within the last 7 days and asks [detectBrokenBatchesForReport]
      *  which of them carry interrupted work — translation / fan-out /
      *  tournament / judges / single-Meta placeholders, plus stalled
      *  regenerate jobs — WITHOUT touching anything. The result is published
-     *  whole to [AppViewModel.setBrokenReports], which drives the ⚠️ top-bar
+     *  whole to [AppViewModel.setBrokenBatches], which drives the ⚠️ top-bar
      *  badge and the Broken-work screen.
      *
      *  Read-only by design: the app no longer auto-resumes interrupted
@@ -577,7 +577,7 @@ class SecondaryRunManager(
         ) {
             while (kotlinx.coroutines.currentCoroutineContext()[Job]?.isActive == true) {
                 try {
-                    appViewModel.setBrokenReports(scanBrokenRunsForRecentReports(context))
+                    appViewModel.setBrokenBatches(scanBrokenRunsForRecentReports(context))
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -588,30 +588,34 @@ class SecondaryRunManager(
         }
     }
 
-    /** Walks every report newer than 7 days and aggregates the interrupted
-     *  work each one carries into a [BrokenReport]. Sequential per-report
-     *  disk scan — same cost profile as the old resume sweep, minus all
-     *  dispatch. Reports with nothing broken are dropped; the rest sort
-     *  newest-first for the list. */
-    private suspend fun scanBrokenRunsForRecentReports(context: Context): List<BrokenReport> {
+    /** Walks every report newer than 7 days and emits one [BrokenBatch] per
+     *  (kind, run) that carries interrupted and/or errored work. Sequential
+     *  per-report disk scan — same cost profile as the old resume sweep,
+     *  minus all dispatch. Sorted newest-first for the list. */
+    private suspend fun scanBrokenRunsForRecentReports(context: Context): List<BrokenBatch> {
         val cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
         val recent = withContext(Dispatchers.IO) {
             ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff }
         }
         if (recent.isEmpty()) return emptyList()
-        val broken = recent.mapNotNull { report -> detectBrokenForReport(context, report) }
+        val batches = recent.flatMap { report -> detectBrokenBatchesForReport(context, report) }
             .sortedByDescending { it.timestamp }
-        AppLog.d("BrokenScan", "scanned ${recent.size} report${if (recent.size == 1) "" else "s"} (7d) → ${broken.size} broken")
-        return broken
+        AppLog.d("BrokenScan", "scanned ${recent.size} report${if (recent.size == 1) "" else "s"} (7d) → ${batches.size} broken batch${if (batches.size == 1) "" else "es"}")
+        return batches
     }
 
-    /** Read-only detection for one report: classifies every blank-but-
-     *  unfinished placeholder (content blank, no error, no duration) that
-     *  isn't currently in flight, plus a stalled regenerate job. Returns
-     *  null when nothing is broken. Mutates NOTHING — it mirrors the
-     *  predicates [resumeStaleRunsForReport] and the engines use, but never
-     *  dispatches, terminalizes, or hydrates. */
-    private fun detectBrokenForReport(context: Context, report: Report): BrokenReport? {
+    /** Read-only detection for one report: groups every interrupted (blank
+     *  content, no error, no duration, not in flight) and errored
+     *  SecondaryResult row into its batch ([BrokenBatch]) and tallies the
+     *  two states separately. Covers all six batch families, a stalled
+     *  regenerate job, and single Meta/Rerank/Moderation calls. Mutates
+     *  NOTHING — it mirrors the engines' predicates but never dispatches,
+     *  terminalizes, or hydrates. One entry per (kind, run); empty when
+     *  nothing needs attention. A fan-out pair feeds BOTH its Fan Out batch
+     *  (response state) and its Fan Meta batch (title/icon state). The
+     *  "MATCH" sentinel is the shared match/cell role
+     *  (TournamentEngine.ROLE_MATCH / [com.ai.data.JUDGE_ROLE_CELL]). */
+    private fun detectBrokenBatchesForReport(context: Context, report: Report): List<BrokenBatch> {
         val reportId = report.id
         val rows = SecondaryResultStorage.listForReport(context, reportId)
         // In-flight exclusion: a row a live worker owns in THIS process must
@@ -622,59 +626,80 @@ class SecondaryRunManager(
             rvm.tournamentEngine.inFlightRowIds() +
             rvm.judgeEvalEngine.inFlightRowIds() +
             rvm.resumingMetaIds
+        val runningFanMeta = appViewModel.runningFanMetaPairs.value
         val activeTranslationRunIds = rvm.translation.translationRuns.value.values
             .filter { !it.isFinished && !it.cancelled }
             .map { it.runId }
             .toSet()
-        val kinds = mutableListOf<BrokenKind>()
-        rows.forEach { row ->
-            if (!row.content.isNullOrBlank()) return@forEach
-            if (row.errorMessage != null) return@forEach
-            if (row.durationMs != null) return@forEach
-            if (row.id in inFlight) return@forEach
-            classifyBrokenRow(row, activeTranslationRunIds)?.let { kinds.add(it) }
-        }
-        var total = kinds.size
-        if (rvm.regenerateBatchEngine.detectBroken(context, reportId)) {
-            kinds.add(BrokenKind.REGENERATE)
-            total += 1
-        }
-        if (total == 0) return null
-        return BrokenReport(
-            reportId = reportId,
-            title = report.title,
-            timestamp = report.timestamp,
-            kinds = kinds.distinct(),
-            totalCount = total
-        )
-    }
 
-    /** Maps one interrupted placeholder row to its [BrokenKind], or null
-     *  when the row isn't a resumable unit: a tournament / judges aggregate
-     *  row, a translation row still inside an active run, or a COMPARE cell
-     *  (never part of the app-kill recovery set). Mirrors the per-kind
-     *  ownership in [resumeStaleRunsForReport]. The "MATCH" sentinel is the
-     *  shared match/cell role (TournamentEngine.ROLE_MATCH /
-     *  [com.ai.data.JUDGE_ROLE_CELL]). */
-    private fun classifyBrokenRow(
-        row: SecondaryResult,
-        activeTranslationRunIds: Set<String>
-    ): BrokenKind? = when {
-        row.kind == SecondaryKind.COMPARE -> null
-        row.kind == SecondaryKind.TRANSLATE ->
-            if (row.translationRunId != null && row.translationRunId !in activeTranslationRunIds)
-                BrokenKind.TRANSLATION else null
-        row.kind == SecondaryKind.TOURNAMENT ->
-            if (row.tournamentRole == "MATCH") BrokenKind.TOURNAMENT else null
-        row.kind == SecondaryKind.JUDGES ->
-            if (row.tournamentRole == "MATCH") BrokenKind.JUDGES else null
-        row.kind == SecondaryKind.META && row.fanOutSourceAgentId != null && row.fanInOf == null ->
-            BrokenKind.FAN_OUT
-        row.fanOutSourceAgentId == null && row.fanInOf == null && row.translationRunId == null &&
-            (row.kind == SecondaryKind.META || row.kind == SecondaryKind.RERANK ||
-                row.kind == SecondaryKind.MODERATION) ->
-            BrokenKind.META
-        else -> BrokenKind.UNRECOVERABLE
+        // (kind|key) -> running tally; LinkedHashMap preserves first-seen order.
+        class Acc(val kind: BatchFamilyKind, val key: String, val name: String) {
+            var unfinished = 0
+            var errors = 0
+        }
+        val groups = LinkedHashMap<String, Acc>()
+        fun tally(kind: BatchFamilyKind, key: String, name: String, unfinished: Boolean, error: Boolean) {
+            if (!unfinished && !error) return
+            val g = groups.getOrPut("$kind|$key") { Acc(kind, key, name) }
+            if (unfinished) g.unfinished++
+            if (error) g.errors++
+        }
+        fun interrupted(row: SecondaryResult) =
+            row.content.isNullOrBlank() && row.errorMessage == null &&
+                row.durationMs == null && row.id !in inFlight
+        fun errored(row: SecondaryResult) = row.errorMessage != null
+
+        rows.forEach { row ->
+            when {
+                // Fan-out pair — feeds the Fan Out batch (its response state)
+                // and the Fan Meta batch (its title/icon state).
+                row.kind == SecondaryKind.META && row.fanOutSourceAgentId != null && row.fanInOf == null -> {
+                    val mp = row.metaPromptId ?: return@forEach
+                    val name = row.metaPromptName?.takeIf { it.isNotBlank() } ?: mp
+                    tally(BatchFamilyKind.FAN_OUT, "$reportId|$mp", "Fan Out · $name",
+                        interrupted(row), errored(row))
+                    val responseDone = !row.content.isNullOrBlank() || row.durationMs != null
+                    if (responseDone) {
+                        val fmError = !row.titleErrorMessage.isNullOrBlank() || !row.iconErrorMessage.isNullOrBlank()
+                        val fmUnfinished = row.title.isNullOrBlank() && row.icon.isNullOrBlank() &&
+                            !fmError && row.id !in runningFanMeta
+                        tally(BatchFamilyKind.FAN_META, "$reportId|$mp", "Fan Meta · $name",
+                            fmUnfinished, fmError)
+                    }
+                }
+                row.kind == SecondaryKind.TOURNAMENT && row.tournamentRole == "MATCH" ->
+                    tally(BatchFamilyKind.TOURNAMENT, reportId, "Tournament", interrupted(row), errored(row))
+                row.kind == SecondaryKind.JUDGES && row.tournamentRole == "MATCH" ->
+                    tally(BatchFamilyKind.JUDGES, reportId, "Judges", interrupted(row), errored(row))
+                row.kind == SecondaryKind.COMPARE ->
+                    tally(BatchFamilyKind.COMPARE, reportId, "Compare", interrupted(row), errored(row))
+                row.kind == SecondaryKind.TRANSLATE && row.translationRunId != null -> {
+                    val runId = row.translationRunId!!
+                    // Stranded only once its run is no longer active (mirrors the
+                    // old translation classifier); errored rows always count.
+                    val unfinished = interrupted(row) && runId !in activeTranslationRunIds
+                    val lang = row.targetLanguage?.takeIf { it.isNotBlank() } ?: "?"
+                    tally(BatchFamilyKind.TRANSLATION, runId, "Translation · $lang", unfinished, errored(row))
+                }
+                row.fanOutSourceAgentId == null && row.fanInOf == null && row.translationRunId == null &&
+                    (row.kind == SecondaryKind.META || row.kind == SecondaryKind.RERANK ||
+                        row.kind == SecondaryKind.MODERATION) ->
+                    tally(BatchFamilyKind.OTHER, reportId, "Meta / Rerank / Moderation",
+                        interrupted(row), errored(row))
+            }
+        }
+
+        val batches = groups.values.map {
+            BrokenBatch(reportId, report.title, it.kind, it.key, it.name,
+                it.unfinished, it.errors, report.timestamp)
+        }.toMutableList()
+
+        // Stalled regenerate job — one synthetic entry (Boolean detector).
+        if (rvm.regenerateBatchEngine.detectBroken(context, reportId)) {
+            batches.add(BrokenBatch(reportId, report.title, BatchFamilyKind.REGENERATE, reportId,
+                "Regenerate", unfinishedCount = 1, errorCount = 0, timestamp = report.timestamp))
+        }
+        return batches
     }
 
     /** TOCTOU-safe re-read + save pair that flips a stuck placeholder

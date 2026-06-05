@@ -18,16 +18,16 @@ import androidx.compose.ui.unit.sp
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
-import com.ai.viewmodel.BrokenReport
+import com.ai.viewmodel.BrokenBatch
 
-/** Full-screen list of reports that carry interrupted batches the
- *  background scan detected but did NOT fix. Reached from the ⚠️ that
- *  replaces the top-bar AI logo while [items] is non-empty. One row per
- *  report; tapping a row opens that report's Manage screen, where the
- *  user can manually Regenerate / retry the broken work. */
+/** Full-screen list of batches that carry work needing attention —
+ *  unfinished (stranded by an app-kill) and/or errored items — that the
+ *  read-only background scan detected but did NOT fix. Reached from the
+ *  ⚠️ that replaces the top-bar AI logo while [items] is non-empty. One
+ *  card per batch; tapping a card opens that report's Manage screen. */
 @Composable
 fun BrokenWorkScreen(
-    items: List<BrokenReport>,
+    items: List<BrokenBatch>,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onOpenReport: (String) -> Unit
@@ -39,7 +39,7 @@ fun BrokenWorkScreen(
         TitleBar(
             helpTopic = "broken_work",
             title = "Broken work",
-            subject = "Interrupted batches the app detected",
+            subject = "Batch work that needs attention",
             onBackClick = onBack,
             reportIcon = warningGlyph,
             onReportIconClick = onNavigateHome,
@@ -47,7 +47,7 @@ fun BrokenWorkScreen(
         )
 
         Text(
-            "Batches interrupted by an app kill or error. The app no longer fixes these automatically — tap a report to open it and Regenerate / retry the broken work.",
+            "Batches with unfinished (app-kill) or errored items the scan detected. The app no longer fixes these automatically — tap a card to open the report.",
             fontSize = 11.sp, color = AppColors.TextTertiary
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -58,8 +58,8 @@ fun BrokenWorkScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                itemsIndexed(items, key = { _, r -> r.reportId }) { index, report ->
-                    BrokenWorkItem(report, warningGlyph, index, onClick = { onOpenReport(report.reportId) })
+                itemsIndexed(items, key = { _, b -> "${b.reportId}|${b.kind}|${b.key}" }) { index, batch ->
+                    BrokenWorkItem(batch, warningGlyph, index, onClick = { onOpenReport(batch.reportId) })
                 }
             }
         }
@@ -67,7 +67,7 @@ fun BrokenWorkScreen(
 }
 
 @Composable
-private fun BrokenWorkItem(report: BrokenReport, warningGlyph: String, index: Int, onClick: () -> Unit) {
+private fun BrokenWorkItem(batch: BrokenBatch, warningGlyph: String, index: Int, onClick: () -> Unit) {
     val background = if (index % 2 == 0) AppColors.CardBackground else AppColors.CardBackgroundAlt
     Card(
         colors = CardDefaults.cardColors(containerColor = background),
@@ -81,17 +81,29 @@ private fun BrokenWorkItem(report: BrokenReport, warningGlyph: String, index: In
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    report.title.ifBlank { "(untitled report)" },
+                    batch.reportTitle.ifBlank { "(untitled report)" },
                     fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${report.totalCount} broken — ${report.kinds.joinToString(", ") { it.label }}",
-                    fontSize = 11.sp, color = AppColors.WarningAccent,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                    batch.batchName,
+                    fontSize = 12.sp, color = AppColors.TextSecondary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
+                if (batch.unfinishedCount > 0) {
+                    Text(
+                        "${batch.unfinishedCount} unfinished",
+                        fontSize = 11.sp, color = AppColors.WarningAccent, maxLines = 1
+                    )
+                }
+                if (batch.errorCount > 0) {
+                    Text(
+                        "${batch.errorCount} error${if (batch.errorCount == 1) "" else "s"}",
+                        fontSize = 11.sp, color = AppColors.DangerAccent, maxLines = 1
+                    )
+                }
                 Text(
-                    DateUtils.getRelativeTimeSpanString(report.timestamp).toString(),
+                    DateUtils.getRelativeTimeSpanString(batch.timestamp).toString(),
                     fontSize = 10.sp, color = AppColors.TextTertiary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
