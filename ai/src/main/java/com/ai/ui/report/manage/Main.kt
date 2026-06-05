@@ -1279,6 +1279,21 @@ fun ReportsScreen(
         return
     }
     if (altTgt != null && showAltTranslatePicker && currentReportId != null) {
+        // Find-alternative translation now runs straight on the
+        // "Find translation" worker swarm — no model picker. One
+        // candidate per swarm member. Falls back to the picker only if
+        // the swarm is empty (misconfigured).
+        val autoModels = com.ai.viewmodel.findAltTranslationModels(aiSettings)
+        if (autoModels.isNotEmpty()) {
+            LaunchedEffect(altTgt) {
+                onStartAltTranslationFanOut(altTgt.reportId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, autoModels, emptyList(), null)
+                translationModels = emptyList()
+                pickerTarget = PickerTarget.NEW_REPORT
+                altPromptEditorPassed = false
+                showAltTranslatePicker = false
+            }
+            return
+        }
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,

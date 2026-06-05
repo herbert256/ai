@@ -100,6 +100,24 @@ fun altWorkerModels(aiSettings: Settings, flow: AltPromptFlow): List<ReportModel
         .distinctBy { "${it.provider.id}/${it.model}" }
 }
 
+/** The worker models for the Find-alternative-translation flow: resolve
+ *  the workers/find-translation holder prompt's swarm to concrete
+ *  provider/model [ReportModel]s (one candidate each). Empty when the
+ *  prompt is missing or has no resolvable worker — the caller then falls
+ *  back to the model-selection screen. Mirrors [altWorkerModels], but for
+ *  the TranslationText flow, which composes the translate-text /
+ *  translate-title prompt rather than an "alt" template. */
+fun findAltTranslationModels(aiSettings: Settings): List<ReportModel> {
+    val prompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "workers" && it.name.equals("find-translation", ignoreCase = true)
+    } ?: return emptyList()
+    return prompt.workers
+        .flatMap { aiSettings.expandWorker(it) }
+        .mapNotNull { aiSettings.resolveWorker(it) }
+        .map { toReportModel(it.provider, it.model) }
+        .distinctBy { "${it.provider.id}/${it.model}" }
+}
+
 /** Icon-generation orchestration extracted from [ReportViewModel]:
  *  the report/title/language icon kick-offs, every per-scope icon
  *  fan-out (internal-prompt / pair / translation / agent / language),

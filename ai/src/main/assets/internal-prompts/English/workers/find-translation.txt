@@ -1,0 +1,3 @@
+This prompt only supplies the worker swarm used to find alternative
+translations of a single item. The actual instruction text comes from
+the translate-text / translate-title prompt; this body is not sent.

@@ -1,6 +1,6 @@
 {
-  "name": "fan_out",
-  "title": "Find an ALTERNATIVE fitting emoji for a fan-out pair response",
+  "name": "find-translation",
+  "title": "Worker swarm for Find alternative translation",
   "reference": false,
   "workers": [
     {
@@ -8,7 +8,7 @@
       "provider": "*N/A",
       "model": "*N/A",
       "flock": "*N/A",
-      "swarm": "Find icons"
+      "swarm": "Find translation"
     }
   ],
   "parameters": "*NONE",
