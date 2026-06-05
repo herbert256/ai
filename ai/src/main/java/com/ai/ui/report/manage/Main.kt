@@ -213,20 +213,20 @@ fun ReportsScreen(
     onCopyReport: (String) -> Unit = {},
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
-    onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _, _, _ -> },
+    onRunSecondary: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
     /** Fired by the View screen's "Language missing" popup. Routes
      *  to ReportViewModel.translateMissingItems. */
     onTranslateMissingItems: (String, List<com.ai.viewmodel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
     onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?, Boolean) -> Unit = { _, _, _, _, _, _, _, _ -> },
-    onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
+    onRunFanIn: (String, com.ai.model.InternalPrompt, String?, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
      *  active model. The new report's id is built inside the
      *  ReportViewModel; this lambda navigates after the save. */
     onCreateReportFromFanOut: (String, String, String) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
-    onRunRerank: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
-    onRunModeration: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
+    onRunRerank: (String, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _ -> },
+    onRunModeration: (String, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _ -> },
     onRunTournament: (String) -> Unit = { },
     onRunJudgeJudges: (String) -> Unit = { },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
@@ -1000,75 +1000,36 @@ fun ReportsScreen(
         return
     }
 
-    // Meta prompt model picker. Reuses the same multi-select screen
-    // with the Meta prompt's name as the label.
+    // Meta runs now go straight through the Meta worker swarm — there's
+    // no model picker. When the scope step sets the meta prompt, fire the
+    // run and tear down the whole meta-creation stack.
     val pickerMetaPrompt = secondaryPickerMetaPrompt
     if (pickerMetaPrompt != null && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
-            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides {
-                secondaryPickerMetaPrompt = null
-                secondaryScopeMetaPrompt = null
-            }
-        ) {
-            ReportSelectModelsScreen(
-                aiSettings = aiSettings,
-                // Single-pick: tap fires the meta run for one model and pops
-                // back. Users wanting two runs just open the picker twice.
-                titleText = "${pickerMetaPrompt.name} — pick model",
-                recentEntries = recentReportPairs,
-                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
-                onSecondaryParamsConfirm = { pick, pIds, spId ->
-                    onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope, pIds, spId)
-                    // Clear the WHOLE meta-creation stack — picker + scope —
-                    // so the user lands back on the report once the run
-                    // kicks off. Without clearing `secondaryScopeMetaPrompt`
-                    // the scope-screen guard re-fires on recompose and the
-                    // user gets bounced back to Scope (the layered state
-                    // that makes Android back unwind step-by-step also has
-                    // to be torn down on the forward commit path). Mirrors
-                    // the fan-out commit handler.
-                    secondaryPickerMetaPrompt = null
-                    secondaryScopeMetaPrompt = null
-                    pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-                    pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                },
-                onBack = { secondaryPickerMetaPrompt = null },
-                onNavigateHome = onNavigateHome
-            )
+        val scope = pendingSecondaryScope
+        val ls = pendingLanguageScope
+        LaunchedEffect(pickerMetaPrompt) {
+            secondaryPickerMetaPrompt = null
+            secondaryScopeMetaPrompt = null
+            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+            onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null)
         }
         return
     }
 
-    // Fan_in model picker — shown when the user taps the
-    // "Combine reports and all fan out responses" button on the fan out
-    // detail screen. Single-pick; on confirm we kick the runner and
-    // pop back so the fan out detail screen's inline preview can pick
-    // up the placeholder via the isBatching poll.
+    // Fan-in now runs through the Fan-in worker swarm — no model picker.
+    // The fan-out detail screen's inline preview picks up the placeholder
+    // via the isBatching poll once the run kicks off.
     val fanInPicker = fanInPickerPrompt
     if (fanInPicker != null && currentReportId != null) {
         val rid = currentReportId
-        ReportSelectModelsScreen(
-            aiSettings = aiSettings,
-            titleText = "${fanInPicker.name} — pick model",
-            modelTypeFilter = null,
-            recentEntries = recentReportPairs,
-            onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-            onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
-            onSecondaryParamsConfirm = { pick, pIds, spId ->
-                onRunFanIn(rid, fanInPicker, pick, fanInPickerSourceLanguage, pIds, spId)
-                fanInPickerPrompt = null
-                fanInPickerSourceLanguage = null
-            },
-            onBack = {
-                fanInPickerPrompt = null
-                fanInPickerSourceLanguage = null
-            },
-            onNavigateHome = onNavigateHome
-        )
+        val srcLang = fanInPickerSourceLanguage
+        LaunchedEffect(fanInPicker) {
+            fanInPickerPrompt = null
+            fanInPickerSourceLanguage = null
+            onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null)
+        }
         return
     }
 
@@ -1101,56 +1062,31 @@ fun ReportsScreen(
         return
     }
 
+    // Rerank now runs through the Rerank worker swarm — no model picker.
     if (showRerankPicker && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showRerankPicker = false }, com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null) {
-            ReportSelectModelsScreen(
-                aiSettings = aiSettings,
-                titleText = "Pick rerank model",
-                recentEntries = recentReportPairs,
-                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
-                onSecondaryParamsConfirm = { pick, pIds, spId ->
-                    val ls = pendingLanguageScope
-                    showRerankPicker = false
-                    secondaryScopeMetaPrompt = null
-                    pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-                    pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                    onRunRerank(rid, pick, ls, pIds, spId)
-                },
-                onBack = { showRerankPicker = false },
-                onNavigateHome = onNavigateHome,
-                modelTypeFilter = com.ai.data.ModelType.RERANK
-            )
+        val ls = pendingLanguageScope
+        LaunchedEffect(rid) {
+            showRerankPicker = false
+            secondaryScopeMetaPrompt = null
+            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+            onRunRerank(rid, ls, emptyList(), null)
         }
         return
     }
 
+    // Moderation now runs through the Moderation worker swarm
+    // (mistral-moderation-latest by default) — no model picker.
     if (showModerationPicker && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
-            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { showModerationPicker = false },
-            com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null
-        ) {
-            ReportSelectModelsScreen(
-                aiSettings = aiSettings,
-                titleText = "Pick moderation model",
-                recentEntries = recentReportPairs,
-                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { pick ->
-                    val ls = pendingLanguageScope
-                    showModerationPicker = false
-                    secondaryScopeMetaPrompt = null
-                    pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-                    pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                    onRunModeration(rid, pick, ls)
-                },
-                onBack = { showModerationPicker = false },
-                onNavigateHome = onNavigateHome,
-                modelTypeFilter = com.ai.data.ModelType.MODERATION
-            )
+        val ls = pendingLanguageScope
+        LaunchedEffect(rid) {
+            showModerationPicker = false
+            secondaryScopeMetaPrompt = null
+            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+            onRunModeration(rid, ls)
         }
         return
     }

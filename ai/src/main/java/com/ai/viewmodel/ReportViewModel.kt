@@ -706,27 +706,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val hasKind = { k: SecondaryKind ->
             SecondaryResultStorage.listForReport(context, reportId, k).isNotEmpty()
         }
-        val rerankPick = firstModelOfType(aiSettings, ModelType.RERANK)
-        if (rerankPick == null) AppLog.i("Report", "auto-rerank skipped: no rerank-capable model")
-        else if (!hasKind(SecondaryKind.RERANK)) secondary.runRerank(context, reportId, rerankPick)
-        val modPick = firstModelOfType(aiSettings, ModelType.MODERATION)
-        if (modPick == null) AppLog.i("Report", "auto-moderation skipped: no moderation-capable model")
-        else if (!hasKind(SecondaryKind.MODERATION)) secondary.runModeration(context, reportId, modPick)
-    }
-
-    /** Resolve a [DefaultMetaItem]'s target to a (provider, model) pick:
-     *  a non-blank provider+model wins; otherwise the named agent; and as
-     *  a convenience, an agentName that is actually a provider id falls
-     *  back to that provider's default model. Null when unresolvable. */
-    private fun resolveMetaTarget(s: Settings, item: com.ai.model.DefaultMetaItem): Pair<AppService, String>? {
-        if (item.providerName.isNotBlank() && item.modelName.isNotBlank())
-            return AppService.findById(item.providerName)?.let { it to item.modelName }
-        if (item.agentName.isNotBlank()) {
-            s.agents.firstOrNull { it.name.equals(item.agentName, ignoreCase = true) }
-                ?.let { return it.provider to s.getEffectiveModelForAgent(it) }
-            AppService.findById(item.agentName)?.let { if (s.isProviderActive(it)) return it to s.getModel(it) }
-        }
-        return null
+        // Rerank now runs through its worker swarm (chat-JSON, with a
+        // native rerank member auto-routed), so it no longer needs a
+        // rerank-capable model selected up front.
+        if (!hasKind(SecondaryKind.RERANK)) secondary.runRerank(context, reportId)
+        // Moderation still needs a native moderation model (only Mistral
+        // is wired), so gate on one being active to avoid an error row.
+        val hasModModel = firstModelOfType(aiSettings, ModelType.MODERATION) != null
+        if (!hasModModel) AppLog.i("Report", "auto-moderation skipped: no moderation-capable model")
+        else if (!hasKind(SecondaryKind.MODERATION)) secondary.runModeration(context, reportId)
     }
 
     /** On a normal report completion, auto-create one META secondary per
@@ -753,11 +741,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 AppLog.i("Report", "auto-meta skipped: no meta prompt '${item.metaName}'"); continue
             }
             if (prompt.name.lowercase() in existingMetaNames) continue  // idempotent
-            val pick = resolveMetaTarget(aiSettings, item)
-            if (pick == null) {
-                AppLog.i("Report", "auto-meta '${item.metaName}': no resolvable model"); continue
-            }
-            secondary.runMetaPrompt(context, reportId, prompt, listOf(pick))
+            // Meta runs through the Meta worker swarm now; the default
+            // item's configured target is no longer needed to dispatch.
+            secondary.runMetaPrompt(context, reportId, prompt)
             existingMetaNames += prompt.name.lowercase()  // guard against duplicate rows in one pass
         }
     }
@@ -2344,13 +2330,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val metaPromptsLookup = appViewModel.uiState.value.aiSettings.internalPrompts.associateBy { it.id }
         for ((metaPromptId, rows) in groups) {
             val mp = metaPromptsLookup[metaPromptId] ?: continue
-            val picks = rows
-                .mapNotNull { meta ->
-                    val provider = AppService.findById(meta.providerId) ?: return@mapNotNull null
-                    provider to meta.model
-                }
-                .distinct()
-            if (picks.isEmpty()) continue
             // Recover the scope the user originally ran with (persisted
             // on the row via secondaryScope). For TopRanked, only honour
             // it if the referenced rerank still exists on the (post-
@@ -2368,7 +2347,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 else -> decoded
             }
             for (m in rows) SecondaryResultStorage.delete(context, reportId, m.id)
-            secondary.runMetaPrompt(context, reportId, mp, picks, safeScope)?.join()
+            secondary.runMetaPrompt(context, reportId, mp, safeScope)?.join()
         }
 
         val byKind = all.groupBy { it.kind }

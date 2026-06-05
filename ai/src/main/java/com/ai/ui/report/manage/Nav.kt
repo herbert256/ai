@@ -511,8 +511,8 @@ fun ReportsScreenNav(
         hasPrevReport = hasPrevReport,
         hasNextReport = hasNextReport,
         initialModels = initialModels,
-        onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope, paramsIds, systemPromptId ->
-            reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope, paramsIds, systemPromptId)
+        onRunSecondary = { reportId, metaPrompt, scopeChoice, languageScope, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, scopeChoice, languageScope, paramsIds, systemPromptId)
         },
         onTranslateMissingItems = { reportId, items, target, targetNative ->
             reportViewModel.translation.translateMissingItems(context, reportId, items, target, targetNative)
@@ -520,8 +520,8 @@ fun ReportsScreenNav(
         onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId, includeSelf ->
             reportViewModel.fanOutEngine.startRun(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId, includeSelfResponses = includeSelf)
         },
-        onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId ->
-            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId)
+        onRunFanIn = { reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId)
         },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
@@ -536,11 +536,11 @@ fun ReportsScreenNav(
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.secondary.runLocalRerank(context, reportId, modelName)
         },
-        onRunRerank = { reportId, pick, languageScope, paramsIds, systemPromptId ->
-            reportViewModel.secondary.runRerank(context, reportId, pick, languageScope, paramsIds, systemPromptId)
+        onRunRerank = { reportId, languageScope, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runRerank(context, reportId, languageScope, paramsIds, systemPromptId)
         },
-        onRunModeration = { reportId, pick, languageScope ->
-            reportViewModel.secondary.runModeration(context, reportId, pick, languageScope)
+        onRunModeration = { reportId, languageScope ->
+            reportViewModel.secondary.runModeration(context, reportId, languageScope)
         },
         onRunTournament = { reportId ->
             reportViewModel.tournamentEngine.startRun(context, reportId)

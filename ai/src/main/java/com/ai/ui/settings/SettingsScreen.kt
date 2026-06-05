@@ -2793,10 +2793,13 @@ private fun AppDefaultRow(label: String, selectedName: String?, onClick: () -> U
     }
 }
 
-/** Diagnostic preferences: master API tracing switch + application
- *  log severity threshold. Both flow to background subsystems
- *  (ApiTracer / AppLog) on save; the change takes effect on the
- *  next traced call / next log line. */
+/** Diagnostic preferences gated behind a master switch (default off):
+ *  API tracing, audit log, usage statistics and the application log
+ *  level. All flow to background subsystems (ApiTracer / AuditLog /
+ *  SettingsPreferences / AppLog) on save via the effective* gates; the
+ *  change takes effect on the next traced call / audit write / API call
+ *  / log line. While the master is off the four items are hidden and
+ *  forced off at runtime; their stored values are preserved. */
 @Composable
 private fun LoggingAndTracingSubScreen(
     generalSettings: GeneralSettings,
@@ -2804,19 +2807,21 @@ private fun LoggingAndTracingSubScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
+    var loggingMasterEnabled by remember { mutableStateOf(generalSettings.loggingMasterEnabled) }
     var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
     var auditLogEnabled by remember { mutableStateOf(generalSettings.auditLogEnabled) }
     var usageStatsEnabled by remember { mutableStateOf(generalSettings.usageStatsEnabled) }
     var logLevel by remember { mutableStateOf(generalSettings.logLevel) }
 
     fun build(): GeneralSettings = generalSettings.copy(
+        loggingMasterEnabled = loggingMasterEnabled,
         tracingEnabled = tracingEnabled,
         auditLogEnabled = auditLogEnabled,
         usageStatsEnabled = usageStatsEnabled,
         logLevel = logLevel
     )
 
-    LaunchedEffect(tracingEnabled, auditLogEnabled, usageStatsEnabled, logLevel) {
+    LaunchedEffect(loggingMasterEnabled, tracingEnabled, auditLogEnabled, usageStatsEnabled, logLevel) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -2836,38 +2841,47 @@ private fun LoggingAndTracingSubScreen(
         TitleBar(helpTopic = "settings_logging", title = "Log/trace/audit/statistics", subject = "Tracing, audit log, usage statistics and log level", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
-                title = "API tracing",
-                description = "Record every API request and response. Turn off to hide the AI API Traces card and the ${com.ai.data.MetadataIconsHolder.current.traces} trace icons.",
-                icon = MetadataDefaults.TRACES,
-                checked = tracingEnabled,
-                onCheckedChange = { tracingEnabled = it }
+                title = "Enable logging & tracing",
+                description = "Master switch for this page (default off). While off, nothing is recorded at runtime — no API tracing, no audit log, no usage statistics, and the file logger is disabled — and the four settings below stay hidden. Turn it on to record diagnostics and configure each one; their previous values come back as you left them.",
+                icon = MetadataDefaults.APP_LOG,
+                checked = loggingMasterEnabled,
+                onCheckedChange = { loggingMasterEnabled = it }
             )
-            ToggleSettingCard(
-                title = "Audit log",
-                description = "Record the per-report audit trail — every mutating action, batch start/end and API call, viewable under Monitor → Audit. Turn off to stop all audit writes.",
-                icon = "🧾",
-                checked = auditLogEnabled,
-                onCheckedChange = { auditLogEnabled = it }
-            )
-            ToggleSettingCard(
-                title = "Usage statistics",
-                description = "Accumulate per-provider / per-model token counts and costs on every API call — the figures behind AI Usage, the Statistics screen and the Live Dashboard rates. Turn off to stop all usage-stat recording; existing totals are kept until you clear them.",
-                icon = MetadataDefaults.CHART,
-                checked = usageStatsEnabled,
-                onCheckedChange = { usageStatsEnabled = it }
-            )
-            SettingCard(
-                "Application log level",
-                "Severity threshold for the in-app file logger. Calls at or above this level are appended to a daily-rotating file in app storage. View / clear under Housekeeping → Application log. OFF disables the file appender.",
-                MetadataDefaults.APP_LOG
-            ) {
-                Column {
-                    com.ai.data.LogLevel.entries.forEach { lvl ->
-                        RadioRow(
-                            selected = logLevel == lvl,
-                            label = lvl.name,
-                            onClick = { logLevel = lvl }
-                        )
+            if (loggingMasterEnabled) {
+                ToggleSettingCard(
+                    title = "API tracing",
+                    description = "Record every API request and response. Turn off to hide the AI API Traces card and the ${com.ai.data.MetadataIconsHolder.current.traces} trace icons.",
+                    icon = MetadataDefaults.TRACES,
+                    checked = tracingEnabled,
+                    onCheckedChange = { tracingEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Audit log",
+                    description = "Record the per-report audit trail — every mutating action, batch start/end and API call, viewable under Monitor → Audit. Turn off to stop all audit writes.",
+                    icon = "🧾",
+                    checked = auditLogEnabled,
+                    onCheckedChange = { auditLogEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Usage statistics",
+                    description = "Accumulate per-provider / per-model token counts and costs on every API call — the figures behind AI Usage, the Statistics screen and the Live Dashboard rates. Turn off to stop all usage-stat recording; existing totals are kept until you clear them.",
+                    icon = MetadataDefaults.CHART,
+                    checked = usageStatsEnabled,
+                    onCheckedChange = { usageStatsEnabled = it }
+                )
+                SettingCard(
+                    "Application log level",
+                    "Severity threshold for the in-app file logger. Calls at or above this level are appended to a daily-rotating file in app storage. View / clear under Housekeeping → Application log. OFF disables the file appender.",
+                    MetadataDefaults.APP_LOG
+                ) {
+                    Column {
+                        com.ai.data.LogLevel.entries.forEach { lvl ->
+                            RadioRow(
+                                selected = logLevel == lvl,
+                                label = lvl.name,
+                                onClick = { logLevel = lvl }
+                            )
+                        }
                     }
                 }
             }

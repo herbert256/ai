@@ -565,7 +565,7 @@ fun AiTraceStatsScreen(
             s == null -> Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
             s.total == 0 -> Text(
                 if (s.tracingEnabled) "No API traces recorded yet."
-                else "No API traces. Tracing is OFF — enable it in Settings → API tracing to collect them.",
+                else "No API traces. Tracing is OFF — enable it in Settings → Log/trace/audit/statistics to collect them.",
                 color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
             )
             else -> LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {

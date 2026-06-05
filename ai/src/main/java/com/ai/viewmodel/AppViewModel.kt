@@ -370,12 +370,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val refreshAllState: StateFlow<RefreshAllState?> = _refreshAllState.asStateFlow()
 
     init {
-        // Tracing default is true; the bootstrap below overrides it with
-        // the persisted GeneralSettings.tracingEnabled. Setting it here as
-        // well keeps any pre-bootstrap call (e.g. PricingCache.preloadAsync
-        // on the same launch) consistent with the user's last choice
-        // rather than always recording.
-        ApiTracer.isTracingEnabled = true
+        // The logging master switch defaults OFF, so until the bootstrap
+        // below loads the persisted GeneralSettings, record nothing — a
+        // pre-bootstrap call (e.g. PricingCache.preloadAsync on the same
+        // launch) must not leak a trace before we know the master + the
+        // user's tracing choice are both on.
+        ApiTracer.isTracingEnabled = false
         // Warm the trace-file cache off the main thread so the first
         // UI-side getTraceFiles() (Trace screen open, agent test 🐞
         // lookup, fan-out 🐞 lookup) doesn't pay the streaming-parse
@@ -425,10 +425,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.d(startTag, "→ Apply general settings to global singletons")
             ModelType.userDefaults = bs.first.defaultTypePaths
             AppLog.v(startTag, "  ModelType.userDefaults set (${bs.first.defaultTypePaths.size} entries)")
-            ApiTracer.isTracingEnabled = bs.first.tracingEnabled
-            AppLog.v(startTag, "  ApiTracer.isTracingEnabled=${bs.first.tracingEnabled}")
-            SettingsPreferences.usageStatsEnabled = bs.first.usageStatsEnabled
-            AppLog.v(startTag, "  SettingsPreferences.usageStatsEnabled=${bs.first.usageStatsEnabled}")
+            // Gate the diagnostic mirrors by the logging master switch —
+            // effective* fold loggingMasterEnabled in, so a master that's
+            // off forces tracing / audit / usage / file-logging off at
+            // runtime regardless of each item's stored value.
+            ApiTracer.isTracingEnabled = bs.first.effectiveTracingEnabled()
+            AppLog.v(startTag, "  ApiTracer.isTracingEnabled=${bs.first.effectiveTracingEnabled()} (master=${bs.first.loggingMasterEnabled})")
+            com.ai.data.AuditLog.enabled = bs.first.effectiveAuditLogEnabled()
+            SettingsPreferences.usageStatsEnabled = bs.first.effectiveUsageStatsEnabled()
+            AppLog.v(startTag, "  SettingsPreferences.usageStatsEnabled=${bs.first.effectiveUsageStatsEnabled()}")
             syncTestModelPrompt(bs.second)
             AppLog.v(startTag, "  AnalysisRepository.TEST_PROMPT=${com.ai.data.AnalysisRepository.TEST_PROMPT}")
             NetworkSettings.streamingReadTimeoutSec = bs.first.streamingReadTimeoutSec
@@ -447,8 +452,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     "maxRetries429=${bs.first.maxRetriesOn429} retryBackoff=${bs.first.retryBackoffMs429}ms " +
                     "maxRetries529=${bs.first.maxRetriesOn529} retryBackoff529=${bs.first.retryBackoffMs529}ms"
             )
-            AppLog.threshold = bs.first.logLevel
-            AppLog.v(startTag, "  AppLog.threshold=${bs.first.logLevel}")
+            AppLog.threshold = bs.first.effectiveLogLevel()
+            AppLog.v(startTag, "  AppLog.threshold=${bs.first.effectiveLogLevel()}")
             AppLog.d(startTag, "← Apply general settings done")
 
             val appLabel = runCatching {
@@ -1106,10 +1111,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateGeneralSettings(settings: GeneralSettings) {
         val previous = _uiState.value.generalSettings
         ModelType.userDefaults = settings.defaultTypePaths
-        ApiTracer.isTracingEnabled = settings.tracingEnabled
+        // Diagnostic mirrors are gated by the logging master switch via
+        // the effective* helpers — see [GeneralSettings.loggingMasterEnabled].
+        ApiTracer.isTracingEnabled = settings.effectiveTracingEnabled()
         ApiTracer.showLadybugIcons = settings.showLadybugIcons
-        com.ai.data.AuditLog.enabled = settings.auditLogEnabled
-        SettingsPreferences.usageStatsEnabled = settings.usageStatsEnabled
+        com.ai.data.AuditLog.enabled = settings.effectiveAuditLogEnabled()
+        SettingsPreferences.usageStatsEnabled = settings.effectiveUsageStatsEnabled()
         NetworkSettings.streamingReadTimeoutSec = settings.streamingReadTimeoutSec
         NetworkSettings.nonStreamingReadTimeoutSec = settings.nonStreamingReadTimeoutSec
         NetworkSettings.maxCallsPerProviderPerMinute = settings.maxCallsPerProviderPerMinute
@@ -1118,7 +1125,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         NetworkSettings.retryBackoffMs429 = settings.retryBackoffMs429
         NetworkSettings.maxRetriesOn529 = settings.maxRetriesOn529
         NetworkSettings.retryBackoffMs529 = settings.retryBackoffMs529
-        AppLog.threshold = settings.logLevel
+        AppLog.threshold = settings.effectiveLogLevel()
         // Java's Semaphore can't be resized in place — clear the
         // per-host map so the next acquire builds a fresh semaphore at
         // the new cap. The per-minute window is read on every acquire,

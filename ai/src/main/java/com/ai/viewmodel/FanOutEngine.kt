@@ -1831,11 +1831,10 @@ class FanOutEngine internal constructor(
     fun runFanIn(
         context: Context,
         runKey: FanOutRunKey,
-        fanInPrompt: InternalPrompt,
-        pick: Pair<AppService, String>
+        fanInPrompt: InternalPrompt
     ): Job? {
         val run = _runs.value[runKey] ?: return null
-        val job = reportViewModel.secondary.runFanInPrompt(context, run.reportId, fanInPrompt, pick, run.sourceLanguage)
+        val job = reportViewModel.secondary.runFanInPrompt(context, run.reportId, fanInPrompt, run.sourceLanguage)
         // Re-hydrate after the call completes to surface the new combined-report row.
         job?.invokeOnCompletion {
             appViewModel.viewModelScope.launch(Dispatchers.IO) { hydrate(context, run.reportId) }

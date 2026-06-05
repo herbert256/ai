@@ -88,11 +88,22 @@ data class GeneralSettings(
      *  per-type override in its typePaths. Falls back to ModelType.DEFAULT_PATHS
      *  when this map is empty for a given type. */
     val defaultTypePaths: Map<String, String> = emptyMap(),
+    /** Master gate for the whole Log/trace/audit/statistics page.
+     *  Default OFF — a fresh install records nothing. While false the
+     *  four diagnostic settings below ([tracingEnabled],
+     *  [auditLogEnabled], [usageStatsEnabled], [logLevel]) are forced
+     *  off at runtime regardless of their stored values — see the
+     *  `effective*` helpers, which every mirror in AppViewModel reads —
+     *  and the Settings UI hides them. Flip it on to reveal + apply each
+     *  one's individual value. The per-item values are preserved while
+     *  the master is off so turning it back on restores prior choices. */
+    val loggingMasterEnabled: Boolean = false,
     /** Master switch for API tracing. When false, no new traces are
      *  written, the Hub "AI API Traces" card is hidden, and every 🐞
      *  ladybug icon disappears from the per-result screens. Mirrored
      *  to [com.ai.data.ApiTracer.isTracingEnabled] so non-UI call
-     *  sites consult a single global. */
+     *  sites consult a single global. Gated by [loggingMasterEnabled] —
+     *  consume via [effectiveTracingEnabled]. */
     val tracingEnabled: Boolean = true,
     /** When true (default) the 🐞 trace hot-links show throughout the app
      *  while tracing is on. Turn off to hide every 🐞 link and view traces
@@ -349,6 +360,18 @@ data class GeneralSettings(
     fun perModelTitleOn() = metadataEnabled && perModelTitleGenEnabled
     fun metaIconsOn() = metadataEnabled && useInternalPromptsIcons
     fun fanMetaOn() = metadataEnabled
+
+    /** Runtime gates for the Log/trace/audit/statistics page — each
+     *  per-item flag ANDed with the [loggingMasterEnabled] master switch.
+     *  AppViewModel mirrors these (not the raw fields) into ApiTracer /
+     *  AuditLog / SettingsPreferences / AppLog, so a master that's off
+     *  forces every diagnostic off at runtime. [effectiveLogLevel] falls
+     *  back to OFF (the file appender disabled) when the master is off. */
+    fun effectiveTracingEnabled() = loggingMasterEnabled && tracingEnabled
+    fun effectiveAuditLogEnabled() = loggingMasterEnabled && auditLogEnabled
+    fun effectiveUsageStatsEnabled() = loggingMasterEnabled && usageStatsEnabled
+    fun effectiveLogLevel(): com.ai.data.LogLevel =
+        if (loggingMasterEnabled) logLevel else com.ai.data.LogLevel.OFF
 }
 
 // Prompt history entry

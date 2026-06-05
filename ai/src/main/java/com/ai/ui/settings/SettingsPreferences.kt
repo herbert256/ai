@@ -90,6 +90,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
+            loggingMasterEnabled = prefs.getBoolean(KEY_LOGGING_MASTER_ENABLED, false),
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
             usageStatsEnabled = prefs.getBoolean(KEY_USAGE_STATS_ENABLED, true),
             fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
@@ -163,6 +164,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AA_API_KEY, settings.artificialAnalysisApiKey)
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
+            putBoolean(KEY_LOGGING_MASTER_ENABLED, settings.loggingMasterEnabled)
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
             putBoolean(KEY_USAGE_STATS_ENABLED, settings.usageStatsEnabled)
             putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
@@ -992,6 +994,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
         private const val KEY_USAGE_STATS_ENABLED = "usage_stats_enabled"
+        private const val KEY_LOGGING_MASTER_ENABLED = "logging_master_enabled"
         private const val KEY_FULL_SCREEN = "full_screen"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
         private const val KEY_UI_CARD_BACKGROUND_ARGB = "ui_card_background_argb"

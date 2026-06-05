@@ -325,6 +325,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     add("defaultTypePaths", JsonObject().apply {
         g.defaultTypePaths.forEach { (k, v) -> addProperty(k, v) }
     })
+    addProperty("loggingMasterEnabled", g.loggingMasterEnabled)
     addProperty("tracingEnabled", g.tracingEnabled)
     addProperty("fullScreen", g.fullScreen)
     addProperty("modelNameLayout", g.modelNameLayout.name)
@@ -425,6 +426,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         userName = str("userName") ?: current.userName,
         defaultEmail = str("defaultEmail") ?: current.defaultEmail,
         defaultTypePaths = typePaths ?: current.defaultTypePaths,
+        loggingMasterEnabled = bool("loggingMasterEnabled") ?: current.loggingMasterEnabled,
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         fullScreen = bool("fullScreen") ?: current.fullScreen,
         modelNameLayout = layout ?: current.modelNameLayout,

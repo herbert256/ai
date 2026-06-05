@@ -40,6 +40,85 @@ class SecondaryRunManager(
     private val appViewModel: AppViewModel,
     private val rvm: ReportViewModel
 ) {
+    // ===== Worker-swarm dispatch for single-result secondaries =====
+    //
+    // Rerank / Moderation / Meta / Fan-in no longer take a user-picked
+    // model. Each routes through a dedicated "workers"-category prompt
+    // whose swarm (a copy of the cheap worker pool by default) is the
+    // fallback chain — the same Mode-B path tournament / fan-meta use.
+    // The chain runs OVER executeSecondaryTask, so a rerank-type (Cohere
+    // / SiliconFlow) or moderation-type (Mistral) member still
+    // auto-routes to its native endpoint while chat members take the
+    // chat-JSON path.
+
+    /** The "workers"-category prompt that carries [name]'s swarm. */
+    private fun workerSwarmPrompt(aiSettings: Settings, name: String): InternalPrompt? =
+        aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name.equals(name, ignoreCase = true)
+        }
+
+    /** Run one single-result secondary through [swarm] with 429 / miss
+     *  fallback. [base] is a placeholder already persisted with this
+     *  row's id + metadata (metaPromptId / name, scope, language). Each
+     *  attempt re-stamps the placeholder's provider / model to the
+     *  worker being tried, so a success attributes the row to the worker
+     *  that actually answered. The row stays ERROR only when the whole
+     *  chain is spent. */
+    private suspend fun runSecondaryViaSwarm(
+        context: Context, reportId: String, kind: SecondaryKind,
+        contentPrompt: InternalPrompt, swarm: List<Worker>,
+        resolvedPrompt: String, aiSettings: Settings, report: Report,
+        base: SecondaryResult,
+        targetLanguage: String? = null, targetLanguageNative: String? = null,
+        referenceLegend: String? = null, fanInOf: String? = null,
+        scopeEncoded: String? = null,
+        paramsIds: List<String> = emptyList(), systemPromptId: String? = null
+    ) {
+        val members = swarm.flatMap { aiSettings.expandWorker(it) }
+        if (members.isEmpty()) {
+            SecondaryResultStorage.saveIfStillPresent(context, base.copy(
+                errorMessage = "No workers configured for '${contentPrompt.name}' — add a swarm under AI Setup → Prompt management → Worker prompts."
+            ))
+            return
+        }
+        val cooldown = HashMap<String, Long>()
+        var sawRateLimit = false
+        var lastErr: String? = null
+        for (idx in members.indices.shuffled()) {
+            val w = members[idx]
+            val key = "${w.provider}:${w.model}:${w.agent}"
+            if ((cooldown[key] ?: 0L) > System.currentTimeMillis()) { sawRateLimit = true; continue }
+            val agent = aiSettings.resolveWorker(w) ?: continue
+            val model = aiSettings.getEffectiveModelForAgent(agent)
+            val provider = agent.provider
+            if (ModelCooldownStore.isUnavailable(provider.id, model)) { sawRateLimit = true; continue }
+            // Row deleted mid-run — stop without recreating it.
+            if (!SecondaryResultStorage.exists(context, reportId, base.id)) return
+            ApiCallCaps.global.withPermit {
+                executeSecondaryTask(
+                    context, reportId, kind, contentPrompt,
+                    provider, model, resolvedPrompt, aiSettings, report,
+                    targetLanguage = targetLanguage, targetLanguageNative = targetLanguageNative,
+                    referenceLegend = referenceLegend, fanInOf = fanInOf,
+                    existingPlaceholder = base.copy(providerId = provider.id, model = model),
+                    scopeEncoded = scopeEncoded,
+                    paramsIds = paramsIds, systemPromptId = systemPromptId
+                )
+            }
+            val row = SecondaryResultStorage.get(context, reportId, base.id) ?: return
+            if (row.errorMessage == null && !row.content.isNullOrBlank()) return  // success
+            lastErr = row.errorMessage
+            if (row.errorMessage?.contains("429") == true || row.errorMessage?.contains("529") == true) {
+                cooldown[key] = System.currentTimeMillis() + WORKER_429_DEFAULT_MS
+                sawRateLimit = true
+            }
+        }
+        val msg = if (sawRateLimit) "All '${contentPrompt.name}' workers rate-limited — try again shortly."
+                  else (lastErr ?: "No worker produced a result for '${contentPrompt.name}'.")
+        SecondaryResultStorage.saveIfStillPresent(context,
+            (SecondaryResultStorage.get(context, reportId, base.id) ?: base).copy(errorMessage = msg))
+    }
+
     // ===== Meta prompt results =====
 
     /** Kick off a Rerank or Summarize run for [reportId] across [picks]
@@ -130,7 +209,6 @@ class SecondaryRunManager(
     fun runRerank(
         context: Context,
         reportId: String,
-        pick: Pair<AppService, String>,
         /** Honoured only as a single language: rerank is one call against
          *  one set of bodies. AllPresent or a Selected set whose first
          *  non-empty entry is "" means "rank the original bodies"; a
@@ -140,13 +218,13 @@ class SecondaryRunManager(
         paramsIds: List<String> = emptyList(),
         systemPromptId: String? = null
     ): Job? {
-        val (provider, model) = pick
-        AppLog.i("Rerank", "→ start report=$reportId via ${provider.id}/$model")
-        if (provider.id == AppService.LOCAL.id) {
-            return runLocalRerank(context, reportId, model)
-        }
+        AppLog.i("Rerank", "→ start report=$reportId via the Rerank worker swarm")
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val rerankPrompt = aiSettings.getInternalPromptByName("second-rerank")
+        // The workers/second-rerank prompt carries both the chat-JSON
+        // template and the "Rerank" swarm. A rerank-type member auto-uses
+        // its native endpoint inside executeSecondaryTask.
+        val rerankPrompt = workerSwarmPrompt(aiSettings, "second-rerank")
+            ?: aiSettings.getInternalPromptByName("second-rerank")
             ?: return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
@@ -168,11 +246,22 @@ class SecondaryRunManager(
                         rerankPrompt.text, question = questionForPrompt, results = resultsBlock,
                         count = successfulCount, title = titleForPrompt
                     )
-                    executeSecondaryTask(
-                        context, reportId, SecondaryKind.RERANK, rerankPrompt,
-                        provider, model, resolvedPrompt, aiSettings, report,
-                        targetLanguage = sourceLanguage,
-                        targetLanguageNative = langCtx?.native,
+                    val base = SecondaryResultStorage.create(
+                        context, reportId, SecondaryKind.RERANK, "", "", "Rerank"
+                    ) {
+                        it.copy(
+                            targetLanguage = sourceLanguage,
+                            targetLanguageNative = langCtx?.native,
+                            metaPromptId = rerankPrompt.id,
+                            metaPromptName = rerankPrompt.name,
+                            secondaryParameterPresetIds = paramsIds,
+                            secondarySystemPromptId = systemPromptId
+                        )
+                    }
+                    runSecondaryViaSwarm(
+                        context, reportId, SecondaryKind.RERANK, rerankPrompt, rerankPrompt.workers,
+                        resolvedPrompt, aiSettings, report, base,
+                        targetLanguage = sourceLanguage, targetLanguageNative = langCtx?.native,
                         paramsIds = paramsIds, systemPromptId = systemPromptId
                     )
                 }
@@ -196,25 +285,25 @@ class SecondaryRunManager(
     fun runModeration(
         context: Context,
         reportId: String,
-        pick: Pair<AppService, String>,
         /** Same single-language semantics as rerank. When set, the
          *  moderation API receives translated bodies (fallback per-
          *  agent to the original) and the persisted row is tagged
          *  with the language so it appears under that section. */
         languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
     ): Job? {
-        val (provider, model) = pick
-        AppLog.i("Moderation", "→ start report=$reportId via ${provider.id}/$model")
+        AppLog.i("Moderation", "→ start report=$reportId via the Moderation worker swarm")
         val aiSettings = appViewModel.uiState.value.aiSettings
-        // Stub prompt — moderation is a fixed-API call; the
-        // InternalPrompt is only used to label the persisted row.
-        // If the user has a custom "moderation" prompt configured
-        // (legacy), use it; otherwise mint a synthetic one.
-        val moderationPrompt = aiSettings.getInternalPromptByName("second-moderation")
+        // The workers/second-moderation prompt carries the "Moderation"
+        // swarm (only Mistral has native moderation wired, so the default
+        // swarm is just mistral-moderation-latest). The text is unused —
+        // executeSecondaryTask short-circuits MODERATION to the native
+        // /moderations endpoint.
+        val moderationPrompt = workerSwarmPrompt(aiSettings, "second-moderation")
+            ?: aiSettings.getInternalPromptByName("second-moderation")
             ?: com.ai.model.InternalPrompt(
                 id = "moderation",
                 name = "Moderation",
-                category = "moderation",
+                category = "workers",
                 text = ""
             )
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -233,11 +322,20 @@ class SecondaryRunManager(
                         val secondaries = SecondaryResultStorage.listForReport(context, reportId)
                         lookupLanguageTranslations(report, secondaries, lang)?.native
                     }
-                    executeSecondaryTask(
-                        context, reportId, SecondaryKind.MODERATION, moderationPrompt,
-                        provider, model, resolvedPrompt = "", aiSettings = aiSettings, report = report,
-                        targetLanguage = sourceLanguage,
-                        targetLanguageNative = native
+                    val base = SecondaryResultStorage.create(
+                        context, reportId, SecondaryKind.MODERATION, "", "", "Moderation"
+                    ) {
+                        it.copy(
+                            targetLanguage = sourceLanguage,
+                            targetLanguageNative = native,
+                            metaPromptId = moderationPrompt.id,
+                            metaPromptName = moderationPrompt.name
+                        )
+                    }
+                    runSecondaryViaSwarm(
+                        context, reportId, SecondaryKind.MODERATION, moderationPrompt, moderationPrompt.workers,
+                        resolvedPrompt = "", aiSettings = aiSettings, report = report, base = base,
+                        targetLanguage = sourceLanguage, targetLanguageNative = native
                     )
                 }
             } finally {
@@ -724,7 +822,6 @@ class SecondaryRunManager(
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
-        pick: Pair<AppService, String>,
         /** English-name source language inherited from the parent
          *  fan-out (null = Original). When non-null, every @-token the
          *  fan-in template substitutes — @QUESTION@, @TITLE@, and the
@@ -736,7 +833,9 @@ class SecondaryRunManager(
         paramsIds: List<String> = emptyList(),
         systemPromptId: String? = null
     ): Job? {
-        AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}")
+        AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via the Fan-in worker swarm")
+        val aiSettings0 = appViewModel.uiState.value.aiSettings
+        val swarm = workerSwarmPrompt(aiSettings0, "fan-in")?.workers ?: emptyList()
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             val cat = "${metaPrompt.category}/${metaPrompt.name}"
@@ -751,10 +850,8 @@ class SecondaryRunManager(
                     // matrix assembly never drifts (see buildFanInResolution).
                     val resolution = buildFanInResolution(context, reportId, metaPrompt, report, sourceLanguage)
                     if (resolution == null) {
-                        val (provider, model) = pick
-                        val agentName = "${provider.id} / ${shortModelName(model)}"
                         SecondaryResultStorage.create(
-                            context, reportId, SecondaryKind.META, provider.id, model, agentName
+                            context, reportId, SecondaryKind.META, "", "", "Fan-in: ${metaPrompt.name}"
                         ) {
                             it.copy(
                                 metaPromptId = metaPrompt.id,
@@ -765,10 +862,22 @@ class SecondaryRunManager(
                         }
                         return@withTracerTags
                     }
-                    val (provider, model) = pick
-                    executeSecondaryTask(
-                        context, reportId, SecondaryKind.META, metaPrompt,
-                        provider, model, resolution.resolvedPrompt, aiSettings, report,
+                    val base = SecondaryResultStorage.create(
+                        context, reportId, SecondaryKind.META, "", "", "Fan-in: ${metaPrompt.name}"
+                    ) {
+                        it.copy(
+                            targetLanguage = sourceLanguage,
+                            targetLanguageNative = resolution.languageNative,
+                            metaPromptId = metaPrompt.id,
+                            metaPromptName = metaPrompt.name,
+                            fanInOf = metaPrompt.id,
+                            secondaryParameterPresetIds = paramsIds,
+                            secondarySystemPromptId = systemPromptId
+                        )
+                    }
+                    runSecondaryViaSwarm(
+                        context, reportId, SecondaryKind.META, metaPrompt, swarm,
+                        resolution.resolvedPrompt, aiSettings, report, base,
                         targetLanguage = sourceLanguage,
                         targetLanguageNative = resolution.languageNative,
                         fanInOf = metaPrompt.id,
@@ -987,15 +1096,16 @@ class SecondaryRunManager(
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
-        picks: List<Pair<AppService, String>>,
         scopeChoice: SecondaryScope = SecondaryScope.AllReports,
         languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent,
         paramsIds: List<String> = emptyList(),
         systemPromptId: String? = null
     ): Job? {
-        if (picks.isEmpty()) return null
         val kind = SecondaryKind.META
-        AppLog.i("Meta", "→ start \"${metaPrompt.name}\" report=$reportId — ${picks.size} pick(s)")
+        // Swarm from the dedicated workers/meta holder prompt; the
+        // content comes from the user's chosen meta prompt.
+        val swarm = workerSwarmPrompt(appViewModel.uiState.value.aiSettings, "meta")?.workers ?: emptyList()
+        AppLog.i("Meta", "→ start \"${metaPrompt.name}\" report=$reportId via the Meta worker swarm")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
@@ -1122,52 +1232,40 @@ class SecondaryRunManager(
                     localizedTemplate, question = translatedPrompt, results = resultsBlock,
                     count = successfulCount, title = seedTitle
                 )
-                // Pre-create placeholders so we know each row's id up
-                // front — needed for phase 2's cross-translate items
-                // which reference these rows by id.
-                val seedPlaceholders: List<SecondaryResult> = picks.map { (provider, model) ->
-                    val langSuffix = seedLang.first?.let { " [$it]" } ?: ""
-                    val agentName = "${provider.id} / ${shortModelName(model)}$langSuffix"
-                    SecondaryResultStorage.create(
-                        context, reportId, kind, provider.id, model, agentName
-                    ) {
-                        it.copy(
-                            targetLanguage = seedLang.first,
-                            targetLanguageNative = seedLang.second,
-                            metaPromptId = metaPrompt.id,
-                            metaPromptName = metaPrompt.name,
-                            secondaryScope = scopeChoice.encode(),
-                            secondaryParameterPresetIds = paramsIds,
-                            secondarySystemPromptId = systemPromptId
-                        )
-                    }
+                // One seed META row, produced via the Meta worker swarm
+                // (single result with 429 / miss fallback — no user-picked
+                // model). Its id is needed up front for phase 2's
+                // cross-translate items.
+                val langSuffix = seedLang.first?.let { " [$it]" } ?: ""
+                val base = SecondaryResultStorage.create(
+                    context, reportId, kind, "", "", "${metaPrompt.name}$langSuffix"
+                ) {
+                    it.copy(
+                        targetLanguage = seedLang.first,
+                        targetLanguageNative = seedLang.second,
+                        metaPromptId = metaPrompt.id,
+                        metaPromptName = metaPrompt.name,
+                        secondaryScope = scopeChoice.encode(),
+                        secondaryParameterPresetIds = paramsIds,
+                        secondarySystemPromptId = systemPromptId
+                    )
                 }
-                coroutineScope {
-                    picks.zip(seedPlaceholders).map { (pick, ph) ->
-                        async {
-                            ApiCallCaps.global.withPermit {
-                                executeSecondaryTask(
-                                    context, reportId, kind, metaPrompt,
-                                    pick.first, pick.second, resolvedPrompt, aiSettings, report,
-                                    seedLang.first, seedLang.second, referenceLegend,
-                                    existingPlaceholder = ph,
-                                    scopeEncoded = scopeChoice.encode(),
-                                    paramsIds = paramsIds, systemPromptId = systemPromptId
-                                )
-                            }
-                        }
-                    }.awaitAll()
-                }
+                runSecondaryViaSwarm(
+                    context, reportId, kind, metaPrompt, swarm,
+                    resolvedPrompt, aiSettings, report, base,
+                    targetLanguage = seedLang.first, targetLanguageNative = seedLang.second,
+                    referenceLegend = referenceLegend,
+                    scopeEncoded = scopeChoice.encode(),
+                    paramsIds = paramsIds, systemPromptId = systemPromptId
+                )
 
-                // Phase 2: cross-translate the seed METAs to each
-                // non-seed language. Re-read each placeholder from disk
-                // so we pick up the now-saved content / errorMessage.
-                // Errored seed rows are skipped — nothing useful to
-                // cross-translate.
+                // Phase 2: cross-translate the seed META to each non-seed
+                // language. Re-read the row from disk so we pick up the
+                // saved content / errorMessage; an errored seed is skipped.
                 if (nonSeedLanguages.isNotEmpty()) {
-                    val completedSeedMetas = seedPlaceholders.mapNotNull { ph ->
-                        SecondaryResultStorage.get(context, reportId, ph.id)
-                    }.filter { !it.content.isNullOrBlank() && it.errorMessage == null }
+                    val completedSeedMetas = listOfNotNull(
+                        SecondaryResultStorage.get(context, reportId, base.id)
+                    ).filter { !it.content.isNullOrBlank() && it.errorMessage == null }
                     if (completedSeedMetas.isNotEmpty()) {
                         val secondariesAfter = SecondaryResultStorage.listForReport(context, reportId)
                         for ((lang, langNative) in nonSeedLanguages) {
