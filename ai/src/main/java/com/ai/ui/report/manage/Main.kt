@@ -264,7 +264,16 @@ fun ReportsScreen(
     /** Item ids currently parked on a provider rate / concurrency gate;
      *  feeds the translation L1 "Throttled" stat. */
     throttledTranslationItems: Set<String> = emptySet(),
-    onStartTranslation: (String, String, String) -> String? = { _, _, _ -> null },
+    onStartTranslation: (String, String, String, String?) -> String? = { _, _, _, _ -> null },
+    /** Build-stage progress for big batches, keyed by the UUID the launch
+     *  site minted (collected from [AppViewModel.batchBuildProgress]). The
+     *  blocking "Preparing…" overlay shows while `st.pendingBuildKey`'s
+     *  entry is present + not done. */
+    batchBuildProgress: Map<String, com.ai.viewmodel.BuildProgress> = emptyMap(),
+    /** Optimistically seed a build-stage entry so the popup shows from the
+     *  instant of launch (the engine overwrites the real total). */
+    onBeginBuild: (key: String, total: Int, label: String) -> Unit = { _, _, _ -> },
+    onClearBuild: (String) -> Unit = { _ -> },
     translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
@@ -529,6 +538,10 @@ fun ReportsScreen(
     // candidate screen render over it.
     var altTranslateTarget by st.altTranslateTarget
     var showAltTranslatePicker by st.showAltTranslatePicker
+    // Build-stage popup state (set by the batch launch sites).
+    var pendingBuildKey by st.pendingBuildKey
+    var pendingBuildNav by st.pendingBuildNav
+    var pendingBuildCancel by st.pendingBuildCancel
     // Bumped after an alt-translation pick overwrites a row so the
     // (yielded → remounted) translation run reloads from disk.
     var translationRunRefreshTick by rememberSaveable { mutableStateOf(0) }
@@ -662,6 +675,34 @@ fun ReportsScreen(
         },
         onClearExternalInstructions = onClearExternalInstructions
     )
+
+    // ── Build-stage popup. Sits ABOVE every other overlay so it wins:
+    // while a big batch fills its queue (Translations / Fan Out /
+    // Tournament / Judges / Compare), block all navigation behind a
+    // non-dismissable "Preparing N / M…" modal, and run the deferred
+    // navigation (open the batch's L1 screen) only once the build is done.
+    val buildKeyNow = pendingBuildKey
+    val buildProg = buildKeyNow?.let { batchBuildProgress[it] }
+    if (buildKeyNow != null && buildProg != null) {
+        // The launch site seeds an entry optimistically, so it's present
+        // from the first frame; a Cancel / early-failure clears it (→ no
+        // overlay, no nav). When done, run the deferred nav once and tear
+        // the popup down.
+        LaunchedEffect(buildProg.done) {
+            if (buildProg.done) {
+                pendingBuildNav?.invoke()
+                pendingBuildNav = null
+                pendingBuildCancel = null
+                pendingBuildKey = null
+                onClearBuild(buildKeyNow)
+            }
+        }
+        com.ai.ui.shared.BuildStageOverlay(
+            progress = buildProg,
+            onCancel = if (buildProg.done) null else pendingBuildCancel
+        )
+        return
+    }
 
     if (ReportPrimaryOverlays(
             showIconsView = showIconsView,
@@ -1048,12 +1089,26 @@ fun ReportsScreen(
             LanguageSelectionScreen(
                 onConfirm = { lang ->
                     showTranslateLanguagePicker = false
-                    val newRunId = currentReportId?.let {
-                        onStartTranslation(it, lang.name, lang.native)
+                    val rid = currentReportId
+                    if (rid != null) {
+                        // Build stage: show the blocking "Preparing…" popup,
+                        // persist all placeholders, then land on the
+                        // Translation L1 page only once the build is done.
+                        val key = java.util.UUID.randomUUID().toString()
+                        onBeginBuild(key, 0, "Translating to ${lang.name}")
+                        pendingBuildKey = key
+                        val newRunId = onStartTranslation(rid, lang.name, lang.native, key)
+                        if (newRunId.isNullOrBlank()) {
+                            onClearBuild(key); pendingBuildKey = null
+                        } else {
+                            pendingBuildNav = { openTranslationRunId = newRunId }
+                            pendingBuildCancel = {
+                                translationLifecycle.onDeleteRun(rid, newRunId)
+                                onClearBuild(key)
+                                pendingBuildKey = null; pendingBuildNav = null; pendingBuildCancel = null
+                            }
+                        }
                     }
-                    // Land on the Translation L1 page so the user watches
-                    // the run progress instead of the report screen.
-                    if (!newRunId.isNullOrBlank()) openTranslationRunId = newRunId
                 },
                 onBack = { showTranslateLanguagePicker = false },
                 onNavigateHome = onNavigateHome

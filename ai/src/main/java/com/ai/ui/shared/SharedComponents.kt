@@ -165,6 +165,52 @@ fun AnimatedHourglass(
     Text(text = "⏳", fontSize = fontSize, modifier = modifier.rotate(angle))
 }
 
+/** Blocking, non-dismissable "Preparing N / M…" popup shown while a big
+ *  batch (Translations / Fan Out / Tournament / Judges / Compare) builds
+ *  its placeholder rows, before it dispatches any API call. Navigation is
+ *  blocked until the build completes. [onCancel], when non-null, renders a
+ *  Cancel button that aborts the build + cleans up the partial rows.
+ *  Mirrors the "Deleting…" dialogs (FanL1 / TranslationL1) plus the export
+ *  progress bar (ReportExportScreen). */
+@Composable
+fun BuildStageOverlay(
+    progress: com.ai.viewmodel.BuildProgress,
+    onCancel: (() -> Unit)? = null
+) {
+    AlertDialog(
+        onDismissRequest = { },
+        title = { Text("Preparing…") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AnimatedHourglass(fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(progress.label.ifBlank { "Filling the queue" }, fontSize = 13.sp)
+                }
+                if (progress.total > 0) {
+                    // Determinate once the engine has counted the items.
+                    LinearProgressIndicator(
+                        progress = { progress.built.toFloat() / progress.total },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Preparing ${progress.built} / ${progress.total}…",
+                        fontSize = 12.sp,
+                        color = AppColors.TextTertiary
+                    )
+                } else {
+                    // Brief pre-count window: indeterminate spinner.
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = { },
+        dismissButton = onCancel?.let {
+            { TextButton(onClick = it) { Text("Cancel", color = AppColors.DangerAccent) } }
+        }
+    )
+}
+
 /** Card that starts collapsed — the title row is always visible and
  *  acts as a click target; tapping reveals [content]. */
 @Composable

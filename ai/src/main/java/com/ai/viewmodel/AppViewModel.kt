@@ -72,6 +72,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledFanOutPairs.update(block)
     }
 
+    /** Build-stage progress for big batches (Translations / Fan Out /
+     *  Tournament / Judges / Compare), keyed by a UUID the UI mints before
+     *  launching. The engine calls [beginBuild] once it has counted items,
+     *  [updateBuild] as it persists each placeholder, and [finishBuild]
+     *  before it starts dispatching. The UI shows a blocking popup while a
+     *  key is present + not [BuildProgress.done], then navigates and
+     *  [clearBuild]s. See [BuildProgress] and `BuildStageOverlay`. */
+    private val _batchBuildProgress = MutableStateFlow<Map<String, BuildProgress>>(emptyMap())
+    val batchBuildProgress: StateFlow<Map<String, BuildProgress>> = _batchBuildProgress.asStateFlow()
+    fun beginBuild(key: String, total: Int, label: String) {
+        _batchBuildProgress.update { it + (key to BuildProgress(built = 0, total = total, done = false, label = label)) }
+    }
+    fun updateBuild(key: String, built: Int) {
+        _batchBuildProgress.update { m -> m[key]?.let { m + (key to it.copy(built = built)) } ?: m }
+    }
+    fun finishBuild(key: String) {
+        _batchBuildProgress.update { m -> m[key]?.let { m + (key to it.copy(built = it.total, done = true)) } ?: m }
+    }
+    fun clearBuild(key: String) {
+        _batchBuildProgress.update { it - key }
+    }
+
     /** Pair ids currently mid-fan-meta call. Parallel to
      *  [runningFanOutPairs] but for the fan-meta batch — the
      *  L1 META-mode stats panel reads from this. */

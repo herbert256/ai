@@ -148,6 +148,14 @@ internal class ReportsScreenState(
     val listIsFanMeta: MutableState<Boolean>,
     val altTranslateTarget: MutableState<AltTranslateTarget?>,
     val showAltTranslatePicker: MutableState<Boolean>,
+    /** Build-stage popup: the UUID of the batch currently in its build
+     *  phase (null = no popup), the navigation to run once the build
+     *  finishes, and the cancel action that aborts + cleans up. Plain
+     *  `remember` (not saveable) — the key is transient and the lambdas
+     *  aren't Parcelable. */
+    val pendingBuildKey: MutableState<String?>,
+    val pendingBuildNav: MutableState<(() -> Unit)?>,
+    val pendingBuildCancel: MutableState<(() -> Unit)?>,
 )
 
 @Composable
@@ -232,6 +240,9 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val listIsFanMeta = rememberSaveable { mutableStateOf(false) }
     val altTranslateTarget = rememberSaveable(stateSaver = AltTranslateTargetSaver) { mutableStateOf<AltTranslateTarget?>(null) }
     val showAltTranslatePicker = rememberSaveable { mutableStateOf(false) }
+    val pendingBuildKey = remember { mutableStateOf<String?>(null) }
+    val pendingBuildNav = remember { mutableStateOf<(() -> Unit)?>(null) }
+    val pendingBuildCancel = remember { mutableStateOf<(() -> Unit)?>(null) }
     return remember {
         ReportsScreenState(
         openMetaResultId,
@@ -313,7 +324,10 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         listFilterByName,
         listIsFanMeta,
         altTranslateTarget,
-        showAltTranslatePicker
+        showAltTranslatePicker,
+        pendingBuildKey,
+        pendingBuildNav,
+        pendingBuildCancel
         )
     }
 }

@@ -119,7 +119,12 @@ class TranslationRunManager(
         context: Context,
         sourceReportId: String,
         targetLanguageName: String,
-        targetLanguageNative: String
+        targetLanguageNative: String,
+        /** Build-stage key (UUID the UI minted) for the blocking
+         *  "Preparing…" popup. Non-null only from the manual Translate
+         *  launch; resume / cross-translate paths pass null and skip the
+         *  popup. The build phase = persisting the placeholder rows below. */
+        buildKey: String? = null
     ): Pair<String, Job> {
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
@@ -127,6 +132,7 @@ class TranslationRunManager(
             val aiSettings = state.aiSettings
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
                 _translationRuns.update { it - runId }
+                if (buildKey != null) appViewModel.clearBuild(buildKey)  // dismiss the build popup (no run to open)
                 return@launch
             }
             val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
@@ -232,7 +238,10 @@ class TranslationRunManager(
                     traceType = traceTypeFor(it, secondaries)
                 )
             }
-            itemsWithIds.forEach { item ->
+            // Build stage: persist one placeholder per item up front. This
+            // is the disk-heavy phase the "Preparing N / M…" popup covers.
+            if (buildKey != null) appViewModel.beginBuild(buildKey, itemsWithIds.size, "Translating to $targetLanguageName")
+            itemsWithIds.forEachIndexed { idx, item ->
                 val srcKind = translateSrcKindOf(item.kind)
                 val srcTargetId = translateSrcTargetIdOf(item)
                 SecondaryResultStorage.save(context, SecondaryResult(
@@ -252,7 +261,13 @@ class TranslationRunManager(
                     translationRunId = runId,
                     runId = runId,
                 ))
+                // Emit every 5th + on the last row to avoid a recomposition
+                // storm on large runs.
+                if (buildKey != null && (idx % 5 == 0 || idx == itemsWithIds.lastIndex)) {
+                    appViewModel.updateBuild(buildKey, idx + 1)
+                }
             }
+            if (buildKey != null) appViewModel.finishBuild(buildKey)
             _translationRuns.update { it + (runId to TranslationRunState(
                 runId = runId,
                 sourceReportId = sourceReportId,

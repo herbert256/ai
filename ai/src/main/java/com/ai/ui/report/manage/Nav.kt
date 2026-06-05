@@ -144,6 +144,7 @@ fun ReportsScreenNav(
     val runningInfoJobs by viewModel.runningInfoJobs.collectAsState()
     val titleFanOutByReport by viewModel.titleFanOutByReport.collectAsState()
     val altTranslationByItem by viewModel.altTranslationByItem.collectAsState()
+    val batchBuildProgress by viewModel.batchBuildProgress.collectAsState()
     val titleFanOutByAgent by viewModel.titleFanOutByAgent.collectAsState()
     val pairIconFanOutByPair by viewModel.pairIconFanOutByPair.collectAsState()
     val pairTitleFanOutByPair by viewModel.pairTitleFanOutByPair.collectAsState()
@@ -674,12 +675,15 @@ fun ReportsScreenNav(
             .filter { it.sourceReportId == uiState.currentReportId }
             .toList(),
         throttledTranslationItems = throttledTranslationItems,
-        onStartTranslation = { sourceId, langName, langNative ->
+        onStartTranslation = { sourceId, langName, langNative, buildKey ->
             // Returns the new run's id so Manage can land on the Translation
-            // L1 page immediately. No model picker — the translate worker
-            // swarm handles model selection + fallback.
-            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative).first
+            // L1 page once the build stage finishes. No model picker — the
+            // translate worker swarm handles model selection + fallback.
+            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, buildKey).first
         },
+        batchBuildProgress = batchBuildProgress,
+        onBeginBuild = { key, total, label -> viewModel.beginBuild(key, total, label) },
+        onClearBuild = { key -> viewModel.clearBuild(key) },
         translationLifecycle = TranslationLifecycleCallbacks(
             onCancelRun = { runId -> reportViewModel.translation.cancelTranslation(runId) },
             onCancelItem = { runId, itemId -> reportViewModel.translation.cancelTranslationItem(runId, itemId) },
