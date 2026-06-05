@@ -1,0 +1,22 @@
+{
+  "adminUrl": "https://platform.baichuan-ai.com/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.baichuan-ai.com/",
+  "defaultModel": "Baichuan4-Turbo",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "Baichuan4-Turbo",
+    "Baichuan4",
+    "Baichuan4-Air",
+    "Baichuan3-Turbo",
+    "Baichuan3-Turbo-128k"
+  ],
+  "id": "Baichuan",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

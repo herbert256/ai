@@ -1,0 +1,19 @@
+{
+  "adminUrl": "https://openrouter.ai/keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://openrouter.ai/api/",
+  "defaultModel": "ibm-granite/granite-4.0-h-micro",
+  "defaultModelSource": "API",
+  "crossProviderModelList": true,
+  "extractApiCost": true,
+  "id": "OpenRouter",
+  "maxCallsPerProviderPerMinute": 90,
+  "maxConcurrentCallsPerProvider": 8,
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

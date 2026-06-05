@@ -1,0 +1,46 @@
+{
+  "adminUrl": "https://console.x.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.x.ai/",
+  "costTicksDivisor": 10000000000.0,
+  "defaultModel": "grok-3-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "externalReasoningSignalUntrusted": true,
+  "id": "xAI",
+  "litellmPrefix": "xai",
+  "modelFilter": "grok",
+  "modelListFormat": "object",
+  "openRouterName": "x-ai",
+  "reasoningEffortAcceptPatterns": [
+    {
+      "prefix": "grok-3"
+    },
+    {
+      "exact": "grok-4"
+    },
+    {
+      "prefix": "grok-4-0"
+    },
+    {
+      "suffix": "-reasoning"
+    }
+  ],
+  "reasoningModelPatterns": [
+    {
+      "prefix": "grok-3"
+    },
+    {
+      "prefix": "grok-4"
+    },
+    {
+      "prefix": "grok-code"
+    }
+  ],
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

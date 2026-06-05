@@ -1,0 +1,20 @@
+{
+  "adminUrl": "https://replicate.com/account/api-tokens",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.replicate.com/v1/",
+  "defaultModel": "meta/meta-llama-3-70b-instruct",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "meta/meta-llama-3-70b-instruct",
+    "meta/meta-llama-3-8b-instruct",
+    "mistralai/mistral-7b-instruct-v0.2"
+  ],
+  "id": "Replicate",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "chat/completions"
+  }
+}

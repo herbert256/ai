@@ -1,0 +1,28 @@
+{
+  "adminUrl": "https://cloud.siliconflow.com/account/ak",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.siliconflow.com/",
+  "defaultModel": "Qwen/Qwen2.5-7B-Instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "Qwen/Qwen2.5-7B-Instruct",
+    "Qwen/Qwen2.5-14B-Instruct",
+    "Qwen/Qwen2.5-32B-Instruct",
+    "Qwen/Qwen2.5-72B-Instruct",
+    "Qwen/QwQ-32B",
+    "deepseek-ai/DeepSeek-V3",
+    "deepseek-ai/DeepSeek-R1",
+    "THUDM/glm-4-9b-chat",
+    "meta-llama/Llama-3.3-70B-Instruct"
+  ],
+  "id": "SiliconFlow",
+  "modelListFormat": "object",
+  "nativeRerankUrl": "https://api.siliconflow.com/v1/rerank",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

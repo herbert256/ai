@@ -1,0 +1,39 @@
+{
+  "adminUrl": "https://console.mistral.ai/api-keys/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.mistral.ai/",
+  "defaultModel": "mistral-small-latest",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "builtInEndpoints": [
+    {
+      "id": "mistral-chat",
+      "name": "Chat Completions",
+      "url": "https://api.mistral.ai/v1/chat/completions",
+      "isDefault": true
+    },
+    {
+      "id": "mistral-codestral",
+      "name": "Codestral",
+      "url": "https://codestral.mistral.ai/v1/chat/completions"
+    }
+  ],
+  "id": "Mistral",
+  "maxCallsPerProviderPerMinute": 30,
+  "maxConcurrentCallsPerProvider": 3,
+  "modelFilter": "mistral|open-mistral|codestral|pixtral",
+  "modelListFormat": "object",
+  "nativeModerationUrl": "https://api.mistral.ai/v1/moderations",
+  "openRouterName": "mistralai",
+  "reasoningModelPatterns": [
+    {
+      "contains": "magistral"
+    }
+  ],
+  "seedFieldName": "random_seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

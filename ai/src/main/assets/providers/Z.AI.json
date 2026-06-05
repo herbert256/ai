@@ -1,0 +1,41 @@
+{
+  "adminUrl": "https://open.bigmodel.cn/usercenter/apikeys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.z.ai/api/paas/v4/",
+  "defaultModel": "glm-4.5-air",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "glm-4.7-flash",
+    "glm-4.7",
+    "glm-4.5-flash",
+    "glm-4.5",
+    "glm-4-plus",
+    "glm-4-long",
+    "glm-4-flash"
+  ],
+  "builtInEndpoints": [
+    {
+      "id": "zai-chat",
+      "name": "Chat Completions",
+      "url": "https://api.z.ai/api/paas/v4/chat/completions",
+      "isDefault": true
+    },
+    {
+      "id": "zai-coding",
+      "name": "Coding",
+      "url": "https://api.z.ai/api/coding/paas/v4/chat/completions"
+    }
+  ],
+  "id": "Z.AI",
+  "modelFilter": "glm|codegeex|charglm",
+  "modelListFormat": "object",
+  "modelsPath": "models",
+  "openRouterName": "z-ai",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "chat/completions"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "adminUrl": "https://dashboard.lepton.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.lepton.ai/",
+  "defaultModel": "llama3-1-70b",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "llama3-1-70b",
+    "llama3-1-8b",
+    "mistral-7b",
+    "gemma2-9b"
+  ],
+  "id": "Lepton",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

@@ -248,7 +248,7 @@ fun ResetAssetsScreen(
                 onClick = { pending = AssetReset.PROVIDERS },
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
-            ) { Text("back to assets/providers.json", maxLines = 1, softWrap = false) }
+            ) { Text("back to assets/providers/", maxLines = 1, softWrap = false) }
             OutlinedButton(
                 onClick = { pending = AssetReset.PROMPTS },
                 modifier = Modifier.fillMaxWidth(),
@@ -258,12 +258,12 @@ fun ResetAssetsScreen(
                 onClick = { pending = AssetReset.EXAMPLES },
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
-            ) { Text("back to assets/examples.json", maxLines = 1, softWrap = false) }
+            ) { Text("back to assets/prompts/examples/", maxLines = 1, softWrap = false) }
             OutlinedButton(
                 onClick = { pending = AssetReset.SYSTEM_PROMPTS },
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
-            ) { Text("back to assets/system-prompts.json", maxLines = 1, softWrap = false) }
+            ) { Text("back to assets/prompts/system/", maxLines = 1, softWrap = false) }
             OutlinedButton(
                 onClick = { pending = AssetReset.DEFAULT_META },
                 modifier = Modifier.fillMaxWidth(),
@@ -396,20 +396,20 @@ fun ResetApplicationScreen(
 
 private enum class AssetReset(val assetPath: String, val itemNoun: String, val dialogBody: String) {
     PROVIDERS(
-        "assets/providers.json", "providers",
-        "Drops every provider definition currently in the registry (including any hand-edited fields) and reloads the bundled assets/providers.json verbatim. Per-provider API keys, model lists, and agents are stored separately and will survive."
+        "assets/providers/", "providers",
+        "Drops every provider definition currently in the registry (including any hand-edited fields) and reloads the bundled assets/providers/ verbatim. Per-provider API keys, model lists, and agents are stored separately and will survive."
     ),
     PROMPTS(
         "assets/internal-prompts/", "internal prompts",
         "Drops every Internal prompt (including any you customized) and reloads the bundled assets/internal-prompts/ tree fresh."
     ),
     EXAMPLES(
-        "assets/examples.json", "example prompts",
-        "Drops every Example prompt (including any you authored) and reloads the bundled assets/examples.json fresh."
+        "assets/prompts/examples/", "example prompts",
+        "Drops every Example prompt (including any you authored) and reloads the bundled assets/prompts/examples/ fresh."
     ),
     SYSTEM_PROMPTS(
-        "assets/system-prompts.json", "system prompts",
-        "Drops every System prompt (including any you authored) and reloads the bundled assets/system-prompts.json fresh."
+        "assets/prompts/system/", "system prompts",
+        "Drops every System prompt (including any you authored) and reloads the bundled assets/prompts/system/ fresh."
     ),
     DEFAULT_META(
         "assets/meta.json", "default meta items",

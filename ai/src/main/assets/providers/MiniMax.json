@@ -1,0 +1,22 @@
+{
+  "adminUrl": "https://platform.minimax.io/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.minimax.io/",
+  "defaultModel": "MiniMax-M2.1",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "MiniMax-M2.1",
+    "MiniMax-M2",
+    "MiniMax-M1",
+    "MiniMax-Text-01"
+  ],
+  "id": "MiniMax",
+  "modelListFormat": "object",
+  "openRouterName": "minimax",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "adminUrl": "https://cloud.sambanova.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.sambanova.ai/",
+  "defaultModel": "Meta-Llama-3.3-70B-Instruct",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "Meta-Llama-3.3-70B-Instruct",
+    "DeepSeek-R1",
+    "DeepSeek-V3-0324",
+    "Qwen3-32B",
+    "Meta-Llama-3.1-8B-Instruct"
+  ],
+  "id": "SambaNova",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

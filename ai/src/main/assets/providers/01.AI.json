@@ -1,0 +1,22 @@
+{
+  "adminUrl": "https://platform.01.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.01.ai/",
+  "defaultModel": "yi-lightning",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "yi-lightning",
+    "yi-large",
+    "yi-medium",
+    "yi-spark"
+  ],
+  "id": "01.AI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

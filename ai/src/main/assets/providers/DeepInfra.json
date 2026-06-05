@@ -1,0 +1,18 @@
+{
+  "adminUrl": "https://deepinfra.com/dash/api_keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.deepinfra.com/v1/openai/",
+  "defaultModel": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "DeepInfra",
+  "modelListFormat": "object",
+  "modelsPath": "models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "chat/completions",
+    "embedding": "embeddings"
+  }
+}

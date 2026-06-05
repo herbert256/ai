@@ -1,0 +1,18 @@
+{
+  "adminUrl": "https://app.fireworks.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.fireworks.ai/inference/",
+  "defaultModel": "accounts/fireworks/models/gpt-oss-120b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Fireworks",
+  "maxCallsPerProviderPerMinute": 12,
+  "maxConcurrentCallsPerProvider": 2,
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

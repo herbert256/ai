@@ -1,0 +1,19 @@
+{
+  "adminUrl": "https://api.together.xyz/settings/api-keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.together.xyz/",
+  "defaultModel": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Together",
+  "litellmPrefix": "together_ai",
+  "modelFilter": "chat|instruct|llama",
+  "modelListFormat": "array",
+  "pricingFromModelList": true,
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

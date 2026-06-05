@@ -1,0 +1,4 @@
+{
+  "title": "Animal as JSON",
+  "text": "Pick any animal and return ONLY a JSON object with the keys name, type and fact. No markdown, no code fence, no extra text."
+}

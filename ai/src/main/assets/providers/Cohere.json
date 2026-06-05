@@ -1,0 +1,22 @@
+{
+  "adminUrl": "https://dashboard.cohere.com/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "auxHosts": [
+    "api.cohere.com"
+  ],
+  "baseUrl": "https://api.cohere.ai/compatibility/",
+  "defaultModel": "command-r7b-12-2024",
+  "extractApiCost": false,
+  "id": "Cohere",
+  "maxCallsPerProviderPerMinute": 19,
+  "modelListFormat": "object",
+  "nativeCapabilityUrl": "https://api.cohere.com/v1/models",
+  "nativeRerankUrl": "https://api.cohere.com/v2/rerank",
+  "openRouterName": "cohere",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

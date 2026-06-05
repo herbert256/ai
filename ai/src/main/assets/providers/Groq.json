@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://console.groq.com/keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.groq.com/openai/",
+  "defaultModel": "llama-3.3-70b-versatile",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Groq",
+  "litellmPrefix": "groq",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

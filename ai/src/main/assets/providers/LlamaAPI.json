@@ -1,0 +1,13 @@
+{
+  "adminUrl": "https://llama.developer.meta.com/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.llama.com/compat/",
+  "defaultModel": "Llama-4-Maverick-17B-128E-Instruct-FP8",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "LlamaAPI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false
+}

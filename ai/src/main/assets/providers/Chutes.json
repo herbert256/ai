@@ -1,0 +1,13 @@
+{
+  "adminUrl": "https://chutes.ai/app/api",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://llm.chutes.ai/",
+  "defaultModel": "moonshotai/Kimi-K2.6-TEE",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Chutes",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false
+}

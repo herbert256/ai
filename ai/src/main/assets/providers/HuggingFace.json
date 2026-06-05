@@ -1,0 +1,21 @@
+{
+  "adminUrl": "https://huggingface.co/settings/tokens",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api-inference.huggingface.co/",
+  "defaultModel": "meta-llama/Llama-3.1-70B-Instruct",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "meta-llama/Llama-3.1-70B-Instruct",
+    "meta-llama/Llama-3.1-8B-Instruct",
+    "mistralai/Mistral-7B-Instruct-v0.3",
+    "Qwen/Qwen2.5-72B-Instruct"
+  ],
+  "id": "HuggingFace",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

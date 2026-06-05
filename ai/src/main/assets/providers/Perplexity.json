@@ -1,0 +1,24 @@
+{
+  "adminUrl": "https://www.perplexity.ai/settings/api",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.perplexity.ai/",
+  "defaultModel": "sonar",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "sonar",
+    "sonar-pro",
+    "sonar-reasoning-pro",
+    "sonar-deep-research"
+  ],
+  "id": "Perplexity",
+  "modelFilter": "sonar|llama",
+  "modelListFormat": "object",
+  "modelsPath": "v1/models",
+  "openRouterName": "perplexity",
+  "seedFieldName": "seed",
+  "supportsCitations": true,
+  "supportsSearchRecency": true,
+  "typePaths": {
+    "chat": "chat/completions"
+  }
+}

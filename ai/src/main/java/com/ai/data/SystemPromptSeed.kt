@@ -2,14 +2,13 @@ package com.ai.data
 
 import android.content.Context
 import com.ai.model.SystemPrompt
-import com.google.gson.reflect.TypeToken
 import java.util.UUID
 
 /**
- * Reads `assets/system-prompts.json` and merges any bundled System
- * prompt that's missing from the user's set. Bundled rows are pure
- * (title, text) pairs; they map to [com.ai.model.SystemPrompt] as
- * (name = title, prompt = text).
+ * Reads `assets/prompts/system/` — one JSON file per system prompt —
+ * and merges any bundled System prompt that's missing from the user's
+ * set. Bundled files are pure (title, text) pairs; they map to
+ * [com.ai.model.SystemPrompt] as (name = title, prompt = text).
  *
  * Existing entries (matched case-insensitively by name) are left
  * strictly alone — no field overwrites, even if the bundled defaults
@@ -18,26 +17,35 @@ import java.util.UUID
  */
 object SystemPromptSeed {
 
-    /** DTO mirroring one row in `assets/system-prompts.json`. */
+    /** Root assets folder — one `{title, text}` file per system prompt. */
+    private const val DIR = "prompts/system"
+
+    /** DTO mirroring one file under `assets/prompts/system/`. */
     private data class Entry(
         val title: String = "",
         val text: String = ""
     )
 
-    /** Read system-prompts.json and return every row as a [SystemPrompt]
-     *  with a fresh UUID. Empty list on read or parse failure. */
+    /** Read every JSON file under `prompts/system/` and return each as a
+     *  [SystemPrompt] with a fresh UUID, sorted by filename. Empty list
+     *  on read or parse failure; a single bad file is skipped. */
     fun loadFromAssets(context: Context): List<SystemPrompt> {
         return try {
-            val json = context.assets.open("system-prompts.json").bufferedReader().use { it.readText() }
             val gson = createAppGson()
-            val type = object : TypeToken<List<Entry>>() {}.type
-            val entries: List<Entry> = gson.fromJson(json, type) ?: emptyList()
-            entries.mapNotNull {
-                if (it.title.isBlank()) null
-                else SystemPrompt(id = UUID.randomUUID().toString(), name = it.title.trim(), prompt = it.text)
+            val files = context.assets.list(DIR) ?: return emptyList()
+            files.filter { it.endsWith(".json") }.sorted().mapNotNull { file ->
+                try {
+                    val json = context.assets.open("$DIR/$file").bufferedReader().use { it.readText() }
+                    val e = gson.fromJson(json, Entry::class.java) ?: return@mapNotNull null
+                    if (e.title.isBlank()) null
+                    else SystemPrompt(id = UUID.randomUUID().toString(), name = e.title.trim(), prompt = e.text)
+                } catch (ex: Exception) {
+                    AppLog.w("SystemPromptSeed", "Skipped system-prompt file $file: ${ex.message}")
+                    null
+                }
             }
         } catch (e: Exception) {
-            AppLog.w("SystemPromptSeed", "Failed to load system-prompts.json: ${e.message}")
+            AppLog.w("SystemPromptSeed", "Failed to load $DIR/: ${e.message}")
             emptyList()
         }
     }

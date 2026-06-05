@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://novita.ai/settings/key-management",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.novita.ai/v3/openai/",
+  "defaultModel": "meta-llama/llama-3.1-70b-instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Novita.ai",
+  "modelListFormat": "object",
+  "modelsPath": "models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "chat/completions"
+  }
+}

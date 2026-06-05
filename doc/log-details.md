@@ -225,7 +225,7 @@ captured crash report — the message is the `report` string, not a literal.
 
 ### `data/ExamplePromptSeed.kt`
 
-- **L40** `"ExamplePromptSeed"` — "Failed to load examples.json: ${e.message}"
+- **L40** `"ExamplePromptSeed"` — "Failed to load prompts/examples/: ${e.message}"
 - **L86** `"ExamplePromptSeed"` — "upsertFromJson failed: ${e.message}"
 
 ### `data/FlockSeed.kt`
@@ -336,7 +336,7 @@ captured crash report — the message is the `report` string, not a literal.
 
 ### `data/SystemPromptSeed.kt`
 
-- **L40** `"SystemPromptSeed"` — "Failed to load system-prompts.json: ${e.message}"
+- **L40** `"SystemPromptSeed"` — "Failed to load prompts/system/: ${e.message}"
 
 ### `data/TestExcludedSeed.kt`
 
@@ -378,8 +378,8 @@ captured crash report — the message is the `report` string, not a literal.
 - **L562** `tag` — "First-run providers.json import failed"
 - **L593** `tag` — "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms"
 - **L643** `tag` — "← internal-prompts/ delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms"
-- **L672** `tag` — "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms"
-- **L699** `tag` — "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms"
+- **L672** `tag` — "← prompts/examples/ delta-merge failed in ${System.currentTimeMillis() - tExamples}ms"
+- **L699** `tag` — "← prompts/system/ delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms"
 - **L723** `tag` — "← workers/swarms/ delta-merge failed in ${System.currentTimeMillis() - tSwarms}ms"
 - **L746** `tag` — "← workers/flocks/ delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms"
 - **L772** `tag` — "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms"
@@ -775,12 +775,12 @@ captured crash report — the message is the `report` string, not a literal.
 - **L623** `tag` — "→ internal-prompts/ delta-merge"
 - **L638** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)"
 - **L640** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)"
-- **L652** `tag` — "→ examples.json delta-merge"
-- **L667** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)"
-- **L669** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)"
-- **L679** `tag` — "→ system-prompts.json delta-merge"
-- **L694** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)"
-- **L696** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (empty asset)"
+- **L652** `tag` — "→ prompts/examples/ delta-merge"
+- **L667** `tag` — "← prompts/examples/ delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)"
+- **L669** `tag` — "← prompts/examples/ delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)"
+- **L679** `tag` — "→ prompts/system/ delta-merge"
+- **L694** `tag` — "← prompts/system/ delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)"
+- **L696** `tag` — "← prompts/system/ delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (empty asset)"
 - **L706** `tag` — "→ workers/swarms/ delta-merge"
 - **L718** `tag` — "← workers/swarms/ delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (added=$added)"
 - **L720** `tag` — "← workers/swarms/ delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (empty asset)"

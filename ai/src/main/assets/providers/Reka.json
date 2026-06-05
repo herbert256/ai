@@ -1,0 +1,20 @@
+{
+  "adminUrl": "https://platform.reka.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.reka.ai/",
+  "defaultModel": "reka-flash",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "reka-core",
+    "reka-flash",
+    "reka-edge"
+  ],
+  "id": "Reka",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

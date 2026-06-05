@@ -1,0 +1,76 @@
+{
+  "adminUrl": "https://platform.openai.com/settings/organization/api-keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.openai.com/",
+  "builtInEndpoints": [
+    {
+      "id": "openai-chat",
+      "name": "Chat Completions",
+      "url": "https://api.openai.com/v1/chat/completions",
+      "isDefault": true
+    },
+    {
+      "id": "openai-responses",
+      "name": "Responses API",
+      "url": "https://api.openai.com/v1/responses"
+    }
+  ],
+  "defaultModel": "gpt-4o-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "OpenAI",
+  "maxCallsPerProviderPerMinute": 120,
+  "maxConcurrentCallsPerProvider": 10,
+  "mergeHardcodedModels": true,
+  "modelFilter": "gpt|o1|o3|o4",
+  "modelListFormat": "object",
+  "openRouterName": "openai",
+  "reasoningModelPatterns": [
+    {
+      "prefix": "gpt-5"
+    },
+    {
+      "prefix": "o1"
+    },
+    {
+      "prefix": "o3"
+    },
+    {
+      "prefix": "o4"
+    }
+  ],
+  "responsesApiPatterns": [
+    {
+      "prefix": "gpt-5"
+    },
+    {
+      "prefix": "o1"
+    },
+    {
+      "prefix": "o3"
+    },
+    {
+      "prefix": "o4"
+    },
+    {
+      "prefix": "gpt-4.1"
+    }
+  ],
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  },
+  "webSearchModelPatterns": [
+    {
+      "prefix": "gpt-5"
+    },
+    {
+      "prefix": "o3"
+    },
+    {
+      "prefix": "o4"
+    }
+  ]
+}

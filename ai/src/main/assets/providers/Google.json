@@ -1,0 +1,39 @@
+{
+  "adminUrl": "https://aistudio.google.com/app/apikey",
+  "apiFormat": "GOOGLE",
+  "baseUrl": "https://generativelanguage.googleapis.com/",
+  "defaultModel": "gemini-2.0-flash",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Google",
+  "maxCallsPerProviderPerMinute": 60,
+  "litellmPrefix": "gemini",
+  "modelListFormat": "array",
+  "modelsPath": "v1beta/models",
+  "openRouterName": "google",
+  "reasoningModelPatterns": [
+    {
+      "prefix": "gemini-2.5"
+    },
+    {
+      "contains": "-2.5"
+    }
+  ],
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1beta/models/{model}:generateContent"
+  },
+  "webSearchModelPatterns": [
+    {
+      "contains": "gemini-1.5"
+    },
+    {
+      "contains": "gemini-2"
+    },
+    {
+      "contains": "gemini-pro"
+    }
+  ]
+}

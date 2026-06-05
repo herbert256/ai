@@ -1,0 +1,13 @@
+{
+  "adminUrl": "https://inference.net/dashboard/api-keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.inference.net/",
+  "defaultModel": "meta-llama/llama-3.3-70b-instruct/fp-8",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Inference.net",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false
+}

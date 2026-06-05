@@ -57,37 +57,55 @@ object ProviderRegistry {
         }
     }
 
-    /** On-demand import of `assets/providers.json` (or any asset with
-     *  the same `{ "providers": [<ProviderDefinition>] }` shape). New
-     *  entries — by id, case-sensitive — are appended; existing rows
-     *  are left strictly alone, no field overwrites. Returns the count
-     *  of newly added providers, or `-1` on parse / read failure so
-     *  the UI can distinguish "nothing new" from "broken bundle". */
-    fun importFromAsset(context: Context, filename: String = "providers.json"): Int {
+    /** Root assets folder — one JSON file per provider (each file a bare
+     *  [ProviderDefinition] object; no `{ "providers": [...] }` wrapper). */
+    private const val PROVIDERS_DIR = "providers"
+
+    /** Read every JSON file under `assets/providers/` as one
+     *  [ProviderDefinition], sorted by filename for a deterministic
+     *  merge. Null on directory-read failure (so callers return `-1` =
+     *  "broken bundle"); a single bad file is skipped, not fatal. */
+    private fun readBundledProviderDefs(context: Context): List<ProviderDefinition>? {
         return try {
-            val json = context.assets.open(filename).bufferedReader().use { it.readText() }
-            val root = JsonParser.parseString(json) as? JsonObject ?: return -1
-            val arr = root.getAsJsonArray("providers") ?: return -1
             val gson = createAppGson()
-            val defs: List<ProviderDefinition> = gson.fromJson(arr, providerListType)
-            synchronized(lock) {
-                var added = 0
-                for (def in defs) {
-                    if (providers.none { it.id == def.id }) {
-                        try {
-                            providers.add(def.toAppService())
-                            added++
-                        } catch (e: Exception) {
-                            AppLog.w("ProviderRegistry", "Skipped bundled provider ${def.id}: ${e.message}")
-                        }
-                    }
+            val files = context.assets.list(PROVIDERS_DIR) ?: return null
+            files.filter { it.endsWith(".json") }.sorted().mapNotNull { file ->
+                try {
+                    val json = context.assets.open("$PROVIDERS_DIR/$file").bufferedReader().use { it.readText() }
+                    gson.fromJson(json, ProviderDefinition::class.java)
+                } catch (e: Exception) {
+                    AppLog.w("ProviderRegistry", "Skipped bundled provider file $file: ${e.message}")
+                    null
                 }
-                if (added > 0) save()
-                added
             }
         } catch (e: Exception) {
-            AppLog.w("ProviderRegistry", "importFromAsset($filename) failed: ${e.message}")
-            -1
+            AppLog.w("ProviderRegistry", "readBundledProviderDefs failed: ${e.message}")
+            null
+        }
+    }
+
+    /** On-demand import of the bundled `assets/providers/` set (one JSON
+     *  file per provider). New entries — by id, case-sensitive — are
+     *  appended; existing rows are left strictly alone, no field
+     *  overwrites. Returns the count of newly added providers, or `-1`
+     *  on read failure so the UI can distinguish "nothing new" from
+     *  "broken bundle". */
+    fun importFromAsset(context: Context): Int {
+        val defs = readBundledProviderDefs(context) ?: return -1
+        return synchronized(lock) {
+            var added = 0
+            for (def in defs) {
+                if (providers.none { it.id == def.id }) {
+                    try {
+                        providers.add(def.toAppService())
+                        added++
+                    } catch (e: Exception) {
+                        AppLog.w("ProviderRegistry", "Skipped bundled provider ${def.id}: ${e.message}")
+                    }
+                }
+            }
+            if (added > 0) save()
+            added
         }
     }
 
@@ -221,13 +239,9 @@ object ProviderRegistry {
      *  Designed for app start; safe to call on any thread. Returns
      *  the count of providers that received at least one field
      *  update, or `-1` on parse / read failure. */
-    fun syncFromAsset(context: Context, filename: String = "providers.json"): Int {
+    fun syncFromAsset(context: Context): Int {
+        val defs = readBundledProviderDefs(context) ?: return -1
         return try {
-            val json = context.assets.open(filename).bufferedReader().use { it.readText() }
-            val root = JsonParser.parseString(json) as? JsonObject ?: return -1
-            val arr = root.getAsJsonArray("providers") ?: return -1
-            val gson = createAppGson()
-            val defs: List<ProviderDefinition> = gson.fromJson(arr, providerListType)
             synchronized(lock) {
                 var changedCount = 0
                 for (def in defs) {
@@ -299,14 +313,14 @@ object ProviderRegistry {
     }
 
     /** Wipe the current registry (in-memory + persisted prefs) and
-     *  re-seed from `assets/providers.json`. Driven by the "back to
-     *  assets/providers.json" button on Housekeeping → Reset, for when
+     *  re-seed from `assets/providers/`. Driven by the "back to
+     *  assets/providers/" button on Housekeeping → Reset, for when
      *  the user wants to discard hand-edited definitions and pick up
      *  the bundled values verbatim. Returns the count of providers
-     *  loaded on success, or `-1` if the asset couldn't be parsed
+     *  loaded on success, or `-1` if the asset couldn't be read
      *  (registry is left empty in that case — caller should surface
      *  the error). */
-    fun restartFromAsset(context: Context, filename: String = "providers.json"): Int {
+    fun restartFromAsset(context: Context): Int {
         synchronized(lock) {
             providers.clear()
             initialized = false
@@ -314,7 +328,7 @@ object ProviderRegistry {
         prefs?.edit { clear() }
         ProviderFieldTimestamps.clearAll()
         init(context)
-        return importFromAsset(context, filename)
+        return importFromAsset(context)
     }
 
     fun ensureProviders(services: List<AppService>) = synchronized(lock) {

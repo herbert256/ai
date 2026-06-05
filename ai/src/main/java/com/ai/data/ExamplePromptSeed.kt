@@ -18,26 +18,35 @@ import java.util.UUID
  */
 object ExamplePromptSeed {
 
-    /** DTO mirroring one row in `assets/examples.json`. */
+    /** Root assets folder — one `{title, text}` file per example. */
+    private const val DIR = "prompts/examples"
+
+    /** DTO mirroring one file under `assets/prompts/examples/`. */
     private data class Entry(
         val title: String = "",
         val text: String = ""
     )
 
-    /** Read examples.json and return every row as an [ExamplePrompt]
-     *  with a fresh UUID. Empty list on read or parse failure. */
+    /** Read every JSON file under `prompts/examples/` and return each as
+     *  an [ExamplePrompt] with a fresh UUID, sorted by filename. Empty
+     *  list on read or parse failure; a single bad file is skipped. */
     fun loadFromAssets(context: Context): List<ExamplePrompt> {
         return try {
-            val json = context.assets.open("examples.json").bufferedReader().use { it.readText() }
             val gson = createAppGson()
-            val type = object : TypeToken<List<Entry>>() {}.type
-            val entries: List<Entry> = gson.fromJson(json, type) ?: emptyList()
-            entries.mapNotNull {
-                if (it.title.isBlank()) null
-                else ExamplePrompt(id = UUID.randomUUID().toString(), title = it.title, text = it.text)
+            val files = context.assets.list(DIR) ?: return emptyList()
+            files.filter { it.endsWith(".json") }.sorted().mapNotNull { file ->
+                try {
+                    val json = context.assets.open("$DIR/$file").bufferedReader().use { it.readText() }
+                    val e = gson.fromJson(json, Entry::class.java) ?: return@mapNotNull null
+                    if (e.title.isBlank()) null
+                    else ExamplePrompt(id = UUID.randomUUID().toString(), title = e.title, text = e.text)
+                } catch (ex: Exception) {
+                    AppLog.w("ExamplePromptSeed", "Skipped example file $file: ${ex.message}")
+                    null
+                }
             }
         } catch (e: Exception) {
-            AppLog.w("ExamplePromptSeed", "Failed to load examples.json: ${e.message}")
+            AppLog.w("ExamplePromptSeed", "Failed to load $DIR/: ${e.message}")
             emptyList()
         }
     }

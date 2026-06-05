@@ -570,7 +570,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val isEmptyInstall = ProviderRegistry.getAll().isEmpty() && ai.internalPrompts.isEmpty()
             AppLog.v(tag, "  first run; isEmptyInstall=$isEmptyInstall")
             if (isEmptyInstall) {
-                val providersAdded = ProviderRegistry.importFromAsset(application, "providers.json")
+                val providersAdded = ProviderRegistry.importFromAsset(application)
                 AppLog.v(tag, "  providers.json seed: added=$providersAdded")
                 if (providersAdded < 0) {
                     AppLog.w(tag, "First-run providers.json import failed")
@@ -598,9 +598,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.d(tag, "→ providers.json delta-sync")
         val tSync = System.currentTimeMillis()
         runCatching {
-            val syncCount = ProviderRegistry.syncFromAsset(application, "providers.json")
+            val syncCount = ProviderRegistry.syncFromAsset(application)
             AppLog.v(tag, "  syncFromAsset: $syncCount unedited fields refreshed")
-            val addCount = ProviderRegistry.importFromAsset(application, "providers.json")
+            val addCount = ProviderRegistry.importFromAsset(application)
             AppLog.v(tag, "  importFromAsset: $addCount new providers appended")
             AppLog.d(tag, "← providers.json delta-sync done in ${System.currentTimeMillis() - tSync}ms (synced=$syncCount, added=$addCount)")
         }.onFailure {
@@ -657,17 +657,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← internal-prompts/ delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms", it)
         }
 
-        // Mirror of the internal-prompts/ delta-merge for examples.json:
+        // Mirror of the internal-prompts/ delta-merge for prompts/examples/:
         // append any bundled title (case-insensitive) not yet present,
         // never touch existing rows. Lets APK upgrades that ship new
         // example prompts surface them automatically without the user
         // hitting Housekeeping → Prompts → "Add new prompts from
-        // assets/examples.json".
-        AppLog.d(tag, "→ examples.json delta-merge")
+        // assets/prompts/examples/".
+        AppLog.d(tag, "→ prompts/examples/ delta-merge")
         val tExamples = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.ExamplePromptSeed.loadFromAssets(application)
-            AppLog.v(tag, "  bundled examples.json entries: ${bundled.size}")
+            AppLog.v(tag, "  bundled prompts/examples/ entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
                 val before = ai.examplePrompts.size
                 val merged = com.ai.data.ExamplePromptSeed.ensureAllPresent(ai.examplePrompts, bundled)
@@ -678,23 +678,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     settingsPrefs.saveSettings(ai)
                     AppLog.v(tag, "  settings saved with $added new example prompts")
                 }
-                AppLog.d(tag, "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)")
+                AppLog.d(tag, "← prompts/examples/ delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)")
             } else {
-                AppLog.d(tag, "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)")
+                AppLog.d(tag, "← prompts/examples/ delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)")
             }
         }.onFailure {
-            AppLog.w(tag, "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms", it)
+            AppLog.w(tag, "← prompts/examples/ delta-merge failed in ${System.currentTimeMillis() - tExamples}ms", it)
         }
 
-        // Mirror of the internal-prompts/ / examples.json delta-merge for
-        // system-prompts.json: append any bundled name (case-insensitive)
+        // Mirror of the internal-prompts/ / prompts/examples/ delta-merge for
+        // prompts/system/: append any bundled name (case-insensitive)
         // not yet present, never touch existing rows. Surfaces newly
         // bundled System prompts automatically on APK upgrade.
-        AppLog.d(tag, "→ system-prompts.json delta-merge")
+        AppLog.d(tag, "→ prompts/system/ delta-merge")
         val tSystemPrompts = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.SystemPromptSeed.loadFromAssets(application)
-            AppLog.v(tag, "  bundled system-prompts.json entries: ${bundled.size}")
+            AppLog.v(tag, "  bundled prompts/system/ entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
                 val before = ai.systemPrompts.size
                 val merged = com.ai.data.SystemPromptSeed.ensureAllPresent(ai.systemPrompts, bundled)
@@ -705,12 +705,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     settingsPrefs.saveSettings(ai)
                     AppLog.v(tag, "  settings saved with $added new system prompts")
                 }
-                AppLog.d(tag, "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)")
+                AppLog.d(tag, "← prompts/system/ delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)")
             } else {
-                AppLog.d(tag, "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (empty asset)")
+                AppLog.d(tag, "← prompts/system/ delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (empty asset)")
             }
         }.onFailure {
-            AppLog.w(tag, "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms", it)
+            AppLog.w(tag, "← prompts/system/ delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms", it)
         }
 
         // Mirror of the prompt delta-merges for the bundled worker pools:
@@ -761,7 +761,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← workers/flocks/ delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms", it)
         }
 
-        // Mirror of the internal-prompts/ / examples.json delta-merge for
+        // Mirror of the internal-prompts/ / prompts/examples/ delta-merge for
         // excluded.json: append any (provider, model) test-excluded
         // pair not yet present so APK upgrades that ship a curated
         // "never probe these" list surface them automatically.
@@ -872,7 +872,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Drop every Example prompt and replace the list with a fresh
-     *  load of `assets/examples.json`. Returns the number of rows loaded
+     *  load of `assets/prompts/examples/`. Returns the number of rows loaded
      *  (0 if the asset is missing or fails to parse, in which case the
      *  existing list is left untouched). */
     fun resetExamplePromptsFromAssets(): Int {
@@ -884,7 +884,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return bundled.size
     }
 
-    /** On-demand append of `assets/system-prompts.json` into
+    /** On-demand append of `assets/prompts/system/` into
      *  [Settings.systemPrompts] — existing rows untouched, only names not
      *  yet present are added. Used by the factory reset. Returns the
      *  count newly added. */
@@ -900,7 +900,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Drop every System prompt and replace the list with a fresh load
-     *  of `assets/system-prompts.json`. Returns the number of rows loaded
+     *  of `assets/prompts/system/`. Returns the number of rows loaded
      *  (0 if the asset is missing or fails to parse, in which case the
      *  existing list is left untouched). */
     fun resetSystemPromptsFromAssets(): Int {
@@ -1052,7 +1052,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // 4. Wipe provider registry
                 ProviderRegistry.resetToDefaults(context)
                 // 5. Reload providers.json from assets
-                val providersAdded = ProviderRegistry.importFromAsset(context, "providers.json")
+                val providersAdded = ProviderRegistry.importFromAsset(context)
                 if (providersAdded < 0) {
                     AppLog.w("App", "providers.json reload failed during reset")
                 }
@@ -1061,7 +1061,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // Persist the reset Settings synchronously before the
                 // import step reads _uiState — updateSettings's IO save
                 // is fire-and-forget but the StateFlow update is sync.
-                // 7. Reset internal-prompts/ + system-prompts.json + meta.json
+                // 7. Reset internal-prompts/ + prompts/system/ + meta.json
                 //    from assets — FULL REPLACE (drop every existing row and
                 //    reload the bundled set), not the add-only merge. A factory
                 //    reset must not leave a user-customized internal prompt

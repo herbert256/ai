@@ -1,0 +1,34 @@
+{
+  "adminUrl": "https://platform.moonshot.ai/console/api-keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.moonshot.ai/",
+  "defaultModel": "kimi-latest",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "kimi-latest",
+    "moonshot-v1-8k",
+    "moonshot-v1-32k",
+    "moonshot-v1-128k"
+  ],
+  "id": "Moonshot",
+  "modelListFormat": "object",
+  "openRouterName": "moonshot",
+  "reasoningModelPatterns": [
+    {
+      "prefix": "kimi-k1.5"
+    },
+    {
+      "prefix": "kimi-k2"
+    },
+    {
+      "contains": "thinking"
+    }
+  ],
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}
