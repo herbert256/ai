@@ -703,6 +703,11 @@ class JudgeEvalEngine internal constructor(
      *  [FanOutEngine.inFlightRowIds]). Empty after a process kill. */
     fun inFlightRowIds(): Set<String> = cellJobs.keys.toSet()
 
+    /** Top-level Judge-the-judges runs currently alive in this process. Covers
+     *  pre-created cells that are still waiting for a per-cell Job. */
+    fun activeRunKeys(): Set<JudgeEvalRunKey> =
+        runJobs.filterValues { it.isActive }.keys.toSet()
+
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             // No global coroutine exception handler exists, so an uncaught

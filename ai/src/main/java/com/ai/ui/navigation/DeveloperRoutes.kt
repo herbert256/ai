@@ -56,70 +56,71 @@ private suspend fun recoverBrokenBatch(
         BatchFamilyKind.FAN_OUT -> {
             rvm.fanOutEngine.hydrate(context, rid)
             if (restart) {
-                if (errors) rvm.fanOutEngine.restartFailedPairs(context, batch.key)
-                else rvm.fanOutEngine.resumeStaleRunsForReport(context, rid)
+                if (errors) rvm.fanOutEngine.restartFailedPairs(context, batch.key).join()
+                else rvm.fanOutEngine.resumeStaleRunsForReport(context, rid).join()
             } else {
-                if (errors) rvm.fanOutEngine.removeFailedPairs(context, batch.key)
-                else rvm.fanOutEngine.removeUnfinishedPairs(context, batch.key)
+                if (errors) rvm.fanOutEngine.removeFailedPairs(context, batch.key).join()
+                else rvm.fanOutEngine.removeUnfinishedPairs(context, batch.key).join()
             }
         }
         BatchFamilyKind.FAN_META -> {
             val mp = batch.key.substringAfter('|')
             if (restart) {
-                if (errors) rvm.iconGen.restartFanMetaErrors(context, rid, mp)
-                else rvm.iconGen.runFanMetaBatch(context, rid, mp)
+                if (errors) rvm.iconGen.restartFanMetaErrors(context, rid, mp).join()
+                else rvm.iconGen.runFanMetaBatch(context, rid, mp)?.join()
             } else if (errors) {
-                rvm.iconGen.clearFanMetaErrors(context, rid, mp)
+                rvm.iconGen.clearFanMetaErrors(context, rid, mp).join()
             }
         }
         BatchFamilyKind.TOURNAMENT -> {
             rvm.tournamentEngine.hydrate(context, rid)
             if (restart) {
-                if (errors) rvm.tournamentEngine.restartFailedMatches(context, rid)
-                else rvm.tournamentEngine.resumeStaleRunsForReport(context, rid)
+                if (errors) rvm.tournamentEngine.restartFailedMatches(context, rid).join()
+                else rvm.tournamentEngine.resumeStaleRunsForReport(context, rid).join()
             } else {
-                if (errors) rvm.tournamentEngine.removeFailedMatches(context, rid)
-                else rvm.tournamentEngine.removeUnfinishedMatches(context, rid)
+                if (errors) rvm.tournamentEngine.removeFailedMatches(context, rid).join()
+                else rvm.tournamentEngine.removeUnfinishedMatches(context, rid).join()
             }
         }
         BatchFamilyKind.JUDGES -> {
             rvm.judgeEvalEngine.hydrate(context, rid)
             if (restart) {
-                if (errors) rvm.judgeEvalEngine.restartFailedCells(context, rid)
-                else rvm.judgeEvalEngine.resumeStaleRunsForReport(context, rid)
+                if (errors) rvm.judgeEvalEngine.restartFailedCells(context, rid).join()
+                else rvm.judgeEvalEngine.resumeStaleRunsForReport(context, rid).join()
             } else {
-                if (errors) rvm.judgeEvalEngine.removeFailedCells(context, rid)
-                else rvm.judgeEvalEngine.removeUnfinishedCells(context, rid)
+                if (errors) rvm.judgeEvalEngine.removeFailedCells(context, rid).join()
+                else rvm.judgeEvalEngine.removeUnfinishedCells(context, rid).join()
             }
         }
         BatchFamilyKind.COMPARE -> {
             rvm.compareEngine.hydrate(context, rid)
             if (restart) {
-                if (errors) rvm.compareEngine.restartFailedCells(context, rid)
-                else rvm.compareEngine.resumeStaleRunsForReport(context, rid)
+                if (errors) rvm.compareEngine.restartFailedCells(context, rid).join()
+                else rvm.compareEngine.resumeStaleRunsForReport(context, rid).join()
             } else {
-                if (errors) rvm.compareEngine.removeFailedCells(context, rid)
-                else rvm.compareEngine.removeUnfinishedCells(context, rid)
+                if (errors) rvm.compareEngine.removeFailedCells(context, rid).join()
+                else rvm.compareEngine.removeUnfinishedCells(context, rid).join()
             }
         }
         BatchFamilyKind.TRANSLATION -> {
             if (restart) {
-                if (errors) rvm.translation.restartFailedTranslations(context, rid, batch.key)
-                else rvm.translation.startMissingTranslations(context, rid, batch.key)
+                if (errors) rvm.translation.restartFailedTranslations(context, rid, batch.key).join()
+                else rvm.translation.startMissingTranslations(context, rid, batch.key).join()
             } else {
-                if (errors) rvm.translation.removeFailedTranslations(context, rid, batch.key)
-                else rvm.translation.removeUnfinishedTranslations(context, rid, batch.key)
+                if (errors) rvm.translation.removeFailedTranslations(context, rid, batch.key).join()
+                else rvm.translation.removeUnfinishedTranslations(context, rid, batch.key).join()
             }
         }
         BatchFamilyKind.REGENERATE -> {
-            if (restart) rvm.regenerateBatchEngine.restart(context, rid)
-            else rvm.regenerateBatchEngine.deleteJob(context, rid)
+            if (restart) rvm.regenerateBatchEngine.restart(context, rid).join()
+            else rvm.regenerateBatchEngine.deleteJob(context, rid).join()
         }
         BatchFamilyKind.OTHER -> {
             // Single Meta/Rerank/Moderation calls — act per matching row.
             val targets = matchingBrokenRows(context, batch, mode)
-            if (restart) targets.forEach { rvm.secondary.resumeStaleMetaPlaceholder(context, rid, it) }
-            else rvm.secondary.bulkDeleteSecondaryResults(context, rid, targets.map { it.id })
+            if (restart) targets.mapNotNull { rvm.secondary.resumeStaleMetaPlaceholder(context, rid, it) }
+                .forEach { it.join() }
+            else rvm.secondary.bulkDeleteSecondaryResults(context, rid, targets.map { it.id }).join()
         }
     }
 }
@@ -727,8 +728,25 @@ internal fun NavGraphBuilder.developerRoutes(
             val brokenWorkContext = LocalContext.current
             val brokenWorkScope = rememberCoroutineScope()
             val broken by appViewModel.brokenBatches.collectAsState()
+            var busyBrokenWorkActions by remember { mutableStateOf<Set<String>>(emptySet()) }
+            fun launchBrokenWorkAction(batch: BrokenBatch, mode: BrokenItemMode, restart: Boolean) {
+                val actionKey = brokenWorkActionKey(batch, mode)
+                if (actionKey in busyBrokenWorkActions) return
+                busyBrokenWorkActions = busyBrokenWorkActions + actionKey
+                brokenWorkScope.launch(Dispatchers.IO) {
+                    try {
+                        recoverBrokenBatch(brokenWorkContext, reportViewModel, batch, mode, restart = restart)
+                        reportViewModel.secondary.refreshBrokenBatches(brokenWorkContext)
+                    } finally {
+                        withContext(Dispatchers.Main) {
+                            busyBrokenWorkActions = busyBrokenWorkActions - actionKey
+                        }
+                    }
+                }
+            }
             BrokenWorkScreen(
                 items = broken,
+                busyKeys = busyBrokenWorkActions,
                 onBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onOpenReport = { reportId ->
@@ -739,14 +757,10 @@ internal fun NavGraphBuilder.developerRoutes(
                     }
                 },
                 onRestart = { batch, mode ->
-                    brokenWorkScope.launch(Dispatchers.IO) {
-                        recoverBrokenBatch(brokenWorkContext, reportViewModel, batch, mode, restart = true)
-                    }
+                    launchBrokenWorkAction(batch, mode, restart = true)
                 },
                 onDelete = { batch, mode ->
-                    brokenWorkScope.launch(Dispatchers.IO) {
-                        recoverBrokenBatch(brokenWorkContext, reportViewModel, batch, mode, restart = false)
-                    }
+                    launchBrokenWorkAction(batch, mode, restart = false)
                 },
                 loadItems = { batch, mode -> loadBrokenItems(brokenWorkContext, batch, mode) },
             )

@@ -35,6 +35,9 @@ enum class BrokenItemMode { UNFINISHED, ERRORS }
 /** One row in the [BrokenItemsScreen] detail list. */
 data class BrokenItemRow(val id: String, val label: String, val detail: String)
 
+fun brokenWorkActionKey(batch: BrokenBatch, mode: BrokenItemMode): String =
+    "${batch.reportId}|${batch.kind}|${batch.key}|${mode.name}"
+
 /** Full-screen list of batches that carry work needing attention —
  *  unfinished (stranded by an app-kill) and/or errored items — that the
  *  read-only background scan detected but did NOT fix. Reached from the
@@ -44,6 +47,7 @@ data class BrokenItemRow(val id: String, val label: String, val detail: String)
 @Composable
 fun BrokenWorkScreen(
     items: List<BrokenBatch>,
+    busyKeys: Set<String> = emptySet(),
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onOpenReport: (String) -> Unit,
@@ -58,14 +62,16 @@ fun BrokenWorkScreen(
     // the list's remember state (overlay pattern used across the app).
     val v = viewing
     if (v != null) {
+        val busy = brokenWorkActionKey(v.first, v.second) in busyKeys
         BrokenItemsScreen(
             batch = v.first,
             mode = v.second,
             loadItems = loadItems,
             canDelete = !(v.first.kind == BatchFamilyKind.FAN_META && v.second == BrokenItemMode.UNFINISHED),
+            busy = busy,
             onBack = { viewing = null },
-            onRestart = { onRestart(v.first, v.second); viewing = null },
-            onDelete = { onDelete(v.first, v.second); viewing = null },
+            onRestart = { if (!busy) { onRestart(v.first, v.second); viewing = null } },
+            onDelete = { if (!busy) { onDelete(v.first, v.second); viewing = null } },
         )
         return
     }
@@ -97,6 +103,7 @@ fun BrokenWorkScreen(
                 itemsIndexed(items, key = { _, b -> "${b.reportId}|${b.kind}|${b.key}" }) { index, batch ->
                     BrokenWorkItem(
                         batch, warningGlyph, index,
+                        busyKeys = busyKeys,
                         onOpen = { onOpenReport(batch.reportId) },
                         onView = { mode -> viewing = batch to mode },
                         onRestart = { mode -> onRestart(batch, mode) },
@@ -110,12 +117,16 @@ fun BrokenWorkScreen(
     confirmDelete?.let { (batch, mode) ->
         val count = if (mode == BrokenItemMode.ERRORS) batch.errorCount else batch.unfinishedCount
         val noun = if (mode == BrokenItemMode.ERRORS) "errored" else "unfinished"
+        val busy = brokenWorkActionKey(batch, mode) in busyKeys
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text("Delete items?") },
             text = { Text("Drops $count $noun item${if (count == 1) "" else "s"} from ${batch.batchName}. No API calls are made; finished items are kept.") },
             confirmButton = {
-                TextButton(onClick = { onDelete(batch, mode); confirmDelete = null }) {
+                TextButton(
+                    enabled = !busy,
+                    onClick = { onDelete(batch, mode); confirmDelete = null }
+                ) {
                     Text("Delete", color = AppColors.DangerAccent)
                 }
             },
@@ -129,6 +140,7 @@ private fun BrokenWorkItem(
     batch: BrokenBatch,
     warningGlyph: String,
     index: Int,
+    busyKeys: Set<String>,
     onOpen: () -> Unit,
     onView: (BrokenItemMode) -> Unit,
     onRestart: (BrokenItemMode) -> Unit,
@@ -159,27 +171,31 @@ private fun BrokenWorkItem(
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
                 if (batch.unfinishedCount > 0) {
+                    val mode = BrokenItemMode.UNFINISHED
                     CountActionLine(
                         text = "${batch.unfinishedCount} unfinished",
                         color = AppColors.WarningAccent,
+                        busy = brokenWorkActionKey(batch, mode) in busyKeys,
                         canView = canView,
                         // Fan Meta "unfinished" is a fan-out pair missing its
                         // title/icon — there's no item row to delete.
                         canDelete = batch.kind != BatchFamilyKind.FAN_META,
-                        onView = { onView(BrokenItemMode.UNFINISHED) },
-                        onDelete = { onDelete(BrokenItemMode.UNFINISHED) },
-                        onRestart = { onRestart(BrokenItemMode.UNFINISHED) },
+                        onView = { onView(mode) },
+                        onDelete = { onDelete(mode) },
+                        onRestart = { onRestart(mode) },
                     )
                 }
                 if (batch.errorCount > 0) {
+                    val mode = BrokenItemMode.ERRORS
                     CountActionLine(
                         text = "${batch.errorCount} error${if (batch.errorCount == 1) "" else "s"}",
                         color = AppColors.DangerAccent,
+                        busy = brokenWorkActionKey(batch, mode) in busyKeys,
                         canView = canView,
                         canDelete = true,
-                        onView = { onView(BrokenItemMode.ERRORS) },
-                        onDelete = { onDelete(BrokenItemMode.ERRORS) },
-                        onRestart = { onRestart(BrokenItemMode.ERRORS) },
+                        onView = { onView(mode) },
+                        onDelete = { onDelete(mode) },
+                        onRestart = { onRestart(mode) },
                     )
                 }
                 // Single-item entries (one secondary, a one-error batch, or a
@@ -205,6 +221,7 @@ private fun BrokenWorkItem(
 private fun CountActionLine(
     text: String,
     color: Color,
+    busy: Boolean,
     canView: Boolean,
     canDelete: Boolean,
     onView: () -> Unit,
@@ -214,9 +231,13 @@ private fun CountActionLine(
     val icons = LocalMetadataIcons.current
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
         Text(text, fontSize = 11.sp, color = color, modifier = Modifier.weight(1f))
-        if (canView) IconGlyph(icons.view, onView)
-        if (canDelete) IconGlyph(icons.delete, onDelete)
-        IconGlyph(icons.reload, onRestart)
+        if (busy) {
+            Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
+        } else {
+            if (canView) IconGlyph(icons.view, onView)
+            if (canDelete) IconGlyph(icons.delete, onDelete)
+            IconGlyph(icons.reload, onRestart)
+        }
     }
 }
 
@@ -237,6 +258,7 @@ fun BrokenItemsScreen(
     mode: BrokenItemMode,
     loadItems: suspend (BrokenBatch, BrokenItemMode) -> List<BrokenItemRow>,
     canDelete: Boolean,
+    busy: Boolean,
     onBack: () -> Unit,
     onRestart: () -> Unit,
     onDelete: () -> Unit,
@@ -255,9 +277,13 @@ fun BrokenItemsScreen(
             title = title,
             subject = "${batch.reportTitle} · ${batch.batchName}",
             onBackClick = onBack,
-            onReload = onRestart,
-            onDelete = if (canDelete) ({ confirmDelete = true }) else null,
+            onReload = if (busy) null else onRestart,
+            onDelete = if (canDelete && !busy) ({ confirmDelete = true }) else null,
         )
+        if (busy) {
+            Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
+            Spacer(Modifier.height(6.dp))
+        }
         when (val list = rows) {
             null -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text("…", color = AppColors.TextTertiary)
@@ -299,7 +325,10 @@ fun BrokenItemsScreen(
             title = { Text("Delete these items?") },
             text = { Text("Drops the listed ${title.lowercase()} items from ${batch.batchName}. No API calls are made.") },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDelete() }) {
+                TextButton(
+                    enabled = !busy,
+                    onClick = { confirmDelete = false; onDelete() }
+                ) {
                     Text("Delete", color = AppColors.DangerAccent)
                 }
             },
@@ -317,6 +346,30 @@ fun BrokenItemsScreen(
 fun matchingBrokenRows(context: Context, batch: BrokenBatch, mode: BrokenItemMode): List<SecondaryResult> {
     val rows = SecondaryResultStorage.listForReport(context, batch.reportId)
     val errors = mode == BrokenItemMode.ERRORS
+    fun fanMetaTouched(row: SecondaryResult): Boolean =
+        !row.title.isNullOrBlank() ||
+            !row.icon.isNullOrBlank() ||
+            !row.titleErrorMessage.isNullOrBlank() ||
+            !row.iconErrorMessage.isNullOrBlank() ||
+            row.titleRunId != null ||
+            row.iconRunId != null ||
+            row.titlePromptUsed != null ||
+            row.iconPromptUsed != null ||
+            row.titleDurationMs != null ||
+            row.titleInputTokens > 0 ||
+            row.titleOutputTokens > 0 ||
+            row.iconInputTokens > 0 ||
+            row.iconOutputTokens > 0
+    val fanMetaStarted = if (batch.kind == BatchFamilyKind.FAN_META) {
+        rows.any { r ->
+            r.kind == SecondaryKind.META &&
+                r.fanOutSourceAgentId != null &&
+                r.fanInOf == null &&
+                "${batch.reportId}|${r.metaPromptId}" == batch.key &&
+                !r.content.isNullOrBlank() &&
+                fanMetaTouched(r)
+        }
+    } else false
     return rows.filter { r ->
         val inBatch = when (batch.kind) {
             BatchFamilyKind.FAN_OUT, BatchFamilyKind.FAN_META ->
@@ -333,9 +386,10 @@ fun matchingBrokenRows(context: Context, batch: BrokenBatch, mode: BrokenItemMod
         }
         if (!inBatch) return@filter false
         if (batch.kind == BatchFamilyKind.FAN_META) {
+            if (!fanMetaStarted) return@filter false
             val fmError = !r.titleErrorMessage.isNullOrBlank() || !r.iconErrorMessage.isNullOrBlank()
             if (errors) fmError
-            else (!r.content.isNullOrBlank() || r.durationMs != null) &&
+            else !r.content.isNullOrBlank() &&
                 r.title.isNullOrBlank() && r.icon.isNullOrBlank() && !fmError
         } else {
             if (errors) r.errorMessage != null

@@ -464,6 +464,17 @@ class CompareEngine internal constructor(
         _runs.update { it - reportId }
     }
 
+    /** Compare cell row ids whose worker Job is live in THIS process. The
+     *  read-only Broken-work scan must exclude these the same way it excludes
+     *  Fan Out / Tournament / Judges rows; otherwise a legitimate running
+     *  Compare batch is advertised as interrupted. */
+    fun inFlightRowIds(): Set<String> = cellJobs.keys.toSet()
+
+    /** Top-level Compare runs currently alive in this process. Covers rows
+     *  that have been pre-created but have not yet received a per-cell Job. */
+    fun activeRunKeys(): Set<CompareRunKey> =
+        runJobs.filterValues { it.isActive }.keys.toSet()
+
     // -----------------------------------------------------------------
     // Resume on report open / app restart
     // -----------------------------------------------------------------

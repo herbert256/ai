@@ -573,6 +573,11 @@ class TournamentEngine internal constructor(
      *  [FanOutEngine.inFlightRowIds]). Empty after a process kill. */
     fun inFlightRowIds(): Set<String> = matchJobs.keys.toSet()
 
+    /** Top-level Tournament runs currently alive in this process. Covers
+     *  pre-created match rows that are still waiting for a per-match Job. */
+    fun activeRunKeys(): Set<TournamentRunKey> =
+        runJobs.filterValues { it.isActive }.keys.toSet()
+
     /** Re-dispatch every stale match (blank placeholder on disk, no live Job)
      *  — the app-kill recovery + RegeneratePhase.TOURNAMENT path. Bounded by
      *  [BatchResume]. The stale filter is sentinel-independent (content blank

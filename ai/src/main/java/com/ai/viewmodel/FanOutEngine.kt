@@ -1823,6 +1823,11 @@ class FanOutEngine internal constructor(
      *  pair really is stale. */
     fun inFlightRowIds(): Set<String> = pairJobs.keys.toSet()
 
+    /** Top-level Fan Out runs currently alive in this process. Covers rows
+     *  created during the build stage before their per-pair Job is registered. */
+    fun activeRunKeys(): Set<FanOutRunKey> =
+        runJobs.filterValues { it.isActive }.keys.toSet()
+
     /** Resume every stale fan-out pair (a blank placeholder on disk with
      *  no live per-pair Job) across every run on this report — the
      *  app-kill recovery path. Called by the report-open + 30 s

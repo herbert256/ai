@@ -2902,7 +2902,7 @@ class IconGenerationManager(
         return affectedIds
     }
 
-    fun clearFanMetaErrors(context: Context, reportId: String, metaPromptId: String) {
+    fun clearFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withContext(Dispatchers.IO) {
                 val errored = erroredFanMetaPairs(context, reportId, metaPromptId)
@@ -2910,7 +2910,6 @@ class IconGenerationManager(
             }
             appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
         }
-    }
 
     fun restartFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {

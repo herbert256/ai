@@ -20,6 +20,7 @@ import com.ai.ui.shared.shortModelName
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -120,7 +121,7 @@ class RegenerateBatchEngine internal constructor(
      *  paused row's errorMessage is now cleared the orchestrator
      *  is restarted at `currentPhase`; otherwise this is a
      *  no-op. CANCELLED jobs always restart at `currentPhase`. */
-    fun restart(context: Context, reportId: String) {
+    fun restart(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
             val job = RegenerateBatchStorage.get(context, reportId) ?: return@launch
             if (job.status == RegenerateJobStatus.DONE) return@launch
@@ -147,7 +148,6 @@ class RegenerateBatchEngine internal constructor(
             persist(context, resumed)
             startOrchestrator(context, reportId)
         }
-    }
 
     /** Synchronously cancel the orchestrator coroutine for [reportId]
      *  (no status persist). Used by deleteReport, which must stop the
@@ -232,11 +232,12 @@ class RegenerateBatchEngine internal constructor(
 
     /** Drop the persisted job + in-memory entry. Used by the
      *  detail screen's "delete" action (future). */
-    fun deleteJob(context: Context, reportId: String) {
-        orchestratorJobs.remove(reportId)?.cancel()
-        RegenerateBatchStorage.delete(context, reportId)
-        _jobs.update { it - reportId }
-    }
+    fun deleteJob(context: Context, reportId: String): Job =
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+            orchestratorJobs.remove(reportId)?.cancelAndJoin()
+            RegenerateBatchStorage.delete(context, reportId)
+            _jobs.update { it - reportId }
+        }
 
     // -----------------------------------------------------------------
     // Orchestrator
