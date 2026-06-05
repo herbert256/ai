@@ -93,7 +93,7 @@ than going through `runWorkerBatch`.
 
 The `workers`-category prompts and the `alt`-category
 Find-alternative prompts all point their worker list at one
-Swarm named **`workers`**, seeded from `assets/workers/swarms.json`
+Swarm named **`workers`**, seeded from `assets/workers/swarms/`
 by `data/SwarmSeed.kt` (delta merge by case-insensitive name, so
 a user-edited swarm is left alone). On the bundled chain its nine
 members are the cheap-provider fallback:
@@ -442,7 +442,7 @@ data class IconCallRecord(
   `bumpReportAgentIconCost` / `appendIconCall`, plus `removeAgent`'s
   icon-cost rollover.
 - `data/SwarmSeed.kt` — seeds the bundled `workers` (and
-  `tournament` / `Level 1-3`) swarms from `assets/workers/swarms.json`.
+  `tournament` / `Level 1-3`) swarms from `assets/workers/swarms/`.
 - `viewmodel/WorkerRunner.kt` — the random-pick / 429-fallback
   worker engine (`WorkerOutcome`, `run`, `runWorkerBatch`).
 - `viewmodel/IconGenerationManager.kt` — `kickOffIconGeneration`,
@@ -459,7 +459,7 @@ data class IconCallRecord(
   `IconLookupContext`.
 - `ui/report/manage/EditIconsList.kt` — the **Edit icons** list of
   every icon in the report.
-- `assets/workers/swarms.json` — the bundled `workers` swarm
+- `assets/workers/swarms/` — the bundled `workers` swarm
   definition.
 - `assets/internal-prompts/<language>/workers/` +
   `assets/internal-prompts/<language>/alt/` — the bundled worker +

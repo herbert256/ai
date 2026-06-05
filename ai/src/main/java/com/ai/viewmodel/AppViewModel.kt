@@ -714,10 +714,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Mirror of the prompt delta-merges for the bundled worker pools:
-        // workers/swarms.json — append any bundled Swarm whose name isn't
-        // present yet (e.g. the "workers" pool the worker prompts point at),
-        // so an APK upgrade lands it without the user importing by hand.
-        AppLog.d(tag, "→ workers/swarms.json delta-merge")
+        // workers/swarms/ (one file per swarm) — append any bundled Swarm
+        // whose name isn't present yet (e.g. the "workers" pool the worker
+        // prompts point at), so an APK upgrade lands it without the user
+        // importing by hand.
+        AppLog.d(tag, "→ workers/swarms/ delta-merge")
         val tSwarms = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.SwarmSeed.loadFromAssets(application)
@@ -729,12 +730,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     ai = ai.copy(swarms = merged)
                     settingsPrefs.saveSettings(ai)
                 }
-                AppLog.d(tag, "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (added=$added)")
+                AppLog.d(tag, "← workers/swarms/ delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (added=$added)")
             } else {
-                AppLog.d(tag, "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (empty asset)")
+                AppLog.d(tag, "← workers/swarms/ delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (empty asset)")
             }
         }.onFailure {
-            AppLog.w(tag, "← workers/swarms.json delta-merge failed in ${System.currentTimeMillis() - tSwarms}ms", it)
+            AppLog.w(tag, "← workers/swarms/ delta-merge failed in ${System.currentTimeMillis() - tSwarms}ms", it)
         }
 
         // workers/flocks.json — same, resolving each flock's member agents

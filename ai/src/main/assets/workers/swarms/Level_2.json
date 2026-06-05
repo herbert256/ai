@@ -1,0 +1,31 @@
+{
+  "id": "15095e34-9e1f-4068-940d-bd62c087c09a",
+  "members": [
+    {
+      "model": "claude-sonnet-4-6",
+      "provider": "Anthropic"
+    },
+    {
+      "model": "deepseek-chat",
+      "provider": "DeepSeek"
+    },
+    {
+      "model": "mistral-medium-latest",
+      "provider": "Mistral"
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "provider": "OpenAI"
+    },
+    {
+      "model": "grok-4.3",
+      "provider": "xAI"
+    },
+    {
+      "model": "gemini-2.5-flash",
+      "provider": "Google"
+    }
+  ],
+  "name": "Level 2",
+  "paramsIds": []
+}

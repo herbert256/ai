@@ -139,7 +139,7 @@ substitution (both seeded from `assets/internal-prompts/<lang>/workers/`
 and delta-merged into existing installs on launch, editable via
 Settings → AI Setup → Internal prompts → **Worker prompts**). Each
 carries a worker swarm — the bundled **Translate** swarm by default
-(`assets/workers/swarms.json`: gpt-5.4-mini, gemini-2.5-flash,
+(`assets/workers/swarms/`: gpt-5.4-mini, gemini-2.5-flash,
 mistral-medium, deepseek-chat, claude-haiku, grok). Re-curate that
 swarm to change which models translate:
 

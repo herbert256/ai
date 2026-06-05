@@ -1,0 +1,31 @@
+{
+  "id": "bd1377ef-786c-476a-8698-1736dca69a5b",
+  "members": [
+    {
+      "model": "claude-opus-4-7",
+      "provider": "Anthropic"
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "provider": "DeepSeek"
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "provider": "Google"
+    },
+    {
+      "model": "mistral-large-latest",
+      "provider": "Mistral"
+    },
+    {
+      "model": "grok-4.20-0309-reasoning",
+      "provider": "xAI"
+    },
+    {
+      "model": "gpt-5.5",
+      "provider": "OpenAI"
+    }
+  ],
+  "name": "Level 3",
+  "paramsIds": []
+}

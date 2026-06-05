@@ -1,0 +1,43 @@
+{
+  "id": "a1b2c3d4-0002-4e8a-9f4c-2d5b8a1e0002",
+  "members": [
+    {
+      "model": "gpt-4o-mini",
+      "provider": "OpenAI"
+    },
+    {
+      "model": "deepseek-chat",
+      "provider": "DeepSeek"
+    },
+    {
+      "model": "llama-3.1-8b-instant",
+      "provider": "Groq"
+    },
+    {
+      "model": "llama3.1-8b",
+      "provider": "Cerebras"
+    },
+    {
+      "model": "Meta-Llama-3.1-8B-Instruct",
+      "provider": "SambaNova"
+    },
+    {
+      "model": "gemini-2.5-flash-lite",
+      "provider": "Google"
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "provider": "OpenAI"
+    },
+    {
+      "model": "ministral-8b-latest",
+      "provider": "Mistral"
+    },
+    {
+      "model": "grok-4-1-fast-non-reasoning",
+      "provider": "xAI"
+    }
+  ],
+  "name": "Meta",
+  "paramsIds": []
+}

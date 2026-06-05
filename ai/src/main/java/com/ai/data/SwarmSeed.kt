@@ -2,13 +2,13 @@ package com.ai.data
 
 import android.content.Context
 import com.ai.model.Swarm
-import com.google.gson.JsonParser
 import java.util.UUID
 
 /**
- * Reads `assets/workers/swarms.json` and merges any bundled Swarm
- * that's missing from the user's set. The asset is
- * `{ "swarms": [ { id, name, members:[{provider,model}], paramsIds } ] }`;
+ * Reads `assets/workers/swarms/` — one JSON file per swarm — and merges
+ * any bundled Swarm that's missing from the user's set. Each file is a
+ * single `{ id, name, members:[{provider,model}], paramsIds }` object
+ * (the filename is cosmetic; the in-file `name` is authoritative);
  * member provider strings resolve to [com.ai.data.AppService] through
  * the same [createAppGson] adapter the Import/Export flow uses.
  *
@@ -18,25 +18,30 @@ import java.util.UUID
  */
 object SwarmSeed {
 
-    /** Read workers/swarms.json and return every row as a [Swarm] with
-     *  a fresh UUID. Empty list on read / parse failure; a single bad
-     *  row (e.g. an unknown provider) is skipped, not fatal. */
+    /** Root assets folder — one `<name>.json` per swarm. */
+    private const val DIR = "workers/swarms"
+
+    /** Read every JSON file under `workers/swarms/` and return each as a
+     *  [Swarm] with a fresh UUID, sorted by filename for a deterministic
+     *  merge.
+     *  Empty list on read / parse failure; a single bad file (e.g. an
+     *  unknown provider) is skipped, not fatal. */
     fun loadFromAssets(context: Context): List<Swarm> {
         return try {
-            val json = context.assets.open("workers/swarms.json").bufferedReader().use { it.readText() }
             val gson = createAppGson()
-            val arr = JsonParser.parseString(json).asJsonObject.getAsJsonArray("swarms") ?: return emptyList()
-            arr.mapNotNull { el ->
+            val files = context.assets.list(DIR) ?: return emptyList()
+            files.filter { it.endsWith(".json") }.sorted().mapNotNull { file ->
                 try {
-                    val s = gson.fromJson(el, Swarm::class.java) ?: return@mapNotNull null
+                    val json = context.assets.open("$DIR/$file").bufferedReader().use { it.readText() }
+                    val s = gson.fromJson(json, Swarm::class.java) ?: return@mapNotNull null
                     if (s.name.isBlank()) null else s.copy(id = UUID.randomUUID().toString())
                 } catch (e: Exception) {
-                    AppLog.w("SwarmSeed", "Skipped swarm entry: ${e.message}")
+                    AppLog.w("SwarmSeed", "Skipped swarm file $file: ${e.message}")
                     null
                 }
             }
         } catch (e: Exception) {
-            AppLog.w("SwarmSeed", "Failed to load workers/swarms.json: ${e.message}")
+            AppLog.w("SwarmSeed", "Failed to load $DIR/: ${e.message}")
             emptyList()
         }
     }

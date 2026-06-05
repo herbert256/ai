@@ -1,0 +1,31 @@
+{
+  "id": "9f679637-f4d4-4b50-a53c-c160d40e1b23",
+  "members": [
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "provider": "Anthropic"
+    },
+    {
+      "model": "deepseek-v4-flash",
+      "provider": "DeepSeek"
+    },
+    {
+      "model": "mistral-small-latest",
+      "provider": "Mistral"
+    },
+    {
+      "model": "gpt-5.4-nano",
+      "provider": "OpenAI"
+    },
+    {
+      "model": "gemini-2.5-flash-lite",
+      "provider": "Google"
+    },
+    {
+      "model": "grok-4-1-fast-non-reasoning",
+      "provider": "xAI"
+    }
+  ],
+  "name": "Level 1",
+  "paramsIds": []
+}

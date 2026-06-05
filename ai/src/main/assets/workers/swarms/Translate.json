@@ -1,0 +1,31 @@
+{
+  "id": "c4e7a1d8-3f29-4b6c-8a05-9d12e7b4f361",
+  "members": [
+    {
+      "model": "gpt-5.4-mini",
+      "provider": "OpenAI"
+    },
+    {
+      "model": "gemini-2.5-flash",
+      "provider": "Google"
+    },
+    {
+      "model": "mistral-medium-latest",
+      "provider": "Mistral"
+    },
+    {
+      "model": "deepseek-chat",
+      "provider": "DeepSeek"
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "provider": "Anthropic"
+    },
+    {
+      "model": "grok-4.3",
+      "provider": "xAI"
+    }
+  ],
+  "name": "Translate",
+  "paramsIds": []
+}
