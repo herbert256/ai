@@ -459,7 +459,10 @@ private fun TournamentJudgeModelRow(
 
 @Composable
 private fun TournamentReportModelRow(group: GroupRow, allDone: Boolean, onClick: () -> Unit) {
-    val finished = group.done + group.errored
+    // Green fill = success fraction only (matches Judge's MatchSummaryRow).
+    // Including errored here painted an all-failed group as a full green
+    // "done" bar; the per-row ✗ glyph already signals the all-errored case.
+    val finished = group.done
     val progressFraction = if (group.total > 0) finished.toFloat() / group.total else 0f
     val barColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
     Row(
