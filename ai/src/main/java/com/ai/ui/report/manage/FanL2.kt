@@ -73,10 +73,10 @@ internal fun FanOutL2Screen(
     answererKey: String,
     role: String,
     actions: FanOutActions,
-    mode: FanOutMode = FanOutMode.MAIN,
     onSwitchRole: (String) -> Unit,
     onOpenPair: (String) -> Unit,
     onOpenOnePage: () -> Unit,
+    /** Cross-link to the separate Fan Meta screen (the "Fan Meta" button). */
     onOpenTitles: () -> Unit = {},
     onBack: () -> Unit
 ) {
@@ -96,8 +96,6 @@ internal fun FanOutL2Screen(
     // matching the source's (provider, model) — that requires
     // engine.runs's hydration to have populated answererAgentId
     // for every pair.)
-    val isTitlesMode = mode == FanOutMode.META
-    val isMetaMode = isTitlesMode
     val rawRows: List<PairState> = remember(run, role, answererKey) {
         when (role) {
             "Initiator" -> run.pairs.values.filter {
@@ -138,12 +136,6 @@ internal fun FanOutL2Screen(
         report?.agents?.associate { it.agentId to resolveModelLabel("${it.provider}|${it.model}") }
             ?: emptyMap()
     }
-    // agentId → agent-level icon (the icon-gen result for that agent's
-    // original report response). Drives the responder-side glyph in
-    // the Fan Meta L2 list.
-    val agentIcons: Map<String, String?> = remember(report) {
-        report?.agents?.associate { it.agentId to it.icon } ?: emptyMap()
-    }
 
     // Display order: Running / Queued first, then Errored, then
     // Done at the bottom — each group sorted by the row's model
@@ -175,10 +167,7 @@ internal fun FanOutL2Screen(
         }
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
-            title = when (mode) {
-                FanOutMode.META -> "Fan Meta - model"
-                else -> "Fan out - model"
-            },
+            title = "Fan out - model",
             subject = subject,
             onBackClick = onBack,
             onOpenView = onOpenViewJump,
@@ -186,11 +175,8 @@ internal fun FanOutL2Screen(
             onInfo = AppService.findById(activePid)?.let { svc -> { actions.onNavigateToModelInfo(svc, activeMdl) } },
             // 👯 takes over the in-page "Report" button — fires the
             // same onCreateReportFromFanOut handler that the inline
-            // button used to call. Icons mode never had the button
-            // (action row is hidden there); hide the icon there too.
-            onCopyReport = if (!isMetaMode) {
-                { actions.onCreateReportFromFanOut(run.key, activePid, activeMdl) }
-            } else null
+            // button used to call.
+            onCopyReport = { actions.onCreateReportFromFanOut(run.key, activePid, activeMdl) }
         )
 
         // Row 1: role label + Switch role button.
@@ -207,25 +193,12 @@ internal fun FanOutL2Screen(
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
 
-        // In ICONS mode the screen is a focused icon overview — drop
-        // the action buttons (Create Report, New Fan In, Remove /
-        // Restart failed, One Page View, Icons), keep just "Switch
-        // role" rendered above this comment. Fan out's MAIN mode
-        // still shows them all.
-        if (isMetaMode) {
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Action buttons all packed in one row — Fan In is always
-        // shown; Remove + Restart appear when there are errored
-        // pairs; onepage when rows exist; Icons when at least one
-        // pair has a generated icon. Report is gone — moved to the
-        // bottom-bar 👯 icon. equalWeight keeps each button at the
-        // same width and labels stay short so a 3–5 button row still
-        // fits on a phone.
-        val hasIcons = remember(rawRows) { rawRows.any { !it.icon.isNullOrBlank() } }
+        // Action buttons all packed in one row — Remove + Restart
+        // appear when there are errored pairs; onepage when rows
+        // exist; Fan Meta when at least one pair has a generated
+        // title. Report is gone — moved to the bottom-bar 👯 icon.
         val hasTitles = remember(rawRows) { rawRows.any { !it.title.isNullOrBlank() } }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -264,8 +237,6 @@ internal fun FanOutL2Screen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        } // end of MAIN-mode buttons block
-
         if (rows.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
@@ -273,85 +244,6 @@ internal fun FanOutL2Screen(
                     else "No other model has responded to this one yet",
                     color = AppColors.TextTertiary, fontSize = 13.sp
                 )
-            }
-        } else if (isMetaMode) {
-            // Fan Meta — focused list: the per-pair found icon + its
-            // generated title. No status icons / progress fills.
-            // Tapping a row opens the L3 pair detail.
-            val rowsTotalCost = rows.sumOf { it.totalCost }
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(rows, key = { it.key }) { p ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(vertical = 10.dp)
-                            .clickable {
-                                onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId)
-                            },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isTitlesMode) {
-                            // META: the pair's found icon, then its model
-                            // label + generated title (Fan Meta produces both).
-                            val label = if (role == "Responder")
-                                (agentLabels[p.sourceAgentId] ?: p.sourceAgentId)
-                                else resolveModelLabel("${p.providerId}|${p.model}")
-                            Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 28.sp, modifier = Modifier.padding(start = 8.dp))
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    p.title ?: "—",
-                                    fontSize = 15.sp, color = AppColors.TextPrimary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 2, overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    label, fontSize = 11.sp, color = AppColors.TextTertiary,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        } else if (role == "Responder") {
-                            // Initiator's agent-level icon, then the
-                            // pair's responder icon (this model's reply
-                            // to that source).
-                            val initiatorIcon = agentIcons[p.sourceAgentId] ?: com.ai.data.MetadataIconsHolder.current.boxBlank
-                            Text(initiatorIcon, fontSize = 40.sp, modifier = Modifier.padding(start = 8.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 40.sp)
-                        } else {
-                            // Initiator mode: this row's responder is
-                            // pair.icon (the answerer's reply icon).
-                            Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 40.sp, modifier = Modifier.padding(start = 8.dp))
-                        }
-                        if (!isTitlesMode) Spacer(modifier = Modifier.weight(1f))
-                        if (p.totalCost > 0.0) {
-                            Text(
-                                formatCents(p.totalCost), fontSize = 12.sp,
-                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                        }
-                    }
-                    HorizontalDivider(color = AppColors.DividerDark)
-                }
-                if (rowsTotalCost > 0.0) {
-                    item(key = "l2-icons-total-footer") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "Total", fontSize = 14.sp, color = AppColors.InfoAccent,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f).padding(start = 8.dp)
-                            )
-                            Text(
-                                formatCents(rowsTotalCost), fontSize = 12.sp,
-                                color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                        }
-                    }
-                }
             }
         } else {
             val rowsTotalCost = rows.sumOf { it.totalCost }
@@ -537,113 +429,6 @@ internal fun FanOutL2Screen(
                 TextButton(onClick = { confirmRemoveFailed = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
             }
         )
-    }
-}
-
-/**
- * Fan Meta L2 in "Meta models" mode — the sibling of [FanOutL2Screen]'s
- * report-models META view, but scoped to one meta-worker model
- * ([com.ai.data.PairState.titleModel]) instead of an answerer model.
- * Lists every pair that meta model titled: found icon + generated
- * title + the answerer/report model that produced the response, plus a
- * cost total. Tapping a row opens that pair's L3 detail. No role axis
- * (the grouping isn't answerer/source) and no destructive actions.
- */
-@Composable
-internal fun FanOutL2MetaModelScreen(
-    run: FanOutRunState,
-    metaModelKey: String,
-    actions: FanOutActions,
-    onOpenPair: (answererKey: String, sourceAgentId: String) -> Unit,
-    onBack: () -> Unit
-) {
-    val subject = com.ai.ui.shared.shortModelName(metaModelKey.substringAfterLast('/'))
-
-    val rows: List<PairState> = remember(run, metaModelKey) {
-        run.pairs.values
-            .filter { it.titleModel == metaModelKey }
-            .sortedBy { it.timestamp }
-    }
-
-    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
-        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
-            {
-                holder.value = run.metaPrompt.name.takeIf { it.isNotBlank() }
-                    ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
-                    ?: com.ai.ui.shared.ViewJump.Main
-            }
-        }
-        TitleBar(
-            helpTopic = "fan_meta",
-            title = "Fan Meta - meta model",
-            subject = subject,
-            onBackClick = onBack,
-            onOpenView = onOpenViewJump
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (rows.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("No titles from this meta model yet", color = AppColors.TextTertiary, fontSize = 13.sp)
-            }
-        } else {
-            val rowsTotalCost = rows.sumOf { it.totalCost }
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(rows, key = { it.key }) { p ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(vertical = 10.dp)
-                            .clickable { onOpenPair("${p.providerId}|${p.model}", p.sourceAgentId) },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 28.sp, modifier = Modifier.padding(start = 8.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                p.title ?: "—",
-                                fontSize = 15.sp, color = AppColors.TextPrimary,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
-                            // Answerer/report model that produced the response.
-                            Text(
-                                resolveModelLabel("${p.providerId}|${p.model}"),
-                                fontSize = 11.sp, color = AppColors.TextTertiary,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (p.totalCost > 0.0) {
-                            Text(
-                                formatCents(p.totalCost), fontSize = 12.sp,
-                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                        }
-                    }
-                    HorizontalDivider(color = AppColors.DividerDark)
-                }
-                if (rowsTotalCost > 0.0) {
-                    item(key = "l2-meta-model-total-footer") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "Total", fontSize = 14.sp, color = AppColors.InfoAccent,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f).padding(start = 8.dp)
-                            )
-                            Text(
-                                formatCents(rowsTotalCost), fontSize = 12.sp,
-                                color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 

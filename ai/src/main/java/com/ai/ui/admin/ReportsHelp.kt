@@ -575,12 +575,30 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Long fan-out runs render many MB of text; rendering can be slow on dense reports. Use L2 + tap-into-cell when you only need one pair."),
         )
     ),
-    "fan_meta" to HelpContent(
+    "fan_meta_l1" to HelpContent(
         title = "Help - Fan Meta",
         cards = listOf(
-            HelpCard("What you see", "The Fan Meta view of a fan-out run. The L1 'Fan Meta' button runs ONE worker call per pair (fan/meta, random pick + 429-fallback) that returns BOTH a short title and a fitting icon. 'Show Fan Meta' then lists, per source model, every responder's generated title as a tappable row (each row carries its icon too)."),
-            HelpCard("Status & errors", "While the batch runs, L1/L2/L3 classify pairs by their status (queued → running → done / error). 'Remove errors' clears failed pairs so they read as pending; 'Restart errors' clears and re-fires the batch on them. The 🗑 in Fan Meta mode drops every title + icon for the run, keeping the fan-out responses."),
-            HelpCard("Drill in", "Tap a row to open the pair (L3), where the title + icon show above the response. The per-model L2 'Fan Meta' button focuses one model's pairs.")
+            HelpCard("What you see", "Top of the Fan Meta drill-in — a separate screen from Fan out (responses). One worker call per pair (fan/meta, random pick + 429-fallback) returns BOTH a short title and a fitting icon. The stats row tracks the title batch (Total / Done / Errors / Bench / Run / Throttled / Queue / Costs)."),
+            HelpCard("Grouping", "The 'Meta models' / 'Report models' chips switch how the model list groups: by the meta-worker model that produced the title+icon, or by the answerer/report model. 'Show all' opens a flat list of every pair's title, grouped by source model."),
+            HelpCard("Status & errors", "Pairs classify by their title-batch status (queued → running → done / error). 'Remove errors' clears failed pairs so they read as pending; 'Restart errors' clears and re-fires the batch on them. 'Remove failed' / 'Remove benched' clean up the underlying fan-out responses that can never get a title."),
+            HelpCard("Navigation", "The 🗑 drops every title + icon for the run, keeping the fan-out responses. The 'Fan-Out' button cross-links back to the responses screen; system back closes to the report's secondary list. Tap a model row to drill into L2.")
+        )
+    ),
+    "fan_meta_l2" to HelpContent(
+        title = "Help - Fan Meta — model",
+        cards = listOf(
+            HelpCard("Overview", "One model's pairs as a focused icon + title list — no status glyphs or progress fills (that's the Fan out L2). Each row shows the pair's generated icon, its title, and the counterpart model label. Tap a row to open the pair's L3 detail."),
+            HelpCard("Role toggle", "Responder = the active model received others' sources. Initiator = the active model's report fed into others. The role chip swaps the row list between the two views."),
+            HelpCard("Meta models view", "Reached from the L1 'Meta models' grouping, this variant is scoped to one meta-worker model and lists every pair it titled, with the answerer/report model under each title."),
+            HelpCard("Title bar", "ℹ️ opens Model Info for the active pair; 🗑 deletes every fan-out cell where this model participated and pops back.")
+        )
+    ),
+    "fan_meta_l3" to HelpContent(
+        title = "Help - Fan Meta — pair",
+        cards = listOf(
+            HelpCard("Overview", "A single pair's metadata: the generated icon big and centred, the generated title below it in green, and the two model lines (the fan-out answerer model and the meta-worker model that produced the title+icon)."),
+            HelpCard("Find alternatives", "'Find alternative icon' and 'Find alternative title' open the big model picker straight onto the per-pair Find-alt flow; a picked result lands here immediately."),
+            HelpCard("Navigation", "Swipe right for the previous pair, left for the next — through the same L2-scoped list. The 🔄 reruns this pair; 🗑 drops the pair row (its cost stays counted in the report total). System back pops to L2.")
         )
     ),
     "fan_out_view" to HelpContent(

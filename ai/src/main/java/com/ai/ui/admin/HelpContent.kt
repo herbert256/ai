@@ -106,6 +106,9 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "secondary_fan_out_l2" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_l3" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_onepage" to listOf("help_glossary_operations"),
+    "fan_meta_l1" to listOf("help_glossary_operations", "concepts", "help_costs"),
+    "fan_meta_l2" to listOf("help_glossary_operations", "concepts"),
+    "fan_meta_l3" to listOf("help_glossary_operations", "concepts"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====

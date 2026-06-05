@@ -452,17 +452,24 @@ Fan-out is owned by **`FanOutEngine`**
   always find the Job.
 
 - The **UI** lives under `ui/report/manage/`: `Fan.kt`
-  (`FanOutScreen` parent + nav + the `enum class FanOutMode { MAIN,
-  META }`) plus `FanL1.kt` / `FanL2.kt` / `FanL3.kt`. The parent
-  holds a `FanOutNav` sealed-class state in `rememberSaveable`; the
-  back-stack survives rotation. Each level subscribes to
-  `engine.runs.collectAsState()` and renders the current snapshot —
-  no polling, no merging of disk + StateFlow.
+  (`FanOutScreen` parent + the `FanOutNav` sealed class) plus
+  `FanL1.kt` / `FanL2.kt` / `FanL3.kt`. The parent holds the nav state
+  in `rememberSaveable`; the back-stack survives rotation. Each level
+  subscribes to `engine.runs.collectAsState()` and renders the current
+  snapshot — no polling, no merging of disk + StateFlow.
 
-- The same `Fan*` screens render two **modes** off one nav tree:
-  `FanOutMode.MAIN` (the per-pair fan-out responses) and
-  `FanOutMode.META` (the **Fan Meta** drill-in over the per-pair
-  title + icon metadata — see "Fan Meta drill-in").
+- **Fan Out and Fan Meta are two fully separate screens.** Fan Out
+  (responses) is `FanOutScreen` + `FanL1/L2/L3`; Fan Meta (titles +
+  icons) is `FanMetaScreen` (`FanMeta.kt`) + `FanMetaL1/L2/L3` with its
+  own `FanMetaNav` back-stack. Both share the one `FanOutEngine` /
+  `FanOutRunState` / `PairState` (the title+icon live on the same
+  `SecondaryResult` row as the response). The mount point
+  (`view/Secondary.kt`) picks one of the two off the `isFanMetaDrillIn`
+  flag — set by the two distinct result-list rows (`onViewSecondaryName`
+  → Fan Out, `onViewFanMeta` → Fan Meta). Cross-link buttons hop between
+  them (Fan Out's "Fan Meta" button → `onShowFanMeta`; Fan Meta's
+  "Fan-Out" button → `onShowResponses`, both flipping that flag); each
+  screen's top-level back closes to the report's secondary list.
 
 - **Fan-in** runs the chosen `category = "fan_in"` Internal Prompt
   once per **source agent** (NOT once per answerer × source pair).
@@ -489,22 +496,29 @@ so one tap doesn't fork two batches.
 
 ### Fan Meta drill-in
 
-The same `Fan*` screens in `FanOutMode.META` give each fan-out pair a
-generated **title + icon** — one `workers/fan-meta` worker call per
-pair returns both (see [report-icons.md](report-icons.md)):
+The **`FanMetaScreen`** tree (`FanMeta.kt` + `FanMetaL1/L2/L3.kt`)
+gives each fan-out pair a generated **title + icon** — one
+`workers/fan-meta` worker call per pair returns both (see
+[report-icons.md](report-icons.md)). Stats use the `titleStatus` lens
+(not `pair.status`) and the cost columns sum the title + icon spend:
 
-- **L1** (titled **Fan Meta**) has two grouping modes — **Meta
-  models** (group by the meta-worker model that produced the
-  title+icon, `PairState.titleModel`) and **Report models** (group by
-  the answerer model) — plus a flat **Fan Meta - All** list of every
-  pair's title.
-- **L2** is titled **Fan Meta - model** (or **Fan Meta - meta model**
-  in the Meta-models grouping).
-- **L3** (titled **Fan Meta - pair**) is a purpose-built metadata
-  screen: big centred icon, big title, the two model lines (fan-out
-  model / meta model), and per-pair **Find alternative icon** / **Find
-  alternative title** buttons. A horizontal **swipe** (not Prev/Next
-  buttons) steps between pairs — right = previous, left = next.
+- **L1** (titled **Fan Meta**, `FanMetaL1Screen`) has two grouping
+  modes — **Meta models** (group by the meta-worker model that produced
+  the title+icon, `PairState.titleModel`) and **Report models** (group
+  by the answerer model) — plus a flat **Fan Meta - All** list
+  (`FanMetaAllScreen`, the "Show all" button) of every pair's title.
+- **L2** (`FanMetaL2Screen`) is titled **Fan Meta - model**; the
+  Meta-models grouping opens **Fan Meta - meta model**
+  (`FanMetaMetaModelScreen`).
+- **L3** (titled **Fan Meta - pair**, `FanMetaL3Screen`) is a
+  purpose-built metadata screen: big centred icon, big title, the two
+  model lines (fan-out model / meta model), and per-pair **Find
+  alternative icon** / **Find alternative title** buttons. A horizontal
+  **swipe** (not Prev/Next buttons) steps between pairs — right =
+  previous, left = next.
+
+Help topics: `fan_meta_l1` / `fan_meta_l2` / `fan_meta_l3` (the Fan Out
+screens keep `secondary_fan_out_l1/l2/l3`).
 
 The Fan Meta batch auto-starts when a fan-out run finishes with no
 errored pairs (`autostartFanMeta`, default on).

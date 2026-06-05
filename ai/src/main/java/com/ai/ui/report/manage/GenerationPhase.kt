@@ -272,7 +272,7 @@ internal data class GenerationPhaseHandlers(
     val onViewSecondaryName: (String, SecondaryKind) -> Unit = { _, _ -> },
     /** Open the Fan Meta drill-in for a fan-out's metaPrompt name.
      *  Routes to SecondaryResultsScreen with the meta-mode flag,
-     *  which mounts FanOutScreen in META mode. */
+     *  which mounts the separate FanMetaScreen. */
     val onViewFanMeta: (String) -> Unit = { _ -> },
     val onOpenSecondaryRun: (String) -> Unit = { _ -> },
     val onOpenTranslationRun: (String) -> Unit = { _ -> },

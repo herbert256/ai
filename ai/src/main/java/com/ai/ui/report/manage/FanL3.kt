@@ -90,8 +90,6 @@ internal fun FanOutL3Screen(
     sourceAgentId: String,
     role: String,
     actions: FanOutActions,
-    mode: FanOutMode = FanOutMode.MAIN,
-    iconRefreshTick: Int = 0,
     onStepSource: (String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -145,10 +143,7 @@ internal fun FanOutL3Screen(
             }
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
-                title = when (mode) {
-                    FanOutMode.META -> "Fan Meta - pair"
-                    else -> "Fan out - pair"
-                },
+                title = "Fan out - pair",
                 subject = "This pair no longer exists",
                 onOpenView = onOpenViewEmptyJump,
                 onBackClick = onBack
@@ -193,27 +188,6 @@ internal fun FanOutL3Screen(
     val answererLabel = modelLabel(pair.providerId, pair.model)
     val answererProviderService = remember(pair.providerId) {
         AppService.findById(pair.providerId)
-    }
-
-    // Fan Meta L3 is a purpose-built metadata screen (big icon + green
-    // title + the two model lines + the two Find-alt buttons), not the
-    // source/answerer split the MAIN mode renders. Branch out before
-    // the trace lookups + split-pane body below.
-    if (mode == FanOutMode.META) {
-        FanOutL3MetaBody(
-            run = run,
-            pair = pair,
-            answererLabel = answererLabel,
-            answererProviderService = answererProviderService,
-            prev = prev,
-            next = next,
-            role = role,
-            actions = actions,
-            iconRefreshTick = iconRefreshTick,
-            onStepSource = onStepSource,
-            onBack = onBack
-        )
-        return
     }
 
     // ✍️ user notes for this fan-out response (the pair = one SecondaryResult).
@@ -473,10 +447,7 @@ internal fun FanOutL3Screen(
             }
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
-                title = when (mode) {
-                    FanOutMode.META -> "Fan Meta - pair"
-                    else -> "Fan out - pair"
-                },
+                title = "Fan out - pair",
                 subject = answererLabel,
                 subjectTrailing = {
                     Text(
@@ -578,20 +549,13 @@ internal fun FanOutL3Screen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (!pair.icon.isNullOrBlank()) {
                         // Tap → opens the unified Icon-lookup screen
-                        // for this pair (6th adapter). Only wired in
-                        // MAIN mode — ICONS-mode L3 is itself an
-                        // icon-focused view.
-                        val iconModifier = Modifier
-                            .background(AppColors.AppBackground)
-                            .padding(end = 6.dp)
-                            .let { base ->
-                                if (mode == FanOutMode.MAIN) {
-                                    base.clickable { actions.onOpenPairIconLookup(pair.id) }
-                                } else base
-                            }
+                        // for this pair (6th adapter).
                         Text(
                             pair.icon, fontSize = 16.sp,
-                            modifier = iconModifier
+                            modifier = Modifier
+                                .background(AppColors.AppBackground)
+                                .padding(end = 6.dp)
+                                .clickable { actions.onOpenPairIconLookup(pair.id) }
                         )
                     }
                     Text(
@@ -696,179 +660,6 @@ internal fun FanOutL3Screen(
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("Next →", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
-        }
-    }
-
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this pair?") },
-            text = { Text("Drops the pair row from the run. The API cost stays counted in the report total.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    actions.onCancelPair(run.key, pair.key)
-                    onBack()
-                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
-            }
-        )
-    }
-}
-
-/**
- * Fan Meta L3 — the single-pair metadata screen. Foregrounds the
- * generated icon + title and exposes the two per-pair Find-alt
- * buttons. Re-reads the pair from disk on [iconRefreshTick] so a
- * picked icon/title shows immediately (the engine snapshot stays
- * stale after a Find-alt pick; it only bumps the tick + writes disk).
- */
-@Composable
-internal fun FanOutL3MetaBody(
-    run: FanOutRunState,
-    pair: PairState,
-    answererLabel: String,
-    answererProviderService: AppService?,
-    prev: PairState?,
-    next: PairState?,
-    role: String,
-    actions: FanOutActions,
-    iconRefreshTick: Int,
-    onStepSource: (String) -> Unit,
-    onBack: () -> Unit
-) {
-    val context = LocalContext.current
-    var confirmDelete by remember { mutableStateOf(false) }
-
-    // Re-read the row from disk on each refresh tick so picked
-    // icon/title/titleModel land here without leaving the screen.
-    val fresh by produceState(initialValue = pair, pair.id, run.reportId, iconRefreshTick) {
-        value = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.get(context, run.reportId, pair.id)
-                ?.toPairState(pair.answererAgentId) ?: pair
-        }
-    }
-    val icon = fresh.icon?.takeIf { it.isNotBlank() }
-    val title = fresh.title?.takeIf { it.isNotBlank() }
-    val metaModel = fresh.titleModel?.substringAfterLast('/')
-        ?.takeIf { it.isNotBlank() }?.let { shortModelName(it) } ?: "—"
-
-    // Horizontal swipe steps to the prev / next pair (replaces the old
-    // Prev/Next buttons): swipe right → previous, swipe left → next —
-    // same direction convention as the Manage-hub report swipe.
-    val density = LocalDensity.current
-    val swipeThresholdPx = with(density) { 64.dp.toPx() }
-    val swipeDragX = remember { mutableFloatStateOf(0f) }
-    val goPrev: () -> Unit = {
-        prev?.let { if (role == "Responder") onStepSource(it.sourceAgentId) else onStepSource(it.answererAgentId) }
-    }
-    val goNext: () -> Unit = {
-        next?.let { if (role == "Responder") onStepSource(it.sourceAgentId) else onStepSource(it.answererAgentId) }
-    }
-
-    Column(
-        Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)
-            .pointerInput(prev, next, role) {
-                detectHorizontalDragGestures(
-                    onDragStart = { swipeDragX.floatValue = 0f },
-                    onDragEnd = {
-                        val dx = swipeDragX.floatValue
-                        when {
-                            dx > swipeThresholdPx -> goPrev()
-                            dx < -swipeThresholdPx -> goNext()
-                        }
-                        swipeDragX.floatValue = 0f
-                    },
-                    onDragCancel = { swipeDragX.floatValue = 0f },
-                    onHorizontalDrag = { _, d -> swipeDragX.floatValue += d }
-                )
-            }
-    ) {
-        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
-        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
-            {
-                holder.value = run.metaPrompt.name.takeIf { it.isNotBlank() }
-                    ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
-                    ?: com.ai.ui.shared.ViewJump.Main
-            }
-        }
-        TitleBar(
-            helpTopic = "fan_meta",
-            title = "Fan Meta - pair",
-            reportIcon = com.ai.ui.shared.LocalReportIcon.current,
-            subject = answererLabel,
-            onBackClick = onBack,
-            onOpenView = onOpenViewJump,
-            onInfo = answererProviderService?.let { svc ->
-                { actions.onNavigateToModelInfo(svc, pair.model) }
-            },
-            onReload = { actions.onRerunPair(run.key, pair.key) },
-            onDelete = { confirmDelete = true }
-        )
-
-        Column(
-            modifier = Modifier.weight(1f).fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // Big, centered, the found icon.
-            Text(icon ?: com.ai.data.MetadataIconsHolder.current.label, fontSize = 72.sp, color = AppColors.TextPrimary)
-            Spacer(Modifier.height(20.dp))
-            // Green, big, the found title.
-            Text(
-                title ?: "(no title yet)",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (title != null) AppColors.SuccessAccent else AppColors.TextTertiary,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(28.dp))
-            // Two model lines.
-            Column(Modifier.fillMaxWidth()) {
-                Text(
-                    "Fan-out model:  ${shortModelName(pair.model)}",
-                    fontSize = 14.sp, color = AppColors.TextPrimary,
-                    fontFamily = FontFamily.Monospace, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Meta model:     $metaModel",
-                    fontSize = 14.sp, color = AppColors.TextPrimary,
-                    fontFamily = FontFamily.Monospace, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        // Two Find-alt buttons.
-        OutlinedButton(
-            onClick = { actions.onFindAlternativePairIcon(pair.id) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedButtonColors()
-        ) { Text("Find alternative icon", maxLines = 1, softWrap = false) }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = { actions.onFindAlternativePairTitle(pair.id) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedButtonColors()
-        ) { Text("Find alternative title", maxLines = 1, softWrap = false) }
-
-        // Swipe ← / → steps through the L2-scoped pair list (the small
-        // hint replaces the old Prev/Next buttons). Greyed ends show
-        // there's nothing further that way.
-        Row(
-            Modifier.fillMaxWidth().padding(top = 12.dp),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Text(
-                "← swipe   ·   swipe →",
-                fontSize = 12.sp, color = AppColors.TextTertiary,
-                maxLines = 1, softWrap = false
-            )
         }
     }
 

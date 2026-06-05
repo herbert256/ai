@@ -669,36 +669,45 @@ internal fun SecondaryResultsScreen(
                     if (parts.size == 2) fanRuntime.onRestartFanMetaErrors(parts[0], parts[1])
                 }
             )
-            val fanMode = if (isFanMetaDrillIn) FanOutMode.META else FanOutMode.MAIN
-            // 🗂️ pick-another-report → the picker filtered to reports that
-            // have a fan-out, returning to the View grid (where the new
-            // report's fan-out is chosen). MAIN mode only — not the Fan
-            // Meta drill-in.
-            val managePick = com.ai.ui.shared.LocalNavigateToManagePicker.current
-            androidx.compose.runtime.CompositionLocalProvider(
-                com.ai.ui.shared.LocalManagePickReport provides
-                    (if (fanMode == FanOutMode.MAIN)
+            // Fan Out and Fan Meta are two fully separate screens now,
+            // selected off the same isFanMetaDrillIn flag the result-list
+            // rows set. Cross-link buttons hop between them via
+            // onShowFanMeta / onShowResponses (both flip that flag).
+            if (isFanMetaDrillIn) {
+                FanMetaScreen(
+                    engine = fanOutEngine,
+                    reportId = reportId,
+                    runKey = runKey,
+                    actions = actions,
+                    runningMetaSet = fanRuntime.runningFanMetaPairs,
+                    throttledMetaSet = fanRuntime.throttledFanMetaPairs,
+                    onShowResponses = onShowResponses,
+                    iconRefreshTick = iconRefreshTick,
+                    onBack = onBack
+                )
+            } else {
+                // 🗂️ pick-another-report → the picker filtered to reports
+                // that have a fan-out, returning to the View grid. Fan Out
+                // only — not the Fan Meta screen.
+                val managePick = com.ai.ui.shared.LocalNavigateToManagePicker.current
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.ai.ui.shared.LocalManagePickReport provides
                         ({ managePick(com.ai.ui.navigation.ManagePickKind.FAN_OUT.arg) })
-                     else null)
-            ) {
-            FanOutScreen(
-                engine = fanOutEngine,
-                reportId = reportId,
-                runKey = runKey,
-                actions = actions,
-                throttledSet = fanRuntime.throttledFanOutPairs,
-                mode = fanMode,
-                onShowResponses = onShowResponses,
-                runningMetaSet = fanRuntime.runningFanMetaPairs,
-                throttledMetaSet = fanRuntime.throttledFanMetaPairs,
-                onLaunchFanMeta = { _ ->
-                    fanRuntime.onLaunchFanMetaBatch(reportId, fanOutPrompt.id)
-                    onShowFanMeta()
-                },
-                onShowFanMeta = onShowFanMeta,
-                iconRefreshTick = iconRefreshTick,
-                onBack = onBack
-            )
+                ) {
+                    FanOutScreen(
+                        engine = fanOutEngine,
+                        reportId = reportId,
+                        runKey = runKey,
+                        actions = actions,
+                        throttledSet = fanRuntime.throttledFanOutPairs,
+                        onLaunchFanMeta = { _ ->
+                            fanRuntime.onLaunchFanMetaBatch(reportId, fanOutPrompt.id)
+                            onShowFanMeta()
+                        },
+                        onShowFanMeta = onShowFanMeta,
+                        onBack = onBack
+                    )
+                }
             }
             return@Column
         }
