@@ -33,6 +33,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.SecondaryScope
 import com.ai.data.extractTopRankedIds
+import com.ai.data.fullCost
 import com.ai.data.pairKey
 import com.ai.data.resolveSecondaryPrompt
 import com.ai.data.runKey
@@ -1544,6 +1545,33 @@ class FanOutEngine internal constructor(
             rerunPairsBlocking(context, runKey, keys)
         }
 
+    fun restartPairsByIds(context: Context, runKey: FanOutRunKey, pairIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[runKey] ?: return@launch
+            val keys = run.pairs.values.filter { it.id in pairIds }.map { it.key }
+            rerunPairsBlocking(context, runKey, keys)
+        }
+
+    fun removePairsByIds(context: Context, runKey: FanOutRunKey, pairIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[runKey] ?: return@launch
+            val victims = run.pairs.values.filter { it.id in pairIds }
+            if (victims.isEmpty()) return@launch
+            victims.forEach { pairJobs[it.id]?.cancelAndJoin() }
+            val costDelta = victims.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
+            victims.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
+            ReportStorage.removeFanOutIconCalls(context, run.reportId, victims.map { it.id }.toSet())
+            _runs.update { runs ->
+                val cur = runs[runKey] ?: return@update runs
+                val dropKeys = victims.map { it.key }.toSet()
+                runs + (runKey to cur.copy(pairs = cur.pairs - dropKeys))
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, run.reportId)
+        }
+
     /** L2-scoped restart — one parallel batch of the model's errored pairs. */
     fun restartFailedPairsForModel(
         context: Context,
@@ -1619,15 +1647,18 @@ class FanOutEngine internal constructor(
         // keep the cleared placeholder so the runner writes against it.
         data class Reset(val pair: PairState, val cleared: SecondaryResult, val body: String)
         val resets = mutableListOf<Reset>()
+        var clearedCostDelta = 0.0
         for (pk in pairKeys) {
             val pair = run.pairs[pk] ?: continue
             val source = report.agents.firstOrNull { it.agentId == pair.sourceAgentId } ?: continue
-            val cleared = SecondaryResultStorage.get(context, run.reportId, pair.id)?.copy(
+            val current = SecondaryResultStorage.get(context, run.reportId, pair.id) ?: continue
+            clearedCostDelta += current.fullCost()
+            val cleared = current.copy(
                 content = null, errorMessage = null, inputCost = null, outputCost = null,
                 durationMs = null, tokenUsage = null, timestamp = System.currentTimeMillis(),
                 responseChangeSource = null,
                 responseChangeValue = null
-            ) ?: continue
+            )
             SecondaryResultStorage.save(context, cleared)
             transitionPair(runKey, pk) {
                 it.copy(
@@ -1640,6 +1671,9 @@ class FanOutEngine internal constructor(
             }
             val body = langCtx?.bodies?.get(pair.sourceAgentId) ?: source.responseBody.orEmpty()
             resets.add(Reset(pair, cleared, body))
+        }
+        if (clearedCostDelta > 0.0) {
+            ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, clearedCostDelta)
         }
         if (resets.isEmpty()) return
         withTracerTags(reportId = run.reportId, category = cat) {

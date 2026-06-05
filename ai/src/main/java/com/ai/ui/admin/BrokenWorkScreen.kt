@@ -26,17 +26,21 @@ import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.BatchFamilyKind
 import com.ai.viewmodel.BrokenBatch
+import com.ai.viewmodel.BrokenItemMode
+import com.ai.viewmodel.BrokenWorkLiveState
+import com.ai.viewmodel.BrokenWorkPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-/** Which state of a [BrokenBatch] a row / detail screen acts on. */
-enum class BrokenItemMode { UNFINISHED, ERRORS }
 
 /** One row in the [BrokenItemsScreen] detail list. */
 data class BrokenItemRow(val id: String, val label: String, val detail: String)
 
-fun brokenWorkActionKey(batch: BrokenBatch, mode: BrokenItemMode): String =
+fun brokenWorkActionPrefix(batch: BrokenBatch, mode: BrokenItemMode): String =
     "${batch.reportId}|${batch.kind}|${batch.key}|${mode.name}"
+
+fun brokenWorkActionKey(batch: BrokenBatch, mode: BrokenItemMode, itemIds: Set<String> = emptySet()): String =
+    if (itemIds.isEmpty()) brokenWorkActionPrefix(batch, mode)
+    else "${brokenWorkActionPrefix(batch, mode)}|items:${itemIds.sorted().joinToString(",")}"
 
 /** Full-screen list of batches that carry work needing attention —
  *  unfinished (stranded by an app-kill) and/or errored items — that the
@@ -53,6 +57,8 @@ fun BrokenWorkScreen(
     onOpenReport: (String) -> Unit,
     onRestart: (BrokenBatch, BrokenItemMode) -> Unit,
     onDelete: (BrokenBatch, BrokenItemMode) -> Unit,
+    onRestartItems: (BrokenBatch, BrokenItemMode, Set<String>) -> Unit,
+    onDeleteItems: (BrokenBatch, BrokenItemMode, Set<String>) -> Unit,
     loadItems: suspend (BrokenBatch, BrokenItemMode) -> List<BrokenItemRow>,
 ) {
     var viewing by remember { mutableStateOf<Pair<BrokenBatch, BrokenItemMode>?>(null) }
@@ -62,7 +68,7 @@ fun BrokenWorkScreen(
     // the list's remember state (overlay pattern used across the app).
     val v = viewing
     if (v != null) {
-        val busy = brokenWorkActionKey(v.first, v.second) in busyKeys
+        val busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(v.first, v.second)) }
         BrokenItemsScreen(
             batch = v.first,
             mode = v.second,
@@ -72,6 +78,8 @@ fun BrokenWorkScreen(
             onBack = { viewing = null },
             onRestart = { if (!busy) { onRestart(v.first, v.second); viewing = null } },
             onDelete = { if (!busy) { onDelete(v.first, v.second); viewing = null } },
+            onRestartItems = { ids -> if (!busy) { onRestartItems(v.first, v.second, ids); viewing = null } },
+            onDeleteItems = { ids -> if (!busy) { onDeleteItems(v.first, v.second, ids); viewing = null } },
         )
         return
     }
@@ -117,7 +125,7 @@ fun BrokenWorkScreen(
     confirmDelete?.let { (batch, mode) ->
         val count = if (mode == BrokenItemMode.ERRORS) batch.errorCount else batch.unfinishedCount
         val noun = if (mode == BrokenItemMode.ERRORS) "errored" else "unfinished"
-        val busy = brokenWorkActionKey(batch, mode) in busyKeys
+        val busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(batch, mode)) }
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text("Delete items?") },
@@ -175,7 +183,7 @@ private fun BrokenWorkItem(
                     CountActionLine(
                         text = "${batch.unfinishedCount} unfinished",
                         color = AppColors.WarningAccent,
-                        busy = brokenWorkActionKey(batch, mode) in busyKeys,
+                        busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(batch, mode)) },
                         canView = canView,
                         // Fan Meta "unfinished" is a fan-out pair missing its
                         // title/icon — there's no item row to delete.
@@ -190,7 +198,7 @@ private fun BrokenWorkItem(
                     CountActionLine(
                         text = "${batch.errorCount} error${if (batch.errorCount == 1) "" else "s"}",
                         color = AppColors.DangerAccent,
-                        busy = brokenWorkActionKey(batch, mode) in busyKeys,
+                        busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(batch, mode)) },
                         canView = canView,
                         canDelete = true,
                         onView = { onView(mode) },
@@ -262,14 +270,20 @@ fun BrokenItemsScreen(
     onBack: () -> Unit,
     onRestart: () -> Unit,
     onDelete: () -> Unit,
+    onRestartItems: (Set<String>) -> Unit,
+    onDeleteItems: (Set<String>) -> Unit,
 ) {
     BackHandler { onBack() }
     var rows by remember(batch, mode) { mutableStateOf<List<BrokenItemRow>?>(null) }
+    var selectedIds by remember(batch, mode) { mutableStateOf<Set<String>>(emptySet()) }
     LaunchedEffect(batch, mode) {
-        rows = withContext(Dispatchers.IO) { loadItems(batch, mode) }
+        val loaded = withContext(Dispatchers.IO) { loadItems(batch, mode) }
+        rows = loaded
+        selectedIds = selectedIds.intersect(loaded.map { it.id }.toSet())
     }
     var confirmDelete by remember { mutableStateOf(false) }
     val title = if (mode == BrokenItemMode.ERRORS) "Errors" else "Unfinished"
+    val hasSelection = selectedIds.isNotEmpty()
 
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -277,12 +291,34 @@ fun BrokenItemsScreen(
             title = title,
             subject = "${batch.reportTitle} · ${batch.batchName}",
             onBackClick = onBack,
-            onReload = if (busy) null else onRestart,
+            onReload = if (busy) null else ({
+                if (hasSelection) onRestartItems(selectedIds) else onRestart()
+            }),
             onDelete = if (canDelete && !busy) ({ confirmDelete = true }) else null,
         )
         if (busy) {
             Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
             Spacer(Modifier.height(6.dp))
+        }
+        val currentRows = rows
+        if (currentRows != null && currentRows.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    if (hasSelection) "${selectedIds.size} selected" else "No selection",
+                    fontSize = 11.sp,
+                    color = AppColors.TextTertiary,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        selectedIds = if (selectedIds.size == currentRows.size) emptySet()
+                        else currentRows.map { it.id }.toSet()
+                    }
+                ) {
+                    Text(if (selectedIds.size == currentRows.size) "Clear" else "Select all", fontSize = 11.sp)
+                }
+            }
         }
         when (val list = rows) {
             null -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
@@ -295,21 +331,38 @@ fun BrokenItemsScreen(
             } else {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     items(list, key = { it.id }) { row ->
+                        val selected = row.id in selectedIds
                         Card(
                             colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                if (!busy) {
+                                    selectedIds = if (selected) selectedIds - row.id else selectedIds + row.id
+                                }
+                            }
                         ) {
-                            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                Text(
-                                    row.label, fontSize = 13.sp, color = AppColors.TextPrimary,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Checkbox(
+                                    checked = selected,
+                                    onCheckedChange = { checked ->
+                                        selectedIds = if (checked) selectedIds + row.id else selectedIds - row.id
+                                    },
+                                    enabled = !busy
                                 )
-                                if (row.detail.isNotBlank()) {
+                                Column(Modifier.weight(1f).padding(top = 2.dp)) {
                                     Text(
-                                        row.detail, fontSize = 11.sp,
-                                        color = if (mode == BrokenItemMode.ERRORS) AppColors.DangerAccent else AppColors.TextSecondary,
-                                        maxLines = 3, overflow = TextOverflow.Ellipsis
+                                        row.label, fontSize = 13.sp, color = AppColors.TextPrimary,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis
                                     )
+                                    if (row.detail.isNotBlank()) {
+                                        Text(
+                                            row.detail, fontSize = 11.sp,
+                                            color = if (mode == BrokenItemMode.ERRORS) AppColors.DangerAccent else AppColors.TextSecondary,
+                                            maxLines = 3, overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -320,14 +373,23 @@ fun BrokenItemsScreen(
     }
 
     if (confirmDelete) {
+        val deleteIds = selectedIds
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete these items?") },
-            text = { Text("Drops the listed ${title.lowercase()} items from ${batch.batchName}. No API calls are made.") },
+            title = { Text(if (deleteIds.isEmpty()) "Delete these items?" else "Delete selected items?") },
+            text = {
+                Text(
+                    if (deleteIds.isEmpty()) "Drops the listed ${title.lowercase()} items from ${batch.batchName}. No API calls are made."
+                    else "Drops ${deleteIds.size} selected ${title.lowercase()} item${if (deleteIds.size == 1) "" else "s"} from ${batch.batchName}. No API calls are made."
+                )
+            },
             confirmButton = {
                 TextButton(
                     enabled = !busy,
-                    onClick = { confirmDelete = false; onDelete() }
+                    onClick = {
+                        confirmDelete = false
+                        if (deleteIds.isEmpty()) onDelete() else onDeleteItems(deleteIds)
+                    }
                 ) {
                     Text("Delete", color = AppColors.DangerAccent)
                 }
@@ -345,57 +407,7 @@ fun BrokenItemsScreen(
  *  main thread. */
 fun matchingBrokenRows(context: Context, batch: BrokenBatch, mode: BrokenItemMode): List<SecondaryResult> {
     val rows = SecondaryResultStorage.listForReport(context, batch.reportId)
-    val errors = mode == BrokenItemMode.ERRORS
-    fun fanMetaTouched(row: SecondaryResult): Boolean =
-        !row.title.isNullOrBlank() ||
-            !row.icon.isNullOrBlank() ||
-            !row.titleErrorMessage.isNullOrBlank() ||
-            !row.iconErrorMessage.isNullOrBlank() ||
-            row.titleRunId != null ||
-            row.iconRunId != null ||
-            row.titlePromptUsed != null ||
-            row.iconPromptUsed != null ||
-            row.titleDurationMs != null ||
-            row.titleInputTokens > 0 ||
-            row.titleOutputTokens > 0 ||
-            row.iconInputTokens > 0 ||
-            row.iconOutputTokens > 0
-    val fanMetaStarted = if (batch.kind == BatchFamilyKind.FAN_META) {
-        rows.any { r ->
-            r.kind == SecondaryKind.META &&
-                r.fanOutSourceAgentId != null &&
-                r.fanInOf == null &&
-                "${batch.reportId}|${r.metaPromptId}" == batch.key &&
-                !r.content.isNullOrBlank() &&
-                fanMetaTouched(r)
-        }
-    } else false
-    return rows.filter { r ->
-        val inBatch = when (batch.kind) {
-            BatchFamilyKind.FAN_OUT, BatchFamilyKind.FAN_META ->
-                r.kind == SecondaryKind.META && r.fanOutSourceAgentId != null && r.fanInOf == null &&
-                    "${batch.reportId}|${r.metaPromptId}" == batch.key
-            BatchFamilyKind.TOURNAMENT -> r.kind == SecondaryKind.TOURNAMENT && r.tournamentRole == "MATCH"
-            BatchFamilyKind.JUDGES -> r.kind == SecondaryKind.JUDGES && r.tournamentRole == "MATCH"
-            BatchFamilyKind.COMPARE -> r.kind == SecondaryKind.COMPARE
-            BatchFamilyKind.TRANSLATION -> r.kind == SecondaryKind.TRANSLATE && r.translationRunId == batch.key
-            BatchFamilyKind.OTHER ->
-                r.fanOutSourceAgentId == null && r.fanInOf == null && r.translationRunId == null &&
-                    (r.kind == SecondaryKind.META || r.kind == SecondaryKind.RERANK || r.kind == SecondaryKind.MODERATION)
-            BatchFamilyKind.REGENERATE -> false
-        }
-        if (!inBatch) return@filter false
-        if (batch.kind == BatchFamilyKind.FAN_META) {
-            if (!fanMetaStarted) return@filter false
-            val fmError = !r.titleErrorMessage.isNullOrBlank() || !r.iconErrorMessage.isNullOrBlank()
-            if (errors) fmError
-            else !r.content.isNullOrBlank() &&
-                r.title.isNullOrBlank() && r.icon.isNullOrBlank() && !fmError
-        } else {
-            if (errors) r.errorMessage != null
-            else r.content.isNullOrBlank() && r.errorMessage == null && r.durationMs == null
-        }
-    }
+    return BrokenWorkPolicy.matchingRows(rows, batch, mode, BrokenWorkLiveState())
 }
 
 /** Display rows for the [BrokenItemsScreen] detail list. */

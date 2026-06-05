@@ -2650,7 +2650,8 @@ class IconGenerationManager(
     fun runFanMetaBatch(
         context: Context,
         reportId: String,
-        metaPromptId: String
+        metaPromptId: String,
+        rowIds: Set<String>? = null
     ): Job? {
         if (!appViewModel.uiState.value.generalSettings.fanMetaOn()) return null
         rvm.fanMetaJobs[rvm.fanMetaJobKey(reportId, metaPromptId)]?.let { existing ->
@@ -2675,11 +2676,18 @@ class IconGenerationManager(
                             it.fanOutSourceAgentId != null &&
                             it.fanInOf == null &&
                             !it.content.isNullOrBlank() &&
-                            it.title.isNullOrBlank() && it.icon.isNullOrBlank()
+                            it.title.isNullOrBlank() && it.icon.isNullOrBlank() &&
+                            (rowIds == null || it.id in rowIds)
                     }
                 if (pending.isEmpty()) {
                     AppLog.i("FanMeta", "no pending pairs on $reportId — nothing to do")
                     return@launch
+                }
+                pending.forEach { pair ->
+                    SecondaryResultStorage.markFanOutFanMetaStarted(
+                        context, reportId, pair.id, fanRunId, promptUsed = "fan-meta"
+                    )
+                    rvm.fanOutEngine.refreshPairFromDisk(context, reportId, pair.id)
                 }
                 AppLog.i("FanMeta", "→ start (report=$reportId, ${pending.size} pairs)")
                 withTracerTags(reportId = reportId, category = "fan/meta", runId = fanRunId) {
@@ -2911,6 +2919,16 @@ class IconGenerationManager(
             appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
         }
 
+    fun clearFanMetaRows(context: Context, reportId: String, rowIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            withContext(Dispatchers.IO) {
+                val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                    .filter { it.id in rowIds && it.fanOutSourceAgentId != null && it.fanInOf == null }
+                clearFanMetaTitleIconState(context, reportId, rows)
+            }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+        }
+
     fun restartFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withContext(Dispatchers.IO) {
@@ -2925,5 +2943,16 @@ class IconGenerationManager(
             // coroutine and the scan could win the race — seeing such a pair as
             // "not pending" and clearing its errors without restarting it.
             runFanMetaBatch(context, reportId, metaPromptId)
+        }
+
+    fun restartFanMetaRows(context: Context, reportId: String, metaPromptId: String, rowIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            withContext(Dispatchers.IO) {
+                val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                    .filter { it.id in rowIds && it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null }
+                clearFanMetaTitleIconState(context, reportId, rows)
+            }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+            runFanMetaBatch(context, reportId, metaPromptId, rowIds = rowIds)
         }
 }

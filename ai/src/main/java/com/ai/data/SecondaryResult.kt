@@ -454,6 +454,37 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Persist evidence that a Fan Meta batch has started for this row before
+     *  the worker call returns. If the app dies before the first completion,
+     *  Broken-work can still distinguish "Fan Meta was interrupted" from
+     *  "Fan Meta was never requested". */
+    fun markFanOutFanMetaStarted(
+        context: Context,
+        reportId: String,
+        resultId: String,
+        fanMetaRunId: String,
+        promptUsed: String = "fan-meta"
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = resolveReportDirForRead(reportId) ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                titleRunId = current.titleRunId ?: fanMetaRunId,
+                iconRunId = current.iconRunId ?: fanMetaRunId,
+                titlePromptUsed = current.titlePromptUsed ?: promptUsed,
+                iconPromptUsed = current.iconPromptUsed ?: promptUsed,
+                timestamp = System.currentTimeMillis()
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+        SecondaryDataVersion.bump()
+    }
+
     /** Set just the [icon] field on any SecondaryResult row by
      *  (reportId, resultId) — minimal mirror of [setFanOutIconAndTier]
      *  with no tier / cost / promptUsed plumbing. Used by the per-row

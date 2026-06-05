@@ -22,6 +22,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.SecondaryScope
 import com.ai.data.analyzeJudges
+import com.ai.data.fullCost
 import com.ai.data.judgeCellKey
 import com.ai.data.matchKey
 import com.ai.data.parseMatchVerdict
@@ -638,14 +639,49 @@ class JudgeEvalEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
 
+    fun removeCellsByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[reportId] ?: return@launch
+            val victims = run.cells.values.filter { it.id in rowIds }
+            if (victims.isEmpty()) return@launch
+            victims.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            val costDelta = victims.sumOf {
+                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            }
+            victims.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            val remaining = run.cells - victims.map { it.key }.toSet()
+            if (remaining.isEmpty()) {
+                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
+                dropRun(reportId)
+            } else {
+                _runs.update { runs ->
+                    val cur = runs[reportId] ?: return@update runs
+                    runs + (reportId to cur.copy(cells = remaining))
+                }
+                recomputeAndPersistAggregate(context, reportId)
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+
+    fun restartCellsByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[reportId] ?: return@launch
+            val keys = run.cells.values.filter { it.id in rowIds }.map { it.key }
+            rerunCellsBlocking(context, reportId, keys)
+            recomputeAndPersistAggregate(context, reportId)
+        }
+
     private suspend fun rerunCellsBlocking(context: Context, reportId: String, cKeys: List<String>) {
         if (cKeys.isEmpty()) return
         val run = _runs.value[reportId] ?: return
         val report = ReportStorage.getReport(context, reportId) ?: return
         val prompt = judgePrompt(appViewModel.uiState.value.aiSettings) ?: return
         val resets = mutableListOf<PendingCell>()
+        var clearedCostDelta = 0.0
         for (k in cKeys) {
             val c = run.cells[k] ?: continue
+            SecondaryResultStorage.get(context, reportId, c.id)?.let { clearedCostDelta += it.fullCost() }
             val cleared = clearCellRow(context, reportId, c.id) ?: continue
             transitionCell(reportId, k) {
                 it.copy(
@@ -656,6 +692,7 @@ class JudgeEvalEngine internal constructor(
             }
             resets.add(PendingCell(judgeFromRow(cleared), c.responseAId, c.responseBId, c.orientation, cleared))
         }
+        if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
         if (resets.isEmpty()) return
         withTracerTags(reportId = reportId, category = "after/judges") {
             dispatchCells(context, reportId, prompt, report.prompt, report.title, resets)

@@ -49,13 +49,17 @@ private suspend fun recoverBrokenBatch(
     batch: BrokenBatch,
     mode: BrokenItemMode,
     restart: Boolean,
+    rowIds: Set<String>? = null,
 ) {
     val rid = batch.reportId
     val errors = mode == BrokenItemMode.ERRORS
     when (batch.kind) {
         BatchFamilyKind.FAN_OUT -> {
             rvm.fanOutEngine.hydrate(context, rid)
-            if (restart) {
+            if (rowIds != null) {
+                if (restart) rvm.fanOutEngine.restartPairsByIds(context, batch.key, rowIds).join()
+                else rvm.fanOutEngine.removePairsByIds(context, batch.key, rowIds).join()
+            } else if (restart) {
                 if (errors) rvm.fanOutEngine.restartFailedPairs(context, batch.key).join()
                 else rvm.fanOutEngine.resumeStaleRunsForReport(context, rid).join()
             } else {
@@ -65,7 +69,10 @@ private suspend fun recoverBrokenBatch(
         }
         BatchFamilyKind.FAN_META -> {
             val mp = batch.key.substringAfter('|')
-            if (restart) {
+            if (rowIds != null) {
+                if (restart) rvm.iconGen.restartFanMetaRows(context, rid, mp, rowIds).join()
+                else if (errors) rvm.iconGen.clearFanMetaRows(context, rid, rowIds).join()
+            } else if (restart) {
                 if (errors) rvm.iconGen.restartFanMetaErrors(context, rid, mp).join()
                 else rvm.iconGen.runFanMetaBatch(context, rid, mp)?.join()
             } else if (errors) {
@@ -74,7 +81,10 @@ private suspend fun recoverBrokenBatch(
         }
         BatchFamilyKind.TOURNAMENT -> {
             rvm.tournamentEngine.hydrate(context, rid)
-            if (restart) {
+            if (rowIds != null) {
+                if (restart) rvm.tournamentEngine.restartMatchesByIds(context, rid, rowIds).join()
+                else rvm.tournamentEngine.removeMatchesByIds(context, rid, rowIds).join()
+            } else if (restart) {
                 if (errors) rvm.tournamentEngine.restartFailedMatches(context, rid).join()
                 else rvm.tournamentEngine.resumeStaleRunsForReport(context, rid).join()
             } else {
@@ -84,7 +94,10 @@ private suspend fun recoverBrokenBatch(
         }
         BatchFamilyKind.JUDGES -> {
             rvm.judgeEvalEngine.hydrate(context, rid)
-            if (restart) {
+            if (rowIds != null) {
+                if (restart) rvm.judgeEvalEngine.restartCellsByIds(context, rid, rowIds).join()
+                else rvm.judgeEvalEngine.removeCellsByIds(context, rid, rowIds).join()
+            } else if (restart) {
                 if (errors) rvm.judgeEvalEngine.restartFailedCells(context, rid).join()
                 else rvm.judgeEvalEngine.resumeStaleRunsForReport(context, rid).join()
             } else {
@@ -94,7 +107,10 @@ private suspend fun recoverBrokenBatch(
         }
         BatchFamilyKind.COMPARE -> {
             rvm.compareEngine.hydrate(context, rid)
-            if (restart) {
+            if (rowIds != null) {
+                if (restart) rvm.compareEngine.restartCellsByIds(context, rid, rowIds).join()
+                else rvm.compareEngine.removeCellsByIds(context, rid, rowIds).join()
+            } else if (restart) {
                 if (errors) rvm.compareEngine.restartFailedCells(context, rid).join()
                 else rvm.compareEngine.resumeStaleRunsForReport(context, rid).join()
             } else {
@@ -103,7 +119,10 @@ private suspend fun recoverBrokenBatch(
             }
         }
         BatchFamilyKind.TRANSLATION -> {
-            if (restart) {
+            if (rowIds != null) {
+                if (restart) rvm.translation.restartTranslationRowsByIds(context, rid, batch.key, rowIds).join()
+                else rvm.translation.removeTranslationRowsByIds(context, rid, batch.key, rowIds).join()
+            } else if (restart) {
                 if (errors) rvm.translation.restartFailedTranslations(context, rid, batch.key).join()
                 else rvm.translation.startMissingTranslations(context, rid, batch.key).join()
             } else {
@@ -118,6 +137,7 @@ private suspend fun recoverBrokenBatch(
         BatchFamilyKind.OTHER -> {
             // Single Meta/Rerank/Moderation calls — act per matching row.
             val targets = matchingBrokenRows(context, batch, mode)
+                .filter { rowIds == null || it.id in rowIds }
             if (restart) targets.mapNotNull { rvm.secondary.resumeStaleMetaPlaceholder(context, rid, it) }
                 .forEach { it.join() }
             else rvm.secondary.bulkDeleteSecondaryResults(context, rid, targets.map { it.id }).join()
@@ -729,13 +749,20 @@ internal fun NavGraphBuilder.developerRoutes(
             val brokenWorkScope = rememberCoroutineScope()
             val broken by appViewModel.brokenBatches.collectAsState()
             var busyBrokenWorkActions by remember { mutableStateOf<Set<String>>(emptySet()) }
-            fun launchBrokenWorkAction(batch: BrokenBatch, mode: BrokenItemMode, restart: Boolean) {
-                val actionKey = brokenWorkActionKey(batch, mode)
+            fun launchBrokenWorkAction(batch: BrokenBatch, mode: BrokenItemMode, restart: Boolean, rowIds: Set<String>? = null) {
+                val actionKey = brokenWorkActionKey(batch, mode, rowIds.orEmpty())
                 if (actionKey in busyBrokenWorkActions) return
                 busyBrokenWorkActions = busyBrokenWorkActions + actionKey
                 brokenWorkScope.launch(Dispatchers.IO) {
                     try {
-                        recoverBrokenBatch(brokenWorkContext, reportViewModel, batch, mode, restart = restart)
+                        recoverBrokenBatch(
+                            brokenWorkContext,
+                            reportViewModel,
+                            batch,
+                            mode,
+                            restart = restart,
+                            rowIds = rowIds
+                        )
                         reportViewModel.secondary.refreshBrokenBatches(brokenWorkContext)
                     } finally {
                         withContext(Dispatchers.Main) {
@@ -761,6 +788,12 @@ internal fun NavGraphBuilder.developerRoutes(
                 },
                 onDelete = { batch, mode ->
                     launchBrokenWorkAction(batch, mode, restart = false)
+                },
+                onRestartItems = { batch, mode, rowIds ->
+                    launchBrokenWorkAction(batch, mode, restart = true, rowIds = rowIds)
+                },
+                onDeleteItems = { batch, mode, rowIds ->
+                    launchBrokenWorkAction(batch, mode, restart = false, rowIds = rowIds)
                 },
                 loadItems = { batch, mode -> loadBrokenItems(brokenWorkContext, batch, mode) },
             )

@@ -43,6 +43,9 @@ enum class BatchFamilyKind(val label: String) {
     OTHER("Meta / Rerank / Moderation"),
 }
 
+/** Which state of a [BrokenBatch] a row / detail screen acts on. */
+enum class BrokenItemMode { UNFINISHED, ERRORS }
+
 /** One batch (run) with work needing attention, produced by the read-only
  *  background scan and rendered one card per entry on the Broken-work
  *  screen. A batch can carry [unfinishedCount] stranded placeholders

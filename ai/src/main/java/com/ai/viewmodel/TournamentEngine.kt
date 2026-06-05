@@ -23,6 +23,7 @@ import com.ai.data.TournamentRunState
 import com.ai.data.computeWinMatrix
 import com.ai.data.decodeTournamentMatrix
 import com.ai.data.encode
+import com.ai.data.fullCost
 import com.ai.data.matchKey
 import com.ai.data.parseMatchVerdict
 import com.ai.data.rankFor
@@ -505,6 +506,39 @@ class TournamentEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
 
+    fun removeMatchesByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[reportId] ?: return@launch
+            val victims = run.matches.values.filter { it.id in rowIds }
+            if (victims.isEmpty()) return@launch
+            victims.forEach { matchJobs[it.id]?.cancelAndJoin() }
+            val costDelta = victims.sumOf {
+                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            }
+            victims.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            val remaining = run.matches - victims.map { it.key }.toSet()
+            if (remaining.isEmpty()) {
+                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
+                dropRun(reportId)
+            } else {
+                _runs.update { runs ->
+                    val cur = runs[reportId] ?: return@update runs
+                    runs + (reportId to cur.copy(matches = remaining))
+                }
+                recomputeAndPersistAggregate(context, reportId)
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+
+    fun restartMatchesByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[reportId] ?: return@launch
+            val keys = run.matches.values.filter { it.id in rowIds }.map { it.key }
+            rerunMatchesBlocking(context, reportId, keys)
+            recomputeAndPersistAggregate(context, reportId)
+        }
+
     private suspend fun rerunMatchesBlocking(context: Context, reportId: String, mKeys: List<String>) {
         if (mKeys.isEmpty()) return
         val run = _runs.value[reportId] ?: return
@@ -512,10 +546,12 @@ class TournamentEngine internal constructor(
         val prompt = tournamentPrompt(appViewModel.uiState.value.aiSettings) ?: return
         val agentsById = report.agents.associateBy { it.agentId }
         val resets = mutableListOf<PendingMatch>()
+        var clearedCostDelta = 0.0
         for (k in mKeys) {
             val m = run.matches[k] ?: continue
             val a = agentsById[m.responseAId] ?: continue
             val b = agentsById[m.responseBId] ?: continue
+            SecondaryResultStorage.get(context, reportId, m.id)?.let { clearedCostDelta += it.fullCost() }
             SecondaryResultStorage.resetTournamentMatch(context, reportId, m.id)
             val cleared = SecondaryResultStorage.get(context, reportId, m.id) ?: continue
             transitionMatch(reportId, k) {
@@ -527,6 +563,7 @@ class TournamentEngine internal constructor(
             }
             resets.add(PendingMatch(a, b, m.orientation, cleared))
         }
+        if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
         if (resets.isEmpty()) return
         withTracerTags(reportId = reportId, category = "after/tournament") {
             dispatchMatches(context, reportId, prompt, report.prompt, report.title, resets)
