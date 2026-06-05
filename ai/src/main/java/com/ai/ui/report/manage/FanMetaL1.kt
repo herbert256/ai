@@ -45,7 +45,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -144,41 +143,18 @@ internal fun FanMetaL1Screen(
         val queuedCount = run.pairs.values.count { lens(it, runningSet) == PairStatus.PENDING && it.id !in throttledSet }
         val allDone = run.totalPairs > 0 && doneCount == run.totalPairs
         Spacer(modifier = Modifier.height(8.dp))
-        Column(
-            modifier = Modifier.layout { measurable, constraints ->
-                val extra = 28.dp.roundToPx()
-                val placeable = measurable.measure(
-                    constraints.copy(
-                        minWidth = constraints.maxWidth + extra,
-                        maxWidth = constraints.maxWidth + extra
-                    )
-                )
-                layout(constraints.maxWidth, placeable.height) {
-                    placeable.place(-extra / 2, 0)
-                }
-            }
-        ) {
-            val stats = buildList {
-                add(Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent))
-                add(Triple("Done", doneCount.toString(), AppColors.SuccessAccent))
-                add(Triple("Errors", errorCount.toString(), AppColors.DangerAccent))
-                add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
-                add(Triple("Run", runningCount.toString(), AppColors.WarningAccent))
-                add(Triple("Throttled", throttledHere.toString(), AppColors.CautionAccent))
-                add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
-                add(Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.InfoAccent))
-            }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                stats.forEach { (label, _, color) ->
-                    Text(label, fontSize = 11.sp, color = color, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                stats.forEach { (_, value, color) ->
-                    Text(value, fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
-                }
-            }
-        }
+        // Worker-swarm batch (category B): a benched meta-worker is
+        // skipped and another picked, so benched errors fold into Error
+        // and there's no separate Bench column.
+        BatchStatsRow(listOf(
+            Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent),
+            Triple("Done", doneCount.toString(), AppColors.SuccessAccent),
+            Triple("Error", (errorCount + benchCount).toString(), AppColors.DangerAccent),
+            Triple("Run", runningCount.toString(), AppColors.WarningAccent),
+            Triple("Wait", throttledHere.toString(), AppColors.CautionAccent),
+            Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
+            Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.InfoAccent)
+        ))
 
         // Grouping preset — Meta models (per meta-worker model) vs
         // Report models (per answerer model).

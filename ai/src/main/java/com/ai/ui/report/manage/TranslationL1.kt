@@ -38,7 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -228,31 +227,20 @@ internal fun TranslationL1Screen(
         )
 
         // Stats panel — pinned at the top, kept visible even once the
-        // whole run is done. Throttled = items parked on a provider gate
-        // (carved out of Queue); always shown so columns don't shift.
+        // whole run is done. Wait = items parked on a provider gate
+        // (carved out of Queue). Worker-swarm batch (category B): a
+        // benched item recovers via the swarm fallback, so benched
+        // errors fold into Error and there's no separate Bench column.
         Spacer(modifier = Modifier.height(8.dp))
-        Column(modifier = Modifier.fillMaxWidth()) {
-            val stats = buildList {
-                add(Triple("Total", total.toString(), AppColors.InfoAccent))
-                add(Triple("Done", doneCount.toString(), AppColors.SuccessAccent))
-                add(Triple("Errors", errorCount.toString(), AppColors.DangerAccent))
-                add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
-                add(Triple("Run", runningCount.toString(), AppColors.WarningAccent))
-                add(Triple("Throttled", throttledCount.toString(), AppColors.CautionAccent))
-                add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
-                add(Triple("Costs", formatCents(run.totalCostDollars, decimals = 2), AppColors.InfoAccent))
-            }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                stats.forEach { (label, _, color) ->
-                    Text(label, fontSize = 11.sp, color = color, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                stats.forEach { (_, value, color) ->
-                    Text(value, fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
-                }
-            }
-        }
+        BatchStatsRow(listOf(
+            Triple("Total", total.toString(), AppColors.InfoAccent),
+            Triple("Done", doneCount.toString(), AppColors.SuccessAccent),
+            Triple("Error", (errorCount + benchCount).toString(), AppColors.DangerAccent),
+            Triple("Run", runningCount.toString(), AppColors.WarningAccent),
+            Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
+            Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
+            Triple("Costs", formatCents(run.totalCostDollars, decimals = 2), AppColors.InfoAccent)
+        ))
 
         // Grouping preset — Translation workers (per-model rows) vs
         // Translation types (per trace/cost-type rows). Sits below the

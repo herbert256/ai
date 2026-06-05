@@ -374,6 +374,20 @@ private fun JudgeEvalL1(
     onBack: () -> Unit
 ) {
     val throttledCount = run.cells.values.count { it.id in throttled }
+    // Each judge cell is a fixed-model call (category A) — a benched
+    // judge can't be substituted, so its errored cells split out into
+    // their own Bench column. Benched = an ERROR cell whose judge model
+    // is on a >1h-429 cooldown; observed reactively so the count lifts
+    // as cooldowns expire.
+    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+    fun benched(p: String, m: String): Boolean =
+        (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
+    val benchCount = run.cells.values.count {
+        it.status == JudgeCellStatus.ERROR && benched(it.judgeProviderId, it.judgeModel)
+    }
+    val errorCount = run.cells.values.count {
+        it.status == JudgeCellStatus.ERROR && !benched(it.judgeProviderId, it.judgeModel)
+    }
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "judge_eval_l1", title = "Judge the judges",
@@ -385,28 +399,16 @@ private fun JudgeEvalL1(
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
-            val stats = listOf(
+            BatchStatsRow(listOf(
                 Triple("Total", run.totalCells.toString(), AppColors.InfoAccent),
                 Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
+                Triple("Error", errorCount.toString(), AppColors.DangerAccent),
                 Triple("Run", run.runningCount.toString(), AppColors.WarningAccent),
+                Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent),
                 Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
                 Triple("Queue", run.queuedCount.toString(), AppColors.QueueAccent),
-                Triple("Err", run.errorCount.toString(), AppColors.DangerAccent),
-                Triple("Cost", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
-            )
-            Row(Modifier.fillMaxWidth()) {
-                stats.forEach { (label, _, color) ->
-                    Text(label, fontSize = 11.sp, color = color, textAlign = TextAlign.Center,
-                        maxLines = 1, modifier = Modifier.weight(1f))
-                }
-            }
-            Row(Modifier.fillMaxWidth()) {
-                stats.forEach { (_, value, color) ->
-                    Text(value, fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f))
-                }
-            }
+                Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
+            ))
             Spacer(Modifier.height(6.dp))
             Text(
                 "${run.judgeCount} judges · ${run.matchCount} matches",

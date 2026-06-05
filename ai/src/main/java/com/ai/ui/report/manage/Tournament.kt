@@ -326,41 +326,15 @@ private fun TournamentL1(
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
-            val stats = listOf(
+            BatchStatsRow(listOf(
                 Triple("Total", run.totalMatches.toString(), AppColors.InfoAccent),
                 Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
+                Triple("Error", run.errorCount.toString(), AppColors.DangerAccent),
                 Triple("Run", run.runningCount.toString(), AppColors.WarningAccent),
                 Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
                 Triple("Queue", run.queuedCount.toString(), AppColors.QueueAccent),
-                Triple("Err", run.errorCount.toString(), AppColors.DangerAccent),
-                Triple("Cost", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
-            )
-            Row(Modifier.fillMaxWidth()) {
-                stats.forEach { (label, _, color) ->
-                    Text(
-                        label,
-                        fontSize = 11.sp,
-                        color = color,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            Row(Modifier.fillMaxWidth()) {
-                stats.forEach { (_, value, color) ->
-                    Text(
-                        value,
-                        fontSize = 15.sp,
-                        color = color,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+                Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
+            ))
             Spacer(Modifier.height(12.dp))
 
             // Grouping mode toggle.

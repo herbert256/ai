@@ -35,10 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -166,50 +164,19 @@ internal fun FanOutL1Screen(
         // run reads calmly instead of as a wall of check marks.
         val allDone = run.totalPairs > 0 && doneCount == run.totalPairs
         Spacer(modifier = Modifier.height(8.dp))
-        Column(
-            // Bleed the stats block ~14dp into the screen's 16dp side
-            // padding on each side — with 8 columns the cells are tight,
-            // so the stats get the extra width while the rest of the
-            // page keeps its margins. Reports the un-widened width to
-            // the parent Column so siblings still stack normally.
-            modifier = Modifier.layout { measurable, constraints ->
-                val extra = 28.dp.roundToPx()
-                val placeable = measurable.measure(
-                    constraints.copy(
-                        minWidth = constraints.maxWidth + extra,
-                        maxWidth = constraints.maxWidth + extra
-                    )
-                )
-                layout(constraints.maxWidth, placeable.height) {
-                    placeable.place(-extra / 2, 0)
-                }
-            }
-        ) {
-            // One row of labels, one row of values below. Total is
-            // the first column; Throttled is always shown (dimmed at
-            // zero) so columns don't shift as pairs wait on a cap;
-            // Costs is the run's total spend in cents, 2 decimals.
-            val stats = buildList {
-                add(Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent))
-                add(Triple("Done", doneCount.toString(), AppColors.SuccessAccent))
-                add(Triple("Errors", errorCount.toString(), AppColors.DangerAccent))
-                add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
-                add(Triple("Run", runningCount.toString(), AppColors.WarningAccent))
-                add(Triple("Throttled", throttledHere.toString(), AppColors.CautionAccent))
-                add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
-                add(Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.InfoAccent))
-            }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                stats.forEach { (label, _, color) ->
-                    Text(label, fontSize = 11.sp, color = color, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                stats.forEach { (_, value, color) ->
-                    Text(value, fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
-                }
-            }
-        }
+        // Fixed-model batch (category A): a benched answerer can't be
+        // substituted, so its errored pairs get their own Bench column
+        // (between Run and Wait) instead of folding into Error.
+        BatchStatsRow(listOf(
+            Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent),
+            Triple("Done", doneCount.toString(), AppColors.SuccessAccent),
+            Triple("Error", errorCount.toString(), AppColors.DangerAccent),
+            Triple("Run", runningCount.toString(), AppColors.WarningAccent),
+            Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent),
+            Triple("Wait", throttledHere.toString(), AppColors.CautionAccent),
+            Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
+            Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.InfoAccent)
+        ))
 
         val hasFanMeta = remember(run) {
             run.pairs.values.any { !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank() }

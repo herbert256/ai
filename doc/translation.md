@@ -207,11 +207,13 @@ under the user-given name regardless of language.
 - **`TranslationL1Screen` / `TranslationRunScreen`**
   (`ui/report/manage/TranslationL1.kt` / `TranslationRun.kt`, help
   `translation_run_l1`, title "Translation") — drill into a run.
-  Above a per-model progress list it shows a stats panel (Total /
-  Done / Errors / Bench / Run / Throttled / Queue / Costs), a
-  **Translation workers ↔ Translation types** grouping toggle, and
-  whole-run failure controls: **Remove failed**, **Restart failed**,
-  **Remove benched**, and **Redo every entry**. `TranslationL2Screen`
+  Above a per-model progress list it shows the shared
+  `BatchStatsRow` panel (Total / Done / Error / Run / Wait / Queue /
+  Costs — worker-swarm batch, so benched items fold into Error; no
+  Bench column), a **Translation workers ↔ Translation types**
+  grouping toggle, and whole-run failure controls: **Remove failed**,
+  **Restart failed**, **Remove benched**, and **Redo every entry**.
+  `TranslationL2Screen`
   (`TranslationL2.kt`, help `translation_run_l2`) is the per-model
   sub-drill.
 - **`TranslationL3Screen`** (`ui/report/manage/TranslationL3.kt`,
