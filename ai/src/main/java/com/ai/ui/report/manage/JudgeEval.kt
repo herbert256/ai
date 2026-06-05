@@ -22,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
@@ -414,6 +415,18 @@ private fun JudgeEvalL1(
                 add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
                 add(Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent))
             })
+            // Run-level progress bar while work is still outstanding (parity
+            // with Fan Out / Fan Meta / Translation).
+            if (summary.activeOutstanding && run.totalCells > 0) {
+                val finished = (run.doneCount + errorCount).toFloat() / run.totalCells
+                LinearProgressIndicator(
+                    progress = { finished },
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                    color = AppColors.WarningAccent,
+                    trackColor = AppColors.DividerDark
+                )
+                Spacer(Modifier.height(8.dp))
+            }
             Spacer(Modifier.height(6.dp))
             Text(
                 "${run.judgeCount} judges · ${run.matchCount} matches",

@@ -24,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
@@ -338,6 +339,17 @@ private fun TournamentL1(
                 Triple("Queue", counts.queued.toString(), AppColors.QueueAccent),
                 Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
             ))
+            // Run-level progress bar while work is still outstanding (parity
+            // with Fan Out / Fan Meta / Translation).
+            if (summary.activeOutstanding && counts.total > 0) {
+                val finished = (counts.done + summary.displayError).toFloat() / counts.total
+                LinearProgressIndicator(
+                    progress = { finished },
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                    color = AppColors.WarningAccent,
+                    trackColor = AppColors.DividerDark
+                )
+            }
             Spacer(Modifier.height(12.dp))
 
             // Grouping mode toggle.
