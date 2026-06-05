@@ -1,0 +1,16 @@
+{
+  "name": "fan-in",
+  "title": "Worker swarm for Fan-in (combine fan-out responses)",
+  "reference": false,
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "Fan-in"
+    }
+  ],
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

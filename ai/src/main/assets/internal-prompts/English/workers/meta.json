@@ -1,0 +1,16 @@
+{
+  "name": "meta",
+  "title": "Worker swarm for chat-type Meta runs (Compare / Critique / Synthesize / …)",
+  "reference": false,
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "Meta"
+    }
+  ],
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

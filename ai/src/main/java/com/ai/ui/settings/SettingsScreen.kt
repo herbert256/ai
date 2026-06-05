@@ -874,7 +874,7 @@ private fun SettingsMainScreen(
             SettingsNavCard(
                 icon = MetadataDefaults.CONTROLS,
                 title = "UI tweaks",
-                description = "Model name layout, full-screen, experimental features.",
+                description = "Model name layout, full-screen, ladybug icons, experimental features.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI) }
             )
             SettingsNavCard(
@@ -1353,16 +1353,18 @@ private fun UiTweaksSubScreen(
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
     var fullScreen by remember { mutableStateOf(generalSettings.fullScreen) }
+    var showLadybugIcons by remember { mutableStateOf(generalSettings.showLadybugIcons) }
     var experimentalFeatures by remember { mutableStateOf(generalSettings.experimentalFeaturesEnabled) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
         showKnowledgeCard = showKnowledgeCard,
         fullScreen = fullScreen,
+        showLadybugIcons = showLadybugIcons,
         experimentalFeaturesEnabled = experimentalFeatures
     )
 
-    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, experimentalFeatures) {
+    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, showLadybugIcons, experimentalFeatures) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1417,6 +1419,13 @@ private fun UiTweaksSubScreen(
                 icon = MetadataDefaults.DEVICE,
                 checked = fullScreen,
                 onCheckedChange = { fullScreen = it }
+            )
+            ToggleSettingCard(
+                title = "Show Ladybug icons",
+                description = "Show the ${com.ai.data.MetadataIconsHolder.current.traces} trace hot-links throughout the app. Turn off to hide every 🐞 link while keeping tracing on — view captured traces from the API Traces screen instead. No effect when API tracing is off.",
+                icon = MetadataDefaults.TRACES,
+                checked = showLadybugIcons,
+                onCheckedChange = { showLadybugIcons = it }
             )
         }
     }
@@ -2796,20 +2805,18 @@ private fun LoggingAndTracingSubScreen(
     onNavigateHome: () -> Unit
 ) {
     var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
-    var showLadybugIcons by remember { mutableStateOf(generalSettings.showLadybugIcons) }
     var auditLogEnabled by remember { mutableStateOf(generalSettings.auditLogEnabled) }
     var usageStatsEnabled by remember { mutableStateOf(generalSettings.usageStatsEnabled) }
     var logLevel by remember { mutableStateOf(generalSettings.logLevel) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         tracingEnabled = tracingEnabled,
-        showLadybugIcons = showLadybugIcons,
         auditLogEnabled = auditLogEnabled,
         usageStatsEnabled = usageStatsEnabled,
         logLevel = logLevel
     )
 
-    LaunchedEffect(tracingEnabled, showLadybugIcons, auditLogEnabled, usageStatsEnabled, logLevel) {
+    LaunchedEffect(tracingEnabled, auditLogEnabled, usageStatsEnabled, logLevel) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -2834,13 +2841,6 @@ private fun LoggingAndTracingSubScreen(
                 icon = MetadataDefaults.TRACES,
                 checked = tracingEnabled,
                 onCheckedChange = { tracingEnabled = it }
-            )
-            ToggleSettingCard(
-                title = "Show Ladybug icons",
-                description = "Show the ${com.ai.data.MetadataIconsHolder.current.traces} trace hot-links throughout the app. Turn off to hide every 🐞 link while keeping tracing on — view captured traces from the API Traces screen instead. No effect when API tracing is off.",
-                icon = MetadataDefaults.TRACES,
-                checked = showLadybugIcons,
-                onCheckedChange = { showLadybugIcons = it }
             )
             ToggleSettingCard(
                 title = "Audit log",
