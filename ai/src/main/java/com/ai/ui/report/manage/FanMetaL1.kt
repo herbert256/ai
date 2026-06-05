@@ -304,7 +304,7 @@ internal fun FanMetaL1Screen(
 
         // Top progress bar — the title batch. Keep it up while the shared
         // worker-pool policy says work is still outstanding.
-        if (summary.activeOutstanding && run.totalPairs > 0) {
+        if (summary.activeOutstanding && run.totalPairs > 0 && !run.cancelled) {
             val finished = (doneCount + errorCount).toFloat() / run.totalPairs
             LinearProgressIndicator(
                 progress = { finished },

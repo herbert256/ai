@@ -343,7 +343,7 @@ private fun TournamentL1(
             ))
             // Run-level progress bar while work is still outstanding (parity
             // with Fan Out / Fan Meta / Translation).
-            if (summary.activeOutstanding && counts.total > 0) {
+            if (summary.activeOutstanding && counts.total > 0 && !run.cancelled) {
                 val finished = (counts.done + summary.displayError).toFloat() / counts.total
                 LinearProgressIndicator(
                     progress = { finished },

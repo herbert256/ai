@@ -230,7 +230,7 @@ internal fun FanOutL1Screen(
 
         // Top progress bar — the fan-out responses. Keep it up while the
         // shared batch policy says work is still outstanding.
-        if (summary.activeOutstanding && run.totalPairs > 0) {
+        if (summary.activeOutstanding && run.totalPairs > 0 && !run.cancelled) {
             val finished = (doneCount + errorCount).toFloat() / run.totalPairs
             LinearProgressIndicator(
                 progress = { finished },

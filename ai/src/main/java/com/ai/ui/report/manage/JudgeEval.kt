@@ -419,7 +419,7 @@ private fun JudgeEvalL1(
             })
             // Run-level progress bar while work is still outstanding (parity
             // with Fan Out / Fan Meta / Translation).
-            if (summary.activeOutstanding && run.totalCells > 0) {
+            if (summary.activeOutstanding && run.totalCells > 0 && !run.cancelled) {
                 val finished = (run.doneCount + errorCount).toFloat() / run.totalCells
                 LinearProgressIndicator(
                     progress = { finished },
