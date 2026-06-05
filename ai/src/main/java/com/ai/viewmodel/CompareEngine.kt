@@ -313,50 +313,58 @@ class CompareEngine internal constructor(
             else appViewModel.updateThrottledCompareCells { it - rowId }
         }
         val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-        val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(observer)) {
-            com.ai.data.withTraceFilenameSink(traceSink) {
-                reportViewModel.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
-                    parseSimilarityScore(resp.analysis) != null
+        try {
+            val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(observer)) {
+                com.ai.data.withTraceFilenameSink(traceSink) {
+                    reportViewModel.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
+                        parseSimilarityScore(resp.analysis) != null
+                    }
                 }
             }
-        }
-        when (outcome) {
-            is WorkerOutcome.Success -> {
-                val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
-                    it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+            when (outcome) {
+                is WorkerOutcome.Success -> {
+                    val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                        it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                    }
+                    val tu = outcome.response.tokenUsage
+                    val inT = tu?.inputTokens ?: 0
+                    val outT = tu?.outputTokens ?: 0
+                    val provId = winAgent?.provider?.id ?: COMPARE_PENDING_PROVIDER
+                    val mdl = winAgent?.model ?: COMPARE_PENDING_MODEL
+                    var inCost = 0.0; var outCost = 0.0
+                    if (winAgent != null && tu != null && (inT > 0 || outT > 0)) {
+                        val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
+                        val split = PricingCache.computeInOutCost(tu, pricing)
+                        inCost = split.first
+                        outCost = split.second
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = USAGE_KIND)
+                    }
+                    SecondaryResultStorage.recordCompareCell(
+                        context, reportId, rowId, provId, mdl,
+                        outcome.response.analysis.orEmpty(),
+                        inT, outT, inCost, outCost, System.currentTimeMillis() - started,
+                        traceFile = traceSink.get()
+                    )
                 }
-                val tu = outcome.response.tokenUsage
-                val inT = tu?.inputTokens ?: 0
-                val outT = tu?.outputTokens ?: 0
-                val provId = winAgent?.provider?.id ?: COMPARE_PENDING_PROVIDER
-                val mdl = winAgent?.model ?: COMPARE_PENDING_MODEL
-                var inCost = 0.0; var outCost = 0.0
-                if (winAgent != null && tu != null && (inT > 0 || outT > 0)) {
-                    val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
-                    val split = PricingCache.computeInOutCost(tu, pricing)
-                    inCost = split.first
-                    outCost = split.second
-                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = USAGE_KIND)
+                else -> {
+                    val msg = if (outcome is WorkerOutcome.AllRateLimited) "compare: all workers rate-limited"
+                              else "compare: no worker produced a score"
+                    val cur = SecondaryResultStorage.get(context, reportId, rowId) ?: item.placeholder
+                    SecondaryResultStorage.save(context, cur.copy(errorMessage = msg, durationMs = System.currentTimeMillis() - started))
                 }
-                SecondaryResultStorage.recordCompareCell(
-                    context, reportId, rowId, provId, mdl,
-                    outcome.response.analysis.orEmpty(),
-                    inT, outT, inCost, outCost, System.currentTimeMillis() - started,
-                    traceFile = traceSink.get()
-                )
             }
-            else -> {
-                val msg = if (outcome is WorkerOutcome.AllRateLimited) "compare: all workers rate-limited"
-                          else "compare: no worker produced a score"
-                val cur = SecondaryResultStorage.get(context, reportId, rowId) ?: item.placeholder
-                SecondaryResultStorage.save(context, cur.copy(errorMessage = msg, durationMs = System.currentTimeMillis() - started))
+        } finally {
+            // Mirror the saved row into memory in a NonCancellable block so a
+            // stop / cancel mid-call still settles the cell on its disk-truth
+            // status instead of leaving it stuck at RUNNING — the per-screen
+            // 3s re-hydrate that used to recover that case has been removed.
+            withContext(kotlinx.coroutines.NonCancellable) {
+                val saved = SecondaryResultStorage.get(context, reportId, rowId)
+                if (saved == null) dropCell(reportId, cKey)
+                else transitionCell(reportId, cKey) {
+                    saved.toCompareCellState() ?: it.copy(status = CompareCellStatus.ERROR, errorMessage = "Cell row could not be parsed")
+                }
             }
-        }
-        val saved = SecondaryResultStorage.get(context, reportId, rowId)
-        if (saved == null) { dropCell(reportId, cKey); return }
-        val refreshed = saved.toCompareCellState()
-        transitionCell(reportId, cKey) {
-            refreshed ?: it.copy(status = CompareCellStatus.ERROR, errorMessage = "Cell row could not be parsed")
         }
     }
 

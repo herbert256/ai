@@ -149,17 +149,11 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     val throttled by engine.throttledMatches.collectAsState()
     val run = runs[reportId]
 
-    // Hydrate on entry + re-poll disk while the batch is still running.
+    // One-shot seed from disk on entry; the runner mirrors every match
+    // result into the engine flow in a NonCancellable finally (runOneMatch),
+    // so the L1 counters stay live without a 3s disk poll.
     androidx.compose.runtime.LaunchedEffect(reportId) {
         withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
-    }
-    androidx.compose.runtime.LaunchedEffect(reportId, run?.allTerminal) {
-        while (true) {
-            val r = engine.runByKey(reportId)
-            if (r != null && r.allTerminal) break
-            delay(3000)
-            withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
-        }
     }
 
     val report by produceState<Report?>(initialValue = null, reportId) {

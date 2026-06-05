@@ -2723,6 +2723,9 @@ class IconGenerationManager(
                         SecondaryResultStorage.setFanOutTitleError(context, reportId, it.id, "Interrupted — run stopped before this finished")
                         SecondaryResultStorage.setFanOutIconError(context, reportId, it.id, "Interrupted — run stopped before this finished")
                     }
+                    // Mirror the interrupted-error rows into memory so the L1
+                    // counters settle live now that the 3s re-hydrate is gone.
+                    leftover.forEach { rvm.fanOutEngine.refreshPairFromDisk(context, reportId, it.id) }
                 }
             }
         }
@@ -2812,6 +2815,13 @@ class IconGenerationManager(
                 appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             }
         }
+        // Mirror the just-persisted title / icon / cost into the
+        // FanOutEngine PairState so the Fan Meta L1 Done / Error / Costs
+        // counters advance live — the batch writes straight to disk and
+        // has no in-memory transition of its own. Reached with no
+        // suspension point after the call returns, so a cancel can't
+        // sneak in between the disk write and this mirror.
+        rvm.fanOutEngine.refreshPairFromDisk(context, reportId, pair.id)
     }
 
     /** Re-fire fan-meta after clearing every pair's title+icon. */

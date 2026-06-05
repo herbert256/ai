@@ -107,21 +107,13 @@ fun FanMetaScreen(
     val runs by engine.runs.collectAsState()
     val runState = runs[runKey]
 
-    // Hydrate on first entry, then a periodic re-hydrate every 3s until
-    // the title batch is settled (every pair DONE / ERROR on the
-    // title-status lens) — mirrors FanOutScreen but keyed on titleStatus.
+    // One-shot seed from disk on entry. No periodic re-hydrate: the
+    // fan-meta runner now mirrors each pair's title / icon / cost into
+    // the engine flow live (IconGenerationManager.runFanMetaForPair calls
+    // FanOutEngine.refreshPairFromDisk), so the title-status counters
+    // advance without a disk poll.
     LaunchedEffect(reportId, runKey) {
         withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
-        while (true) {
-            kotlinx.coroutines.delay(3_000)
-            val current = engine.runs.value[runKey] ?: continue
-            val settled = current.pairs.values.all {
-                val s = it.titleStatus(runningMetaSet)
-                s == PairStatus.DONE || s == PairStatus.ERROR
-            }
-            if (settled) break
-            withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
-        }
     }
 
     var nav by rememberSaveable(runKey, stateSaver = fanMetaNavSaver) {

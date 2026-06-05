@@ -249,16 +249,11 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
     val throttled by engine.throttledCells.collectAsState()
     val run = runs[reportId]
 
+    // One-shot seed from disk on entry; the runner mirrors every cell
+    // result into the engine flow in a NonCancellable finally (runOneCell),
+    // so the L1 counters stay live without a 3s disk poll.
     LaunchedEffect(reportId) {
         withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
-    }
-    LaunchedEffect(reportId, run?.allTerminal) {
-        while (true) {
-            val r = engine.runByKey(reportId)
-            if (r != null && r.allTerminal) break
-            delay(3000)
-            withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
-        }
     }
 
     val report by produceState<Report?>(initialValue = null, reportId) {

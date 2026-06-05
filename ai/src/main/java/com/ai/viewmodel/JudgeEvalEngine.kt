@@ -363,49 +363,57 @@ class JudgeEvalEngine internal constructor(
             .replace("@RESPONSE_A@", aBody)
             .replace("@RESPONSE_B@", bBody)
 
-        val raw = aiSettings.resolveWorker(item.judge.worker)
-        if (raw == null) {
-            recordCellError(context, reportId, rowId, item.placeholder, "judge ${item.judge.key} could not be resolved", started)
-        } else {
-            val agent = raw.copy(
-                apiKey = aiSettings.getEffectiveApiKeyForAgent(raw),
-                model = aiSettings.getEffectiveModelForAgent(raw)
-            )
-            val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-            val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-            val resp = com.ai.data.withTraceFilenameSink(traceSink) {
-                appViewModel.repository.analyzeWithAgent(
-                    agent, "", resolved, context = context, baseUrl = baseUrl, retry = false
-                )
-            }
-            if (resp.isSuccess && parseMatchVerdict(resp.analysis)?.verdict != null) {
-                val tu = resp.tokenUsage
-                val inT = tu?.inputTokens ?: 0
-                val outT = tu?.outputTokens ?: 0
-                var inCost = 0.0; var outCost = 0.0
-                if (tu != null && (inT > 0 || outT > 0)) {
-                    val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                    val split = PricingCache.computeInOutCost(tu, pricing)
-                    inCost = split.first
-                    outCost = split.second
-                    appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, tu, kind = "judges")
-                }
-                SecondaryResultStorage.recordTournamentMatch(
-                    context, reportId, rowId, item.judge.providerId, item.judge.model,
-                    resp.analysis.orEmpty(),
-                    inT, outT, inCost, outCost, System.currentTimeMillis() - started,
-                    traceFile = traceSink.get()
-                )
+        try {
+            val raw = aiSettings.resolveWorker(item.judge.worker)
+            if (raw == null) {
+                recordCellError(context, reportId, rowId, item.placeholder, "judge ${item.judge.key} could not be resolved", started)
             } else {
-                val msg = resp.error?.takeIf { it.isNotBlank() } ?: "judge produced no verdict"
-                recordCellError(context, reportId, rowId, item.placeholder, msg, started)
+                val agent = raw.copy(
+                    apiKey = aiSettings.getEffectiveApiKeyForAgent(raw),
+                    model = aiSettings.getEffectiveModelForAgent(raw)
+                )
+                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                val resp = com.ai.data.withTraceFilenameSink(traceSink) {
+                    appViewModel.repository.analyzeWithAgent(
+                        agent, "", resolved, context = context, baseUrl = baseUrl, retry = false
+                    )
+                }
+                if (resp.isSuccess && parseMatchVerdict(resp.analysis)?.verdict != null) {
+                    val tu = resp.tokenUsage
+                    val inT = tu?.inputTokens ?: 0
+                    val outT = tu?.outputTokens ?: 0
+                    var inCost = 0.0; var outCost = 0.0
+                    if (tu != null && (inT > 0 || outT > 0)) {
+                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                        val split = PricingCache.computeInOutCost(tu, pricing)
+                        inCost = split.first
+                        outCost = split.second
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, tu, kind = "judges")
+                    }
+                    SecondaryResultStorage.recordTournamentMatch(
+                        context, reportId, rowId, item.judge.providerId, item.judge.model,
+                        resp.analysis.orEmpty(),
+                        inT, outT, inCost, outCost, System.currentTimeMillis() - started,
+                        traceFile = traceSink.get()
+                    )
+                } else {
+                    val msg = resp.error?.takeIf { it.isNotBlank() } ?: "judge produced no verdict"
+                    recordCellError(context, reportId, rowId, item.placeholder, msg, started)
+                }
             }
-        }
-        val saved = SecondaryResultStorage.get(context, reportId, rowId)
-        if (saved == null) { dropCell(reportId, cKey); return }
-        val refreshed = saved.toJudgeCellState()
-        transitionCell(reportId, cKey) {
-            refreshed ?: it.copy(status = JudgeCellStatus.ERROR, errorMessage = "Cell row could not be parsed")
+        } finally {
+            // Mirror the saved row into memory in a NonCancellable block so a
+            // stop / cancel mid-call still settles the cell on its disk-truth
+            // status instead of leaving it stuck at RUNNING — the per-screen
+            // 3s re-hydrate that used to recover that case has been removed.
+            withContext(kotlinx.coroutines.NonCancellable) {
+                val saved = SecondaryResultStorage.get(context, reportId, rowId)
+                if (saved == null) dropCell(reportId, cKey)
+                else transitionCell(reportId, cKey) {
+                    saved.toJudgeCellState() ?: it.copy(status = JudgeCellStatus.ERROR, errorMessage = "Cell row could not be parsed")
+                }
+            }
         }
     }
 

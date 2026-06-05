@@ -300,6 +300,44 @@ class FanOutEngine internal constructor(
         }
     }
 
+    /** Mirror a single pair's persisted title / icon / fan-meta-cost
+     *  fields from disk into the in-memory [PairState] immediately, so
+     *  the Fan Meta L1 Done / Error / Costs counters advance live
+     *  instead of waiting for the next [hydrate] re-read. The fan-meta
+     *  batch ([IconGenerationManager.runFanMetaForPair]) writes title +
+     *  icon straight to disk and has no transition of its own, so this
+     *  is the bridge that keeps memory == disk in real time. No-op when
+     *  the run / pair isn't loaded — the one-shot entry [hydrate] covers
+     *  that case. */
+    internal fun refreshPairFromDisk(context: Context, reportId: String, pairId: String) {
+        val row = SecondaryResultStorage.get(context, reportId, pairId) ?: return
+        _runs.update { runs ->
+            val entry = runs.entries.firstOrNull { (key, run) ->
+                key.startsWith("$reportId|") && run.pairs.values.any { it.id == pairId }
+            } ?: return@update runs
+            val run = entry.value
+            val cur = run.pairs.values.first { it.id == pairId }
+            val next = cur.copy(
+                title = row.title,
+                titleInputCost = row.titleInputCost,
+                titleOutputCost = row.titleOutputCost,
+                titleErrorMessage = row.titleErrorMessage,
+                titleRunId = row.titleRunId,
+                titlePromptUsed = row.titlePromptUsed,
+                titleModel = row.titleModel,
+                icon = row.icon,
+                iconWinningTier = row.iconWinningTier,
+                iconInputCost = row.iconInputCost,
+                iconOutputCost = row.iconOutputCost,
+                iconErrorMessage = row.iconErrorMessage,
+                iconRunId = row.iconRunId,
+                iconPromptUsed = row.iconPromptUsed
+            )
+            if (next == cur) runs
+            else runs + (entry.key to run.copy(pairs = run.pairs + (cur.key to next)))
+        }
+    }
+
     suspend fun applyFanOutPairContent(
         context: Context,
         runKey: FanOutRunKey,
@@ -1387,34 +1425,40 @@ class FanOutEngine internal constructor(
                             SecondaryResultStorage.save(context, timedOut)
                             AppLog.w("FanOut", "pair ans=$answererAgentId src=$sourceAgentId timed out after 60s")
                         }
-                        // Re-read the now-persisted row to pick up the
-                        // result + cost + tokens stamped by executeSecondaryTask.
-                        val saved = SecondaryResultStorage.get(context, report.id, placeholderId)
-                        if (saved != null) {
-                            val ns = when {
-                                saved.errorMessage != null -> PairStatus.ERROR
-                                !saved.content.isNullOrBlank() || saved.durationMs != null -> PairStatus.DONE
-                                else -> PairStatus.PENDING
-                            }
-                            transitionPair(runKey, pk) {
-                                it.copy(
-                                    status = ns,
-                                    content = saved.content,
-                                    errorMessage = saved.errorMessage,
-                                    inputCost = saved.inputCost,
-                                    outputCost = saved.outputCost,
-                                    durationMs = saved.durationMs,
-                                    tokenUsage = saved.tokenUsage,
-                                    responseChangeSource = saved.responseChangeSource,
-                                    responseChangeValue = saved.responseChangeValue
-                                )
-                            }
-                        } else {
-                            // Row vanished mid-call (user deleted) — drop
-                            // the pair from state.
-                            dropPair(runKey, pk)
-                        }
                     } finally {
+                        // Re-read the now-persisted row + mirror it into the
+                        // in-memory PairState in a NonCancellable block, so a
+                        // stop / cancel mid-call still lands the pair on its
+                        // disk-truth status instead of leaving it stuck at
+                        // RUNNING — the per-screen 3s re-hydrate that used to
+                        // recover that case has been removed.
+                        withContext(kotlinx.coroutines.NonCancellable) {
+                            val saved = SecondaryResultStorage.get(context, report.id, placeholderId)
+                            if (saved != null) {
+                                val ns = when {
+                                    saved.errorMessage != null -> PairStatus.ERROR
+                                    !saved.content.isNullOrBlank() || saved.durationMs != null -> PairStatus.DONE
+                                    else -> PairStatus.PENDING
+                                }
+                                transitionPair(runKey, pk) {
+                                    it.copy(
+                                        status = ns,
+                                        content = saved.content,
+                                        errorMessage = saved.errorMessage,
+                                        inputCost = saved.inputCost,
+                                        outputCost = saved.outputCost,
+                                        durationMs = saved.durationMs,
+                                        tokenUsage = saved.tokenUsage,
+                                        responseChangeSource = saved.responseChangeSource,
+                                        responseChangeValue = saved.responseChangeValue
+                                    )
+                                }
+                            } else {
+                                // Row vanished mid-call (user deleted) — drop
+                                // the pair from state.
+                                dropPair(runKey, pk)
+                            }
+                        }
                         AppLog.d("FanOut", "← pair ans=$answererAgentId src=$sourceAgentId ${System.currentTimeMillis() - pairStart}ms")
                     }
                 }

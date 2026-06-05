@@ -156,29 +156,14 @@ fun FanOutScreen(
     val runs by engine.runs.collectAsState()
     val runState = runs[runKey]
 
-    // Hydrate on first entry so a freshly-opened drill-in (after a
-    // process restart, say) picks up the persisted rows even if the
-    // report-screen orchestrator hasn't fired yet. Plus a periodic
-    // re-hydrate every 3s — the runner's in-memory transitionPair
-    // can miss a pair (cancellation race, etc.), leaving a pair
-    // stuck at status=RUNNING / PENDING in-memory while the disk
-    // row reads DONE. Re-reading disk on a tick keeps the L1 stats
-    // honest. Stops once we're certain the runner is idle:
-    // every pair is DONE / ERROR on the in-memory snapshot.
+    // One-shot seed from disk on entry so a freshly-opened drill-in
+    // (after a process restart, say) picks up the persisted rows even if
+    // the report-screen orchestrator hasn't fired yet. No periodic
+    // re-hydrate: the runner mirrors every pair result into the engine
+    // flow in a NonCancellable finally (runOnePair), so the L1 counters
+    // stay live without a disk poll.
     LaunchedEffect(reportId, runKey) {
         withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
-        while (true) {
-            kotlinx.coroutines.delay(3_000)
-            val current = engine.runs.value[runKey] ?: continue
-            val settled = current.pairs.values.all {
-                it.status == com.ai.data.PairStatus.DONE ||
-                    it.status == com.ai.data.PairStatus.ERROR
-            }
-            // Runner is idle — stop the 3 s re-hydrate ticker (was `continue`,
-            // which left the timer spinning forever despite the comment above).
-            if (settled) break
-            withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
-        }
     }
 
     var nav by rememberSaveable(runKey, stateSaver = fanOutNavSaver) {
