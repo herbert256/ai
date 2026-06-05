@@ -108,7 +108,7 @@ internal fun FanMetaL1Screen(
 
     // Status lens — titleStatus folds in the "finished but no content"
     // ERROR case the raw field misses. Used by the per-group rows below;
-    // the L1 stat counts go through deriveBatchCounts.
+    // the L1 stat counts go through deriveBatchSummary.
     fun lens(p: PairState, set: Set<String>): PairStatus = p.titleStatus(set)
     fun metaDone(p: PairState): Boolean = !p.title.isNullOrBlank()
     // Per-pair Fan Meta spend (title + icon worker calls).
@@ -135,22 +135,19 @@ internal fun FanMetaL1Screen(
             onDelete = { confirmDelete = true }
         )
 
-        // Status counts + cost — title-batch status lens.
-        // Counters via the shared single-pass helper. Worker-swarm batch
-        // (category B): the meta-worker is replaceable, so a fan-meta error
-        // has no meaningful per-pair "benched" model — PairState.providerId is
-        // the *answerer*, not the meta-worker. Use BenchMode.NONE so every
-        // fan-meta error counts as Error and stays reachable by the error
-        // buttons / dialog (an answerer cooldown must not hide them).
-        val counts = deriveBatchCounts(
+        // Status counts + cost — title-batch status lens. Worker-pool batch
+        // (category B): meta workers are replaceable, so there is no Bench
+        // bucket and every terminal failure stays in Error.
+        val summary = deriveBatchSummary(
             items = run.pairs.values,
             idOf = { it.id },
             statusOf = { it.titleStatus(runningSet) },
             throttledIds = throttledSet,
+            family = BatchFamily.WORKER_POOL,
         )
+        val counts = summary.counts
         val doneCount = counts.done
-        val errorCount = counts.error
-        val benchCount = counts.bench
+        val errorCount = summary.displayError
         val runningCount = counts.running
         val throttledHere = counts.wait
         val queuedCount = counts.queued
@@ -162,7 +159,7 @@ internal fun FanMetaL1Screen(
         BatchStatsRow(listOf(
             Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent),
             Triple("Done", doneCount.toString(), AppColors.SuccessAccent),
-            Triple("Error", (errorCount + benchCount).toString(), AppColors.DangerAccent),
+            Triple("Error", errorCount.toString(), AppColors.DangerAccent),
             Triple("Run", runningCount.toString(), AppColors.WarningAccent),
             Triple("Wait", throttledHere.toString(), AppColors.CautionAccent),
             Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
@@ -305,12 +302,9 @@ internal fun FanMetaL1Screen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Top progress bar — the title batch. Keep it up while throttled or
-        // benched pairs are still outstanding (carved out of Run/Queue), else
-        // it hides with work remaining and the run reads as complete.
-        // Mirrors TranslationL1.
-        val pending = queuedCount + runningCount + throttledHere
-        if ((pending > 0 || benchCount > 0) && run.totalPairs > 0) {
+        // Top progress bar — the title batch. Keep it up while the shared
+        // worker-pool policy says work is still outstanding.
+        if (summary.activeOutstanding && run.totalPairs > 0) {
             val finished = (doneCount + errorCount).toFloat() / run.totalPairs
             LinearProgressIndicator(
                 progress = { finished },
@@ -356,7 +350,7 @@ internal fun FanMetaL1Screen(
         }
         val isMetaModels = metaGroupMode == FanMetaGroupMode.META_MODELS
         val metaMaxDone = (l1Rows.maxOfOrNull { it.metaDone } ?: 0).coerceAtLeast(1)
-        val metaShowBars = isMetaModels && (queuedCount + runningCount + throttledHere > 0 || benchCount > 0)
+        val metaShowBars = isMetaModels && summary.activeOutstanding
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(l1Rows, key = { it.key }) { row ->
               if (isMetaModels) {

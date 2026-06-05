@@ -2831,18 +2831,9 @@ class IconGenerationManager(
                 val rows = SecondaryResultStorage
                     .listForReport(context, reportId, SecondaryKind.META)
                     .filter { it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null }
-                // Preserve the prior sweep's title+icon spend in Deleted-items
-                // before clearFanOut*State zeroes it; the relaunch records fresh
-                // cost on top (same pattern as clear/restartFanMetaErrors).
-                val costDelta = rows.sumOf {
-                    it.titleInputCost + it.titleOutputCost + it.iconInputCost + it.iconOutputCost
-                }
-                rows.forEach {
-                    SecondaryResultStorage.clearFanOutTitleState(context, reportId, it.id)
-                    SecondaryResultStorage.clearFanOutIconState(context, reportId, it.id)
-                }
-                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+                clearFanMetaTitleIconState(context, reportId, rows)
             }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             // Run the batch only after the clear is applied (avoids the same
             // clear-vs-scan race as restartFanMetaErrors).
             runFanMetaBatch(context, reportId, metaPromptId)
@@ -2858,23 +2849,33 @@ class IconGenerationManager(
         SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
             .filter { it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null && isFanMetaError(it) }
 
+    private fun clearFanMetaTitleIconState(
+        context: Context,
+        reportId: String,
+        rows: Collection<SecondaryResult>,
+    ): Set<String> {
+        val affectedIds = rows.map { it.id }.toSet()
+        if (affectedIds.isEmpty()) return emptySet()
+        // Preserve the title+icon spend in Deleted-items before
+        // clearFanOut*State zeroes it; restarts/relaunches record fresh cost
+        // on top, so the report total stays whole across repeated attempts.
+        val costDelta = rows.sumOf {
+            it.titleInputCost + it.titleOutputCost + it.iconInputCost + it.iconOutputCost
+        }
+        rows.forEach { row ->
+            SecondaryResultStorage.clearFanOutTitleState(context, reportId, row.id)
+            SecondaryResultStorage.clearFanOutIconState(context, reportId, row.id)
+            rvm.fanOutEngine.refreshPairFromDisk(context, reportId, row.id)
+        }
+        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+        return affectedIds
+    }
+
     fun clearFanMetaErrors(context: Context, reportId: String, metaPromptId: String) {
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withContext(Dispatchers.IO) {
                 val errored = erroredFanMetaPairs(context, reportId, metaPromptId)
-                // Roll the title+icon spend we're about to wipe into the
-                // report's Deleted-items tally so the cost view stays whole —
-                // matching the full Fan Meta delete (FanOutEngine.clearFanMeta).
-                // clearFanOut*State zero the cost fields, so without this the
-                // already-spent cost vanishes from the report total.
-                val costDelta = errored.sumOf {
-                    it.titleInputCost + it.titleOutputCost + it.iconInputCost + it.iconOutputCost
-                }
-                for (e in errored) {
-                    SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
-                    SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
-                }
-                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+                clearFanMetaTitleIconState(context, reportId, errored)
             }
             appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
         }
@@ -2884,17 +2885,7 @@ class IconGenerationManager(
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withContext(Dispatchers.IO) {
                 val errored = erroredFanMetaPairs(context, reportId, metaPromptId)
-                // Preserve the failed attempt's spend in Deleted-items before
-                // clearFanOut*State zeroes it; the restart records fresh cost
-                // on top, so the report total stays whole across both.
-                val costDelta = errored.sumOf {
-                    it.titleInputCost + it.titleOutputCost + it.iconInputCost + it.iconOutputCost
-                }
-                for (e in errored) {
-                    SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
-                    SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
-                }
-                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+                clearFanMetaTitleIconState(context, reportId, errored)
             }
             appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             // Run the batch only after the clear is fully applied. The batch's

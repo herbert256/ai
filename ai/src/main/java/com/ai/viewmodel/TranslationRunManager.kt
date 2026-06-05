@@ -918,13 +918,10 @@ class TranslationRunManager(
         sourceReportId: String,
         runId: String
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
-        // Benched rows are kept — they're cleared by
-        // removeBenchedTranslations instead, so the two are complementary.
         val failed = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter {
-                translationRunGroupingId(it) == runId && it.errorMessage != null &&
-                    !com.ai.data.ModelCooldownStore.isUnavailable(it.providerId, it.model)
+                translationRunGroupingId(it) == runId && it.errorMessage != null
             }
         if (failed.isEmpty()) return@launch
         failed.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
@@ -941,43 +938,6 @@ class TranslationRunManager(
                 val srcKind = translateSrcKindOf(item.kind)
                 val srcId = translateSrcTargetIdOf(item)
                 item.status == TranslationStatus.ERROR && "$srcKind:$srcId" in failedTargetKeys
-            }
-            runs + (runId to cur.copy(
-                items = filtered,
-                totalCostDollars = filtered.sumOf { it.costDollars }
-            ))
-        }
-        ReportStorage.bumpReportTimestamp(context, sourceReportId)
-    }
-
-    /** Drop only the errored translation rows whose model is
-     *  currently benched (>1h-429 cooldown). Mirror of
-     *  [removeFailedTranslations], narrowed to the benched subset so
-     *  the user can clear the rate-limited-will-recover failures
-     *  without touching the genuine errors. */
-    fun removeBenchedTranslations(
-        context: Context,
-        sourceReportId: String,
-        runId: String
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
-        val benched = SecondaryResultStorage
-            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-            .filter {
-                translationRunGroupingId(it) == runId && it.errorMessage != null &&
-                    com.ai.data.ModelCooldownStore.isUnavailable(it.providerId, it.model)
-            }
-        if (benched.isEmpty()) return@launch
-        benched.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
-        ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, benched.map { it.id }.toSet())
-        _translationRuns.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            val benchedTargetKeys = benched
-                .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
-                .toSet()
-            val filtered = cur.items.filterNot { item ->
-                val srcKind = translateSrcKindOf(item.kind)
-                val srcId = translateSrcTargetIdOf(item)
-                item.status == TranslationStatus.ERROR && "$srcKind:$srcId" in benchedTargetKeys
             }
             runs + (runId to cur.copy(
                 items = filtered,

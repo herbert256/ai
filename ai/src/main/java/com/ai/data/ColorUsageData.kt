@@ -84,7 +84,6 @@ object ColorUsageData {
             Usage("Trace", "color", "TraceScreen.kt:1180"),
             Usage("Trace", "color", "TraceScreen.kt:1181"),
             Usage("Trace", "JsonNodeType.BOOLEAN -> AppColors.PrimaryAccent", "TraceScreen.kt:1222"),
-            Usage("Translation L1", "add(Triple(\"Bench\", benchCount.toString(), AppColors.PrimaryAccent))", "TranslationL1.kt:283"),
         ),
         "InfoAccent" to listOf(
             Usage("About", "color", "AboutScreen.kt:92"),

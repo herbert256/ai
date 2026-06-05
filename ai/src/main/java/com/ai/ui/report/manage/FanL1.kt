@@ -149,20 +149,19 @@ internal fun FanOutL1Screen(
         // Status counts + cost — pinned at the top of the page so
         // they stay put as the model list scrolls; kept visible even
         // once every pair is done.
-        // Counters via the shared single-pass helper. Fixed-model batch
-        // (category A, MODEL_PARKED): any non-done pair of a short-benched
-        // model is carved into its own Bench column, out of Error / Run /
-        // Wait / Queue.
-        val counts = deriveBatchCounts(
+        // Fixed-model batch (category A): any non-done pair of a
+        // short-benched model is parked in Bench.
+        val summary = deriveBatchSummary(
             items = run.pairs.values,
             idOf = { it.id },
             statusOf = { it.status },
             throttledIds = throttledSet,
+            family = BatchFamily.FIXED_MODEL,
             benchedOf = { shortBenched(it.providerId, it.model) },
-            benchMode = BenchMode.MODEL_PARKED,
         )
+        val counts = summary.counts
         val doneCount = counts.done
-        val errorCount = counts.error
+        val errorCount = summary.displayError
         val benchCount = counts.bench
         val runningCount = counts.running
         val throttledHere = counts.wait
@@ -175,16 +174,18 @@ internal fun FanOutL1Screen(
         // Fixed-model batch (category A): a benched answerer can't be
         // substituted, so its errored pairs get their own Bench column
         // (between Run and Wait) instead of folding into Error.
-        BatchStatsRow(listOf(
-            Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent),
-            Triple("Done", doneCount.toString(), AppColors.SuccessAccent),
-            Triple("Error", errorCount.toString(), AppColors.DangerAccent),
-            Triple("Run", runningCount.toString(), AppColors.WarningAccent),
-            Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent),
-            Triple("Wait", throttledHere.toString(), AppColors.CautionAccent),
-            Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)} ¢", AppColors.InfoAccent)
-        ))
+        BatchStatsRow(buildList {
+            add(Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent))
+            add(Triple("Done", doneCount.toString(), AppColors.SuccessAccent))
+            add(Triple("Error", errorCount.toString(), AppColors.DangerAccent))
+            add(Triple("Run", runningCount.toString(), AppColors.WarningAccent))
+            if (summary.showBenchColumn) {
+                add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
+            }
+            add(Triple("Wait", throttledHere.toString(), AppColors.CautionAccent))
+            add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
+            add(Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)} ¢", AppColors.InfoAccent))
+        })
 
         val hasFanMeta = remember(run) {
             run.pairs.values.any { !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank() }
@@ -227,13 +228,9 @@ internal fun FanOutL1Screen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Top progress bar — the fan-out responses. Keep it up while
-        // throttled (rate-gated) or benched (model on cooldown) pairs are
-        // still outstanding: they're carved out of Run/Queue, so without this
-        // the bar hides with work remaining and the run reads as complete.
-        // Mirrors TranslationL1.
-        val pending = queuedCount + runningCount + throttledHere
-        if ((pending > 0 || benchCount > 0) && run.totalPairs > 0) {
+        // Top progress bar — the fan-out responses. Keep it up while the
+        // shared batch policy says work is still outstanding.
+        if (summary.activeOutstanding && run.totalPairs > 0) {
             val finished = (doneCount + errorCount).toFloat() / run.totalPairs
             LinearProgressIndicator(
                 progress = { finished },

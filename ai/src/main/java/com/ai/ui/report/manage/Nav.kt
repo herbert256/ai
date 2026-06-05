@@ -731,9 +731,6 @@ fun ReportsScreenNav(
         onRemoveFailedTranslations = { rid, runId ->
             reportViewModel.translation.removeFailedTranslations(context, rid, runId)
         },
-        onRemoveBenchedTranslations = { rid, runId ->
-            reportViewModel.translation.removeBenchedTranslations(context, rid, runId)
-        },
         onRestartAllTranslations = { rid, runId ->
             reportViewModel.translation.restartAllTranslations(context, rid, runId)
         },

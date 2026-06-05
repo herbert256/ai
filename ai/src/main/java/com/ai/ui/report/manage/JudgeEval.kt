@@ -375,18 +375,18 @@ private fun JudgeEvalL1(
     val shortBenches by com.ai.data.ModelCooldownStore.shortBenches.collectAsState()
     fun shortBenched(p: String, m: String): Boolean =
         (shortBenches["$p:$m"] ?: 0L) > System.currentTimeMillis()
-    // Counters via the shared single-pass helper. Fixed-model batch
-    // (category A, MODEL_PARKED): any non-done cell of a short-benched
-    // judge is carved into its own Bench column.
-    val counts = deriveBatchCounts(
+    // Fixed-model batch (category A): any non-done cell of a
+    // short-benched judge is parked in Bench.
+    val summary = deriveBatchSummary(
         items = run.cells.values,
         idOf = { it.id },
         statusOf = { it.status },
         throttledIds = throttled,
+        family = BatchFamily.FIXED_MODEL,
         benchedOf = { shortBenched(it.judgeProviderId, it.judgeModel) },
-        benchMode = BenchMode.MODEL_PARKED,
     )
-    val errorCount = counts.error
+    val counts = summary.counts
+    val errorCount = summary.displayError
     val runningCount = counts.running
     val benchCount = counts.bench
     val throttledCount = counts.wait
@@ -402,16 +402,18 @@ private fun JudgeEvalL1(
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
-            BatchStatsRow(listOf(
-                Triple("Total", run.totalCells.toString(), AppColors.InfoAccent),
-                Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
-                Triple("Error", errorCount.toString(), AppColors.DangerAccent),
-                Triple("Run", runningCount.toString(), AppColors.WarningAccent),
-                Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent),
-                Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
-                Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-                Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
-            ))
+            BatchStatsRow(buildList {
+                add(Triple("Total", run.totalCells.toString(), AppColors.InfoAccent))
+                add(Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent))
+                add(Triple("Error", errorCount.toString(), AppColors.DangerAccent))
+                add(Triple("Run", runningCount.toString(), AppColors.WarningAccent))
+                if (summary.showBenchColumn) {
+                    add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
+                }
+                add(Triple("Wait", throttledCount.toString(), AppColors.CautionAccent))
+                add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
+                add(Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent))
+            })
             Spacer(Modifier.height(6.dp))
             Text(
                 "${run.judgeCount} judges · ${run.matchCount} matches",

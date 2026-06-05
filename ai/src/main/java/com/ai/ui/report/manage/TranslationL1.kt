@@ -27,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -102,35 +101,24 @@ internal fun TranslationL1Screen(
     var confirmReload by remember { mutableStateOf(false) }
     var confirmRestartFailed by remember { mutableStateOf(false) }
     var confirmRemoveFailed by remember { mutableStateOf(false) }
-    var confirmRemoveBenched by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val subject = run.targetLanguageName
     val items = run.items
     val total = items.size
-    // Benched = an ERROR item whose model is on a >1h-429 cooldown.
-    // Observed reactively so the Bench count updates as cooldowns
-    // lift; expiry checked from the snapshot rather than the
-    // lazily-mutating ModelCooldownStore.isUnavailable.
-    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
-    fun benched(p: String?, m: String?): Boolean =
-        p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
-    // Counters via the shared single-pass helper. Worker-swarm batch
-    // (category B, ERRORED): benched errors fold into Error (no Bench
-    // column); a throttled item (always PENDING — RUNNING is set only
-    // after the gate) is carved out of Queue into Wait.
-    val counts = deriveBatchCounts(
+    // Worker-pool batch (category B): no Bench bucket. Failed worker-pool
+    // items stay normal failed rows and can be removed or restarted.
+    val summary = deriveBatchSummary(
         items = items,
         idOf = { it.id },
         statusOf = { it.status },
         throttledIds = throttledSet,
-        benchedOf = { benched(it.providerId, it.model) },
-        benchMode = BenchMode.ERRORED,
+        family = BatchFamily.WORKER_POOL,
     )
+    val counts = summary.counts
     val doneCount = counts.done
-    val errorCount = counts.error
-    val benchCount = counts.bench
+    val errorCount = summary.displayError
     val runningCount = counts.running
     val throttledCount = counts.wait
     val queuedCount = counts.queued
@@ -146,7 +134,7 @@ internal fun TranslationL1Screen(
     // zero-progress row at the bottom instead of staying invisible
     // until its first item lands.
     val runModels = run.models
-    val modelRows = remember(items, runModels, cooldowns) {
+    val modelRows = remember(items, runModels) {
         val byKey = items.mapNotNull { item -> translationModelKey(item)?.let { it to item } }
             .groupBy({ it.first }, { it.second })
         val seen = byKey.keys.toMutableSet()
@@ -155,12 +143,7 @@ internal fun TranslationL1Screen(
                 modelKey = key,
                 total = its.size,
                 done = its.count { it.status == TranslationStatus.DONE },
-                // Match the headline split: a benched (cooldown) ERROR
-                // item recovers later, so it isn't counted as a hard error
-                // here either.
-                err = its.count {
-                    it.status == TranslationStatus.ERROR && !benched(it.providerId, it.model)
-                },
+                err = its.count { it.status == TranslationStatus.ERROR },
                 running = its.count { it.status == TranslationStatus.RUNNING },
                 cost = its.sumOf { it.costDollars }
             )
@@ -230,14 +213,13 @@ internal fun TranslationL1Screen(
 
         // Stats panel — pinned at the top, kept visible even once the
         // whole run is done. Wait = items parked on a provider gate
-        // (carved out of Queue). Worker-swarm batch (category B): a
-        // benched item recovers via the swarm fallback, so benched
-        // errors fold into Error and there's no separate Bench column.
+        // (carved out of Queue). Worker-pool batch (category B): no
+        // Bench bucket and no cooldown-derived Error split.
         Spacer(modifier = Modifier.height(8.dp))
         BatchStatsRow(listOf(
             Triple("Total", total.toString(), AppColors.InfoAccent),
             Triple("Done", doneCount.toString(), AppColors.SuccessAccent),
-            Triple("Error", (errorCount + benchCount).toString(), AppColors.DangerAccent),
+            Triple("Error", errorCount.toString(), AppColors.DangerAccent),
             Triple("Run", runningCount.toString(), AppColors.WarningAccent),
             Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
             Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
@@ -275,47 +257,32 @@ internal fun TranslationL1Screen(
             }
         }
 
-        // Per-failure controls — whole-run scope. "Remove failed" and
-        // "Remove benched" are complementary (each touches only its
-        // own subset of the errored items).
-        if (errorCount > 0 || benchCount > 0) {
+        // Per-failure controls — whole-run scope. Worker-pool failures are
+        // handled only by Remove failed / Restart failed.
+        if (errorCount > 0) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (errorCount > 0) {
-                    OutlinedButton(
-                        onClick = { confirmRemoveFailed = true },
-                        modifier = Modifier.weight(1f),
-                        colors = AppColors.outlinedButtonColors()
-                    ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    Button(
-                        onClick = { confirmRestartFailed = true },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("Restart failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                }
-                if (benchCount > 0) {
-                    OutlinedButton(
-                        onClick = { confirmRemoveBenched = true },
-                        modifier = Modifier.weight(1f),
-                        colors = AppColors.outlinedButtonColors()
-                    ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                }
+                OutlinedButton(
+                    onClick = { confirmRemoveFailed = true },
+                    modifier = Modifier.weight(1f),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { confirmRestartFailed = true },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Restart failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Top progress bar — run-level (done + error) / total, while
-        // there's still pending or running work. Hidden on a cancelled
-        // run so it doesn't sit stuck.
-        val pending = queuedCount + runningCount + throttledCount
-        // Keep the bar up while benched (cooldown) items are still
-        // outstanding — they're excluded from errorCount, so without this
-        // the bar would hide with doneCount + errorCount < total, reading
-        // as a complete run while benched rows wait for their cooldown.
-        if ((pending > 0 || benchCount > 0) && total > 0 && !run.cancelled) {
+        // Top progress bar — run-level (done + error) / total, while the
+        // shared worker-pool policy says work is still outstanding. Hidden on
+        // a cancelled run so it doesn't sit stuck.
+        if (summary.activeOutstanding && total > 0 && !run.cancelled) {
             val finished = (doneCount + errorCount).toFloat() / total
             LinearProgressIndicator(
                 progress = { finished },
@@ -330,7 +297,7 @@ internal fun TranslationL1Screen(
         // background fill conveying progress. Once the run finishes (no
         // queued or running items) the bars are dropped — a completed
         // run shouldn't keep wearing in-flight progress chrome.
-        val showBars = (pending > 0 || benchCount > 0) && !run.cancelled
+        val showBars = summary.activeOutstanding && !run.cancelled
         // Both lists share one layout: [calls | name | cost]. calls =
         // the group's entry count; name = the model (workers) or the
         // type (types); the green row-background fill conveys progress
@@ -405,9 +372,7 @@ internal fun TranslationL1Screen(
     }
 
     if (confirmRestartFailed) {
-        // Restart re-fires every errored item including benched ones
-        // (a benched item just re-confirms its cooldown — cheap).
-        val restartN = errorCount + benchCount
+        val restartN = errorCount
         // Multi-model runs route each failed item to a model OTHER
         // than the one that failed (round-robin over the rest), so
         // the user gets a meaningful retry instead of hitting the
@@ -435,7 +400,7 @@ internal fun TranslationL1Screen(
             onDismissRequest = { confirmRemoveFailed = false },
             title = { Text("Remove failed items?") },
             text = {
-                Text("Drops $errorCount failed row${if (errorCount == 1) "" else "s"} from this translation. Benched (rate-limited) rows are kept — use Remove benched for those. No API calls are made. Successful translations are kept.")
+                Text("Drops $errorCount failed row${if (errorCount == 1) "" else "s"} from this translation. No API calls are made. Successful translations are kept.")
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -445,24 +410,6 @@ internal fun TranslationL1Screen(
                 }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { confirmRemoveFailed = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
-        )
-    }
-
-    if (confirmRemoveBenched) {
-        AlertDialog(
-            onDismissRequest = { confirmRemoveBenched = false },
-            title = { Text("Remove benched items?") },
-            text = {
-                Text("Drops $benchCount benched row${if (benchCount == 1) "" else "s"} — items whose model is on a rate-limit cooldown. No API calls are made. Genuine errors and successful translations are kept.")
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmRemoveBenched = false
-                    actions.onRemoveBenched(reportId, runId)
-                    onBumpRefresh()
-                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
-            },
-            dismissButton = { TextButton(onClick = { confirmRemoveBenched = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
     }
 

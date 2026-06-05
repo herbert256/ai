@@ -2,6 +2,15 @@ package com.ai.ui.report.manage
 
 import com.ai.data.BatchItemStatus
 
+/** High-level batch policy used by the report L1 stat screens. */
+enum class BatchFamily {
+    /** One specific model must return a result; transient model parking is visible. */
+    FIXED_MODEL,
+
+    /** A worker pool can substitute another model; no Bench bucket is exposed. */
+    WORKER_POOL,
+}
+
 /** How a batch treats a benched (rate-limited) item in its L1 stats. */
 enum class BenchMode {
     /** No Bench bucket — benched items count wherever their status puts
@@ -13,12 +22,6 @@ enum class BenchMode {
      *  parks ALL of its items, so any non-done item of a benched model is
      *  carved into the Bench bucket — out of Error / Run / Wait / Queue. */
     MODEL_PARKED,
-
-    /** Worker-swarm "B" batches that still split errors (Fan Meta,
-     *  Translation): only an item that ERRORED on a benched model is
-     *  carved into Bench; Run / Wait / Queue ignore the bench. The caller
-     *  folds Bench back into the displayed Error column (no Bench column). */
-    ERRORED,
 }
 
 /** The seven live-batch counters shown by [BatchStatsRow]. Cost is left
@@ -34,6 +37,14 @@ data class BatchCounts(
     val queued: Int,
 )
 
+/** Policy-level L1 summary shared by all report batch screens. */
+data class BatchSummary(
+    val counts: BatchCounts,
+    val displayError: Int,
+    val showBenchColumn: Boolean,
+    val activeOutstanding: Boolean,
+)
+
 /** Single-pass derivation of the L1 stat counters for one batch, shared
  *  by every batch-kind screen so the carve lives in exactly one place.
  *  Each item lands in exactly one bucket. A throttled (rate-gated) item
@@ -47,8 +58,7 @@ data class BatchCounts(
  *  @param statusOf the displayed lifecycle status; pass a lens (e.g.
  *    `PairState.titleStatus`) where it isn't the raw `status` field.
  *  @param benchedOf whether the item's model is benched; required for
- *    [BenchMode.MODEL_PARKED] / [BenchMode.ERRORED], ignored for
- *    [BenchMode.NONE]. */
+ *    [BenchMode.MODEL_PARKED], ignored for [BenchMode.NONE]. */
 fun <T> deriveBatchCounts(
     items: Collection<T>,
     idOf: (T) -> String,
@@ -66,7 +76,6 @@ fun <T> deriveBatchCounts(
         val toBench = when (benchMode) {
             BenchMode.NONE -> false
             BenchMode.MODEL_PARKED -> benched
-            BenchMode.ERRORED -> benched && status == BatchItemStatus.ERROR
         }
         if (toBench) { bench++; continue }
         when {
@@ -77,4 +86,42 @@ fun <T> deriveBatchCounts(
         }
     }
     return BatchCounts(items.size, done, error, bench, running, wait, queued)
+}
+
+/** Derive the visible L1 batch policy once, then let each screen render it.
+ *  Fixed-model batches surface the Bench bucket because those calls cannot be
+ *  substituted. Worker-pool batches never bench rows in the UI; cooldowns are a
+ *  worker selection concern, not a terminal-result category. */
+fun <T> deriveBatchSummary(
+    items: Collection<T>,
+    idOf: (T) -> String,
+    statusOf: (T) -> BatchItemStatus,
+    throttledIds: Set<String>,
+    family: BatchFamily,
+    benchedOf: ((T) -> Boolean)? = null,
+): BatchSummary {
+    val counts = when (family) {
+        BatchFamily.FIXED_MODEL -> deriveBatchCounts(
+            items = items,
+            idOf = idOf,
+            statusOf = statusOf,
+            throttledIds = throttledIds,
+            benchedOf = benchedOf,
+            benchMode = BenchMode.MODEL_PARKED,
+        )
+        BatchFamily.WORKER_POOL -> deriveBatchCounts(
+            items = items,
+            idOf = idOf,
+            statusOf = statusOf,
+            throttledIds = throttledIds,
+        )
+    }
+    val outstanding = counts.queued + counts.running + counts.wait +
+        if (family == BatchFamily.FIXED_MODEL) counts.bench else 0
+    return BatchSummary(
+        counts = counts,
+        displayError = counts.error,
+        showBenchColumn = family == BatchFamily.FIXED_MODEL,
+        activeOutstanding = outstanding > 0,
+    )
 }

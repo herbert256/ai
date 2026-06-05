@@ -404,14 +404,16 @@ private fun CompareL1(
     onDeleteRun: () -> Unit,
     onBack: () -> Unit
 ) {
-    // Counters via the shared single-pass helper (category B, NONE): a
-    // rate-gated cell counts only under Wait, not also Run.
-    val counts = deriveBatchCounts(
+    // Worker-pool batch (category B): no Bench bucket; rate-gated cells
+    // count only under Wait, not also Run.
+    val summary = deriveBatchSummary(
         items = run.cells.values,
         idOf = { it.id },
         statusOf = { it.status },
         throttledIds = throttled,
+        family = BatchFamily.WORKER_POOL,
     )
+    val counts = summary.counts
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "compare_l1", title = "Compare",
@@ -423,7 +425,7 @@ private fun CompareL1(
             BatchStatsRow(listOf(
                 Triple("Total", counts.total.toString(), AppColors.InfoAccent),
                 Triple("Done", counts.done.toString(), AppColors.SuccessAccent),
-                Triple("Error", counts.error.toString(), AppColors.DangerAccent),
+                Triple("Error", summary.displayError.toString(), AppColors.DangerAccent),
                 Triple("Run", counts.running.toString(), AppColors.WarningAccent),
                 Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
                 Triple("Queue", counts.queued.toString(), AppColors.QueueAccent),

@@ -306,9 +306,6 @@ fun ReportsScreen(
      *  without re-firing. Wired to
      *  ReportViewModel.removeFailedTranslations. */
     onRemoveFailedTranslations: (String, String) -> Unit = { _, _ -> },
-    /** Drop only the errored rows whose model is currently benched.
-     *  Wired to ReportViewModel.removeBenchedTranslations. */
-    onRemoveBenchedTranslations: (String, String) -> Unit = { _, _ -> },
     /** Delete every row of the named translation run and dispatch
      *  the full set fresh, throttled by the runner's Semaphore(3).
      *  Wired to ReportViewModel.restartAllTranslations. */
@@ -1296,10 +1293,6 @@ fun ReportsScreen(
                     },
                     onRemoveFailed = { srcRid, runId ->
                         onRemoveFailedTranslations(srcRid, runId)
-                        onSecondaryRefresh()
-                    },
-                    onRemoveBenched = { srcRid, runId ->
-                        onRemoveBenchedTranslations(srcRid, runId)
                         onSecondaryRefresh()
                     },
                     onRestartAll = { srcRid, runId ->
