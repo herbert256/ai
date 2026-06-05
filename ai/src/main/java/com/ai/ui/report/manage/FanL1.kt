@@ -492,10 +492,13 @@ internal fun FanOutL1Screen(
     }
 
     if (confirmRestartFailed) {
+        // Genuine errors only — benched (cooldown) pairs are left for "Remove
+        // benched"; restartFailedPairs skips them, so the count must too.
+        val n = run.pairs.values.count { it.status == PairStatus.ERROR && !benched(it.providerId, it.model) }
         ReloadConfirmationDialog(
             target = "",
             title = "Restart failed items?",
-            message = "Re-fires ${run.errorCount} failed fan-out call${if (run.errorCount == 1) "" else "s"} for this prompt. The runner's concurrency cap still applies, so larger failure sets surface as a mix of running and queued rows. Successful pairs are kept.",
+            message = "Re-fires $n failed fan-out call${if (n == 1) "" else "s"} for this prompt. The runner's concurrency cap still applies, so larger failure sets surface as a mix of running and queued rows. Successful pairs are kept.",
             confirmLabel = "Restart",
             onConfirm = {
                 confirmRestartFailed = false

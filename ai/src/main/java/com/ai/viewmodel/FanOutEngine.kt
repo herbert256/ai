@@ -1513,7 +1513,14 @@ class FanOutEngine internal constructor(
     fun restartFailedPairs(context: Context, runKey: FanOutRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
-            val keys = run.pairs.values.filter { it.status == PairStatus.ERROR }.map { it.key }
+            // Genuine errors only — benched (cooldown) pairs are left for
+            // removeBenchedPairs / auto-recovery; re-firing them just bounces
+            // off the live cooldown. Matches removeFailedPairs and the L1
+            // "Restart failed" button gating (mainErrored).
+            val keys = run.pairs.values.filter {
+                it.status == PairStatus.ERROR &&
+                    !ModelCooldownStore.isUnavailable(it.providerId, it.model)
+            }.map { it.key }
             rerunPairsBlocking(context, runKey, keys)
         }
 
