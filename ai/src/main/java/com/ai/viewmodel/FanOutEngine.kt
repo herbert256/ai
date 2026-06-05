@@ -100,9 +100,9 @@ private const val FAN_OUT_WEB_SEARCH_PROMPT_SUFFIX =
 class FanOutEngine internal constructor(
     private val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel
-) {
-    private val _runs = MutableStateFlow<Map<FanOutRunKey, FanOutRunState>>(emptyMap())
-    val runs: StateFlow<Map<FanOutRunKey, FanOutRunState>> = _runs.asStateFlow()
+) : BatchEngine<FanOutRunKey, PairKey, PairState, FanOutRunState>() {
+    override fun copyWithItems(run: FanOutRunState, items: Map<PairKey, PairState>) =
+        run.copy(pairs = items)
 
     private val _temperatureSweepStates = MutableStateFlow<Map<String, TemperatureSweepState>>(emptyMap())
     val temperatureSweepStates: StateFlow<Map<String, TemperatureSweepState>> = _temperatureSweepStates.asStateFlow()
@@ -257,48 +257,14 @@ class FanOutEngine internal constructor(
 
     /** Atomic state transition for one pair. Returns the new run
      *  state so callers can chain. */
-    private fun transitionPair(
-        runKey: FanOutRunKey,
-        pairKey: PairKey,
-        update: (PairState) -> PairState
-    ) {
-        _runs.update { runs ->
-            val run = runs[runKey] ?: return@update runs
-            val cur = run.pairs[pairKey] ?: return@update runs
-            val next = update(cur)
-            if (next == cur) runs
-            else runs + (runKey to run.copy(pairs = run.pairs + (pairKey to next)))
-        }
-    }
+    private fun transitionPair(runKey: FanOutRunKey, pairKey: PairKey, update: (PairState) -> PairState) =
+        transitionItem(runKey, pairKey, update)
 
-    /** Drop a pair from a run (used by removeFailedPairs / delete-
-     *  model paths). */
-    private fun dropPair(runKey: FanOutRunKey, pairKey: PairKey) {
-        _runs.update { runs ->
-            val run = runs[runKey] ?: return@update runs
-            if (pairKey !in run.pairs) runs
-            else runs + (runKey to run.copy(pairs = run.pairs - pairKey))
-        }
-    }
+    /** Drop a pair from a run (used by removeFailedPairs / delete-model paths). */
+    private fun dropPair(runKey: FanOutRunKey, pairKey: PairKey) = dropItem(runKey, pairKey)
 
-    /** Drop an entire run from the flow (delete-run path). */
-    private fun dropRun(runKey: FanOutRunKey) {
-        _runs.update { it - runKey }
-    }
-
-    private fun transitionPairById(
-        runKey: FanOutRunKey,
-        pairId: String,
-        update: (PairState) -> PairState
-    ) {
-        _runs.update { runs ->
-            val run = runs[runKey] ?: return@update runs
-            val cur = run.pairs.values.firstOrNull { it.id == pairId } ?: return@update runs
-            val next = update(cur)
-            if (next == cur) runs
-            else runs + (runKey to run.copy(pairs = run.pairs + (cur.key to next)))
-        }
-    }
+    private fun transitionPairById(runKey: FanOutRunKey, pairId: String, update: (PairState) -> PairState) =
+        transitionItemById(runKey, pairId, update)
 
     /** Mirror a single pair's persisted title / icon / fan-meta-cost
      *  fields from disk into the in-memory [PairState] immediately, so

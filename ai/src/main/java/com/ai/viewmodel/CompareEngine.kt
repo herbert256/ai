@@ -58,9 +58,9 @@ import java.util.concurrent.ConcurrentHashMap
 class CompareEngine internal constructor(
     private val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel
-) {
-    private val _runs = MutableStateFlow<Map<CompareRunKey, CompareRunState>>(emptyMap())
-    val runs: StateFlow<Map<CompareRunKey, CompareRunState>> = _runs.asStateFlow()
+) : BatchEngine<CompareRunKey, String, CompareCellState, CompareRunState>() {
+    override fun copyWithItems(run: CompareRunState, items: Map<String, CompareCellState>) =
+        run.copy(cells = items)
 
     /** The L1 "Wait" stat — cell ids parked on a provider throttle. */
     val throttledCells: StateFlow<Set<String>> get() = appViewModel.throttledCompareCells
@@ -129,25 +129,10 @@ class CompareEngine internal constructor(
     // State-flow transition helpers
     // -----------------------------------------------------------------
 
-    private fun transitionCell(reportId: String, cKey: String, update: (CompareCellState) -> CompareCellState) {
-        _runs.update { runs ->
-            val run = runs[reportId] ?: return@update runs
-            val cur = run.cells[cKey] ?: return@update runs
-            val next = update(cur)
-            if (next == cur) runs else runs + (reportId to run.copy(cells = run.cells + (cKey to next)))
-        }
-    }
+    private fun transitionCell(reportId: String, cKey: String, update: (CompareCellState) -> CompareCellState) =
+        transitionItem(reportId, cKey, update)
 
-    private fun dropCell(reportId: String, cKey: String) {
-        _runs.update { runs ->
-            val run = runs[reportId] ?: return@update runs
-            if (cKey !in run.cells) runs else runs + (reportId to run.copy(cells = run.cells - cKey))
-        }
-    }
-
-    private fun dropRun(reportId: String) {
-        _runs.update { it - reportId }
-    }
+    private fun dropCell(reportId: String, cKey: String) = dropItem(reportId, cKey)
 
     // -----------------------------------------------------------------
     // Run launch

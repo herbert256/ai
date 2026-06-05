@@ -68,9 +68,9 @@ import java.util.concurrent.ConcurrentHashMap
 class TournamentEngine internal constructor(
     private val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel
-) {
-    private val _runs = MutableStateFlow<Map<TournamentRunKey, TournamentRunState>>(emptyMap())
-    val runs: StateFlow<Map<TournamentRunKey, TournamentRunState>> = _runs.asStateFlow()
+) : BatchEngine<TournamentRunKey, String, MatchState, TournamentRunState>() {
+    override fun copyWithItems(run: TournamentRunState, items: Map<String, MatchState>) =
+        run.copy(matches = items)
 
     /** The L1 "Throttled" stat — match ids parked on a provider throttle. */
     val throttledMatches: StateFlow<Set<String>> get() = appViewModel.throttledTournamentMatches
@@ -147,25 +147,10 @@ class TournamentEngine internal constructor(
     // State-flow transition helpers
     // -----------------------------------------------------------------
 
-    private fun transitionMatch(reportId: String, mKey: String, update: (MatchState) -> MatchState) {
-        _runs.update { runs ->
-            val run = runs[reportId] ?: return@update runs
-            val cur = run.matches[mKey] ?: return@update runs
-            val next = update(cur)
-            if (next == cur) runs else runs + (reportId to run.copy(matches = run.matches + (mKey to next)))
-        }
-    }
+    private fun transitionMatch(reportId: String, mKey: String, update: (MatchState) -> MatchState) =
+        transitionItem(reportId, mKey, update)
 
-    private fun dropMatch(reportId: String, mKey: String) {
-        _runs.update { runs ->
-            val run = runs[reportId] ?: return@update runs
-            if (mKey !in run.matches) runs else runs + (reportId to run.copy(matches = run.matches - mKey))
-        }
-    }
-
-    private fun dropRun(reportId: String) {
-        _runs.update { it - reportId }
-    }
+    private fun dropMatch(reportId: String, mKey: String) = dropItem(reportId, mKey)
 
     // -----------------------------------------------------------------
     // Run launch
