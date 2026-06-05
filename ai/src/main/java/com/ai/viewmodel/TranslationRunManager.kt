@@ -947,6 +947,42 @@ class TranslationRunManager(
         ReportStorage.bumpReportTimestamp(context, sourceReportId)
     }
 
+    /** Drop every unfinished (stranded, never-ran) translation row from
+     *  [runId] without re-firing — the Broken-work "delete unfinished"
+     *  action. Mirror of [removeFailedTranslations], narrowed to blank
+     *  placeholders. */
+    fun removeUnfinishedTranslations(
+        context: Context,
+        sourceReportId: String,
+        runId: String
+    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+        val stranded = SecondaryResultStorage
+            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+            .filter {
+                translationRunGroupingId(it) == runId &&
+                    it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null
+            }
+        if (stranded.isEmpty()) return@launch
+        stranded.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
+        ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, stranded.map { it.id }.toSet())
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            val strandedKeys = stranded
+                .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
+                .toSet()
+            val filtered = cur.items.filterNot { item ->
+                val srcKind = translateSrcKindOf(item.kind)
+                val srcId = translateSrcTargetIdOf(item)
+                item.status == TranslationStatus.PENDING && "$srcKind:$srcId" in strandedKeys
+            }
+            runs + (runId to cur.copy(
+                items = filtered,
+                totalCostDollars = filtered.sumOf { it.costDollars }
+            ))
+        }
+        ReportStorage.bumpReportTimestamp(context, sourceReportId)
+    }
+
     /** Re-fire every expected entry in [runId]: deletes all existing
      *  rows (success or error) and re-dispatches the full prompt +
      *  agent + meta set from the current report state. The existing

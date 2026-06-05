@@ -479,6 +479,32 @@ class TournamentEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
 
+    /** Drop every unfinished (stranded, never-ran) match without re-firing
+     *  — the Broken-work "delete unfinished" action. Mirror of
+     *  [removeFailedMatches], narrowed to PENDING rows. */
+    fun removeUnfinishedMatches(context: Context, reportId: String): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[reportId] ?: return@launch
+            val stranded = run.matches.values.filter { it.status == MatchStatus.PENDING }
+            if (stranded.isEmpty()) return@launch
+            stranded.forEach { matchJobs[it.id]?.cancelAndJoin() }
+            val costDelta = stranded.sumOf { it.totalCost }
+            stranded.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            val remaining = run.matches - stranded.map { it.key }.toSet()
+            if (remaining.isEmpty()) {
+                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
+                dropRun(reportId)
+            } else {
+                _runs.update { runs ->
+                    val cur = runs[reportId] ?: return@update runs
+                    runs + (reportId to cur.copy(matches = remaining))
+                }
+                recomputeAndPersistAggregate(context, reportId)
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+
     private suspend fun rerunMatchesBlocking(context: Context, reportId: String, mKeys: List<String>) {
         if (mKeys.isEmpty()) return
         val run = _runs.value[reportId] ?: return

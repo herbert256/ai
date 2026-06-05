@@ -37,6 +37,84 @@ import com.ai.ui.shared.*
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavBackStackEntry
 
+/** Dispatch a Broken-work recovery action to the right engine. Hydrates
+ *  the report's run first for the engines that act on in-memory state
+ *  (Fan Out / Tournament / Judges / Compare); resume, Fan Meta and
+ *  Translation are disk-based / self-hydrating. [restart] re-fires (errors)
+ *  or re-dispatches (unfinished); otherwise the items are dropped. Fan Meta
+ *  "delete unfinished" is a no-op — there's no item row to drop. */
+private suspend fun recoverBrokenBatch(
+    context: android.content.Context,
+    rvm: ReportViewModel,
+    batch: BrokenBatch,
+    mode: BrokenItemMode,
+    restart: Boolean,
+) {
+    val rid = batch.reportId
+    val errors = mode == BrokenItemMode.ERRORS
+    when (batch.kind) {
+        BatchFamilyKind.FAN_OUT -> {
+            rvm.fanOutEngine.hydrate(context, rid)
+            if (restart) {
+                if (errors) rvm.fanOutEngine.restartFailedPairs(context, batch.key)
+                else rvm.fanOutEngine.resumeStaleRunsForReport(context, rid)
+            } else {
+                if (errors) rvm.fanOutEngine.removeFailedPairs(context, batch.key)
+                else rvm.fanOutEngine.removeUnfinishedPairs(context, batch.key)
+            }
+        }
+        BatchFamilyKind.FAN_META -> {
+            val mp = batch.key.substringAfter('|')
+            if (restart) {
+                if (errors) rvm.iconGen.restartFanMetaErrors(context, rid, mp)
+                else rvm.iconGen.runFanMetaBatch(context, rid, mp)
+            } else if (errors) {
+                rvm.iconGen.clearFanMetaErrors(context, rid, mp)
+            }
+        }
+        BatchFamilyKind.TOURNAMENT -> {
+            rvm.tournamentEngine.hydrate(context, rid)
+            if (restart) {
+                if (errors) rvm.tournamentEngine.restartFailedMatches(context, rid)
+                else rvm.tournamentEngine.resumeStaleRunsForReport(context, rid)
+            } else {
+                if (errors) rvm.tournamentEngine.removeFailedMatches(context, rid)
+                else rvm.tournamentEngine.removeUnfinishedMatches(context, rid)
+            }
+        }
+        BatchFamilyKind.JUDGES -> {
+            rvm.judgeEvalEngine.hydrate(context, rid)
+            if (restart) {
+                if (errors) rvm.judgeEvalEngine.restartFailedCells(context, rid)
+                else rvm.judgeEvalEngine.resumeStaleRunsForReport(context, rid)
+            } else {
+                if (errors) rvm.judgeEvalEngine.removeFailedCells(context, rid)
+                else rvm.judgeEvalEngine.removeUnfinishedCells(context, rid)
+            }
+        }
+        BatchFamilyKind.COMPARE -> {
+            rvm.compareEngine.hydrate(context, rid)
+            if (restart) {
+                if (errors) rvm.compareEngine.restartFailedCells(context, rid)
+                else rvm.compareEngine.resumeStaleRunsForReport(context, rid)
+            } else {
+                if (errors) rvm.compareEngine.removeFailedCells(context, rid)
+                else rvm.compareEngine.removeUnfinishedCells(context, rid)
+            }
+        }
+        BatchFamilyKind.TRANSLATION -> {
+            if (restart) {
+                if (errors) rvm.translation.restartFailedTranslations(context, rid, batch.key)
+                else rvm.translation.startMissingTranslations(context, rid, batch.key)
+            } else {
+                if (errors) rvm.translation.removeFailedTranslations(context, rid, batch.key)
+                else rvm.translation.removeUnfinishedTranslations(context, rid, batch.key)
+            }
+        }
+        else -> Unit  // REGENERATE / OTHER — not actionable from here
+    }
+}
+
 /** Registers a Monitor-subtree screen. Identical to [composable] but wraps
  *  the destination in [LocalMonitorNav], so the screen's [TitleBar] renders
  *  the four 📡 🐞 📜 📊 "jump to a Monitor part" icons at the start of its
@@ -650,7 +728,18 @@ internal fun NavGraphBuilder.developerRoutes(
                         reportViewModel.restoreCompletedReport(brokenWorkContext, reportId)
                         navController.navigate(NavRoutes.aiReportManage())
                     }
-                }
+                },
+                onRestart = { batch, mode ->
+                    brokenWorkScope.launch(Dispatchers.IO) {
+                        recoverBrokenBatch(brokenWorkContext, reportViewModel, batch, mode, restart = true)
+                    }
+                },
+                onDelete = { batch, mode ->
+                    brokenWorkScope.launch(Dispatchers.IO) {
+                        recoverBrokenBatch(brokenWorkContext, reportViewModel, batch, mode, restart = false)
+                    }
+                },
+                loadItems = { batch, mode -> loadBrokenItems(brokenWorkContext, batch, mode) },
             )
         }
         composable(NavRoutes.AI_API_TEST) {

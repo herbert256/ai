@@ -1457,6 +1457,26 @@ class FanOutEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, run.reportId)
         }
 
+    /** Drop every unfinished (stranded, never-ran) pair without re-firing —
+     *  the Broken-work "delete unfinished" action. Mirror of
+     *  [removeFailedPairs], narrowed to PENDING rows. */
+    fun removeUnfinishedPairs(context: Context, runKey: FanOutRunKey): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[runKey] ?: return@launch
+            val stranded = run.pairs.values.filter { it.status == PairStatus.PENDING }
+            if (stranded.isEmpty()) return@launch
+            val costDelta = stranded.sumOf { it.totalCost }
+            stranded.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
+            ReportStorage.removeFanOutIconCalls(context, run.reportId, stranded.map { it.id }.toSet())
+            _runs.update { runs ->
+                val cur = runs[runKey] ?: return@update runs
+                val keepKeys = stranded.map { it.key }.toSet()
+                runs + (runKey to cur.copy(pairs = cur.pairs - keepKeys))
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, run.reportId)
+        }
+
     /** Drop only the errored pairs whose model is currently benched
      *  (>1h-429 cooldown). Mirror of [removeFailedPairs] — same
      *  delete + state-update + cost/timestamp bump — narrowed to the

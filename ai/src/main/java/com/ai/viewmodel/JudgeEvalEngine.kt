@@ -612,6 +612,32 @@ class JudgeEvalEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
 
+    /** Drop every unfinished (stranded, never-ran) judge cell without
+     *  re-firing — the Broken-work "delete unfinished" action. Mirror of
+     *  [removeFailedCells], narrowed to PENDING rows. */
+    fun removeUnfinishedCells(context: Context, reportId: String): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[reportId] ?: return@launch
+            val stranded = run.cells.values.filter { it.status == JudgeCellStatus.PENDING }
+            if (stranded.isEmpty()) return@launch
+            stranded.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            val costDelta = stranded.sumOf { it.totalCost }
+            stranded.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            val remaining = run.cells - stranded.map { it.key }.toSet()
+            if (remaining.isEmpty()) {
+                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
+                dropRun(reportId)
+            } else {
+                _runs.update { runs ->
+                    val cur = runs[reportId] ?: return@update runs
+                    runs + (reportId to cur.copy(cells = remaining))
+                }
+                recomputeAndPersistAggregate(context, reportId)
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+
     private suspend fun rerunCellsBlocking(context: Context, reportId: String, cKeys: List<String>) {
         if (cKeys.isEmpty()) return
         val run = _runs.value[reportId] ?: return

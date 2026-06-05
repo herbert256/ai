@@ -155,10 +155,18 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "broken_work" to HelpContent(
         title = "Help - Broken work",
         cards = listOf(
-            HelpCard("Overview", "Lists reports that carry interrupted batches — work started but never finished because the app was killed or hit an error. A background scan checks every report from the last 7 days at app start and every 30 seconds. While anything is broken, the top-bar AI logo is replaced by a ⚠️ that opens this screen."),
-            HelpCard("What counts", "A blank-but-unfinished placeholder (no result, no error, no duration) for a fan-out pair, tournament match, judge-the-judges cell, translation item, or a single Meta / Rerank / Moderation run — plus a regenerate batch that was interrupted mid-run or paused on an error. Work that is genuinely still running is not listed."),
-            HelpCard("Detection only", "The app no longer fixes these automatically. It only detects and surfaces them; nothing is re-dispatched or marked failed on your behalf. This keeps interrupted work visible instead of silently retried."),
-            HelpCard("Fixing", "Tap a report to open it, then use the existing Regenerate / retry actions on the relevant batch to resume it. Once a report's work completes (or you clear it), it drops off this list and the ⚠️ reverts to the AI logo on the next scan."),
+            HelpCard("Overview", "One card per batch that needs attention. A background scan checks every report from the last 7 days at app start and every 30 seconds; while anything needs attention the top-bar AI logo is replaced by a ⚠️ that opens this screen."),
+            HelpCard("Two states", "Each card shows up to two lines: unfinished (items stranded by an app-kill — started but never finished) and errors (items that failed). The count is per batch run — one fan-out prompt, one translation language, one tournament, and so on."),
+            HelpCard("Actions", "Each line carries view / delete / restart. View opens the list of those items. Delete drops them (no API calls; finished items are kept). Restart re-fires errored items or re-dispatches unfinished ones. Fan Meta unfinished can't be deleted — the underlying answer stays."),
+            HelpCard("Coverage", "Covers all six batch families — Fan Out, Fan Meta, Tournament, Judge the judges, Compare, and Translation — plus a stalled regenerate job and single Meta / Rerank / Moderation calls (tap the card to open those). A card drops off once its work is cleared, on the next scan."),
+        )
+    ),
+    "broken_items" to HelpContent(
+        title = "Help - Broken items",
+        cards = listOf(
+            HelpCard("Overview", "The individual items behind one Broken-work line — either the unfinished (never-ran) items or the errored ones for a single batch."),
+            HelpCard("Each row", "Shows the model that ran (or was assigned) and, for errors, the failure message. Unfinished rows are placeholders that were queued but never executed."),
+            HelpCard("Delete / Restart", "The title-bar icons act on the whole list: delete drops every listed item (no API calls), restart re-fires the errored ones or re-dispatches the unfinished ones. Both return you to the Broken-work list."),
         )
     ),
     "settings_setup" to HelpContent(
