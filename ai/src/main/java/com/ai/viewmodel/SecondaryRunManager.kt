@@ -575,6 +575,17 @@ class SecondaryRunManager(
         appViewModel.backgroundResumeSweepJob = appViewModel.viewModelScope.launch(
             rvm.reportLogContext("background-broken-scan")
         ) {
+            // One-time pass first: a hard-killed batch leaves blank placeholder
+            // cells whose run is no longer active. Mark them interrupted up front
+            // so the very first scan flags them, instead of waiting out the
+            // stale-placeholder grace.
+            try {
+                finalizeAbandonedLeftovers(context)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("BrokenScan", "startup finalize failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
             while (kotlinx.coroutines.currentCoroutineContext()[Job]?.isActive == true) {
                 try {
                     refreshBrokenBatches(context)
@@ -611,6 +622,73 @@ class SecondaryRunManager(
         appViewModel.setBrokenBatches(scanBrokenRunsForRecentReports(context))
     }
 
+    /** The live "what's running right now in THIS process" snapshot the
+     *  Broken-work policy needs to exclude rows a worker still owns. After a
+     *  process kill every set is empty — exactly when blank placeholders are
+     *  genuinely abandoned. Shared by the read-only scan and the startup
+     *  finalize so both apply identical active/in-flight guards. */
+    private fun liveStateFor(reportId: String): BrokenWorkLiveState {
+        val inFlight = appViewModel.runningSingleSecondaries.value +
+            rvm.fanOutEngine.inFlightRowIds() +
+            rvm.tournamentEngine.inFlightRowIds() +
+            rvm.judgeEvalEngine.inFlightRowIds() +
+            rvm.compareEngine.inFlightRowIds() +
+            rvm.resumingMetaIds
+        val activeFanMetaRunKeys = rvm.fanMetaJobs
+            .filterValues { it.isActive }
+            .keys
+            .mapNotNull { key ->
+                val marker = "$reportId|meta|"
+                if (key.startsWith(marker)) "$reportId|${key.removePrefix(marker)}" else null
+            }
+            .toSet()
+        val activeTranslationRunIds = rvm.translation.translationRuns.value.values
+            .filter { !it.isFinished && !it.cancelled }
+            .map { it.runId }
+            .toSet()
+        return BrokenWorkLiveState(
+            inFlightRowIds = inFlight,
+            activeFanOutRunKeys = rvm.fanOutEngine.activeRunKeys(),
+            activeTournamentRunKeys = rvm.tournamentEngine.activeRunKeys(),
+            activeJudgeRunKeys = rvm.judgeEvalEngine.activeRunKeys(),
+            activeCompareRunKeys = rvm.compareEngine.activeRunKeys(),
+            activeFanMetaRunKeys = activeFanMetaRunKeys,
+            runningFanMetaRowIds = appViewModel.runningFanMetaPairs.value,
+            activeTranslationRunIds = activeTranslationRunIds,
+        )
+    }
+
+    /** One-time startup pass over recent reports: stamp the blank placeholder
+     *  cells of runs that are no longer active (a hard kill left them, so the
+     *  run's own `finally` never marked them) with the same "Interrupted"
+     *  message a clean stop writes. With the stale-placeholder grace dropped to
+     *  zero here — and the active/in-flight guards from [liveStateFor] still in
+     *  force — abandoned work surfaces on the first Broken-work scan instead of
+     *  after the 60s grace, while a live or just-started run is left untouched.
+     *  Covers every batch family at once (the content-blank filter skips Fan
+     *  Meta's title/icon sub-state, which isn't a blank placeholder). */
+    private suspend fun finalizeAbandonedLeftovers(context: Context) = withContext(Dispatchers.IO) {
+        val cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
+        val recent = ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff }
+        var marked = 0
+        recent.forEach { report ->
+            val rows = SecondaryResultStorage.listForReport(context, report.id)
+            val live = liveStateFor(report.id).copy(stalePlaceholderMs = 0L)
+            BrokenWorkPolicy.detectBatches(report.id, report.title, report.timestamp, rows, live)
+                .flatMap { BrokenWorkPolicy.matchingRows(rows, it, BrokenItemMode.UNFINISHED, live) }
+                .distinctBy { it.id }
+                .filter { it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null }
+                .forEach { row ->
+                    SecondaryResultStorage.save(
+                        context,
+                        row.copy(errorMessage = "Interrupted — run stopped before this cell finished", durationMs = 0)
+                    )
+                    marked++
+                }
+        }
+        if (marked > 0) AppLog.d("BrokenScan", "startup: finalized $marked abandoned leftover cell(s)")
+    }
+
     /** Read-only detection for one report: groups every interrupted (blank
      *  content, no error, no duration, not in flight) and errored
      *  SecondaryResult row into its batch ([BrokenBatch]) and tallies the
@@ -625,47 +703,12 @@ class SecondaryRunManager(
     private fun detectBrokenBatchesForReport(context: Context, report: Report): List<BrokenBatch> {
         val reportId = report.id
         val rows = SecondaryResultStorage.listForReport(context, reportId)
-        // In-flight exclusion: a row a live worker owns in THIS process must
-        // not be flagged. After a process kill these sets are all empty —
-        // exactly when every blank placeholder really is interrupted.
-        val inFlight = appViewModel.runningSingleSecondaries.value +
-            rvm.fanOutEngine.inFlightRowIds() +
-            rvm.tournamentEngine.inFlightRowIds() +
-            rvm.judgeEvalEngine.inFlightRowIds() +
-            rvm.compareEngine.inFlightRowIds() +
-            rvm.resumingMetaIds
-        val activeFanOutRunKeys = rvm.fanOutEngine.activeRunKeys()
-        val activeTournamentRunKeys = rvm.tournamentEngine.activeRunKeys()
-        val activeJudgeRunKeys = rvm.judgeEvalEngine.activeRunKeys()
-        val activeCompareRunKeys = rvm.compareEngine.activeRunKeys()
-        val activeFanMetaRunKeys = rvm.fanMetaJobs
-            .filterValues { it.isActive }
-            .keys
-            .mapNotNull { key ->
-                val marker = "$reportId|meta|"
-                if (key.startsWith(marker)) "$reportId|${key.removePrefix(marker)}" else null
-            }
-            .toSet()
-        val runningFanMeta = appViewModel.runningFanMetaPairs.value
-        val activeTranslationRunIds = rvm.translation.translationRuns.value.values
-            .filter { !it.isFinished && !it.cancelled }
-            .map { it.runId }
-            .toSet()
         val batches = BrokenWorkPolicy.detectBatches(
             reportId = reportId,
             reportTitle = report.title,
             reportTimestamp = report.timestamp,
             rows = rows,
-            live = BrokenWorkLiveState(
-                inFlightRowIds = inFlight,
-                activeFanOutRunKeys = activeFanOutRunKeys,
-                activeTournamentRunKeys = activeTournamentRunKeys,
-                activeJudgeRunKeys = activeJudgeRunKeys,
-                activeCompareRunKeys = activeCompareRunKeys,
-                activeFanMetaRunKeys = activeFanMetaRunKeys,
-                runningFanMetaRowIds = runningFanMeta,
-                activeTranslationRunIds = activeTranslationRunIds,
-            )
+            live = liveStateFor(reportId)
         ).toMutableList()
 
         // Stalled regenerate job — one synthetic entry. PAUSED_ON_ERROR reads
