@@ -249,6 +249,7 @@ internal fun ReportManageActionOverlays(
                     agentId = editModelTitleFor,
                     modelName = "${agent.provider} · ${shortModelName(agent.model)}",
                     initialTitle = agent.modelTitle.orEmpty(),
+                    aiSettings = aiSettings,
                     traceFilename = agent.modelTitleTraceFile,
                     onNavigateToTraceFile = onNavigateToTraceFile,
                     onBack = { st.editModelTitleFor.value = null },

@@ -589,6 +589,7 @@ internal fun NavGraphBuilder.reportRoutes(
                         agentId = etf,
                         modelName = "${editAgent.provider} · ${shortModelName(editAgent.model)}",
                         initialTitle = editAgent.modelTitle.orEmpty(),
+                        aiSettings = rmAiSettings,
                         traceFilename = editAgent.modelTitleTraceFile,
                         onNavigateToTraceFile = { fn -> navController.navigate(NavRoutes.traceDetail(fn)) },
                         onBack = { editTitleFor = null },

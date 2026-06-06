@@ -222,6 +222,56 @@ private data class TitleApiCard(
     val apiInteraction: String
 )
 
+/** Model + API-interaction card pair (Icon-lookup style) for a title
+ *  editor. Scrollable + weighted so a long interaction doesn't crowd out
+ *  the buttons below; renders nothing when [card] is null (manual title /
+ *  no AI call recorded). */
+@Composable
+private fun ColumnScope.TitleApiCards(card: TitleApiCard?) {
+    Column(
+        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        card?.let { c ->
+            Spacer(modifier = Modifier.height(12.dp))
+            // Model card — provider / model + cumulative cost.
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold)
+                    val label = if (c.model.isNotBlank())
+                        modelLabel(c.providerId, c.model)
+                    else "(unknown model)"
+                    Text(label, fontSize = 14.sp, color = AppColors.TextPrimary)
+                    if (c.cost > 0.0) {
+                        Text(
+                            "Cost: ${formatCents(c.cost)} ¢",
+                            fontSize = 11.sp, color = AppColors.TextTertiary,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
+            // API interaction card — plain monospace, NO markdown.
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("API interaction", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 6.dp))
+                    Text(
+                        c.apiInteraction.ifBlank { "(no interaction recorded)" },
+                        fontSize = 13.sp, color = AppColors.TextPrimary, lineHeight = 18.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+    }
+}
+
 /**
  * Shared body for the two report-title editors. Title changes don't affect
  * any outbound API call, so saving updates the persisted report + UiState
@@ -321,51 +371,7 @@ private fun SingleTitleEditScreen(
             colors = AppColors.outlinedFieldColors()
         )
 
-        // Model + API interaction cards for the call that generated this
-        // title — same two cards as the Icon lookup screen. Scrollable so a
-        // long prompt doesn't crowd out the Find-alternative button below.
-        Column(
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            apiCard?.let { card ->
-                Spacer(modifier = Modifier.height(12.dp))
-                // Model card — provider / model + cumulative cost.
-                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-                    modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
-                            fontWeight = FontWeight.Bold)
-                        val label = if (card.model.isNotBlank())
-                            modelLabel(card.providerId, card.model)
-                        else "(unknown model)"
-                        Text(label, fontSize = 14.sp, color = AppColors.TextPrimary)
-                        if (card.cost > 0.0) {
-                            Text(
-                                "Cost: ${formatCents(card.cost)} ¢",
-                                fontSize = 11.sp, color = AppColors.TextTertiary,
-                                fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
-                    }
-                }
-                // API interaction card — plain monospace, NO markdown.
-                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-                    modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("API interaction", fontSize = 11.sp, color = AppColors.TextTertiary,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 6.dp))
-                        Text(
-                            card.apiInteraction.ifBlank { "(no interaction recorded)" },
-                            fontSize = 13.sp, color = AppColors.TextPrimary, lineHeight = 18.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-            }
-        }
+        TitleApiCards(apiCard)
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -391,6 +397,7 @@ fun ReportEditModelTitleScreen(
     agentId: String,
     modelName: String,
     initialTitle: String,
+    aiSettings: Settings,
     traceFilename: String? = null,
     onNavigateToTraceFile: (String) -> Unit = {},
     onBack: () -> Unit,
@@ -403,9 +410,35 @@ fun ReportEditModelTitleScreen(
     onUpdate: (newTitle: String) -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
     var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
     LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
     val canUpdate = title.trim().isNotBlank()
+
+    // The per-model title-generation call (model-titles worker, @RESPONSE@ =
+    // this agent's answer) as Model + API-interaction cards — same as the
+    // Icon lookup screen. Null when the title was set manually.
+    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, agentId) {
+        value = withContext(Dispatchers.IO) {
+            val r = ReportStorage.getReport(context, reportId) ?: return@withContext null
+            val agent = r.agents.firstOrNull { it.agentId == agentId } ?: return@withContext null
+            val model = agent.modelTitleModel.orEmpty()
+            val cost = agent.modelTitleInputCost + agent.modelTitleOutputCost
+            val aiGenerated = !agent.modelTitlePromptUsed.isNullOrBlank() ||
+                model.isNotBlank() || cost > 0.0
+            if (!aiGenerated) return@withContext null
+            val template = aiSettings.internalPrompts.firstOrNull {
+                it.category == "workers" && it.name == "model-titles"
+            }
+            val resolved = template?.text?.replace("@RESPONSE@", agent.responseBody.orEmpty()).orEmpty()
+            TitleApiCard(
+                providerId = model.substringBefore('/', ""),
+                model = model.substringAfter('/', ""),
+                cost = cost,
+                apiInteraction = buildOneShotApiInteraction(resolved, agent.modelTitle)
+            )
+        }
+    }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_edit_model_title", title = "Edit model title", subject = "Rename one model's answer title", onBackClick = onBack,
@@ -427,7 +460,7 @@ fun ReportEditModelTitleScreen(
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedFieldColors()
         )
-        Spacer(modifier = Modifier.weight(1f))
+        TitleApiCards(apiCard)
         if (showFindAlternatives) {
             OutlinedButton(
                 onClick = onFindAlternativeTitles,
