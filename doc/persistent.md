@@ -52,6 +52,7 @@ default; the value applied to a missing key is the one shown here.)
 | `tracing_enabled` | Boolean (default true) | master switch for `ApiTracer.isTracingEnabled` |
 | `full_screen` | Boolean (default false) | hides the Android status bar when enabled |
 | `model_name_layout` | String | `ModelNameLayout` name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`) |
+| `app_home` | String | `AppHomeMode` name (`HOME_SCREEN` / `HOME_BAR`); default `HOME_SCREEN` |
 | `ui_color_mode` | String | `UiColorMode` name (`DAY` / `NIGHT` / `AUTO`); which colour set the app paints, default `NIGHT` |
 | `ui_color_overrides` | JSON Map<String,Int> | functional `AppColors` role overrides (the Night set) edited in Settings → UI Colors |
 | `ui_color_overrides_day` | JSON Map<String,Int> | the Day-variant colour overrides |

@@ -82,6 +82,28 @@ internal fun NavGraphBuilder.reportRoutes(
         composable(NavRoutes.AI) {
             val hubContext = LocalContext.current
             val hubScope = rememberCoroutineScope()
+            val uiState by appViewModel.uiState.collectAsState()
+            if (uiState.generalSettings.appHomeMode == AppHomeMode.HOME_BAR) {
+                LaunchedEffect(hubContext) {
+                    val latestId = withContext(Dispatchers.IO) {
+                        ReportStorage.getAllReports(hubContext).firstOrNull()?.id
+                    }
+                    if (latestId == null) {
+                        navController.navigate(NavRoutes.AI_FIRST_LAUNCH) {
+                            popUpTo(NavRoutes.AI) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    } else {
+                        com.ai.data.LastReportTracker.record(latestId, view = false)
+                        reportViewModel.restoreCompletedReport(hubContext, latestId)
+                        navController.navigate(NavRoutes.aiReportManage()) {
+                            popUpTo(NavRoutes.AI) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+                return@composable
+            }
             HubScreen(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
                 onNavigateToMonitor = { navController.navigate(NavRoutes.AI_MONITOR) },
@@ -124,6 +146,16 @@ internal fun NavGraphBuilder.reportRoutes(
                     }
                 },
                 viewModel = appViewModel
+            )
+        }
+
+        composable(NavRoutes.AI_FIRST_LAUNCH) {
+            FirstLaunchScreen(
+                onImportApiKeys = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
+                onAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
+                onHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
+                onSettings = { navController.navigate(NavRoutes.SETTINGS) },
+                onAbout = { navController.navigate(NavRoutes.ABOUT) }
             )
         }
 

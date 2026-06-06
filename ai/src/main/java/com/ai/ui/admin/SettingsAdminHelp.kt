@@ -45,7 +45,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Settings",
         cards = listOf(
             HelpCard("Overview", "Settings is a table of contents grouped into Appearance, Generation & behaviour, and Network & logging. Every editable preference lives one tap deeper. Most sub-screens autosave after a short debounce, so there is no Save button."),
-            HelpCard("Appearance", "UI tweaks controls experimental/visibility options such as model-name layout, report card visibility, knowledge card visibility, and full-screen mode. UI Colors edits AppColors roles. Default icons edits the fallback glyphs used across cards, navigation rows, status rows, and report results."),
+            HelpCard("Appearance", "UI tweaks controls app-home mode, experimental/visibility options such as model-name layout, report card visibility, knowledge card visibility, and full-screen mode. UI Colors edits AppColors roles. Default icons edits the fallback glyphs used across cards, navigation rows, status rows, and report results."),
             HelpCard("Generation & behaviour", "Metadata & icons governs optional AI-generated titles, icons, language detection, and internal prompt row icons. Autostart controls the automatic post-report work. App settings sets app-wide prompt and parameter fallbacks. Other settings stores identity fields."),
             HelpCard("Network & logging", "Network settings covers timeouts, per-provider throttling, and 429/529 retry policy. Maximal API calls caps global and per-kind concurrency. Log/trace/audit/statistics controls trace capture, audit logging, usage-statistics recording, and AppLog verbosity."),
             HelpCard("Tips", "Open the specific card for the setting you want. If you back out quickly, the screen still flushes the latest state through its dispose handler.")
@@ -57,6 +57,13 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Holds your Identity (Name + Email). The report-completion automation that used to live here moved to Settings → Generation & behaviour → Autostart. Autosaves with a 400 ms debounce."),
             HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
             HelpCard("Tips", "Renaming yourself mid-conversation has no retroactive effect on already-saved chats / reports — the Name field only shapes outbound prompts going forward."),
+        )
+    ),
+    "first_launch" to HelpContent(
+        title = "Help - First launch",
+        cards = listOf(
+            HelpCard("Overview", "Shown only in Home bar mode when no reports exist yet. It replaces the classic Home hub with the setup shortcuts needed to make the first real report possible."),
+            HelpCard("Cards", "Import API keys opens the import/export screen for key import. AI Setup opens providers, models, workers, prompts and parameters. Housekeeping opens backup, import/export, trim, update, test and reset tools. Settings and About open their normal hubs.")
         )
     ),
     "settings_autostart" to HelpContent(
@@ -133,6 +140,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - UI tweaks",
         cards = listOf(
             HelpCard("Overview", "Visual / layout preferences that don't affect how the app talks to providers. Pick what's most legible for you — every option autosaves with a 400 ms debounce."),
+            HelpCard("App home", "Home screen keeps the existing logo-and-card Home hub. Home bar adds a persistent top icon bar above each screen title and changes Home to open the newest report's Manage screen; if there are no reports it opens First launch."),
             HelpCard("Experimental features", "Reveals feature-gated surfaces such as local semantic search and Knowledge bases. Leave it off for the smaller stable navigation set."),
             HelpCard("Model name layout", "Two radios. Model name only is the dense default. Provider and model name joins the provider display name and model id with \" · \", useful when the same model id appears under several providers."),
             HelpCard("Home and report visibility", "The report-card and knowledge-card toggles control whether those entry points appear on the main app surface. Hidden cards do not delete data; they only reduce visible navigation."),
@@ -486,7 +494,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Export · providers.json / prompts.json", "providers.json is a drop-in for the bundled asset; prompts.json is a flat array of all internal prompts (text inline) that re-imports cleanly. No API keys included. Useful when shipping a tuned catalog as new defaults."),
             HelpCard("Export · Workers", "Agents + Flocks + Swarms in one file shaped { agents, flocks, swarms }. References to parameter sets, system prompts, and provider ids stay as ids — dangling on a target where those don't exist, but the worker still loads."),
             HelpCard("Export · Example prompts", "Drop-in shape for assets/examples.json — top-level array of {title, text} objects, no ids."),
-            HelpCard("Export · Settings", "GeneralSettings (userName, defaultEmail, defaultTypePaths, tracingEnabled, modelNameLayout) as a JSON object. Excludes the three info-provider API keys — those round-trip through API Keys instead."),
+            HelpCard("Export · Settings", "GeneralSettings (userName, defaultEmail, defaultTypePaths, tracingEnabled, modelNameLayout, appHomeMode) as a JSON object. Excludes the three info-provider API keys — those round-trip through API Keys instead."),
             HelpCard("Export · Model lists", "Per-provider model lists keyed by provider id ({ \"OPENAI\": [\"gpt-4o\", …], … }). Sorted by provider id so successive exports diff cleanly."),
             HelpCard("Export · Parameters / System prompts", "Settings.parameters and Settings.systemPrompts as top-level JSON arrays. Imported entries upsert by id (existing rows with a matching id are replaced)."),
             HelpCard("Export · All including / excluding API keys", "Two variants of one bundle. Shape: { apiKeys?, costs, providers, prompts, examples, agents, flocks, swarms, settings, modelLists, parameters, systemPrompts }. Identical except the \"excluding\" variant omits the apiKeys section — safer for sharing with a colleague or pushing to a public repo."),

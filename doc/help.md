@@ -1,7 +1,11 @@
 # In-App Help System
 
 Every screen in the app carries a bottom **icon bar** with help
-glyphs that open per-screen help. Provider cards on Model Info /
+glyphs that open per-screen help. In **Home bar** mode (Settings ->
+UI tweaks -> App home), the red screen-help glyph and current-screen
+trace glyph move from the bottom bar into the persistent top Home
+bar; the white icon-legend helper stays in the bottom bar where it
+already appears. Provider cards on Model Info /
 Trace detail / Costs carry ℹ buttons that deep-link to per-provider
 or per-repository help pages. The Help **home** page is a curated
 set of tap-through reference cards plus a substring search box; one
@@ -116,8 +120,8 @@ exist — there is no broader `help_home_*` family.
 `BottomIconBar` (`SharedComponents.kt`) renders the screen's action
 icons (up to 7 per row, wrapping to additional left-aligned rows)
 and pins the help glyph(s) to the right of the **last** row; the
-glyphs never count toward the 7-per-row cap. The **red ❓** is always
-present and navigates to the screen's main help topic. A second,
+glyphs never count toward the 7-per-row cap. The **red ❓** is present
+in Home screen mode and navigates to the screen's main help topic. A second,
 **white ❔** appears just to its left in two distinct behaviours,
 selected by `useLegend = (icons?.helpTopic in LEGEND_OVERLAY_TOPICS)
 && specs.isNotEmpty()`:
@@ -208,7 +212,9 @@ with no `RELATED_HOME_HELP` entry render no footer.
 - Every screen's `TitleBar` takes a `helpTopic: String` arg and
   publishes it (alongside the screen's action callbacks and title)
   into the bottom-bar state; the single `BottomIconBar` at AppNavHost
-  scope paints the strip and the help glyph(s). Tapping the red ❓
+  scope paints the strip and the help glyph(s). In Home bar mode,
+  `HomeIconBar` reads the same title-bar state and paints red help
+  plus trace in the persistent top strip instead. Tapping the red ❓
   navigates to `help/{topicId}`; the white ❔ either opens the live
   `IconLegendOverlay` (on `LEGEND_OVERLAY_TOPICS` screens) or
   navigates to `help/{topicId}_icons` (the static icon page).

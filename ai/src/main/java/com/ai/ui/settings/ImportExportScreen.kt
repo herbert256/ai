@@ -41,6 +41,7 @@ import com.ai.ui.shared.exportTimestamp
 import com.ai.ui.shared.parseCsvRow
 import com.ai.ui.shared.shareExport
 import com.ai.ui.shared.shareExportText
+import com.ai.viewmodel.AppHomeMode
 import com.ai.viewmodel.GeneralSettings
 import com.ai.viewmodel.ModelNameLayout
 import com.google.gson.JsonArray
@@ -329,6 +330,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("tracingEnabled", g.tracingEnabled)
     addProperty("fullScreen", g.fullScreen)
     addProperty("modelNameLayout", g.modelNameLayout.name)
+    addProperty("appHomeMode", g.appHomeMode.name)
     addProperty("uiCardBackgroundArgb", g.uiCardBackgroundArgb)
     addProperty("uiButtonBackgroundArgb", g.uiButtonBackgroundArgb)
     add("uiColorOverrides", JsonObject().apply {
@@ -402,6 +404,9 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
     val layout = str("modelNameLayout")?.let {
         runCatching { ModelNameLayout.valueOf(it) }.getOrNull()
     }
+    val appHomeMode = str("appHomeMode")?.let {
+        runCatching { AppHomeMode.valueOf(it) }.getOrNull()
+    }
     val uiColorOverrides: Map<String, Int>? = obj.getAsJsonObject("uiColorOverrides")?.let { o ->
         val m = LinkedHashMap<String, Int>()
         o.entrySet().forEach { (k, v) ->
@@ -433,6 +438,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         fullScreen = bool("fullScreen") ?: current.fullScreen,
         modelNameLayout = layout ?: current.modelNameLayout,
+        appHomeMode = appHomeMode ?: current.appHomeMode,
         uiCardBackgroundArgb = mergedUiColorOverrides["CardBackgroundAlt"] ?: current.uiCardBackgroundArgb,
         uiButtonBackgroundArgb = mergedUiColorOverrides["ButtonBackground"] ?: current.uiButtonBackgroundArgb,
         uiColorOverrides = mergedUiColorOverrides,

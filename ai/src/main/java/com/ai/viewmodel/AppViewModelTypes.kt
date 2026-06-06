@@ -106,6 +106,11 @@ enum class ModelNameLayout { MODEL_ONLY, PROVIDER_AND_MODEL }
  *  Defaults to NIGHT — the app's long-standing dark palette. */
 enum class UiColorMode { DAY, NIGHT, AUTO }
 
+/** Where the app-level Home entry lands. HOME_SCREEN preserves the
+ *  existing card hub; HOME_BAR replaces that hub with a persistent
+ *  top navigation strip and uses Home as a latest-report launcher. */
+enum class AppHomeMode { HOME_SCREEN, HOME_BAR }
+
 /** How a new report's title is set. MANUAL keeps the original
  *  behaviour — the user types a title in the New AI Report screen.
  *  AI hides the input field and a background LLM call (the bundled
@@ -171,6 +176,10 @@ data class GeneralSettings(
      *  chat headers, …) show only the model or both. Provided to the
      *  composition tree via LocalModelNameLayout in the AppNavHost. */
     val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY,
+    /** Home navigation mode. HOME_SCREEN keeps the existing large-card
+     *  Hub. HOME_BAR shows a persistent top icon bar on app screens and
+     *  makes Home open the latest report or the First launch screen. */
+    val appHomeMode: AppHomeMode = AppHomeMode.HOME_SCREEN,
     /** User-selected UI colours, edited under Settings → UI Colors.
      *  Stored as Android ARGB ints so they can round-trip through prefs
      *  without Compose/UI types in the view-model layer. */

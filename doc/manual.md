@@ -62,6 +62,15 @@ The home logo doubles as a one-tap shortcut to the most recent
 report's result page (or to the AI Reports hub when no report exists
 yet).
 
+Settings -> UI tweaks -> App home can switch Home into **Home bar**
+mode. In that mode the classic Home card screen is no longer the
+main navigation surface: a persistent top icon bar appears above the
+current title bar with shortcuts for Reports, Chat, Monitor, Setup,
+Housekeeping, Settings, trace, help, and About. Pressing Home opens
+the newest report directly on its Manage screen. If no report exists,
+Home opens **First launch**, with cards for **Import API keys**,
+**AI Setup**, **Housekeeping**, **Settings**, and **About**.
+
 ## Reports
 
 Reports are the killer feature. A report = one prompt run against many
