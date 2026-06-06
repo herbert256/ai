@@ -41,6 +41,8 @@ fun DependenciesScreen(onBack: () -> Unit) {
             title = "Dependencies",
             subject = "Active versions used by the app and the build",
             onBackClick = onBack,
+            // 📦 left glyph — matches the Dependencies card on the About page.
+            reportIcon = "📦",
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
         Column(
