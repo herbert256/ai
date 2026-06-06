@@ -37,7 +37,13 @@ internal fun FanOutStatsScreen(
     run: FanOutRunState,
     onBack: () -> Unit
 ) {
-    val stats = remember(run) { computeFanOutHttpStatusStats(run.pairs.values) }
+    val stats = remember(run) {
+        // The run id lives on the pairs (same source FanL1 uses for the 🐞
+        // deep-link); it's the tracer runId the retry interceptor recorded under.
+        val runId = run.pairs.values.firstNotNullOfOrNull { it.runId }
+        val retried = runId?.let { com.ai.data.RunRetryStats.retries429ForRun(it) } ?: emptyMap()
+        computeFanOutHttpStatusStats(run.pairs.values, retried)
+    }
     val subject = run.metaPrompt.title.takeIf { it.isNotBlank() }
         ?.let { "${run.metaPrompt.name} - $it" } ?: run.metaPrompt.name
 
@@ -58,6 +64,8 @@ internal fun FanOutStatsScreen(
             listOf(
                 Triple("Total", stats.totalPairs.toString(), AppColors.InfoAccent),
                 Triple("Models", stats.modelCount.toString(), AppColors.PrimaryAccent),
+                Triple("429↻", stats.totalRetried429.toString(),
+                    if (stats.totalRetried429 > 0) AppColors.WarningAccent else AppColors.TextDim),
                 Triple("No HTTP", stats.noHttpCount.toString(), noHttpColor(stats.noHttpCount))
             )
         )
@@ -74,6 +82,7 @@ internal fun FanOutStatsScreen(
                         HeaderCell("Total", 48.dp)
                         HeaderCell("200", 44.dp)
                         HeaderCell("429", 44.dp)
+                        HeaderCell("429↻", 50.dp)
                         HeaderCell("529", 44.dp)
                         HeaderCell("4xx", 44.dp)
                         HeaderCell("5xx", 44.dp)
@@ -107,6 +116,7 @@ private fun FanOutStatsRow(row: FanOutHttpStatusRow, modifier: Modifier = Modifi
         CountCell(c.total, 48.dp, AppColors.TextPrimary)
         CountCell(c.ok200, 44.dp, AppColors.SuccessAccent)
         CountCell(c.rate429, 44.dp, countColor(c.rate429, AppColors.WarningAccent))
+        CountCell(row.retried429, 50.dp, countColor(row.retried429, AppColors.WarningAccent))
         CountCell(c.overloaded529, 44.dp, countColor(c.overloaded529, AppColors.DangerAccent))
         CountCell(c.client4xx, 44.dp, countColor(c.client4xx, AppColors.WarningAccent))
         CountCell(c.server5xx, 44.dp, countColor(c.server5xx, AppColors.DangerAccent))

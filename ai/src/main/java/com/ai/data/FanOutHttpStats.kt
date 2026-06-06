@@ -17,7 +17,11 @@ data class FanOutHttpStatusCounts(
 data class FanOutHttpStatusRow(
     val providerId: String,
     val model: String,
-    val counts: FanOutHttpStatusCounts
+    val counts: FanOutHttpStatusCounts,
+    /** 429 responses RECEIVED for this model during the run and then retried
+     *  (so they usually don't show in [counts], whose pairs ended 200). From
+     *  [RunRetryStats]. */
+    val retried429: Int = 0
 ) {
     val modelKey: String get() = "$providerId|$model"
 }
@@ -26,10 +30,17 @@ data class FanOutHttpStatusStats(
     val totalPairs: Int,
     val modelCount: Int,
     val noHttpCount: Int,
+    val totalRetried429: Int,
     val rows: List<FanOutHttpStatusRow>
 )
 
-fun computeFanOutHttpStatusStats(pairs: Collection<PairState>): FanOutHttpStatusStats {
+/** [retried429ByModel]: "providerId|model" → count of 429s seen + retried for
+ *  this run (from [RunRetryStats]); surfaced separately because such pairs
+ *  usually end 200 and so are invisible in the final-status counts. */
+fun computeFanOutHttpStatusStats(
+    pairs: Collection<PairState>,
+    retried429ByModel: Map<String, Int> = emptyMap()
+): FanOutHttpStatusStats {
     val grouped = LinkedHashMap<String, MutableFanOutHttpStatusCounts>()
     pairs.forEach { pair ->
         val key = "${pair.providerId}|${pair.model}"
@@ -38,8 +49,9 @@ fun computeFanOutHttpStatusStats(pairs: Collection<PairState>): FanOutHttpStatus
     }
     val rows = grouped.values
         .map { it.toRow() }
+        .map { it.copy(retried429 = retried429ByModel[it.modelKey] ?: 0) }
         .sortedWith(
-            compareByDescending<FanOutHttpStatusRow> { it.counts.non200 }
+            compareByDescending<FanOutHttpStatusRow> { it.counts.non200 + it.retried429 }
                 .thenBy { it.model.lowercase() }
                 .thenBy { it.providerId.lowercase() }
         )
@@ -47,6 +59,7 @@ fun computeFanOutHttpStatusStats(pairs: Collection<PairState>): FanOutHttpStatus
         totalPairs = rows.sumOf { it.counts.total },
         modelCount = rows.size,
         noHttpCount = rows.sumOf { it.counts.noHttp },
+        totalRetried429 = rows.sumOf { it.retried429 },
         rows = rows
     )
 }
