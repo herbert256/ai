@@ -389,7 +389,7 @@ internal fun AgentIconDetailOverlay(
             onContinueChat = null,
             onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
-            promptName = iconPrompt?.name ?: "model-icons",
+            promptName = iconPrompt?.let { "${it.category}/${it.name}" } ?: "workers/model-icons",
             onEditPrompt = iconPrompt?.id?.let { id -> { editPrompt(id) } },
             onReload = currentReportId?.let { rid ->
                 { regenerate(rid, com.ai.viewmodel.MetaRegenKind.MODEL_ICON, agentId) }
@@ -738,7 +738,7 @@ internal fun RenderLanguageDetectDetailOverlay(
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
-            promptName = namePrompt.name,
+            promptName = "${namePrompt.category}/${namePrompt.name}",
             onEditPrompt = { editPrompt(namePrompt.id) },
             onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.LANGUAGE_NAME, null) },
             onBack = onBack
@@ -840,7 +840,7 @@ internal fun RenderLanguageDetailOverlay(
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
-            promptName = languagePrompt.name,
+            promptName = "${languagePrompt.category}/${languagePrompt.name}",
             onEditPrompt = { editPrompt(languagePrompt.id) },
             onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.LANGUAGE_ICON, null) },
             onBack = onBack
@@ -968,7 +968,7 @@ internal fun ReportIconOrLanguageDetailOverlay(
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
-            promptName = iconPrompt.name,
+            promptName = "${iconPrompt.category}/${iconPrompt.name}",
             onEditPrompt = { editPrompt(iconPrompt.id) },
             onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.REPORT_ICON, null) },
             onBack = onClose

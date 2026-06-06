@@ -360,7 +360,7 @@ private fun SingleTitleEditScreen(
                 model = model.substringAfter('/', ""),
                 cost = cost,
                 apiInteraction = buildOneShotApiInteraction(resolved, response),
-                promptName = template?.name ?: titlePromptName,
+                promptName = template?.let { "${it.category}/${it.name}" } ?: "workers/$titlePromptName",
                 promptId = template?.id.orEmpty()
             )
         }
@@ -461,7 +461,7 @@ fun ReportEditModelTitleScreen(
                 model = model.substringAfter('/', ""),
                 cost = cost,
                 apiInteraction = buildOneShotApiInteraction(resolved, agent.modelTitle),
-                promptName = template?.name ?: "model-titles",
+                promptName = template?.let { "${it.category}/${it.name}" } ?: "workers/model-titles",
                 promptId = template?.id.orEmpty()
             )
         }
