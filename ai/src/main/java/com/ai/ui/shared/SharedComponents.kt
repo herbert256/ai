@@ -2011,7 +2011,7 @@ fun HomeIconBar(
             // Full screen: keep the icons below a top camera punch-hole.
             .then(if (fullScreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top)) else Modifier)
             .background(AppColors.AppBackground)
-            .padding(start = 0.dp, end = 0.dp, top = 5.dp, bottom = 4.dp),
+            .padding(start = 6.dp, end = 0.dp, top = 5.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -2037,7 +2037,7 @@ fun HomeIconBar(
         // gap BETWEEN them is just this inner row's (small) spacing.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
             TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 26.sp)
-            AiLogoButton(onClick = onAbout, size = 44.dp, contentDescription = "About")
+            AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
         }
     }
 }
