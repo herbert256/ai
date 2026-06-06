@@ -2031,7 +2031,9 @@ fun HomeIconBar(
         // SpaceBetween gap. ❓ uses a narrow box and is nudged right toward the
         // flush-right logo to close the gap further.
         add {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+            // Nudge the whole pair left a touch → a little less space before ❓
+            // (the Help↔logo gap is unchanged since they move together).
+            Row(modifier = Modifier.offset(x = (-6).dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                 TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 28.dp, heightDp = h, fontSize = 26.sp)
                 AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
             }
