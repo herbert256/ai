@@ -2062,7 +2062,7 @@ fun HomeIconBar(
             modifier = modifier
                 .fillMaxWidth()
                 .background(AppColors.AppBackground)
-                .padding(start = 6.dp, end = 0.dp, top = 5.dp, bottom = 4.dp),
+                .padding(start = 10.dp, end = 0.dp, top = 5.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) { slots.forEach { it() } }
@@ -2092,7 +2092,7 @@ fun HomeIconBar(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.width(with(density) { leftWpx.toDp() })) {
                     Row(
-                        Modifier.fillMaxWidth().padding(start = 6.dp),
+                        Modifier.fillMaxWidth().padding(start = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) { slots.take(nLeft).forEach { it() } }
