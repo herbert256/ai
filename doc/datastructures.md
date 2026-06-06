@@ -931,6 +931,7 @@ Computed:
 | auditLogEnabled | `Boolean` (default true) | master switch for per-report audit-log writes |
 | fullScreen | `Boolean` (default false) | hides the Android status bar when enabled |
 | modelNameLayout | `ModelNameLayout` | `MODEL_ONLY` (default) or `PROVIDER_AND_MODEL` |
+| appHomeMode | `AppHomeMode` | `HOME_SCREEN` (default) keeps the classic Home hub; `HOME_BAR` shows the persistent top Home bar and makes Home open the latest report Manage screen or First launch |
 | uiCardBackgroundArgb, uiButtonBackgroundArgb | `Int` | legacy single-color mirrors for card/button customization |
 | uiColorOverrides, uiColorOverridesDay | `Map<String, Int>` | ARGB overrides for functional `AppColors` roles (dark + day variants); see [ui-customization.md](ui-customization.md) |
 | metadataEnabled | `Boolean` (default true) | grand-master switch for optional metadata generation |

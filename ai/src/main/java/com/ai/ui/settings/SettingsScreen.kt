@@ -21,6 +21,7 @@ import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
+import com.ai.viewmodel.AppHomeMode
 import com.ai.viewmodel.DEFAULT_UI_BUTTON_BACKGROUND_ARGB
 import com.ai.viewmodel.DEFAULT_UI_CARD_BACKGROUND_ARGB
 import com.ai.viewmodel.GeneralSettings
@@ -1395,6 +1396,7 @@ private fun UiTweaksSubScreen(
     onNavigateHome: () -> Unit
 ) {
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
+    var appHomeMode by remember { mutableStateOf(generalSettings.appHomeMode) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
     var fullScreen by remember { mutableStateOf(generalSettings.fullScreen) }
     var showLadybugIcons by remember { mutableStateOf(generalSettings.showLadybugIcons) }
@@ -1402,13 +1404,14 @@ private fun UiTweaksSubScreen(
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
+        appHomeMode = appHomeMode,
         showKnowledgeCard = showKnowledgeCard,
         fullScreen = fullScreen,
         showLadybugIcons = showLadybugIcons,
         experimentalFeaturesEnabled = experimentalFeatures
     )
 
-    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, showLadybugIcons, experimentalFeatures) {
+    LaunchedEffect(modelNameLayout, appHomeMode, showKnowledgeCard, fullScreen, showLadybugIcons, experimentalFeatures) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1427,6 +1430,20 @@ private fun UiTweaksSubScreen(
     ) {
         TitleBar(helpTopic = "settings_ui", title = "UI tweaks", subject = "Visual and layout preferences", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingCard("App home", "Choose whether Home uses the classic card hub or the persistent top icon bar.", MetadataDefaults.HOME) {
+                Column {
+                    RadioRow(
+                        selected = appHomeMode == AppHomeMode.HOME_SCREEN,
+                        label = "Home screen",
+                        onClick = { appHomeMode = AppHomeMode.HOME_SCREEN }
+                    )
+                    RadioRow(
+                        selected = appHomeMode == AppHomeMode.HOME_BAR,
+                        label = "Home bar",
+                        onClick = { appHomeMode = AppHomeMode.HOME_BAR }
+                    )
+                }
+            }
             SettingCard("Model name layout", "How model labels render across rows and pickers.", MetadataDefaults.LABEL) {
                 Column {
                     RadioRow(

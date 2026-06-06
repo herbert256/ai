@@ -16,7 +16,7 @@ They surface across **three** screens under **Settings**:
 
 | Settings nav card | Sub-screen | Help topic | What it edits |
 |---|---|---|---|
-| **UI tweaks** | `SETTINGS_UI` | `settings_ui` | Model-name layout, Experimental features, Full-screen |
+| **UI tweaks** | `SETTINGS_UI` | `settings_ui` | App home, Model-name layout, Experimental features, Full-screen |
 | **UI Colors** | `SETTINGS_UI_COLORS` | `settings_ui_colors` | **Colors mode** (Day / Night / Auto) at the top, then the Day and Night colour sets (`AppColors` role overrides) |
 | **Default icons** | `SETTINGS_DEFAULT_ICONS` | `settings_default_icons` | Every fallback / bottom-bar emoji (`MetadataIcons`) |
 

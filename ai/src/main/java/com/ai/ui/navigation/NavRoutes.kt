@@ -4,6 +4,7 @@ import java.net.URLEncoder
 
 object NavRoutes {
     const val AI = "ai"
+    const val AI_FIRST_LAUNCH = "ai_first_launch"
     const val SETTINGS = "settings"
     const val SETTINGS_PROVIDER_EDIT = "settings_provider_edit/{providerId}"
     const val SETTINGS_AGENT_EDIT = "settings_agent_edit/{agentId}"

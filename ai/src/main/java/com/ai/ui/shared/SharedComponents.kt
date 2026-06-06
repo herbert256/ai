@@ -1747,6 +1747,7 @@ internal fun AiLogoButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: Dp = 52.dp,
+    contentDescription: String = "Home",
     /** Horizontally flip the glyph so the right-edge logo is a mirror
      *  image of the left-edge one. */
     mirrored: Boolean = false
@@ -1754,7 +1755,7 @@ internal fun AiLogoButton(
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Image(
         painter = painterResource(R.drawable.brand_glyph),
-        contentDescription = "Home",
+        contentDescription = contentDescription,
         modifier = modifier.size(size)
             .then(if (mirrored) Modifier.graphicsLayer(scaleX = -1f) else Modifier)
             .clickable(
@@ -1829,7 +1830,11 @@ private data class BottomBarIcon(
 /** Ordered list of the action icons currently present (❓ help is kept
  *  separate by [BottomIconBar] so it can stay pinned bottom-right).
  *  Order is fixed; only the non-null callbacks contribute. */
-private fun buildBottomBarIcons(icons: TitleBarIcons, mi: com.ai.data.MetadataIcons): List<BottomBarIcon> = buildList {
+private fun buildBottomBarIcons(
+    icons: TitleBarIcons,
+    mi: com.ai.data.MetadataIcons,
+    includeScreenTrace: Boolean = true
+): List<BottomBarIcon> = buildList {
     val D = com.ai.data.MetadataDefaults
     // Glyph for the add slot: the screen's per-screen override (e.g. 🔗 Meta on
     // Manage report) when set, else the user's Default-icons 🆕. legendKey =
@@ -1923,8 +1928,49 @@ private fun buildBottomBarIcons(icons: TitleBarIcons, mi: com.ai.data.MetadataIc
     // off "Show Ladybug icons" (traces are then reached from the API Traces
     // screen instead, via the Monitor-nav 🐞 which stays). The Monitor-section
     // jump group's 🐞 is separate and unaffected.
-    if (com.ai.data.ApiTracer.showLadybugIcons) {
+    if (includeScreenTrace && com.ai.data.ApiTracer.showLadybugIcons) {
         icons.onTrace?.let { add(BottomBarIcon(mi.traces, Color.Unspecified, it, 22, legendKey = D.TRACES)) }
+    }
+}
+
+@Composable
+fun HomeIconBar(
+    icons: TitleBarIcons?,
+    onReports: () -> Unit,
+    onChat: () -> Unit,
+    onMonitor: () -> Unit,
+    onSetup: () -> Unit,
+    onHousekeeping: () -> Unit,
+    onSettings: () -> Unit,
+    onTraceFallback: () -> Unit,
+    onHelpFallback: () -> Unit,
+    onAbout: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val mi = LocalMetadataIcons.current
+    val traceAction = icons?.onTrace ?: onTraceFallback
+    val helpAction = icons?.onHelp ?: onHelpFallback
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(AppColors.CardBackground)
+            .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = 28.dp, heightDp = 28, fontSize = 17.sp)
+        TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = 28.dp, heightDp = 28, fontSize = 17.sp)
+        TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = 28.dp, heightDp = 28, fontSize = 17.sp)
+        TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = 28.dp, heightDp = 28, fontSize = 17.sp)
+        TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = 28.dp, heightDp = 28, fontSize = 17.sp)
+        TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = 28.dp, heightDp = 28, fontSize = 17.sp)
+        if (com.ai.data.ApiTracer.ladybugLinksEnabled) {
+            TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = 28.dp, heightDp = 28, fontSize = 16.sp)
+        } else {
+            Spacer(Modifier.width(28.dp))
+        }
+        TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 28.dp, heightDp = 28, fontSize = 16.sp)
+        AiLogoButton(onClick = onAbout, size = 28.dp, contentDescription = "About")
     }
 }
 
@@ -2025,7 +2071,11 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
 )
 
 @Composable
-fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
+fun BottomIconBar(
+    icons: TitleBarIcons?,
+    modifier: Modifier = Modifier,
+    suppressScreenTraceAndHelp: Boolean = false
+) {
     // Non-null on the non-View screens (regular TitleBar) — flips the
     // bar into the help layout: strip left-aligned, ❓ pinned right.
     val onHelp = icons?.onHelp
@@ -2042,7 +2092,12 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         }
     } ?: 0f
     val barIcons = LocalMetadataIcons.current
-    val specs = if (icons != null) buildBottomBarIcons(icons, barIcons) else emptyList()
+    val specs = if (icons != null) {
+        buildBottomBarIcons(icons, barIcons, includeScreenTrace = !suppressScreenTraceAndHelp)
+    } else {
+        emptyList()
+    }
+    if (suppressScreenTraceAndHelp && specs.isEmpty() && costText == null) return
     val navigateHelp = LocalNavigateToHelp.current
     // On allowlisted screens the white ❓ opens a live icon-legend overlay
     // (this screen's visible bar icons) instead of the help page. The
@@ -2101,6 +2156,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         val showLegendHelp = useLegend
         val showIconPageHelp = !useLegend && iconTopic != null && specs.size > 3
         val showSecondHelp = showLegendHelp || showIconPageHelp
+        val showScreenHelp = !suppressScreenTraceAndHelp
         val cell = 24                       // uniform column width (dp) — tight spacing
         // Fill rows of up to 7, but put the SMALLEST (remainder) row on
         // TOP so the full rows sit at the bottom. ❓ pins to the right of
@@ -2117,7 +2173,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         val costReserve = if (costText != null) costText.length * costBaseSp * 0.62f + 16f else 0f
         fun rowWidth(count: Int, withHelp: Boolean, withCost: Boolean) =
             (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat() +
-                (if (withHelp) helpGap + helpW * (if (showSecondHelp) 2 else 1) else 0f) +
+                (if (withHelp) {
+                    val helpCount = (if (showSecondHelp) 1 else 0) + (if (showScreenHelp) 1 else 0)
+                    if (helpCount > 0) helpGap + helpW * helpCount else 0f
+                } else 0f) +
                 (if (withCost) costReserve else 0f)
         val widest = rows.mapIndexed { i, r ->
             rowWidth(r.size, i == rows.lastIndex, i == 0)
@@ -2157,8 +2216,11 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                             // White ❔ → static icon-table help page.
                             TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
                         }
-                        // Red ❓ → the screen's help page (unchanged).
-                        TitleBarIcon(barIcons.help, AppColors.InfoAccent, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
+                        // Red ❓ → the screen's help page. Home bar mode
+                        // moves this action to the persistent top bar.
+                        if (showScreenHelp) {
+                            TitleBarIcon(barIcons.help, AppColors.InfoAccent, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
+                        }
                     }
                 }
             }

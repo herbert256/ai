@@ -14,6 +14,7 @@ import com.ai.data.normalizeUsageKind
 import com.ai.data.writeTextAtomic
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.viewmodel.AppHomeMode
 import com.ai.viewmodel.GeneralSettings
 import com.ai.viewmodel.ModelNameLayout
 import com.ai.viewmodel.PromptHistoryEntry
@@ -72,6 +73,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val modelNameLayout = layoutName?.let {
             try { ModelNameLayout.valueOf(it) } catch (_: Exception) { null }
         } ?: ModelNameLayout.MODEL_ONLY
+        val homeModeName = prefs.getString(KEY_APP_HOME, null)
+        val appHomeMode = homeModeName?.let {
+            try { AppHomeMode.valueOf(it) } catch (_: Exception) { null }
+        } ?: AppHomeMode.HOME_SCREEN
         val titleModeName = prefs.getString(KEY_REPORT_TITLE_MODE, null)
         val reportTitleMode = titleModeName?.let {
             try { com.ai.viewmodel.ReportTitleMode.valueOf(it) } catch (_: Exception) { null }
@@ -95,6 +100,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             usageStatsEnabled = prefs.getBoolean(KEY_USAGE_STATS_ENABLED, true),
             fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
             modelNameLayout = modelNameLayout,
+            appHomeMode = appHomeMode,
             uiCardBackgroundArgb = uiColorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
             uiButtonBackgroundArgb = uiColorOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
             uiColorOverrides = uiColorOverrides,
@@ -172,6 +178,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_USAGE_STATS_ENABLED, settings.usageStatsEnabled)
             putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
+            putString(KEY_APP_HOME, settings.appHomeMode.name)
             putInt(KEY_UI_CARD_BACKGROUND_ARGB, cardBackgroundArgb)
             putInt(KEY_UI_BUTTON_BACKGROUND_ARGB, buttonBackgroundArgb)
             putString(KEY_UI_COLOR_OVERRIDES, gson.toJson(uiColorOverrides))
@@ -1003,6 +1010,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_LOGGING_MASTER_ENABLED = "logging_master_enabled"
         private const val KEY_FULL_SCREEN = "full_screen"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
+        private const val KEY_APP_HOME = "app_home"
         private const val KEY_UI_CARD_BACKGROUND_ARGB = "ui_card_background_argb"
         private const val KEY_UI_BUTTON_BACKGROUND_ARGB = "ui_button_background_argb"
         private const val KEY_UI_COLOR_OVERRIDES = "ui_color_overrides"

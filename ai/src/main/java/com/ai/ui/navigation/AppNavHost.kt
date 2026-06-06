@@ -278,6 +278,12 @@ fun AppNavHost(
         if (topic.isNullOrBlank()) navController.navigate(NavRoutes.HELP)
         else navController.navigate(NavRoutes.helpForTopic(topic))
     }
+    val homeBarEnabled = rootUiStateForLayout.generalSettings.appHomeMode == AppHomeMode.HOME_BAR
+    val navigateHomeBarRoute: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            launchSingleTop = true
+        }
+    }
     // The bottom icon bar is now the fixed layout (the old top-bar
     // alternative has been retired) — every TitleBar publishes its
     // action icons here, and AppNavHost paints the bar at the bottom
@@ -433,6 +439,20 @@ fun AppNavHost(
         com.ai.ui.shared.LocalNavigateToRoute provides { route -> navController.navigate(route) }
     ) {
     Column(modifier = Modifier.fillMaxSize()) {
+    if (homeBarEnabled) {
+        com.ai.ui.shared.HomeIconBar(
+            icons = bottomBarIconState.value,
+            onReports = { navigateHomeBarRoute(NavRoutes.AI_REPORTS_HUB) },
+            onChat = { navigateHomeBarRoute(NavRoutes.AI_CHATS_HUB) },
+            onMonitor = { navigateHomeBarRoute(NavRoutes.AI_MONITOR) },
+            onSetup = { navigateHomeBarRoute(NavRoutes.AI_SETUP) },
+            onHousekeeping = { navigateHomeBarRoute(NavRoutes.AI_HOUSEKEEPING) },
+            onSettings = { navigateHomeBarRoute(NavRoutes.SETTINGS) },
+            onTraceFallback = { navigateHomeBarRoute(NavRoutes.TRACE_LIST) },
+            onHelpFallback = { navigateHomeBarRoute(NavRoutes.HELP) },
+            onAbout = { navigateHomeBarRoute(NavRoutes.ABOUT) }
+        )
+    }
     NavHost(
         navController = navController,
         startDestination = NavRoutes.AI,
@@ -460,7 +480,10 @@ fun AppNavHost(
         currentRoute != NavRoutes.HELP_FOR_TOPIC
     ) {
         // Help screens never have a bottom bar.
-        com.ai.ui.shared.BottomIconBar(icons = bottomBarIconState.value)
+        com.ai.ui.shared.BottomIconBar(
+            icons = bottomBarIconState.value,
+            suppressScreenTraceAndHelp = homeBarEnabled
+        )
     }
     } // end Column
     } // end CompositionLocalProvider
