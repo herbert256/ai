@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import kotlin.math.roundToInt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -1982,11 +1983,12 @@ fun HomeIconBar(
     onTraceFallback: () -> Unit,
     onHelpFallback: () -> Unit,
     onAbout: () -> Unit,
-    /** When the "Full screen" setting hides the status bar, the bar sits at the
-     *  very top edge under any camera punch-hole — pad its top by the display
-     *  cutout so no icon lands on the hole. No-op (inset = 0) when there's no
-     *  cutout, and not needed when the status bar is visible (the Scaffold
-     *  already insets below it). */
+    /** When the "Full screen" setting hides the status bar, the bar uses the
+     *  freed space by sitting at the very top edge. If there's a top camera
+     *  punch-hole, the icons split into a left + right group with a gap over
+     *  the hole's detected position (platform DisplayCutout, no hardcoding) so
+     *  no icon hides behind the camera. No effect when the status bar is
+     *  visible (the Scaffold already insets content below it). */
     fullScreen: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -2005,33 +2007,9 @@ fun HomeIconBar(
     // HOME_BAR mode (suppressCopyShare) so they aren't shown twice.
     val onCopy = icons?.onCopy
     val onShare = icons?.onShare
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            // Full screen: keep the icons below a top camera punch-hole.
-            .then(if (fullScreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top)) else Modifier)
-            .background(AppColors.AppBackground)
-            .padding(start = 6.dp, end = 0.dp, top = 5.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        // AI Setup leads the bar.
-        TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs)
-        TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs)
-        TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs)
-        TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs)
-        TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs)
-        if (com.ai.data.ApiTracer.ladybugLinksEnabled) {
-            TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 26.sp)
-        } else {
-            Spacer(Modifier.width(w))
-        }
-        TitleBarIcon(mi.copy, Color.Unspecified, onCopy ?: {}, width = w, heightDp = h, fontSize = fs,
-            alpha = if (onCopy != null) 1f else 0.35f)
-        TitleBarIcon(mi.share, Color.Unspecified, onShare ?: {}, width = w, heightDp = h, fontSize = fs,
-            alpha = if (onShare != null) 1f else 0.35f)
-        // Settings sits just before Help.
-        TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs)
+    // The icon slots, built once so they can be laid out as one full-width
+    // row (normal) or split around a camera punch-hole (full screen).
+    val helpAboutPair: @Composable () -> Unit = {
         // Help + the (bigger) About AI logo are a tight pair at the right edge:
         // grouping them makes SpaceBetween treat the pair as one item, so the
         // gap BETWEEN them is just this inner row's (small) spacing.
@@ -2039,6 +2017,91 @@ fun HomeIconBar(
             // Narrow box for ❓ so little space is reserved on either side of it.
             TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 24.dp, heightDp = h, fontSize = 26.sp)
             AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
+        }
+    }
+    val slots: List<@Composable () -> Unit> = listOf(
+        // AI Setup leads the bar.
+        { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs) },
+        { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs) },
+        { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) },
+        { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) },
+        { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs) },
+        {
+            if (com.ai.data.ApiTracer.ladybugLinksEnabled)
+                TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 26.sp)
+            else Spacer(Modifier.width(w))
+        },
+        { TitleBarIcon(mi.copy, Color.Unspecified, onCopy ?: {}, width = w, heightDp = h, fontSize = fs, alpha = if (onCopy != null) 1f else 0.35f) },
+        { TitleBarIcon(mi.share, Color.Unspecified, onShare ?: {}, width = w, heightDp = h, fontSize = fs, alpha = if (onShare != null) 1f else 0.35f) },
+        // Settings sits just before Help.
+        { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) },
+        helpAboutPair,
+    )
+
+    // Detect the top camera cutout (punch-hole) at runtime via the platform
+    // DisplayCutout — no hardcoded position, so centre / corner / no-cutout
+    // all work. Only consulted in full screen: otherwise the status bar
+    // covers the hole and the Scaffold already insets content below it.
+    // `cutoutTopPx` (a reactive Compose inset) is the recompute trigger so
+    // the rect is picked up as soon as the window reports it.
+    val density = LocalDensity.current
+    val context = LocalContext.current
+    val cutoutTopPx = WindowInsets.displayCutout.getTop(density)
+    val holeRect: android.graphics.Rect? = remember(fullScreen, cutoutTopPx) {
+        if (!fullScreen || cutoutTopPx <= 0) null
+        else (context as? android.app.Activity)?.window?.decorView?.rootWindowInsets
+            ?.displayCutout?.boundingRectTop?.takeIf { !it.isEmpty }
+    }
+
+    if (holeRect == null) {
+        // Normal full-width bar. In full screen with no cutout this already
+        // sits at the freed top edge (the Scaffold drops the status-bar inset).
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(AppColors.AppBackground)
+                .padding(start = 6.dp, end = 0.dp, top = 5.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) { slots.forEach { it() } }
+    } else {
+        // Full screen WITH a top camera hole: sit at the very top edge (use
+        // the freed space) and split the icons into a left + right group with
+        // a gap exactly over the hole, so no icon hides behind the camera.
+        // Each side gets a share of the icons proportional to its free width,
+        // so a centred hole splits ~evenly and a corner hole keeps (almost)
+        // every icon on the roomy side.
+        BoxWithConstraints(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(AppColors.AppBackground)
+                .padding(top = 5.dp, bottom = 4.dp)
+        ) {
+            val totalWpx = with(density) { maxWidth.toPx() }
+            val marginPx = with(density) { 6.dp.toPx() }
+            val leftWpx = (holeRect.left - marginPx).coerceAtLeast(0f)
+            val rightWpx = (totalWpx - (holeRect.right + marginPx)).coerceAtLeast(0f)
+            val gapWpx = (totalWpx - leftWpx - rightWpx).coerceAtLeast(0f)
+            val n = slots.size
+            val nLeft = if (leftWpx + rightWpx <= 0f) n
+                else (n * (leftWpx / (leftWpx + rightWpx))).roundToInt().coerceIn(0, n)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.width(with(density) { leftWpx.toDp() })) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) { slots.take(nLeft).forEach { it() } }
+                }
+                Spacer(Modifier.width(with(density) { gapWpx.toDp() }))
+                Box(Modifier.width(with(density) { rightWpx.toDp() })) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) { slots.drop(nLeft).forEach { it() } }
+                }
+            }
         }
     }
 }
