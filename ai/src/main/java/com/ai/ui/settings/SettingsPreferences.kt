@@ -95,8 +95,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
-            loggingMasterEnabled = prefs.getBoolean(KEY_LOGGING_MASTER_ENABLED, false),
+            loggingMasterEnabled = prefs.getBoolean(KEY_LOGGING_MASTER_ENABLED, true),
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
+            auditLogEnabled = prefs.getBoolean(KEY_AUDIT_LOG_ENABLED, false),
             usageStatsEnabled = prefs.getBoolean(KEY_USAGE_STATS_ENABLED, true),
             fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, true),
             modelNameLayout = modelNameLayout,
@@ -175,6 +176,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
             putBoolean(KEY_LOGGING_MASTER_ENABLED, settings.loggingMasterEnabled)
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
+            putBoolean(KEY_AUDIT_LOG_ENABLED, settings.auditLogEnabled)
             putBoolean(KEY_USAGE_STATS_ENABLED, settings.usageStatsEnabled)
             putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
@@ -1006,6 +1008,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
+        private const val KEY_AUDIT_LOG_ENABLED = "audit_log_enabled"
         private const val KEY_USAGE_STATS_ENABLED = "usage_stats_enabled"
         private const val KEY_LOGGING_MASTER_ENABLED = "logging_master_enabled"
         private const val KEY_FULL_SCREEN = "full_screen"

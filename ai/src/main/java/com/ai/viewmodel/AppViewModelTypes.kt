@@ -155,10 +155,10 @@ data class GeneralSettings(
      *  only from the API Traces screen — tracing itself stays on. Mirrors to
      *  [com.ai.data.ApiTracer.showLadybugIcons]. */
     val showLadybugIcons: Boolean = true,
-    /** When true (default) the per-report audit log records every mutating
-     *  action, batch start/end and API call. Turn off to stop all audit
-     *  writes. Mirrors to [com.ai.data.AuditLog.enabled]. */
-    val auditLogEnabled: Boolean = true,
+    /** The per-report audit log records every mutating action, batch
+     *  start/end and API call. Defaults to false — turn on to record the
+     *  audit trail. Mirrors to [com.ai.data.AuditLog.enabled]. */
+    val auditLogEnabled: Boolean = false,
     /** When true (default) cumulative usage statistics — per-provider /
      *  per-model token counts and costs surfaced under AI Usage / Statistics
      *  and the Live Dashboard — are accumulated on every API call. Turn off
