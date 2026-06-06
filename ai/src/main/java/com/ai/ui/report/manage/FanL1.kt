@@ -79,6 +79,7 @@ internal fun FanOutL1Screen(
     onLaunchFanMeta: (FanOutRunKey) -> Unit = {},
     onShowFanMeta: () -> Unit = {},
     onOpenModel: (String) -> Unit,
+    onOpenStats: () -> Unit = {},
     onBack: () -> Unit
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
@@ -133,6 +134,7 @@ internal fun FanOutL1Screen(
             onReload = { confirmRerunComplete = true },
             onTrace = if (l1RunId != null && com.ai.data.ApiTracer.ladybugLinksEnabled)
                 { { actions.onNavigateToTraceRunList(l1RunId) } } else null,
+            onStats = if (run.allTerminal && run.totalPairs > 0) onOpenStats else null,
             onDelete = { confirmDelete = true },
             onAdd = actions.onCreateNewFanOut,
             onAddNote = { noteEdit = NoteEdit.Add }

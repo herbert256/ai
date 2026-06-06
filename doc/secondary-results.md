@@ -32,7 +32,7 @@ carry `kind = META` but are distinguished by structure:
 type shared by all seven kinds. Common fields: `id`, `reportId`,
 `kind`, `providerId`, `model`, `agentName`, `timestamp`, `content`,
 `errorMessage`, `tokenUsage`, `inputCost` / `outputCost`,
-`durationMs`, `traceFile`. Kind-specific clusters layer on top
+`durationMs`, `httpStatusCode`, `traceFile`. Kind-specific clusters layer on top
 (TRANSLATE language fields, META `metaPromptId` / `metaPromptName` /
 `fanOutSourceAgentId` / `fanInOf` / `secondaryScope`, per-pair
 Fan-Meta `icon` / `title` fields, TOURNAMENT `tournamentRole` /
@@ -453,10 +453,17 @@ Fan-out is owned by **`FanOutEngine`**
 
 - The **UI** lives under `ui/report/manage/`: `Fan.kt`
   (`FanOutScreen` parent + the `FanOutNav` sealed class) plus
-  `FanL1.kt` / `FanL2.kt` / `FanL3.kt`. The parent holds the nav state
+  `FanL1.kt` / `FanL2.kt` / `FanL3.kt` / `FanStats.kt`. The parent holds the nav state
   in `rememberSaveable`; the back-stack survives rotation. Each level
   subscribes to `engine.runs.collectAsState()` and renders the current
   snapshot — no polling, no merging of disk + StateFlow.
+
+- Each persisted Fan-out pair stores the final HTTP status code from
+  its worker call when one exists. Once L1 is terminal, its 📈 action
+  opens Fan out statistics: rows are grouped by answerer
+  provider+model, then bucketed into `200`, `429`, `529`, other `4xx`,
+  other `5xx`, `Other`, and `No HTTP`. These are final saved outcomes,
+  not per-retry attempt counts.
 
 - **Fan Out and Fan Meta are two fully separate screens.** Fan Out
   (responses) is `FanOutScreen` + `FanL1/L2/L3`; Fan Meta (titles +

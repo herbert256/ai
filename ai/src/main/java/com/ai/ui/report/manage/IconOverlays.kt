@@ -650,6 +650,90 @@ internal fun TranslationIconDetailOverlay(
     }
 }
 
+/**
+ * Read-only detail for the **language DETECTION** Get-info row — the
+ * `report-language-name` call that derives the report's language from its
+ * prompt. Distinct from [RenderLanguageDetailOverlay], which shows the
+ * follow-up icon call. Detection has no emoji to find/apply, so the screen
+ * reuses [IconLookupScreen] purely as a renderer (no Find-alternative /
+ * apply buttons) with the detected language name standing in for the glyph.
+ */
+@Composable
+internal fun RenderLanguageDetectDetailOverlay(
+    reportId: String,
+    aiSettings: com.ai.model.Settings,
+    promptText: String,
+    effectiveReportIcon: String?,
+    loadedReportTitle: String?,
+    iconRefreshTick: Int,
+    onNavigateToTraceFile: (String) -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit,
+    continueChat: ContinueChatCallbacks?,
+    onBack: () -> Unit,
+) {
+    val namePrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "workers" && it.name == "report-language-name"
+    } ?: return
+    val nameAgent = namePrompt.workers.firstNotNullOfOrNull {
+        aiSettings.resolveWorker(it)
+    } ?: return
+    val context = LocalContext.current
+    data class DetectSnapshot(
+        val name: String?, val model: String?, val rawResponse: String?,
+        val cost: Double, val traceFile: String?
+    )
+    val snapshot = produceState(initialValue = DetectSnapshot(null, null, null, 0.0, null), reportId, iconRefreshTick) {
+        value = withContext(Dispatchers.IO) {
+            val r = com.ai.data.ReportStorage.getReport(context, reportId)
+            DetectSnapshot(
+                r?.languageName, r?.languageModel, r?.languageRawResponse,
+                (r?.languageInputCost ?: 0.0) + (r?.languageOutputCost ?: 0.0),
+                r?.languageTraceFile
+            )
+        }
+    }.value
+    CompositionLocalProvider(
+        com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+        com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+        LocalNavigateToCurrentReport provides onBack
+    ) {
+        val infoTarget = resolveInfoTarget(snapshot.model, nameAgent, aiSettings)
+        // report-language-name takes @PROMPT@ = the report prompt and replies
+        // with a `language: …` line.
+        val resolvedPrompt = namePrompt.text.replace("@PROMPT@", promptText)
+        val provider = snapshot.model?.split("/", limit = 2)?.firstOrNull()
+            ?.let { AppService.findById(it) } ?: nameAgent.provider
+        val modelId = snapshot.model?.split("/", limit = 2)?.getOrNull(1)
+            ?: aiSettings.getEffectiveModelForAgent(nameAgent)
+        IconLookupScreen(IconLookupContext(
+            helpTopic = "icon_lookup_language",
+            title = "Language detection",
+            subject = "language-name",
+            provider = provider,
+            model = modelId,
+            pricingTier = "",
+            cost = snapshot.cost,
+            apiInteraction = buildOneShotApiInteraction(
+                resolvedPrompt,
+                snapshot.rawResponse ?: snapshot.name
+            ),
+            // No icon for detection — show the detected language name in the
+            // big centred slot so the result is still visible.
+            emoji = snapshot.name,
+            errorMessage = null,
+            traceFile = snapshot.traceFile,
+            hasActiveFanOut = false,
+            showFindAlternatives = false,
+            onFindAlternativeIcons = { },
+            onApplyIcon = null,
+            onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
+            onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onBack = onBack
+        ))
+    }
+}
+
 @Composable
 internal fun RenderLanguageDetailOverlay(
     reportId: String,
@@ -711,13 +795,13 @@ internal fun RenderLanguageDetailOverlay(
         LocalNavigateToCurrentReport provides onBack
     ) {
         val infoTarget = resolveInfoTarget(snapshot.model, languageAgent, aiSettings)
-        // The language icon came from the single report/language call
-        // (@PROMPT@ = the report prompt); a Find-alternative pick
-        // (language_alt) ran alt/language (@LANGUAGE@ = detected language).
+        // Both the bundled report-language-icon prompt and the Find-alternative
+        // alt/language prompt take @LANGUAGE@ = the detected language name (not
+        // the report prompt — the icon is derived from the detection result).
         val resolvedPrompt = if (ctxData.first == "language_alt")
             (altLanguagePrompt?.text.orEmpty()).replace("@LANGUAGE@", ctxData.second.orEmpty())
         else
-            languagePrompt.text.replace("@PROMPT@", promptText)
+            languagePrompt.text.replace("@LANGUAGE@", ctxData.second.orEmpty())
         val provider = snapshot.model?.split("/", limit = 2)?.firstOrNull()
             ?.let { AppService.findById(it) } ?: languageAgent.provider
         val modelId = snapshot.model?.split("/", limit = 2)?.getOrNull(1)
@@ -762,6 +846,7 @@ internal fun ReportIconOrLanguageDetailOverlay(
     loadedReportTitle: String?,
     iconRefreshTick: Int,
     targetLanguageIcon: Boolean,
+    targetLanguageDetect: Boolean,
     reportIcon: String?,
     reportIconError: String?,
     reportIconCost: Double,
@@ -778,6 +863,21 @@ internal fun ReportIconOrLanguageDetailOverlay(
     onApplyLanguageIcon: (String) -> Unit,
     onClose: () -> Unit,
 ): Boolean {
+    if (targetLanguageDetect) {
+        RenderLanguageDetectDetailOverlay(
+            reportId = reportId,
+            aiSettings = aiSettings,
+            promptText = promptText,
+            effectiveReportIcon = effectiveReportIcon,
+            loadedReportTitle = loadedReportTitle,
+            iconRefreshTick = iconRefreshTick,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo,
+            continueChat = continueChat,
+            onBack = onClose
+        )
+        return true
+    }
     if (targetLanguageIcon) {
         val hasLangFanOut = languageIconCallbacks.fanOutByReport[reportId].orEmpty().isNotEmpty()
         RenderLanguageDetailOverlay(

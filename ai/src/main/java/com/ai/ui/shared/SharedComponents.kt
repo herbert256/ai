@@ -838,6 +838,11 @@ data class TitleBarIcons(
      *  carries the same glyph as the per-row eye icon on every
      *  reports list. Null → glyph hidden. */
     val onOpenView: (() -> Unit)? = null,
+    /** Optional 🐜 open-batch-workers hook. Wired from the type-B
+     *  batch L1 screens (Tournament / Fan Meta / Translation) to push
+     *  that batch's per-worker (model) grouping into its own
+     *  sub-screen. Null → glyph hidden. */
+    val onBatchWorkers: (() -> Unit)? = null,
     /** Optional 🔧 open-manage hook. Renders the same wrench glyph
      *  every reports-list row uses for "open Report - manage". Used
      *  by every View screen so the bottom-bar carries the per-row
@@ -1097,6 +1102,8 @@ fun TitleBar(
      *  there so the bottom bar carries the same glyph as the per-row
      *  eye icon on every reports list. Null → glyph hidden. */
     onOpenView: (() -> Unit)? = null,
+    /** Optional 🐜 open-batch-workers hook (type-B batch L1 screens). */
+    onBatchWorkers: (() -> Unit)? = null,
     /** Optional 🔧 open-manage hook. Wired by every View screen so
      *  the bottom-bar carries the same wrench glyph the per-row 🔧
      *  uses on every reports list. Each sub-View typically passes a
@@ -1292,6 +1299,7 @@ fun TitleBar(
         onWebSearchReplay = onWebSearchReplay,
         onInfo = onInfo,
         onOpenView = onOpenView,
+        onBatchWorkers = onBatchWorkers,
         onOpenManage = onOpenManage,
         // 🗂️ pick-another-report — auto-captured from the per-screen
         // CompositionLocal so Manage screens needn't thread it through
@@ -1854,6 +1862,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons, mi: com.ai.data.MetadataIc
     // ----- second-row-ish: 👁 view leads the second row, the per-item
     // actions follow, and 🔄 regenerate sits just before 🗑 delete. -----
     icons.onOpenView?.let { add(BottomBarIcon(mi.view, Color.Unspecified, it, 32, fontSize = 18.sp, legendKey = D.VIEW)) }
+    icons.onBatchWorkers?.let { add(BottomBarIcon(mi.ant, Color.Unspecified, it, 28, legendKey = D.ANT)) }
     icons.onTranslationCompare?.let { add(BottomBarIcon(mi.translationCompare, Color.Unspecified, it, 28, legendKey = D.TRANSLATION_COMPARE)) }
     icons.onMemo?.let { add(BottomBarIcon(mi.memo, Color.Unspecified, it, 28, legendKey = D.MEMO)) }
     icons.onAddNote?.let { add(BottomBarIcon(mi.addNote, Color.Unspecified, it, 28, legendKey = D.ADD_NOTE)) }
@@ -1954,12 +1963,13 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
     "report_meta", "report_meta_run", "report_fan_out_confirm", "secondary_scope",
     "secondary_list", "secondary_detail", "meta_detail",
     "secondary_fan_out_l1", "secondary_fan_out_l2", "secondary_fan_out_l3",
-    "secondary_fan_out_onepage", "fan_meta",
+    "secondary_fan_out_onepage", "fan_meta", "fan_meta_workers",
     // Translation drill-ins.
     "translation_run_l1", "translation_run_l2", "translation_run_l3",
+    "translation_workers",
     "translation_models", "alternative_translations",
     // Tournament drill-ins.
-    "tournament_l1", "tournament_l2", "tournament_l3",
+    "tournament_l1", "tournament_l2", "tournament_l3", "tournament_workers",
     // Judge-the-judges drill-ins.
     "judge_eval_l1", "judge_eval_l2", "judge_eval_l3", "judge_eval_match",
     // Find-alternative + icon-lookup detail screens.

@@ -73,6 +73,10 @@ internal class ReportsScreenState(
     val showFindIconsPicker: MutableState<Boolean>,
     val showAlternativeIcons: MutableState<Boolean>,
     val targetLanguageIcon: MutableState<Boolean>,
+    /** When true, [showIconDetail] renders the language-DETECTION detail
+     *  (the `report-language-name` call) instead of the language-icon one.
+     *  Mutually exclusive with [targetLanguageIcon]. */
+    val targetLanguageDetect: MutableState<Boolean>,
     val promptIconDetailForId: MutableState<String?>,
     val metaRowIdForPromptIcon: MutableState<String?>,
     val translationIconLanguageFor: MutableState<String?>,
@@ -178,6 +182,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val showFindIconsPicker = rememberSaveable { mutableStateOf(false) }
     val showAlternativeIcons = rememberSaveable { mutableStateOf(false) }
     val targetLanguageIcon = rememberSaveable { mutableStateOf(false) }
+    val targetLanguageDetect = rememberSaveable { mutableStateOf(false) }
     val promptIconDetailForId = rememberSaveable { mutableStateOf<String?>(null) }
     val metaRowIdForPromptIcon = rememberSaveable { mutableStateOf<String?>(null) }
     val translationIconLanguageFor = rememberSaveable { mutableStateOf<String?>(null) }
@@ -263,6 +268,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         showFindIconsPicker,
         showAlternativeIcons,
         targetLanguageIcon,
+        targetLanguageDetect,
         promptIconDetailForId,
         metaRowIdForPromptIcon,
         translationIconLanguageFor,

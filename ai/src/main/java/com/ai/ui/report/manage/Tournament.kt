@@ -170,7 +170,10 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     val reportIcon = report?.icon?.takeIf { it.isNotBlank() }
         ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon
 
-    var groupMode by rememberSaveable { mutableStateOf(TournamentGroupMode.TOURNAMENT_MODELS) }
+    // REPORT_MODELS is the main L1; TOURNAMENT_MODELS selects the 🐜
+    // "Tournament workers" sub-screen (judge-model grouping). The same
+    // value is threaded into L2/L3 so a drill keeps the active grouping.
+    var groupMode by rememberSaveable { mutableStateOf(TournamentGroupMode.REPORT_MODELS) }
     var level by rememberSaveable { mutableStateOf(1) }       // 1 = L1, 2 = L2, 3 = L3
     var groupKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
@@ -193,6 +196,8 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
         when {
             level == 3 -> level = 2
             level == 2 -> level = 1
+            // On the workers sub-screen's own L1, back returns to the main L1.
+            groupMode == TournamentGroupMode.TOURNAMENT_MODELS -> groupMode = TournamentGroupMode.REPORT_MODELS
             else -> onBack()
         }
     }
@@ -222,15 +227,25 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
             onBack = { level = 2 },
             onRerun = { scope.launch { engine.rerunMatch(context, reportId, matchKey) } },
             onStep = { mk -> matchKey = mk })
-        else -> TournamentL1(run, agents, reportTitle, reportIcon, groupMode, throttled,
-            setGroupMode = { groupMode = it },
-            openGroup = { gk -> groupKey = gk; level = 2 },
-            onRedo = { confirmRedo = true },
-            onRestartFailed = { scope.launch { engine.restartFailedMatches(context, reportId) } },
-            onRemoveFailed = { scope.launch { engine.removeFailedMatches(context, reportId) } },
-            onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
-            onOpenView = onOpenTournamentView,
-            onBack = onBack)
+        else -> if (groupMode == TournamentGroupMode.TOURNAMENT_MODELS) {
+            // 🐜 Tournament workers — judge-model grouping in its own screen.
+            TournamentWorkersL1(run, agents, reportTitle, reportIcon, throttled,
+                openGroup = { gk -> groupKey = gk; level = 2 },
+                onRedo = { confirmRedo = true },
+                onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
+                onOpenView = onOpenTournamentView,
+                onBack = { groupMode = TournamentGroupMode.REPORT_MODELS })
+        } else {
+            TournamentL1(run, agents, reportTitle, reportIcon, throttled,
+                openGroup = { gk -> groupKey = gk; level = 2 },
+                onOpenWorkers = { groupMode = TournamentGroupMode.TOURNAMENT_MODELS },
+                onRedo = { confirmRedo = true },
+                onRestartFailed = { scope.launch { engine.restartFailedMatches(context, reportId) } },
+                onRemoveFailed = { scope.launch { engine.removeFailedMatches(context, reportId) } },
+                onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
+                onOpenView = onOpenTournamentView,
+                onBack = onBack)
+        }
     }
 
     if (confirmRedo) {
@@ -299,10 +314,9 @@ private fun TournamentL1(
     agents: Map<String, ReportAgent>,
     reportTitle: String,
     reportIcon: String,
-    groupMode: TournamentGroupMode,
     throttled: Set<String>,
-    setGroupMode: (TournamentGroupMode) -> Unit,
     openGroup: (String) -> Unit,
+    onOpenWorkers: () -> Unit,
     onRedo: () -> Unit,
     onRestartFailed: () -> Unit,
     onRemoveFailed: () -> Unit,
@@ -327,6 +341,7 @@ private fun TournamentL1(
             reportIcon = reportIcon,
             onBackClick = onBack,
             onOpenView = onOpenView,
+            onBatchWorkers = onOpenWorkers,
             onReload = onRedo,
             onDelete = onDeleteRun
         )
@@ -354,51 +369,101 @@ private fun TournamentL1(
             }
             Spacer(Modifier.height(12.dp))
 
-            // Grouping mode toggle.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = groupMode == TournamentGroupMode.TOURNAMENT_MODELS,
-                    onClick = { setGroupMode(TournamentGroupMode.TOURNAMENT_MODELS) },
-                    label = { Text("Judge models", fontSize = 12.sp) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = groupMode == TournamentGroupMode.REPORT_MODELS,
-                    onClick = { setGroupMode(TournamentGroupMode.REPORT_MODELS) },
-                    label = { Text("Report models", fontSize = 12.sp) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-
-            val groups = buildGroups(run, agents, groupMode)
+            // L1 lists the report (answerer) models. The judge-model
+            // ("workers") grouping lives on the 🐜 Tournament workers screen.
+            val groups = buildGroups(run, agents, TournamentGroupMode.REPORT_MODELS)
             if (groups.isEmpty()) {
                 Text(
-                    if (groupMode == TournamentGroupMode.TOURNAMENT_MODELS) "No matches judged yet." else "No matches yet.",
+                    "No matches yet.",
                     color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
-            val maxJudged = groups.maxOfOrNull { it.total }?.coerceAtLeast(1) ?: 1
             val allSuccessful = run.totalMatches > 0 && run.doneCount == run.totalMatches
             groups.forEach { g ->
-                if (groupMode == TournamentGroupMode.TOURNAMENT_MODELS) {
-                    // Same shape as Fan Meta's "Meta models": one count column
-                    // and a green row fill normalized to the busiest judge.
-                    TournamentJudgeModelRow(
-                        group = g,
-                        barFrac = g.total.toFloat() / maxJudged,
-                        showBar = summary.activeOutstanding
-                    ) { openGroup(g.key) }
-                } else {
-                    // Same shape as Fan Meta's "Report models": per-row fill
-                    // shows this report model's completed-or-failed matches.
-                    TournamentReportModelRow(g, allDone = allSuccessful) { openGroup(g.key) }
-                }
+                // Per-row fill shows this report model's completed-or-failed matches.
+                TournamentReportModelRow(g, allDone = allSuccessful) { openGroup(g.key) }
             }
 
             Spacer(Modifier.height(16.dp))
             // Per-failure controls (Remove/Restart) removed — a new
             // failure-handling UX is coming.
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+// ---------- Workers (judge-model grouping) — the 🐜 sub-screen ----------
+
+@Composable
+private fun TournamentWorkersL1(
+    run: TournamentRunState,
+    agents: Map<String, ReportAgent>,
+    reportTitle: String,
+    reportIcon: String,
+    throttled: Set<String>,
+    openGroup: (String) -> Unit,
+    onRedo: () -> Unit,
+    onDeleteRun: () -> Unit,
+    onOpenView: (() -> Unit)?,
+    onBack: () -> Unit
+) {
+    // Worker-pool batch (category B): no Bench bucket — same lens as L1.
+    val summary = deriveBatchSummary(
+        items = run.matches.values,
+        idOf = { it.id },
+        statusOf = { it.status },
+        throttledIds = throttled,
+        family = BatchFamily.WORKER_POOL,
+    )
+    val counts = summary.counts
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(
+            helpTopic = "tournament_workers", title = "Tournament workers",
+            subject = reportTitle,
+            reportIcon = reportIcon,
+            onBackClick = onBack,
+            onOpenView = onOpenView,
+            onReload = onRedo,
+            onDelete = onDeleteRun
+        )
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Spacer(Modifier.height(8.dp))
+            BatchStatsRow(listOf(
+                Triple("Total", counts.total.toString(), AppColors.InfoAccent),
+                Triple("Done", counts.done.toString(), AppColors.SuccessAccent),
+                Triple("Error", summary.displayError.toString(), AppColors.DangerAccent),
+                Triple("Run", counts.running.toString(), AppColors.WarningAccent),
+                Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
+                Triple("Queue", counts.queued.toString(), AppColors.QueueAccent),
+                Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
+            ))
+            if (summary.activeOutstanding && counts.total > 0 && !run.cancelled) {
+                val finished = (counts.done + summary.displayError).toFloat() / counts.total
+                LinearProgressIndicator(
+                    progress = { finished },
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                    color = AppColors.WarningAccent,
+                    trackColor = AppColors.DividerDark
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+
+            val groups = buildGroups(run, agents, TournamentGroupMode.TOURNAMENT_MODELS)
+            if (groups.isEmpty()) {
+                Text(
+                    "No matches judged yet.",
+                    color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+            val maxJudged = groups.maxOfOrNull { it.total }?.coerceAtLeast(1) ?: 1
+            groups.forEach { g ->
+                // One count column + a green row fill normalized to the busiest judge.
+                TournamentJudgeModelRow(
+                    group = g,
+                    barFrac = g.total.toFloat() / maxJudged,
+                    showBar = summary.activeOutstanding
+                ) { openGroup(g.key) }
+            }
             Spacer(Modifier.height(24.dp))
         }
     }

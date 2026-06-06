@@ -59,6 +59,9 @@ data class SecondaryResult(
     val inputCost: Double? = null,
     val outputCost: Double? = null,
     val durationMs: Long? = null,
+    /** Final HTTP status code for the API call that produced this row.
+     *  Null for legacy rows and non-network failures. */
+    val httpStatusCode: Int? = null,
     /** When kind == TRANSLATE: identifier of the item this translation
      *  operated on. "prompt" for the report prompt, agent.agentId for
      *  an agent response, secondary.id for a META row. Null on non-

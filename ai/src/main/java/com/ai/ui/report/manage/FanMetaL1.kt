@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -36,10 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,7 +56,6 @@ import com.ai.data.ReportStorage
 import com.ai.data.titleStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import kotlinx.coroutines.Dispatchers
@@ -80,26 +75,20 @@ internal fun FanMetaL1Screen(
     runningSet: Set<String>,
     /** Pair ids parked on a provider rate-limit cap. */
     throttledSet: Set<String>,
-    actions: FanOutActions,
     /** Cross-link back to the Fan Out (responses) screen. */
     onShowResponses: () -> Unit,
     onOpenModel: (String) -> Unit,
-    /** Open the Meta-models L2 for one meta-worker model (the "Meta
-     *  models" grouping). Argument is `PairState.titleModel`. */
-    onOpenMetaModel: (String) -> Unit,
+    /** Open the 🐜 Fan Meta workers (meta-model) sub-screen. */
+    onOpenWorkers: () -> Unit,
     /** Open the flat "Fan Meta - All" title list. */
     onOpenTitles: () -> Unit,
+    /** Reload / delete / trace — owned by the router (shared with the
+     *  workers screen); the confirm dialogs render at the router. */
+    onReload: () -> Unit,
+    onDelete: () -> Unit,
+    onTrace: (() -> Unit)?,
     onBack: () -> Unit
 ) {
-    var confirmDelete by remember { mutableStateOf(false) }
-    // L1 grouping preset. Survives the L1↔L2 drill round trip + rotation.
-    // Meta models = group by the meta-worker model; Report models =
-    // group by the answerer model.
-    var metaGroupMode by rememberSaveable { mutableStateOf(FanMetaGroupMode.META_MODELS) }
-    var confirmRelaunchMeta by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
     val subject = run.metaPrompt.title.takeIf { it.isNotBlank() }
         ?.let { "${run.metaPrompt.name} — $it" } ?: run.metaPrompt.name
 
@@ -117,19 +106,16 @@ internal fun FanMetaL1Screen(
     fun benched(p: String?, m: String?): Boolean =
         p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
 
-    // 🐞 deep-link target: the most recent Fan Meta sweep on these pairs.
-    val l1RunId = run.pairs.values.firstNotNullOfOrNull { it.titleRunId ?: it.iconRunId }
-
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "fan_meta_l1",
             title = "Fan Meta",
             subject = subject,
             onBackClick = onBack,
-            onReload = { confirmRelaunchMeta = true },
-            onTrace = if (l1RunId != null && com.ai.data.ApiTracer.ladybugLinksEnabled)
-                { { actions.onNavigateToTraceRunList(l1RunId) } } else null,
-            onDelete = { confirmDelete = true }
+            onBatchWorkers = onOpenWorkers,
+            onReload = onReload,
+            onTrace = onTrace,
+            onDelete = onDelete
         )
 
         // Status counts + cost — title-batch status lens. Worker-pool batch
@@ -163,35 +149,8 @@ internal fun FanMetaL1Screen(
             Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)} ¢", AppColors.InfoAccent)
         ))
 
-        // Grouping preset — Meta models (per meta-worker model) vs
-        // Report models (per answerer model).
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(
-                FanMetaGroupMode.META_MODELS to "Meta models",
-                FanMetaGroupMode.REPORT_MODELS to "Report models"
-            ).forEach { (gm, label) ->
-                FilterChip(
-                    selected = metaGroupMode == gm,
-                    onClick = { metaGroupMode = gm },
-                    label = {
-                        Text(
-                            label,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
+        // L1 lists the report (answerer) models. The meta-worker
+        // ("workers") grouping lives on the 🐜 Fan Meta workers screen.
         val hasTitles = remember(run) { run.pairs.values.any { !it.title.isNullOrBlank() } }
 
         // Per-failure controls (Remove/Restart failed/benched + Remove/Restart
@@ -263,38 +222,18 @@ internal fun FanMetaL1Screen(
         // answerer model; "Meta models" groups by the meta-worker model
         // (titleModel) — pairs whose meta hasn't run yet drop out until
         // their title lands. Stable order by model name.
-        val l1Rows: List<FanMetaL1RowModel> = remember(run, metaGroupMode) {
-            if (metaGroupMode == FanMetaGroupMode.META_MODELS) {
-                run.pairs.values
-                    .filter { !it.titleModel.isNullOrBlank() }
-                    .groupBy { it.titleModel!! }
-                    .entries
-                    .sortedBy { it.key.substringAfterLast('/').lowercase() }
-                    .map { (metaKey, pairs) ->
-                        FanMetaL1RowModel(
-                            key = "meta:$metaKey",
-                            label = com.ai.ui.shared.shortModelName(metaKey.substringAfterLast('/')),
-                            pairs = pairs,
-                            onClick = { onOpenMetaModel(metaKey) },
-                            metaDone = pairs.size
-                        )
-                    }
-            } else {
-                run.answererKeys
-                    .sortedWith(compareBy { ak -> ak.substringAfter('|').lowercase() })
-                    .map { ak ->
-                        FanMetaL1RowModel(
-                            key = "rep:$ak",
-                            label = com.ai.ui.shared.shortModelName(ak.substringAfter('|')),
-                            pairs = run.pairs.values.filter { "${it.providerId}|${it.model}" == ak },
-                            onClick = { onOpenModel(ak) }
-                        )
-                    }
-            }
+        val l1Rows: List<FanMetaL1RowModel> = remember(run) {
+            run.answererKeys
+                .sortedWith(compareBy { ak -> ak.substringAfter('|').lowercase() })
+                .map { ak ->
+                    FanMetaL1RowModel(
+                        key = "rep:$ak",
+                        label = com.ai.ui.shared.shortModelName(ak.substringAfter('|')),
+                        pairs = run.pairs.values.filter { "${it.providerId}|${it.model}" == ak },
+                        onClick = { onOpenModel(ak) }
+                    )
+                }
         }
-        val isMetaModels = metaGroupMode == FanMetaGroupMode.META_MODELS
-        val metaMaxDone = (l1Rows.maxOfOrNull { it.metaDone } ?: 0).coerceAtLeast(1)
-        val metaShowBars = isMetaModels && summary.activeOutstanding
         LazyColumn(modifier = Modifier.weight(1f)) {
             if (l1Rows.isEmpty()) {
                 item {
@@ -306,17 +245,6 @@ internal fun FanMetaL1Screen(
                 }
             }
             items(l1Rows, key = { it.key }) { row ->
-              if (isMetaModels) {
-                FanMetaModelsL1Row(
-                    calls = row.metaDone,
-                    name = row.label,
-                    cost = row.pairs.sumOf { pairCost(it) },
-                    barFrac = row.metaDone.toFloat() / metaMaxDone,
-                    showBar = metaShowBars,
-                    onClick = row.onClick
-                )
-                HorizontalDivider(color = AppColors.DividerDark)
-              } else {
                 val pairs = row.pairs
                 val ok = pairs.count { metaDone(it) }
                 val err = pairs.count { lens(it, runningSet) == PairStatus.ERROR }
@@ -378,7 +306,6 @@ internal fun FanMetaL1Screen(
                     }
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
-              }
             }
         }
 
@@ -403,63 +330,95 @@ internal fun FanMetaL1Screen(
             }
         }
     }
+}
 
-    // -----------------------------------------------------------------
-    // Confirmation dialogs
-    // -----------------------------------------------------------------
-    if (confirmRelaunchMeta) {
-        ReloadConfirmationDialog(
-            target = "",
-            title = "Clear and re-run Fan Meta?",
-            message = "Clear every pair's title + icon and re-run the Fan Meta batch. The fan-out responses are kept.",
-            confirmLabel = "Re-run",
-            onConfirm = {
-                confirmRelaunchMeta = false
-                actions.onRelaunchFanMeta(run.key)
-            },
-            onDismiss = { confirmRelaunchMeta = false }
+/** 🐜 Fan Meta workers — the per-meta-worker (model) grouping, moved off
+ *  L1's old toggle into its own screen. Reload / delete / trace mirror L1
+ *  (the confirm dialogs are owned by [FanMetaScreen]); tapping a
+ *  meta-worker row drills into that worker's pairs (L2MetaModel). */
+@Composable
+internal fun FanMetaWorkersScreen(
+    run: FanOutRunState,
+    runningSet: Set<String>,
+    throttledSet: Set<String>,
+    onOpenMetaModel: (String) -> Unit,
+    onReload: () -> Unit,
+    onDelete: () -> Unit,
+    onTrace: (() -> Unit)?,
+    onBack: () -> Unit
+) {
+    fun pairCost(p: PairState): Double =
+        p.titleInputCost + p.titleOutputCost + p.iconInputCost + p.iconOutputCost
+
+    val subject = run.metaPrompt.title.takeIf { it.isNotBlank() }
+        ?.let { "${run.metaPrompt.name} — $it" } ?: run.metaPrompt.name
+
+    // Worker-pool batch (category B): no Bench bucket — same lens as L1.
+    val summary = deriveBatchSummary(
+        items = run.pairs.values,
+        idOf = { it.id },
+        statusOf = { it.titleStatus(runningSet) },
+        throttledIds = throttledSet,
+        family = BatchFamily.WORKER_POOL,
+    )
+    val counts = summary.counts
+
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(
+            helpTopic = "fan_meta_workers",
+            title = "Fan Meta workers",
+            subject = subject,
+            onBackClick = onBack,
+            onReload = onReload,
+            onTrace = onTrace,
+            onDelete = onDelete
         )
-    }
+        Spacer(modifier = Modifier.height(8.dp))
+        BatchStatsRow(listOf(
+            Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent),
+            Triple("Done", counts.done.toString(), AppColors.SuccessAccent),
+            Triple("Error", summary.displayError.toString(), AppColors.DangerAccent),
+            Triple("Run", counts.running.toString(), AppColors.WarningAccent),
+            Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
+            Triple("Queue", counts.queued.toString(), AppColors.QueueAccent),
+            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)} ¢", AppColors.InfoAccent)
+        ))
+        Spacer(modifier = Modifier.height(8.dp))
 
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete Fan Meta?") },
-            text = {
-                Text("Drop every title + icon (and their cost) for this run's ${run.totalPairs} pair${if (run.totalPairs == 1) "" else "s"}. The fan-out responses themselves are kept. Can't be undone.")
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    deleting = true
-                    scope.launch {
-                        actions.onClearFanMeta(run.key)?.join()
-                        deleting = false
-                        onBack()
-                    }
-                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
-            }
-        )
-    }
-
-    if (deleting) {
-        AlertDialog(
-            onDismissRequest = { },
-            title = { Text("Deleting Fan Meta") },
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AnimatedHourglass(fontSize = 18.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Clearing the Fan Meta — this can take a moment.", fontSize = 13.sp)
+        // One row per meta-worker model (titleModel); count = pairs it titled.
+        val rows = remember(run) {
+            run.pairs.values
+                .filter { !it.titleModel.isNullOrBlank() }
+                .groupBy { it.titleModel!! }
+                .entries
+                .sortedBy { it.key.substringAfterLast('/').lowercase() }
+                .map { (metaKey, pairs) -> Triple(metaKey, pairs.size, pairs.sumOf { pairCost(it) }) }
+        }
+        val maxDone = (rows.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
+        val showBars = summary.activeOutstanding
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            if (rows.isEmpty()) {
+                item {
+                    Text(
+                        "No titles yet.",
+                        color = AppColors.TextSecondary, fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
                 }
-            },
-            confirmButton = { }
-        )
+            }
+            items(rows, key = { it.first }) { (metaKey, calls, cost) ->
+                FanMetaModelsL1Row(
+                    calls = calls,
+                    name = com.ai.ui.shared.shortModelName(metaKey.substringAfterLast('/')),
+                    cost = cost,
+                    barFrac = calls.toFloat() / maxDone,
+                    showBar = showBars,
+                    onClick = { onOpenMetaModel(metaKey) }
+                )
+                HorizontalDivider(color = AppColors.DividerDark)
+            }
+        }
     }
-
 }
 
 /** One L1 model-row descriptor — unifies the "Report models" (per

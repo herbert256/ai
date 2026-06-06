@@ -95,6 +95,7 @@ internal fun ReportIconFlowOverlays(
                 st.pairIconDetailFor.value = null
                 st.pairTitleDetailFor.value = null
                 st.targetLanguageIcon.value = false
+                st.targetLanguageDetect.value = false
             },
             onRestartReopenPicker = {
                 st.findIconsModels.value = emptyList()
@@ -158,6 +159,7 @@ internal fun ReportIconFlowOverlays(
                 st.pairIconDetailFor.value = null
                 st.pairTitleDetailFor.value = null
                 st.targetLanguageIcon.value = false
+                st.targetLanguageDetect.value = false
             }
         ) {
             FindIconsPickerRouter(
@@ -313,6 +315,7 @@ internal fun ReportIconFlowOverlays(
             loadedReportTitle = runtime.loadedReportTitle,
             iconRefreshTick = uiState.iconRefreshTick,
             targetLanguageIcon = st.targetLanguageIcon.value,
+            targetLanguageDetect = st.targetLanguageDetect.value,
             reportIcon = runtime.reportIcon,
             reportIconError = runtime.reportIconError,
             reportIconCost = runtime.reportIconCost,
@@ -333,6 +336,7 @@ internal fun ReportIconFlowOverlays(
             onClose = {
                 st.showIconDetail.value = false
                 st.targetLanguageIcon.value = false
+                st.targetLanguageDetect.value = false
             }
         )
         if (handled) return true
@@ -494,5 +498,6 @@ private fun cancelFindAltFlow(st: ReportsScreenState, onStashAltEdit: (AltEditPa
     st.translationIconLanguageFor.value = null
     st.pairIconDetailFor.value = null
     st.targetLanguageIcon.value = false
+    st.targetLanguageDetect.value = false
     onStashAltEdit(null)
 }

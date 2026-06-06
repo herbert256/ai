@@ -4,7 +4,6 @@ import com.ai.ui.helpers.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,25 +12,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -41,16 +29,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.data.ApiTracer
-import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
-import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.TranslationStatus
-import kotlinx.coroutines.launch
 
 /** Aggregate stats for one model's slice of a translation run. */
 private data class TranslationModelRow(
@@ -85,23 +68,20 @@ private data class TranslationTypeRow(
 @Composable
 internal fun TranslationL1Screen(
     run: TranslationRunState,
-    reportId: String,
-    runId: String,
     /** Item ids currently parked on a provider rate / concurrency gate —
      *  surfaced as the "Throttled" stat. Carved out of Queue. */
     throttledSet: Set<String> = emptySet(),
-    actions: TranslationActions,
-    groupMode: TranslationGroupMode,
-    onSetGroupMode: (TranslationGroupMode) -> Unit,
-    onBumpRefresh: () -> Unit,
     onOpenGroup: (String) -> Unit,
+    /** Open the 🐜 Translation workers (per-model) sub-screen. */
+    onOpenWorkers: () -> Unit,
+    /** Reload / delete / trace / view — owned by the router (shared with
+     *  the workers screen); the confirm dialogs render at the router. */
+    onReload: () -> Unit,
+    onDelete: () -> Unit,
+    onTrace: (() -> Unit)?,
+    onOpenView: (() -> Unit)?,
     onBack: () -> Unit
 ) {
-    var confirmDelete by remember { mutableStateOf(false) }
-    var confirmReload by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
     val subject = run.targetLanguageName
     val items = run.items
     val total = items.size
@@ -120,48 +100,6 @@ internal fun TranslationL1Screen(
     val runningCount = counts.running
     val throttledCount = counts.wait
     val queuedCount = counts.queued
-
-    // Group items by the model that handled them. Unassigned PENDING
-    // items (providerId/model still null) drop out — they show only
-    // in the Queue stat. Sorted by items done, descending — so the
-    // busiest model (full bar) stays at the top.
-    //
-    // We then union the run's intended model set (run.models) so any
-    // model that hasn't yet pulled an item — typically the expensive
-    // workers held by the cost-aware hesitation — appears as an empty
-    // zero-progress row at the bottom instead of staying invisible
-    // until its first item lands.
-    val runModels = run.models
-    val modelRows = remember(items, runModels) {
-        val byKey = items.mapNotNull { item -> translationModelKey(item)?.let { it to item } }
-            .groupBy({ it.first }, { it.second })
-        val seen = byKey.keys.toMutableSet()
-        val rows = byKey.map { (key, its) ->
-            TranslationModelRow(
-                modelKey = key,
-                total = its.size,
-                done = its.count { it.status == TranslationStatus.DONE },
-                err = its.count { it.status == TranslationStatus.ERROR },
-                running = its.count { it.status == TranslationStatus.RUNNING },
-                cost = its.sumOf { it.costDollars }
-            )
-        }.toMutableList()
-        runModels.forEach { key ->
-            if (seen.add(key)) {
-                rows += TranslationModelRow(
-                    modelKey = key, total = 0, done = 0, err = 0, running = 0, cost = 0.0
-                )
-            }
-        }
-        rows.sortedWith(
-            compareByDescending<TranslationModelRow> { it.done }
-                .thenByDescending { it.total }
-                .thenBy { it.modelKey.substringAfter('|').lowercase() }
-        )
-    }
-    // Bar denominator: the busiest model's done count. That model
-    // gets a full-width bar; the rest are proportional to it.
-    val maxDone = (modelRows.maxOfOrNull { it.done } ?: 0).coerceAtLeast(1)
 
     // Per-type rows for the Types preset. Every item carries a traceType
     // (stamped at creation), so unlike modelRows nothing drops out —
@@ -185,28 +123,17 @@ internal fun TranslationL1Screen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        // 👁 → matching View Translate screen for this run.
-        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
-        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
-            { holder.value = com.ai.ui.shared.ViewJump.TranslationRun(run.runId) }
-        }
         TitleBar(
             helpTopic = "translation_run_l1",
             title = "Translation",
             reportIcon = com.ai.ui.shared.LocalReportIcon.current,
             subject = subject,
             onBackClick = onBack,
-            onOpenView = onOpenViewJump,
-            onReload = { confirmReload = true },
-            // Prefer the run-scoped 🐞 (filter the trace list to
-            // exactly this translation run's runId); fall back to the
-            // legacy category filter for legacy runs whose row(s)
-            // don't carry a runId yet.
-            onTrace = if (ApiTracer.ladybugLinksEnabled) ({
-                if (run.runId.isNotBlank()) actions.onNavigateToTraceRunList(run.runId)
-                else actions.onNavigateToTraceList()
-            }) else null,
-            onDelete = { confirmDelete = true }
+            onOpenView = onOpenView,
+            onBatchWorkers = onOpenWorkers,
+            onReload = onReload,
+            onTrace = onTrace,
+            onDelete = onDelete
         )
 
         // Stats panel — pinned at the top, kept visible even once the
@@ -224,40 +151,9 @@ internal fun TranslationL1Screen(
             Triple("Costs", "${formatCents(run.totalCostDollars, decimals = 2)} ¢", AppColors.InfoAccent)
         ))
 
-        // Grouping preset — Translation workers (per-model rows) vs
-        // Translation types (per trace/cost-type rows). Sits below the
-        // stats; always available, even on a finished run, so the user
-        // can review either breakdown.
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(
-                TranslationGroupMode.MODELS to "Translation workers",
-                TranslationGroupMode.TYPES to "Translation types"
-            ).forEach { (gm, label) ->
-                FilterChip(
-                    selected = groupMode == gm,
-                    onClick = { onSetGroupMode(gm) },
-                    label = {
-                        Text(
-                            label,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        // Per-failure controls (Remove/Restart) removed — a new
-        // failure-handling UX is coming.
-
+        // L1 lists translation *types* (per trace/cost-type rows). The
+        // per-model ("workers") grouping lives on the 🐜 Translation
+        // workers screen.
         Spacer(modifier = Modifier.height(8.dp))
 
         // Top progress bar — run-level (done + error) / total, while the
@@ -284,119 +180,135 @@ internal fun TranslationL1Screen(
         // type (types); the green row-background fill conveys progress
         // while work is in flight. Models bars are relative to the
         // busiest model; type bars are that type's done/total.
-        when (groupMode) {
-            TranslationGroupMode.MODELS -> {
-                if (modelRows.isEmpty()) {
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Text(
-                            if (queuedCount > 0) "Queued — no model has picked up an item yet"
-                            else "No translation items",
-                            color = AppColors.TextSecondary, fontSize = 14.sp
-                        )
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(modelRows, key = { it.modelKey }) { row ->
-                            TranslationL1Row(
-                                calls = row.total,
-                                name = com.ai.ui.shared.shortModelName(row.modelKey.substringAfter('|')),
-                                cost = row.cost,
-                                barFrac = row.done.toFloat() / maxDone,
-                                showBar = showBars,
-                                onClick = { onOpenGroup(row.modelKey) }
-                            )
-                            HorizontalDivider(color = AppColors.DividerDark)
-                        }
-                    }
-                }
+        if (typeRows.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("No translation items", color = AppColors.TextSecondary, fontSize = 14.sp)
             }
-            TranslationGroupMode.TYPES -> {
-                if (typeRows.isEmpty()) {
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Text("No translation items", color = AppColors.TextSecondary, fontSize = 14.sp)
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(typeRows, key = { it.traceType }) { row ->
-                            TranslationL1Row(
-                                calls = row.total,
-                                name = translationTypeLabel(row.traceType),
-                                cost = row.cost,
-                                barFrac = if (row.total > 0) row.done.toFloat() / row.total else 0f,
-                                showBar = showBars,
-                                onClick = { onOpenGroup(row.traceType) }
-                            )
-                            HorizontalDivider(color = AppColors.DividerDark)
-                        }
-                    }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(typeRows, key = { it.traceType }) { row ->
+                    TranslationL1Row(
+                        calls = row.total,
+                        name = translationTypeLabel(row.traceType),
+                        cost = row.cost,
+                        barFrac = if (row.total > 0) row.done.toFloat() / row.total else 0f,
+                        showBar = showBars,
+                        onClick = { onOpenGroup(row.traceType) }
+                    )
+                    HorizontalDivider(color = AppColors.DividerDark)
                 }
             }
         }
     }
 
-    // -----------------------------------------------------------------
-    // Confirmation dialogs
-    // -----------------------------------------------------------------
-    if (confirmReload) {
-        ReloadConfirmationDialog(
-            target = "",
-            title = "Redo every entry?",
-            message = "Deletes all $total row${if (total == 1) "" else "s"} for this translation and dispatches the full set fresh (prompt + every successful agent + every Meta result). The runner's concurrency cap still applies, so a large run shows a mix of running and queued rows.",
-            confirmLabel = "Redo all",
-            onConfirm = {
-                confirmReload = false
-                actions.onRestartAll(reportId, runId)
-                onBumpRefresh()
-            },
-            onDismiss = { confirmReload = false }
-        )
-    }
+}
 
+/** 🐜 Translation workers — the per-model grouping, moved off L1's old
+ *  toggle into its own screen. Reload / delete / trace / view mirror L1
+ *  (the confirm dialogs are owned by [TranslationRunScreen]); tapping a
+ *  model row drills into that model's items (L2, MODELS mode). */
+@Composable
+internal fun TranslationWorkersScreen(
+    run: TranslationRunState,
+    throttledSet: Set<String> = emptySet(),
+    onOpenGroup: (String) -> Unit,
+    onReload: () -> Unit,
+    onDelete: () -> Unit,
+    onTrace: (() -> Unit)?,
+    onOpenView: (() -> Unit)?,
+    onBack: () -> Unit
+) {
+    val subject = run.targetLanguageName
+    val items = run.items
+    val total = items.size
+    // Worker-pool batch (category B): no Bench bucket — same lens as L1.
+    val summary = deriveBatchSummary(
+        items = items,
+        idOf = { it.id },
+        statusOf = { it.status },
+        throttledIds = throttledSet,
+        family = BatchFamily.WORKER_POOL,
+    )
+    val counts = summary.counts
+    val queuedCount = counts.queued
 
-    if (confirmDelete) {
-        val pendingCount = items.count {
-            it.status == TranslationStatus.PENDING ||
-                it.status == TranslationStatus.RUNNING
+    // Group items by the model that handled them; union run.models so a
+    // worker that hasn't pulled an item yet still shows as a zero row.
+    val runModels = run.models
+    val modelRows = remember(items, runModels) {
+        val byKey = items.mapNotNull { item -> translationModelKey(item)?.let { it to item } }
+            .groupBy({ it.first }, { it.second })
+        val seen = byKey.keys.toMutableSet()
+        val rows = byKey.map { (key, its) ->
+            TranslationModelRow(
+                modelKey = key,
+                total = its.size,
+                done = its.count { it.status == TranslationStatus.DONE },
+                err = its.count { it.status == TranslationStatus.ERROR },
+                running = its.count { it.status == TranslationStatus.RUNNING },
+                cost = its.sumOf { it.costDollars }
+            )
+        }.toMutableList()
+        runModels.forEach { key ->
+            if (seen.add(key)) {
+                rows += TranslationModelRow(modelKey = key, total = 0, done = 0, err = 0, running = 0, cost = 0.0)
+            }
         }
-        val pendingNote = if (pendingCount > 0)
-            " Also cancels $pendingCount in-flight / queued call${if (pendingCount == 1) "" else "s"}."
-        else ""
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this translation run?") },
-            text = {
-                Text("Drops every translation call ($total) for $subject from the report.$pendingNote Can't be undone.")
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    deleting = true
-                    scope.launch {
-                        actions.onDeleteRun(reportId, runId)?.join()
-                        deleting = false
-                        onBack()
-                    }
-                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
-            },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        rows.sortedWith(
+            compareByDescending<TranslationModelRow> { it.done }
+                .thenByDescending { it.total }
+                .thenBy { it.modelKey.substringAfter('|').lowercase() }
         )
     }
+    val maxDone = (modelRows.maxOfOrNull { it.done } ?: 0).coerceAtLeast(1)
 
-    // Blocking progress popup while the run is being deleted — not
-    // dismissable so the user can't navigate away mid-delete.
-    if (deleting) {
-        AlertDialog(
-            onDismissRequest = { },
-            title = { Text("Deleting translation") },
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AnimatedHourglass(fontSize = 18.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Cancelling the run and removing every row — this can take a moment.", fontSize = 13.sp)
-                }
-            },
-            confirmButton = { }
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(
+            helpTopic = "translation_workers",
+            title = "Translation workers",
+            reportIcon = com.ai.ui.shared.LocalReportIcon.current,
+            subject = subject,
+            onBackClick = onBack,
+            onOpenView = onOpenView,
+            onReload = onReload,
+            onTrace = onTrace,
+            onDelete = onDelete
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        BatchStatsRow(listOf(
+            Triple("Total", total.toString(), AppColors.InfoAccent),
+            Triple("Done", counts.done.toString(), AppColors.SuccessAccent),
+            Triple("Error", summary.displayError.toString(), AppColors.DangerAccent),
+            Triple("Run", counts.running.toString(), AppColors.WarningAccent),
+            Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
+            Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
+            Triple("Costs", "${formatCents(run.totalCostDollars, decimals = 2)} ¢", AppColors.InfoAccent)
+        ))
+        Spacer(modifier = Modifier.height(8.dp))
+        val showBars = summary.activeOutstanding && !run.cancelled
+        if (modelRows.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    if (queuedCount > 0) "Queued — no model has picked up an item yet"
+                    else "No translation items",
+                    color = AppColors.TextSecondary, fontSize = 14.sp
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(modelRows, key = { it.modelKey }) { row ->
+                    TranslationL1Row(
+                        calls = row.total,
+                        name = com.ai.ui.shared.shortModelName(row.modelKey.substringAfter('|')),
+                        cost = row.cost,
+                        barFrac = row.done.toFloat() / maxDone,
+                        showBar = showBars,
+                        onClick = { onOpenGroup(row.modelKey) }
+                    )
+                    HorizontalDivider(color = AppColors.DividerDark)
+                }
+            }
+        }
     }
 }
 

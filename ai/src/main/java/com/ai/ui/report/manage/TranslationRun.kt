@@ -5,27 +5,41 @@ import com.ai.ui.helpers.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.SecondaryResult
+import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.TranslationItem
 import com.ai.viewmodel.TranslationRunState
+import com.ai.viewmodel.TranslationStatus
+import kotlinx.coroutines.launch
 
 /** "providerId|model" key for grouping a [TranslationItem]
  *  by the model that handled it. Null while the item is still
@@ -62,6 +76,9 @@ internal fun translationTypeLabel(traceType: String): String =
  *  [FanOutNav]. */
 sealed class TranslationNav {
     object L1 : TranslationNav()
+    /** The 🐜 "Translation workers" sub-screen — the per-model
+     *  grouping (MODELS), moved off L1's old toggle. */
+    object Workers : TranslationNav()
     data class L2(val mode: TranslationGroupMode, val groupKey: String) : TranslationNav()
     data class L3(val mode: TranslationGroupMode, val groupKey: String, val itemId: String) : TranslationNav()
 }
@@ -72,6 +89,7 @@ private val translationNavSaver: Saver<TranslationNav, Any> = Saver(
     save = { nav ->
         when (nav) {
             is TranslationNav.L1 -> listOf("L1", "", "", "")
+            is TranslationNav.Workers -> listOf("WORKERS", "", "", "")
             is TranslationNav.L2 -> listOf("L2", nav.mode.name, nav.groupKey, "")
             is TranslationNav.L3 -> listOf("L3", nav.mode.name, nav.groupKey, nav.itemId)
         }
@@ -82,6 +100,7 @@ private val translationNavSaver: Saver<TranslationNav, Any> = Saver(
         val mode = runCatching { TranslationGroupMode.valueOf(l[1]) }
             .getOrDefault(TranslationGroupMode.MODELS)
         when (l[0]) {
+            "WORKERS" -> TranslationNav.Workers
             "L2" -> TranslationNav.L2(mode, l[2])
             "L3" -> TranslationNav.L3(mode, l[2], l[3])
             else -> TranslationNav.L1
@@ -173,9 +192,6 @@ internal fun TranslationRunScreen(
     var nav by rememberSaveable(runId, stateSaver = translationNavSaver) {
         mutableStateOf<TranslationNav>(TranslationNav.L1)
     }
-    // L1 grouping preset (Models / Types). Survives drill-in round trips
-    // and rotation; resets per run.
-    var groupMode by rememberSaveable(runId) { mutableStateOf(TranslationGroupMode.MODELS) }
     // Bumped by restart / remove-failed so a *finished* run reloads its
     // persisted state. A run that restart turns live again is picked up
     // automatically via the liveRun param.
@@ -183,7 +199,10 @@ internal fun TranslationRunScreen(
     BackHandler {
         nav = when (val n = nav) {
             TranslationNav.L1 -> { onBack(); return@BackHandler }
-            is TranslationNav.L2 -> TranslationNav.L1
+            TranslationNav.Workers -> TranslationNav.L1
+            // A per-model (workers) drill returns to the workers screen;
+            // a per-type drill returns to L1.
+            is TranslationNav.L2 -> if (n.mode == TranslationGroupMode.MODELS) TranslationNav.Workers else TranslationNav.L1
             is TranslationNav.L3 -> TranslationNav.L2(n.mode, n.groupKey)
         }
     }
@@ -217,18 +236,45 @@ internal fun TranslationRunScreen(
         return@CompositionLocalProvider
     }
 
+    // Reload / delete / trace / view fire from both L1 and the 🐜 workers
+    // screen, so they (and their confirm dialogs) are owned here at the
+    // router and rendered regardless of which sub-screen is active.
+    val scope = rememberCoroutineScope()
+    var confirmReload by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+    val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+        { holder.value = com.ai.ui.shared.ViewJump.TranslationRun(run.runId) }
+    }
+    val onTraceRun: (() -> Unit)? = if (ApiTracer.ladybugLinksEnabled) ({
+        if (run.runId.isNotBlank()) actions.onNavigateToTraceRunList(run.runId)
+        else actions.onNavigateToTraceList()
+    }) else null
+    val onReloadRun: () -> Unit = { confirmReload = true }
+    val onDeleteRun: () -> Unit = { confirmDelete = true }
+
     when (val n = nav) {
         TranslationNav.L1 -> TranslationL1Screen(
             run = run,
-            reportId = reportId,
-            runId = runId,
             throttledSet = throttledItems,
-            actions = actions,
-            groupMode = groupMode,
-            onSetGroupMode = { groupMode = it },
-            onBumpRefresh = { refreshTick++ },
-            onOpenGroup = { groupKey -> nav = TranslationNav.L2(groupMode, groupKey) },
+            onOpenGroup = { groupKey -> nav = TranslationNav.L2(TranslationGroupMode.TYPES, groupKey) },
+            onOpenWorkers = { nav = TranslationNav.Workers },
+            onReload = onReloadRun,
+            onDelete = onDeleteRun,
+            onTrace = onTraceRun,
+            onOpenView = onOpenViewJump,
             onBack = onBack
+        )
+        TranslationNav.Workers -> TranslationWorkersScreen(
+            run = run,
+            throttledSet = throttledItems,
+            onOpenGroup = { modelKey -> nav = TranslationNav.L2(TranslationGroupMode.MODELS, modelKey) },
+            onReload = onReloadRun,
+            onDelete = onDeleteRun,
+            onTrace = onTraceRun,
+            onOpenView = onOpenViewJump,
+            onBack = { nav = TranslationNav.L1 }
         )
         is TranslationNav.L2 -> TranslationL2Screen(
             run = run,
@@ -236,7 +282,7 @@ internal fun TranslationRunScreen(
             groupKey = n.groupKey,
             actions = actions,
             onOpenItem = { itemId -> nav = TranslationNav.L3(n.mode, n.groupKey, itemId) },
-            onBack = { nav = TranslationNav.L1 }
+            onBack = { nav = if (n.mode == TranslationGroupMode.MODELS) TranslationNav.Workers else TranslationNav.L1 }
         )
         is TranslationNav.L3 -> TranslationL3Screen(
             run = run,
@@ -248,6 +294,66 @@ internal fun TranslationRunScreen(
             actions = actions,
             onStepItem = { itemId -> nav = TranslationNav.L3(n.mode, n.groupKey, itemId) },
             onBack = { nav = TranslationNav.L2(n.mode, n.groupKey) }
+        )
+    }
+
+    // -----------------------------------------------------------------
+    // Confirmation dialogs — shared by L1 + the 🐜 workers screen.
+    // -----------------------------------------------------------------
+    val total = run.items.size
+    if (confirmReload) {
+        ReloadConfirmationDialog(
+            target = "",
+            title = "Redo every entry?",
+            message = "Deletes all $total row${if (total == 1) "" else "s"} for this translation and dispatches the full set fresh (prompt + every successful agent + every Meta result). The runner's concurrency cap still applies, so a large run shows a mix of running and queued rows.",
+            confirmLabel = "Redo all",
+            onConfirm = {
+                confirmReload = false
+                actions.onRestartAll(reportId, runId)
+                refreshTick++
+            },
+            onDismiss = { confirmReload = false }
+        )
+    }
+    if (confirmDelete) {
+        val pendingCount = run.items.count {
+            it.status == TranslationStatus.PENDING || it.status == TranslationStatus.RUNNING
+        }
+        val pendingNote = if (pendingCount > 0)
+            " Also cancels $pendingCount in-flight / queued call${if (pendingCount == 1) "" else "s"}."
+        else ""
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete this translation run?") },
+            text = {
+                Text("Drops every translation call ($total) for ${run.targetLanguageName} from the report.$pendingNote Can't be undone.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    deleting = true
+                    scope.launch {
+                        actions.onDeleteRun(reportId, runId)?.join()
+                        deleting = false
+                        onBack()
+                    }
+                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+    if (deleting) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Deleting translation") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AnimatedHourglass(fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Cancelling the run and removing every row — this can take a moment.", fontSize = 13.sp)
+                }
+            },
+            confirmButton = { }
         )
     }
     } // close CompositionLocalProvider

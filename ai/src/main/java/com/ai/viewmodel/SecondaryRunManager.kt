@@ -1427,6 +1427,7 @@ class SecondaryRunManager(
                 inputCost = inCost,
                 outputCost = outCost,
                 durationMs = r.durationMs,
+                httpStatusCode = r.httpStatusCode,
                 responseChangeSource = null,
                 responseChangeValue = null
             ))
@@ -1493,7 +1494,8 @@ class SecondaryRunManager(
                 errorMessage = r.errorMessage,
                 inputCost = rerankCost,
                 tokenUsage = rerankTokenUsage,
-                durationMs = r.durationMs
+                durationMs = r.durationMs,
+                httpStatusCode = r.httpStatusCode
             ))
             if (saved && r.errorMessage == null) {
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
@@ -1556,6 +1558,7 @@ class SecondaryRunManager(
             inputCost = inCost,
             outputCost = outCost,
             durationMs = duration,
+            httpStatusCode = response.httpStatusCode,
             responseChangeSource = null,
             responseChangeValue = null
         ))

@@ -539,9 +539,19 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Bench column", "The stats row splits Errors from Bench. A benched pair errored because its model is on a >1h rate-limit cooldown — it'll recover once the cooldown lifts, so it's counted apart from genuine errors. When benched pairs exist, a 'Remove benched' button appears next to 'Remove failed items' to clear just those (the two removes are complementary)."),
             HelpCard("Resume stale", "On open, any fan-out pair with no content / no error / not currently in flight is re-enqueued by the FanOutEngine (bounded retry, then marked failed) — survives app kill mid-batch."),
             HelpCard("Restart failed", "Re-runs only ❌ cells, leaving ✅ alone. Skips the placeholder grid rebuild — quick recovery without re-spending tokens on succeeded cells."),
+            HelpCard("HTTP statistics", "After every pair is ✅ or ❌, the 📈 bottom-bar icon opens Fan out statistics. It groups final saved pair outcomes by answerer model and splits HTTP into 200, 429, 529, other 4xx, other 5xx, Other and No HTTP."),
             HelpCard("Combine reports", "When at least one fan-in prompt exists, the screen exposes 'Run combine reports' — fires a meta call against the fan-out matrix's results."),
             HelpCard("Per-answerer delete", "Drops every cell where this answerer participated. Fan-out list refresh tick bumps so the L1 list reflects the gap on pop-back."),
             HelpCard("Pitfalls", "Cell count is N×(N-1) for an N-agent run; cost grows fast. Watch the Action row's cost summary before pressing Restart on large grids.")
+        )
+    ),
+    "secondary_fan_out_stats" to HelpContent(
+        title = "Help - Fan out statistics",
+        cards = listOf(
+            HelpCard("Overview", "Full-screen HTTP outcome table for the current Fan Out run. It appears from L1 only after every pair is terminal, so the counts match the completed batch."),
+            HelpCard("Buckets", "200, 429 and 529 are exact buckets. 4xx excludes 429, 5xx excludes 529, Other covers any remaining status code, and No HTTP covers rows without a saved HTTP status."),
+            HelpCard("What is counted", "Counts are the final persisted pair outcomes, not every retry attempt. Use traces or API statistics when you need per-attempt retry detail."),
+            HelpCard("Sorting", "Rows are grouped by answerer provider+model and sorted by highest non-200 count first, then by model label.")
         )
     ),
     "secondary_fan_out_l2" to HelpContent(

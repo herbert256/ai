@@ -42,13 +42,14 @@ class SecondaryResultStorageInstrumentedTest {
 
         SecondaryResultStorage.save(
             context,
-            placeholder.copy(content = "summary text", durationMs = 1234)
+            placeholder.copy(content = "summary text", durationMs = 1234, httpStatusCode = 200)
         )
 
         val reloaded = SecondaryResultStorage.get(context, reportA, placeholder.id)
         assertThat(reloaded).isNotNull()
         assertThat(reloaded!!.content).isEqualTo("summary text")
         assertThat(reloaded.durationMs).isEqualTo(1234)
+        assertThat(reloaded.httpStatusCode).isEqualTo(200)
         assertThat(reloaded.kind).isEqualTo(SecondaryKind.META)
     }
 

@@ -1304,11 +1304,23 @@ class FanOutEngine internal constructor(
         SecondaryResultStorage.get(context, reportId, placeholderId)?.let { saved ->
             SecondaryResultStorage.save(
                 context,
-                saved.copy(content = null, errorMessage = null, durationMs = null, tokenUsage = null)
+                saved.copy(
+                    content = null,
+                    errorMessage = null,
+                    durationMs = null,
+                    httpStatusCode = null,
+                    tokenUsage = null
+                )
             )
         }
         transitionPair(runKey, pk) {
-            it.copy(status = PairStatus.PENDING, content = null, errorMessage = null, durationMs = null)
+            it.copy(
+                status = PairStatus.PENDING,
+                content = null,
+                errorMessage = null,
+                durationMs = null,
+                httpStatusCode = null
+            )
         }
     }
 
@@ -1412,6 +1424,7 @@ class FanOutEngine internal constructor(
                                         inputCost = saved.inputCost,
                                         outputCost = saved.outputCost,
                                         durationMs = saved.durationMs,
+                                        httpStatusCode = saved.httpStatusCode,
                                         tokenUsage = saved.tokenUsage,
                                         responseChangeSource = saved.responseChangeSource,
                                         responseChangeValue = saved.responseChangeValue
@@ -1652,7 +1665,7 @@ class FanOutEngine internal constructor(
             clearedCostDelta += current.fullCost()
             val cleared = current.copy(
                 content = null, errorMessage = null, inputCost = null, outputCost = null,
-                durationMs = null, tokenUsage = null, timestamp = System.currentTimeMillis(),
+                durationMs = null, httpStatusCode = null, tokenUsage = null, timestamp = System.currentTimeMillis(),
                 responseChangeSource = null,
                 responseChangeValue = null
             )
@@ -1661,7 +1674,7 @@ class FanOutEngine internal constructor(
                 it.copy(
                     status = PairStatus.PENDING, content = null, errorMessage = null,
                     inputCost = null, outputCost = null, durationMs = null,
-                    tokenUsage = null, timestamp = cleared.timestamp,
+                    httpStatusCode = null, tokenUsage = null, timestamp = cleared.timestamp,
                     responseChangeSource = null,
                     responseChangeValue = null
                 )

@@ -63,7 +63,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = ctx.helpTopic,
-            title = "Icon lookup",
+            title = ctx.title,
             subject = ctx.subject,
             onBackClick = ctx.onBack,
             onChat = ctx.onContinueChat,
@@ -256,6 +256,10 @@ data class IconLookupContext(
      *  `icon_lookup_meta`, `icon_lookup_translation`,
      *  `icon_lookup_language`, `icon_lookup_pair`. */
     val helpTopic: String,
+    /** Title-bar heading. Defaults to "Icon lookup" — the language-DETECTION
+     *  detail overrides it to "Language detection" since it shows a text
+     *  result (the detected language name), not an icon. */
+    val title: String = "Icon lookup",
     /** Green subject row under the title — the bundled prompt name
      *  that produced the displayed emoji (e.g. `main`, `report_2`,
      *  `meta_alt`). Falls back to the source-default name when the

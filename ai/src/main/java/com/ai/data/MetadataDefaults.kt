@@ -157,6 +157,9 @@ object MetadataDefaults {
     const val CASH = "💵"
     // Workers & tools
     const val SWARM = "🐝"
+    /** Per-batch worker breakdown screen (Tournament / Fan Meta /
+     *  Translation), reached via the 🐜 bottom-bar icon. */
+    const val ANT = "🐜"
     const val FLOCK = "🦆"
     const val FAN_IN_KNOT = "🪢"
     const val FEATHER = "🪶"
@@ -361,6 +364,7 @@ data class MetadataIcons(
     val cash: String = MetadataDefaults.CASH,
     // Workers & tools
     val swarm: String = MetadataDefaults.SWARM,
+    val ant: String = MetadataDefaults.ANT,
     val flock: String = MetadataDefaults.FLOCK,
     val fanInKnot: String = MetadataDefaults.FAN_IN_KNOT,
     val feather: String = MetadataDefaults.FEATHER,
@@ -584,6 +588,7 @@ data class MetadataIcons(
             spend = f(spend, MetadataDefaults.SPEND),
             cash = f(cash, MetadataDefaults.CASH),
             swarm = f(swarm, MetadataDefaults.SWARM),
+            ant = f(ant, MetadataDefaults.ANT),
             flock = f(flock, MetadataDefaults.FLOCK),
             fanInKnot = f(fanInKnot, MetadataDefaults.FAN_IN_KNOT),
             feather = f(feather, MetadataDefaults.FEATHER),

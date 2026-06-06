@@ -103,6 +103,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "report_translations" to listOf("help_glossary_operations", "help_translations"),
     "secondary_scope" to listOf("help_glossary_operations"),
     "secondary_fan_out_l1" to listOf("help_glossary_operations", "concepts", "help_costs"),
+    "secondary_fan_out_stats" to listOf("help_glossary_operations", "help_costs", "concepts"),
     "secondary_fan_out_l2" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_l3" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_onepage" to listOf("help_glossary_operations"),

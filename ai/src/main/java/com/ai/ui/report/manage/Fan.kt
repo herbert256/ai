@@ -44,6 +44,7 @@ sealed class FanOutNav {
     data class L2(val answererKey: String, val role: String) : FanOutNav()
     data class L3(val answererKey: String, val sourceAgentId: String, val role: String) : FanOutNav()
     data class L2OnePage(val answererKey: String, val role: String) : FanOutNav()
+    object Stats : FanOutNav()
 }
 
 /** Custom Saver — serialises to a 4-string list so rememberSaveable
@@ -55,6 +56,7 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
             is FanOutNav.L2 -> listOf("L2", nav.answererKey, "", nav.role)
             is FanOutNav.L3 -> listOf("L3", nav.answererKey, nav.sourceAgentId, nav.role)
             is FanOutNav.L2OnePage -> listOf("L2OP", nav.answererKey, "", nav.role)
+            is FanOutNav.Stats -> listOf("STATS", "", "", "")
         }
     },
     restore = { list ->
@@ -65,6 +67,7 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
             "L2" -> FanOutNav.L2(l[1], l[3].ifEmpty { "Responder" })
             "L3" -> FanOutNav.L3(l[1], l[2], l[3].ifEmpty { "Responder" })
             "L2OP" -> FanOutNav.L2OnePage(l[1], l[3].ifEmpty { "Responder" })
+            "STATS" -> FanOutNav.Stats
             else -> FanOutNav.L1
         }
     }
@@ -178,6 +181,7 @@ fun FanOutScreen(
             is FanOutNav.L2 -> FanOutNav.L1
             is FanOutNav.L3 -> FanOutNav.L2(n.answererKey, n.role)
             is FanOutNav.L2OnePage -> FanOutNav.L2(n.answererKey, n.role)
+            is FanOutNav.Stats -> FanOutNav.L1
         }
     }
 
@@ -213,6 +217,7 @@ fun FanOutScreen(
             onLaunchFanMeta = onLaunchFanMeta,
             onShowFanMeta = onShowFanMeta,
             onOpenModel = { ak -> nav = FanOutNav.L2(ak, "Responder") },
+            onOpenStats = { nav = FanOutNav.Stats },
             onBack = onBack
         )
         is FanOutNav.L2 -> FanOutL2Screen(
@@ -250,6 +255,10 @@ fun FanOutScreen(
             role = n.role,
             onSwitchRole = { newRole -> nav = FanOutNav.L2OnePage(n.answererKey, newRole) },
             onBack = { nav = FanOutNav.L2(n.answererKey, n.role) }
+        )
+        is FanOutNav.Stats -> FanOutStatsScreen(
+            run = runState,
+            onBack = { nav = FanOutNav.L1 }
         )
     }
 }

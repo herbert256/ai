@@ -346,6 +346,7 @@ fun ReportGetInfoScreen(
     runningInfoJobs: Set<String>,
     onBack: () -> Unit,
     onOpenIconDetail: () -> Unit,
+    onOpenLanguageDetect: () -> Unit,
     onOpenLanguageDetail: () -> Unit,
     onEditTitle: () -> Unit,
     onOpenAgentIconDetail: (String) -> Unit,
@@ -389,7 +390,8 @@ fun ReportGetInfoScreen(
             items(jobs, key = { "${it.type}-${it.agentId ?: it.label}" }) { job ->
                 val click: (() -> Unit)? = when (job.type) {
                     "report-icon" -> onOpenIconDetail
-                    "language", "language-icon" -> onOpenLanguageDetail
+                    "language" -> onOpenLanguageDetect
+                    "language-icon" -> onOpenLanguageDetail
                     "report-short", "report-long" -> onEditTitle
                     "model-icon" -> job.agentId?.let { id -> { onOpenAgentIconDetail(id) } }
                     "model-title" -> job.agentId?.let { id -> { onEditModelTitle(id) } }

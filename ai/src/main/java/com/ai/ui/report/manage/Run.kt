@@ -636,6 +636,10 @@ internal fun ReportRunScreen(
                     runningInfoJobs = runningInfoJobs,
                     onBack = { st.showGetInfo.value = false },
                     onOpenIconDetail = { st.showIconDetail.value = true },
+                    onOpenLanguageDetect = {
+                        st.showIconDetail.value = true
+                        st.targetLanguageDetect.value = true
+                    },
                     onOpenLanguageDetail = {
                         st.showIconDetail.value = true
                         st.targetLanguageIcon.value = true

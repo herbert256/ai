@@ -2319,6 +2319,7 @@ private val DEFAULT_ICON_SECTIONS: List<Pair<String, List<IconRowSpec>>> = run {
         ),
         "Workers & tools" to listOf(
             IconRowSpec("Swarm", "swarm", { it.swarm }, { m, v -> m.copy(swarm = v) }, d.SWARM),
+            IconRowSpec("Batch workers", "ant", { it.ant }, { m, v -> m.copy(ant = v) }, d.ANT),
             IconRowSpec("Flock", "flock", { it.flock }, { m, v -> m.copy(flock = v) }, d.FLOCK),
             IconRowSpec("Fan-in knot", "fanInKnot", { it.fanInKnot }, { m, v -> m.copy(fanInKnot = v) }, d.FAN_IN_KNOT),
             IconRowSpec("Feather", "feather", { it.feather }, { m, v -> m.copy(feather = v) }, d.FEATHER),

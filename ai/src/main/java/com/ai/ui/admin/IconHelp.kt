@@ -384,6 +384,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     ),
     "translation_run_l1" to listOf(
         Triple("👁", "View", "Open this translation in the View screen."),
+        Triple("🐜", "Workers", "Open the per-model worker breakdown."),
         Triple("🔄", "Regenerate", "Re-run the whole translation."),
         Triple("🗑", "Delete", "Delete this translation run."),
         Triple("🐞", "Trace", "Open the API trace for the translation."),
@@ -422,6 +423,7 @@ internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
     "🚦" to ("Moderation" to "Safety-check the answers."),
     "💬" to ("Chat" to "Start a chat from here."),
     "🗂️" to ("Switch" to "Pick another report to work on."),
+    "🐜" to ("Workers" to "Open the per-worker (model) breakdown for this batch."),
     "🔧" to ("Manage" to "Open the manage screen."),
     "🧹" to ("Housekeeping" to "Jump to the related Housekeeping screen."),
     "⚙️" to ("AI Setup" to "Jump to the related AI Setup screen."),

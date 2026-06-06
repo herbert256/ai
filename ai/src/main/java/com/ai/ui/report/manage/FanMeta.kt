@@ -6,27 +6,40 @@ import com.ai.ui.helpers.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ai.data.FanOutRunKey
 import com.ai.data.PairStatus
 import com.ai.data.titleStatus
+import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.FanOutEngine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** L1 grouping preset for the Fan Meta screen.
@@ -40,10 +53,13 @@ enum class FanMetaGroupMode { META_MODELS, REPORT_MODELS }
  *  independent. */
 sealed class FanMetaNav {
     object L1 : FanMetaNav()
+    /** The 🐜 "Fan Meta workers" sub-screen — the per-meta-worker
+     *  (model) grouping, moved off L1's old toggle. */
+    object Workers : FanMetaNav()
     /** The flat "Fan Meta - All" title list (the L1 "Show all" button). */
     object L1All : FanMetaNav()
     data class L2(val answererKey: String, val role: String) : FanMetaNav()
-    /** L2 scoped to one meta-worker model (the "Meta models" grouping). */
+    /** L2 scoped to one meta-worker model (the workers drill-in). */
     data class L2MetaModel(val metaModelKey: String) : FanMetaNav()
     data class L3(val answererKey: String, val sourceAgentId: String, val role: String) : FanMetaNav()
 }
@@ -54,6 +70,7 @@ private val fanMetaNavSaver: Saver<FanMetaNav, Any> = Saver(
     save = { nav ->
         when (nav) {
             is FanMetaNav.L1 -> listOf("L1", "", "", "")
+            is FanMetaNav.Workers -> listOf("WORKERS", "", "", "")
             is FanMetaNav.L1All -> listOf("L1ALL", "", "", "")
             is FanMetaNav.L2 -> listOf("L2", nav.answererKey, "", nav.role)
             is FanMetaNav.L2MetaModel -> listOf("L2MM", nav.metaModelKey, "", "")
@@ -65,6 +82,7 @@ private val fanMetaNavSaver: Saver<FanMetaNav, Any> = Saver(
         val l = list as List<String>
         when (l[0]) {
             "L1" -> FanMetaNav.L1
+            "WORKERS" -> FanMetaNav.Workers
             "L1ALL" -> FanMetaNav.L1All
             "L2" -> FanMetaNav.L2(l[1], l[3].ifEmpty { "Responder" })
             "L2MM" -> FanMetaNav.L2MetaModel(l[1])
@@ -122,9 +140,10 @@ fun FanMetaScreen(
     BackHandler {
         nav = when (val n = nav) {
             FanMetaNav.L1 -> { onBack(); return@BackHandler }
+            FanMetaNav.Workers -> FanMetaNav.L1
             FanMetaNav.L1All -> FanMetaNav.L1
             is FanMetaNav.L2 -> FanMetaNav.L1
-            is FanMetaNav.L2MetaModel -> FanMetaNav.L1
+            is FanMetaNav.L2MetaModel -> FanMetaNav.Workers
             is FanMetaNav.L3 -> FanMetaNav.L2(n.answererKey, n.role)
         }
     }
@@ -147,19 +166,44 @@ fun FanMetaScreen(
         return
     }
 
+    // Reload / delete / trace fire from both L1 and the 🐜 workers screen,
+    // so they (and their confirm dialogs) are owned here at the router and
+    // rendered regardless of which sub-screen is active.
+    val scope = rememberCoroutineScope()
+    var confirmRelaunchMeta by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    val l1RunId = runState.pairs.values.firstNotNullOfOrNull { it.titleRunId ?: it.iconRunId }
+    val onReloadMeta: () -> Unit = { confirmRelaunchMeta = true }
+    val onDeleteMeta: () -> Unit = { confirmDelete = true }
+    val onTraceMeta: (() -> Unit)? = if (l1RunId != null && com.ai.data.ApiTracer.ladybugLinksEnabled)
+        { { actions.onNavigateToTraceRunList(l1RunId) } } else null
+
     when (val n = nav) {
         FanMetaNav.L1 -> FanMetaL1Screen(
             run = runState,
             runningSet = runningMetaSet,
             throttledSet = throttledMetaSet,
-            actions = actions,
             onShowResponses = onShowResponses,
             // Fan Meta starts at the Initiator view (active model is the
             // source) so the user sees their model's result up top.
             onOpenModel = { ak -> nav = FanMetaNav.L2(ak, "Initiator") },
-            onOpenMetaModel = { metaKey -> nav = FanMetaNav.L2MetaModel(metaKey) },
+            onOpenWorkers = { nav = FanMetaNav.Workers },
             onOpenTitles = { nav = FanMetaNav.L1All },
+            onReload = onReloadMeta,
+            onDelete = onDeleteMeta,
+            onTrace = onTraceMeta,
             onBack = onBack
+        )
+        FanMetaNav.Workers -> FanMetaWorkersScreen(
+            run = runState,
+            runningSet = runningMetaSet,
+            throttledSet = throttledMetaSet,
+            onOpenMetaModel = { metaKey -> nav = FanMetaNav.L2MetaModel(metaKey) },
+            onReload = onReloadMeta,
+            onDelete = onDeleteMeta,
+            onTrace = onTraceMeta,
+            onBack = { nav = FanMetaNav.L1 }
         )
         FanMetaNav.L1All -> FanMetaAllScreen(
             run = runState,
@@ -185,7 +229,7 @@ fun FanMetaScreen(
             onOpenPair = { ak, srcAgentId ->
                 nav = FanMetaNav.L3(ak, srcAgentId, "Responder")
             },
-            onBack = { nav = FanMetaNav.L1 }
+            onBack = { nav = FanMetaNav.Workers }
         )
         is FanMetaNav.L3 -> FanMetaL3Screen(
             engine = engine,
@@ -199,6 +243,60 @@ fun FanMetaScreen(
                 nav = FanMetaNav.L3(n.answererKey, newSourceAgentId, n.role)
             },
             onBack = { nav = FanMetaNav.L2(n.answererKey, n.role) }
+        )
+    }
+
+    // -----------------------------------------------------------------
+    // Confirmation dialogs — shared by L1 + the 🐜 workers screen.
+    // -----------------------------------------------------------------
+    if (confirmRelaunchMeta) {
+        ReloadConfirmationDialog(
+            target = "",
+            title = "Clear and re-run Fan Meta?",
+            message = "Clear every pair's title + icon and re-run the Fan Meta batch. The fan-out responses are kept.",
+            confirmLabel = "Re-run",
+            onConfirm = {
+                confirmRelaunchMeta = false
+                actions.onRelaunchFanMeta(runState.key)
+            },
+            onDismiss = { confirmRelaunchMeta = false }
+        )
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete Fan Meta?") },
+            text = {
+                Text("Drop every title + icon (and their cost) for this run's ${runState.totalPairs} pair${if (runState.totalPairs == 1) "" else "s"}. The fan-out responses themselves are kept. Can't be undone.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    deleting = true
+                    scope.launch {
+                        actions.onClearFanMeta(runState.key)?.join()
+                        deleting = false
+                        onBack()
+                    }
+                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            }
+        )
+    }
+    if (deleting) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Deleting Fan Meta") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AnimatedHourglass(fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Clearing the Fan Meta — this can take a moment.", fontSize = 13.sp)
+                }
+            },
+            confirmButton = { }
         )
     }
 }

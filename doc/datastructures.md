@@ -373,6 +373,7 @@ null on rows of other kinds. See
 | tokenUsage | `TokenUsage?` | |
 | inputCost, outputCost | `Double?` | |
 | durationMs | `Long?` | |
+| httpStatusCode | `Int?` | final HTTP status code for the API call that produced this row; null for legacy rows and non-network failures. Fan-out statistics use this on per-pair rows |
 | traceFile | `String?` | trace filename for the call (currently populated for TRANSLATE rows) |
 
 A row's identity within a kind is derived, not stored: a **Fan-out**
