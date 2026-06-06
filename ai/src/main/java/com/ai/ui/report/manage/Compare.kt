@@ -302,7 +302,7 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
 
     if (run == null) {
         Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)) {
-            TitleBar(helpTopic = "compare_l1", title = "Compare", subject = reportTitle,
+            TitleBar(helpTopic = "compare_l1", title = "Compare with meta", subject = reportTitle,
                 reportIcon = reportIcon, onBackClick = onBack)
             Spacer(Modifier.height(20.dp))
             Text("No compare run on this report.", color = AppColors.TextSecondary, fontSize = 14.sp)
@@ -314,7 +314,7 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
         2 -> CompareL2(run, agents, metaLabels, reportTitle, reportIcon, groupKey,
             openCell = { ck -> cellKey = ck; level = 3 },
             onBack = { level = 1 })
-        3 -> CompareL3(run, agents, metaLabels, metaRowsById, reportTitle, reportIcon, cellKey, groupKey,
+        3 -> CompareL3(run, agents, metaLabels, metaRowsById, reportTitle, report?.prompt.orEmpty(), reportIcon, cellKey, groupKey,
             onBack = { level = 2 },
             onRerun = { scope.launch { engine.rerunCell(context, reportId, cellKey) } },
             onStep = { ck -> cellKey = ck })
@@ -420,7 +420,7 @@ private fun CompareL1(
     val counts = summary.counts
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "compare_l1", title = "Compare",
+            helpTopic = "compare_l1", title = "Compare with meta",
             subject = reportTitle, reportIcon = reportIcon,
             onBackClick = onBack, onReload = onRedo, onDelete = onDeleteRun
         )
@@ -477,11 +477,9 @@ private fun CompareGroupRowItem(group: CompareGroupRow, onClick: () -> Unit) {
         )
         Column(Modifier.weight(1f)) {
             Text(group.label, color = AppColors.TextPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val sub = buildString {
-                append("${group.done}/${group.total} scored")
-                if (group.errored > 0) append(" · ${group.errored} failed")
+            if (group.errored > 0) {
+                Text("${group.errored} failed", color = AppColors.TextTertiary, fontSize = 11.sp)
             }
-            Text(sub, color = AppColors.TextTertiary, fontSize = 11.sp)
         }
         if (group.cost > 0) {
             Text("${formatCents(group.cost)} ¢", color = AppColors.TextTertiary, fontSize = 11.sp)
@@ -508,7 +506,7 @@ private fun CompareL2(
     // Groups are always report models; each row is the meta item the answer
     // was scored against.
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "compare_l2", title = "Compare - model", subject = reportTitle,
+        TitleBar(helpTopic = "compare_l2", title = "Compare with meta - model", subject = reportTitle,
             reportIcon = reportIcon, onBackClick = onBack)
         CompareGreenSubject(title)
         LazyColumn(Modifier.fillMaxSize()) {
@@ -563,6 +561,7 @@ private fun CompareL3(
     metaLabels: Map<String, String>,
     metaRowsById: Map<String, SecondaryResult>,
     reportTitle: String,
+    question: String,
     reportIcon: String,
     cellKey: String,
     groupKey: String,
@@ -576,7 +575,7 @@ private fun CompareL3(
     val swipeThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
     var swipeDragX by remember(cellKey) { mutableStateOf(0f) }
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "compare_l3", title = "Compare - cell", subject = reportTitle,
+        TitleBar(helpTopic = "compare_l3", title = "Compare with meta - cell", subject = reportTitle,
             reportIcon = reportIcon, onBackClick = onBack, onReload = onRerun)
         if (c == null) {
             Text("Cell not found.", color = AppColors.TextSecondary, fontSize = 14.sp)
@@ -612,25 +611,40 @@ private fun CompareL3(
                     Spacer(Modifier.height(6.dp))
                     Text(c.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
                 }
-                c.judgeModel?.let { Text("Scored by: $it", color = AppColors.TextTertiary, fontSize = 11.sp) }
                 c.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.DangerAccent, fontSize = 11.sp) }
             }
             Spacer(Modifier.height(12.dp))
-            ComparePane("Answer — $answerLabel", AppColors.SuccessAccent, agents[c.agentId]?.responseBody)
+            // Card 1 — the models + prompt behind this cell's score. The edit
+            // pencil opens the meta_compare prompt (which picks the compare models).
+            val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
+                Text("Report model: $answerLabel", color = AppColors.TextPrimary, fontSize = 14.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Compare model: ${c.judgeModel ?: "(pending)"}", color = AppColors.TextPrimary, fontSize = 14.sp)
+                    Text(com.ai.ui.shared.LocalMetadataIcons.current.edit, fontSize = 16.sp,
+                        modifier = Modifier.clickable { editPrompt(run.comparePrompt.id) }.padding(start = 8.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("Prompt used: ${secondaryPromptDisplayName(run.comparePrompt.name)}", color = AppColors.TextPrimary, fontSize = 14.sp)
+            }
             Spacer(Modifier.height(12.dp))
-            ComparePane("Meta — $metaLabel", AppColors.InfoAccent,
-                metaRowsById[c.metaResultId]?.content?.let { com.ai.data.stripMetaReferenceLegend(it) })
+            // Card 2 — the API interaction (resolved compare prompt + worker
+            // reply), like the Icon-lookup page.
+            val apiInteraction = remember(c.id, c.content, c.agentId, c.metaResultId) {
+                val resolved = com.ai.data.resolveSecondaryPrompt(
+                    run.comparePrompt.text, question = question, results = "", count = 1, title = reportTitle
+                )
+                    .replace("@RESPONSE@", agents[c.agentId]?.responseBody.orEmpty())
+                    .replace("@META_RESPONSE@", metaRowsById[c.metaResultId]?.content?.let { com.ai.data.stripMetaReferenceLegend(it) }.orEmpty())
+                buildOneShotApiInteraction(resolved, c.content)
+            }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
+                Text("API interaction", color = AppColors.TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text(apiInteraction, color = AppColors.TextPrimary, fontSize = 13.sp, lineHeight = 18.sp, fontFamily = FontFamily.Monospace)
+            }
             Spacer(Modifier.height(24.dp))
         }
-    }
-}
-
-@Composable
-private fun ComparePane(header: String, headerColor: Color, body: String?) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
-        Text(header, color = headerColor, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(4.dp))
-        Text(body?.trim().orEmpty(), color = AppColors.TextSecondary, fontSize = 12.sp)
     }
 }
