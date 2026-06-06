@@ -222,7 +222,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Tournament",
         cards = listOf(
             HelpCard("What it is", "A tournament ranks the report's answers by pairwise head-to-head judging. Every unordered pair of responses is judged twice — once each way (A-vs-B and B-vs-A) — to cancel first-position bias, so for N answers there are N(N-1) matches. Each match is judged by the worker engine using the configured tournament workers, so judging can spread across many models rather than one. Start a tournament from the report's 🆕 Create launcher → Tournament."),
-            HelpCard("Statistics + grouping", "The counters show Total / Done / Error / Run / Wait / Queue / Costs (Wait = parked on a provider rate-limit cap). Matches are worker-judged, so a rate-limited judge is skipped and another picked — no Bench column is used, and terminal failures count as Error. The two chips switch how the matches below are grouped: 'Judge models' groups by the worker model that judged each match; 'Report models' groups by the report answer being compared. The green row fill shows progress for the active grouping. Tap a group to drill into its matches, then a match to see the two responses and the verdict."),
+            HelpCard("Statistics + grouping", "The counters show Total / Done / Error / Run / Wait / Queue / Costs (Wait = parked on a provider rate-limit cap). Matches are worker-judged, so a rate-limited judge is skipped and another picked — no Bench column is used, and terminal failures count as Error. The list groups by the report answer being compared; the green row fill shows progress. Tap a group to drill into its matches, then a match to see the two responses and the verdict. The 🐜 icon opens Tournament workers — the same matches grouped by the judge model that scored them."),
             HelpCard("Viewing the ranking", "The 👁 view icon at the bottom opens the View Tournament screen — the 1..N ranking with the tournament method switch. The 🗑 in the title bar deletes the whole tournament; 'Restart failed' re-judges any errored matches.")
         )
     ),
@@ -236,6 +236,27 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Tournament match",
         cards = listOf(
             HelpCard("What you see", "One head-to-head: the coloured A/B model lines, the verdict (winner + confidence + the judge's one-line reason), which worker model judged it, the orientation (A-vs-B or the swapped B-vs-A pass), and the two full response cards. Swipe horizontally to step through the other matches in this group; the 🔄 in the title bar re-judges this match through the worker engine.")
+        )
+    ),
+    "tournament_workers" to HelpContent(
+        title = "Help - Tournament workers",
+        cards = listOf(
+            HelpCard("What it is", "The per-judge-model breakdown of this tournament — one row per worker model that judged matches, with the count it judged and a green bar normalised to the busiest judge. Reached from the 🐜 icon on the Tournament screen's bottom bar."),
+            HelpCard("Drilling in", "Tap a judge model to see the matches it judged, then a match for the verdict + the two responses. The 🔄 redo / 🗑 delete / 👁 view actions mirror the main Tournament screen. Back returns to the report-model list.")
+        )
+    ),
+    "fan_meta_workers" to HelpContent(
+        title = "Help - Fan Meta workers",
+        cards = listOf(
+            HelpCard("What it is", "The per-meta-worker breakdown of this Fan Meta run — one row per worker model that produced a pair's title + icon, with the count it handled and a green bar normalised to the busiest worker. Reached from the 🐜 icon on the Fan Meta screen's bottom bar."),
+            HelpCard("Drilling in", "Tap a meta-worker model to see the pairs it titled, then a pair for its icon + title detail. The 🔄 re-run / 🗑 delete / 🐞 trace actions mirror the main Fan Meta screen. Back returns to the report-model list.")
+        )
+    ),
+    "translation_workers" to HelpContent(
+        title = "Help - Translation workers",
+        cards = listOf(
+            HelpCard("What it is", "The per-model breakdown of this translation run — one row per worker model that translated items (plus any idle worker still held by the cost-aware queue), with the call count and a green bar normalised to the busiest model. Reached from the 🐜 icon on the Translation screen's bottom bar."),
+            HelpCard("Drilling in", "Tap a model to see the items it translated, then an item for the source + translation. The 🔄 redo / 🗑 delete / 👁 view / 🐞 trace actions mirror the main Translation screen. Back returns to the types list.")
         )
     ),
     "judge_eval_l1" to HelpContent(
@@ -589,7 +610,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Fan Meta",
         cards = listOf(
             HelpCard("What you see", "Top of the Fan Meta drill-in — a separate screen from Fan out (responses). One worker call per pair (fan/meta, random pick + 429-fallback) returns BOTH a short title and a fitting icon. The stats row tracks the title batch (Total / Done / Error / Run / Wait / Queue / Costs); since the meta worker is a swarm, no Bench column is used and terminal failures count as Error."),
-            HelpCard("Grouping", "The 'Meta models' / 'Report models' chips switch how the model list groups: by the meta-worker model that produced the title+icon, or by the answerer/report model. 'Show all' opens a flat list of every pair's title, grouped by source model."),
+            HelpCard("Grouping", "The list groups by the answerer/report model. The 🐜 icon opens Fan Meta workers — the same pairs grouped by the meta-worker model that produced the title+icon. 'Show all' opens a flat list of every pair's title, grouped by source model."),
             HelpCard("Status & errors", "Pairs classify by their title-batch status (queued → running → done / error). 'Remove errors' clears failed pairs so they read as pending; 'Restart errors' clears and re-fires the batch on them. 'Remove failed' / 'Remove benched' clean up the underlying fan-out responses that can never get a title."),
             HelpCard("Navigation", "The 🗑 drops every title + icon for the run, keeping the fan-out responses. The 'Fan-Out' button cross-links back to the responses screen; system back closes to the report's secondary list. Tap a model row to drill into L2.")
         )
@@ -599,7 +620,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "One model's pairs as a focused icon + title list — no status glyphs or progress fills (that's the Fan out L2). Each row shows the pair's generated icon, its title, and the counterpart model label. Tap a row to open the pair's L3 detail."),
             HelpCard("Role toggle", "Responder = the active model received others' sources. Initiator = the active model's report fed into others. The role chip swaps the row list between the two views."),
-            HelpCard("Meta models view", "Reached from the L1 'Meta models' grouping, this variant is scoped to one meta-worker model and lists every pair it titled, with the answerer/report model under each title."),
+            HelpCard("Meta models view", "Reached from the 🐜 Fan Meta workers screen, this variant is scoped to one meta-worker model and lists every pair it titled, with the answerer/report model under each title."),
             HelpCard("Title bar", "ℹ️ opens Model Info for the active pair; 🗑 deletes every fan-out cell where this model participated and pops back.")
         )
     ),
@@ -910,20 +931,18 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "translation_run_l1" to HelpContent(
-        title = "Help - Translation run — models",
+        title = "Help - Translation run — types",
         cards = listOf(
-            HelpCard("Overview", "Level 1 of the translation run drill-in: every model that picked up work in this run. The run uses a shared work queue — items aren't pre-assigned, so a model's row appears (and its bar grows) as that model pulls items. Tap a model to see the items it translated."),
+            HelpCard("Overview", "Level 1 of the translation run drill-in: the run grouped by translation type (the trace/cost category each item belongs to — the prompt, fan-out responses, Meta results, and so on). Tap a type to see its items. The 🐜 icon opens Translation workers — the same run grouped by the model that translated each item."),
             HelpCard("Mode (Speed / Mixed / Cost)", "Three-way toggle above the stats panel. Cost (default) — cheap models drain the queue first, expensive ones hesitate proportional to their price ratio (up to 2 min between pulls). Mixed — softened bias (up to 5 s). Speed — no hesitation, every model pulls as fast as its per-host caps allow; highest throughput, highest spend. Switchable mid-run; the change takes effect on the next queue pull (within ~1 s). Saved per-run on disk so a process kill / app restart preserves your choice."),
             // "429 / 529 handling" relocated to the "concepts" topic
             // (Help home → How it works) — same OkHttp retry behaviour
             // applies across every screen that fires a translation
             // call, not just this one.
             HelpCard("Stats panel", "Pinned at the top, kept visible even once the run is done: Total, Done, Errors, Run (in-flight), Wait (parked on a provider gate), Queue (items not yet picked up by any model), Costs (run total in cents, 2 decimals). Translation is a worker-pool batch, so no Bench column is used."),
-            HelpCard("Per-model bar", "Each row's background bar is that model's share of the WHOLE run — green for done, red for errored. A per-model progress bar isn't possible: with the work queue you can't know how many items a model will end up taking. A model that did half the run shows a half-filled row."),
-            HelpCard("Per-model row", "Status glyph (⏳ running / ❌ errored / ✅ all done / 🕓 mixed), model name, a '<done>/<total> done' summary, and that model's cost. Sorted running first, then errored, then fully-done. Once the whole run is done the glyph + fill drop so it reads calmly — and a leading numeric column appears showing how many translations that model contributed, sorted descending so the busiest model stays at the top."),
-            HelpCard("Restart / Remove failed items", "Shown when at least one item errored. Restart re-fires every failed call through the worker pool (the runner's concurrency cap still applies); Remove drops the failed rows without spending tokens. Both are whole-run scope."),
+            HelpCard("Per-type row", "Each row shows the type's item count, the type label (the `translate/…` category with its prefix stripped), and the type's cost. A green background fill = that type's done/total while work is in flight; once the run finishes the fill drops so it reads calmly. Sorted by size, then label."),
             HelpCard("Top progress bar", "Run-level (done + error) / total while there's still pending or running work. Hidden on a cancelled run."),
-            HelpCard("Title bar", "🔄 redoes every entry; 🐞 opens the trace list filtered to category=Translation; 🗑 deletes the whole run behind a blocking 'Deleting…' popup.")
+            HelpCard("Title bar", "👁 opens the matching View Translate screen; 🐜 opens Translation workers (per-model breakdown); 🔄 redoes every entry; 🐞 opens the trace list filtered to this run; 🗑 deletes the whole run behind a blocking 'Deleting…' popup.")
         )
     ),
     "translation_run_l2" to HelpContent(

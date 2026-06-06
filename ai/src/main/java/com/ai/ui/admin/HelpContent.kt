@@ -80,6 +80,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
 
     // ===== Translation =====
     "translation_run_l1" to listOf("help_translations", "concepts", "help_glossary_operations", "help_costs"),
+    "translation_workers" to listOf("help_translations", "concepts", "help_glossary_operations", "help_costs"),
     "translation_run_l2" to listOf("help_translations", "concepts"),
     "translation_run_l3" to listOf("help_translations", "concepts"),
     "translation_compare" to listOf("help_translations", "concepts"),
@@ -89,6 +90,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     // ===== Fan-out / Meta / Secondary results =====
     "view_tournament" to listOf("help_glossary_operations", "concepts", "help_costs"),
     "tournament_l1" to listOf("help_glossary_operations", "concepts", "help_costs"),
+    "tournament_workers" to listOf("help_glossary_operations", "concepts", "help_costs"),
     "tournament_l2" to listOf("help_glossary_operations", "concepts"),
     "tournament_l3" to listOf("help_glossary_operations", "concepts"),
     "compare_select_meta" to listOf("help_glossary_operations", "concepts", "help_costs"),
@@ -108,6 +110,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "secondary_fan_out_l3" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_onepage" to listOf("help_glossary_operations"),
     "fan_meta_l1" to listOf("help_glossary_operations", "concepts", "help_costs"),
+    "fan_meta_workers" to listOf("help_glossary_operations", "concepts", "help_costs"),
     "fan_meta_l2" to listOf("help_glossary_operations", "concepts"),
     "fan_meta_l3" to listOf("help_glossary_operations", "concepts"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
