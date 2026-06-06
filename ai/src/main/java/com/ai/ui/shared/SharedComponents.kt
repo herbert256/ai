@@ -2256,7 +2256,12 @@ fun BottomIconBar(
     } else {
         emptyList()
     }
-    if (suppressScreenTraceAndHelp && specs.isEmpty() && costText == null) return
+    if (suppressScreenTraceAndHelp && specs.isEmpty() && costText == null) {
+        // No action icons to show — render a little breathing room instead of
+        // nothing, so the screen's last item isn't flush against the bottom edge.
+        Spacer(modifier = modifier.fillMaxWidth().height(24.dp))
+        return
+    }
     val navigateHelp = LocalNavigateToHelp.current
     // On allowlisted screens the white ❓ opens a live icon-legend overlay
     // (this screen's visible bar icons) instead of the help page. The
