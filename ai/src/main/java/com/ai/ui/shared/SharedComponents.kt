@@ -2020,7 +2020,7 @@ fun HomeIconBar(
         onShare?.let { cb -> add { TitleBarIcon(mi.share, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = fs) }
-        add { AiLogoButton(onClick = onAbout, size = 38.dp, contentDescription = "About") }
+        add { AiLogoButton(onClick = onAbout, size = 44.dp, contentDescription = "About") }
     }
 
     // Detect the top camera cutout (punch-hole) at runtime via the platform
@@ -2044,7 +2044,7 @@ fun HomeIconBar(
             modifier = modifier
                 .fillMaxWidth()
                 .background(AppColors.AppBackground)
-                .padding(top = 5.dp, bottom = 4.dp),
+                .padding(start = 8.dp, top = 5.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) { slots.forEach { it() } }
@@ -2077,7 +2077,7 @@ fun HomeIconBar(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.width(with(density) { leftWpx.toDp() })) {
                     Row(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().padding(start = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) { slots.take(nLeft).forEach { it() } }
