@@ -2019,24 +2019,25 @@ fun HomeIconBar(
             AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
         }
     }
-    val slots: List<@Composable () -> Unit> = listOf(
+    // Only active icons are added — inactive ones are omitted entirely
+    // (not greyed out / blank-spaced), so the bar never shows a dead icon.
+    val slots: List<@Composable () -> Unit> = buildList {
         // AI Setup leads the bar.
-        { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs) },
-        { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs) },
-        { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) },
-        { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) },
-        { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs) },
-        {
-            if (com.ai.data.ApiTracer.ladybugLinksEnabled)
-                TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 26.sp)
-            else Spacer(Modifier.width(w))
-        },
-        { TitleBarIcon(mi.copy, Color.Unspecified, onCopy ?: {}, width = w, heightDp = h, fontSize = fs, alpha = if (onCopy != null) 1f else 0.35f) },
-        { TitleBarIcon(mi.share, Color.Unspecified, onShare ?: {}, width = w, heightDp = h, fontSize = fs, alpha = if (onShare != null) 1f else 0.35f) },
+        add { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs) }
+        add { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs) }
+        add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) }
+        add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) }
+        add { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs) }
+        // Traces only when ladybug links are enabled — no blank placeholder otherwise.
+        if (com.ai.data.ApiTracer.ladybugLinksEnabled)
+            add { TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 26.sp) }
+        // 📋 copy / 📤 share only when the current screen actually offers them.
+        onCopy?.let { cb -> add { TitleBarIcon(mi.copy, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
+        onShare?.let { cb -> add { TitleBarIcon(mi.share, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
         // Settings sits just before Help.
-        { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) },
-        helpAboutPair,
-    )
+        add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
+        add(helpAboutPair)
+    }
 
     // Detect the top camera cutout (punch-hole) at runtime via the platform
     // DisplayCutout — no hardcoded position, so centre / corner / no-cutout
