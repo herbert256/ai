@@ -1996,11 +1996,11 @@ fun HomeIconBar(
     val mi = LocalMetadataIcons.current
     val traceAction = icons?.onTrace ?: onTraceFallback
     val helpAction = icons?.onHelp ?: onHelpFallback
-    // App background (not the card tint). A simple centered row of equal-size
-    // icons with no spacing between them. Only renders in HOME_BAR mode.
-    val w = 30.dp
-    val h = 34
-    val fs = 26.sp
+    // App background (not the card tint). Equal-size icons spread across the
+    // full width. Only renders in HOME_BAR mode.
+    val w = 32.dp
+    val h = 36
+    val fs = 28.sp
     // 📤 share mirrors the current screen's action (published via
     // LocalBottomIconState into `icons`) and shows only when the screen offers
     // it; the bottom bar suppresses share in HOME_BAR mode so it isn't shown
@@ -2020,7 +2020,7 @@ fun HomeIconBar(
         onShare?.let { cb -> add { TitleBarIcon(mi.share, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = fs) }
-        add { AiLogoButton(onClick = onAbout, size = 34.dp, contentDescription = "About") }
+        add { AiLogoButton(onClick = onAbout, size = 38.dp, contentDescription = "About") }
     }
 
     // Detect the top camera cutout (punch-hole) at runtime via the platform
@@ -2039,14 +2039,14 @@ fun HomeIconBar(
     }
 
     if (holeRect == null) {
-        // Normal: one centered row, no spacing between the icons.
+        // Normal: one row spread across the full width.
         Row(
             modifier = modifier
                 .fillMaxWidth()
                 .background(AppColors.AppBackground)
                 .padding(top = 5.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.SpaceBetween
         ) { slots.forEach { it() } }
     } else {
         // Full screen WITH a top camera hole: sit at the very top edge (use
@@ -2071,7 +2071,7 @@ fun HomeIconBar(
             val n = slots.size
             // Split the icons proportionally to the free space on each side of
             // the hole (each slot is one visible icon). The gap sits over the
-            // hole; each side is centered with no spacing.
+            // hole; each side spreads across its region.
             val nLeft = if (leftWpx + rightWpx <= 0f) n
                 else (n * (leftWpx / (leftWpx + rightWpx))).roundToInt().coerceIn(0, n)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -2079,7 +2079,7 @@ fun HomeIconBar(
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) { slots.take(nLeft).forEach { it() } }
                 }
                 Spacer(Modifier.width(with(density) { gapWpx.toDp() }))
@@ -2087,7 +2087,7 @@ fun HomeIconBar(
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) { slots.drop(nLeft).forEach { it() } }
                 }
             }
