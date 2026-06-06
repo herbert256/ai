@@ -2087,8 +2087,12 @@ fun HomeIconBar(
             val rightWpx = (totalWpx - (holeRect.right + marginPx)).coerceAtLeast(0f)
             val gapWpx = (totalWpx - leftWpx - rightWpx).coerceAtLeast(0f)
             val n = slots.size
+            // The trailing slot draws TWO icons (Help + the About logo), so
+            // weight the split by (n + 1) — otherwise the right side always
+            // carries one extra visible icon and a centred hole reads as 4/6
+            // instead of 5/5. The gap still sits exactly over the hole.
             val nLeft = if (leftWpx + rightWpx <= 0f) n
-                else (n * (leftWpx / (leftWpx + rightWpx))).roundToInt().coerceIn(0, n)
+                else ((n + 1) * (leftWpx / (leftWpx + rightWpx))).roundToInt().coerceIn(0, n)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.width(with(density) { leftWpx.toDp() })) {
                     Row(
