@@ -757,8 +757,7 @@ internal fun ColumnScope.FanOutDrillInView(
         if (l2Rows.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    if (selectedRole == "Responder") "No responses for this model yet"
-                    else "No other model has responded to this one yet",
+                    "One moment, collecting information…",
                     color = AppColors.TextTertiary, fontSize = 13.sp
                 )
             }

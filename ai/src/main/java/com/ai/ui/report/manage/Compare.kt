@@ -450,7 +450,7 @@ private fun CompareL1(
 
             val groups = buildGroups(run, agents)
             if (groups.isEmpty()) {
-                Text("No cells yet.", color = AppColors.TextSecondary, fontSize = 13.sp,
+                Text("One moment, collecting information…", color = AppColors.TextSecondary, fontSize = 13.sp,
                     modifier = Modifier.padding(vertical = 8.dp))
             }
             groups.forEach { g -> CompareGroupRowItem(g) { openGroup(g.key) } }

@@ -374,7 +374,7 @@ private fun TournamentL1(
             val groups = buildGroups(run, agents, TournamentGroupMode.REPORT_MODELS)
             if (groups.isEmpty()) {
                 Text(
-                    "No matches yet.",
+                    "One moment, collecting information…",
                     color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
@@ -451,7 +451,7 @@ private fun TournamentWorkersL1(
             val groups = buildGroups(run, agents, TournamentGroupMode.TOURNAMENT_MODELS)
             if (groups.isEmpty()) {
                 Text(
-                    "No matches judged yet.",
+                    "One moment, collecting information…",
                     color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp)
                 )
             }

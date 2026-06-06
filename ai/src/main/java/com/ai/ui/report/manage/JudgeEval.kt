@@ -215,7 +215,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
                 subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack
             )
             Spacer(Modifier.height(20.dp))
-            Text("No judge-eval on this report.", color = AppColors.TextSecondary, fontSize = 14.sp)
+            Text("One moment, collecting information…", color = AppColors.TextSecondary, fontSize = 14.sp)
         }
         return
     }

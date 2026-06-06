@@ -238,7 +238,7 @@ internal fun FanMetaL1Screen(
             if (l1Rows.isEmpty()) {
                 item {
                     Text(
-                        "No titles yet.",
+                        "One moment, collecting information…",
                         color = AppColors.TextSecondary, fontSize = 13.sp,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
@@ -400,7 +400,7 @@ internal fun FanMetaWorkersScreen(
             if (rows.isEmpty()) {
                 item {
                     Text(
-                        "No titles yet.",
+                        "One moment, collecting information…",
                         color = AppColors.TextSecondary, fontSize = 13.sp,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
@@ -522,7 +522,7 @@ internal fun FanMetaAllScreen(
 
         if (groups.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No titles yet", color = AppColors.TextTertiary, fontSize = 13.sp)
+                Text("One moment, collecting information…", color = AppColors.TextTertiary, fontSize = 13.sp)
             }
             return@Column
         }

@@ -279,7 +279,7 @@ internal fun FanOutL1Screen(
             if (answererKeys.isEmpty()) {
                 item {
                     Text(
-                        "No fan-out responses yet.",
+                        "One moment, collecting information…",
                         color = AppColors.TextSecondary, fontSize = 13.sp,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )

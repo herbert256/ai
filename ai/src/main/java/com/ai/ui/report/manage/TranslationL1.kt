@@ -182,7 +182,7 @@ internal fun TranslationL1Screen(
         // busiest model; type bars are that type's done/total.
         if (typeRows.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("No translation items", color = AppColors.TextSecondary, fontSize = 14.sp)
+                Text("One moment, collecting information…", color = AppColors.TextSecondary, fontSize = 14.sp)
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
@@ -290,7 +290,7 @@ internal fun TranslationWorkersScreen(
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     if (queuedCount > 0) "Queued — no model has picked up an item yet"
-                    else "No translation items",
+                    else "One moment, collecting information…",
                     color = AppColors.TextSecondary, fontSize = 14.sp
                 )
             }
