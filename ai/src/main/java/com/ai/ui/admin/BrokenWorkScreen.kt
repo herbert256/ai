@@ -1,7 +1,6 @@
 package com.ai.ui.admin
 
 import android.content.Context
-import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -215,9 +214,6 @@ private fun BrokenWorkItem(
     val background = if (index % 2 == 0) AppColors.CardBackground else AppColors.CardBackgroundAlt
     // Regenerate has no item list to open; every other kind does.
     val canView = batch.kind != BatchFamilyKind.REGENERATE
-    // The 6 batch-screen families show one card-level Continue instead of the
-    // per-line ↻ restart icon (the Continue re-queues the whole batch).
-    val usesContinue = batch.kind in CONTINUE_FAMILIES
     Card(
         colors = CardDefaults.cardColors(containerColor = background),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)
@@ -261,9 +257,6 @@ private fun BrokenWorkItem(
                         // Fan Meta "unfinished" is a fan-out pair missing its
                         // title/icon — there's no item row to delete.
                         canDelete = batch.kind != BatchFamilyKind.FAN_META,
-                        // The 6 batch-screen families restart via the single
-                        // card-level Continue, not per-line.
-                        canRestart = !usesContinue,
                         onView = { onView(mode) },
                         onDelete = { onDelete(mode) },
                         onRestart = { onRestart(mode) },
@@ -277,40 +270,10 @@ private fun BrokenWorkItem(
                         busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(batch, mode)) },
                         canView = canView,
                         canDelete = true,
-                        canRestart = !usesContinue,
                         onView = { onView(mode) },
                         onDelete = { onDelete(mode) },
                         onRestart = { onRestart(mode) },
                     )
-                }
-                // Card-level Continue for the 6 batch-screen families: one
-                // action covering both unfinished + errored. Navigates straight
-                // to the report's Manage screen + opens the batch (so no busy
-                // spinner lingers here); "Working…" only shows if the detail
-                // screen's per-item restart is mid-flight for this batch.
-                if (!responsesSingle && usesContinue &&
-                    (batch.unfinishedCount + batch.errorCount) > 0) {
-                    val anyBusy = busyKeys.any {
-                        it.startsWith("${batch.reportId}|${batch.kind}|${batch.key}|")
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                    ) {
-                        Spacer(Modifier.weight(1f))
-                        if (anyBusy) {
-                            Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
-                        } else {
-                            Text(
-                                "${LocalMetadataIcons.current.reload} Continue",
-                                fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                                color = AppColors.PrimaryAccent,
-                                modifier = Modifier
-                                    .clickable(onClick = onContinue)
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
                 }
                 // Single-item entries (one secondary, a one-error batch, or a
                 // paused regenerate) show their failure message inline.
@@ -322,10 +285,6 @@ private fun BrokenWorkItem(
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
-                Text(
-                    DateUtils.getRelativeTimeSpanString(batch.timestamp).toString(),
-                    fontSize = 10.sp, color = AppColors.TextTertiary, maxLines = 1
-                )
             }
         }
     }
@@ -359,8 +318,8 @@ private fun CountActionLine(
 @Composable
 private fun IconGlyph(glyph: String, onClick: () -> Unit) {
     Text(
-        glyph, fontSize = 16.sp, color = AppColors.TextSecondary,
-        modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 2.dp)
+        glyph, fontSize = 22.sp, color = AppColors.TextSecondary,
+        modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 2.dp)
     )
 }
 
