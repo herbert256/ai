@@ -241,42 +241,31 @@ private fun ColumnScope.TitleApiCards(card: TitleApiCard?) {
     ) {
         card?.let { c ->
             Spacer(modifier = Modifier.height(12.dp))
-            // Model card — prompt (+ edit pencil) / provider / model + cost.
+            // Model / Prompt (+ edit pencil) / Cost — one uniform text size.
             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                 modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val label = if (c.model.isNotBlank())
+                        modelLabel(c.providerId, c.model)
+                    else "(unknown model)"
+                    Text("Model: $label", fontSize = 14.sp, color = AppColors.TextPrimary)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Prompt", fontSize = 11.sp, color = AppColors.TextTertiary,
-                                fontWeight = FontWeight.Bold)
-                            Text(c.promptName.ifBlank { "(unknown)" },
-                                fontSize = 14.sp, color = AppColors.TextPrimary)
-                        }
+                        Text("Prompt: ${c.promptName.ifBlank { "(unknown)" }}",
+                            fontSize = 14.sp, color = AppColors.TextPrimary,
+                            modifier = Modifier.weight(1f))
                         if (c.promptId.isNotBlank()) {
                             Text(
                                 com.ai.ui.shared.LocalMetadataIcons.current.edit,
-                                fontSize = 20.sp,
+                                fontSize = 18.sp,
                                 modifier = Modifier
                                     .clickable { editPrompt(c.promptId) }
                                     .padding(start = 8.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
-                        fontWeight = FontWeight.Bold)
-                    val label = if (c.model.isNotBlank())
-                        modelLabel(c.providerId, c.model)
-                    else "(unknown model)"
-                    Text(label, fontSize = 14.sp, color = AppColors.TextPrimary)
-                    if (c.cost > 0.0) {
-                        Text(
-                            "Cost: ${formatCents(c.cost)} ¢",
-                            fontSize = 11.sp, color = AppColors.TextTertiary,
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
+                    Text("Cost: ${formatCents(c.cost)} ¢",
+                        fontSize = 14.sp, color = AppColors.TextPrimary)
                 }
             }
             // API interaction card — plain monospace, NO markdown.

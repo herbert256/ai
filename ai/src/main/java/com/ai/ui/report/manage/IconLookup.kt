@@ -101,51 +101,31 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                 )
             } else {
-                // Model card — provider / model / pricing tier / cumulative cost.
+                // Model / Prompt (+ edit pencil) / Cost — one uniform text size.
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                     modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        // Prompt name + edit pencil — the prompt that produced
-                        // this icon, opened in the internal-prompt editor.
+                    Column(modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val label = if (ctx.model.isNotBlank())
+                            modelLabel(ctx.provider.id, ctx.model)
+                        else "(pending)"
+                        Text("Model: $label", fontSize = 14.sp, color = AppColors.TextPrimary)
                         if (ctx.promptName != null) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Prompt", fontSize = 11.sp, color = AppColors.TextTertiary,
-                                        fontWeight = FontWeight.Bold)
-                                    Text(ctx.promptName.ifBlank { "(unknown)" },
-                                        fontSize = 14.sp, color = AppColors.TextPrimary)
-                                }
+                                Text("Prompt: ${ctx.promptName.ifBlank { "(unknown)" }}",
+                                    fontSize = 14.sp, color = AppColors.TextPrimary,
+                                    modifier = Modifier.weight(1f))
                                 ctx.onEditPrompt?.let { edit ->
                                     Text(
                                         com.ai.ui.shared.LocalMetadataIcons.current.edit,
-                                        fontSize = 20.sp,
+                                        fontSize = 18.sp,
                                         modifier = Modifier.clickable { edit() }.padding(start = 8.dp)
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
                         }
-                        Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
-                            fontWeight = FontWeight.Bold)
-                        val label = if (ctx.model.isNotBlank())
-                            modelLabel(ctx.provider.id, ctx.model)
-                        else "(pending)"
-                        Text(label, fontSize = 14.sp, color = AppColors.TextPrimary)
-                        if (ctx.pricingTier.isNotBlank()) {
-                            Text(
-                                "Pricing tier: ${ctx.pricingTier}",
-                                fontSize = 11.sp, color = AppColors.TextTertiary,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
-                        if (ctx.cost > 0.0) {
-                            Text(
-                                "Cost: ${formatCents(ctx.cost)} ¢",
-                                fontSize = 11.sp, color = AppColors.TextTertiary,
-                                fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
+                        Text("Cost: ${formatCents(ctx.cost)} ¢",
+                            fontSize = 14.sp, color = AppColors.TextPrimary)
                     }
                 }
 
