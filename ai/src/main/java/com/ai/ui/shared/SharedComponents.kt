@@ -2281,8 +2281,9 @@ fun BottomIconBar(
     val ceiling = 2.1f
 
     androidx.compose.foundation.layout.BoxWithConstraints(
-        // Bottom padding lifts the bar a touch above the gesture pill.
-        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 2.dp, bottom = 18.dp)
+        // Bottom padding lifts the bar a touch above the gesture pill; a small
+        // start inset keeps the first icon off the very left edge.
+        modifier = modifier.fillMaxWidth().padding(start = 8.dp, end = 2.dp, bottom = 18.dp)
     ) {
         val available = maxWidth.value
 
