@@ -26,7 +26,7 @@ fun FirstLaunchScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(AppColors.AppBackground)
-            .padding(horizontal = 16.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         TitleBar(
