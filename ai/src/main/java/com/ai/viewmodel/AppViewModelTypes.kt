@@ -76,6 +76,25 @@ data class BrokenBatch(
     val errorMessage: String? = null,
 )
 
+/** One-shot request, set by the Broken-work "Continue" action and consumed
+ *  once by the Manage screen on entry, to re-queue a batch and open its own
+ *  batch screen. Lives in [AppViewModel.pendingBatchOpen]. The consumer
+ *  ([com.ai.ui.report.manage.ConsumePendingBatchOpen]) gates on
+ *  [reportId] == the restored report, clears the request *before* arming so
+ *  closing the opened overlay can't re-fire it, then drives the same build
+ *  popup + engine `continueBroken…` the manual launch uses.
+ *
+ *  [key] mirrors [BrokenBatch.key]: a fan-out runKey (`"reportId|metaPromptId"`)
+ *  for FAN_OUT / FAN_META, a translation runId for TRANSLATION, the reportId
+ *  otherwise. [fanOutName] is the metaPrompt display name (the fan-out list
+ *  filters by name, not id) for FAN_OUT / FAN_META; null for the others. */
+data class PendingBatchOpen(
+    val reportId: String,
+    val kind: BatchFamilyKind,
+    val key: String,
+    val fanOutName: String? = null,
+)
+
 /** How combined provider+model labels render across UI rows.
  *  MODEL_ONLY shows just the model id (the dense default); PROVIDER_AND_MODEL
  *  shows both, joined by " · ", for users who run the same model on

@@ -1562,6 +1562,49 @@ class FanOutEngine internal constructor(
             rerunPairsBlocking(context, runKey, keys)
         }
 
+    /** Broken-work "Continue": stop this run's in-flight pairs (keeping the
+     *  run + its finished pairs), then re-queue every broken pair — stranded
+     *  PENDING placeholders plus genuine ERRORs (cooldown-benched ones are
+     *  left for auto-recovery, matching [restartFailedPairs]) — and
+     *  re-dispatch in one batch, driving the build-stage popup off [buildKey].
+     *  Finished pairs are untouched. */
+    fun continueBrokenBatch(context: Context, runKey: FanOutRunKey, buildKey: String?): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                stopInFlightKeepingState(runKey)
+                hydrate(context, runKey.substringBefore('|'))
+                _runs.value[runKey]?.let { run ->
+                    val keys = run.pairs.values.filter {
+                        it.status == PairStatus.PENDING ||
+                            (it.status == PairStatus.ERROR &&
+                                !ModelCooldownStore.isUnavailable(it.providerId, it.model))
+                    }.map { it.key }
+                    rerunPairsBlocking(context, runKey, keys, buildKey)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                buildKey?.let { appViewModel.clearBuild(it) }
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("FanOut", "continue broken batch failed runKey=$runKey: ${e.javaClass.simpleName}: ${e.message}")
+            } finally {
+                // Release the popup so the overlay still opens when there was
+                // nothing to re-queue or the run vanished (the normal path
+                // already finished the build before dispatch).
+                buildKey?.let {
+                    if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
+                }
+            }
+        }
+
+    /** Cancel this run's outer Job + every per-pair coroutine and JOIN them
+     *  (so no in-flight write lands after we re-queue), WITHOUT deleting rows
+     *  or dropping the run from the flow — the keep-state counterpart of
+     *  [cancelAllForReport], used by [continueBrokenBatch]. */
+    private suspend fun stopInFlightKeepingState(runKey: FanOutRunKey) {
+        runJobs[runKey]?.cancelAndJoin()
+        _runs.value[runKey]?.pairs?.values?.forEach { pairJobs[it.id]?.cancelAndJoin() }
+    }
+
     fun removePairsByIds(context: Context, runKey: FanOutRunKey, pairIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
@@ -1637,9 +1680,10 @@ class FanOutEngine internal constructor(
     private suspend fun rerunPairsBlocking(
         context: Context,
         runKey: FanOutRunKey,
-        pairKeys: List<PairKey>
+        pairKeys: List<PairKey>,
+        buildKey: String? = null
     ) {
-        if (pairKeys.isEmpty()) return
+        if (pairKeys.isEmpty()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
         val run = _runs.value[runKey] ?: return
         val report = ReportStorage.getReport(context, run.reportId) ?: return
         val aiSettings = appViewModel.uiState.value.aiSettings
@@ -1658,6 +1702,9 @@ class FanOutEngine internal constructor(
         data class Reset(val pair: PairState, val cleared: SecondaryResult, val body: String)
         val resets = mutableListOf<Reset>()
         var clearedCostDelta = 0.0
+        // Build stage: clearing each broken row to a PENDING placeholder is
+        // the "Preparing N / M…" phase the Broken-work Continue popup covers.
+        if (buildKey != null) appViewModel.beginBuild(buildKey, pairKeys.size, "Re-queuing fan-out")
         for (pk in pairKeys) {
             val pair = run.pairs[pk] ?: continue
             val source = report.agents.firstOrNull { it.agentId == pair.sourceAgentId } ?: continue
@@ -1681,10 +1728,14 @@ class FanOutEngine internal constructor(
             }
             val body = langCtx?.bodies?.get(pair.sourceAgentId) ?: source.responseBody.orEmpty()
             resets.add(Reset(pair, cleared, body))
+            if (buildKey != null) appViewModel.updateBuild(buildKey, resets.size)
         }
         if (clearedCostDelta > 0.0) {
             ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, clearedCostDelta)
         }
+        // Build phase complete — release the popup so the UI navigates to the
+        // batch screen while the dispatch below keeps running in the background.
+        if (buildKey != null) appViewModel.finishBuild(buildKey)
         if (resets.isEmpty()) return
         withTracerTags(reportId = run.reportId, category = cat) {
             runThrottledBatch(

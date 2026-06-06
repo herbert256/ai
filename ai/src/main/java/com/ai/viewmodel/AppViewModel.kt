@@ -55,6 +55,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _brokenBatches.value = batches
     }
 
+    /** One-shot "Continue this broken batch" request handed from the
+     *  Broken-work screen to the Manage screen. The Broken-work handler
+     *  restores the report, sets this, and navigates to Manage; the Manage
+     *  consumer ([com.ai.ui.report.manage.ConsumePendingBatchOpen]) reads it
+     *  once for the now-current report, clears it (via [consumeBatchOpen])
+     *  *before* arming so it can't re-fire, then runs the build popup +
+     *  engine re-queue + opens the batch's own screen. See [PendingBatchOpen]. */
+    private val _pendingBatchOpen = MutableStateFlow<PendingBatchOpen?>(null)
+    val pendingBatchOpen: StateFlow<PendingBatchOpen?> = _pendingBatchOpen.asStateFlow()
+    fun requestBatchOpen(request: PendingBatchOpen) { _pendingBatchOpen.value = request }
+    fun consumeBatchOpen() { _pendingBatchOpen.value = null }
+
     // NOTE: the legacy `runningFanOutPairs` StateFlow was removed — the
     // FanOutEngine's per-pair PairStatus in its StateFlow is now the single
     // source of truth for "is this pair running". Consumers derive a

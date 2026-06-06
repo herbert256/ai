@@ -1087,6 +1087,53 @@ class TranslationRunManager(
         )
     }
 
+    /** Broken-work "Continue" for a translation run: stop the in-flight run,
+     *  drop its stale (possibly cancelled) in-memory state, then re-queue every
+     *  broken row in one dispatch — errored rows are deleted + re-persisted
+     *  fresh, stranded placeholders are reused — keeping finished rows. Mirrors
+     *  [restartAllTranslations]' teardown so the run's `cancelled` flag can't
+     *  stick, but only touches the broken rows (not the finished ones).
+     *  [buildKey] drives the build-stage popup. */
+    fun continueBrokenTranslation(
+        context: Context,
+        sourceReportId: String,
+        runId: String,
+        buildKey: String?
+    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+        try {
+            cancelTranslation(runId)
+            _translationRuns.update { it - runId }
+            val rows = SecondaryResultStorage
+                .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+                .filter { translationRunGroupingId(it) == runId }
+            val errored = rows.filter { it.errorMessage != null }
+            val placeholders = rows.filter {
+                it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null
+            }
+            val broken = errored + placeholders
+            if (broken.isNotEmpty()) {
+                BatchResume.resetAttempts(broken.map { it.id })
+                runTranslationSubset(
+                    context, sourceReportId, runId,
+                    broken.map { it.translateSourceTargetId.orEmpty() to it.translateSourceKind.orEmpty() },
+                    deleteRowIds = errored.map { it.id },
+                    buildKey = buildKey
+                )
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            buildKey?.let { appViewModel.clearBuild(it) }
+            throw e
+        } catch (e: Exception) {
+            AppLog.w("Translate", "continue broken batch failed run=$runId: ${e.javaClass.simpleName}: ${e.message}")
+        } finally {
+            // Release the popup so the overlay still opens when there was
+            // nothing to re-queue (the normal path finishes it before dispatch).
+            buildKey?.let {
+                if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
+            }
+        }
+    }
+
     /** Re-dispatch translation items whose placeholder rows are
      *  still empty (no content, no error, no durationMs). The
      *  original target set lives on disk as one row per item
@@ -1316,7 +1363,8 @@ class TranslationRunManager(
          *  TRANSLATE row's content) instead of always from Original.
          *  Null preserves the original behavior for the failed-
          *  restart and start-missing callers. */
-        sourceTextOverrides: Map<Pair<String, String>, String>? = null
+        sourceTextOverrides: Map<Pair<String, String>, String>? = null,
+        buildKey: String? = null
     ) {
         if (targetKindPairs.isEmpty()) return
         val translateRows = SecondaryResultStorage
@@ -1443,7 +1491,12 @@ class TranslationRunManager(
         // interruption leaves resumable PENDING rows that Broken-work /
         // reconcile can pick up, and the run keeps showing on Manage.
         // runOneTranslation overwrites each placeholder on completion.
+        // Build stage: re-persisting each PENDING placeholder is the
+        // "Preparing N / M…" phase the Broken-work Continue popup covers.
+        if (buildKey != null) appViewModel.beginBuild(buildKey, items.size, "Re-queuing translation")
+        var rebuilt = 0
         items.forEach { item ->
+            if (buildKey != null) { rebuilt++; appViewModel.updateBuild(buildKey, rebuilt) }
             val pid = item.persistedRowId ?: return@forEach
             SecondaryResultStorage.save(context, SecondaryResult(
                 id = pid,
@@ -1463,6 +1516,9 @@ class TranslationRunManager(
                 runId = runId,
             ))
         }
+        // Build phase complete — release the popup so the UI navigates to the
+        // batch screen while the dispatch below keeps running in the background.
+        if (buildKey != null) appViewModel.finishBuild(buildKey)
 
         val aiSettings = appViewModel.uiState.value.aiSettings
         val textPrompt = workerTranslatePrompt(aiSettings, title = false)

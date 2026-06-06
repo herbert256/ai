@@ -2651,7 +2651,8 @@ class IconGenerationManager(
         context: Context,
         reportId: String,
         metaPromptId: String,
-        rowIds: Set<String>? = null
+        rowIds: Set<String>? = null,
+        buildKey: String? = null
     ): Job? {
         if (!appViewModel.uiState.value.generalSettings.fanMetaOn()) return null
         rvm.fanMetaJobs[rvm.fanMetaJobKey(reportId, metaPromptId)]?.let { existing ->
@@ -2667,6 +2668,7 @@ class IconGenerationManager(
                 val aiSettings = appViewModel.uiState.value.aiSettings
                 if (fanMetaPrompt == null || fanMetaPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                     AppLog.w("FanMeta", "fan/meta not configured — skipping")
+                    buildKey?.let { appViewModel.finishBuild(it) }
                     return@launch
                 }
                 val pending = SecondaryResultStorage
@@ -2681,14 +2683,20 @@ class IconGenerationManager(
                     }
                 if (pending.isEmpty()) {
                     AppLog.i("FanMeta", "no pending pairs on $reportId — nothing to do")
+                    buildKey?.let { appViewModel.finishBuild(it) }
                     return@launch
                 }
-                pending.forEach { pair ->
+                // Build stage: marking each pending pair "started" is the
+                // "Preparing N / M…" phase the Broken-work Continue popup covers.
+                if (buildKey != null) appViewModel.beginBuild(buildKey, pending.size, "Re-queuing fan meta")
+                pending.forEachIndexed { idx, pair ->
                     SecondaryResultStorage.markFanOutFanMetaStarted(
                         context, reportId, pair.id, fanRunId, promptUsed = "fan-meta"
                     )
                     rvm.fanOutEngine.refreshPairFromDisk(context, reportId, pair.id)
+                    if (buildKey != null) appViewModel.updateBuild(buildKey, idx + 1)
                 }
+                if (buildKey != null) appViewModel.finishBuild(buildKey)
                 AppLog.i("FanMeta", "→ start (report=$reportId, ${pending.size} pairs)")
                 withTracerTags(reportId = reportId, category = "fan/meta", runId = fanRunId) {
                     // Dynamic-host: each worker call self-throttles its own
@@ -2943,6 +2951,37 @@ class IconGenerationManager(
             // coroutine and the scan could win the race — seeing such a pair as
             // "not pending" and clearing its errors without restarting it.
             runFanMetaBatch(context, reportId, metaPromptId)
+        }
+
+    /** Broken-work "Continue" for a fan-meta batch: stop any in-flight batch
+     *  (join — load-bearing, see [relaunchFanMetaBatch]), clear the errored
+     *  pairs' title+icon, then re-run. The batch's pending scan then picks up
+     *  both the just-cleared errored pairs AND any never-ran (blank title+icon)
+     *  ones while leaving finished pairs alone — so this re-queues every broken
+     *  item, keeping finished. [buildKey] drives the build-stage popup. */
+    fun continueBrokenFanMeta(context: Context, reportId: String, metaPromptId: String, buildKey: String?): Job =
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            try {
+                cancelFanMetaBatch(reportId, metaPromptId)?.join()
+                withContext(Dispatchers.IO) {
+                    val errored = erroredFanMetaPairs(context, reportId, metaPromptId)
+                    clearFanMetaTitleIconState(context, reportId, errored)
+                }
+                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+                runFanMetaBatch(context, reportId, metaPromptId, buildKey = buildKey)?.join()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                buildKey?.let { appViewModel.clearBuild(it) }
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("FanMeta", "continue broken batch failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+            } finally {
+                // Release the popup so the overlay still opens when there was
+                // nothing to re-queue (runFanMetaBatch finishes it before
+                // dispatch on the normal path).
+                buildKey?.let {
+                    if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
+                }
+            }
         }
 
     fun restartFanMetaRows(context: Context, reportId: String, metaPromptId: String, rowIds: Set<String>): Job =

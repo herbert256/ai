@@ -710,6 +710,21 @@ val LocalCompareEngine = compositionLocalOf<com.ai.viewmodel.CompareEngine?> { n
 val LocalCompareOpenState =
     compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
 
+/** Carries the Broken-work "Continue" one-shot from ReportsScreenNav (which
+ *  owns the engines + the [com.ai.viewmodel.AppViewModel.pendingBatchOpen]
+ *  flow) down to [com.ai.ui.report.manage.ConsumePendingBatchOpen], which runs
+ *  inside ReportsScreen where the build popup + fan-out/translation open-state
+ *  live. [pending] is the live request; [consume] clears it (one-shot); [launch]
+ *  fires the matching engine's `continueBroken…` for the request, driving the
+ *  build popup off the passed buildKey and returning its Job for the popup's
+ *  Cancel. */
+class PendingBatchOpenController(
+    val pending: com.ai.viewmodel.PendingBatchOpen?,
+    val consume: () -> Unit,
+    val launch: (com.ai.viewmodel.PendingBatchOpen, String) -> kotlinx.coroutines.Job?,
+)
+val LocalPendingBatchOpenController = compositionLocalOf<PendingBatchOpenController?> { null }
+
 /** Per-row 🔧 / 👁 callbacks surfaced to nested report-list
  *  pickers (the +Report previous-report picker on the report
  *  screen) and the first-composition seed for the View tile-grid

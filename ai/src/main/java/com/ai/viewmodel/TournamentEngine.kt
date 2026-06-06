@@ -444,6 +444,45 @@ class TournamentEngine internal constructor(
             recomputeAndPersistAggregate(context, reportId)
         }
 
+    /** Broken-work "Continue": stop this run's in-flight matches (keeping the
+     *  run + its finished matches), then re-queue every broken match
+     *  (stranded PENDING + errored) and re-judge in one batch, driving the
+     *  build-stage popup off [buildKey]. Finished matches are untouched. */
+    fun continueBrokenBatch(context: Context, reportId: String, buildKey: String?): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                stopInFlightKeepingState(reportId)
+                hydrate(context, reportId)
+                _runs.value[reportId]?.let { run ->
+                    val keys = run.matches.values.filter {
+                        it.status == MatchStatus.PENDING || it.status == MatchStatus.ERROR
+                    }.map { it.key }
+                    rerunMatchesBlocking(context, reportId, keys, buildKey)
+                    recomputeAndPersistAggregate(context, reportId)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                buildKey?.let { appViewModel.clearBuild(it) }
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Tournament", "continue broken batch failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+            } finally {
+                // Release the popup so the overlay still opens when there was
+                // nothing to re-queue (the normal path finishes it before dispatch).
+                buildKey?.let {
+                    if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
+                }
+            }
+        }
+
+    /** Cancel this run's outer Job + every per-match coroutine and JOIN them
+     *  (so no in-flight write lands after we re-queue) WITHOUT deleting rows
+     *  or dropping the run — the keep-state counterpart of [cancelAllForReport],
+     *  used by [continueBrokenBatch]. */
+    private suspend fun stopInFlightKeepingState(reportId: String) {
+        runJobs[reportId]?.cancelAndJoin()
+        _runs.value[reportId]?.matches?.values?.forEach { matchJobs[it.id]?.cancelAndJoin() }
+    }
+
     fun rerunMatch(context: Context, reportId: String, mKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             rerunMatchesBlocking(context, reportId, listOf(mKey))
@@ -536,14 +575,17 @@ class TournamentEngine internal constructor(
             recomputeAndPersistAggregate(context, reportId)
         }
 
-    private suspend fun rerunMatchesBlocking(context: Context, reportId: String, mKeys: List<String>) {
-        if (mKeys.isEmpty()) return
+    private suspend fun rerunMatchesBlocking(context: Context, reportId: String, mKeys: List<String>, buildKey: String? = null) {
+        if (mKeys.isEmpty()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
         val run = _runs.value[reportId] ?: return
         val report = ReportStorage.getReport(context, reportId) ?: return
         val prompt = tournamentPrompt(appViewModel.uiState.value.aiSettings) ?: return
         val agentsById = report.agents.associateBy { it.agentId }
         val resets = mutableListOf<PendingMatch>()
         var clearedCostDelta = 0.0
+        // Build stage: resetting each broken match to a PENDING placeholder is
+        // the "Preparing N / M…" phase the Broken-work Continue popup covers.
+        if (buildKey != null) appViewModel.beginBuild(buildKey, mKeys.size, "Re-queuing tournament")
         for (k in mKeys) {
             val m = run.matches[k] ?: continue
             val a = agentsById[m.responseAId] ?: continue
@@ -559,8 +601,12 @@ class TournamentEngine internal constructor(
                 )
             }
             resets.add(PendingMatch(a, b, m.orientation, cleared))
+            if (buildKey != null) appViewModel.updateBuild(buildKey, resets.size)
         }
         if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
+        // Build phase complete — release the popup so the UI navigates to the
+        // batch screen while the dispatch below keeps running in the background.
+        if (buildKey != null) appViewModel.finishBuild(buildKey)
         if (resets.isEmpty()) return
         withTracerTags(reportId = reportId, category = "after/tournament") {
             dispatchMatches(context, reportId, prompt, report.prompt, report.title, resets)

@@ -295,6 +295,31 @@ fun ReportsScreenNav(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
     val openCompareId = openCompareReportId.value
+    // Broken-work "Continue" one-shot: the request + the per-family engine
+    // dispatch. Resolved here (where the engines live) and handed to
+    // ConsumePendingBatchOpen inside ReportsScreen via the controller Local.
+    val pendingBatchOpen by viewModel.pendingBatchOpen.collectAsState()
+    val pendingBatchOpenController = com.ai.ui.shared.PendingBatchOpenController(
+        pending = pendingBatchOpen,
+        consume = { viewModel.consumeBatchOpen() },
+        launch = { p, buildKey ->
+            when (p.kind) {
+                com.ai.viewmodel.BatchFamilyKind.FAN_OUT ->
+                    reportViewModel.fanOutEngine.continueBrokenBatch(context, p.key, buildKey)
+                com.ai.viewmodel.BatchFamilyKind.FAN_META ->
+                    reportViewModel.iconGen.continueBrokenFanMeta(context, p.reportId, p.key.substringAfter('|'), buildKey)
+                com.ai.viewmodel.BatchFamilyKind.TOURNAMENT ->
+                    reportViewModel.tournamentEngine.continueBrokenBatch(context, p.reportId, buildKey)
+                com.ai.viewmodel.BatchFamilyKind.JUDGES ->
+                    reportViewModel.judgeEvalEngine.continueBrokenBatch(context, p.reportId, buildKey)
+                com.ai.viewmodel.BatchFamilyKind.COMPARE ->
+                    reportViewModel.compareEngine.continueBrokenBatch(context, p.reportId, buildKey)
+                com.ai.viewmodel.BatchFamilyKind.TRANSLATION ->
+                    reportViewModel.translation.continueBrokenTranslation(context, p.reportId, p.key, buildKey)
+                else -> null
+            }
+        },
+    )
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
@@ -333,6 +358,7 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalJudgeEvalOpenState provides openJudgeEvalReportId,
         com.ai.ui.shared.LocalCompareEngine provides reportViewModel.compareEngine,
         com.ai.ui.shared.LocalCompareOpenState provides openCompareReportId,
+        com.ai.ui.shared.LocalPendingBatchOpenController provides pendingBatchOpenController,
         com.ai.ui.shared.LocalMetaEditManager provides reportViewModel.metaEditManager
     ) {
     // Regenerate-batch overlay — layered here (inside the provider) so it
@@ -808,6 +834,57 @@ internal fun SeedInitialManageOverlay(st: ReportsScreenState) {
             }
             else -> { /* MANAGE / FAN_OUT / null — nothing to seed */ }
         }
+    }
+}
+
+/** One-shot consumer for the Broken-work "Continue" request. Hosted here
+ *  (not inline in [ReportsScreen]) so its when-block bytecode stays out of
+ *  that 64 KB-ceiling method — sibling of [SeedInitialManageOverlay]. Reads
+ *  the request from [com.ai.ui.shared.LocalPendingBatchOpenController]; when it
+ *  targets the now-current report, clears it FIRST (so closing the opened
+ *  overlay can't re-fire it — the LaunchedEffect keys on the value), arms the
+ *  build popup via [armBuildStage], and launches the engine re-queue. The
+ *  engine's `finishBuild` then runs the deferred nav, which opens that batch's
+ *  own screen (Tournament/Judges/Compare open-state, or the fan-out /
+ *  translation `st.*` slots). */
+@Composable
+internal fun ConsumePendingBatchOpen(
+    st: ReportsScreenState,
+    currentReportId: String?,
+    armBuildStage: (String, String, () -> Unit, () -> Unit) -> Unit,
+) {
+    val controller = com.ai.ui.shared.LocalPendingBatchOpenController.current ?: return
+    val tournamentOpen = com.ai.ui.shared.LocalTournamentOpenState.current
+    val judgeOpen = com.ai.ui.shared.LocalJudgeEvalOpenState.current
+    val compareOpen = com.ai.ui.shared.LocalCompareOpenState.current
+    val pending = controller.pending
+    LaunchedEffect(pending, currentReportId) {
+        val p = pending ?: return@LaunchedEffect
+        if (p.reportId != currentReportId) return@LaunchedEffect
+        controller.consume()
+        val nav: () -> Unit = when (p.kind) {
+            com.ai.viewmodel.BatchFamilyKind.TOURNAMENT -> ({ tournamentOpen?.value = p.reportId })
+            com.ai.viewmodel.BatchFamilyKind.JUDGES -> ({ judgeOpen?.value = p.reportId })
+            com.ai.viewmodel.BatchFamilyKind.COMPARE -> ({ compareOpen?.value = p.reportId })
+            com.ai.viewmodel.BatchFamilyKind.FAN_OUT -> ({
+                st.listLockedLanguage.value = null
+                st.listKind.value = com.ai.data.SecondaryKind.META
+                st.listFilterByName.value = p.fanOutName
+                st.listIsFanMeta.value = false
+            })
+            com.ai.viewmodel.BatchFamilyKind.FAN_META -> ({
+                st.listLockedLanguage.value = null
+                st.listKind.value = com.ai.data.SecondaryKind.META
+                st.listFilterByName.value = p.fanOutName
+                st.listIsFanMeta.value = true
+            })
+            com.ai.viewmodel.BatchFamilyKind.TRANSLATION -> ({ st.openTranslationRunId.value = p.key })
+            else -> return@LaunchedEffect
+        }
+        val key = java.util.UUID.randomUUID().toString()
+        var job: kotlinx.coroutines.Job? = null
+        armBuildStage(key, "Re-queuing…", nav) { job?.cancel() }
+        job = controller.launch(p, key)
     }
 }
 

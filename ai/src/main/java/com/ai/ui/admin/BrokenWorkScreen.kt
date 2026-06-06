@@ -44,6 +44,15 @@ fun brokenWorkActionKey(batch: BrokenBatch, mode: BrokenItemMode, itemIds: Set<S
     if (itemIds.isEmpty()) brokenWorkActionPrefix(batch, mode)
     else "${brokenWorkActionPrefix(batch, mode)}|items:${itemIds.sorted().joinToString(",")}"
 
+/** The 6 batch families whose Broken-work card shows a single card-level
+ *  "Continue" — re-queue the whole batch (both unfinished + errored), then
+ *  open that batch's own screen — instead of the per-line ↻ restart icons.
+ *  The other families (Regenerate / Responses / Other) keep per-line restart. */
+val CONTINUE_FAMILIES = setOf(
+    BatchFamilyKind.FAN_OUT, BatchFamilyKind.FAN_META, BatchFamilyKind.TOURNAMENT,
+    BatchFamilyKind.JUDGES, BatchFamilyKind.COMPARE, BatchFamilyKind.TRANSLATION,
+)
+
 /** Full-screen list of batches that carry work needing attention —
  *  unfinished (stranded by an app-kill) and/or errored items — that the
  *  read-only background scan detected but did NOT fix. Reached from the
@@ -57,6 +66,11 @@ fun BrokenWorkScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onOpenReport: (String) -> Unit,
+    /** Card-level "Continue" for the 6 batch-screen families (Fan Out / Fan
+     *  Meta / Tournament / Judges / Compare / Translation): stop the batch,
+     *  re-queue every broken item, restart it, and open that batch's own
+     *  screen. The other families keep the per-line [onRestart]. */
+    onContinue: (BrokenBatch) -> Unit = {},
     onRestart: (BrokenBatch, BrokenItemMode) -> Unit,
     onDelete: (BrokenBatch, BrokenItemMode) -> Unit,
     onRestartItems: (BrokenBatch, BrokenItemMode, Set<String>) -> Unit,
@@ -142,6 +156,7 @@ fun BrokenWorkScreen(
                         },
                         onView = { mode -> viewing = batch to mode },
                         onRestart = { mode -> onRestart(batch, mode) },
+                        onContinue = { onContinue(batch) },
                         onDelete = { mode -> confirmDelete = batch to mode },
                     )
                 }
@@ -179,11 +194,15 @@ private fun BrokenWorkItem(
     onOpen: () -> Unit,
     onView: (BrokenItemMode) -> Unit,
     onRestart: (BrokenItemMode) -> Unit,
+    onContinue: () -> Unit,
     onDelete: (BrokenItemMode) -> Unit,
 ) {
     val background = if (index % 2 == 0) AppColors.CardBackground else AppColors.CardBackgroundAlt
     // Regenerate has no item list to open; every other kind does.
     val canView = batch.kind != BatchFamilyKind.REGENERATE
+    // The 6 batch-screen families show one card-level Continue instead of the
+    // per-line ↻ restart icon (the Continue re-queues the whole batch).
+    val usesContinue = batch.kind in CONTINUE_FAMILIES
     Card(
         colors = CardDefaults.cardColors(containerColor = background),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)
@@ -227,6 +246,9 @@ private fun BrokenWorkItem(
                         // Fan Meta "unfinished" is a fan-out pair missing its
                         // title/icon — there's no item row to delete.
                         canDelete = batch.kind != BatchFamilyKind.FAN_META,
+                        // The 6 batch-screen families restart via the single
+                        // card-level Continue, not per-line.
+                        canRestart = !usesContinue,
                         onView = { onView(mode) },
                         onDelete = { onDelete(mode) },
                         onRestart = { onRestart(mode) },
@@ -240,10 +262,40 @@ private fun BrokenWorkItem(
                         busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(batch, mode)) },
                         canView = canView,
                         canDelete = true,
+                        canRestart = !usesContinue,
                         onView = { onView(mode) },
                         onDelete = { onDelete(mode) },
                         onRestart = { onRestart(mode) },
                     )
+                }
+                // Card-level Continue for the 6 batch-screen families: one
+                // action covering both unfinished + errored. Navigates straight
+                // to the report's Manage screen + opens the batch (so no busy
+                // spinner lingers here); "Working…" only shows if the detail
+                // screen's per-item restart is mid-flight for this batch.
+                if (!responsesSingle && usesContinue &&
+                    (batch.unfinishedCount + batch.errorCount) > 0) {
+                    val anyBusy = busyKeys.any {
+                        it.startsWith("${batch.reportId}|${batch.kind}|${batch.key}|")
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    ) {
+                        Spacer(Modifier.weight(1f))
+                        if (anyBusy) {
+                            Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
+                        } else {
+                            Text(
+                                "${LocalMetadataIcons.current.reload} Continue",
+                                fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                color = AppColors.PrimaryAccent,
+                                modifier = Modifier
+                                    .clickable(onClick = onContinue)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
                 // Single-item entries (one secondary, a one-error batch, or a
                 // paused regenerate) show their failure message inline.
@@ -271,6 +323,7 @@ private fun CountActionLine(
     busy: Boolean,
     canView: Boolean,
     canDelete: Boolean,
+    canRestart: Boolean = true,
     onView: () -> Unit,
     onDelete: () -> Unit,
     onRestart: () -> Unit,
@@ -283,7 +336,7 @@ private fun CountActionLine(
         } else {
             if (canView) IconGlyph(icons.view, onView)
             if (canDelete) IconGlyph(icons.delete, onDelete)
-            IconGlyph(icons.reload, onRestart)
+            if (canRestart) IconGlyph(icons.reload, onRestart)
         }
     }
 }
