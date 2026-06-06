@@ -65,11 +65,13 @@ android {
             useSupportLibrary = true
         }
 
-        // Ship only arm64-v8a — the only ABI any modern Android device
-        // (and the standard emulator AVDs) actually runs. Dropping the
-        // other three saves ~150 MB of native libraries in the APK.
+        // arm64-v8a (every modern phone/tablet + the arm64 emulator AVDs)
+        // plus x86_64 for running on ChromeOS / Intel emulators. Dropping
+        // the remaining two (armeabi-v7a, x86) still saves a large chunk
+        // of native libraries in the APK.
         ndk {
             abiFilters += "arm64-v8a"
+            abiFilters += "x86_64"
         }
 
         // Network timeouts in seconds — tuned for streaming (long reads), short connect.
