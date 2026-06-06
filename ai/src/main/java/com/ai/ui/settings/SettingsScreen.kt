@@ -1076,7 +1076,21 @@ private fun NetworkSettingsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_network", title = "Network settings", subject = "Timeouts, throttling and retry rules", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_network", title = "Network settings", subject = "Timeouts, throttling and retry rules", onBackClick = onBack,
+            onClear = {
+                val d = GeneralSettings()
+                streamingReadTimeoutText = d.streamingReadTimeoutSec.toString()
+                nonStreamingReadTimeoutText = d.nonStreamingReadTimeoutSec.toString()
+                maxCallsPerMinuteText = d.maxCallsPerProviderPerMinute.toString()
+                maxConcurrentCallsText = d.maxConcurrentCallsPerProvider.toString()
+                maxRetriesText = d.maxRetriesOn429.toString()
+                retryBackoffMs429Text = d.retryBackoffMs429.toString()
+                maxRetries529Text = d.maxRetriesOn529.toString()
+                retryBackoffMs529Text = d.retryBackoffMs529.toString()
+                typeABenchEnabled = d.typeABenchEnabled
+                typeABenchSecondsText = d.typeABenchSeconds.toString()
+                typeABenchMaxAttemptsText = d.typeABenchMaxAttempts.toString()
+            })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Nav row to the Maximal API calls sub-screen. Styled like
             // SettingCard (same surface, title weight, chevron) so it
@@ -1265,7 +1279,8 @@ private fun MaximalApiCallsSubScreen(
         TitleBar(
             helpTopic = "settings_network_api_calls",
             title = "Maximal API calls", subject = "How many calls run at once",
-            onBackClick = onBack
+            onBackClick = onBack,
+            onClear = { apiText = GeneralSettings().maxConcurrentApiCalls.toString() }
         )
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -1428,7 +1443,16 @@ private fun UiTweaksSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_ui", title = "UI tweaks", subject = "Visual and layout preferences", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_ui", title = "UI tweaks", subject = "Visual and layout preferences", onBackClick = onBack,
+            onClear = {
+                val d = GeneralSettings()
+                modelNameLayout = d.modelNameLayout
+                appHomeMode = d.appHomeMode
+                showKnowledgeCard = d.showKnowledgeCard
+                fullScreen = d.fullScreen
+                showLadybugIcons = d.showLadybugIcons
+                experimentalFeatures = d.experimentalFeaturesEnabled
+            })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("App home", "Choose whether Home uses the classic card hub or the persistent top icon bar.", MetadataDefaults.HOME) {
                 Column {
@@ -1955,7 +1979,12 @@ private fun OtherSettingsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity", onBackClick = onBack,
+            onClear = {
+                val d = GeneralSettings()
+                userName = d.userName
+                defaultEmail = d.defaultEmail
+            })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.", MetadataDefaults.MAIL) {
                 OutlinedTextField(
@@ -2014,7 +2043,13 @@ private fun AutostartSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_autostart", title = "Autostart", subject = "What runs automatically when a report finishes", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_autostart", title = "Autostart", subject = "What runs automatically when a report finishes", onBackClick = onBack,
+            onClear = {
+                val d = GeneralSettings()
+                autostartItemsEnabled = d.autostartItemsEnabled
+                autoCreateRerankAndModeration = d.autoCreateRerankAndModeration
+                autostartFanMeta = d.autostartFanMeta
+            })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "Autostart items",
@@ -2095,7 +2130,17 @@ private fun MetadataSettingsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_metadata", title = "Metadata & icons", subject = "Master switch and per-item options for optional report metadata", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_metadata", title = "Metadata & icons", subject = "Master switch and per-item options for optional report metadata", onBackClick = onBack,
+            onClear = {
+                val d = GeneralSettings()
+                metadataEnabled = d.metadataEnabled
+                reportTitleMode = d.reportTitleMode
+                iconGenEnabled = d.iconGenEnabled
+                reportLanguageGenEnabled = d.reportLanguageGenEnabled
+                perModelIconGenEnabled = d.perModelIconGenEnabled
+                perModelTitleGenEnabled = d.perModelTitleGenEnabled
+                useInternalPromptsIcons = d.useInternalPromptsIcons
+            })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "Generate metadata & icons",
@@ -2824,7 +2869,14 @@ private fun AppSettingsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "settings_app_settings", title = "App settings", subject = "App-wide & report-model default prompt / parameters", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_app_settings", title = "App settings", subject = "App-wide & report-model default prompt / parameters", onBackClick = onBack,
+            onClear = {
+                val d = GeneralSettings()
+                appSp = d.appWideSystemPromptId
+                appPar = d.appWideParametersIds
+                rmSp = d.reportModelSystemPromptId
+                rmPar = d.reportModelParametersIds
+            })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("System prompt", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when a pre-generation system prompt is given.", MetadataDefaults.SYSTEM_PROMPT) {
                 AppDefaultRow("App-wide", appSp?.let { aiSettings.getSystemPromptById(it)?.name }) { spDialog = "app" }
@@ -2900,7 +2952,15 @@ private fun LoggingAndTracingSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_logging", title = "Log/trace/audit/statistics", subject = "Tracing, audit log, usage statistics and log level", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_logging", title = "Log/trace/audit/statistics", subject = "Tracing, audit log, usage statistics and log level", onBackClick = onBack,
+            onClear = {
+                val d = GeneralSettings()
+                loggingMasterEnabled = d.loggingMasterEnabled
+                tracingEnabled = d.tracingEnabled
+                auditLogEnabled = d.auditLogEnabled
+                usageStatsEnabled = d.usageStatsEnabled
+                logLevel = d.logLevel
+            })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "Enable logging & tracing",
