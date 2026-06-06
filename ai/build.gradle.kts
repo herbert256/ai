@@ -55,7 +55,7 @@ android {
 
     defaultConfig {
         applicationId = "com.ai"
-        minSdk = 26
+        minSdk = 36
         targetSdk = 36
         versionCode = 1
         versionName = versionFromTimestamp
