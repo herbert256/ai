@@ -1534,6 +1534,67 @@ object PricingCache {
 
     fun clearSupportedParametersCache() { supportedParametersCache = null }
 
+    /** Every cached OpenRouter supported-parameters entry, for the
+     *  Caches → Supported params screen. */
+    fun listSupportedParameters(context: Context): List<ModelSupportedParametersEntry> {
+        val file = java.io.File(context.filesDir, "model_supported_parameters.json")
+        if (!file.exists()) return emptyList()
+        return try { gson.fromJson(file.readText(), listSupportedParamsType) ?: emptyList() }
+        catch (_: Exception) { emptyList() }
+    }
+
+    /** Drop one (provider, model) supported-parameters entry from the
+     *  on-disk catalog + the in-memory cache. */
+    fun deleteSupportedParameter(context: Context, provider: String, model: String) {
+        val file = java.io.File(context.filesDir, "model_supported_parameters.json")
+        if (!file.exists()) return
+        try {
+            val all: List<ModelSupportedParametersEntry> =
+                gson.fromJson(file.readText(), listSupportedParamsType) ?: return
+            val filtered = all.filterNot { it.provider == provider && it.model == model }
+            file.writeTextAtomic(gson.toJson(filtered))
+            clearSupportedParametersCache()
+        } catch (_: Exception) {}
+    }
+
+    /** Drop ONE Info-provider pricing tier (by its [CatalogStat.name]) —
+     *  blob file(s), timestamp, and in-memory state — leaving the other
+     *  five tiers intact. Per-source sibling of [clearInfoProviderTiers],
+     *  wired to the Caches → Pricing tiers screen's 🗑. */
+    fun deleteTier(context: Context, source: String) = synchronized(lock) {
+        val blobKeys: List<String> = when (source) {
+            "LiteLLM" -> listOf(KEY_LITELLM_PRICING, KEY_LITELLM_META)
+            "models.dev" -> listOf(KEY_MODELS_DEV_PRICING, KEY_MODELS_DEV_META)
+            "llm-prices" -> listOf(KEY_LLMPRICES_PRICING)
+            "Artificial Analysis" -> listOf(KEY_AA_PRICING, KEY_AA_META)
+            "OpenRouter" -> listOf(KEY_OPENROUTER_PRICING)
+            "Helicone" -> listOf(KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS)
+            else -> emptyList()
+        }
+        if (blobKeys.isEmpty()) return@synchronized
+        val tsKey = when (source) {
+            "LiteLLM" -> KEY_LITELLM_TIMESTAMP
+            "models.dev" -> KEY_MODELS_DEV_TIMESTAMP
+            "llm-prices" -> KEY_LLMPRICES_TIMESTAMP
+            "Artificial Analysis" -> KEY_AA_TIMESTAMP
+            "OpenRouter" -> KEY_OPENROUTER_TIMESTAMP
+            "Helicone" -> KEY_HELICONE_TIMESTAMP
+            else -> null
+        }
+        blobKeys.forEach { try { blobFile(context, it).delete() } catch (_: Exception) {} }
+        getPrefs(context).edit { blobKeys.forEach { remove(it) }; tsKey?.let { remove(it) } }
+        when (source) {
+            "LiteLLM" -> { litellmPricing = null; litellmMeta = null; litellmTimestamp = 0
+                litellmMetaLookupCache.clear(); litellmPricingLookupCache.clear() }
+            "models.dev" -> { modelsDevPricing = null; modelsDevMeta = null; modelsDevTimestamp = 0
+                modelsDevMetaLookupCache.clear() }
+            "llm-prices" -> { llmPricesPricing = null; llmPricesTimestamp = 0 }
+            "Artificial Analysis" -> { aaPricing = null; aaMeta = null; aaTimestamp = 0 }
+            "OpenRouter" -> { openRouterPricing = null; openRouterTimestamp = 0 }
+            "Helicone" -> { heliconePricing = null; heliconePatterns = null; heliconeTimestamp = 0 }
+        }
+    }
+
     /** Wipe the six Info-provider catalog tiers (OpenRouter, LiteLLM,
      *  models.dev, Helicone, llm-prices, Artificial Analysis) plus the
      *  OpenRouter model-specs cache. Manual cost overrides and the

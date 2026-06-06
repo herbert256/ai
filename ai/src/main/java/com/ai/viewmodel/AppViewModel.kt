@@ -1477,6 +1477,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Re-fetch the OpenRouter supported-parameters (+ pricing) catalog —
+     *  backs the 🔄 on a Caches → Supported params row. Fire-and-forget. */
+    fun refreshSupportedParamsCache() {
+        val key = _uiState.value.generalSettings.openRouterApiKey
+        if (key.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) { PricingCache.fetchAndSaveModelSpecifications(getApplication(), key) }
+    }
+
+    /** Re-fetch the Artificial Analysis pricing tier — backs the 🔄 on the
+     *  Caches → Pricing tiers "Artificial Analysis" row. */
+    fun refreshAaPricingCache() {
+        val key = _uiState.value.generalSettings.artificialAnalysisApiKey
+        viewModelScope.launch(Dispatchers.IO) { PricingCache.fetchArtificialAnalysisOnline(getApplication(), key) }
+    }
+
+    /** Re-fetch + persist the OpenRouter pricing tier — backs the 🔄 on the
+     *  Caches → Pricing tiers "OpenRouter" row. */
+    fun refreshOpenRouterPricingCache() {
+        val key = _uiState.value.generalSettings.openRouterApiKey
+        if (key.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val pricing = PricingCache.fetchOpenRouterPricing(key)
+            if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(getApplication(), pricing)
+        }
+    }
+
     suspend fun refreshAllModelLists(settings: Settings, forceRefresh: Boolean = false, onProgress: ((String) -> Unit)? = null): Map<String, Int> {
         return withContext(Dispatchers.IO) {
             val toRefresh = AppService.entries.filter { service ->

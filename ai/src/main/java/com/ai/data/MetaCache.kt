@@ -85,6 +85,24 @@ object MetaCache {
         if (map.remove(keyOf(category, input)) != null) saveLocked()
     }
 
+    /** One entry as shown on the Caches → Meta screen. The input text isn't
+     *  stored (only its MD5 [key]), so the cached [value] (a report title /
+     *  language-icon emoji) is what identifies a row. */
+    data class MetaListEntry(val key: String, val value: String, val timestamp: Long, val stale: Boolean)
+
+    /** Every cached entry, newest first. Non-destructive (keeps stale ones
+     *  so the Caches screen can show + delete them). */
+    fun list(): List<MetaListEntry> = lock.withLock {
+        val now = System.currentTimeMillis()
+        map.entries.map { (k, e) -> MetaListEntry(k, e.value, e.timestamp, now - e.timestamp >= EXPIRY_MS) }
+            .sortedByDescending { it.timestamp }
+    }
+
+    /** Delete one entry by its on-disk hashed [key] (from [list]). */
+    fun removeByKey(key: String) = lock.withLock {
+        if (map.remove(key) != null) saveLocked()
+    }
+
     fun clearAll(context: Context): Int = lock.withLock {
         val n = map.size
         map.clear()

@@ -99,4 +99,21 @@ object ModelListCache {
     fun clearAll(context: Context) {
         try { dir(context).listFiles()?.forEach { it.delete() } } catch (_: Exception) {}
     }
+
+    /** One cached provider model-list as shown on the Caches → Model lists
+     *  screen. [providerId] is the on-disk filename stem (the sanitised id),
+     *  [raw] the cached /models JSON. */
+    data class ProviderEntry(val providerId: String, val fetchedAt: Long, val sizeBytes: Long, val raw: String)
+
+    /** Every cached provider model-list, newest fetch first. */
+    fun list(context: Context): List<ProviderEntry> = try {
+        dir(context).listFiles { f -> f.extension == EXT }?.map { f ->
+            ProviderEntry(
+                providerId = f.nameWithoutExtension,
+                fetchedAt = f.lastModified(),
+                sizeBytes = f.length(),
+                raw = try { f.readText() } catch (_: Exception) { "" }
+            )
+        }?.sortedByDescending { it.fetchedAt } ?: emptyList()
+    } catch (_: Exception) { emptyList() }
 }

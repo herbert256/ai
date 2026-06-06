@@ -74,6 +74,25 @@ object EmbeddingsStore {
         dir(context).listFiles()?.forEach { it.delete() }
     }
 
+    /** One cached embedding vector as shown on the Caches → Embeddings
+     *  screen. The cache key is an opaque SHA-256, so a row is identified by
+     *  its [dim] + a [firstValues] preview; the source doc/content isn't
+     *  recoverable (no refresh). */
+    data class EmbeddingEntry(val key: String, val sizeBytes: Long, val dim: Int, val firstValues: List<Double>)
+
+    /** Every cached vector, largest first. Reads each file to report its
+     *  dimension — fine for a manual Housekeeping screen. */
+    fun list(context: Context): List<EmbeddingEntry> = try {
+        dir(context).listFiles { f -> f.extension == "json" }?.map { f ->
+            val vec: List<Double>? = try { gson.fromJson(f.readText(), type) } catch (_: Exception) { null }
+            EmbeddingEntry(f.nameWithoutExtension, f.length(), vec?.size ?: 0, vec?.take(8) ?: emptyList())
+        }?.sortedByDescending { it.sizeBytes } ?: emptyList()
+    } catch (_: Exception) { emptyList() }
+
+    /** Delete one cached vector by its on-disk [key] (from [list]). */
+    fun delete(context: Context, key: String): Boolean =
+        try { File(dir(context), "$key.json").delete() } catch (_: Exception) { false }
+
     /** Cosine similarity. Returns 0.0 when either vector is empty.
      *  Logs a warning + returns 0.0 on a dim mismatch — the previous
      *  silent-zero path made a "wrong embedder" mistake look like

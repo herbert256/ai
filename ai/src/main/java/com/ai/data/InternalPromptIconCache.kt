@@ -279,6 +279,23 @@ object InternalPromptIconCache {
         n
     }
 
+    /** One entry as shown on the Caches → Internal-prompt icons screen:
+     *  the map [key] (name␟title), its split [name] / [title], and the
+     *  full [entry] (emoji + provenance). */
+    data class ListedEntry(val key: String, val name: String, val title: String, val entry: CacheEntry)
+
+    /** Every cached icon, newest first. */
+    fun list(): List<ListedEntry> = lock.withLock {
+        map.entries.map { (k, v) ->
+            ListedEntry(k, k.substringBefore(SEP), k.substringAfter(SEP, ""), v)
+        }.sortedByDescending { it.entry.timestamp }
+    }
+
+    /** Delete one cached icon by its raw map [key] (from [list]). */
+    fun delete(key: String): Boolean = lock.withLock {
+        if (map.remove(key) != null) { saveLocked(); true } else false
+    }
+
     private fun keyOf(name: String, title: String): String = name + SEP + title
 
     private fun saveLocked() {

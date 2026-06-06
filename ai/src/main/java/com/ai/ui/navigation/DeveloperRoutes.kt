@@ -373,12 +373,24 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToUpdateFromCloud = { navController.navigate(NavRoutes.AI_UPDATE_FROM_CLOUD) },
                 onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) },
                 onNavigateToPromptTranslations = { navController.navigate(NavRoutes.AI_PROMPT_TRANSLATIONS) },
-                onNavigateToCachedPrompts = { navController.navigate(NavRoutes.AI_CACHED_PROMPTS) }
+                onNavigateToCaches = { navController.navigate(NavRoutes.AI_CACHES) }
             )
         }
-        composable(NavRoutes.AI_CACHED_PROMPTS) {
-            com.ai.ui.admin.CachedPromptsScreen(
-                onBack = safePopBack, onNavigateHome = navigateHome
+        composable(NavRoutes.AI_CACHES) {
+            com.ai.ui.admin.CachesHubScreen(
+                registry = com.ai.ui.admin.cacheRegistry(cacheRefreshDispatcher(appViewModel)),
+                onOpenCache = { id -> navController.navigate(NavRoutes.aiCacheEntries(id)) },
+                onBack = safePopBack
+            )
+        }
+        composable(
+            NavRoutes.AI_CACHE_ENTRIES,
+            arguments = listOf(navArgument("cacheId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            com.ai.ui.admin.CacheEntriesScreen(
+                registry = com.ai.ui.admin.cacheRegistry(cacheRefreshDispatcher(appViewModel)),
+                initialCacheId = backStackEntry.arguments?.getString("cacheId") ?: "prompts",
+                onBack = safePopBack
             )
         }
         composable(NavRoutes.AI_PROMPT_TRANSLATIONS) {
@@ -857,4 +869,22 @@ internal fun NavGraphBuilder.developerRoutes(
             EditApiRequestScreen(onBackClick = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToTraceDetail = { navController.navigate(NavRoutes.traceDetail(it)) })
         }
+}
+
+/** Dispatch a Caches → entry 🔄 that needs API keys / the view model: model
+ *  lists via [AppViewModel.fetchModels], the OpenRouter supported-params +
+ *  AA / OpenRouter pricing tiers via their small VM refresh methods. The
+ *  key-free pricing tiers (LiteLLM / models.dev / llm-prices / Helicone)
+ *  refresh inline in the descriptor and never reach here. */
+private fun cacheRefreshDispatcher(appViewModel: AppViewModel): (String, String) -> Unit = { cacheId, entryId ->
+    when (cacheId) {
+        "modellists" -> AppService.findById(entryId)?.let { svc ->
+            appViewModel.fetchModels(svc, appViewModel.uiState.value.aiSettings.getApiKey(svc))
+        }
+        "params" -> appViewModel.refreshSupportedParamsCache()
+        "pricing" -> when (entryId) {
+            "Artificial Analysis" -> appViewModel.refreshAaPricingCache()
+            "OpenRouter" -> appViewModel.refreshOpenRouterPricingCache()
+        }
+    }
 }

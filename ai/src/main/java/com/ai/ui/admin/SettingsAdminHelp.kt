@@ -551,13 +551,62 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Cost", "Generating a language is one API call per internal prompt, so it costs real tokens. Redo only when prompts changed or a model improved."),
         )
     ),
-    "cached_prompts" to HelpContent(
-        title = "Help - Cached prompts",
+    "caches" to HelpContent(
+        title = "Help - Caches",
         cards = listOf(
-            HelpCard("Overview", "The app caches responses to internal-prompt calls (e.g. the AI Introduction on a Model Info screen) on disk for 48 hours, so the same call isn't paid for twice. This screen lists every cached entry."),
-            HelpCard("What a row shows", "The original prompt text isn't stored — only a hash key — so each row shows the cached response, how long ago it was written, and its on-disk size. An entry past the 48 h window is marked STALE; it'll be re-fetched on next use unless you delete it first."),
-            HelpCard("Row actions", "🗑️ deletes that single cached entry. The header shows the total entry count and disk usage."),
-            HelpCard("Clear all (🧽)", "The 🧽 bar icon clears every cached entry after a confirmation. Cleared responses are re-fetched (and paid for) the next time they're needed."),
+            HelpCard("Overview", "The app keeps several on-disk caches so it doesn't re-pay for (or re-compute) the same thing. This hub lists every cache with its entry count and disk size; tap one to browse its entries."),
+            HelpCard("The caches", "🔖 Prompts — internal-prompt responses (e.g. AI Introduction). 🐜 Internal-prompt icons — per-(name,title) emoji. 🏷 Meta — report titles + language icons. 📋 Model lists — each provider's /models. 💲 Pricing tiers — the external pricing catalogs. ⚙️ Supported params — OpenRouter per-model parameters. 🧬 Embeddings — RAG vectors."),
+            HelpCard("Entry actions", "On a cache's entry list: 👁 views the full content, 🗑 deletes one entry, and 🔄 regenerates it. 🔄 only appears where an entry can actually be re-fetched (model lists, pricing tiers, supported params) — caches keyed by an opaque hash with no stored input (prompts, meta, embeddings) can't be regenerated, so they show 👁 / 🗑 only."),
+            HelpCard("Swipe + clear all", "On an entry list, swipe ← / → to step to the next / previous cache. The 🧽 bar icon clears the whole cache you're viewing after a confirmation."),
+        )
+    ),
+    "cache_prompts" to HelpContent(
+        title = "Help - Prompts cache",
+        cards = listOf(
+            HelpCard("Overview", "Responses to internal-prompt calls (e.g. the AI Introduction on a Model Info screen), cached on disk for 48 hours so the same call isn't paid for twice."),
+            HelpCard("Rows", "The original prompt isn't stored — only a hash — so each row shows the cached response, its age and size. Past 48 h it's marked STALE and re-fetched on next use. 👁 views the full response; 🗑 deletes it. No 🔄: the input can't be reconstructed to re-run."),
+        )
+    ),
+    "cache_icons" to HelpContent(
+        title = "Help - Internal-prompt icons cache",
+        cards = listOf(
+            HelpCard("Overview", "A one-emoji glyph per (prompt name, title), generated for internal-prompt / meta result rows when \"Use internal prompts icons\" is on, so re-rendering the same row is free."),
+            HelpCard("Rows", "👁 shows the emoji plus the model, resolved prompt, raw response and accumulated cost that produced it. 🗑 deletes it (it regenerates on next render). No standalone 🔄 here."),
+        )
+    ),
+    "cache_meta" to HelpContent(
+        title = "Help - Meta cache",
+        cards = listOf(
+            HelpCard("Overview", "Short-lived (7-day) cache of AI-derived bits about a text: report titles and a fitting emoji for a language, so identical inputs don't re-pay."),
+            HelpCard("Rows", "The input is hashed, so a row is identified by its cached value (the title / emoji). 👁 views it, 🗑 deletes it. No 🔄 — the input isn't stored."),
+        )
+    ),
+    "cache_modellists" to HelpContent(
+        title = "Help - Model lists cache",
+        cards = listOf(
+            HelpCard("Overview", "The latest /models response per provider, kept as the raw JSON the provider returned (fetch time = file mtime)."),
+            HelpCard("Rows", "One row per provider. 👁 shows the raw JSON, 🔄 re-fetches that provider's models (uses its API key), 🗑 drops the cached copy."),
+        )
+    ),
+    "cache_pricing" to HelpContent(
+        title = "Help - Pricing tiers cache",
+        cards = listOf(
+            HelpCard("Overview", "The six external pricing catalogs (LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Helicone) the cost layer consults, in lookup-precedence order."),
+            HelpCard("Rows", "One row per source with its model count + last fetch. 👁 shows the summary, 🔄 re-fetches that source (AA / OpenRouter use their API keys), 🗑 clears just that source's file. Manual cost overrides aren't an Info-provider tier and aren't shown here."),
+        )
+    ),
+    "cache_params" to HelpContent(
+        title = "Help - Supported params cache",
+        cards = listOf(
+            HelpCard("Overview", "OpenRouter's per-model list of supported generation parameters, fetched alongside pricing, so requests only send parameters a model accepts."),
+            HelpCard("Rows", "One row per (provider, model). 👁 lists the parameters, 🔄 re-fetches the whole OpenRouter spec catalog, 🗑 drops that one entry."),
+        )
+    ),
+    "cache_embeddings" to HelpContent(
+        title = "Help - Embeddings cache",
+        cards = listOf(
+            HelpCard("Overview", "Cached embedding vectors for RAG / semantic search, one file per (doc, provider, model, content) so edits can't reuse stale vectors."),
+            HelpCard("Rows", "The key is an opaque hash, so a row shows its dimension + a preview. 👁 shows more values, 🗑 deletes it. No 🔄 — the source content isn't recoverable from the key."),
         )
     ),
     "backup_restore" to HelpContent(
