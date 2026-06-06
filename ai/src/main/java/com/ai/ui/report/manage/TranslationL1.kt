@@ -269,6 +269,9 @@ internal fun TranslationWorkersScreen(
             reportIcon = com.ai.ui.shared.LocalReportIcon.current,
             subject = subject,
             onBackClick = onBack,
+            // 🐜 grayed here (already in workers mode); clicking returns to models.
+            onBatchWorkers = onBack,
+            batchWorkersActive = false,
             onOpenView = onOpenView,
             onReload = onReload,
             onTrace = onTrace,

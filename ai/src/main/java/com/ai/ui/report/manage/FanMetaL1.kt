@@ -369,6 +369,9 @@ internal fun FanMetaWorkersScreen(
             title = "Fan Meta workers",
             subject = subject,
             onBackClick = onBack,
+            // 🐜 grayed here (already in workers mode); clicking returns to models.
+            onBatchWorkers = onBack,
+            batchWorkersActive = false,
             onReload = onReload,
             onTrace = onTrace,
             onDelete = onDelete

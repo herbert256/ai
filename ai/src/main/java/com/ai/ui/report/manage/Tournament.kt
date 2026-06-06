@@ -422,6 +422,9 @@ private fun TournamentWorkersL1(
             subject = reportTitle,
             reportIcon = reportIcon,
             onBackClick = onBack,
+            // 🐜 grayed here (already in workers mode); clicking returns to models.
+            onBatchWorkers = onBack,
+            batchWorkersActive = false,
             onOpenView = onOpenView,
             onReload = onRedo,
             onDelete = onDeleteRun

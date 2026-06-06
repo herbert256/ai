@@ -894,6 +894,10 @@ data class TitleBarIcons(
      *  that batch's per-worker (model) grouping into its own
      *  sub-screen. Null → glyph hidden. */
     val onBatchWorkers: (() -> Unit)? = null,
+    /** Grays the 🐜 ant icon when false. Set on the workers screens so the
+     *  user sees they're already in workers mode; the icon still clicks
+     *  (back to the models view). True (the L1 models screens) = full. */
+    val batchWorkersActive: Boolean = true,
     /** Optional 🔧 open-manage hook. Renders the same wrench glyph
      *  every reports-list row uses for "open Report - manage". Used
      *  by every View screen so the bottom-bar carries the per-row
@@ -1155,6 +1159,8 @@ fun TitleBar(
     onOpenView: (() -> Unit)? = null,
     /** Optional 🐜 open-batch-workers hook (type-B batch L1 screens). */
     onBatchWorkers: (() -> Unit)? = null,
+    /** False on the workers screens grays the 🐜 (still clicks → models). */
+    batchWorkersActive: Boolean = true,
     /** Optional 🔧 open-manage hook. Wired by every View screen so
      *  the bottom-bar carries the same wrench glyph the per-row 🔧
      *  uses on every reports list. Each sub-View typically passes a
@@ -1351,6 +1357,7 @@ fun TitleBar(
         onInfo = onInfo,
         onOpenView = onOpenView,
         onBatchWorkers = onBatchWorkers,
+        batchWorkersActive = batchWorkersActive,
         onOpenManage = onOpenManage,
         // 🗂️ pick-another-report — auto-captured from the per-screen
         // CompositionLocal so Manage screens needn't thread it through
@@ -1945,7 +1952,7 @@ private fun buildBottomBarIcons(
     // ----- second-row-ish: 👁 view leads the second row, the per-item
     // actions follow, and 🔄 regenerate sits just before 🗑 delete. -----
     icons.onOpenView?.let { add(BottomBarIcon(mi.view, Color.Unspecified, it, 32, fontSize = 18.sp, legendKey = D.VIEW)) }
-    icons.onBatchWorkers?.let { add(BottomBarIcon(mi.ant, Color.Unspecified, it, 28, legendKey = D.ANT)) }
+    icons.onBatchWorkers?.let { add(BottomBarIcon(mi.ant, Color.Unspecified, it, 28, alpha = if (icons.batchWorkersActive) 1f else 0.35f, legendKey = D.ANT)) }
     icons.onTranslationCompare?.let { add(BottomBarIcon(mi.translationCompare, Color.Unspecified, it, 28, legendKey = D.TRANSLATION_COMPARE)) }
     icons.onMemo?.let { add(BottomBarIcon(mi.memo, Color.Unspecified, it, 28, legendKey = D.MEMO)) }
     icons.onAddNote?.let { add(BottomBarIcon(mi.addNote, Color.Unspecified, it, 28, legendKey = D.ADD_NOTE)) }
