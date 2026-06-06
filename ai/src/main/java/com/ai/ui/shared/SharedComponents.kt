@@ -1987,13 +1987,12 @@ fun HomeIconBar(
     val mi = LocalMetadataIcons.current
     val traceAction = icons?.onTrace ?: onTraceFallback
     val helpAction = icons?.onHelp ?: onHelpFallback
-    // Enlarged icons + the app background (not the card tint) — this bar
-    // only renders in HOME_BAR mode, so these don't touch HOME_SCREEN.
-    // Box widths kept (so the 11-icon row width is unchanged → no clipping);
-    // the visible glyph is driven by fontSize, so bump that for "a bit bigger".
-    val w = 34.dp
+    // App background (not the card tint). Slightly larger glyphs packed in a
+    // centered cluster with a small fixed gap (less space between the icons)
+    // rather than spread edge-to-edge. Only renders in HOME_BAR mode.
+    val w = 31.dp
     val h = 34
-    val fs = 25.sp
+    val fs = 27.sp
     // 📋 copy + 📤 share mirror the current screen's actions (published via
     // LocalBottomIconState into `icons`); grayed + inert when the screen has
     // none, working identically when it does. The bottom bar drops them in
@@ -2006,16 +2005,16 @@ fun HomeIconBar(
             .background(AppColors.AppBackground)
             .padding(start = 8.dp, end = 8.dp, top = 5.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally)
     ) {
+        // AI Setup leads the bar.
+        TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs)
         TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs)
         TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs)
         TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs)
-        TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs)
         TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs)
-        TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs)
         if (com.ai.data.ApiTracer.ladybugLinksEnabled) {
-            TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 24.sp)
+            TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 26.sp)
         } else {
             Spacer(Modifier.width(w))
         }
@@ -2023,8 +2022,10 @@ fun HomeIconBar(
             alpha = if (onCopy != null) 1f else 0.35f)
         TitleBarIcon(mi.share, Color.Unspecified, onShare ?: {}, width = w, heightDp = h, fontSize = fs,
             alpha = if (onShare != null) 1f else 0.35f)
-        TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 24.sp)
-        AiLogoButton(onClick = onAbout, size = 34.dp, contentDescription = "About")
+        // Settings sits just before Help.
+        TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs)
+        TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 26.sp)
+        AiLogoButton(onClick = onAbout, size = 32.dp, contentDescription = "About")
     }
 }
 
