@@ -2026,10 +2026,18 @@ fun HomeIconBar(
         onCopy?.let { cb -> add { TitleBarIcon(mi.copy, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
         onShare?.let { cb -> add { TitleBarIcon(mi.share, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
-        // Help and the (bigger) About AI logo are each their own slot, so the
-        // gap before Help matches the gap between Help and the logo.
-        add { TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 26.sp) }
-        add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About") }
+        // Help + the (bigger) About AI logo as ONE tight slot at the right edge,
+        // so the gap between them is just this inner spacing — not the uniform
+        // SpaceBetween gap. ❓ uses a narrow box and is nudged right toward the
+        // flush-right logo to close the gap further.
+        add {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                Box(Modifier.offset(x = 8.dp)) {
+                    TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 24.dp, heightDp = h, fontSize = 26.sp)
+                }
+                AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
+            }
+        }
     }
 
     // Detect the top camera cutout (punch-hole) at runtime via the platform
