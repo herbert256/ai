@@ -2008,19 +2008,10 @@ fun HomeIconBar(
     val onCopy = icons?.onCopy
     val onShare = icons?.onShare
     // The icon slots, built once so they can be laid out as one full-width
-    // row (normal) or split around a camera punch-hole (full screen).
-    val helpAboutPair: @Composable () -> Unit = {
-        // Help + the (bigger) About AI logo are a tight pair at the right edge:
-        // grouping them makes SpaceBetween treat the pair as one item, so the
-        // gap BETWEEN them is just this inner row's (small) spacing.
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-            // Narrow box for ❓ so little space is reserved on either side of it.
-            TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 24.dp, heightDp = h, fontSize = 26.sp)
-            AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
-        }
-    }
-    // Only active icons are added — inactive ones are omitted entirely
-    // (not greyed out / blank-spaced), so the bar never shows a dead icon.
+    // row (normal) or split around a camera punch-hole (full screen). Only
+    // active icons are added — inactive ones are omitted entirely (not greyed
+    // out / blank-spaced), so the bar never shows a dead icon. Every slot is a
+    // separate item so SpaceBetween gives a uniform gap between all icons.
     val slots: List<@Composable () -> Unit> = buildList {
         // AI Setup leads the bar.
         add { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs) }
@@ -2034,9 +2025,11 @@ fun HomeIconBar(
         // 📋 copy / 📤 share only when the current screen actually offers them.
         onCopy?.let { cb -> add { TitleBarIcon(mi.copy, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
         onShare?.let { cb -> add { TitleBarIcon(mi.share, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
-        // Settings sits just before Help.
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
-        add(helpAboutPair)
+        // Help and the (bigger) About AI logo are each their own slot, so the
+        // gap before Help matches the gap between Help and the logo.
+        add { TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 26.sp) }
+        add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About") }
     }
 
     // Detect the top camera cutout (punch-hole) at runtime via the platform
