@@ -275,7 +275,6 @@ class TranslationRunManager(
                 targetLanguageNative = targetLanguageNative,
                 items = itemsWithIds
             )) }
-            AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via the translate worker swarm")
             AuditLog.append(sourceReportId, "Start Translation to $targetLanguageName ($targetLanguageNative) — ${itemsWithIds.size} item(s) via worker swarm")
 
             // Translation now runs through the WorkerRunner swarm — the
@@ -341,7 +340,6 @@ class TranslationRunManager(
                 }
                 val okCount = finalState.items.count { it.translatedText?.isNotBlank() == true }
                 val failCount = finalState.items.count { it.errorMessage != null }
-                AppLog.i("Translation", "← done $targetLanguageName for report=$sourceReportId — ok=$okCount fail=$failCount")
                 AuditLog.append(sourceReportId, "End Translation to $targetLanguageName — ok=$okCount fail=$failCount")
             }
         }

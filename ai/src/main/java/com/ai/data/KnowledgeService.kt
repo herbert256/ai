@@ -309,7 +309,7 @@ object KnowledgeService {
         // char-budget filter above) so a "why didn't this chunk win?"
         // question is answerable from the log alone.
         sorted.take(10).forEachIndexed { i, s ->
-            AppLog.v("Knowledge", "  cand[$i] kb=${s.hit.kbName} src=${s.hit.sourceName} score=${"%.3f".format(s.score)} chars=${s.hit.text.length}")
+            AppLog.d("Knowledge", "  cand[$i] kb=${s.hit.kbName} src=${s.hit.sourceName} score=${"%.3f".format(s.score)} chars=${s.hit.text.length}")
         }
         return out
     }

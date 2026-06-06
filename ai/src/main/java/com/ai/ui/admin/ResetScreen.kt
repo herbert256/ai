@@ -60,7 +60,7 @@ fun ResetRuntimeDataScreen(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("Clear runtime data?") },
-            text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the six Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
+            text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, per-report audit logs, prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the six Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
             confirmButton = {
                 OutlinedButton(
                     onClick = {
@@ -68,7 +68,7 @@ fun ResetRuntimeDataScreen(
                         showConfirm = false
                         Toast.makeText(
                             context,
-                            "Cleared ${r.logs} log files, ${r.chats} chats, ${r.traces} traces, ${r.reports} reports, ${r.prompts} prompt entries, ${r.testModels} test results, usage statistics",
+                            "Cleared ${r.logs} log files, ${r.chats} chats, ${r.traces} traces, ${r.reports} reports, ${r.audit} audit logs, ${r.prompts} prompt entries, ${r.testModels} test results, usage statistics",
                             Toast.LENGTH_LONG
                         ).show()
                     },

@@ -763,7 +763,7 @@ internal data class LogStatsData(
     val oldestDate: String?,
     val newestDate: String?,
     val totalEntries: Int,
-    val byLevel: Map<String, Int>,     // ERROR/WARN/INFO/DEBUG/TRACE seeded
+    val byLevel: Map<String, Int>,     // ERROR/WARN/INFO/DEBUG seeded
     val topTags: List<Pair<String, Int>>,
     val files: List<Pair<String, Long>>,   // (date, sizeBytes), newest first
 )
@@ -775,7 +775,7 @@ private const val LOG_FILES_TO_PARSE = 14
 
 internal suspend fun computeLogStats(): LogStatsData = withContext(Dispatchers.IO) {
     val files = AppLog.getLogFiles()                 // newest-first
-    val byLevel = linkedMapOf("ERROR" to 0, "WARN" to 0, "INFO" to 0, "DEBUG" to 0, "TRACE" to 0)
+    val byLevel = linkedMapOf("ERROR" to 0, "WARN" to 0, "INFO" to 0, "DEBUG" to 0)
     val tags = HashMap<String, Int>()
     var entries = 0
     for (f in files.take(LOG_FILES_TO_PARSE)) {

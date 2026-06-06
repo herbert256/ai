@@ -109,15 +109,16 @@ data class GeneralSettings(
      *  when this map is empty for a given type. */
     val defaultTypePaths: Map<String, String> = emptyMap(),
     /** Master gate for the whole Log/trace/audit/statistics page.
-     *  Default OFF — a fresh install records nothing. While false the
+     *  Default ON — diagnostics (tracing, audit log, usage statistics,
+     *  file logger) are recorded out of the box. While false the
      *  four diagnostic settings below ([tracingEnabled],
      *  [auditLogEnabled], [usageStatsEnabled], [logLevel]) are forced
      *  off at runtime regardless of their stored values — see the
      *  `effective*` helpers, which every mirror in AppViewModel reads —
-     *  and the Settings UI hides them. Flip it on to reveal + apply each
-     *  one's individual value. The per-item values are preserved while
-     *  the master is off so turning it back on restores prior choices. */
-    val loggingMasterEnabled: Boolean = false,
+     *  and the Settings UI hides them. Flip it off to silence everything
+     *  at once. The per-item values are preserved while the master is
+     *  off so turning it back on restores prior choices. */
+    val loggingMasterEnabled: Boolean = true,
     /** Master switch for API tracing. When false, no new traces are
      *  written, the Hub "AI API Traces" card is hidden, and every 🐞
      *  ladybug icon disappears from the per-result screens. Mirrored
@@ -349,10 +350,11 @@ data class GeneralSettings(
     /** Threshold for the in-app file logger
      *  ([com.ai.data.AppLog]). Calls at this level or higher land in
      *  `<filesDir>/applog/applog_<yyyyMMdd>.log` in addition to
-     *  logcat. OFF disables the file appender entirely. Default INFO:
-     *  noisy enough to capture every API call + batch start/end without
-     *  flooding the device with per-token streaming chatter. */
-    val logLevel: com.ai.data.LogLevel = com.ai.data.LogLevel.INFO,
+     *  logcat. OFF disables the file appender entirely. Default WARN:
+     *  only warnings and errors are persisted out of the box; lower it
+     *  to INFO/DEBUG to capture API calls + batch start/end while
+     *  diagnosing an issue. */
+    val logLevel: com.ai.data.LogLevel = com.ai.data.LogLevel.WARN,
     /** Whether the AI Knowledge card appears on the home Hub. Default
      *  false — Knowledge / RAG is an advanced flow that most users
      *  don't need; hiding it on a fresh install keeps the Hub

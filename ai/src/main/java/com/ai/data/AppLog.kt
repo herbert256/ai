@@ -17,8 +17,7 @@ import kotlin.concurrent.withLock
 /** log4j-style severity levels. Priorities are aligned with
  *  [android.util.Log] so [AppLog]'s forwarder is a one-line dispatch. */
 enum class LogLevel(val priority: Int) {
-    TRACE(2),    // matches Log.VERBOSE
-    DEBUG(3),    // matches Log.DEBUG
+    DEBUG(3),    // matches Log.DEBUG (also the home of former TRACE calls)
     INFO(4),     // matches Log.INFO
     WARN(5),     // matches Log.WARN
     ERROR(6),    // matches Log.ERROR
@@ -70,16 +69,7 @@ object AppLog {
     private val LINE_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
         .withZone(ZoneId.systemDefault())
 
-    @Volatile var threshold: LogLevel = LogLevel.INFO
-
-    /** Per-coroutine "log-id" — when set, [appendLine] appends
-     *  ` [#<id>]` to the end of every line it writes. Report-section
-     *  coroutines set this to the report id (via
-     *  `asContextElement`, mirroring `ApiTracer.permitPreAcquired`)
-     *  so the App Log Viewer can isolate one report's activity.
-     *  Null on every thread that hasn't opted in — those lines are
-     *  written untagged. */
-    val currentLogId = ThreadLocal<String?>()
+    @Volatile var threshold: LogLevel = LogLevel.WARN
 
     private var logDir: File? = null
     private val lock = ReentrantLock()
@@ -115,7 +105,7 @@ object AppLog {
     fun init(context: Context) = lock.withLock {
         appContext = context.applicationContext
         logDir = File(context.filesDir, DIR_NAME).also { if (!it.exists()) it.mkdirs() }
-        // Apply the persisted threshold immediately so DEBUG/TRACE
+        // Apply the persisted threshold immediately so DEBUG
         // calls inside bootstrap() are admitted on cold start instead
         // of waiting for AppViewModel's threshold mirror after
         // bootstrap completes. Read directly from the main prefs
@@ -132,11 +122,6 @@ object AppLog {
     }
 
     // ===== Public API — mirrors android.util.Log =====
-
-    fun v(tag: String, msg: String, t: Throwable? = null) {
-        android.util.Log.v(tag, msg, t)
-        if (threshold.priority <= LogLevel.TRACE.priority) appendLine(LogLevel.TRACE, tag, msg, t)
-    }
 
     fun d(tag: String, msg: String, t: Throwable? = null) {
         android.util.Log.d(tag, msg, t)
@@ -306,9 +291,7 @@ object AppLog {
                 val w = writer ?: return
                 val ts = LINE_TIMESTAMP_FORMAT.format(Instant.now())
                 val safeMsg = redactSecret(msg)
-                val logId = currentLogId.get()
-                val taggedMsg = if (!logId.isNullOrBlank()) "$safeMsg [#$logId]" else safeMsg
-                w.write("$ts ${level.name} $tag: $taggedMsg")
+                w.write("$ts ${level.name} $tag: $safeMsg")
                 w.newLine()
                 if (t != null) {
                     val sw = StringWriter()

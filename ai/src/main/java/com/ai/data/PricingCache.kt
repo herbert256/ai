@@ -393,12 +393,12 @@ object PricingCache {
         findArtificialAnalysisPricing(provider, model)?.let { return tracePricing(provider, model, "AA", it) }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return tracePricing(provider, model, "OPENROUTER", it) }
         findHeliconePricing(provider, model)?.let { return tracePricing(provider, model, "HELICONE", it) }
-        AppLog.v("PricingCache", "miss ${provider.id}/$model → DEFAULT")
+        AppLog.d("PricingCache", "miss ${provider.id}/$model → DEFAULT")
         return DEFAULT_PRICING
     }
 
     private fun tracePricing(provider: AppService, model: String, tier: String, p: ModelPricing): ModelPricing {
-        AppLog.v("PricingCache", "match ${provider.id}/$model → $tier in=${p.promptPrice * 1_000_000} out=${p.completionPrice * 1_000_000}")
+        AppLog.d("PricingCache", "match ${provider.id}/$model → $tier in=${p.promptPrice * 1_000_000} out=${p.completionPrice * 1_000_000}")
         return p
     }
 

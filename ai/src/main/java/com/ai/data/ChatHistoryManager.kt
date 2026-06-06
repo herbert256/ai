@@ -54,7 +54,7 @@ object ChatHistoryManager {
                 val json = gson.toJson(session)
                 val ok = target.writeTextAtomic(json)
                 if (ok) {
-                    AppLog.v("ChatHistory", "save ${session.id} msgs=${session.messages.size} bytes=${json.length}")
+                    AppLog.d("ChatHistory", "save ${session.id} msgs=${session.messages.size} bytes=${json.length}")
                     cachedSessions = null
                     notifyHistoryChanged()
                 }
@@ -80,7 +80,7 @@ object ChatHistoryManager {
             // buffer, which matters for image-heavy sessions.
             try {
                 file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) }
-                    ?.also { AppLog.v("ChatHistory", "load ${it.id} msgs=${it.messages.size}") }
+                    ?.also { AppLog.d("ChatHistory", "load ${it.id} msgs=${it.messages.size}") }
             } catch (e: Exception) { AppLog.e("ChatHistory", "Failed to load: ${e.message}"); null }
         }
     }
@@ -118,7 +118,7 @@ object ChatHistoryManager {
                 ok
             }
             if (deleted) {
-                AppLog.v("ChatHistory", "delete $sessionId")
+                AppLog.d("ChatHistory", "delete $sessionId")
                 notifyHistoryChanged()
             }
             deleted

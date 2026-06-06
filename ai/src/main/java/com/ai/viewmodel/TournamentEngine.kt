@@ -176,7 +176,6 @@ class TournamentEngine internal constructor(
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
-        val startMs = System.currentTimeMillis()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
             try {
                 withTracerTags(reportId = reportId, category = "after/tournament", runId = runId) {
@@ -192,7 +191,6 @@ class TournamentEngine internal constructor(
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     if (successful.size < 2) return@withTracerTags
-                    AppLog.i("Tournament", "→ start report=$reportId (${successful.size} responses, ${matchCountFor(successful.size)} matches)")
                     AuditLog.append(reportId, "Start Tournament — ${successful.size} responses, ${matchCountFor(successful.size)} matches (worker-judged)")
                     val scopeEncoded = SecondaryScope.AllReports.encode()
 
@@ -245,7 +243,6 @@ class TournamentEngine internal constructor(
 
                     dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
                     recomputeAndPersistAggregate(context, reportId)
-                    AppLog.i("Tournament", "← done report=$reportId in ${System.currentTimeMillis() - startMs}ms")
                     AuditLog.append(reportId, "End Tournament")
                 }
             } finally {

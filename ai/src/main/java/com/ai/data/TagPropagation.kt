@@ -142,7 +142,7 @@ class TagPropagatingExecutor(
         // originating coroutine.
         val capturedSink = ApiTracer.traceFilenameSink.get()
         if (captured?.reportId != null || captured?.category != null) {
-            AppLog.v("TagPropagation", "submit reportId=${captured.reportId} cat=${captured.category}")
+            AppLog.d("TagPropagation", "submit reportId=${captured.reportId} cat=${captured.category}")
         }
         delegate.execute {
             val previousTags = ApiTracer.currentTags.get()

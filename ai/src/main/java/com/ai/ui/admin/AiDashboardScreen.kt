@@ -722,7 +722,6 @@ fun AiLogStatsScreen(
                             StatChip("⚠️", "Warn", s.byLevel["WARN"] ?: 0, if ((s.byLevel["WARN"] ?: 0) > 0) AppColors.WarningAccent else AppColors.TextDim)
                             StatChip("ℹ️", "Info", s.byLevel["INFO"] ?: 0, AppColors.SuccessAccent)
                             StatChip("🔧", "Debug", s.byLevel["DEBUG"] ?: 0, AppColors.InfoAccent)
-                            StatChip("🔬", "Trace", s.byLevel["TRACE"] ?: 0, AppColors.TextSecondary)
                         }
                         Spacer(Modifier.height(4.dp))
                         KeyVal("Total entries", "${s.totalEntries}")

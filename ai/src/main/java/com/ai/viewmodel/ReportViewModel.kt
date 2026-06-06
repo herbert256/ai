@@ -229,15 +229,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /** Coroutine context for a report-section launch: `Dispatchers.IO`
-     *  plus an [AppLog.currentLogId] context element so every [AppLog]
-     *  line written by the coroutine (and its children) is tagged
-     *  ` [#<logId>]` — letting the App Log Viewer isolate one report's
-     *  activity. Drop-in for `Dispatchers.IO` at report-section
-     *  `viewModelScope.launch` sites; `return@launch` stays valid
-     *  because the `launch` call itself is unchanged. */
+     *  plus the [com.ai.data.CrashReporter] handler. Drop-in for
+     *  `Dispatchers.IO` at report-section `viewModelScope.launch`
+     *  sites; `return@launch` stays valid because the `launch` call
+     *  itself is unchanged. The [logId] argument names the report the
+     *  launch belongs to (kept for call-site clarity); it is no longer
+     *  written into the application log. */
+    @Suppress("UNUSED_PARAMETER")
     internal fun reportLogContext(logId: String?) =
-        Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler +
-            AppLog.currentLogId.asContextElement(logId)
+        Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler
 
     // Outer Jobs for "Find alternative icons" fan-outs, keyed by
     // reportId. Cancelling the entry cascades to every per-pair child
@@ -474,10 +474,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val reportStartMs = System.currentTimeMillis()
             AppLog.i("Report", "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
 
-            // reportId is minted inside the launch, so the log-id
-            // context element is applied here rather than at the
-            // launch site (cf. reportLogContext used elsewhere).
-            withContext(AppLog.currentLogId.asContextElement(reportId)) {
             withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
@@ -524,7 +520,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         ReportStorage.stopNonTerminalAgentsAsync(context, reportId)
                     }
                 }
-            }
             }
         }
     }
@@ -1839,23 +1834,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val reportId = report.id
             onReportCreated?.invoke(reportId)
             val startMs = System.currentTimeMillis()
-            withContext(AppLog.currentLogId.asContextElement(reportId)) {
-                withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
-                    AppLog.i("Report", "→ start (bg) \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
-                    iconGen.kickOffLanguageGeneration(context, reportId, prompt, aiSettings)
-                    // Title first, then icon (icon is derived from the long title).
-                    iconGen.kickOffReportTitleGeneration(context, reportId, prompt, aiSettings, thenIcon = true)
-                    runReportPrimaryCalls(
-                        context, reportId, prompt, null, reportTasks,
-                        aiSettings, null, null, headless = true
-                    )
-                    val finalReport = ReportStorage.getReport(context, reportId)
-                    val ok = finalReport?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
-                    val fail = finalReport?.agents?.count { it.reportStatus == ReportStatus.ERROR } ?: 0
-                    AppLog.i("Report", "← end (bg) id=$reportId ok=$ok fail=$fail in ${System.currentTimeMillis() - startMs}ms")
-                    maybeAutoCreateSecondaries(context, reportId, aiSettings, ok)
-                    maybeAutoCreateDefaultMetas(context, reportId, aiSettings, ok)
-                }
+            withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
+                AppLog.i("Report", "→ start (bg) \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
+                iconGen.kickOffLanguageGeneration(context, reportId, prompt, aiSettings)
+                // Title first, then icon (icon is derived from the long title).
+                iconGen.kickOffReportTitleGeneration(context, reportId, prompt, aiSettings, thenIcon = true)
+                runReportPrimaryCalls(
+                    context, reportId, prompt, null, reportTasks,
+                    aiSettings, null, null, headless = true
+                )
+                val finalReport = ReportStorage.getReport(context, reportId)
+                val ok = finalReport?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
+                val fail = finalReport?.agents?.count { it.reportStatus == ReportStatus.ERROR } ?: 0
+                AppLog.i("Report", "← end (bg) id=$reportId ok=$ok fail=$fail in ${System.currentTimeMillis() - startMs}ms")
+                maybeAutoCreateSecondaries(context, reportId, aiSettings, ok)
+                maybeAutoCreateDefaultMetas(context, reportId, aiSettings, ok)
             }
         }
     }

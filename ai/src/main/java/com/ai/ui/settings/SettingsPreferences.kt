@@ -144,7 +144,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             typeABenchMaxAttempts = prefs.getInt(KEY_TYPE_A_BENCH_MAX_ATTEMPTS, 5),
             logLevel = prefs.getString(KEY_LOG_LEVEL, null)?.let {
                 try { com.ai.data.LogLevel.valueOf(it) } catch (_: Exception) { null }
-            } ?: com.ai.data.LogLevel.INFO
+            } ?: com.ai.data.LogLevel.WARN
         ).also {
             com.ai.data.AppLog.d(
                 "SettingsPrefs",

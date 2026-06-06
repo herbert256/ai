@@ -1059,7 +1059,6 @@ class FanOutEngine internal constructor(
         val rk = runKey(reportId, metaPrompt.id)
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val fanOutStartMs = System.currentTimeMillis()
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
             val cat = "${metaPrompt.category}/${metaPrompt.name}"
@@ -1072,7 +1071,6 @@ class FanOutEngine internal constructor(
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     if (successful.size < 2) return@withTracerTags
-                    AppLog.i("FanOut", "→ start \"${metaPrompt.name}\" (report=$reportId, ${successful.size} successful agents)")
                     AuditLog.append(reportId, "Start Fan Out '${metaPrompt.name}' — ${successful.size} source model(s)")
                     val sources = when (scopeChoice) {
                         SecondaryScope.AllReports -> successful
@@ -1182,7 +1180,6 @@ class FanOutEngine internal constructor(
                             placeholder = item.placeholder
                         )
                     }
-                    AppLog.i("FanOut", "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)")
                     AuditLog.append(reportId, "End Fan Out '${metaPrompt.name}' — ${pending.size} pair(s)")
                 }
             } finally {

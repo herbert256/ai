@@ -2886,7 +2886,7 @@ private fun LoggingAndTracingSubScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "Enable logging & tracing",
-                description = "Master switch for this page (default off). While off, nothing is recorded at runtime — no API tracing, no audit log, no usage statistics, and the file logger is disabled — and the four settings below stay hidden. Turn it on to record diagnostics and configure each one; their previous values come back as you left them.",
+                description = "Master switch for this page (default on). While off, nothing is recorded at runtime — no API tracing, no audit log, no usage statistics, and the file logger is disabled — and the four settings below stay hidden. Turn it on to record diagnostics and configure each one; their previous values come back as you left them.",
                 icon = MetadataDefaults.APP_LOG,
                 checked = loggingMasterEnabled,
                 onCheckedChange = { loggingMasterEnabled = it }

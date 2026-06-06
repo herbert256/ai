@@ -181,9 +181,9 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Filtered view of one log file's entries, newest-first. Stack traces are folded into their header line; tap any row to expand it full-screen."),
             HelpCard("Title bar — Copy / Share / 🗑", "Copy and Share open a chooser dialog (last N lines / complete log / filtered-only). 🗑 deletes the entire file with confirmation — back returns to the file list with the deletion already reflected."),
-            HelpCard("Row colour = level", "🔴 ERROR / 🟠 WARN / 🟢 INFO / 🔵 DEBUG / grey TRACE. The level chips at the top toggle visibility — every level is on by default."),
+            HelpCard("Row colour = level", "🔴 ERROR / 🟠 WARN / 🟢 INFO / 🔵 DEBUG. The level chips at the top toggle visibility — every level is on by default."),
             HelpCard("Search box", "Case-insensitive substring match across the header line + every continuation line. The ✕ clears the box. Combined with the level / tag / time filters — every active filter is AND-ed."),
-            HelpCard("Tag dropdown + level chips", "Tag picks one tag from the file's distinct set (`(any)` = no filter). Level chips multi-select TRACE/DEBUG/INFO/WARN/ERROR."),
+            HelpCard("Tag dropdown + level chips", "Tag picks one tag from the file's distinct set (`(any)` = no filter). Level chips multi-select DEBUG/INFO/WARN/ERROR."),
             HelpCard("Time range", "Start / End buttons open clock pickers. Constraints are HH:mm. Each has a Clear button to drop the bound."),
             HelpCard("Counter line", "\"Showing X of Y\" shows the filter result vs. total. A *Clear filters* link appears whenever at least one filter is active."),
             HelpCard("Prev / Next file", "Swipe horizontally on the content area to walk to the previous / next day's file. Filters persist across the swap — useful for following a single tag across midnight."),

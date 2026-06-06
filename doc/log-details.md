@@ -3,20 +3,27 @@
 > Generated reference. Lists every call site that writes to the in-app
 > application log (`AppLog`, `data/AppLog.kt`), which mirrors
 > `android.util.Log` and appends to `<filesDir>/applog/applog_<yyyyMMdd>.log`
-> for any call at or above the active `threshold` (default `INFO`).
+> for any call at or above the active `threshold` (default `WARN`).
 > Grouped by severity, then by source file. Each row is
 > `Lnnn` `Tag` — message (message interpolations shown verbatim as written
 > in source, including the `+ "…"` string concatenations on multi-line calls).
 > For *how the logger works* (levels, rotation, redaction, viewer), see
 > **[applog.md](applog.md)**.
 
-**480 call sites** — 62 ERROR, 160 WARN, 97 INFO, 107 DEBUG, 54 TRACE.
+**463 call sites** — 58 ERROR, 156 WARN, 87 INFO, 162 DEBUG.
+
+> **TRACE merged into DEBUG.** The old `AppLog.v` / TRACE level was
+> removed; every former `AppLog.v` call now logs at DEBUG. The TRACE
+> section near the bottom is kept for historical reference but those
+> call sites all emit DEBUG now. Separately, the five secondary-engine
+> batch start/end INFO lines (Tournament / Judge-the-judges / Fan Out /
+> Compare / Translation) were dropped because the per-report **audit
+> log** already records the same events — see [applog.md](applog.md).
 
 Severity is chosen at the call site by which method is invoked:
 
 | Method | Level | Priority | Toast? |
 |---|---|---|---|
-| `AppLog.v` | TRACE | 2 | no |
 | `AppLog.d` | DEBUG | 3 | no |
 | `AppLog.i` | INFO | 4 | no |
 | `AppLog.w` | WARN | 5 | yes (debounced) |
@@ -46,7 +53,7 @@ captured crash report — the message is the `report` string, not a literal.
 
 > **Maintenance.** Counts and line numbers track HEAD and drift on every
 > commit that touches a logging call. Regenerate by walking
-> `ai/src/main/java/com/ai` for `AppLog.(v|d|i|w|e)(` (excluding the
+> `ai/src/main/java/com/ai` for `AppLog.(d|i|w|e)(` (excluding the
 > string-literal examples embedded in `data/IconUsageData.kt`, which quote
 > three call sites as documentation), grouping by severity then file.
 
@@ -834,7 +841,11 @@ captured crash report — the message is the `report` string, not a literal.
 - **L799** `"Translation"` — "← item ${item.id} ok ${callDurationMs}ms" + (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") + " cost=${"%.5f".format(costDollars)}"
 - **L1094** `"Translation"` — "reconcile skipped — runId=$runId has active dispatch job"
 
-## TRACE (54)
+## TRACE (54) — now emitted at DEBUG
+
+> These call sites used `AppLog.v`, which was folded into `AppLog.d`.
+> They now write at DEBUG; the grouping is retained only as a record of
+> which calls were historically TRACE-level.
 
 ### `data/ApiStreaming.kt`
 

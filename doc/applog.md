@@ -19,8 +19,7 @@ on-screen toast so a failure is noticed without opening the viewer.
 
 ```kotlin
 enum class LogLevel(val priority: Int) {
-    TRACE(2),    // matches Log.VERBOSE
-    DEBUG(3),    // matches Log.DEBUG
+    DEBUG(3),    // matches Log.DEBUG (also the home of former TRACE calls)
     INFO(4),     // matches Log.INFO
     WARN(5),     // matches Log.WARN
     ERROR(6),    // matches Log.ERROR
@@ -28,19 +27,21 @@ enum class LogLevel(val priority: Int) {
 }
 ```
 
-Priorities align with `android.util.Log` so each forwarder
-(`AppLog.v/d/i/w/e`) is a one-line dispatch: log to logcat
+There is no separate TRACE level — the old `AppLog.v` forwarder
+was folded into `AppLog.d`, so DEBUG is the lowest file-appender
+level. Priorities align with `android.util.Log` so each forwarder
+(`AppLog.d/i/w/e`) is a one-line dispatch: log to logcat
 unconditionally, then append to the file only when
 `threshold.priority <= level.priority`. Threshold defaults to
-**INFO** — noisy enough to capture every API call + batch
-start/end without flooding the device with per-token streaming
-chatter. `OFF` silences the file appender entirely (logcat is
-unaffected).
+**WARN** — a fresh install persists only warnings and errors;
+lower it to INFO/DEBUG to capture every API call + batch
+start/end while diagnosing an issue. `OFF` silences the file
+appender entirely (logcat is unaffected).
 
 The threshold is persisted in main prefs (`eval_prefs`, key
 `log_level`). `AppLog.init` reads it directly from
 `SharedPreferences` **before** `AppViewModel`'s bootstrap so that
-DEBUG / TRACE calls inside bootstrap itself are admitted on cold
+DEBUG calls inside bootstrap itself are admitted on cold
 start — `AppLog` keeps no `SettingsPreferences` dependency so it
 can apply the threshold before any higher-level singletons exist.
 The `GeneralSettings.logLevel` field mirrors it for the rest of
@@ -60,13 +61,6 @@ trace, when one is attached, is indented by four spaces on
 subsequent lines (the viewer folds those continuation lines back
 into the entry they followed).
 
-When the writing coroutine has set a **log id** (see *Per-report
-log isolation* below), the line gets a ` [#<id>]` suffix:
-
-```
-2026-05-11 09:51:10.014 DEBUG Report: dispatching agent OpenAI/gpt-5 [#a3f1-…]
-```
-
 Files rotate daily — `appendLine` compares today's `yyyyMMdd`
 against `writerDate` on every append, and reopens the
 `BufferedWriter` (in append mode) on a new file when they differ.
@@ -84,22 +78,17 @@ tracing flag. Makes it trivial to tell, in a multi-day log file,
 exactly when the app last (re)started. The detailed per-step
 bootstrap trace lines use the `App.start` tag.
 
-## Per-report log isolation
+## No per-report tagging
 
-`AppLog.currentLogId` is a `ThreadLocal<String?>`. When non-blank,
-`appendLine` appends ` [#<id>]` to every line it writes —
-analogous to how `ApiTracer.currentTags` rides the coroutine.
-Report-section launches set it to the report id via
-`reportLogContext(logId)` (`ReportViewModel`), which adds
-`AppLog.currentLogId.asContextElement(reportId)` to the
-`Dispatchers.IO` context, so every line written by the report's
-coroutine **and its children** carries `[#<reportId>]`.
-
-That tag is what powers the report screen's **View → Log**
-deep-link: it navigates into `AppLogDetailScreen` with the
-free-text search pre-seeded to `#<reportId>` (the `initialSearch`
-param), so the viewer opens already filtered to that one report's
-activity. Threads that never opt in write untagged lines.
+The application log does **not** tag lines by report id. Per-report
+activity lives in the per-report **audit log** (`AuditLog`,
+`<filesDir>/audit/<reportId>.log`), which is the canonical home for
+batch start/end, mutating actions and per-call records — the
+application log keeps app-wide diagnostics only. The report screen's
+**View → Log** deep-link still opens the application-log file for the
+day the report was created, but no longer pre-seeds a per-report
+search filter (`reportLogContext` survives only as the report-section
+coroutine context — `Dispatchers.IO` + the crash handler).
 
 ## Sensitive-value redaction
 
@@ -156,7 +145,7 @@ logger.
 
 ## Coverage
 
-The data + viewmodel layers carry broad TRACE / DEBUG / INFO
+The data + viewmodel layers carry broad DEBUG / INFO
 coverage. The canonical tag set is the literal tag *strings*
 passed to `AppLog.v/d/i/w/e` (not class names); there are roughly
 **77 distinct tags**. Grouped:
@@ -226,12 +215,12 @@ Filters (top of screen):
 
 - **Search query** — free-text substring match across the whole
   entry (header + continuation lines), case-insensitive, with a ✕
-  to clear. Seeded from `initialSearch` (the report deep-link
-  passes `#<reportId>`) and **not** reset on file-step navigation,
-  so a run that spilled into the next day's file can be followed
-  by flipping files with the filter held.
-- **Level chips** — multi-select FilterChips for TRACE / DEBUG /
-  INFO / WARN / ERROR. **All five enabled by default.** Headers
+  to clear. Seeded from `initialSearch` (empty for the report
+  deep-link, which now just opens the day's file) and **not** reset
+  on file-step navigation, so a run that spilled into the next day's
+  file can be followed by flipping files with the filter held.
+- **Level chips** — multi-select FilterChips for DEBUG / INFO /
+  WARN / ERROR. **All four enabled by default.** Headers
   with no recognised level token (legacy / pre-AppLog lines) are
   always kept visible.
 - **Time range** — Start / End buttons that open Material 3 clock
@@ -302,6 +291,5 @@ that method's own prior log lines go with it).
 - `ui/settings/SettingsScreen.kt` — the `Logging and tracing` card
   (threshold dropdown).
 - `viewmodel/AppViewModelTypes.kt` — `GeneralSettings.logLevel`
-  (mirrored to `AppLog.threshold` on every settings save).
-- `viewmodel/ReportViewModel.kt` — `reportLogContext` /
-  `currentLogId` per-report tagging.
+  (mirrored to `AppLog.threshold` on every settings save) and
+  `loggingMasterEnabled` (the master gate, default on).

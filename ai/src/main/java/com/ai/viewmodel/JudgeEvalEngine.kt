@@ -180,7 +180,6 @@ class JudgeEvalEngine internal constructor(
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
-        val startMs = System.currentTimeMillis()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
             try {
                 withTracerTags(reportId = reportId, category = "after/judges", runId = runId) {
@@ -209,7 +208,6 @@ class JudgeEvalEngine internal constructor(
                     val chosen = allPairs.shuffled().take(JUDGE_MATCH_COUNT).map { (x, y) ->
                         if (kotlin.random.Random.nextBoolean()) Triple(x, y, 0) else Triple(y, x, 0)
                     }
-                    AppLog.i("JudgeEval", "→ start report=$reportId (${judges.size} judges × ${chosen.size} matches = ${judges.size * chosen.size} cells)")
                     AuditLog.append(reportId, "Start Judge-the-judges — ${judges.size} judges × ${chosen.size} matches")
                     val scopeEncoded = SecondaryScope.AllReports.encode()
 
@@ -257,7 +255,6 @@ class JudgeEvalEngine internal constructor(
 
                     dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
                     recomputeAndPersistAggregate(context, reportId)
-                    AppLog.i("JudgeEval", "← done report=$reportId in ${System.currentTimeMillis() - startMs}ms")
                     AuditLog.append(reportId, "End Judge-the-judges")
                 }
             } finally {

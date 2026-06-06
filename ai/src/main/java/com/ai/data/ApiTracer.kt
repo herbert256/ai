@@ -161,7 +161,7 @@ object ApiTracer {
         // freshly-written file forever. On any failure we invalidate
         // the cache so the next getTraceFiles() rebuilds it from
         // disk and re-sees the new trace.
-        AppLog.v("ApiTracer", "trace written $resolvedFilename status=${normalizedTrace.response.statusCode} partial=${normalizedTrace.partial}")
+        AppLog.d("ApiTracer", "trace written $resolvedFilename status=${normalizedTrace.response.statusCode} partial=${normalizedTrace.partial}")
         lock.withLock {
             try {
                 cachedTraceFiles?.let { current ->

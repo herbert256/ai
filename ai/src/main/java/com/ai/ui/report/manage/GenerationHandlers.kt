@@ -62,13 +62,14 @@ internal fun buildGenerationPhaseHandlers(
         },
         onViewIcons = { st.showIconsView.value = true },
         onViewLog = {
-            val rid = currentReportId
-            if (rid != null) {
+            if (currentReportId != null) {
+                // The application log no longer tags lines by report id;
+                // open that day's file without a per-report search seed.
                 val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
                     .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
                 val filename = "applog_" +
                     day.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + ".log"
-                onNavigateToAppLog(filename, "#$rid")
+                onNavigateToAppLog(filename, "")
             }
         },
         onEditTitle = { st.showEditShortTitle.value = true },

@@ -84,7 +84,7 @@ internal fun parseSseStream(
             val data = dataBuf.toString().removeSuffix("\n")
             dataBuf.setLength(0)
             if (data.equals("[DONE]", ignoreCase = true)) {
-                AppLog.v("SSE", "[DONE] terminator (event=$eventType)")
+                AppLog.d("SSE", "[DONE] terminator (event=$eventType)")
                 sawTerminator = true; eventType = null; return
             }
             sawAnyData = true
@@ -100,11 +100,11 @@ internal fun parseSseStream(
             // narrows the noise to chunks that actually carry data.
             if (!content.isNullOrEmpty()) {
                 chunkCount++
-                AppLog.v("SSE", "chunk event=${eventType ?: "(none)"} dataBytes=${data.length} contentBytes=${content.length}")
+                AppLog.d("SSE", "chunk event=${eventType ?: "(none)"} dataBytes=${data.length} contentBytes=${content.length}")
                 emit(content)
             }
             if (isFinalChunk(eventType, data)) {
-                AppLog.v("SSE", "final chunk (event=$eventType)")
+                AppLog.d("SSE", "final chunk (event=$eventType)")
                 sawTerminator = true
             }
             eventType = null

@@ -130,7 +130,7 @@ fun AppLogListScreen(
                         )
                         if (AppLog.threshold.priority > LogLevel.INFO.priority) {
                             Text(
-                                "INFO / DEBUG / TRACE calls are dropped before the file appender. " +
+                                "INFO / DEBUG calls are dropped before the file appender. " +
                                     "Lower the threshold under Settings → Log/trace/audit/statistics → " +
                                     "Log level to see more activity here.",
                                 color = AppColors.TextTertiary, fontSize = 11.sp,
@@ -348,7 +348,6 @@ private fun colorForEntry(header: String): Color = when {
     " WARN " in header -> AppColors.WarningAccent
     " INFO " in header -> AppColors.SuccessAccent
     " DEBUG " in header -> AppColors.InfoAccent
-    " TRACE " in header -> AppColors.TextTertiary
     else -> AppColors.TextSecondary
 }
 
@@ -360,7 +359,6 @@ private fun levelOfHeader(header: String): LogLevel? = when {
     " WARN " in header -> LogLevel.WARN
     " INFO " in header -> LogLevel.INFO
     " DEBUG " in header -> LogLevel.DEBUG
-    " TRACE " in header -> LogLevel.TRACE
     else -> null
 }
 
@@ -475,7 +473,7 @@ fun AppLogDetailScreen(
     // the user can't filter them out explicitly, but a search query
     // still narrows them.
     var enabledLevels by remember(currentFilename) {
-        mutableStateOf(setOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR))
+        mutableStateOf(setOf(LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR))
     }
     // Time range — strings so partial / blank inputs don't fight the
     // user mid-keystroke. Parsed via normaliseTimeFilter; an
@@ -658,7 +656,7 @@ fun AppLogDetailScreen(
         )
     }
 
-    val logDefaultLevels = setOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR)
+    val logDefaultLevels = setOf(LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR)
     val anyFilterActive = searchQuery.isNotEmpty() || enabledLevels != logDefaultLevels ||
         startTimeText.isNotEmpty() || endTimeText.isNotEmpty() || selectedTag != "(any)"
     val clearFilters = {
@@ -723,7 +721,7 @@ fun AppLogDetailScreen(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            for (lvl in listOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR)) {
+            for (lvl in listOf(LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR)) {
                 val selected = lvl in enabledLevels
                 FilterChip(
                     selected = selected,

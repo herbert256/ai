@@ -419,18 +419,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             AppLog.d(startTag, "→ Apply general settings to global singletons")
             ModelType.userDefaults = bs.first.defaultTypePaths
-            AppLog.v(startTag, "  ModelType.userDefaults set (${bs.first.defaultTypePaths.size} entries)")
+            AppLog.d(startTag, "  ModelType.userDefaults set (${bs.first.defaultTypePaths.size} entries)")
             // Gate the diagnostic mirrors by the logging master switch —
             // effective* fold loggingMasterEnabled in, so a master that's
             // off forces tracing / audit / usage / file-logging off at
             // runtime regardless of each item's stored value.
             ApiTracer.isTracingEnabled = bs.first.effectiveTracingEnabled()
-            AppLog.v(startTag, "  ApiTracer.isTracingEnabled=${bs.first.effectiveTracingEnabled()} (master=${bs.first.loggingMasterEnabled})")
+            AppLog.d(startTag, "  ApiTracer.isTracingEnabled=${bs.first.effectiveTracingEnabled()} (master=${bs.first.loggingMasterEnabled})")
             com.ai.data.AuditLog.enabled = bs.first.effectiveAuditLogEnabled()
             SettingsPreferences.usageStatsEnabled = bs.first.effectiveUsageStatsEnabled()
-            AppLog.v(startTag, "  SettingsPreferences.usageStatsEnabled=${bs.first.effectiveUsageStatsEnabled()}")
+            AppLog.d(startTag, "  SettingsPreferences.usageStatsEnabled=${bs.first.effectiveUsageStatsEnabled()}")
             syncTestModelPrompt(bs.second)
-            AppLog.v(startTag, "  AnalysisRepository.TEST_PROMPT=${com.ai.data.AnalysisRepository.TEST_PROMPT}")
+            AppLog.d(startTag, "  AnalysisRepository.TEST_PROMPT=${com.ai.data.AnalysisRepository.TEST_PROMPT}")
             NetworkSettings.streamingReadTimeoutSec = bs.first.streamingReadTimeoutSec
             NetworkSettings.nonStreamingReadTimeoutSec = bs.first.nonStreamingReadTimeoutSec
             NetworkSettings.maxCallsPerProviderPerMinute = bs.first.maxCallsPerProviderPerMinute
@@ -443,7 +443,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             com.ai.data.ModelCooldownStore.typeABenchBaseMs = bs.first.typeABenchSeconds.coerceAtLeast(1) * 1000L
             com.ai.data.ModelCooldownStore.typeABenchMaxAttempts = bs.first.typeABenchMaxAttempts.coerceAtLeast(1)
             ApiCallCaps.resetForNewLimits(globalMax = bs.first.maxConcurrentApiCalls)
-            AppLog.v(
+            AppLog.d(
                 startTag,
                 "  NetworkSettings: streamRT=${bs.first.streamingReadTimeoutSec}s nonStreamRT=${bs.first.nonStreamingReadTimeoutSec}s " +
                     "maxPerMin=${bs.first.maxCallsPerProviderPerMinute} maxConc=${bs.first.maxConcurrentCallsPerProvider} " +
@@ -451,7 +451,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     "maxRetries529=${bs.first.maxRetriesOn529} retryBackoff529=${bs.first.retryBackoffMs529}ms"
             )
             AppLog.threshold = bs.first.effectiveLogLevel()
-            AppLog.v(startTag, "  AppLog.threshold=${bs.first.effectiveLogLevel()}")
+            AppLog.d(startTag, "  AppLog.threshold=${bs.first.effectiveLogLevel()}")
             AppLog.d(startTag, "← Apply general settings done")
 
             val appLabel = runCatching {
@@ -498,7 +498,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.d(startTag, "→ refreshAllModelLists (cache-respecting)")
             val tRefresh = System.currentTimeMillis()
             val refreshed = refreshAllModelLists(bs.second)
-            AppLog.v(startTag, "  refreshed ${refreshed.size} provider(s): ${refreshed.entries.joinToString { "${it.key}=${it.value}" }}")
+            AppLog.d(startTag, "  refreshed ${refreshed.size} provider(s): ${refreshed.entries.joinToString { "${it.key}=${it.value}" }}")
             AppLog.d(startTag, "← refreshAllModelLists done in ${System.currentTimeMillis() - tRefresh}ms")
         }
         // Mirror the latest aiSettings to a static holder so the
@@ -536,27 +536,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val bootStart = System.currentTimeMillis()
 
         AppLog.d(tag, "→ Singletons init")
-        AppLog.v(tag, "  init AppLog"); AppLog.init(application)
-        AppLog.v(tag, "  init ApiTracer"); ApiTracer.init(application)
-        AppLog.v(tag, "  init AuditLog"); AuditLog.init(application)
-        AppLog.v(tag, "  init ChatHistoryManager"); ChatHistoryManager.init(application)
-        AppLog.v(tag, "  init ReportStorage"); ReportStorage.init(application)
-        AppLog.v(tag, "  init SecondaryResultStorage"); SecondaryResultStorage.init(application)
-        AppLog.v(tag, "  init ProviderRegistry"); ProviderRegistry.init(application)
-        AppLog.v(tag, "  init ProviderFieldTimestamps"); ProviderFieldTimestamps.init(application)
-        AppLog.v(tag, "  init PromptCache"); PromptCache.init(application)
-        AppLog.v(tag, "  init InternalPromptIconCache"); InternalPromptIconCache.init(application)
-        AppLog.v(tag, "  init MetaCache"); com.ai.data.MetaCache.init(application)
-        AppLog.v(tag, "  init LastReportTracker"); com.ai.data.LastReportTracker.init(application)
+        AppLog.d(tag, "  init AppLog"); AppLog.init(application)
+        AppLog.d(tag, "  init ApiTracer"); ApiTracer.init(application)
+        AppLog.d(tag, "  init AuditLog"); AuditLog.init(application)
+        AppLog.d(tag, "  init ChatHistoryManager"); ChatHistoryManager.init(application)
+        AppLog.d(tag, "  init ReportStorage"); ReportStorage.init(application)
+        AppLog.d(tag, "  init SecondaryResultStorage"); SecondaryResultStorage.init(application)
+        AppLog.d(tag, "  init ProviderRegistry"); ProviderRegistry.init(application)
+        AppLog.d(tag, "  init ProviderFieldTimestamps"); ProviderFieldTimestamps.init(application)
+        AppLog.d(tag, "  init PromptCache"); PromptCache.init(application)
+        AppLog.d(tag, "  init InternalPromptIconCache"); InternalPromptIconCache.init(application)
+        AppLog.d(tag, "  init MetaCache"); com.ai.data.MetaCache.init(application)
+        AppLog.d(tag, "  init LastReportTracker"); com.ai.data.LastReportTracker.init(application)
         AppLog.d(tag, "← Singletons init done in ${System.currentTimeMillis() - bootStart}ms")
 
         AppLog.d(tag, "→ Load prefs")
         val tLoad = System.currentTimeMillis()
         val gs = settingsPrefs.loadGeneralSettings()
-        AppLog.v(tag, "  GeneralSettings loaded (logLevel=${gs.logLevel}, tracing=${gs.tracingEnabled})")
+        AppLog.d(tag, "  GeneralSettings loaded (logLevel=${gs.logLevel}, tracing=${gs.tracingEnabled})")
         var ai = settingsPrefs.loadSettings()
-        AppLog.v(tag, "  providers=${ai.providers.size} agents=${ai.agents.size} flocks=${ai.flocks.size} swarms=${ai.swarms.size}")
-        AppLog.v(tag, "  internalPrompts=${ai.internalPrompts.size} examplePrompts=${ai.examplePrompts.size} parameters=${ai.parameters.size} systemPrompts=${ai.systemPrompts.size}")
+        AppLog.d(tag, "  providers=${ai.providers.size} agents=${ai.agents.size} flocks=${ai.flocks.size} swarms=${ai.swarms.size}")
+        AppLog.d(tag, "  internalPrompts=${ai.internalPrompts.size} examplePrompts=${ai.examplePrompts.size} parameters=${ai.parameters.size} systemPrompts=${ai.systemPrompts.size}")
         AppLog.d(tag, "← Load prefs done in ${System.currentTimeMillis() - tLoad}ms")
 
         // First-run seeding from bundled assets. Flag wiped on data
@@ -566,17 +566,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tFirst = System.currentTimeMillis()
         if (!prefs.getBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, false)) {
             val isEmptyInstall = ProviderRegistry.getAll().isEmpty() && ai.internalPrompts.isEmpty()
-            AppLog.v(tag, "  first run; isEmptyInstall=$isEmptyInstall")
+            AppLog.d(tag, "  first run; isEmptyInstall=$isEmptyInstall")
             if (isEmptyInstall) {
                 val providersAdded = ProviderRegistry.importFromAsset(application)
-                AppLog.v(tag, "  providers.json seed: added=$providersAdded")
+                AppLog.d(tag, "  providers.json seed: added=$providersAdded")
                 if (providersAdded < 0) {
                     AppLog.w(tag, "First-run providers.json import failed")
                 }
             }
             prefs.edit().putBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, true).apply()
         } else {
-            AppLog.v(tag, "  not a first run; skipping seed")
+            AppLog.d(tag, "  not a first run; skipping seed")
         }
         AppLog.d(tag, "← First-run seed done in ${System.currentTimeMillis() - tFirst}ms")
 
@@ -597,9 +597,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tSync = System.currentTimeMillis()
         runCatching {
             val syncCount = ProviderRegistry.syncFromAsset(application)
-            AppLog.v(tag, "  syncFromAsset: $syncCount unedited fields refreshed")
+            AppLog.d(tag, "  syncFromAsset: $syncCount unedited fields refreshed")
             val addCount = ProviderRegistry.importFromAsset(application)
-            AppLog.v(tag, "  importFromAsset: $addCount new providers appended")
+            AppLog.d(tag, "  importFromAsset: $addCount new providers appended")
             AppLog.d(tag, "← providers.json delta-sync done in ${System.currentTimeMillis() - tSync}ms (synced=$syncCount, added=$addCount)")
         }.onFailure {
             AppLog.w(tag, "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms", it)
@@ -636,16 +636,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tPrompts = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.InternalPromptSeed.loadFromAssets(application)
-            AppLog.v(tag, "  bundled internal-prompts/ entries: ${bundled.size}")
+            AppLog.d(tag, "  bundled internal-prompts/ entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
                 val before = ai.internalPrompts.size
                 val merged = com.ai.data.InternalPromptSeed.ensureAllPresent(ai.internalPrompts, bundled)
                 val added = merged.size - before
-                AppLog.v(tag, "  merge: before=$before merged=${merged.size} added=$added")
+                AppLog.d(tag, "  merge: before=$before merged=${merged.size} added=$added")
                 if (added != 0) {
                     ai = ai.copy(internalPrompts = merged)
                     settingsPrefs.saveSettings(ai)
-                    AppLog.v(tag, "  settings saved with $added new prompts")
+                    AppLog.d(tag, "  settings saved with $added new prompts")
                 }
                 AppLog.d(tag, "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)")
             } else {
@@ -665,16 +665,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tExamples = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.ExamplePromptSeed.loadFromAssets(application)
-            AppLog.v(tag, "  bundled prompts/examples/ entries: ${bundled.size}")
+            AppLog.d(tag, "  bundled prompts/examples/ entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
                 val before = ai.examplePrompts.size
                 val merged = com.ai.data.ExamplePromptSeed.ensureAllPresent(ai.examplePrompts, bundled)
                 val added = merged.size - before
-                AppLog.v(tag, "  merge: before=$before merged=${merged.size} added=$added")
+                AppLog.d(tag, "  merge: before=$before merged=${merged.size} added=$added")
                 if (added != 0) {
                     ai = ai.copy(examplePrompts = merged)
                     settingsPrefs.saveSettings(ai)
-                    AppLog.v(tag, "  settings saved with $added new example prompts")
+                    AppLog.d(tag, "  settings saved with $added new example prompts")
                 }
                 AppLog.d(tag, "← prompts/examples/ delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)")
             } else {
@@ -692,16 +692,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tSystemPrompts = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.SystemPromptSeed.loadFromAssets(application)
-            AppLog.v(tag, "  bundled prompts/system/ entries: ${bundled.size}")
+            AppLog.d(tag, "  bundled prompts/system/ entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
                 val before = ai.systemPrompts.size
                 val merged = com.ai.data.SystemPromptSeed.ensureAllPresent(ai.systemPrompts, bundled)
                 val added = merged.size - before
-                AppLog.v(tag, "  merge: before=$before merged=${merged.size} added=$added")
+                AppLog.d(tag, "  merge: before=$before merged=${merged.size} added=$added")
                 if (added != 0) {
                     ai = ai.copy(systemPrompts = merged)
                     settingsPrefs.saveSettings(ai)
-                    AppLog.v(tag, "  settings saved with $added new system prompts")
+                    AppLog.d(tag, "  settings saved with $added new system prompts")
                 }
                 AppLog.d(tag, "← prompts/system/ delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)")
             } else {
@@ -767,7 +767,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tExcluded = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.TestExcludedSeed.loadFromAssets(application)
-            AppLog.v(tag, "  bundled excluded.json entries: ${bundled.size}")
+            AppLog.d(tag, "  bundled excluded.json entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
                 val before = ai.testExcludedModels.size
                 val merged = com.ai.data.TestExcludedSeed.ensureAllPresent(ai.testExcludedModels, bundled)
@@ -775,7 +775,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (added != 0) {
                     ai = ai.copy(testExcludedModels = merged)
                     settingsPrefs.saveSettings(ai)
-                    AppLog.v(tag, "  settings saved with $added new test-excluded entries")
+                    AppLog.d(tag, "  settings saved with $added new test-excluded entries")
                 }
                 AppLog.d(tag, "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (added=$added)")
             } else {
@@ -795,7 +795,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tInaccessible = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.InaccessibleSeed.loadFromAssets(application)
-            AppLog.v(tag, "  bundled inaccessible.json entries: ${bundled.size}")
+            AppLog.d(tag, "  bundled inaccessible.json entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
                 val before = ai.inaccessibleModels.size
                 val merged = com.ai.data.InaccessibleSeed.ensureAllPresent(ai.inaccessibleModels, bundled)
@@ -803,7 +803,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (added != 0) {
                     ai = ai.copy(inaccessibleModels = merged)
                     settingsPrefs.saveSettings(ai)
-                    AppLog.v(tag, "  settings saved with $added new inaccessible entries")
+                    AppLog.d(tag, "  settings saved with $added new inaccessible entries")
                 }
                 AppLog.d(tag, "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (added=$added)")
             } else {
@@ -817,7 +817,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val tMeta = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.DefaultMetaItemSeed.loadFromAssets(application)
-            AppLog.v(tag, "  bundled meta.json entries: ${bundled.size}")
+            AppLog.d(tag, "  bundled meta.json entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
                 val before = ai.defaultMetaItems.size
                 val merged = com.ai.data.DefaultMetaItemSeed.ensureAllPresent(ai.defaultMetaItems, bundled)
@@ -825,7 +825,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (added != 0) {
                     ai = ai.copy(defaultMetaItems = merged)
                     settingsPrefs.saveSettings(ai)
-                    AppLog.v(tag, "  settings saved with $added new default meta items")
+                    AppLog.d(tag, "  settings saved with $added new default meta items")
                 }
                 AppLog.d(tag, "← meta.json delta-merge done in ${System.currentTimeMillis() - tMeta}ms (added=$added)")
             } else {
@@ -943,16 +943,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     data class RuntimeWipeResult(
         val logs: Int, val chats: Int, val traces: Int,
-        val reports: Int, val prompts: Int, val testModels: Int
+        val reports: Int, val prompts: Int, val testModels: Int,
+        val audit: Int
     )
     data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
 
     /** Wipe the activity / personal-history surface the user almost
      *  always wants gone together: app logs, chat sessions, API
      *  traces, usage statistics, AI reports (incl. cascaded
-     *  SecondaryResult rows), prompt history, and the "Test all
-     *  models" run. Everything else — configuration (providers,
-     *  agents, prompts, parameters, keys), knowledge bases,
+     *  SecondaryResult rows), per-report audit logs, prompt history,
+     *  and the "Test all models" run. Everything else — configuration
+     *  (providers, agents, prompts, parameters, keys), knowledge bases,
      *  Info-provider caches, model-list cache, embeddings — is
      *  preserved. Use Clear all configuration or Reset application for
      *  wider wipes.
@@ -960,11 +961,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  Drops only the persisted `test_run.json`; the caller must also
      *  call `ModelTestEngine.clearRun()` to reset the in-memory flow. */
     fun clearAllRuntimeData(context: Context): RuntimeWipeResult {
-        AppLog.i("Housekeeping", "→ Clear logs / chats / traces / reports / prompts / usage stats / test run")
+        AppLog.i("Housekeeping", "→ Clear logs / chats / traces / reports / audit / prompts / usage stats / test run")
         val chats = ChatHistoryManager.deleteAllSessions()
         val traces = ApiTracer.getTraceFiles().size
         ApiTracer.clearTraces()
         val reports = ReportStorage.deleteAllReports(context)
+        val audit = AuditLog.clearAll()
         val prompts = settingsPrefs.clearPromptHistory()
         settingsPrefs.clearUsageStats()
         val testModels = ModelTestRunStore.load(context)?.total ?: 0
@@ -975,7 +977,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val logs = AppLog.clearLogs()
         return RuntimeWipeResult(
             logs = logs, chats = chats, traces = traces,
-            reports = reports, prompts = prompts, testModels = testModels
+            reports = reports, prompts = prompts, testModels = testModels,
+            audit = audit
         )
     }
 
@@ -1156,7 +1159,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  pick at the top under "Recent". */
     fun recordRecentReportModel(providerId: String, model: String) {
         if (providerId.isBlank() || model.isBlank()) return
-        AppLog.v("RecentModels", "record $providerId/$model")
+        AppLog.d("RecentModels", "record $providerId/$model")
         val entry = "$providerId|$model"
         val current = _uiState.value.generalSettings.recentReportModels
         if (current.firstOrNull() == entry) return  // already at front, nothing to do

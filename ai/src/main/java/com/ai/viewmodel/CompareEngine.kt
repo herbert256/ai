@@ -158,7 +158,6 @@ class CompareEngine internal constructor(
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
-        val startMs = System.currentTimeMillis()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
             try {
                 withTracerTags(reportId = reportId, category = TRACE_CATEGORY, runId = runId) {
@@ -182,7 +181,6 @@ class CompareEngine internal constructor(
                         AppLog.w("Compare", "nothing to compare (answers=${successful.size}, meta=${metaRows.size})")
                         return@withTracerTags
                     }
-                    AppLog.i("Compare", "→ start report=$reportId (${successful.size} answers × ${metaRows.size} meta = ${cellCountFor(successful.size, metaRows.size)} cells)")
                     AuditLog.append(reportId, "Start Compare with meta — ${successful.size} answers × ${metaRows.size} meta items")
                     val scopeEncoded = SecondaryScope.AllReports.encode()
 
@@ -220,7 +218,6 @@ class CompareEngine internal constructor(
                     }
 
                     dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
-                    AppLog.i("Compare", "← done report=$reportId in ${System.currentTimeMillis() - startMs}ms")
                     AuditLog.append(reportId, "End Compare with meta")
                 }
             } finally {
