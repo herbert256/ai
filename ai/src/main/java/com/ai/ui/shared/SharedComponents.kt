@@ -1982,14 +1982,20 @@ fun HomeIconBar(
     onTraceFallback: () -> Unit,
     onHelpFallback: () -> Unit,
     onAbout: () -> Unit,
+    /** When the "Full screen" setting hides the status bar, the bar sits at the
+     *  very top edge under any camera punch-hole — pad its top by the display
+     *  cutout so no icon lands on the hole. No-op (inset = 0) when there's no
+     *  cutout, and not needed when the status bar is visible (the Scaffold
+     *  already insets below it). */
+    fullScreen: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val mi = LocalMetadataIcons.current
     val traceAction = icons?.onTrace ?: onTraceFallback
     val helpAction = icons?.onHelp ?: onHelpFallback
-    // App background (not the card tint). Slightly larger glyphs packed in a
-    // centered cluster with a small fixed gap (less space between the icons)
-    // rather than spread edge-to-edge. Only renders in HOME_BAR mode.
+    // App background (not the card tint). Full screen width — no left/right
+    // padding — with the icons spread edge-to-edge (more space between them).
+    // Only renders in HOME_BAR mode.
     val w = 31.dp
     val h = 34
     val fs = 27.sp
@@ -2002,10 +2008,12 @@ fun HomeIconBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // Full screen: keep the icons below a top camera punch-hole.
+            .then(if (fullScreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top)) else Modifier)
             .background(AppColors.AppBackground)
-            .padding(start = 8.dp, end = 8.dp, top = 5.dp, bottom = 4.dp),
+            .padding(start = 0.dp, end = 0.dp, top = 5.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally)
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         // AI Setup leads the bar.
         TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs)

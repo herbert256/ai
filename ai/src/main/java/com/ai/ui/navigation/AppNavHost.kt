@@ -458,7 +458,8 @@ fun AppNavHost(
             onSettings = { navigateHomeBarRoute(NavRoutes.SETTINGS) },
             onTraceFallback = { navigateHomeBarRoute(NavRoutes.TRACE_LIST) },
             onHelpFallback = { navigateHomeBarRoute(NavRoutes.HELP) },
-            onAbout = { navigateHomeBarRoute(NavRoutes.ABOUT) }
+            onAbout = { navigateHomeBarRoute(NavRoutes.ABOUT) },
+            fullScreen = rootUiStateForLayout.generalSettings.fullScreen
         )
     }
     NavHost(
