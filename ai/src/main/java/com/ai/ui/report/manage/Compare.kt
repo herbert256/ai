@@ -620,13 +620,13 @@ private fun CompareL3(
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
                 Text("Report model: $answerLabel", color = AppColors.TextPrimary, fontSize = 14.sp)
                 Spacer(Modifier.height(4.dp))
+                Text("Compare model: ${c.judgeModel ?: "(pending)"}", color = AppColors.TextPrimary, fontSize = 14.sp)
+                Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Compare model: ${c.judgeModel ?: "(pending)"}", color = AppColors.TextPrimary, fontSize = 14.sp)
+                    Text("Prompt used: ${secondaryPromptDisplayName(run.comparePrompt.name)}", color = AppColors.TextPrimary, fontSize = 14.sp)
                     Text(com.ai.ui.shared.LocalMetadataIcons.current.edit, fontSize = 16.sp,
                         modifier = Modifier.clickable { editPrompt(run.comparePrompt.id) }.padding(start = 8.dp))
                 }
-                Spacer(Modifier.height(4.dp))
-                Text("Prompt used: ${secondaryPromptDisplayName(run.comparePrompt.name)}", color = AppColors.TextPrimary, fontSize = 14.sp)
             }
             Spacer(Modifier.height(12.dp))
             // Card 2 — the API interaction (resolved compare prompt + worker
