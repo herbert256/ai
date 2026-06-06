@@ -2032,9 +2032,7 @@ fun HomeIconBar(
         // flush-right logo to close the gap further.
         add {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                Box(Modifier.offset(x = 8.dp)) {
-                    TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 24.dp, heightDp = h, fontSize = 26.sp)
-                }
+                TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 28.dp, heightDp = h, fontSize = 26.sp)
                 AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
             }
         }
