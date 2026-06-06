@@ -2036,7 +2036,8 @@ fun HomeIconBar(
         // grouping them makes SpaceBetween treat the pair as one item, so the
         // gap BETWEEN them is just this inner row's (small) spacing.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-            TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 26.sp)
+            // Narrow box for ❓ so little space is reserved on either side of it.
+            TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 24.dp, heightDp = h, fontSize = 26.sp)
             AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
         }
     }
