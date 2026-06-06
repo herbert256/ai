@@ -2016,8 +2016,13 @@ fun HomeIconBar(
         add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs) }
-        // Traces: always present; action is this screen's traces or the list.
-        add { TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = fs) }
+        // Traces: always present; grayed + inert when the "Show Ladybug icons"
+        // setting is off, active (→ this screen's traces or the list) when on.
+        add {
+            val tracesActive = com.ai.data.ApiTracer.ladybugLinksEnabled
+            TitleBarIcon(mi.traces, Color.Unspecified, if (tracesActive) traceAction else ({}), width = w, heightDp = h, fontSize = fs,
+                alpha = if (tracesActive) 1f else 0.35f)
+        }
         // Share: always present (fixed layout); grayed + inert when no action.
         add {
             TitleBarIcon(mi.share, Color.Unspecified, onShare ?: {}, width = w, heightDp = h, fontSize = fs,
