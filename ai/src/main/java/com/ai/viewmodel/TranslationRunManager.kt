@@ -1434,6 +1434,36 @@ class TranslationRunManager(
             ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, deletedCostDelta)
         }
 
+        // Re-persist a PENDING placeholder for each reused row up front, before
+        // dispatching. The prior code wrote a row only when its call completed,
+        // so an interruption between the delete above and completion (e.g. a
+        // process kill mid-restart, or a cancelled batch) left NOTHING on disk
+        // — the whole translation vanished from Manage. Writing placeholders
+        // now (same shape as startTranslation's build phase) means an
+        // interruption leaves resumable PENDING rows that Broken-work /
+        // reconcile can pick up, and the run keeps showing on Manage.
+        // runOneTranslation overwrites each placeholder on completion.
+        items.forEach { item ->
+            val pid = item.persistedRowId ?: return@forEach
+            SecondaryResultStorage.save(context, SecondaryResult(
+                id = pid,
+                reportId = sourceReportId,
+                kind = SecondaryKind.TRANSLATE,
+                providerId = "",
+                model = "",
+                agentName = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}",
+                timestamp = System.currentTimeMillis(),
+                content = null,
+                errorMessage = null,
+                translateSourceKind = translateSrcKindOf(item.kind),
+                translateSourceTargetId = translateSrcTargetIdOf(item),
+                targetLanguage = targetLanguageName,
+                targetLanguageNative = targetLanguageNative,
+                translationRunId = runId,
+                runId = runId,
+            ))
+        }
+
         val aiSettings = appViewModel.uiState.value.aiSettings
         val textPrompt = workerTranslatePrompt(aiSettings, title = false)
         val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
