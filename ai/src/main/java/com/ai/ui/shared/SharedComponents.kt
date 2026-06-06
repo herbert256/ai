@@ -2002,22 +2002,27 @@ fun HomeIconBar(
     val h = 36
     val fs = 28.sp
     // 📤 share mirrors the current screen's action (published via
-    // LocalBottomIconState into `icons`) and shows only when the screen offers
-    // it; the bottom bar suppresses share in HOME_BAR mode so it isn't shown
-    // twice. 📋 copy is intentionally NOT here — it lives only in the bottom
-    // bar, exactly like Home Screen mode.
+    // LocalBottomIconState into `icons`); the bottom bar suppresses share in
+    // HOME_BAR mode so it isn't shown twice. 📋 copy is intentionally NOT here —
+    // it lives only in the bottom bar, exactly like Home Screen mode.
     val onShare = icons?.onShare
     // One slot per icon — Help and the About logo are SEPARATE slots (no
-    // grouping, no offsets). Inactive icons are omitted entirely.
+    // grouping, no offsets). EVERY icon is ALWAYS present, so the bar's layout
+    // is fixed and nothing shifts as per-screen actions publish during startup;
+    // 📤 share is merely grayed + inert when the current page has no share.
     val slots: List<@Composable () -> Unit> = buildList {
         add { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs) }
-        if (com.ai.data.ApiTracer.ladybugLinksEnabled)
-            add { TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = fs) }
-        onShare?.let { cb -> add { TitleBarIcon(mi.share, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
+        // Traces: always present; action is this screen's traces or the list.
+        add { TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = fs) }
+        // Share: always present (fixed layout); grayed + inert when no action.
+        add {
+            TitleBarIcon(mi.share, Color.Unspecified, onShare ?: {}, width = w, heightDp = h, fontSize = fs,
+                alpha = if (onShare != null) 1f else 0.35f)
+        }
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = fs) }
         add { AiLogoButton(onClick = onAbout, size = 44.dp, contentDescription = "About") }
