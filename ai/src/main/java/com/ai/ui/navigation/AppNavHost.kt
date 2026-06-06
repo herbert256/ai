@@ -86,8 +86,16 @@ fun AppNavHost(
         )
     }
 
+    val backActivity = sweepContext as? android.app.Activity
     val safePopBack: () -> Unit = {
         if (navController.previousBackStackEntry != null) navController.popBackStack()
+        // Home bar mode has no home screen: the latest report's Manage screen
+        // is the nav root, so back there must EXIT the app — not fall through
+        // to the empty new-report (Select models) base the Manage screen shows
+        // once its loaded report is dismissed.
+        else if (appViewModel.uiState.value.generalSettings.appHomeMode == AppHomeMode.HOME_BAR) {
+            backActivity?.finish()
+        }
     }
     val navigateHome: () -> Unit = {
         navController.navigate(NavRoutes.AI) { popUpTo(NavRoutes.AI) { inclusive = true } }

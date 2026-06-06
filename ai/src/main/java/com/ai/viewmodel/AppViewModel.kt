@@ -29,7 +29,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     internal val settingsPrefs = SettingsPreferences(prefs, application.filesDir)
 
-    private val _uiState = MutableStateFlow(UiState())
+    // Seed the persisted GeneralSettings synchronously so the very first
+    // composition already knows appHomeMode (Home bar vs Home screen) — the
+    // async bootstrap in init{} refreshes everything shortly after. Without
+    // this seed appHomeMode is the HOME_SCREEN default for a frame, so the
+    // home hub flashes before the Home-bar redirect. loadGeneralSettings() is
+    // a pure SharedPreferences read, safe to call at construction.
+    private val _uiState = MutableStateFlow(UiState(generalSettings = settingsPrefs.loadGeneralSettings()))
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     /** Singleton Job for the app-wide read-only broken-work scan
