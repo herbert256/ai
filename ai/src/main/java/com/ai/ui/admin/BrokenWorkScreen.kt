@@ -121,15 +121,21 @@ fun BrokenWorkScreen(
     val warningGlyph = LocalMetadataIcons.current.statusWarning
 
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(
-            helpTopic = "broken_work",
-            title = "Broken work",
-            subject = "Batch work that needs attention",
-            onBackClick = onBack,
-            reportIcon = warningGlyph,
-            onReportIconClick = onNavigateHome,
-            onTitleClick = onNavigateHome
-        )
+        // Both top-bar icons (the ⚠️ left glyph and the right logo) and the
+        // title go Home. Suppress the global broken-work badge here so the
+        // right icon is the Home AI-logo instead of a ⚠️ that would just
+        // re-open the screen we're already on.
+        CompositionLocalProvider(com.ai.ui.shared.LocalBrokenWork provides null) {
+            TitleBar(
+                helpTopic = "broken_work",
+                title = "Broken work",
+                subject = "Batch work that needs attention",
+                onBackClick = onBack,
+                reportIcon = warningGlyph,
+                onReportIconClick = onNavigateHome,
+                onTitleClick = onNavigateHome
+            )
+        }
         Text(
             "Batches with unfinished (app-kill) or errored items. Use the per-line view / delete / restart actions, or tap a card to open the report.",
             fontSize = 11.sp, color = AppColors.TextTertiary
