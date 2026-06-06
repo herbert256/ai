@@ -26,7 +26,7 @@ if (keystoreFile.exists()) {
 
 android {
     namespace = "com.ai"
-    compileSdk = 36
+    compileSdk = 37
     buildToolsVersion = "36.1.0"
 
     val keystoreFileName = keystoreProperties["KEYSTORE_FILE"]?.toString()
@@ -201,7 +201,7 @@ dependencies {
     // categories, recents, skin-tone variants) used on Settings →
     // Default icons. A classic View embedded via AndroidView; guarantees
     // a single valid glyph per pick.
-    implementation("androidx.emoji2:emoji2-emojipicker:1.5.0")
+    implementation("androidx.emoji2:emoji2-emojipicker:1.6.0")
 
     // Networking
     implementation(libs.retrofit)
@@ -241,7 +241,7 @@ dependencies {
     // unwrap a .task file from a downloaded .zip / .tar / .tar.gz /
     // .tgz archive. Kaggle ships some Gemma bundles as .tgz; this
     // saves the user a round-trip through a desktop unzipper.
-    implementation("org.apache.commons:commons-compress:1.27.1")
+    implementation("org.apache.commons:commons-compress:1.28.0")
 
     // PDFBox-Android — Apache PDFBox port for Android. Used by the
     // Knowledge ingestion pipeline to extract text from .pdf files
@@ -250,7 +250,7 @@ dependencies {
 
     // Jsoup — HTML parser used by the Knowledge ingestion pipeline
     // to fetch a web page and extract its readable text content.
-    implementation("org.jsoup:jsoup:1.18.1")
+    implementation("org.jsoup:jsoup:1.22.2")
 
     debugImplementation(libs.androidx.ui.tooling)
 
@@ -261,7 +261,7 @@ dependencies {
     // calls Guava 33+ APIs missing from 27). Forcing 33+ on both
     // classpaths keeps Truth working without affecting MediaPipe.
     constraints {
-        implementation("com.google.guava:guava:33.4.3-android") {
+        implementation("com.google.guava:guava:33.6.0-android") {
             because("Truth 1.4.5 requires Guava 33+; MediaPipe's transitive 27 breaks tests")
         }
     }
