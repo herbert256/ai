@@ -7,8 +7,8 @@ For developers maintaining or extending this app. Pairs with
 ## Build
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleDebug
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleRelease
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleDebug
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleRelease
 ```
 
 Toolchain: Kotlin 2.2.10, AGP 9.2.0, Gradle 9.5, Java 17 (JVM
@@ -433,8 +433,8 @@ reached from `AboutScreen`. JavaScript is disabled in that WebView.
 Two layered suites:
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew test                         # unit (fast)
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew connectedDebugAndroidTest    # instrumented (~40s on emulator)
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew test                         # unit (fast)
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew connectedDebugAndroidTest    # instrumented (~40s on emulator)
 ```
 
 Both layers use Truth. Roughly **25 unit-test files** under

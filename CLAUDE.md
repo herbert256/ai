@@ -16,10 +16,10 @@ have format-specific code.
 
 | | |
 |---|---|
-| Language | Kotlin 2.2.10 |
-| UI | Jetpack Compose, Compose BOM 2026.04.01, Material 3 dark |
-| Build | AGP 9.2.0, Gradle 9.5.0, Java 17, JVM target 17 |
-| SDK | `namespace = com.ai`, `minSdk = 26`, `targetSdk = 36` |
+| Language | Kotlin 2.4.0 |
+| UI | Jetpack Compose, Compose BOM 2026.05.01, Material 3 dark |
+| Build | AGP 9.2.1, Gradle 9.5.1, build-tools 37.0.0, Java 25, JVM target 25 |
+| SDK | `namespace = com.ai`, `minSdk = 36`, `compileSdk = 37`, `targetSdk = 36` |
 | Persistence | SharedPreferences + JSON files in `<filesDir>` + Jetpack DataStore |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |
@@ -71,7 +71,7 @@ adb wait-for-device
 ## Build & deploy
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleDebug
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleDebug
 
 # Deploy to device + cloud copy + launch
 adb install -r ai/build/outputs/apk/debug/ai-debug.apk \
@@ -79,7 +79,7 @@ adb install -r ai/build/outputs/apk/debug/ai-debug.apk \
   && adb shell am start -n com.ai/.MainActivity
 
 # Release variant
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleRelease
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleRelease
 
 # Logcat — current tag set
 adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|ImportExport|KnowledgeService|LocalEmbedder|LocalLlm|LocalRuntime|ModelListCache|PricingCache|ProviderRegistry|ReportExport|ReportStorage|SettingsExport"

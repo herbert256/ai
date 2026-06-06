@@ -82,7 +82,7 @@ response into another's prompt, and chat with real-time streaming.
 Download the latest APK from releases, or build from source:
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleDebug
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleDebug
 adb install -r ai/build/outputs/apk/debug/ai-debug.apk
 ```
 

@@ -71,7 +71,7 @@ adb wait-for-device
 ## Build & deploy
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleDebug
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleDebug
 
 # Deploy to device + cloud copy + launch
 adb install -r ai/build/outputs/apk/debug/ai-debug.apk \
@@ -79,7 +79,7 @@ adb install -r ai/build/outputs/apk/debug/ai-debug.apk \
   && adb shell am start -n com.ai/.MainActivity
 
 # Release variant
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleRelease
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleRelease
 
 # Logcat — current tag set
 adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|ImportExport|KnowledgeService|LocalEmbedder|LocalLlm|LocalRuntime|ModelListCache|PricingCache|ProviderRegistry|ReportExport|ReportStorage|SettingsExport"
