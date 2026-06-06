@@ -2029,8 +2029,9 @@ fun HomeIconBar(
                 alpha = if (onShare != null) 1f else 0.35f)
         }
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
-        add { TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = fs) }
-        add { AiLogoButton(onClick = onAbout, size = 44.dp, contentDescription = "About") }
+        // Narrow box for ❓ so less space is reserved before/after it.
+        add { TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 26.dp, heightDp = h, fontSize = fs) }
+        add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About") }
     }
 
     // Detect the top camera cutout (punch-hole) at runtime via the platform
