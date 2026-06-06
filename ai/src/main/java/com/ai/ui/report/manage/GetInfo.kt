@@ -349,6 +349,7 @@ fun ReportGetInfoScreen(
     onOpenLanguageDetect: () -> Unit,
     onOpenLanguageDetail: () -> Unit,
     onEditTitle: () -> Unit,
+    onEditLongTitle: () -> Unit,
     onOpenAgentIconDetail: (String) -> Unit,
     onEditModelTitle: (String) -> Unit,
     onRestartErrors: () -> Unit
@@ -392,7 +393,8 @@ fun ReportGetInfoScreen(
                     "report-icon" -> onOpenIconDetail
                     "language" -> onOpenLanguageDetect
                     "language-icon" -> onOpenLanguageDetail
-                    "report-short", "report-long" -> onEditTitle
+                    "report-short" -> onEditTitle
+                    "report-long" -> onEditLongTitle
                     "model-icon" -> job.agentId?.let { id -> { onOpenAgentIconDetail(id) } }
                     "model-title" -> job.agentId?.let { id -> { onEditModelTitle(id) } }
                     else -> null
