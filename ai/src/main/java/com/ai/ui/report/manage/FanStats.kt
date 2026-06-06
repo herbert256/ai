@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.FanOutHttpStatusRow
 import com.ai.data.FanOutRunState
-import com.ai.data.computeFanOutHttpStatusStats
+import com.ai.data.RunHttpStats
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 
@@ -37,12 +37,11 @@ internal fun FanOutStatsScreen(
     run: FanOutRunState,
     onBack: () -> Unit
 ) {
+    // In-memory only: every HTTP response (incl. 200 and retried-away 429s) is
+    // tallied per run by RunHttpStats. Keyed off the run id carried on the
+    // pairs (same source FanL1 uses); resets on app restart.
     val stats = remember(run) {
-        // The run id lives on the pairs (same source FanL1 uses for the 🐞
-        // deep-link); it's the tracer runId the retry interceptor recorded under.
-        val runId = run.pairs.values.firstNotNullOfOrNull { it.runId }
-        val retried = runId?.let { com.ai.data.RunRetryStats.retries429ForRun(it) } ?: emptyMap()
-        computeFanOutHttpStatusStats(run.pairs.values, retried)
+        RunHttpStats.statsForRun(run.pairs.values.firstNotNullOfOrNull { it.runId })
     }
     val subject = run.metaPrompt.title.takeIf { it.isNotBlank() }
         ?.let { "${run.metaPrompt.name} - $it" } ?: run.metaPrompt.name
@@ -62,17 +61,14 @@ internal fun FanOutStatsScreen(
         Spacer(Modifier.height(8.dp))
         BatchStatsRow(
             listOf(
-                Triple("Total", stats.totalPairs.toString(), AppColors.InfoAccent),
-                Triple("Models", stats.modelCount.toString(), AppColors.PrimaryAccent),
-                Triple("429↻", stats.totalRetried429.toString(),
-                    if (stats.totalRetried429 > 0) AppColors.WarningAccent else AppColors.TextDim),
-                Triple("No HTTP", stats.noHttpCount.toString(), noHttpColor(stats.noHttpCount))
+                Triple("Responses", stats.totalResponses.toString(), AppColors.InfoAccent),
+                Triple("Models", stats.modelCount.toString(), AppColors.PrimaryAccent)
             )
         )
         Spacer(Modifier.height(10.dp))
 
         if (stats.rows.isEmpty()) {
-            Text("No Fan Out pairs.", color = AppColors.TextSecondary, fontSize = 13.sp)
+            Text("No HTTP responses recorded this session.", color = AppColors.TextSecondary, fontSize = 13.sp)
         } else {
             val scroll = rememberScrollState()
             LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -82,12 +78,10 @@ internal fun FanOutStatsScreen(
                         HeaderCell("Total", 48.dp)
                         HeaderCell("200", 44.dp)
                         HeaderCell("429", 44.dp)
-                        HeaderCell("429↻", 50.dp)
                         HeaderCell("529", 44.dp)
                         HeaderCell("4xx", 44.dp)
                         HeaderCell("5xx", 44.dp)
                         HeaderCell("Other", 54.dp)
-                        HeaderCell("No HTTP", 66.dp)
                     }
                     HorizontalDivider(color = AppColors.DividerDark)
                 }
@@ -116,12 +110,10 @@ private fun FanOutStatsRow(row: FanOutHttpStatusRow, modifier: Modifier = Modifi
         CountCell(c.total, 48.dp, AppColors.TextPrimary)
         CountCell(c.ok200, 44.dp, AppColors.SuccessAccent)
         CountCell(c.rate429, 44.dp, countColor(c.rate429, AppColors.WarningAccent))
-        CountCell(row.retried429, 50.dp, countColor(row.retried429, AppColors.WarningAccent))
         CountCell(c.overloaded529, 44.dp, countColor(c.overloaded529, AppColors.DangerAccent))
         CountCell(c.client4xx, 44.dp, countColor(c.client4xx, AppColors.WarningAccent))
         CountCell(c.server5xx, 44.dp, countColor(c.server5xx, AppColors.DangerAccent))
         CountCell(c.other, 54.dp, countColor(c.other, AppColors.TextSecondary))
-        CountCell(c.noHttp, 66.dp, noHttpColor(c.noHttp))
     }
 }
 
@@ -153,6 +145,3 @@ private fun CountCell(value: Int, width: Dp, color: Color) {
 
 private fun countColor(value: Int, active: Color): Color =
     if (value > 0) active else AppColors.TextDim
-
-private fun noHttpColor(value: Int): Color =
-    if (value > 0) AppColors.TextSecondary else AppColors.TextDim

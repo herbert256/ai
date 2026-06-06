@@ -50,15 +50,6 @@ class RateLimitRetryInterceptor : Interceptor {
         // here for up to maxRetries × backoffMs would ANR the UI.
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 429) return response
-        // Record this 429 against the current run so run-scoped screens (e.g.
-        // the Fan out HTTP-stats screen) can surface it — the request is about
-        // to be retried (and usually ends 200), so the item's final status
-        // would otherwise hide it.
-        RunRetryStats.record429(
-            ApiTracer.currentRunId,
-            ProviderRegistry.findByHost(request.url.host)?.id,
-            modelForRequest(request)
-        )
         // Bench a model when the provider hands back a 429 that
         // won't clear on a quick retry, and skip the retry loop.
         // Four triggers:

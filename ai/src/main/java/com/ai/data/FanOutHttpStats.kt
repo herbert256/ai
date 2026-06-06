@@ -1,104 +1,31 @@
 package com.ai.data
 
-/** Bucket counts for final Fan Out pair HTTP statuses. */
+/** Bucket counts of Fan Out HTTP responses for one model. Counts every
+ *  response RECEIVED (each retry attempt included), not final per-pair
+ *  status — so a 429 that's retried then succeeds shows as one 429 + one 200.
+ *  Built in memory by [RunHttpStats]. */
 data class FanOutHttpStatusCounts(
     val ok200: Int = 0,
     val rate429: Int = 0,
     val overloaded529: Int = 0,
     val client4xx: Int = 0,
     val server5xx: Int = 0,
-    val other: Int = 0,
-    val noHttp: Int = 0
+    val other: Int = 0
 ) {
-    val total: Int get() = ok200 + rate429 + overloaded529 + client4xx + server5xx + other + noHttp
+    val total: Int get() = ok200 + rate429 + overloaded529 + client4xx + server5xx + other
     val non200: Int get() = total - ok200
 }
 
 data class FanOutHttpStatusRow(
     val providerId: String,
     val model: String,
-    val counts: FanOutHttpStatusCounts,
-    /** 429 responses RECEIVED for this model during the run and then retried
-     *  (so they usually don't show in [counts], whose pairs ended 200). From
-     *  [RunRetryStats]. */
-    val retried429: Int = 0
+    val counts: FanOutHttpStatusCounts
 ) {
     val modelKey: String get() = "$providerId|$model"
 }
 
 data class FanOutHttpStatusStats(
-    val totalPairs: Int,
+    val totalResponses: Int,
     val modelCount: Int,
-    val noHttpCount: Int,
-    val totalRetried429: Int,
     val rows: List<FanOutHttpStatusRow>
 )
-
-/** [retried429ByModel]: "providerId|model" → count of 429s seen + retried for
- *  this run (from [RunRetryStats]); surfaced separately because such pairs
- *  usually end 200 and so are invisible in the final-status counts. */
-fun computeFanOutHttpStatusStats(
-    pairs: Collection<PairState>,
-    retried429ByModel: Map<String, Int> = emptyMap()
-): FanOutHttpStatusStats {
-    val grouped = LinkedHashMap<String, MutableFanOutHttpStatusCounts>()
-    pairs.forEach { pair ->
-        val key = "${pair.providerId}|${pair.model}"
-        grouped.getOrPut(key) { MutableFanOutHttpStatusCounts(pair.providerId, pair.model) }
-            .add(pair.httpStatusCode)
-    }
-    val rows = grouped.values
-        .map { it.toRow() }
-        .map { it.copy(retried429 = retried429ByModel[it.modelKey] ?: 0) }
-        .sortedWith(
-            compareByDescending<FanOutHttpStatusRow> { it.counts.non200 + it.retried429 }
-                .thenBy { it.model.lowercase() }
-                .thenBy { it.providerId.lowercase() }
-        )
-    return FanOutHttpStatusStats(
-        totalPairs = rows.sumOf { it.counts.total },
-        modelCount = rows.size,
-        noHttpCount = rows.sumOf { it.counts.noHttp },
-        totalRetried429 = rows.sumOf { it.retried429 },
-        rows = rows
-    )
-}
-
-private class MutableFanOutHttpStatusCounts(
-    private val providerId: String,
-    private val model: String
-) {
-    private var ok200 = 0
-    private var rate429 = 0
-    private var overloaded529 = 0
-    private var client4xx = 0
-    private var server5xx = 0
-    private var other = 0
-    private var noHttp = 0
-
-    fun add(code: Int?) {
-        when {
-            code == null -> noHttp++
-            code == 200 -> ok200++
-            code == 429 -> rate429++
-            code == 529 -> overloaded529++
-            code in 400..499 -> client4xx++
-            code in 500..599 -> server5xx++
-            else -> other++
-        }
-    }
-
-    fun toRow(): FanOutHttpStatusRow = FanOutHttpStatusRow(
-        providerId = providerId,
-        model = model,
-        counts = FanOutHttpStatusCounts(
-            ok200 = ok200,
-            rate429 = rate429,
-            overloaded529 = overloaded529,
-            client4xx = client4xx,
-            server5xx = server5xx,
-            other = other,
-            noHttp = noHttp
-        )
-    )
-}

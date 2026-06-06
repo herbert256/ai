@@ -134,12 +134,10 @@ internal fun FanOutL1Screen(
             onReload = { confirmRerunComplete = true },
             onTrace = if (l1RunId != null && com.ai.data.ApiTracer.ladybugLinksEnabled)
                 { { actions.onNavigateToTraceRunList(l1RunId) } } else null,
-            // Show the HTTP-stats icon as soon as there are pairs — not only
-            // once the run is fully terminal. The per-pair httpStatusCode is
-            // persisted on each pair's SecondaryResult and restored on
-            // hydration (toPairState), so the stats survive leaving/returning
-            // and app restarts; pairs still running just count as "no HTTP yet".
-            onStats = if (run.totalPairs > 0) onOpenStats else null,
+            // The HTTP stats are in-memory only (RunHttpStats), so show the icon
+            // only when this run has recorded responses this session — after an
+            // app restart there's nothing to show.
+            onStats = if (l1RunId != null && com.ai.data.RunHttpStats.hasRun(l1RunId)) onOpenStats else null,
             onDelete = { confirmDelete = true },
             onAdd = actions.onCreateNewFanOut,
             onAddNote = { noteEdit = NoteEdit.Add }

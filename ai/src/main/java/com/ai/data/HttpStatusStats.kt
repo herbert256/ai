@@ -204,6 +204,10 @@ class HttpStatusStatsInterceptor : Interceptor {
             throw e
         }
         HttpStatusStats.record(response.code, System.currentTimeMillis() - start, host, model)
+        // Per-run tally for the Fan out HTTP-stats screen. This is the innermost
+        // interceptor, so the 429/529 retry loops re-run it on every attempt —
+        // counting the retried-away responses the per-item final status hides.
+        RunHttpStats.record(ApiTracer.currentRunId, ProviderRegistry.findByHost(host)?.id, model, response.code)
         if (response.code >= 400) {
             // peekBody is non-consuming — the downstream parser still reads the
             // real body. Cap at 64 KiB like the retry interceptor does.
