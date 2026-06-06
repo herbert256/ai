@@ -369,6 +369,8 @@ internal fun AgentIconDetailOverlay(
         com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
         LocalNavigateToCurrentReport provides onClose
     ) {
+        val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
+        val regenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_agent",
             subject = subject,
@@ -387,6 +389,11 @@ internal fun AgentIconDetailOverlay(
             onContinueChat = null,
             onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
+            promptName = iconPrompt?.name ?: "model-icons",
+            onEditPrompt = iconPrompt?.id?.let { id -> { editPrompt(id) } },
+            onReload = currentReportId?.let { rid ->
+                { regenerate(rid, com.ai.viewmodel.MetaRegenKind.MODEL_ICON, agentId) }
+            },
             onBack = onClose
         ))
     }
@@ -705,6 +712,8 @@ internal fun RenderLanguageDetectDetailOverlay(
             ?.let { AppService.findById(it) } ?: nameAgent.provider
         val modelId = snapshot.model?.split("/", limit = 2)?.getOrNull(1)
             ?: aiSettings.getEffectiveModelForAgent(nameAgent)
+        val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
+        val regenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_language",
             title = "Language detection",
@@ -729,6 +738,9 @@ internal fun RenderLanguageDetectDetailOverlay(
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
+            promptName = namePrompt.name,
+            onEditPrompt = { editPrompt(namePrompt.id) },
+            onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.LANGUAGE_NAME, null) },
             onBack = onBack
         ))
     }
@@ -806,6 +818,8 @@ internal fun RenderLanguageDetailOverlay(
             ?.let { AppService.findById(it) } ?: languageAgent.provider
         val modelId = snapshot.model?.split("/", limit = 2)?.getOrNull(1)
             ?: aiSettings.getEffectiveModelForAgent(languageAgent)
+        val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
+        val regenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_language",
             subject = ctxData.first ?: "language",
@@ -826,6 +840,9 @@ internal fun RenderLanguageDetailOverlay(
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
+            promptName = languagePrompt.name,
+            onEditPrompt = { editPrompt(languagePrompt.id) },
+            onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.LANGUAGE_ICON, null) },
             onBack = onBack
         ))
     }
@@ -932,6 +949,8 @@ internal fun ReportIconOrLanguageDetailOverlay(
             ?.let { AppService.findById(it) } ?: iconAgent.provider
         val modelId = reportIconModel?.split("/", limit = 2)?.getOrNull(1)
             ?: aiSettings.getEffectiveModelForAgent(iconAgent)
+        val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
+        val regenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_main",
             subject = promptUsed ?: "main",
@@ -949,6 +968,9 @@ internal fun ReportIconOrLanguageDetailOverlay(
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
+            promptName = iconPrompt.name,
+            onEditPrompt = { editPrompt(iconPrompt.id) },
+            onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.REPORT_ICON, null) },
             onBack = onClose
         ))
     }

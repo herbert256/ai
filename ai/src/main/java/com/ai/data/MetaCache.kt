@@ -76,6 +76,15 @@ object MetaCache {
         }
     }
 
+    /** Drop one cached ([category], [input]) entry so the next request
+     *  re-pays for a fresh LLM call. Used by the per-item "reload" on the
+     *  Report - Get info detail screens (titles + language icon are cached,
+     *  so a reload must evict the entry to actually regenerate). No-op when
+     *  the entry isn't present. */
+    fun remove(category: String, input: String) = lock.withLock {
+        if (map.remove(keyOf(category, input)) != null) saveLocked()
+    }
+
     fun clearAll(context: Context): Int = lock.withLock {
         val n = map.size
         map.clear()

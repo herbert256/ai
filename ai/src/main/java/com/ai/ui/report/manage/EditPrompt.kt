@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -219,25 +220,49 @@ private data class TitleApiCard(
     val providerId: String,
     val model: String,
     val cost: Double,
-    val apiInteraction: String
+    val apiInteraction: String,
+    /** Bundled internal-prompt name that produced this title + its id (for
+     *  the edit pencil). Blank id → pencil hidden. */
+    val promptName: String,
+    val promptId: String
 )
 
 /** Model + API-interaction card pair (Icon-lookup style) for a title
  *  editor. Scrollable + weighted so a long interaction doesn't crowd out
  *  the buttons below; renders nothing when [card] is null (manual title /
- *  no AI call recorded). */
+ *  no AI call recorded). The first card leads with the generating prompt's
+ *  name + an edit pencil (→ internal-prompt editor). */
 @Composable
 private fun ColumnScope.TitleApiCards(card: TitleApiCard?) {
+    val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
     Column(
         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         card?.let { c ->
             Spacer(modifier = Modifier.height(12.dp))
-            // Model card — provider / model + cumulative cost.
+            // Model card — prompt (+ edit pencil) / provider / model + cost.
             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                 modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Prompt", fontSize = 11.sp, color = AppColors.TextTertiary,
+                                fontWeight = FontWeight.Bold)
+                            Text(c.promptName.ifBlank { "(unknown)" },
+                                fontSize = 14.sp, color = AppColors.TextPrimary)
+                        }
+                        if (c.promptId.isNotBlank()) {
+                            Text(
+                                com.ai.ui.shared.LocalMetadataIcons.current.edit,
+                                fontSize = 20.sp,
+                                modifier = Modifier
+                                    .clickable { editPrompt(c.promptId) }
+                                    .padding(start = 8.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
                         fontWeight = FontWeight.Bold)
                     val label = if (c.model.isNotBlank())
@@ -345,14 +370,25 @@ private fun SingleTitleEditScreen(
                 providerId = model.substringBefore('/', ""),
                 model = model.substringAfter('/', ""),
                 cost = cost,
-                apiInteraction = buildOneShotApiInteraction(resolved, response)
+                apiInteraction = buildOneShotApiInteraction(resolved, response),
+                promptName = template?.name ?: titlePromptName,
+                promptId = template?.id.orEmpty()
             )
         }
     }
+    val regenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = helpTopic, title = titleBarTitle, subject = "Metadata only — no regenerate needed", onBackClick = onBack,
+            onReload = {
+                regenerate(
+                    reportId,
+                    if (isLongTitle) com.ai.viewmodel.MetaRegenKind.REPORT_TITLE_LONG
+                    else com.ai.viewmodel.MetaRegenKind.REPORT_TITLE_SHORT,
+                    null
+                )
+            },
             onTrace = titleTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 
@@ -435,13 +471,17 @@ fun ReportEditModelTitleScreen(
                 providerId = model.substringBefore('/', ""),
                 model = model.substringAfter('/', ""),
                 cost = cost,
-                apiInteraction = buildOneShotApiInteraction(resolved, agent.modelTitle)
+                apiInteraction = buildOneShotApiInteraction(resolved, agent.modelTitle),
+                promptName = template?.name ?: "model-titles",
+                promptId = template?.id.orEmpty()
             )
         }
     }
+    val regenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_edit_model_title", title = "Edit model title", subject = "Rename one model's answer title", onBackClick = onBack,
+            onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.MODEL_TITLE, agentId) },
             onTrace = traceFilename?.takeIf { it.isNotBlank() }?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 

@@ -348,6 +348,18 @@ val LocalBrokenWork = compositionLocalOf<BrokenWorkBadge?> { null }
  *  reportIconGoesHome instead. */
 val LocalNavigateToReportsHub = compositionLocalOf<() -> Unit> { {} }
 
+/** Navigate to the internal-prompt editor for a given prompt id. Provided
+ *  by the report nav graph; consumed by the edit pencil on the Report -
+ *  Get info detail screens' Model card. No-op default. */
+val LocalEditInternalPrompt = compositionLocalOf<(String) -> Unit> { {} }
+
+/** Re-run one Report-info metadata item — backs the 🔄 reload on the
+ *  Get info detail screens. Args: (reportId, kind, agentId?) where agentId
+ *  is set only for the per-model title / icon items. Provided by the report
+ *  nav graph; no-op default. */
+val LocalRegenerateMetaItem =
+    compositionLocalOf<(String, com.ai.viewmodel.MetaRegenKind, String?) -> Unit> { { _, _, _ -> } }
+
 /** Provided by AppNavHost — navigate to any route by its NavRoutes
  *  constant. Backs the bottom-bar 🧹 "jump to Housekeeping" and ⚙️
  *  "jump to AI Setup / Settings" icons on dispatcher sub-screens that

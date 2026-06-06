@@ -167,6 +167,14 @@ private fun webSearchReplayPrompt(prompt: String): String =
     if (prompt.isBlank()) WEB_SEARCH_REPLAY_PROMPT_SUFFIX
     else prompt.trimEnd() + "\n\n" + WEB_SEARCH_REPLAY_PROMPT_SUFFIX
 
+/** One re-runnable Report-info metadata item — the target of the per-item
+ *  🔄 reload on the Get-info detail screens. [ReportViewModel.regenerateMetaItem]
+ *  maps each to its generator (+ cache eviction where needed). */
+enum class MetaRegenKind {
+    REPORT_TITLE_SHORT, REPORT_TITLE_LONG, REPORT_ICON,
+    LANGUAGE_NAME, LANGUAGE_ICON, MODEL_TITLE, MODEL_ICON
+}
+
 /**
  * ViewModel for AI report generation: task building, concurrent execution, cost calculation.
  * Delegates to AppViewModel for shared state and settings.
@@ -2021,6 +2029,48 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 g.perModelIconOn(), g.perModelTitleOn()
                             )
                         }
+                }
+                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+            }
+        }
+    }
+
+    /** Re-run ONE Report-info metadata item — the per-item 🔄 reload on the
+     *  Get-info detail screens. Titles and the language icon are MetaCache-
+     *  backed, so the relevant entry is evicted first to force a fresh call
+     *  (clearing only the short / long / language-icon entry, not its sibling,
+     *  so the untouched one keeps its cached value). */
+    fun regenerateMetaItem(context: Context, reportId: String, kind: MetaRegenKind, agentId: String?) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val ai = appViewModel.uiState.value.aiSettings
+            withTracerTags(reportId = reportId, category = "Report info regenerate") {
+                when (kind) {
+                    MetaRegenKind.REPORT_TITLE_SHORT -> {
+                        com.ai.data.MetaCache.remove("report/title-short", report.prompt)
+                        iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = false)
+                    }
+                    MetaRegenKind.REPORT_TITLE_LONG -> {
+                        com.ai.data.MetaCache.remove("report/title-long", report.prompt)
+                        iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = false)
+                    }
+                    MetaRegenKind.REPORT_ICON ->
+                        iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
+                    MetaRegenKind.LANGUAGE_NAME ->
+                        iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
+                    MetaRegenKind.LANGUAGE_ICON -> {
+                        report.languageName?.takeIf { it.isNotBlank() }
+                            ?.let { com.ai.data.MetaCache.remove("language-icon", it) }
+                        iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
+                    }
+                    MetaRegenKind.MODEL_TITLE -> {
+                        val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@withTracerTags
+                        iconGen.runPerModelEnrichment(context, reportId, ra, report.prompt, ai, iconOn = false, titleOn = true)
+                    }
+                    MetaRegenKind.MODEL_ICON -> {
+                        val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@withTracerTags
+                        iconGen.runPerModelEnrichment(context, reportId, ra, report.prompt, ai, iconOn = true, titleOn = false)
+                    }
                 }
                 appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             }

@@ -4,9 +4,11 @@ import com.ai.ui.helpers.*
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,6 +76,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
             onShare = if (ctx.apiInteraction.isNotBlank())
                 ({ shareText(context, ctx.apiInteraction, ctx.subject) })
             else null,
+            onReload = ctx.onReload,
             onTrace = ctx.traceFile?.let { tf -> { ctx.onNavigateToTraceFile(tf) } }
         )
         // Green subject row — the bundled prompt name (with `_alt`
@@ -102,6 +105,26 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                     modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp)) {
+                        // Prompt name + edit pencil — the prompt that produced
+                        // this icon, opened in the internal-prompt editor.
+                        if (ctx.promptName != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Prompt", fontSize = 11.sp, color = AppColors.TextTertiary,
+                                        fontWeight = FontWeight.Bold)
+                                    Text(ctx.promptName.ifBlank { "(unknown)" },
+                                        fontSize = 14.sp, color = AppColors.TextPrimary)
+                                }
+                                ctx.onEditPrompt?.let { edit ->
+                                    Text(
+                                        com.ai.ui.shared.LocalMetadataIcons.current.edit,
+                                        fontSize = 20.sp,
+                                        modifier = Modifier.clickable { edit() }.padding(start = 8.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                         Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
                             fontWeight = FontWeight.Bold)
                         val label = if (ctx.model.isNotBlank())
@@ -309,6 +332,15 @@ data class IconLookupContext(
     val onContinueChat: (() -> Unit)?,
     val onNavigateToModelInfo: () -> Unit,
     val onNavigateToTraceFile: (String) -> Unit,
+    /** Editable internal-prompt name shown on the Model card (the first
+     *  API-info card) + an edit pencil that opens it. Null name → no Prompt
+     *  row; null [onEditPrompt] → no pencil. Wired by the scopes reachable
+     *  from Report - Get info. */
+    val promptName: String? = null,
+    val onEditPrompt: (() -> Unit)? = null,
+    /** 🔄 reload — re-run this scope's generation. Null → no reload icon.
+     *  Wired by the Get-info-reachable scopes. */
+    val onReload: (() -> Unit)? = null,
     val onBack: () -> Unit
 )
 

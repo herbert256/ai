@@ -341,6 +341,14 @@ internal fun NavGraphBuilder.reportRoutes(
                         popUpTo(NavRoutes.AI_REPORTS_HUB) { inclusive = false }
                         launchSingleTop = true
                     }
+                },
+                // Get-info detail screens: edit the generating prompt + re-run
+                // one metadata item (the 🔄 reload).
+                com.ai.ui.shared.LocalEditInternalPrompt provides { promptId ->
+                    navController.navigate(NavRoutes.settingsInternalPromptEdit(promptId))
+                },
+                com.ai.ui.shared.LocalRegenerateMetaItem provides { rid, kind, agentId ->
+                    reportViewModel.regenerateMetaItem(context, rid, kind, agentId)
                 }
             ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
