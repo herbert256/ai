@@ -1476,6 +1476,12 @@ fun TitleBar(
     val reportIconClick: (() -> Unit)? = onReportIconClick
         ?: (if (reportIconGoesHome) navigateHome else reportIconTap)
     val effectiveTitleClick = onTitleClick ?: reportIconTap
+    // When the left report glyph navigates to the report's Manage page (a report
+    // is in scope and the icon isn't the Manage-main → Home shortcut), Home bar
+    // mode mirrors that nav onto the title + right icon too. Null otherwise, so
+    // home-page links stay inert there.
+    val reportManageClick: (() -> Unit)? =
+        if (resolvedReportIcon != null && !reportIconGoesHome) reportIconClick else null
     AppTopBarChrome(
         screenTitle = title,
         secondLine = subject,
@@ -1483,6 +1489,7 @@ fun TitleBar(
         reportIcon = resolvedReportIcon,
         onReportIconClick = reportIconClick,
         onTitleClick = effectiveTitleClick,
+        reportManageClick = reportManageClick,
         onSwipePrev = resolvedOnSwipePrev,
         onSwipeNext = resolvedOnSwipeNext,
         secondProviderService = subjectProviderService,
@@ -1517,6 +1524,10 @@ internal fun AppTopBarChrome(
     thirdLine: String?,
     reportIcon: String?,
     onReportIconClick: (() -> Unit)?,
+    /** Home-bar-mode only: when the left report glyph navigates to the report's
+     *  Manage page, this carries that nav so the title + right icon mirror it
+     *  (null otherwise → they stay inert in Home bar). */
+    reportManageClick: (() -> Unit)? = null,
     onTitleClick: (() -> Unit)?,
     onSwipePrev: (() -> Boolean)?,
     onSwipeNext: (() -> Boolean)?,
@@ -1603,10 +1614,11 @@ internal fun AppTopBarChrome(
                     }
                 }
         ) {
-            // In Home bar mode the title is not a navigation target — its tap
-            // would otherwise go to the home page (via the section icon's
-            // onClick / report-icon tap), which the persistent home bar owns.
-            val titleClick = if (homeBar) null else (onTitleClick ?: sectionIcon?.onClick)
+            // In Home bar mode the title only navigates when the left report
+            // glyph goes to the report's Manage page (then the title mirrors
+            // it); otherwise it's inert (its tap would have gone to the home
+            // page, which the persistent home bar owns).
+            val titleClick = if (homeBar) reportManageClick else (onTitleClick ?: sectionIcon?.onClick)
             var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()
@@ -1660,11 +1672,15 @@ internal fun AppTopBarChrome(
                         modifier = Modifier.align(Alignment.Top).clickable(onClick = brokenWork.onOpen)
                     )
                 } else if (homeBar) {
-                    // Home bar mode: show the SAME icon as the left, decorative
-                    // (no mirrored AI-logo home button — home links are inert).
+                    // Home bar mode: show the SAME icon as the left. Clickable
+                    // to the report's Manage page when the left glyph navigates
+                    // there (reportManageClick); otherwise decorative (home
+                    // links are inert).
                     val leftGlyph = reportIcon ?: sectionIcon?.glyph
                     if (leftGlyph != null) {
-                        ReportGlyphIcon(emoji = leftGlyph, boxSize = 44.dp, modifier = Modifier.align(Alignment.Top))
+                        ReportGlyphIcon(emoji = leftGlyph, boxSize = 44.dp,
+                            modifier = Modifier.align(Alignment.Top)
+                                .then(if (reportManageClick != null) Modifier.clickable(onClick = reportManageClick) else Modifier))
                     } else {
                         AiLogoButton(onClick = {}, modifier = Modifier.align(Alignment.Top), size = 44.dp)
                     }
