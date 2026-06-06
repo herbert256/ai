@@ -117,6 +117,15 @@ fun BrokenWorkScreen(
         return
     }
 
+    // All broken work resolved → return to the screen that opened this one
+    // instead of showing an empty "(nothing broken)" list. Composed only on
+    // the main list (the detail-view path returns above), so it can't fire
+    // while a detail overlay is open; items going empty means the last
+    // recover + refreshBrokenBatches already completed.
+    LaunchedEffect(items.isEmpty()) {
+        if (items.isEmpty()) onBack()
+    }
+
     BackHandler { onBack() }
     val warningGlyph = LocalMetadataIcons.current.statusWarning
 
@@ -142,9 +151,9 @@ fun BrokenWorkScreen(
         )
         Spacer(Modifier.height(8.dp))
         if (items.isEmpty()) {
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                Text("(nothing broken)", color = AppColors.TextTertiary)
-            }
+            // No "(nothing broken)" text — the LaunchedEffect above navigates
+            // back to the calling screen as soon as the list empties.
+            Box(Modifier.fillMaxWidth().weight(1f))
         } else {
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 itemsIndexed(items, key = { _, b -> "${b.reportId}|${b.kind}|${b.key}" }) { index, batch ->
