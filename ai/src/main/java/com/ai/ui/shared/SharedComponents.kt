@@ -1989,9 +1989,11 @@ fun HomeIconBar(
     val helpAction = icons?.onHelp ?: onHelpFallback
     // Enlarged icons + the app background (not the card tint) — this bar
     // only renders in HOME_BAR mode, so these don't touch HOME_SCREEN.
+    // Box widths kept (so the 11-icon row width is unchanged → no clipping);
+    // the visible glyph is driven by fontSize, so bump that for "a bit bigger".
     val w = 34.dp
     val h = 34
-    val fs = 22.sp
+    val fs = 25.sp
     // 📋 copy + 📤 share mirror the current screen's actions (published via
     // LocalBottomIconState into `icons`); grayed + inert when the screen has
     // none, working identically when it does. The bottom bar drops them in
@@ -2013,7 +2015,7 @@ fun HomeIconBar(
         TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs)
         TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs)
         if (com.ai.data.ApiTracer.ladybugLinksEnabled) {
-            TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 21.sp)
+            TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 24.sp)
         } else {
             Spacer(Modifier.width(w))
         }
@@ -2021,8 +2023,8 @@ fun HomeIconBar(
             alpha = if (onCopy != null) 1f else 0.35f)
         TitleBarIcon(mi.share, Color.Unspecified, onShare ?: {}, width = w, heightDp = h, fontSize = fs,
             alpha = if (onShare != null) 1f else 0.35f)
-        TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 21.sp)
-        AiLogoButton(onClick = onAbout, size = 32.dp, contentDescription = "About")
+        TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 24.sp)
+        AiLogoButton(onClick = onAbout, size = 34.dp, contentDescription = "About")
     }
 }
 
