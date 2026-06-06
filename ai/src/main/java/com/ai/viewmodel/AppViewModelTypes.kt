@@ -168,9 +168,9 @@ data class GeneralSettings(
     /** When true hides the Android status bar — clock, signal,
      *  battery — so the app gets the full screen height. Reads via
      *  WindowInsetsControllerCompat in MainActivity on every settings
-     *  flush. Defaults to false so first-launch users see the system
-     *  bar and can opt into hiding it under Settings → UI tweaks. */
-    val fullScreen: Boolean = false,
+     *  flush. Defaults to true — the app uses the full screen height; the
+     *  user can re-show the system bar under Settings → UI tweaks. */
+    val fullScreen: Boolean = true,
     /** Controls whether combined provider+model labels (Fan out drill-in
      *  rows, secondary picker buttons, agent rows on Report Result,
      *  chat headers, …) show only the model or both. Provided to the
@@ -178,8 +178,9 @@ data class GeneralSettings(
     val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY,
     /** Home navigation mode. HOME_SCREEN keeps the existing large-card
      *  Hub. HOME_BAR shows a persistent top icon bar on app screens and
-     *  makes Home open the latest report or the First launch screen. */
-    val appHomeMode: AppHomeMode = AppHomeMode.HOME_SCREEN,
+     *  makes Home open the latest report or the First launch screen.
+     *  Defaults to HOME_BAR. */
+    val appHomeMode: AppHomeMode = AppHomeMode.HOME_BAR,
     /** User-selected UI colours, edited under Settings → UI Colors.
      *  Stored as Android ARGB ints so they can round-trip through prefs
      *  without Compose/UI types in the view-model layer. */

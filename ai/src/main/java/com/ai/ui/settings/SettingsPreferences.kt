@@ -76,7 +76,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val homeModeName = prefs.getString(KEY_APP_HOME, null)
         val appHomeMode = homeModeName?.let {
             try { AppHomeMode.valueOf(it) } catch (_: Exception) { null }
-        } ?: AppHomeMode.HOME_SCREEN
+        } ?: AppHomeMode.HOME_BAR
         val titleModeName = prefs.getString(KEY_REPORT_TITLE_MODE, null)
         val reportTitleMode = titleModeName?.let {
             try { com.ai.viewmodel.ReportTitleMode.valueOf(it) } catch (_: Exception) { null }
@@ -98,7 +98,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             loggingMasterEnabled = prefs.getBoolean(KEY_LOGGING_MASTER_ENABLED, false),
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
             usageStatsEnabled = prefs.getBoolean(KEY_USAGE_STATS_ENABLED, true),
-            fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
+            fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, true),
             modelNameLayout = modelNameLayout,
             appHomeMode = appHomeMode,
             uiCardBackgroundArgb = uiColorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
