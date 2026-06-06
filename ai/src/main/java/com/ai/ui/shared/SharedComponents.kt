@@ -1954,7 +1954,7 @@ fun HomeIconBar(
         modifier = modifier
             .fillMaxWidth()
             .background(AppColors.CardBackground)
-            .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 3.dp),
+            .padding(top = 4.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
