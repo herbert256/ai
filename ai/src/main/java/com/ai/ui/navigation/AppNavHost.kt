@@ -417,6 +417,12 @@ fun AppNavHost(
             count = brokenBatches.size,
             onOpen = { navController.navigate(NavRoutes.AI_BROKEN_WORK) }
         )
+    // Current route — drives the Home-bar-mode title-bar tweaks (hide both
+    // end icons on Help + About) and the bottom-bar copy/share suppression.
+    val currentRouteForBars = navController.currentBackStackEntryAsState().value?.destination?.route
+    val suppressTitleBarEndIcons = homeBarEnabled && currentRouteForBars in setOf(
+        NavRoutes.HELP, NavRoutes.HELP_FOR_TOPIC, NavRoutes.ABOUT
+    )
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalBrokenWork provides brokenWorkBadge,
         com.ai.ui.shared.LocalTopBarLeftIcon provides sectionTopIcon,
@@ -434,6 +440,8 @@ fun AppNavHost(
         com.ai.ui.shared.LocalAgentChat provides agentChatBridge,
         com.ai.ui.shared.LocalAiSettings provides rootUiStateForLayout.aiSettings,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
+        com.ai.ui.shared.LocalHomeBarMode provides homeBarEnabled,
+        com.ai.ui.shared.LocalSuppressTitleBarEndIcons provides suppressTitleBarEndIcons,
         com.ai.ui.shared.LocalNavigateToReportsHub provides rootNavigateToReportsHub,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp,
         com.ai.ui.shared.LocalNavigateToRoute provides { route -> navController.navigate(route) }
@@ -482,7 +490,8 @@ fun AppNavHost(
         // Help screens never have a bottom bar.
         com.ai.ui.shared.BottomIconBar(
             icons = bottomBarIconState.value,
-            suppressScreenTraceAndHelp = homeBarEnabled
+            suppressScreenTraceAndHelp = homeBarEnabled,
+            suppressCopyShare = homeBarEnabled
         )
     }
     } // end Column
