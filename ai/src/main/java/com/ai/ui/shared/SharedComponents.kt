@@ -2032,8 +2032,13 @@ fun HomeIconBar(
             alpha = if (onShare != null) 1f else 0.35f)
         // Settings sits just before Help.
         TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs)
-        TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 26.sp)
-        AiLogoButton(onClick = onAbout, size = 32.dp, contentDescription = "About")
+        // Help + the (bigger) About AI logo are a tight pair at the right edge:
+        // grouping them makes SpaceBetween treat the pair as one item, so the
+        // gap BETWEEN them is just this inner row's (small) spacing.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+            TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 26.sp)
+            AiLogoButton(onClick = onAbout, size = 44.dp, contentDescription = "About")
+        }
     }
 }
 
