@@ -371,6 +371,9 @@ internal fun AgentIconDetailOverlay(
     ) {
         val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
         val regenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
+        // After a Find-alt pick the icon came from alt/report (not the
+        // workers model-icons prompt) — show whichever produced it.
+        val shownAgentPrompt = if (agent.iconPromptUsed == "report_alt") altPrompt else iconPrompt
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_agent",
             subject = subject,
@@ -389,8 +392,8 @@ internal fun AgentIconDetailOverlay(
             onContinueChat = null,
             onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
-            promptName = iconPrompt?.let { "${it.category}/${it.name}" } ?: "workers/model-icons",
-            onEditPrompt = iconPrompt?.id?.let { id -> { editPrompt(id) } },
+            promptName = shownAgentPrompt?.let { "${it.category}/${it.name}" } ?: "workers/model-icons",
+            onEditPrompt = shownAgentPrompt?.id?.let { id -> { editPrompt(id) } },
             onReload = currentReportId?.let { rid ->
                 { regenerate(rid, com.ai.viewmodel.MetaRegenKind.MODEL_ICON, agentId) }
             },
@@ -820,6 +823,9 @@ internal fun RenderLanguageDetailOverlay(
             ?: aiSettings.getEffectiveModelForAgent(languageAgent)
         val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
         val regenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
+        // After a Find-alt pick the language icon came from alt/language,
+        // not the workers report-language-icon prompt.
+        val shownLangPrompt = if (ctxData.first == "language_alt") altLanguagePrompt else languagePrompt
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_language",
             subject = ctxData.first ?: "language",
@@ -840,8 +846,8 @@ internal fun RenderLanguageDetailOverlay(
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
-            promptName = "${languagePrompt.category}/${languagePrompt.name}",
-            onEditPrompt = { editPrompt(languagePrompt.id) },
+            promptName = shownLangPrompt?.let { "${it.category}/${it.name}" } ?: "workers/report-language-icon",
+            onEditPrompt = shownLangPrompt?.id?.let { id -> { editPrompt(id) } },
             onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.LANGUAGE_ICON, null) },
             onBack = onBack
         ))
@@ -951,6 +957,10 @@ internal fun ReportIconOrLanguageDetailOverlay(
             ?: aiSettings.getEffectiveModelForAgent(iconAgent)
         val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
         val regenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
+        // After a Find-alt pick the icon came from alt/main, not the
+        // workers report-icon prompt — point the card + pencil at the
+        // prompt that actually produced the shown emoji.
+        val shownIconPrompt = if (promptUsed == "main_alt") altPrompt else iconPrompt
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_main",
             subject = promptUsed ?: "main",
@@ -968,8 +978,8 @@ internal fun ReportIconOrLanguageDetailOverlay(
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
-            promptName = "${iconPrompt.category}/${iconPrompt.name}",
-            onEditPrompt = { editPrompt(iconPrompt.id) },
+            promptName = shownIconPrompt?.let { "${it.category}/${it.name}" } ?: "workers/report-icon",
+            onEditPrompt = shownIconPrompt?.id?.let { id -> { editPrompt(id) } },
             onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.REPORT_ICON, null) },
             onBack = onClose
         ))
