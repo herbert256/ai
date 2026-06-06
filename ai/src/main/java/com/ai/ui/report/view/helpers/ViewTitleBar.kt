@@ -166,6 +166,9 @@ fun ViewTitleBar(
         reportIcon = LocalReportIcon.current?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
         onReportIconClick = titleClick,
         onTitleClick = titleClick,
+        // Home bar mode: the left report glyph links to the View hub, so the
+        // title + right icon mirror that nav too.
+        reportNavClick = titleClick,
         onSwipePrev = onSwipePrev,
         onSwipeNext = onSwipeNext
     )
