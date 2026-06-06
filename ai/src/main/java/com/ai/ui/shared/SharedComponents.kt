@@ -1595,7 +1595,10 @@ internal fun AppTopBarChrome(
                     }
                 }
         ) {
-            val titleClick = onTitleClick ?: sectionIcon?.onClick
+            // In Home bar mode the title is not a navigation target — its tap
+            // would otherwise go to the home page (via the section icon's
+            // onClick / report-icon tap), which the persistent home bar owns.
+            val titleClick = if (homeBar) null else (onTitleClick ?: sectionIcon?.onClick)
             var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()
