@@ -500,7 +500,7 @@ fun AppNavHost(
         com.ai.ui.shared.BottomIconBar(
             icons = bottomBarIconState.value,
             suppressScreenTraceAndHelp = homeBarEnabled,
-            suppressCopyShare = homeBarEnabled
+            suppressShare = homeBarEnabled
         )
     }
     } // end Column

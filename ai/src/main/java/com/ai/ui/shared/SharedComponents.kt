@@ -1869,9 +1869,10 @@ private fun buildBottomBarIcons(
     icons: TitleBarIcons,
     mi: com.ai.data.MetadataIcons,
     includeScreenTrace: Boolean = true,
-    /** Home-bar mode hoists 📋 copy + 📤 share into the persistent
-     *  HomeIconBar, so skip them here to avoid showing them twice. */
-    suppressCopyShare: Boolean = false
+    /** Home-bar mode shows 📤 share in the persistent HomeIconBar, so skip it
+     *  here to avoid showing it twice. 📋 copy is NOT hoisted — it stays in the
+     *  bottom bar in both modes. */
+    suppressShare: Boolean = false
 ): List<BottomBarIcon> = buildList {
     val D = com.ai.data.MetadataDefaults
     // Glyph for the add slot: the screen's per-screen override (e.g. 🔗 Meta on
@@ -1934,12 +1935,12 @@ private fun buildBottomBarIcons(
     // 🚩 validate prompt — grayed until the user activates it (picks a
     // moderation model), mirroring the 📌 pin alpha treatment.
     icons.onValidatePrompt?.let { add(BottomBarIcon(mi.validatePrompt, Color.Unspecified, it, 28, alpha = if (icons.validatePromptActive) 1f else 0.35f, legendKey = D.VALIDATE_PROMPT)) }
-    if (!suppressCopyShare) icons.onCopy?.let { add(BottomBarIcon(mi.copy, Color.Unspecified, it, 28, legendKey = D.COPY)) }
+    icons.onCopy?.let { add(BottomBarIcon(mi.copy, Color.Unspecified, it, 28, legendKey = D.COPY)) }
     icons.onPin?.let { add(BottomBarIcon(mi.pin, Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f, legendKey = D.PIN)) }
     icons.onToggleModelRowLabels?.let {
         add(BottomBarIcon(mi.toggleLabels, Color.Unspecified, it, 28, alpha = if (icons.modelRowLabelsShowModelNames) 1f else 0.55f, legendKey = D.TOGGLE_LABELS))
     }
-    if (!suppressCopyShare) icons.onShare?.let { add(BottomBarIcon(mi.share, Color.Unspecified, it, 28, legendKey = D.SHARE)) }
+    if (!suppressShare) icons.onShare?.let { add(BottomBarIcon(mi.share, Color.Unspecified, it, 28, legendKey = D.SHARE)) }
     icons.onCopyReport?.let { add(BottomBarIcon(mi.duplicate, Color.Unspecified, it, 28, legendKey = D.DUPLICATE)) }
     // ----- second-row-ish: 👁 view leads the second row, the per-item
     // actions follow, and 🔄 regenerate sits just before 🗑 delete. -----
@@ -1995,49 +1996,31 @@ fun HomeIconBar(
     val mi = LocalMetadataIcons.current
     val traceAction = icons?.onTrace ?: onTraceFallback
     val helpAction = icons?.onHelp ?: onHelpFallback
-    // App background (not the card tint). Full screen width — no left/right
-    // padding — with the icons spread edge-to-edge (more space between them).
-    // Only renders in HOME_BAR mode.
-    val w = 31.dp
+    // App background (not the card tint). A simple centered row of equal-size
+    // icons with no spacing between them. Only renders in HOME_BAR mode.
+    val w = 30.dp
     val h = 34
-    val fs = 27.sp
-    // 📋 copy + 📤 share mirror the current screen's actions (published via
-    // LocalBottomIconState into `icons`); grayed + inert when the screen has
-    // none, working identically when it does. The bottom bar drops them in
-    // HOME_BAR mode (suppressCopyShare) so they aren't shown twice.
-    val onCopy = icons?.onCopy
+    val fs = 26.sp
+    // 📤 share mirrors the current screen's action (published via
+    // LocalBottomIconState into `icons`) and shows only when the screen offers
+    // it; the bottom bar suppresses share in HOME_BAR mode so it isn't shown
+    // twice. 📋 copy is intentionally NOT here — it lives only in the bottom
+    // bar, exactly like Home Screen mode.
     val onShare = icons?.onShare
-    // The icon slots, built once so they can be laid out as one full-width
-    // row (normal) or split around a camera punch-hole (full screen). Only
-    // active icons are added — inactive ones are omitted entirely (not greyed
-    // out / blank-spaced), so the bar never shows a dead icon. Every slot is a
-    // separate item so SpaceBetween gives a uniform gap between all icons.
+    // One slot per icon — Help and the About logo are SEPARATE slots (no
+    // grouping, no offsets). Inactive icons are omitted entirely.
     val slots: List<@Composable () -> Unit> = buildList {
-        // AI Setup leads the bar.
         add { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs) }
-        // Traces only when ladybug links are enabled — no blank placeholder otherwise.
         if (com.ai.data.ApiTracer.ladybugLinksEnabled)
-            add { TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 26.sp) }
-        // 📋 copy / 📤 share only when the current screen actually offers them.
-        onCopy?.let { cb -> add { TitleBarIcon(mi.copy, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
+            add { TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = fs) }
         onShare?.let { cb -> add { TitleBarIcon(mi.share, Color.Unspecified, cb, width = w, heightDp = h, fontSize = fs) } }
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
-        // Help + the (bigger) About AI logo as ONE tight slot at the right edge,
-        // so the gap between them is just this inner spacing — not the uniform
-        // SpaceBetween gap. ❓ uses a narrow box and is nudged right toward the
-        // flush-right logo to close the gap further.
-        add {
-            // Nudge the whole pair left a touch → a little less space before ❓
-            // (the Help↔logo gap is unchanged since they move together).
-            Row(modifier = Modifier.offset(x = (-6).dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 28.dp, heightDp = h, fontSize = 26.sp)
-                AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
-            }
-        }
+        add { TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = fs) }
+        add { AiLogoButton(onClick = onAbout, size = 34.dp, contentDescription = "About") }
     }
 
     // Detect the top camera cutout (punch-hole) at runtime via the platform
@@ -2056,15 +2039,14 @@ fun HomeIconBar(
     }
 
     if (holeRect == null) {
-        // Normal full-width bar. In full screen with no cutout this already
-        // sits at the freed top edge (the Scaffold drops the status-bar inset).
+        // Normal: one centered row, no spacing between the icons.
         Row(
             modifier = modifier
                 .fillMaxWidth()
                 .background(AppColors.AppBackground)
-                .padding(start = 10.dp, end = 0.dp, top = 5.dp, bottom = 4.dp),
+                .padding(top = 5.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.Center
         ) { slots.forEach { it() } }
     } else {
         // Full screen WITH a top camera hole: sit at the very top edge (use
@@ -2087,18 +2069,17 @@ fun HomeIconBar(
             val rightWpx = (totalWpx - (holeRect.right + marginPx)).coerceAtLeast(0f)
             val gapWpx = (totalWpx - leftWpx - rightWpx).coerceAtLeast(0f)
             val n = slots.size
-            // The trailing slot draws TWO icons (Help + the About logo), so
-            // weight the split by (n + 1) — otherwise the right side always
-            // carries one extra visible icon and a centred hole reads as 4/6
-            // instead of 5/5. The gap still sits exactly over the hole.
+            // Split the icons proportionally to the free space on each side of
+            // the hole (each slot is one visible icon). The gap sits over the
+            // hole; each side is centered with no spacing.
             val nLeft = if (leftWpx + rightWpx <= 0f) n
-                else ((n + 1) * (leftWpx / (leftWpx + rightWpx))).roundToInt().coerceIn(0, n)
+                else (n * (leftWpx / (leftWpx + rightWpx))).roundToInt().coerceIn(0, n)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.width(with(density) { leftWpx.toDp() })) {
                     Row(
-                        Modifier.fillMaxWidth().padding(start = 10.dp),
+                        Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.Center
                     ) { slots.take(nLeft).forEach { it() } }
                 }
                 Spacer(Modifier.width(with(density) { gapWpx.toDp() }))
@@ -2106,7 +2087,7 @@ fun HomeIconBar(
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.Center
                     ) { slots.drop(nLeft).forEach { it() } }
                 }
             }
@@ -2215,9 +2196,9 @@ fun BottomIconBar(
     icons: TitleBarIcons?,
     modifier: Modifier = Modifier,
     suppressScreenTraceAndHelp: Boolean = false,
-    /** Home-bar mode shows 📋 copy + 📤 share in the persistent home bar
-     *  instead; skip them here so they aren't shown twice. */
-    suppressCopyShare: Boolean = false
+    /** Home-bar mode shows 📤 share in the persistent home bar; skip it here so
+     *  it isn't shown twice. 📋 copy stays in the bottom bar in both modes. */
+    suppressShare: Boolean = false
 ) {
     // Non-null on the non-View screens (regular TitleBar) — flips the
     // bar into the help layout: strip left-aligned, ❓ pinned right.
@@ -2236,7 +2217,7 @@ fun BottomIconBar(
     } ?: 0f
     val barIcons = LocalMetadataIcons.current
     val specs = if (icons != null) {
-        buildBottomBarIcons(icons, barIcons, includeScreenTrace = !suppressScreenTraceAndHelp, suppressCopyShare = suppressCopyShare)
+        buildBottomBarIcons(icons, barIcons, includeScreenTrace = !suppressScreenTraceAndHelp, suppressShare = suppressShare)
     } else {
         emptyList()
     }
