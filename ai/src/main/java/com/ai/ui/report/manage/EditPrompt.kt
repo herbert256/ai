@@ -6,6 +6,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,14 +17,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.PromptRevision
+import com.ai.data.ReportStorage
+import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.modelLabel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -137,6 +144,7 @@ private fun PreviousPromptCard(rev: PromptRevision, onRestore: () -> Unit) {
 fun ReportEditShortTitleScreen(
     reportId: String,
     initialTitle: String,
+    aiSettings: Settings,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
@@ -147,11 +155,14 @@ fun ReportEditShortTitleScreen(
 ) = SingleTitleEditScreen(
     reportId = reportId,
     initialTitle = initialTitle,
+    aiSettings = aiSettings,
     titleBarTitle = "Edit short title",
     helpTopic = "report_edit_short_title",
     fieldLabel = "Short title (list cards)",
     findButtonText = "Find alternative short title",
     traceCategory = "report/title-short",
+    titlePromptName = "report-title-short",
+    isLongTitle = false,
     // The short title is the primary one (drives barTitle's fallback), so
     // it must not be blanked out.
     allowBlank = false,
@@ -173,6 +184,7 @@ fun ReportEditShortTitleScreen(
 fun ReportEditLongTitleScreen(
     reportId: String,
     initialTitle: String,
+    aiSettings: Settings,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
@@ -183,11 +195,14 @@ fun ReportEditLongTitleScreen(
 ) = SingleTitleEditScreen(
     reportId = reportId,
     initialTitle = initialTitle,
+    aiSettings = aiSettings,
     titleBarTitle = "Edit long title",
     helpTopic = "report_edit_long_title",
     fieldLabel = "Long title (top-bar line)",
     findButtonText = "Find alternative long title",
     traceCategory = "report/title-long",
+    titlePromptName = "report-title-long",
+    isLongTitle = true,
     // Blank long title is valid — barTitle falls back to the short one.
     allowBlank = true,
     onBack = onBack,
@@ -196,6 +211,15 @@ fun ReportEditLongTitleScreen(
     injectedTitle = injectedTitle,
     onConsumeInjectedTitle = onConsumeInjectedTitle,
     onUpdate = onUpdate
+)
+
+/** The recorded title-generation API call surfaced on the title editors
+ *  as Model + API-interaction cards (mirrors the Icon lookup screen). */
+private data class TitleApiCard(
+    val providerId: String,
+    val model: String,
+    val cost: Double,
+    val apiInteraction: String
 )
 
 /**
@@ -213,11 +237,17 @@ fun ReportEditLongTitleScreen(
 private fun SingleTitleEditScreen(
     reportId: String,
     initialTitle: String,
+    aiSettings: Settings,
     titleBarTitle: String,
     helpTopic: String,
     fieldLabel: String,
     findButtonText: String,
     traceCategory: String,
+    /** Bundled internal-prompt name whose template produced this title
+     *  (`report-title-short` / `report-title-long`) — used to rebuild the
+     *  API-interaction card's `[user]` turn. */
+    titlePromptName: String,
+    isLongTitle: Boolean,
     allowBlank: Boolean,
     onBack: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
@@ -227,6 +257,7 @@ private fun SingleTitleEditScreen(
     onUpdate: (newTitle: String) -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
     // Same caveat as ReportEditPromptScreen above — key on the initial
     // value so a stale draft doesn't outlive an external edit.
     var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
@@ -242,6 +273,32 @@ private fun SingleTitleEditScreen(
         }
     }
     val titleTraceFilename = titleTraceFilenameState.value
+
+    // The recorded API call that generated this title — Model + API
+    // interaction cards, mirroring the Icon lookup screen. Null when the
+    // title was set manually / never AI-generated (then the cards are hidden).
+    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, isLongTitle) {
+        value = withContext(Dispatchers.IO) {
+            val r = ReportStorage.getReport(context, reportId) ?: return@withContext null
+            val model = (if (isLongTitle) r.titleLongModel else r.titleModel).orEmpty()
+            val cost = if (isLongTitle) r.titleLongInputCost + r.titleLongOutputCost
+                       else r.titleInputCost + r.titleOutputCost
+            val aiGenerated = if (isLongTitle) model.isNotBlank() || cost > 0.0
+                              else !r.titlePromptUsed.isNullOrBlank()
+            if (!aiGenerated) return@withContext null
+            val template = aiSettings.internalPrompts.firstOrNull {
+                it.category == "workers" && it.name == titlePromptName
+            }
+            val resolved = template?.text?.replace("@PROMPT@", r.prompt).orEmpty()
+            val response = if (isLongTitle) r.titleLong else r.title
+            TitleApiCard(
+                providerId = model.substringBefore('/', ""),
+                model = model.substringAfter('/', ""),
+                cost = cost,
+                apiInteraction = buildOneShotApiInteraction(resolved, response)
+            )
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -264,7 +321,53 @@ private fun SingleTitleEditScreen(
             colors = AppColors.outlinedFieldColors()
         )
 
-        Spacer(modifier = Modifier.weight(1f))
+        // Model + API interaction cards for the call that generated this
+        // title — same two cards as the Icon lookup screen. Scrollable so a
+        // long prompt doesn't crowd out the Find-alternative button below.
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            apiCard?.let { card ->
+                Spacer(modifier = Modifier.height(12.dp))
+                // Model card — provider / model + cumulative cost.
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                    modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
+                            fontWeight = FontWeight.Bold)
+                        val label = if (card.model.isNotBlank())
+                            modelLabel(card.providerId, card.model)
+                        else "(unknown model)"
+                        Text(label, fontSize = 14.sp, color = AppColors.TextPrimary)
+                        if (card.cost > 0.0) {
+                            Text(
+                                "Cost: ${formatCents(card.cost)} ¢",
+                                fontSize = 11.sp, color = AppColors.TextTertiary,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+                }
+                // API interaction card — plain monospace, NO markdown.
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                    modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("API interaction", fontSize = 11.sp, color = AppColors.TextTertiary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 6.dp))
+                        Text(
+                            card.apiInteraction.ifBlank { "(no interaction recorded)" },
+                            fontSize = 13.sp, color = AppColors.TextPrimary, lineHeight = 18.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
             onClick = onFindAlternativeTitle,

@@ -182,6 +182,7 @@ internal fun ReportManageActionOverlays(
             ReportEditShortTitleScreen(
                 reportId = rid,
                 initialTitle = uiState.genericPromptTitle,
+                aiSettings = aiSettings,
                 onBack = { st.showEditShortTitle.value = false },
                 onNavigateHome = onNavigateHome,
                 onNavigateToTraceFile = onNavigateToTraceFile,
@@ -212,6 +213,7 @@ internal fun ReportManageActionOverlays(
             ReportEditLongTitleScreen(
                 reportId = rid,
                 initialTitle = uiState.genericPromptTitleLong,
+                aiSettings = aiSettings,
                 onBack = { st.showEditLongTitle.value = false },
                 onNavigateHome = onNavigateHome,
                 onNavigateToTraceFile = onNavigateToTraceFile,
