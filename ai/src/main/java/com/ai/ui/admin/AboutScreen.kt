@@ -96,6 +96,13 @@ fun AboutScreen(
             )
             Spacer(modifier = Modifier.height(28.dp))
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                // Red ❓ → the home Help page (LocalNavigateToHelp(null)).
+                val navigateToHelp = com.ai.ui.shared.LocalNavigateToHelp.current
+                HubCard(
+                    icon = MetadataDefaults.HELP, title = "Help",
+                    iconTint = AppColors.DangerAccent,
+                    onClick = { navigateToHelp(null) }
+                )
                 HubCard(icon = MetadataDefaults.BOOK, title = "Manual", onClick = onOpenManual)
                 HubCard(icon = MetadataDefaults.TOOLS, title = "Technical documentation", onClick = onOpenTechnicalDocs)
             }

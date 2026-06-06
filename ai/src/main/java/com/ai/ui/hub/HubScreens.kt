@@ -177,7 +177,7 @@ fun HubScreen(
 }
 
 @Composable
-internal fun HubCard(icon: String, title: String, onClick: () -> Unit) {
+internal fun HubCard(icon: String, title: String, onClick: () -> Unit, iconTint: Color = Color.Unspecified) {
     val mi = LocalMetadataIcons.current
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
@@ -190,6 +190,7 @@ internal fun HubCard(icon: String, title: String, onClick: () -> Unit) {
             Text(
                 text = mi.forFactoryGlyph(icon),
                 fontSize = 28.sp,
+                color = iconTint,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.width(42.dp)
             )

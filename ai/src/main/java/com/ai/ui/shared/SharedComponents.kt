@@ -333,6 +333,17 @@ val LocalNavigateToHelp = compositionLocalOf<(String?) -> Unit> { {} }
  *  the removed "AI" text-button used to play. */
 val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
 
+/** True when the app is in "Home bar" mode (a persistent HomeIconBar above
+ *  every screen). Gates the HOME_BAR-only TitleBar tweaks in
+ *  [AppTopBarChrome]: the right end icon mirrors the left instead of showing
+ *  the mirrored AI logo, and the AI-logo home links go inert (the home bar
+ *  navigates). False (default) = HOME_SCREEN mode — unchanged behavior. */
+val LocalHomeBarMode = compositionLocalOf { false }
+
+/** True only on Help + About screens while in Home bar mode — tells
+ *  [AppTopBarChrome] to omit BOTH title-bar end icons there. */
+val LocalSuppressTitleBarEndIcons = compositionLocalOf { false }
+
 /** Top-bar broken-work badge. When the background scan finds reports
  *  with interrupted batches, AppNavHost provides a non-null value here;
  *  [AppTopBarChrome] then replaces the right-side AI logo with a ⚠️ that
@@ -1510,6 +1521,11 @@ internal fun AppTopBarChrome(
     modifier: Modifier = Modifier
 ) {
     val navigateHome = LocalNavigateHome.current
+    // Home bar mode (persistent HomeIconBar): the title bar's right icon
+    // mirrors the left instead of the mirrored AI logo, the AI-logo home
+    // links go inert, and Help/About hide both end icons.
+    val homeBar = LocalHomeBarMode.current
+    val hideEnds = LocalSuppressTitleBarEndIcons.current
     // A section icon (Settings/AI Setup/Housekeeping/Chat) takes the
     // left slot when no report glyph is in scope; its onClick also
     // backs the screen-title tap.
@@ -1579,14 +1595,20 @@ internal fun AppTopBarChrome(
                     }
                 }
         ) {
-            val titleClick = onTitleClick ?: sectionIcon?.onClick
+            // In Home bar mode the title is not a navigation target — its tap
+            // would otherwise go to the home page (via the section icon's
+            // onClick / report-icon tap), which the persistent home bar owns.
+            val titleClick = if (homeBar) null else (onTitleClick ?: sectionIcon?.onClick)
             var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()
             // Top row: left icon · main screen title · right icon.
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                // Left — report glyph > section icon > AI logo.
-                if (reportIcon != null) {
+                // Left — report glyph > section icon > AI logo. Hidden on
+                // Help/About in Home bar mode.
+                if (hideEnds) {
+                    Spacer(Modifier.width(44.dp))
+                } else if (reportIcon != null) {
                     ReportGlyphIcon(
                         emoji = reportIcon, boxSize = 44.dp,
                         modifier = Modifier.align(Alignment.Top)
@@ -1598,8 +1620,9 @@ internal fun AppTopBarChrome(
                         modifier = Modifier.align(Alignment.Top).clickable(onClick = sectionIcon.onClick)
                     )
                 } else {
+                    // AI-logo fallback — its home link is inert in Home bar mode.
                     AiLogoButton(
-                        onClick = onReportIconClick ?: navigateHome,
+                        onClick = onReportIconClick ?: (if (homeBar) ({}) else navigateHome),
                         modifier = Modifier.align(Alignment.Top),
                         size = 44.dp
                     )
@@ -1620,12 +1643,23 @@ internal fun AppTopBarChrome(
                 // otherwise the mirrored AI logo → Home, or the Reports hub
                 // on report Manage / View screens (via LocalReportHubNav).
                 val brokenWork = LocalBrokenWork.current
-                if (brokenWork != null) {
+                if (hideEnds) {
+                    Spacer(Modifier.width(44.dp))
+                } else if (brokenWork != null) {
                     ReportGlyphIcon(
                         emoji = com.ai.data.MetadataIconsHolder.current.statusWarning,
                         boxSize = 44.dp,
                         modifier = Modifier.align(Alignment.Top).clickable(onClick = brokenWork.onOpen)
                     )
+                } else if (homeBar) {
+                    // Home bar mode: show the SAME icon as the left, decorative
+                    // (no mirrored AI-logo home button — home links are inert).
+                    val leftGlyph = reportIcon ?: sectionIcon?.glyph
+                    if (leftGlyph != null) {
+                        ReportGlyphIcon(emoji = leftGlyph, boxSize = 44.dp, modifier = Modifier.align(Alignment.Top))
+                    } else {
+                        AiLogoButton(onClick = {}, modifier = Modifier.align(Alignment.Top), size = 44.dp)
+                    }
                 } else {
                     val reportHubNav = LocalReportHubNav.current
                     AiLogoButton(
@@ -1833,7 +1867,10 @@ private data class BottomBarIcon(
 private fun buildBottomBarIcons(
     icons: TitleBarIcons,
     mi: com.ai.data.MetadataIcons,
-    includeScreenTrace: Boolean = true
+    includeScreenTrace: Boolean = true,
+    /** Home-bar mode hoists 📋 copy + 📤 share into the persistent
+     *  HomeIconBar, so skip them here to avoid showing them twice. */
+    suppressCopyShare: Boolean = false
 ): List<BottomBarIcon> = buildList {
     val D = com.ai.data.MetadataDefaults
     // Glyph for the add slot: the screen's per-screen override (e.g. 🔗 Meta on
@@ -1896,12 +1933,12 @@ private fun buildBottomBarIcons(
     // 🚩 validate prompt — grayed until the user activates it (picks a
     // moderation model), mirroring the 📌 pin alpha treatment.
     icons.onValidatePrompt?.let { add(BottomBarIcon(mi.validatePrompt, Color.Unspecified, it, 28, alpha = if (icons.validatePromptActive) 1f else 0.35f, legendKey = D.VALIDATE_PROMPT)) }
-    icons.onCopy?.let { add(BottomBarIcon(mi.copy, Color.Unspecified, it, 28, legendKey = D.COPY)) }
+    if (!suppressCopyShare) icons.onCopy?.let { add(BottomBarIcon(mi.copy, Color.Unspecified, it, 28, legendKey = D.COPY)) }
     icons.onPin?.let { add(BottomBarIcon(mi.pin, Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f, legendKey = D.PIN)) }
     icons.onToggleModelRowLabels?.let {
         add(BottomBarIcon(mi.toggleLabels, Color.Unspecified, it, 28, alpha = if (icons.modelRowLabelsShowModelNames) 1f else 0.55f, legendKey = D.TOGGLE_LABELS))
     }
-    icons.onShare?.let { add(BottomBarIcon(mi.share, Color.Unspecified, it, 28, legendKey = D.SHARE)) }
+    if (!suppressCopyShare) icons.onShare?.let { add(BottomBarIcon(mi.share, Color.Unspecified, it, 28, legendKey = D.SHARE)) }
     icons.onCopyReport?.let { add(BottomBarIcon(mi.duplicate, Color.Unspecified, it, 28, legendKey = D.DUPLICATE)) }
     // ----- second-row-ish: 👁 view leads the second row, the per-item
     // actions follow, and 🔄 regenerate sits just before 🗑 delete. -----
@@ -1945,32 +1982,63 @@ fun HomeIconBar(
     onTraceFallback: () -> Unit,
     onHelpFallback: () -> Unit,
     onAbout: () -> Unit,
+    /** When the "Full screen" setting hides the status bar, the bar sits at the
+     *  very top edge under any camera punch-hole — pad its top by the display
+     *  cutout so no icon lands on the hole. No-op (inset = 0) when there's no
+     *  cutout, and not needed when the status bar is visible (the Scaffold
+     *  already insets below it). */
+    fullScreen: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val mi = LocalMetadataIcons.current
     val traceAction = icons?.onTrace ?: onTraceFallback
     val helpAction = icons?.onHelp ?: onHelpFallback
+    // App background (not the card tint). Full screen width — no left/right
+    // padding — with the icons spread edge-to-edge (more space between them).
+    // Only renders in HOME_BAR mode.
+    val w = 31.dp
+    val h = 34
+    val fs = 27.sp
+    // 📋 copy + 📤 share mirror the current screen's actions (published via
+    // LocalBottomIconState into `icons`); grayed + inert when the screen has
+    // none, working identically when it does. The bottom bar drops them in
+    // HOME_BAR mode (suppressCopyShare) so they aren't shown twice.
+    val onCopy = icons?.onCopy
+    val onShare = icons?.onShare
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(AppColors.CardBackground)
-            .padding(top = 4.dp, bottom = 3.dp),
+            // Full screen: keep the icons below a top camera punch-hole.
+            .then(if (fullScreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top)) else Modifier)
+            .background(AppColors.AppBackground)
+            .padding(start = 6.dp, end = 0.dp, top = 5.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = 28.dp, heightDp = 28, fontSize = 17.sp)
-        TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = 28.dp, heightDp = 28, fontSize = 17.sp)
-        TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = 28.dp, heightDp = 28, fontSize = 17.sp)
-        TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = 28.dp, heightDp = 28, fontSize = 17.sp)
-        TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = 28.dp, heightDp = 28, fontSize = 17.sp)
-        TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = 28.dp, heightDp = 28, fontSize = 17.sp)
+        // AI Setup leads the bar.
+        TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs)
+        TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs)
+        TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs)
+        TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs)
+        TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs)
         if (com.ai.data.ApiTracer.ladybugLinksEnabled) {
-            TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = 28.dp, heightDp = 28, fontSize = 16.sp)
+            TitleBarIcon(mi.traces, Color.Unspecified, traceAction, width = w, heightDp = h, fontSize = 26.sp)
         } else {
-            Spacer(Modifier.width(28.dp))
+            Spacer(Modifier.width(w))
         }
-        TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 28.dp, heightDp = 28, fontSize = 16.sp)
-        AiLogoButton(onClick = onAbout, size = 28.dp, contentDescription = "About")
+        TitleBarIcon(mi.copy, Color.Unspecified, onCopy ?: {}, width = w, heightDp = h, fontSize = fs,
+            alpha = if (onCopy != null) 1f else 0.35f)
+        TitleBarIcon(mi.share, Color.Unspecified, onShare ?: {}, width = w, heightDp = h, fontSize = fs,
+            alpha = if (onShare != null) 1f else 0.35f)
+        // Settings sits just before Help.
+        TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs)
+        // Help + the (bigger) About AI logo are a tight pair at the right edge:
+        // grouping them makes SpaceBetween treat the pair as one item, so the
+        // gap BETWEEN them is just this inner row's (small) spacing.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+            TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = w, heightDp = h, fontSize = 26.sp)
+            AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About")
+        }
     }
 }
 
@@ -2074,7 +2142,10 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
 fun BottomIconBar(
     icons: TitleBarIcons?,
     modifier: Modifier = Modifier,
-    suppressScreenTraceAndHelp: Boolean = false
+    suppressScreenTraceAndHelp: Boolean = false,
+    /** Home-bar mode shows 📋 copy + 📤 share in the persistent home bar
+     *  instead; skip them here so they aren't shown twice. */
+    suppressCopyShare: Boolean = false
 ) {
     // Non-null on the non-View screens (regular TitleBar) — flips the
     // bar into the help layout: strip left-aligned, ❓ pinned right.
@@ -2093,7 +2164,7 @@ fun BottomIconBar(
     } ?: 0f
     val barIcons = LocalMetadataIcons.current
     val specs = if (icons != null) {
-        buildBottomBarIcons(icons, barIcons, includeScreenTrace = !suppressScreenTraceAndHelp)
+        buildBottomBarIcons(icons, barIcons, includeScreenTrace = !suppressScreenTraceAndHelp, suppressCopyShare = suppressCopyShare)
     } else {
         emptyList()
     }
