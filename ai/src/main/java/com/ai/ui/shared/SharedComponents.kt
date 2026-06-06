@@ -2078,7 +2078,9 @@ fun HomeIconBar(
                 .padding(top = 5.dp, bottom = 4.dp)
         ) {
             val totalWpx = with(density) { maxWidth.toPx() }
-            val marginPx = with(density) { 6.dp.toPx() }
+            // The cutout bounding rect already carries its own safe area, so
+            // no extra margin — icons sit right at the detected hole edges.
+            val marginPx = 0f
             val leftWpx = (holeRect.left - marginPx).coerceAtLeast(0f)
             val rightWpx = (totalWpx - (holeRect.right + marginPx)).coerceAtLeast(0f)
             val gapWpx = (totalWpx - leftWpx - rightWpx).coerceAtLeast(0f)
