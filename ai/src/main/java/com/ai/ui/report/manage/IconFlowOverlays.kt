@@ -55,6 +55,8 @@ internal fun ReportIconFlowOverlays(
 ): Boolean {
     val currentReportId = uiState.currentReportId
     val aiSettings = uiState.aiSettings
+    val applyAltReportTitle = com.ai.ui.shared.LocalApplyAltReportTitle.current
+    val applyAltModelTitle = com.ai.ui.shared.LocalApplyAltModelTitle.current
 
     if (st.showAlternativeIcons.value && currentReportId != null) {
         AlternativeIconsOverlayHost(
@@ -248,7 +250,7 @@ internal fun ReportIconFlowOverlays(
             AlternativeTitlesScreen(
                 candidates = pairTitleFanOutByPair[pairTitleId].orEmpty(),
                 onPickTitle = { picked ->
-                    onPickPairTitle(currentReportId, pairTitleId, picked)
+                    onPickPairTitle(currentReportId, pairTitleId, picked.title)
                     st.showAlternativeTitles.value = false
                     st.showFindIconsPicker.value = false
                     st.pairTitleDetailFor.value = null
@@ -276,10 +278,19 @@ internal fun ReportIconFlowOverlays(
         AlternativeTitlesScreen(
             candidates = candidates,
             onPickTitle = { picked ->
-                if (st.findTitlesLong.value) {
-                    st.altPickedTitleLong.value = picked
-                } else {
-                    st.altPickedTitle.value = picked
+                val model = "${picked.provider.id}/${picked.model}"
+                if (titleTarget == "report") {
+                    if (st.findTitlesLong.value) {
+                        st.altPickedTitleLong.value = picked.title
+                        applyAltReportTitle(currentReportId, true, picked.title, model)
+                    } else {
+                        st.altPickedTitle.value = picked.title
+                        applyAltReportTitle(currentReportId, false, picked.title, model)
+                    }
+                } else if (titleTarget != null) {
+                    // Per-model title: the editor injects via altPickedTitle.
+                    st.altPickedTitle.value = picked.title
+                    applyAltModelTitle(currentReportId, titleTarget, picked.title, model)
                 }
                 st.showAlternativeTitles.value = false
                 st.showFindIconsPicker.value = false

@@ -360,6 +360,18 @@ val LocalEditInternalPrompt = compositionLocalOf<(String) -> Unit> { {} }
 val LocalRegenerateMetaItem =
     compositionLocalOf<(String, com.ai.viewmodel.MetaRegenKind, String?) -> Unit> { { _, _, _ -> } }
 
+/** Persist a picked Find-alt report title (short/long) with its alternative
+ *  model + provenance marker, so the Get-info title card reflects the alt
+ *  call. Args: (reportId, long, title, model). Provided by the report nav
+ *  graph; no-op default. */
+val LocalApplyAltReportTitle =
+    compositionLocalOf<(String, Boolean, String, String) -> Unit> { { _, _, _, _ -> } }
+
+/** Per-model sibling of [LocalApplyAltReportTitle].
+ *  Args: (reportId, agentId, title, model). */
+val LocalApplyAltModelTitle =
+    compositionLocalOf<(String, String, String, String) -> Unit> { { _, _, _, _ -> } }
+
 /** Provided by AppNavHost — navigate to any route by its NavRoutes
  *  constant. Backs the bottom-bar 🧹 "jump to Housekeeping" and ⚙️
  *  "jump to AI Setup / Settings" icons on dispatcher sub-screens that

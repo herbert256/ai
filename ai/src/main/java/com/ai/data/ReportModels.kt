@@ -361,6 +361,11 @@ data class Report(
     var titleLongOutputCost: Double = 0.0,
     var titleLongTraceFile: String? = null,
     var titleLongModel: String? = null,
+    /** Provenance marker for the long title, mirroring [titlePromptUsed]
+     *  for the short one. Set to "report_title_long_alt" when the long
+     *  title came from a Find-alt pick, so the Get-info long-title card
+     *  shows the alt prompt + interaction. Null otherwise. */
+    var titleLongPromptUsed: String? = null,
     var titleLongDurationMs: Long? = null,
     /** Wall-clock duration (ms) of each report-level metadata API call,
      *  for the Report-info screen's total-API-time tally. Null on legacy

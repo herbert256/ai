@@ -349,6 +349,12 @@ internal fun NavGraphBuilder.reportRoutes(
                 },
                 com.ai.ui.shared.LocalRegenerateMetaItem provides { rid, kind, agentId ->
                     reportViewModel.regenerateMetaItem(context, rid, kind, agentId)
+                },
+                com.ai.ui.shared.LocalApplyAltReportTitle provides { rid, long, title, model ->
+                    reportViewModel.applyAlternativeReportTitle(context, rid, long, title, model)
+                },
+                com.ai.ui.shared.LocalApplyAltModelTitle provides { rid, agentId, title, model ->
+                    reportViewModel.applyAlternativeModelTitle(context, rid, agentId, title, model)
                 }
             ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,

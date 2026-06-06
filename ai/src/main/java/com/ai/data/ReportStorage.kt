@@ -579,6 +579,56 @@ object ReportStorage {
         }
     }
 
+    /** Apply a picked Find-alt report title (short or long): write the chosen
+     *  text + the alternative model + an "_alt" provenance marker, but NOT its
+     *  cost — the fan-out candidate's spend is already in [Report.iconCalls],
+     *  so adding it to the title cost fields would double-count in the report
+     *  total. The Get-info title card reads the marker to render the
+     *  alternative API call. */
+    fun setReportTitleAltChoice(
+        context: Context, reportId: String, long: Boolean, title: String, model: String
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val updated = if (long) report.copy(
+                titleLong = title.takeIf { it.isNotBlank() },
+                titleLongModel = model,
+                titleLongPromptUsed = "report_title_long_alt",
+                timestamp = System.currentTimeMillis()
+            ) else report.copy(
+                title = title,
+                titleModel = model,
+                titlePromptUsed = "report_title_alt",
+                titleErrorMessage = null,
+                timestamp = System.currentTimeMillis()
+            )
+            saveReport(updated)
+            AuditLog.append(reportId, "Picked alternative ${if (long) "long" else "short"} title '$title'")
+            true
+        }
+    }
+
+    /** Per-model sibling of [setReportTitleAltChoice]. */
+    fun setReportModelTitleAltChoice(
+        context: Context, reportId: String, agentId: String, title: String, model: String
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val updated = report.agents[idx].copy(
+                modelTitle = title, modelTitleErrorMessage = null,
+                modelTitleModel = model, modelTitlePromptUsed = "model_title_alt"
+            )
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            saveReport(report.copy(agents = newAgents, timestamp = System.currentTimeMillis()))
+            AuditLog.append(reportId, "Picked alternative title '$title' for report model ${updated.provider}/${updated.model}")
+            true
+        }
+    }
+
     /** Toggle (or set) the user's pinned flag on [reportId]. Pinning
      *  doesn't change the report's body — it's strictly a hub-level
      *  promotion signal. */

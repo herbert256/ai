@@ -1943,6 +1943,33 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
     }
 
+    /** Apply a picked Find-alt report title (short/long) — persists the chosen
+     *  text + the alternative model + an "_alt" provenance marker (not its
+     *  cost; see [ReportStorage.setReportTitleAltChoice]) so the Get-info
+     *  title card reflects the alternative API call. Auto-applies on pick,
+     *  mirroring how alt icon picks apply. */
+    fun applyAlternativeReportTitle(context: Context, reportId: String, long: Boolean, title: String, model: String) {
+        appViewModel.viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                ReportStorage.setReportTitleAltChoice(context, reportId, long, title, model)
+                ReportStorage.bumpReportTimestamp(context, reportId)
+            }
+            appViewModel.updateUiState {
+                if (long) it.copy(genericPromptTitleLong = title) else it.copy(genericPromptTitle = title)
+            }
+        }
+    }
+
+    /** Per-model sibling of [applyAlternativeReportTitle]. */
+    fun applyAlternativeModelTitle(context: Context, reportId: String, agentId: String, title: String, model: String) {
+        appViewModel.viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                ReportStorage.setReportModelTitleAltChoice(context, reportId, agentId, title, model)
+            }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+        }
+    }
+
     /** Manually overwrite a fan-out pair's title (the new pair-title editor
      *  on "Edit titles"). Persists straight to the SecondaryResult row;
      *  `manual` promptUsed distinguishes it from a Find-alt pick

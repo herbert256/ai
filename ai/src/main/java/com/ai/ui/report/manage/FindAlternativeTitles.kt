@@ -21,7 +21,7 @@ import com.ai.viewmodel.TitleCandidate
 @Composable
 fun AlternativeTitlesScreen(
     candidates: List<TitleCandidate>,
-    onPickTitle: (String) -> Unit,
+    onPickTitle: (TitleCandidate.Done) -> Unit,
     onRestart: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -50,7 +50,7 @@ fun AlternativeTitlesScreen(
 }
 
 @Composable
-private fun TitleCandidateRow(candidate: TitleCandidate, onPickTitle: (String) -> Unit) {
+private fun TitleCandidateRow(candidate: TitleCandidate, onPickTitle: (TitleCandidate.Done) -> Unit) {
     val iconModel = "${candidate.provider.id} · ${candidate.model}"
     val cost = when (candidate) {
         is TitleCandidate.Done -> candidate.cost
@@ -60,7 +60,7 @@ private fun TitleCandidateRow(candidate: TitleCandidate, onPickTitle: (String) -
     val tappable = candidate is TitleCandidate.Done
     Card(
         modifier = Modifier.fillMaxWidth().then(
-            if (candidate is TitleCandidate.Done) Modifier.clickable { onPickTitle(candidate.title) } else Modifier
+            if (candidate is TitleCandidate.Done) Modifier.clickable { onPickTitle(candidate) } else Modifier
         ),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
     ) {

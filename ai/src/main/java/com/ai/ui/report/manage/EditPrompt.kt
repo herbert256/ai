@@ -341,17 +341,26 @@ private fun SingleTitleEditScreen(
     // The recorded API call that generated this title — Model + API
     // interaction cards, mirroring the Icon lookup screen. Null when the
     // title was set manually / never AI-generated (then the cards are hidden).
-    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, isLongTitle) {
+    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, isLongTitle, initialTitle) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext null
             val model = (if (isLongTitle) r.titleLongModel else r.titleModel).orEmpty()
             val cost = if (isLongTitle) r.titleLongInputCost + r.titleLongOutputCost
                        else r.titleInputCost + r.titleOutputCost
-            val aiGenerated = if (isLongTitle) model.isNotBlank() || cost > 0.0
-                              else !r.titlePromptUsed.isNullOrBlank()
+            // Find-alt provenance marker — the title came from the alt/* prompt.
+            val isAlt = if (isLongTitle) r.titleLongPromptUsed == "report_title_long_alt"
+                        else r.titlePromptUsed == "report_title_alt"
+            val aiGenerated = isAlt ||
+                if (isLongTitle) model.isNotBlank() || cost > 0.0
+                else !r.titlePromptUsed.isNullOrBlank()
             if (!aiGenerated) return@withContext null
+            // Alt picks ran the alt/<report_title[_long]> prompt; the initial
+            // generation ran the workers prompt. Both substitute @PROMPT@.
+            val templateCategory = if (isAlt) "alt" else "workers"
+            val templateName = if (isAlt) (if (isLongTitle) "report_title_long" else "report_title")
+                               else titlePromptName
             val template = aiSettings.internalPrompts.firstOrNull {
-                it.category == "workers" && it.name == titlePromptName
+                it.category == templateCategory && it.name == templateName
             }
             val resolved = template?.text?.replace("@PROMPT@", r.prompt).orEmpty()
             val response = if (isLongTitle) r.titleLong else r.title
@@ -360,7 +369,7 @@ private fun SingleTitleEditScreen(
                 model = model.substringAfter('/', ""),
                 cost = cost,
                 apiInteraction = buildOneShotApiInteraction(resolved, response),
-                promptName = template?.let { "${it.category}/${it.name}" } ?: "workers/$titlePromptName",
+                promptName = template?.let { "${it.category}/${it.name}" } ?: "$templateCategory/$templateName",
                 promptId = template?.id.orEmpty()
             )
         }
@@ -443,7 +452,7 @@ fun ReportEditModelTitleScreen(
     // The per-model title-generation call (model-titles worker, @RESPONSE@ =
     // this agent's answer) as Model + API-interaction cards — same as the
     // Icon lookup screen. Null when the title was set manually.
-    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, agentId) {
+    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, agentId, initialTitle) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext null
             val agent = r.agents.firstOrNull { it.agentId == agentId } ?: return@withContext null
@@ -452,8 +461,13 @@ fun ReportEditModelTitleScreen(
             val aiGenerated = !agent.modelTitlePromptUsed.isNullOrBlank() ||
                 model.isNotBlank() || cost > 0.0
             if (!aiGenerated) return@withContext null
+            // Find-alt picks ran alt/model_title; the initial gen ran the
+            // workers model-titles prompt. Both substitute @RESPONSE@.
+            val isAlt = agent.modelTitlePromptUsed == "model_title_alt"
+            val templateCategory = if (isAlt) "alt" else "workers"
+            val templateName = if (isAlt) "model_title" else "model-titles"
             val template = aiSettings.internalPrompts.firstOrNull {
-                it.category == "workers" && it.name == "model-titles"
+                it.category == templateCategory && it.name == templateName
             }
             val resolved = template?.text?.replace("@RESPONSE@", agent.responseBody.orEmpty()).orEmpty()
             TitleApiCard(
@@ -461,7 +475,7 @@ fun ReportEditModelTitleScreen(
                 model = model.substringAfter('/', ""),
                 cost = cost,
                 apiInteraction = buildOneShotApiInteraction(resolved, agent.modelTitle),
-                promptName = template?.let { "${it.category}/${it.name}" } ?: "workers/model-titles",
+                promptName = template?.let { "${it.category}/${it.name}" } ?: "$templateCategory/$templateName",
                 promptId = template?.id.orEmpty()
             )
         }
