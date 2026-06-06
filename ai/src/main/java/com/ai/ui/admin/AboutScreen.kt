@@ -41,7 +41,8 @@ import com.ai.ui.shared.TitleBar
 fun AboutScreen(
     onBack: () -> Unit,
     onOpenManual: () -> Unit,
-    onOpenTechnicalDocs: () -> Unit
+    onOpenTechnicalDocs: () -> Unit,
+    onOpenDependencies: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -105,6 +106,7 @@ fun AboutScreen(
                 )
                 HubCard(icon = MetadataDefaults.BOOK, title = "Manual", onClick = onOpenManual)
                 HubCard(icon = MetadataDefaults.TOOLS, title = "Technical documentation", onClick = onOpenTechnicalDocs)
+                HubCard(icon = "📦", title = "Dependencies", onClick = onOpenDependencies)
             }
             Spacer(modifier = Modifier.height(24.dp))
             // Copyright footer pinned at the bottom of the About

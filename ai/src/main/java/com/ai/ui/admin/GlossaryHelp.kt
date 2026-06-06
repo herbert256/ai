@@ -13,6 +13,16 @@ internal val glossaryHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "The build timestamp moves on every assemble even for unchanged code (gradle stamps unconditionally). Use it for 'is the running APK the one I just built?' checks, not for change detection.")
         )
     ),
+    "dependencies" to HelpContent(
+        title = "Help - Dependencies",
+        cards = listOf(
+            HelpCard("Overview", "Reached from the About screen's \"Dependencies\" card. A static, read-only inventory of every tool and library the app and its build process depend on, grouped into sections (Build toolchain, Android platform/SDK, AndroidX & Compose, Networking, Coroutines, On-device ML/documents, Testing). Each row pairs a name with the version that is actually active in this build."),
+            HelpCard("What's listed", "Build toolchain = Gradle, Android Gradle Plugin, Kotlin, the Compose compiler, Android build-tools, and the JDK / Kotlin JVM target. Android platform/SDK = compileSdk, targetSdk, minSdk and the shipped ABI. The remaining sections list the runtime libraries and the test-only dependencies."),
+            HelpCard("Active version only", "This screen shows the ACTIVE version (what's compiled in), not the latest available upstream. Checking each against the newest published release is a maintenance task done outside the app (against Maven Central / Google Maven)."),
+            HelpCard("Where the numbers come from", "Values are baked into the screen by hand and mirror `gradle/libs.versions.toml` and `ai/build.gradle.kts`. Dependency versions aren't exposed to the app at runtime, so they can't be read live — they must be edited in `DependenciesScreen.kt` whenever a version is bumped."),
+            HelpCard("Pitfalls", "Because the list is hand-maintained, it can drift from the build files if a bump is committed without updating `DependenciesScreen.kt`. Treat the build files as the source of truth; this screen is a convenience view. \"via BOM\" means the version is pinned by the Compose BOM rather than declared directly.")
+        )
+    ),
     "manual" to HelpContent(
         title = "Help - Manual",
         cards = listOf(

@@ -612,8 +612,12 @@ internal fun NavGraphBuilder.developerRoutes(
             com.ai.ui.admin.AboutScreen(
                 onBack = safePopBack,
                 onOpenManual = { navController.navigate(NavRoutes.DOCUMENTATION_MANUAL) },
-                onOpenTechnicalDocs = { navController.navigate(NavRoutes.DOCUMENTATION) }
+                onOpenTechnicalDocs = { navController.navigate(NavRoutes.DOCUMENTATION) },
+                onOpenDependencies = { navController.navigate(NavRoutes.DEPENDENCIES) }
             )
+        }
+        composable(NavRoutes.DEPENDENCIES) {
+            com.ai.ui.admin.DependenciesScreen(onBack = safePopBack)
         }
         composable(NavRoutes.HELP_FOR_TOPIC) { entry ->
             val topicId = try {
