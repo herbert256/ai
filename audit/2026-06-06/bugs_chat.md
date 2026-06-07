@@ -195,7 +195,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** A fast Stop → "Chat $N more" can leave the new loop running while the UI shows it as stopped (no Stop button), because shared run-state is clobbered by the *old* job's `finally`.
 **Root cause:** Stop sets `isRunning=false` synchronously and cancels the job, but the cancelled coroutine's `finally { isRunning=false; isStopped=true; thinkingModel=null }` runs asynchronously later. If "Chat more" starts a new loop (`isRunning=true`) before the old `finally` executes, the old `finally` then overwrites `isRunning`/`isStopped`, hiding the Stop control while the new loop keeps appending messages and counting cost.
 **Proposed fix:** Guard the `finally` with a job-identity check (only mutate state if `chatJob` is still this coroutine's job), or `join()` the old job before launching a new one.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — startChatLoop now assigns a lazy-started job before execution and the finally block only clears run state when that job is still current
 
 ### Bug 26 — Severity: MEDIUM — Category: stale pricing / wrong cost
 **Location:** DualChatScreen.kt:424-426 (`model1Cost`/`model2Cost`/`totalCost` via `remember { derivedStateOf { … pricing1.* … } }`)

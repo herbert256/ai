@@ -37,6 +37,7 @@ import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ChatViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -450,7 +451,7 @@ fun DualChatSessionScreen(
         if (isRunning) return
         chatJob?.cancel()
         isRunning = true; isStopped = false; errorMessage = null
-        chatJob = scope.launch {
+        val loopJob = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 while (currentInteraction < targetInteractions) {
                     // Model 1's turn
@@ -497,9 +498,16 @@ fun DualChatSessionScreen(
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Unknown error"
             } finally {
-                thinkingModel = null; isRunning = false; isStopped = true
+                if (chatJob === coroutineContext[Job]) {
+                    thinkingModel = null
+                    isRunning = false
+                    isStopped = true
+                    chatJob = null
+                }
             }
         }
+        chatJob = loopJob
+        loopJob.start()
     }
 
     DisposableEffect(Unit) { onDispose { chatJob?.cancel() } }
