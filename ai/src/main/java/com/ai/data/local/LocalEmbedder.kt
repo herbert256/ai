@@ -111,6 +111,7 @@ object LocalEmbedder {
                         soFar += read
                         onProgress(soFar, total)
                     }
+                    output.fd.sync()
                 }
             }
             // Atomic move — the previous flow deleted target first

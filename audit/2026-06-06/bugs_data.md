@@ -364,7 +364,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The model is streamed to a `.part` file via `tmp.outputStream().use{}` with no `fd.sync()` before the `ATOMIC_MOVE`. Unlike `writeTextAtomic`, a power loss after the move but before the page cache flush can surface a zero-length/partial `.tflite` that the runtime then refuses to load (or crashes on).
 **Root cause:** Missing fsync of the downloaded temp file before the atomic move.
 **Proposed fix:** fsync the FileOutputStream before `Files.move`, mirroring `writeTextAtomic`.
-**Status:** Open
+**Status:** Fixed in `LocalEmbedder.kt` by fsyncing the downloaded `.part` file before moving it into place.
 
 ### Bug 48 — Severity: LOW — Category: concurrent state clobber
 **Location:** LocalEmbedder.kt:33-37, 233-258 (`embedding` @Volatile + `finally { embedding = null }`)
