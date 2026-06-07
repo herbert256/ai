@@ -31,6 +31,9 @@ internal data class HtmlReportData(
      *  per-language headings. Null / blank → caller falls back to the
      *  English name text. */
     val sourceLanguageIcon: String? = null,
+    /** [com.ai.data.Report.languageName] — used as the Original alias
+     *  when folding back-translation META rows into the Original view. */
+    val sourceLanguageName: String? = null,
     /** Sum of API spend the user dropped from this report via Delete
      *  actions. Surfaces as a dedicated row above the Total in every
      *  cost table on the result page + the export. Carried straight
@@ -452,6 +455,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         traces = traces,
         reportIcon = report.icon,
         sourceLanguageIcon = report.languageIcon,
+        sourceLanguageName = report.languageName,
         costsFromDeletedItems = report.costsFromDeletedItems,
         iconProviderDisplay = iconProvider?.id ?: "",
         iconModel = iconModel,
@@ -487,11 +491,13 @@ internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
     }
 
     val nonTranslateSecondary = base.secondary.filter { it.kind != SecondaryKind.TRANSLATE }
-    // Original view shows only secondaries with no language tag (the
-    // canonical originals); per-language META rows
-    // tagged with a targetLanguage live exclusively in their own
-    // language view.
-    val originalSecondary = nonTranslateSecondary.filter { it.targetLanguage == null }
+    // Original view shows canonical originals plus rows tagged with the
+    // report's own detected language (back-translations into Original).
+    val originalAlias = base.sourceLanguageName?.takeIf { it.isNotBlank() }
+    val originalSecondary = nonTranslateSecondary.filter {
+        it.targetLanguage == null ||
+            (originalAlias != null && it.targetLanguage.equals(originalAlias, ignoreCase = true))
+    }
     val original = HtmlLanguageView(
         key = "original",
         displayName = "Original",

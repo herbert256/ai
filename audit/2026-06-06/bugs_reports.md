@@ -344,7 +344,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A META row generated as a back-translation into the report's own detected language (tagged with `targetLanguage == reportLanguageName`) is excluded from the Original tab of the export and never folded back, unlike the in-app View which folds `reportLanguageName` into Original.
 **Root cause:** The export's Original filter is strictly `targetLanguage == null`; it has no `reportLanguageName` fold equivalent to the in-app `buildLangTabs(originalAlias=...)`.
 **Proposed fix:** Treat `targetLanguage == reportLanguageName` rows as Original in `buildLanguageViews` (fold them into the Original view) to match the in-app behaviour.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — HTML export now carries the report language name and folds matching secondary rows into Original
 
 ### Bug 43 — Severity: LOW — Category: false-positive anchor linkify
 **Location:** ReportExport.kt:1289-1293 (`linkifyAnchorRefs`)
