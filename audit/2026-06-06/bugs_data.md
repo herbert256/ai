@@ -506,7 +506,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A file that can't be read (locked, transient permission, concurrent atomic rewrite) is silently skipped (`catch (_: Exception) {}`) with no warning and no effect on the `written` count semantics — the user gets a backup that is silently missing a report/chat.
 **Root cause:** Blanket swallow with no log/aggregate of skipped files.
 **Proposed fix:** Log each skipped file and surface a "N files could not be backed up" count to the caller.
-**Status:** Open
+**Status:** Fixed — backup now logs unreadable/skipped files, aggregates `skippedFiles` in `BackupSummary`, and Backup/Restore surfaces a warning when a backup is partial.
 
 ### Bug 66 — Severity: LOW — Category: plaintext secrets in backup
 **Location:** BackupManager.kt:106-109 (`PREFS_TO_BACKUP` includes MAIN_PREFS) + Agent.apiKey in settings
