@@ -42,7 +42,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** A user turn that has only an attached image and a blank text body never triggers RAG retrieval, even when a KB is attached.
 **Root cause:** `val lastUser = messages.lastOrNull { it.role == "user" }?.content?.takeIf { it.isNotBlank() } ?: return messages` — a blank-but-image turn returns the messages unchanged.
 **Proposed fix:** Acceptable for text-only embedders; if vision-OCR retrieval is ever wanted, fall back to a caption or skip silently with a log line (currently silent).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — image-only chat turns now log an explicit RAG skip because retrieval still requires a text query
 
 ---
 

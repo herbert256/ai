@@ -80,7 +80,13 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         knowledgeBaseIds: List<String>,
         messages: List<ChatMessage>
     ): List<ChatMessage> {
-        val lastUser = messages.lastOrNull { it.role == "user" }?.content?.takeIf { it.isNotBlank() } ?: return messages
+        val lastUserMessage = messages.lastOrNull { it.role == "user" } ?: return messages
+        val lastUser = lastUserMessage.content.takeIf { it.isNotBlank() } ?: run {
+            if (!lastUserMessage.imageBase64.isNullOrBlank()) {
+                AppLog.i("Chat.RAG", "Skipping KB retrieval for image-only chat turn; text embedder requires a text query")
+            }
+            return messages
+        }
         AppLog.d("Chat.RAG", "retrieving for kbs=${knowledgeBaseIds.joinToString(",")} queryLen=${lastUser.length}")
         val hits = runCatching {
             KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
