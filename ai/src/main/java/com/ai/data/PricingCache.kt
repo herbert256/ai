@@ -8,6 +8,9 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import java.lang.reflect.Type
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -62,6 +65,8 @@ object PricingCache {
     private val listSupportedParamsType: Type = object : TypeToken<List<ModelSupportedParametersEntry>>() {}.type
 
     @Volatile private var manualPricing: MutableMap<String, ModelPricing>? = null
+    private val _manualPricingVersion = MutableStateFlow(0)
+    val manualPricingVersion: StateFlow<Int> = _manualPricingVersion.asStateFlow()
     @Volatile private var openRouterPricing: Map<String, ModelPricing>? = null
     @Volatile private var togetherPricing: Map<String, ModelPricing>? = null
     @Volatile private var togetherTimestamp: Long = 0
@@ -247,7 +252,10 @@ object PricingCache {
         manualPricing = pricing.toMutableMap(); saveManualPricing(context)
     }
 
-    private fun saveManualPricing(context: Context) { getPrefs(context).edit { putString(KEY_MANUAL_PRICING, gson.toJson(manualPricing)) } }
+    private fun saveManualPricing(context: Context) {
+        getPrefs(context).edit { putString(KEY_MANUAL_PRICING, gson.toJson(manualPricing)) }
+        _manualPricingVersion.value = _manualPricingVersion.value + 1
+    }
 
     private val DEFAULT_PRICING = ModelPricing("default", 25.00e-6, 75.00e-6, "DEFAULT")
 
@@ -1656,6 +1664,7 @@ object PricingCache {
         // In-memory: drop every loaded tier + lookup memo so the next
         // ensureLoaded call repopulates from the now-empty stores.
         manualPricing = null
+        _manualPricingVersion.value = _manualPricingVersion.value + 1
         openRouterPricing = null
         togetherPricing = null
         togetherTimestamp = 0

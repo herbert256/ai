@@ -1,6 +1,7 @@
 package com.ai.ui.cruds.costsmanualoverride
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,8 +36,9 @@ private sealed interface Mode {
 
 /**
  * Manual cost-override CRUD (AI Setup → Costs). Writes straight to
- * [PricingCache] (overrides aren't part of Settings); the store isn't
- * reactive, so a refresh trigger re-reads after each write. Bulk
+ * [PricingCache] (overrides aren't part of Settings). The list
+ * observes PricingCache.manualPricingVersion so edits from model-info
+ * or housekeeping refresh open back-stack instances immediately. Bulk
  * cleanup / CSV moved to Housekeeping → Costs.
  */
 @Composable
@@ -49,7 +51,8 @@ fun CostManualOverridesCrud(
     val context = LocalContext.current
     var refreshTrigger by remember { mutableIntStateOf(0) }
     val resumeTick = resumeRefreshTick()
-    val rows = remember(refreshTrigger, resumeTick) {
+    val manualPricingVersion by PricingCache.manualPricingVersion.collectAsState()
+    val rows = remember(refreshTrigger, resumeTick, manualPricingVersion) {
         PricingCache.getAllManualPricing(context).entries.map { (k, p) ->
             val parts = k.split(":", limit = 2)
             CostOverrideRow(parts.getOrElse(0) { "" }, parts.getOrElse(1) { "" }, p.promptPrice, p.completionPrice)

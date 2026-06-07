@@ -488,7 +488,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** `PricingCache` manual overrides aren't a reactive flow; the cost-override CRUD re-reads only on `refreshTrigger` / `resumeRefreshTick`. If an override is changed by another surface (e.g. Model Info's "Add manual override") while this list is open in the back-stack, the list shows stale rows until a resume.
 **Root cause:** Manual pricing lives in a non-observable store; refresh is tick-driven, not push.
 **Proposed fix:** Acceptable given the resume-tick, but a shared reactive flow would remove the staleness window. (Cooldowns, by contrast, do use a `collectAsState` flow — good.)
-**Status:** Open
+**Status:** Fixed (2026-06-08) — `PricingCache` now exposes a `manualPricingVersion` `StateFlow` bumped on manual-pricing save/clear operations, and the cost-override CRUD collects it so open lists refresh when another surface changes overrides.
 
 ---
 
