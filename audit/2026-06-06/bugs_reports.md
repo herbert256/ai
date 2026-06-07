@@ -194,7 +194,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** `sortedTiles` recomputes on every recomposition.
 **Root cause:** `combinedTiles` is built with `+` list concatenation outside `remember`, so a new list instance is created each pass; `remember(combinedTiles, savedOrder)` then sees a new key every time and re-sorts.
 **Proposed fix:** Wrap `combinedTiles` in `remember(docTiles, metaTiles, fanOutTiles, fanInTiles, computedTiles)`, or key `sortedTiles` on the stable component lists rather than the concatenated instance.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — combined tile concatenation is now remembered from the stable component lists before sorting
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Meta.kt
 
