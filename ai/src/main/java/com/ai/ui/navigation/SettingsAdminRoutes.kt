@@ -101,6 +101,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                     openRouterApiKey = orKey,
                     huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey, aiSettings = uiState.aiSettings,
                     repository = appViewModel.repository,
+                    settingsPrefs = appViewModel.settingsPrefs,
                     onSaveSettings = { appViewModel.updateSettings(it) },
                     onTestAiModel = { s, k, m -> appViewModel.testAiModel(s, k, m) },
                     onFetchModels = appViewModel::fetchModels,
@@ -150,6 +151,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                         huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
                         aiSettings = uiState.aiSettings,
                         repository = appViewModel.repository,
+                        settingsPrefs = appViewModel.settingsPrefs,
                         onOpenReport = { rid ->
                             scope.launch {
                                 reportViewModel.restoreCompletedReport(context, rid)

@@ -178,6 +178,7 @@ fun ModelInfoScreen(
     huggingFaceApiKey: String,
     aiSettings: Settings,
     repository: com.ai.data.AnalysisRepository,
+    settingsPrefs: SettingsPreferences,
     onSaveSettings: (Settings) -> Unit,
     onTestAiModel: suspend (AppService, String, String) -> String?,
     onFetchModels: (AppService, String) -> Unit,
@@ -264,8 +265,7 @@ fun ModelInfoScreen(
             // A 2-part lookup never matched, so the AI Usage card always read
             // "No usage recorded yet". Aggregate across kinds via the same
             // prefix match the View screen uses.
-            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            val all = SettingsPreferences(prefs, context.filesDir).loadUsageStats()
+            val all = settingsPrefs.loadUsageStats()
             val prefix = "${provider.id}::$modelName::"
             val matching = all.filterKeys { it.startsWith(prefix) }.values
             if (matching.isEmpty()) null

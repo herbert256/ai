@@ -111,6 +111,7 @@ fun ModelInfoViewScreen(
     huggingFaceApiKey: String,
     aiSettings: Settings,
     repository: AnalysisRepository,
+    settingsPrefs: SettingsPreferences,
     onOpenReport: (String) -> Unit,
     /** Per-row Last-Usage tap → that report's View Reports screen,
      *  pre-scrolled to the agent matching this provider/model. Wired
@@ -206,8 +207,7 @@ fun ModelInfoViewScreen(
     // calls — what users intuitively expect from "AI Usage".
     val usageEntry by produceState<com.ai.model.UsageStats?>(initialValue = null, provider, modelName) {
         value = withContext(Dispatchers.IO) {
-            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            val all = SettingsPreferences(prefs, context.filesDir).loadUsageStats()
+            val all = settingsPrefs.loadUsageStats()
             val prefix = "${provider.id}::$modelName::"
             val matching = all.filterKeys { it.startsWith(prefix) }.values
             if (matching.isEmpty()) null

@@ -409,7 +409,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Reading usage stats constructs a brand-new `SettingsPreferences` instance and calls `loadUsageStats()`, bypassing the app's cached singleton and re-reading the stats file from disk.
 **Root cause:** The screen instantiates its own `SettingsPreferences` rather than using the shared one (also in ModelInfoViewScreen).
 **Proposed fix:** Reuse the shared `SettingsPreferences`/cache.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — model-info manage/view routes now pass the existing `AppViewModel.settingsPrefs` instance through and usage cards call that shared store instead of constructing a new `SettingsPreferences`.
 
 ---
 
