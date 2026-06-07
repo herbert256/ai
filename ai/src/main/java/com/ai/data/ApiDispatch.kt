@@ -1256,6 +1256,8 @@ internal suspend fun AnalysisRepository.analyzeAgentStreaming(
 
 /** Drain an SSE [retrofit2.Response] into an [AnalysisResponse], emitting
  *  each text chunk through [onDelta] and merging any usage events. */
+private enum class StreamingUsageMergeMode { FieldMax, LastComplete }
+
 private suspend fun AnalysisRepository.collectStreamResponse(
     service: AppService,
     response: retrofit2.Response<okhttp3.ResponseBody>,
@@ -1263,6 +1265,7 @@ private suspend fun AnalysisRepository.collectStreamResponse(
     extractUsage: (String?, String) -> Pair<TokenUsage?, String?>?,
     isFinalChunk: (String?, String) -> Boolean = { _, _ -> false },
     requireTerminator: Boolean = false,
+    usageMergeMode: StreamingUsageMergeMode = StreamingUsageMergeMode.FieldMax,
     onDelta: (String) -> Unit
 ): AnalysisResponse {
     val headers = formatHeaders(response.headers())
@@ -1283,7 +1286,11 @@ private suspend fun AnalysisRepository.collectStreamResponse(
         requireTerminator = requireTerminator,
         extractUsage = extractUsage
     ) { u, raw ->
-        usage = mergeUsage(usage, u); if (!raw.isNullOrBlank()) rawUsage = raw
+        usage = when (usageMergeMode) {
+            StreamingUsageMergeMode.FieldMax -> mergeUsage(usage, u)
+            StreamingUsageMergeMode.LastComplete -> u
+        }
+        if (!raw.isNullOrBlank()) rawUsage = raw
     }.collect { chunk -> sb.append(chunk); onDelta(chunk) }
     val text = sb.toString().takeIf { it.isNotBlank() }
     return if (text != null)
@@ -1307,7 +1314,14 @@ private suspend fun AnalysisRepository.streamOpenAiReport(
     // back to the buffered reasoning only if no content streamed at all
     // (providers that put the answer in reasoning_content with empty content).
     val ext = OpenAiContentExtractor()
-    val resp = collectStreamResponse(service, response, ext::extract, extractOpenAiUsage(service), onDelta = onDelta)
+    val resp = collectStreamResponse(
+        service,
+        response,
+        ext::extract,
+        extractOpenAiUsage(service),
+        usageMergeMode = StreamingUsageMergeMode.LastComplete,
+        onDelta = onDelta
+    )
     return if (resp.analysis.isNullOrBlank())
         ext.reasoningFallback()?.let { resp.copy(analysis = it, error = null) } ?: resp
     else resp
@@ -1343,6 +1357,7 @@ private suspend fun AnalysisRepository.streamResponsesApiReport(
         ::extractResponsesApiContent,
         extractResponsesApiUsage,
         requireTerminator = true,
+        usageMergeMode = StreamingUsageMergeMode.LastComplete,
         onDelta = onDelta
     )
 }

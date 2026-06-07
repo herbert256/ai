@@ -171,7 +171,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Field-wise `maxOf` is correct for Anthropic's split and Gemini's cumulative chunks, but for an OpenAI-compatible provider that emits *multiple* partial usage chunks where a later chunk legitimately reports a *smaller* corrected count, `maxOf` keeps the stale larger value, over-counting tokens/cost.
 **Root cause:** `maxOf` assumes monotonic non-decreasing usage across events.
 **Proposed fix:** For the OpenAI final-chunk case, take the last complete `usage` rather than field-wise max; reserve max-merge for the Anthropic/Gemini split/cumulative shapes.
-**Status:** Open (unconfirmed)
+**Status:** Fixed — streaming collection now selects its usage merge policy per API shape: OpenAI-compatible Chat/Responses streams keep the last complete usage event, while Anthropic and Gemini keep field-wise max merging for split/cumulative usage.
 
 ### Bug 23 — Severity: LOW — Category: reasoning fallback ordering
 **Location:** ApiStreaming.kt:378-380 (`OpenAiContentExtractor` + `reasoningFallback`)
