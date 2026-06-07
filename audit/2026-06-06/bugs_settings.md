@@ -33,7 +33,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Root cause:** `inputPrice.toDoubleOrNull()` / `outputPrice.toDoubleOrNull()` parse `.`-only; the Save enablement and the `onSave` body both gate on `toDoubleOrNull() != null`. Prefilled values are produced with `"%.4f".format(Locale.US, …)` (dot), so editing an existing override and retyping a decimal also breaks.
 **Reproduction:** nl-NL device → AI Setup → Costs → Add → enter `0,5` for input price → Save stays disabled.
 **Proposed fix:** Normalize comma→dot before parsing (and keep the `%.4f` Locale.US prefill, which round-trips fine only with dot input).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — manual-override price fields normalize comma→dot before toDoubleOrNull
 
 ### Bug 3 — Severity: LOW — Category: cost accuracy
 **Location:** StatisticsScreen.kt:44-49 (`buildProviderCostGroups`, legacy fallback)

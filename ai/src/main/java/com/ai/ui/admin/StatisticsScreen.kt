@@ -245,11 +245,14 @@ internal fun AddManualOverrideScreen(
             onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
+        // Comma→dot before parse: price fields use a Decimal keyboard (comma key
+        // on nl-NL) and toDoubleOrNull is dot-only.
+        fun String.priceToDouble(): Double? = replace(',', '.').toDoubleOrNull()
         OutlinedButton(onClick = {
-            val inp = inputPrice.toDoubleOrNull()?.div(1_000_000)
-            val outp = outputPrice.toDoubleOrNull()?.div(1_000_000)
+            val inp = inputPrice.priceToDouble()?.div(1_000_000)
+            val outp = outputPrice.priceToDouble()?.div(1_000_000)
             if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp, isAddMode)
-        }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.toDoubleOrNull() != null && outputPrice.toDoubleOrNull() != null &&
+        }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.priceToDouble() != null && outputPrice.priceToDouble() != null &&
             !(isAddMode && keyMatchesOriginal),
             modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()
         ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false) }
