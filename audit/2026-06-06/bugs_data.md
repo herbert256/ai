@@ -97,7 +97,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** On a non-2xx response the body is read implicitly via `resp.body?.string()` only on the success branch; the else branch logs and returns null but `.use{}` closes the response, so OK — but the raw GET shares the *same* `okHttpClient` and therefore the `RateLimitRetryInterceptor`/`ProviderThrottleInterceptor`. A model-list raw fetch that 429s will Thread.sleep-retry inside this synchronous `.execute()` on whatever coroutine thread called it.
 **Root cause:** Reuse of the fully-interceptor-stacked client for a plain blocking GET means the blocking retry/throttle loops run on the caller's thread.
 **Proposed fix:** Acceptable if always called on Dispatchers.IO; otherwise route raw fetches through a lighter client without the sleeping retry interceptors.
-**Status:** Open (unconfirmed)
+**Status:** Fixed (2026-06-07) — raw snapshot fetches now use a lighter client that keeps context/throttle/tracing but omits the sleeping 429/529 retry interceptors.
 
 ### Bug 13 — Severity: LOW — Category: cache key collision
 **Location:** ApiClient.kt:266-275 (`getRetrofit`)

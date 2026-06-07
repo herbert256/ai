@@ -269,6 +269,19 @@ object ApiFactory {
         .build()
 
     private val callFactory = ContextTaggingCallFactory(okHttpClient)
+    private val rawFetchClient = okHttpClient.newBuilder().apply {
+        // Raw model-list snapshot fetches are best-effort sidecars.
+        // Keep tracing/throttle visibility, but drop the sleeping retry
+        // interceptors so a 429/529 does not pin the caller while the
+        // typed model-list request is already handling the real result.
+        interceptors().clear()
+        addInterceptor(OkHttpCallContextInterceptor())
+        addInterceptor(ProviderThrottleInterceptor())
+        addInterceptor(ReadTimeoutInterceptor())
+        addInterceptor(TestCallTimeoutInterceptor())
+        addInterceptor(TracingInterceptor())
+        addInterceptor(HttpStatusStatsInterceptor())
+    }.build()
 
     private fun getRetrofit(baseUrl: String): Retrofit {
         val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
@@ -289,8 +302,8 @@ object ApiFactory {
         return try {
             val builder = okhttp3.Request.Builder().url(url).get()
             headers.forEach { (k, v) -> builder.addHeader(k, v) }
-            okHttpClient.newCall(builder.build().withCapturedOkHttpCallContext()).execute().use { resp ->
-                if (resp.isSuccessful) resp.body?.string()
+            rawFetchClient.newCall(builder.build().withCapturedOkHttpCallContext()).execute().use { resp ->
+                if (resp.isSuccessful) resp.body.string()
                 else {
                     AppLog.w("ApiClient", "fetchUrlAsString non-2xx ${resp.code} for $url — raw snapshot skipped")
                     null
