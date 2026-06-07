@@ -57,7 +57,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A finished run (liveRun null) whose `loadPersisted()` returns null shows "Loading…" forever with no retry and no error.
 **Root cause:** `produceState` runs `loadPersisted()` once per key change; `run = liveRun ?: persisted` stays null when both are null, and the only escape is the `return@CompositionLocalProvider` "Loading…" placeholder. `buildPersistedTranslationRunState` returns null when no TRANSLATE rows match the runId (e.g. all rows deleted out-of-band, or a synthetic legacy runId that no longer groups anything), leaving the screen permanently on "Loading…".
 **Proposed fix:** Distinguish "still loading" from "loaded null" (e.g. a nullable wrapper / sentinel) and render an explicit "This translation run no longer exists" + back affordance when the load resolved to null.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — persisted translation loads now distinguish loading from loaded-null and show a missing-run message with Back
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/TranslationL1.kt
 

@@ -54,6 +54,11 @@ internal fun translationModelKey(item: TranslationItem): String? {
  *  historical default); Types = per-trace/cost-type rows. */
 enum class TranslationGroupMode { MODELS, TYPES }
 
+private data class PersistedTranslationRunLoad(
+    val loaded: Boolean,
+    val run: TranslationRunState?
+)
+
 /** Group key for an item under the active [TranslationGroupMode].
  *  MODELS → the model key (null for an unassigned PENDING item, which
  *  then shows only in the Queue stat). TYPES → the item's traceType,
@@ -207,12 +212,17 @@ internal fun TranslationRunScreen(
         }
     }
 
-    val persisted by produceState<TranslationRunState?>(
-        initialValue = null, reportId, runId, refreshTick, externalRefresh, liveRun == null
+    val persisted by produceState<PersistedTranslationRunLoad>(
+        initialValue = PersistedTranslationRunLoad(loaded = false, run = null),
+        reportId, runId, refreshTick, externalRefresh, liveRun == null
     ) {
-        value = if (liveRun != null) null else loadPersisted()
+        value = if (liveRun != null) {
+            PersistedTranslationRunLoad(loaded = false, run = null)
+        } else {
+            PersistedTranslationRunLoad(loaded = true, run = loadPersisted())
+        }
     }
-    val run = liveRun ?: persisted
+    val run = liveRun ?: persisted.run
 
     // Per-screen title-bar swipe override. Filter = Translate so the
     // gesture skips reports without any TRANSLATE row. The on-match
@@ -226,12 +236,19 @@ internal fun TranslationRunScreen(
         }
     ) {
     if (run == null) {
+        val missing = liveRun == null && persisted.loaded
         Column(
             modifier = Modifier.fillMaxSize()
                 .background(AppColors.AppBackground).padding(16.dp)
         ) {
             TitleBar(helpTopic = "translation_run_l1", title = "Translation", subject = "Per-model progress of this translation", onBackClick = onBack)
-            Text("Loading…", color = AppColors.TextTertiary)
+            if (missing) {
+                Text("This translation run no longer exists.", color = AppColors.TextSecondary)
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = onBack) { Text("Back") }
+            } else {
+                Text("Loading…", color = AppColors.TextTertiary)
+            }
         }
         return@CompositionLocalProvider
     }
