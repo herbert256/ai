@@ -584,7 +584,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Daily rotation compares `writerDate != today` (string) and reopens the writer. The `getLogFiles` cache (`cachedFiles`) is invalidated by `deleteLog`/`clearLogs` but NOT by a normal `appendLine` that rolls into a *new* day's file — so after midnight the cached file list omits the newly-created day's file until something else invalidates it.
 **Root cause:** Append path that creates a new day file doesn't invalidate `cachedFiles`.
 **Proposed fix:** Invalidate/append to `cachedFiles` when a new day's writer is opened.
-**Status:** Open
+**Status:** Fixed (already present) — `appendLine` invalidates `cachedFiles` after every successful write, including the first write after daily rotation.
 
 ## File: ai/src/main/java/com/ai/data/PromptCache.kt + MetaCache.kt
 
