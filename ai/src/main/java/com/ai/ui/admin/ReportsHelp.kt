@@ -42,12 +42,10 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "reports_hub" to HelpContent(
         title = "Help - Reports",
         cards = listOf(
-            HelpCard("Overview", "Dashboard for everything to do with reports. Two top buttons jump into the creation and search wrappers; four list cards summarise what's already on disk; one bottom button opens the paginated browser."),
-            HelpCard("In-flight pill", "When at least one report has unfinished agents (PENDING / RUNNING and no completedAt), an orange ⏳ pill appears at the top — tap it to resume the most recent in-flight run without going through History."),
-            HelpCard("Top buttons", "New AI report opens the creation entry points (blank, previous prompt, example prompt). Search AI reports opens Quick local, Extended local, Remote semantic, and — when Experimental features is enabled — Local semantic search."),
-            HelpCard("Problems / Running / Pinned / Latest", "Four list cards, each showing up to five rows. ⚠️ Problems collects reports with an errored agent or a stuck/failed secondary; ⏳ Running collects reports with at least one PENDING / RUNNING agent or an active translation run; 📌 Pinned mirrors every report flagged on Manage; 🕘 Latest shows the five newest. An empty card stays on screen at reduced opacity with an italic '(none)' line so the layout doesn't shift."),
-            HelpCard("Per-row icons", "Tap a row to open at Manage. 🔧 jumps to Manage explicitly, 👁 jumps to the View tile grid, 🗑 prompts a delete confirmation that removes the report from disk."),
-            HelpCard("All AI reports", "Bottom button opens the paginated swipe-through of every saved report — same per-row icons as the dashboard cards.")
+            HelpCard("Overview", "Dashboard for everything to do with reports. New / Search / All live as icons in the bottom bar; list cards summarise what's already on disk."),
+            HelpCard("Bottom icons — 🆕 / 🔍 / 🗂️", "🆕 New opens the creation entry points (blank, previous prompt, example prompt). 🔍 Search opens Quick local, Extended local, Remote semantic, and — when Experimental features is on — Local semantic search. 🗂️ All opens the paginated swipe-through of every saved report."),
+            HelpCard("Pinned / Latest", "Two list cards (📌 Pinned mirrors every report flagged on Manage; 🕘 Latest shows the five newest), each up to five rows. There's no separate Running or Problems card — instead a row flags its own state (see Per-row icons). An empty card stays on screen at reduced opacity so the layout doesn't shift."),
+            HelpCard("Per-row icons", "A row's leading icon is the report's own — UNLESS it's still running (a spinning ⏳ hourglass) or has broken work (⚠️, also listed on the Broken-work screen), which replace it. Tap a row to open at Manage; 🔧 jumps to Manage explicitly, 👁 opens the View tile grid, 🗑 prompts a delete confirmation.")
         )
     ),
     "new_ai_report_screen" to HelpContent(
