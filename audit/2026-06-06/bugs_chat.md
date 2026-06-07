@@ -519,7 +519,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The "Response" search scans every agent's `responseBody` (potentially MB each) across the whole history on each (debounced) keystroke.
 **Root cause:** Full-text scan over all reports; debounced + off-main but still O(total response bytes) per query.
 **Proposed fix:** Acceptable with the debounce; consider an index if histories grow large.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — History now builds a background search index once per loaded report list, including a response trigram map; response queries of three or more characters intersect candidate report ids before verifying substrings, avoiding a full response-body sweep on every keystroke.
 
 ---
 
