@@ -492,7 +492,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Root cause:** Groups are built per distinct `(targetKind, targetId)`, but `noteTargetLabel` returns non-unique labels for distinct targets — e.g. two RERANK secondaries both → "Rerank", two COMPARE on the same model → "Compare · X", or (very common) two deleted targets both → "Deleted item". Each group emits `item(key = "h:<label>")`, so two same-labelled groups produce duplicate LazyColumn keys, which Compose rejects at composition.
 **Reproduction:** Add a note to two different rerank rows (or annotate two secondaries then delete both targets), open the report's User notes screen — it crashes.
 **Proposed fix:** Make the header key unique by group identity, not label — e.g. `key = "h:${group.targetKind}:${group.targetId}"` (carry the keying pair on `Group`), or append the group index.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — header key now uses group target identity (targetKind:targetId), not the non-unique label
 
 ### Bug 60 — Severity: LOW — Category: repeated full-report disk read
 **Location:** UserNotes.kt:148-160 (`ViewUserNotes` `produceState(... ReportDataVersion ...)`)
