@@ -41,6 +41,7 @@ import com.ai.viewmodel.ChatViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val DUAL_PREFS = "dual_chat_prefs"
@@ -169,10 +170,10 @@ fun DualChatSetupScreen(
     var model2Name by remember { mutableStateOf(prefs.getString(KEY_M2_NAME, "") ?: "") }
     var model2ParamsIds by remember { mutableStateOf(loadStringList(prefs, KEY_M2_PARAMS)) }
     var model2SystemPromptId by remember { mutableStateOf<String?>(prefs.getString(KEY_M2_SYSTEM, null)) }
-    var subject by remember { mutableStateOf(prefs.getString(KEY_SUBJECT, "") ?: "") }
-    var interactionCount by remember { mutableStateOf(prefs.getString(KEY_INTERACTIONS, "10") ?: "10") }
-    var firstPrompt by remember { mutableStateOf(prefs.getString(KEY_FIRST_PROMPT, "Let's talk about %subject%") ?: "Let's talk about %subject%") }
-    var secondPrompt by remember { mutableStateOf(prefs.getString(KEY_SECOND_PROMPT, "What do you think about: %answer%") ?: "What do you think about: %answer%") }
+    var subject by rememberSaveable { mutableStateOf(prefs.getString(KEY_SUBJECT, "") ?: "") }
+    var interactionCount by rememberSaveable { mutableStateOf(prefs.getString(KEY_INTERACTIONS, "10") ?: "10") }
+    var firstPrompt by rememberSaveable { mutableStateOf(prefs.getString(KEY_FIRST_PROMPT, "Let's talk about %subject%") ?: "Let's talk about %subject%") }
+    var secondPrompt by rememberSaveable { mutableStateOf(prefs.getString(KEY_SECOND_PROMPT, "What do you think about: %answer%") ?: "What do you think about: %answer%") }
     var overlayMode by remember { mutableIntStateOf(0) } // 0=none, 1=select m1 provider, 2=select m1 model, 3=select m2 provider, 4=select m2 model
 
     fun savePrefs() {
@@ -197,6 +198,14 @@ fun DualChatSetupScreen(
     }
 
     DisposableEffect(Unit) { onDispose { savePrefs() } }
+    LaunchedEffect(
+        model1Provider?.id, model1Name, model1ParamsIds, model1SystemPromptId,
+        model2Provider?.id, model2Name, model2ParamsIds, model2SystemPromptId,
+        subject, interactionCount, firstPrompt, secondPrompt
+    ) {
+        delay(350)
+        savePrefs()
+    }
 
     // Full-screen overlays for model selection
     when (overlayMode) {

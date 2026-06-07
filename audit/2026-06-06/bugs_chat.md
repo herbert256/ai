@@ -237,7 +237,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Dual-chat setup field edits are only flushed to prefs on dispose (or on Go). A process kill while the setup screen is foreground loses in-progress edits to subject / prompts / rounds.
 **Root cause:** No incremental save; only `onDispose` and the Go handler call `savePrefs()`.
 **Proposed fix:** Use `rememberSaveable` for the setup fields, or save on change (debounced).
-**Status:** Open
+**Status:** Fixed — dual-chat setup text fields are now `rememberSaveable`, and all setup state is flushed through the existing single-editor `savePrefs()` on a 350 ms debounced `LaunchedEffect` whenever model, parameter, system-prompt, subject, prompt, or round-count state changes.
 
 ---
 
