@@ -412,7 +412,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The in-app content renderer doesn't handle inline code (`` `x` ``) or fenced code blocks at all, so report bodies show literal backticks in-app while the HTML export (`convertMarkdownToHtmlForExport`) renders them as `<code>`/`<pre>`. Same content reads differently in-app vs exported.
 **Root cause:** `convertMarkdownToSimpleHtml` omits the code-fence / inline-code passes that the export converter has.
 **Proposed fix:** Add inline-code / code-fence handling to the in-app converter (or render code spans monospace in `parseHtmlToAnnotatedString`).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — in-app report markdown now extracts fenced and inline code before formatting and renders code spans monospace
 
 ### Bug 51 — Severity: LOW — Category: double-unescape of user-typed entities
 **Location:** ThinkSectionContent.kt:201-206 (`parseHtmlToAnnotatedString` un-escapes `&amp;`/`&lt;`/`&gt;` before parsing)
