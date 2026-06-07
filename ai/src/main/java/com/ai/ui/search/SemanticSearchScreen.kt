@@ -259,7 +259,7 @@ private suspend fun runEmbeddingSearch(
         val rep = "${r.title}\n${r.prompt}\n${r.agents.firstOrNull { !it.responseBody.isNullOrBlank() }?.responseBody?.take(2000) ?: ""}"
         val title = r.title.ifBlank { "(untitled)" }
         val ts = df.format(Date(r.timestamp))
-        val existing = EmbeddingsStore.get(context, r.id, service.id, model, rep)
+        val existing = EmbeddingsStore.get(context, r.id, service.id, model, rep, expectedDim = queryVec.size)
         if (existing != null) cached += CloudCachedCandidate(r.id, existing, title, ts)
         else toEmbed += CloudEmbedCandidate(r.id, rep, title, ts)
     }

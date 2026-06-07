@@ -588,7 +588,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** If a cached report embedding was produced by a model that was later replaced by a different model of the *same name* but a different output dimension, every cached report silently scores 0.0 (cosine returns 0 on dim mismatch) and vanishes from results with no surfaced reason.
 **Root cause:** The embeddings cache key is `(docId, providerId, model, contentHash)` — it doesn't capture the embedding dimension, so a same-name/different-dim swap isn't detected; `cosine` then returns 0.0 (graceful, but invisible).
 **Proposed fix:** Include the embedding dim in the cache key or invalidate on dim change; surface a "re-index needed" hint.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — semantic-search cache reads now pass the current query-vector dimension into `EmbeddingsStore`; mismatched cached vectors are logged, deleted, and treated as cache misses so the report is re-embedded instead of silently disappearing from results.
 
 ### Bug 73 — Severity: LOW — Category: knowledge attach visibility
 **Location:** ChatScreens.kt:690-698 (KB chip gated on `experimentalFeatures`)

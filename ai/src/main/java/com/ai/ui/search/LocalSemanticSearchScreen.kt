@@ -227,7 +227,7 @@ private suspend fun runLocalEmbedSearch(
         val rep = "${r.title}\n${r.prompt}\n${r.agents.firstOrNull { !it.responseBody.isNullOrBlank() }?.responseBody?.take(2000) ?: ""}"
         val title = r.title.ifBlank { "(untitled)" }
         val ts = df.format(Date(r.timestamp))
-        val existing = EmbeddingsStore.get(context, r.id, providerKey, modelName, rep)
+        val existing = EmbeddingsStore.get(context, r.id, providerKey, modelName, rep, expectedDim = queryVec.size)
         if (existing != null) cached += CachedCandidate(r.id, existing, title, ts)
         else toEmbed += EmbedCandidate(r.id, rep, title, ts)
     }

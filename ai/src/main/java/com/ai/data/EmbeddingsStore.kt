@@ -42,17 +42,38 @@ object EmbeddingsStore {
     private fun fileFor(filesDir: File, docId: String, providerId: String, model: String, content: String): File =
         File(dir(filesDir), "${cacheKey(docId, providerId, model, content)}.json")
 
-    fun get(context: Context, docId: String, providerId: String, model: String, content: String): List<Double>? {
-        return get(context.filesDir, docId, providerId, model, content)
+    fun get(
+        context: Context,
+        docId: String,
+        providerId: String,
+        model: String,
+        content: String,
+        expectedDim: Int? = null
+    ): List<Double>? {
+        return get(context.filesDir, docId, providerId, model, content, expectedDim)
     }
 
-    internal fun get(filesDir: File, docId: String, providerId: String, model: String, content: String): List<Double>? {
+    internal fun get(
+        filesDir: File,
+        docId: String,
+        providerId: String,
+        model: String,
+        content: String,
+        expectedDim: Int? = null
+    ): List<Double>? {
         val f = fileFor(filesDir, docId, providerId, model, content)
         if (!f.exists()) return null
         return try {
             val vector = gson.fromJson<List<Double>>(f.readText(), type)
             if (vector.isNullOrEmpty()) {
                 AppLog.w("EmbeddingsStore", "get($docId, $providerId, $model) ignored empty cached vector")
+                null
+            } else if (expectedDim != null && vector.size != expectedDim) {
+                AppLog.w(
+                    "EmbeddingsStore",
+                    "get($docId, $providerId, $model) invalidated dim ${vector.size} cached vector; expected $expectedDim"
+                )
+                f.delete()
                 null
             } else {
                 vector
