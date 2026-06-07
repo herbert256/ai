@@ -65,7 +65,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Root cause:** The adapter `throw`s `JsonParseException("Unknown AppService: $id")` for any id not in `ProviderRegistry` (and not `LOCAL`). There is no fall-back to a tombstone/placeholder provider, so the whole containing object is unparseable.
 **Reproduction:** Create a custom provider, start a chat with it, rename the provider id in Provider Setup, reopen the AI Chat hub — the prior session is gone from history.
 **Proposed fix:** On an unknown id, deserialize to a synthetic "unknown/disabled" `AppService` carrying the original id (so the row still loads, shows as unavailable) instead of throwing.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - unknown provider id deserializes to a synthetic AppService (carrying the id) instead of throwing, so the embedding object still loads
 
 ### Bug 9 — Severity: LOW — Category: serialization fragility
 **Location:** AppService.kt:251-253 (`AppServiceAdapter.serialize`)

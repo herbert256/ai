@@ -246,7 +246,15 @@ class AppServiceAdapter : JsonDeserializer<AppService>, JsonSerializer<AppServic
         // sentinel resolves — a chat session whose provider is Local
         // would otherwise fail to deserialize and silently disappear
         // from history (ProviderRegistry doesn't know about LOCAL).
-        return AppService.findById(id) ?: throw JsonParseException("Unknown AppService: $id")
+        // An id NOT in the registry (a removed / renamed custom provider)
+        // resolves to a synthetic "unknown" AppService carrying the original id
+        // — so the embedding object (chat session, agent, swarm member,
+        // dual-chat config) still loads and shows the provider as unavailable,
+        // instead of the whole object silently vanishing on a throw.
+        return AppService.findById(id) ?: AppService(
+            id = id, baseUrl = "", adminUrl = "", defaultModel = "",
+            apiFormat = ApiFormat.OPENAI_COMPATIBLE
+        )
     }
     override fun serialize(src: AppService?, typeOfSrc: Type?, context: JsonSerializationContext?): JsonElement {
         return JsonPrimitive(src?.id ?: "")

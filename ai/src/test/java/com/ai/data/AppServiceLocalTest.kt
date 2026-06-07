@@ -25,4 +25,11 @@ class AppServiceLocalTest {
         val back = gson.fromJson(gson.toJson(AppService.LOCAL, AppService::class.java), AppService::class.java)
         assertThat(back).isEqualTo(AppService.LOCAL)
     }
+
+    @Test fun unknown_provider_id_deserializes_to_a_synthetic_not_a_throw() {
+        // A removed/renamed custom provider id must not blow up the whole
+        // embedding object — it resolves to a synthetic AppService with the id.
+        val svc = createAppGson().fromJson("\"REMOVED_PROVIDER_X\"", AppService::class.java)
+        assertThat(svc.id).isEqualTo("REMOVED_PROVIDER_X")
+    }
 }
