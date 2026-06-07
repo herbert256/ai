@@ -166,6 +166,74 @@ class BrokenWorkPolicyTest {
         ).containsExactly("marked")
     }
 
+    @Test
+    fun errored_compare_cell_is_reported_as_an_error_not_unfinished() {
+        val row = row(
+            id = "c", kind = SecondaryKind.COMPARE, timestamp = 0, content = null,
+            errorMessage = "boom", durationMs = 0, compareRunId = REPORT_ID
+        )
+        val b = BrokenWorkPolicy.detectBatches(
+            REPORT_ID, "Report", 10, listOf(row), BrokenWorkLiveState(nowMs = OLD_ENOUGH)
+        ).single { it.kind == BatchFamilyKind.COMPARE }
+        assertThat(b.errorCount).isEqualTo(1)
+        assertThat(b.unfinishedCount).isEqualTo(0)
+    }
+
+    @Test
+    fun in_flight_row_is_not_reported() {
+        val row = row(id = "c", kind = SecondaryKind.COMPARE, timestamp = 0, content = null, compareRunId = REPORT_ID)
+        val batches = BrokenWorkPolicy.detectBatches(
+            REPORT_ID, "Report", 10, listOf(row),
+            BrokenWorkLiveState(nowMs = OLD_ENOUGH, inFlightRowIds = setOf("c"))
+        )
+        assertThat(batches).isEmpty()
+    }
+
+    @Test
+    fun tournament_match_error_is_reported() {
+        val row = row(
+            id = "t", kind = SecondaryKind.TOURNAMENT, timestamp = 0, content = null,
+            errorMessage = "lost", durationMs = 0, tournamentRole = "MATCH"
+        )
+        val b = BrokenWorkPolicy.detectBatches(
+            REPORT_ID, "Report", 10, listOf(row), BrokenWorkLiveState(nowMs = OLD_ENOUGH)
+        ).single()
+        assertThat(b.kind).isEqualTo(BatchFamilyKind.TOURNAMENT)
+        assertThat(b.errorCount).isEqualTo(1)
+    }
+
+    @Test
+    fun translation_run_unfinished_then_suppressed_when_active() {
+        val row = row(
+            id = "tr", kind = SecondaryKind.TRANSLATE, timestamp = 0, content = null,
+            translationRunId = "run-x", targetLanguage = "French"
+        )
+        val reported = BrokenWorkPolicy.detectBatches(
+            REPORT_ID, "Report", 10, listOf(row), BrokenWorkLiveState(nowMs = OLD_ENOUGH)
+        ).single()
+        assertThat(reported.kind).isEqualTo(BatchFamilyKind.TRANSLATION)
+        assertThat(reported.unfinishedCount).isEqualTo(1)
+
+        val active = BrokenWorkPolicy.detectBatches(
+            REPORT_ID, "Report", 10, listOf(row),
+            BrokenWorkLiveState(nowMs = OLD_ENOUGH, activeTranslationRunIds = setOf("run-x"))
+        )
+        assertThat(active).isEmpty()
+    }
+
+    @Test
+    fun standalone_rerank_error_falls_into_the_other_family() {
+        val row = row(
+            id = "rr", kind = SecondaryKind.RERANK, timestamp = 0, content = null,
+            errorMessage = "nope", durationMs = 0
+        )
+        val b = BrokenWorkPolicy.detectBatches(
+            REPORT_ID, "Report", 10, listOf(row), BrokenWorkLiveState(nowMs = OLD_ENOUGH)
+        ).single()
+        assertThat(b.kind).isEqualTo(BatchFamilyKind.OTHER)
+        assertThat(b.errorCount).isEqualTo(1)
+    }
+
     private fun fanOutRow(
         id: String,
         timestamp: Long,
@@ -196,7 +264,10 @@ class BrokenWorkPolicyTest {
         fanOutSourceAgentId: String? = null,
         titleRunId: String? = null,
         iconRunId: String? = null,
-        compareRunId: String? = null
+        compareRunId: String? = null,
+        tournamentRole: String? = null,
+        translationRunId: String? = null,
+        targetLanguage: String? = null
     ) = SecondaryResult(
         id = id,
         reportId = REPORT_ID,
@@ -213,7 +284,10 @@ class BrokenWorkPolicyTest {
         fanOutSourceAgentId = fanOutSourceAgentId,
         titleRunId = titleRunId,
         iconRunId = iconRunId,
-        compareRunId = compareRunId
+        compareRunId = compareRunId,
+        tournamentRole = tournamentRole,
+        translationRunId = translationRunId,
+        targetLanguage = targetLanguage
     )
 
     private companion object {
