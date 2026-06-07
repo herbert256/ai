@@ -216,6 +216,7 @@ object KnowledgeService {
         maxContextChars: Int = 8000
     ): List<Hit> {
         if (kbIds.isEmpty() || query.isBlank()) return emptyList()
+        if (topK <= 0) return emptyList()
         val kbs = kbIds.mapNotNull { KnowledgeStore.loadKnowledgeBase(context, it) }
         if (kbs.isEmpty()) return emptyList()
         val first = kbs.first()

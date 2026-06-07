@@ -552,7 +552,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** With `topK == 0` (`cap == 0`), the `heap.size < cap` branch is never taken, so every candidate hits `else if (sim > heap.peek()!!.score)` with an empty heap → `peek()` returns null → NPE inside `forEachChunk`'s block (caught per Bug 68, so the source is silently dropped).
 **Root cause:** No guard for `topK <= 0`.
 **Proposed fix:** Coerce `topK`/`cap` to at least 1, or early-return for `topK <= 0`.
-**Status:** Open (unconfirmed; default topK=8, but callers may pass a setting)
+**Status:** Fixed (2026-06-07) — retrieval now returns empty immediately for `topK <= 0`, before embedding or heap construction
 
 ### Bug 72 — Severity: LOW — Category: locale-sensitive log formatting
 **Location:** KnowledgeService.kt:306, 312 (`"%.3f".format(...)`)
