@@ -77,7 +77,11 @@ internal fun parseLiteLLMJson(json: String): Pair<Map<String, PricingCache.Model
  *  models bill per query and are accepted even when both per-token
  *  fields are absent or zero. */
 private fun liteLLMEntry(modelId: String, info: Map<String, Any>): Pair<String, PricingCache.ModelPricing>? {
-    fun n(key: String) = (info[key] as? Number)?.toDouble()
+    fun n(key: String) = when (val value = info[key]) {
+        is Number -> value.toDouble()
+        is String -> value.trim().toDoubleOrNull()
+        else -> null
+    }
     val ic = n("input_cost_per_token")
     val oc = n("output_cost_per_token")
     val perQuery = n("input_cost_per_query") ?: 0.0

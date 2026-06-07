@@ -659,4 +659,4 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Pricing fields are read as `Number` (Gson parses JSON numbers to Double) — safe for well-formed catalogs. But catalogs that ship prices as *strings* (OpenRouter's `OpenRouterPricing` uses String fields elsewhere) would yield null here, silently zeroing that tier's price for the affected models.
 **Root cause:** `as? Number` returns null for a stringified number; no `toDoubleOrNull()` fallback for string-typed values.
 **Proposed fix:** Fall back to `(info[key] as? String)?.toDoubleOrNull()` when the value is a numeric string.
-**Status:** Open (low likelihood per this parser's source shape)
+**Status:** Fixed in `PricingParsers.kt` by accepting numeric strings for LiteLLM pricing fields.
