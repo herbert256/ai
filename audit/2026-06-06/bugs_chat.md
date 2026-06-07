@@ -280,7 +280,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Rotation resets the "older than (days)" field back to 30.
 **Root cause:** Plain `remember`.
 **Proposed fix:** `rememberSaveable`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the days field now uses `rememberSaveable`, so rotation preserves the typed value
 
 ---
 

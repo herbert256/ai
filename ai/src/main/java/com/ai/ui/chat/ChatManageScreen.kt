@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -45,7 +46,7 @@ fun ChatManageScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var daysText by remember { mutableStateOf("30") }
+    var daysText by rememberSaveable { mutableStateOf("30") }
     var status by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
