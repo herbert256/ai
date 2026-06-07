@@ -44,7 +44,7 @@ class TracingInterceptor : Interceptor {
         val timestamp = System.currentTimeMillis()
         val hostname = request.url.host
         val rawRequestBody = request.body?.let { body ->
-            try { val buffer = Buffer(); body.writeTo(buffer); buffer.readUtf8() } catch (_: Exception) { null }
+            try { readBodyWithCap(body) } catch (_: Exception) { null }
         }
         val requestHeaders = headersToMap(request.headers)
         val traceRequest = TraceRequest(redactUrl(request.url.toString()), request.method, requestHeaders, redactBody(rawRequestBody))
@@ -227,6 +227,33 @@ class TracingInterceptor : Interceptor {
 
     /** Class-local alias for the shared [extractApiErrorMessage]. */
     private fun extractErrorMessage(body: String?): String = extractApiErrorMessage(body)
+
+    private fun readBodyWithCap(body: okhttp3.RequestBody): String {
+        val captured = Buffer()
+        var totalBytes = 0L
+        val sink = object : okio.Sink {
+            override fun write(source: Buffer, byteCount: Long) {
+                val remaining = BODY_CAP_BYTES - captured.size
+                if (remaining > 0) {
+                    source.copyTo(captured, 0, minOf(byteCount, remaining))
+                }
+                source.skip(byteCount)
+                totalBytes += byteCount
+            }
+
+            override fun flush() = Unit
+            override fun close() = Unit
+            override fun timeout(): okio.Timeout = okio.Timeout.NONE
+        }.buffer()
+        body.writeTo(sink)
+        sink.flush()
+        val text = captured.readUtf8()
+        return if (totalBytes > BODY_CAP_BYTES) {
+            "$text\n…[trace truncated at ${BODY_CAP_BYTES / (1024 * 1024)} MiB]"
+        } else {
+            text
+        }
+    }
 
     private fun headersToMap(headers: Headers): Map<String, String> {
         val map = mutableMapOf<String, String>()

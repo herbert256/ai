@@ -187,7 +187,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The request body is captured in full (`buffer.readUtf8()`) with no size cap, unlike the response body which is capped at 8 MiB (lines 37, 144-145). A vision request with a multi-MB base64 image produces a multi-MB trace file on disk that also enters the backup zip.
 **Root cause:** No cap on the request side.
 **Proposed fix:** Apply the same `BODY_CAP_BYTES` truncation to the captured request body.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — request-body trace capture now writes through a capped sink and appends the same 8 MiB truncation marker used for responses
 
 ### Bug 25 — Severity: LOW — Category: redaction false-positive
 **Location:** TracingInterceptor.kt:300-301 (`BODY_KEY_FIELD_REGEX`)
