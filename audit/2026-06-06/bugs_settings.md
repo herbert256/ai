@@ -361,7 +361,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** `internalTotal` sums categories `meta + meta_compare + fan_out + fan_in + internal + workers + alt`. The InternalPrompt CRUD docs reference `icons` and `info` categories; if any prompts carry those categories they're neither counted in the badge nor reachable from any hub card.
 **Root cause:** The category set on the hub/count diverges from the categories that can exist in `internalPrompts`.
 **Proposed fix:** Confirm `icons`/`info` are folded into `internal`; if they can still exist, count and surface them (or migrate them).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — prompt-management counts now include `icons`/`info`, the internal-prompts hub exposes both categories, and fixed-list gating recognizes them.
 
 ---
 
