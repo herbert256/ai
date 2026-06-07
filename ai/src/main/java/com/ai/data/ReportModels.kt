@@ -13,6 +13,7 @@ const val RESPONSE_CHANGE_SOURCE_TEMPERATURE = "Temperature"
 const val RESPONSE_CHANGE_SOURCE_REASONING_EFFORT = "Reasoning Effort"
 const val RESPONSE_CHANGE_SOURCE_WEB_SEARCH = "Web Search"
 const val RESPONSE_CHANGE_SOURCE_EDIT = "Edit"
+const val RESPONSE_CHANGE_SOURCE_MODEL_SWITCH = "Model switch"
 
 data class ReportAgent(
     val agentId: String,

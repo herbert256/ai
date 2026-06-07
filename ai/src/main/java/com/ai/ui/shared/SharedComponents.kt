@@ -709,6 +709,9 @@ val LocalJudgeEvalEngine = compositionLocalOf<com.ai.viewmodel.JudgeEvalEngine?>
  *  screen — lets [MetaDetailScreen] reach the per-report
  *  [com.ai.viewmodel.MetaEditManager] without threading ~15 callbacks. */
 val LocalMetaEditManager = compositionLocalOf<com.ai.viewmodel.MetaEditManager?> { null }
+/** Per-report "Switch model / agent" preview+apply for any secondary kind,
+ *  surfaced from each detail screen's Change-result action. */
+val LocalSecondaryModelSwitch = compositionLocalOf<com.ai.viewmodel.SecondaryModelSwitchManager?> { null }
 
 /** Shared "Judge-the-judges L1 is open for reportId X" state slot. */
 val LocalJudgeEvalOpenState =

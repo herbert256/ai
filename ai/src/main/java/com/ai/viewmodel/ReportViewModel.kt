@@ -315,6 +315,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  surfaced by the dedicated Meta detail screen. See [MetaEditManager]. */
     val metaEditManager: MetaEditManager = MetaEditManager(appViewModel, this)
 
+    /** "Switch model / agent" preview+apply for any secondary result
+     *  (Meta / Fan-in / Rerank / Moderation). See [SecondaryModelSwitchManager]. */
+    val secondaryModelSwitch: SecondaryModelSwitchManager = SecondaryModelSwitchManager(appViewModel, this)
+
     /** Per-report orchestrator for the "Regenerate report" batch
      *  job. Replaces the legacy one-shot [regenerateReport] call —
      *  the title-bar 🔁 icon's confirm dialog now calls
@@ -2504,6 +2508,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         compareEngine.cancelAllForReport(reportId)
         // Plain-meta edit sweeps / replays (MetaDetailScreen ✏️) likewise.
         metaEditManager.cancelAllForReport(reportId)
+        // "Switch model / agent" preview candidates for any secondary kind.
+        secondaryModelSwitch.cancelAllForReport(reportId)
         // Translation runs + the regenerate-batch orchestrator are also
         // report-owned and were NOT cancelled here — a translation
         // completing after the delete writes via SecondaryResultStorage
