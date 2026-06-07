@@ -304,7 +304,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Integer division truncates sizes: a 0.9 MB cache shows "0 MB", 1.9 MB shows "1 MB". Sub-KB shows raw bytes, so the rounding is inconsistent across the screen.
 **Root cause:** `bytes / (1024*1024)` integer math with no decimal.
 **Proposed fix:** Format with one decimal (`%.1f`, Locale.US) like UpdateFromCloudScreen does.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — cache sizes now use one-decimal `Locale.US` KB/MB formatting
 
 ### Bug 32 — Severity: LOW — Category: stale UI
 **Location:** CachesScreen.kt:267-269 (`CachesHubScreen` `produceState(..., registry)`)
