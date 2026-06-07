@@ -359,15 +359,15 @@ fun AppNavHost(
     val modelSectionRoutes = setOf(NavRoutes.AI_MODEL_INFO, NavRoutes.AI_MANUAL_OVERRIDE_ADD)
     val knowledgeSectionRoutes = setOf(NavRoutes.AI_KNOWLEDGE_NEW, NavRoutes.AI_KNOWLEDGE_DETAIL)
     // One-off screens with no section hub — show a fitting local glyph
-    // whose tap goes Home. About uses the same ℹ️ it has on the home page.
+    // whose tap goes Home. About is intentionally absent so it falls back to
+    // the AI logo flanking its title (both ends), not a section glyph.
     val homeIconByRoute: Map<String, String> = mapOf(
         NavRoutes.AI_COST_CONFIG to com.ai.data.MetadataIconsHolder.current.dollar,
         NavRoutes.AI_MANUAL_COST_OVERRIDE_ADD to com.ai.data.MetadataIconsHolder.current.dollar,
         NavRoutes.AI_API_TEST to com.ai.data.MetadataIconsHolder.current.test,
         NavRoutes.AI_API_TEST_EDIT to com.ai.data.MetadataIconsHolder.current.test,
         NavRoutes.DOCUMENTATION to com.ai.data.MetadataIconsHolder.current.book,
-        NavRoutes.DOCUMENTATION_MANUAL to com.ai.data.MetadataIconsHolder.current.book,
-        NavRoutes.ABOUT to com.ai.data.MetadataIconsHolder.current.info
+        NavRoutes.DOCUMENTATION_MANUAL to com.ai.data.MetadataIconsHolder.current.book
     )
     val reportDefaultIcon = rootUiStateForLayout.generalSettings.metadataIcons.reportIcon
     val sectionTopIcon: com.ai.ui.shared.TopBarLeftIcon? = when {
@@ -438,8 +438,10 @@ fun AppNavHost(
     // Current route — drives the Home-bar-mode title-bar tweaks (hide both
     // end icons on Help + About) and the bottom-bar copy/share suppression.
     val currentRouteForBars = navController.currentBackStackEntryAsState().value?.destination?.route
+    // About keeps its flanking AI-logo end icons even in Home bar mode (so the
+    // title sits at the same height as other screens); only Help suppresses them.
     val suppressTitleBarEndIcons = homeBarEnabled && currentRouteForBars in setOf(
-        NavRoutes.HELP, NavRoutes.HELP_FOR_TOPIC, NavRoutes.ABOUT
+        NavRoutes.HELP, NavRoutes.HELP_FOR_TOPIC
     )
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalBrokenWork provides brokenWorkBadge,
