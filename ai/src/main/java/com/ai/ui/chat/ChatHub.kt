@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ChatHistoryManager
+import com.ai.data.ChatSessionHeader
 import com.ai.data.MetadataDefaults
 import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
@@ -61,12 +62,10 @@ fun ChatsHubScreen(
         }
     }
     val historyVersion by ChatHistoryManager.historyVersion.collectAsState()
-    val hasChatHistory by produceState(initialValue = false, historyVersion) {
-        value = ChatHistoryManager.getSessionCountAsync() > 0
+    val allSessionsForHub by produceState<List<ChatSessionHeader>>(initialValue = emptyList(), historyVersion) {
+        value = ChatHistoryManager.getSessionHeadersAsync()
     }
-    val allSessionsForHub by produceState<List<com.ai.data.ChatSession>>(initialValue = emptyList(), historyVersion) {
-        value = ChatHistoryManager.getAllSessionsAsync().sortedByDescending { it.updatedAt }
-    }
+    val hasChatHistory = allSessionsForHub.isNotEmpty()
     val pinnedSessions = allSessionsForHub.filter { it.pinned }
     val recentSessions = allSessionsForHub.filter { !it.pinned }.take(3)
     // "Unfinished" chats — the user-visible last message is from the
@@ -75,8 +74,7 @@ fun ChatsHubScreen(
     // before the stream started, the cancellation re-throws before the
     // assistant message is appended.
     val unfinishedSessions = allSessionsForHub.filter { s ->
-        val lastUserVisible = s.messages.lastOrNull { it.role != "system" }
-        lastUserVisible?.role == "user"
+        s.lastVisibleRole == "user"
     }
     var photoError by remember { mutableStateOf<String?>(null) }
     val launchCamera = com.ai.ui.shared.rememberCameraCaptureLauncher(
@@ -92,7 +90,11 @@ fun ChatsHubScreen(
         if (unfinishedSessions.isNotEmpty()) {
             UnfinishedChatPill(
                 count = unfinishedSessions.size,
-                onResume = { onResumeSession(unfinishedSessions.first().id) }
+                actionLabel = if (unfinishedSessions.size == 1) "Resume" else "Choose",
+                onResume = {
+                    if (unfinishedSessions.size == 1) onResumeSession(unfinishedSessions.first().id)
+                    else onNavigateToChatHistory()
+                }
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -148,7 +150,7 @@ fun ChatsHubScreen(
  *  sections. Each row shows the first user message preview, provider /
  *  model, and updated timestamp; tap resumes that session. */
 @Composable
-private fun ChatListCard(title: String, icon: String?, sessions: List<com.ai.data.ChatSession>, onResume: (String) -> Unit) {
+private fun ChatListCard(title: String, icon: String?, sessions: List<ChatSessionHeader>, onResume: (String) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
@@ -213,7 +215,7 @@ private fun LocalLlmChatCard(installed: List<String>, onPick: (String) -> Unit) 
  *  response before it could be appended). Tap resumes the most recent
  *  such session so the user can continue from where they left off. */
 @Composable
-private fun UnfinishedChatPill(count: Int, onResume: () -> Unit) {
+private fun UnfinishedChatPill(count: Int, actionLabel: String, onResume: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onResume() },
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
@@ -227,7 +229,7 @@ private fun UnfinishedChatPill(count: Int, onResume: () -> Unit) {
             val label = if (count == 1) "1 chat awaiting reply" else "$count chats awaiting reply"
             Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
-            Text("Resume", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.Bold)
+            Text(actionLabel, fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.Bold)
         }
     }
 }

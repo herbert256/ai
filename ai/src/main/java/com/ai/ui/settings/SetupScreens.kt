@@ -362,6 +362,7 @@ fun PromptsSetupScreen(
         val internalTotal = countByCategory("meta") + countByCategory("meta_compare") +
             countByCategory("fan_out") +
             countByCategory("fan_in") +
+            countByCategory("icons") + countByCategory("info") +
             countByCategory("internal") + countByCategory("workers") + countByCategory("alt")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -406,6 +407,10 @@ fun InternalPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("meta_compare") })
             ModelsSetupNavCard(MetadataDefaults.SHUFFLE, "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs and combined reports", "$fanTotal",
                 onClick = onOpenFanInOutHub)
+            ModelsSetupNavCard(MetadataDefaults.REPORT_ICON, "Icon prompts", "Templates used by app-owned icon-generation flows", "${countByCategory("icons")}",
+                onClick = { onOpenInternalPrompts("icons") })
+            ModelsSetupNavCard(MetadataDefaults.INFO, "Info prompts", "Templates used by app-owned information lookups", "${countByCategory("info")}",
+                onClick = { onOpenInternalPrompts("info") })
             ModelsSetupNavCard(MetadataDefaults.TOOLBOX, "Other internal prompts", "Templates consumed by app features (Translate, Model info, Chat title, Rerank, Moderation)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
             ModelsSetupNavCard(MetadataDefaults.WORKER, "Worker prompts", "Prompts that run on an ordered worker fallback chain for app-owned jobs.", "${countByCategory("workers")}",

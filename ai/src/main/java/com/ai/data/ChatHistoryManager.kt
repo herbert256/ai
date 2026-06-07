@@ -1,6 +1,8 @@
 package com.ai.data
 
 import android.content.Context
+import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonToken
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,10 +23,13 @@ object ChatHistoryManager {
     private val _historyVersion = MutableStateFlow(0L)
     val historyVersion: StateFlow<Long> = _historyVersion.asStateFlow()
     @Volatile private var cachedSessions: List<ChatSession>? = null
+    @Volatile private var cachedHeaders: List<ChatSessionHeader>? = null
 
-    fun init(context: Context) = lock.withLock {
-        if (historyDir != null) return
-        historyDir = File(context.filesDir, HISTORY_DIR).also { if (!it.exists()) it.mkdirs() }
+    fun init(context: Context) {
+        lock.withLock {
+            if (historyDir != null) return
+            historyDir = File(context.filesDir, HISTORY_DIR).also { if (!it.exists()) it.mkdirs() }
+        }
     }
 
     fun saveSession(session: ChatSession): Boolean {
@@ -37,7 +42,8 @@ object ChatHistoryManager {
             AppLog.e("ChatHistory", "Refusing to save session with suspect id ${session.id}")
             return false
         }
-        return lock.withLock {
+        var notifyChanged = false
+        val saved = lock.withLock {
             if (!dir.exists()) dir.mkdirs()
             try {
                 val target = File(dir, "${session.id}.json")
@@ -56,13 +62,16 @@ object ChatHistoryManager {
                 if (ok) {
                     AppLog.d("ChatHistory", "save ${session.id} msgs=${session.messages.size} bytes=${json.length}")
                     cachedSessions = null
-                    notifyHistoryChanged()
+                    cachedHeaders = null
+                    notifyChanged = true
                 }
                 ok
             } catch (e: Exception) {
                 AppLog.e("ChatHistory", "Failed to save: ${e.message}"); false
             }
         }
+        if (notifyChanged) notifyHistoryChanged()
+        return saved
     }
 
     fun loadSession(sessionId: String): ChatSession? {
@@ -91,12 +100,37 @@ object ChatHistoryManager {
         if (!dir.exists()) return emptyList()
         return lock.withLock {
             cachedSessions?.let { return it }
+            var hadParseFailure = false
             val sessions = dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
                 try { file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) } }
-                catch (e: Exception) { AppLog.e("ChatHistory", "Failed to parse: ${e.message}"); null }
+                catch (e: Exception) {
+                    hadParseFailure = true
+                    AppLog.e("ChatHistory", "Failed to parse: ${e.message}")
+                    null
+                }
             }?.sortedByDescending { it.updatedAt } ?: emptyList()
-            cachedSessions = sessions
+            if (!hadParseFailure) cachedSessions = sessions
             sessions
+        }
+    }
+
+    fun getSessionHeaders(): List<ChatSessionHeader> {
+        cachedHeaders?.let { return it }
+        val dir = historyDir ?: return emptyList()
+        if (!dir.exists()) return emptyList()
+        return lock.withLock {
+            cachedHeaders?.let { return it }
+            var hadParseFailure = false
+            val headers = dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
+                readSessionHeader(file) ?: run {
+                    hadParseFailure = true
+                    null
+                }
+            }
+                ?.sortedByDescending { it.updatedAt }
+                ?: emptyList()
+            if (!hadParseFailure) cachedHeaders = headers
+            headers
         }
     }
 
@@ -114,7 +148,10 @@ object ChatHistoryManager {
             // don't deadlock if their callback re-enters this object.
             val deleted = lock.withLock {
                 val ok = File(dir, "$sessionId.json").delete()
-                if (ok) cachedSessions = null
+                if (ok) {
+                    cachedSessions = null
+                    cachedHeaders = null
+                }
                 ok
             }
             if (deleted) {
@@ -129,29 +166,41 @@ object ChatHistoryManager {
      *  as their own section on the AI Chat hub. Doesn't bump
      *  updatedAt — pinning is metadata, not activity. */
     fun setSessionPinned(sessionId: String, pinned: Boolean): Boolean {
+        return mutateSession(sessionId, "pin session") { it.copy(pinned = pinned) }
+    }
+
+    private fun mutateSession(
+        sessionId: String,
+        operation: String,
+        transform: (ChatSession) -> ChatSession
+    ): Boolean {
         val dir = historyDir ?: run { AppLog.w("ChatHistory", "Not initialized"); return false }
         if (!isSafeSessionFile(dir, sessionId)) {
-            AppLog.e("ChatHistory", "Refusing to pin session with unsafe id: $sessionId")
+            AppLog.e("ChatHistory", "Refusing to $operation with unsafe id: $sessionId")
             return false
         }
-        return lock.withLock {
+        var notifyChanged = false
+        val changed = lock.withLock {
             val file = File(dir, "$sessionId.json")
             if (!file.exists()) return@withLock false
             try {
                 val current = file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) }
                     ?: return@withLock false
-                val json = gson.toJson(current.copy(pinned = pinned))
+                val json = gson.toJson(transform(current))
                 val ok = file.writeTextAtomic(json)
                 if (ok) {
                     cachedSessions = null
-                    notifyHistoryChanged()
+                    cachedHeaders = null
+                    notifyChanged = true
                 }
                 ok
             } catch (e: Exception) {
-                AppLog.e("ChatHistory", "Failed to pin session: ${e.message}")
+                AppLog.e("ChatHistory", "Failed to $operation: ${e.message}")
                 false
             }
         }
+        if (notifyChanged) notifyHistoryChanged()
+        return changed
     }
 
     fun deleteAllSessions(): Int {
@@ -161,6 +210,7 @@ object ChatHistoryManager {
             var count = 0
             dir.listFiles { f -> f.extension == "json" }?.forEach { if (it.delete()) count++ }
             cachedSessions = null
+            cachedHeaders = null
             if (count > 0) notifyHistoryChanged()
             count
         }
@@ -189,10 +239,96 @@ object ChatHistoryManager {
     }
 
     suspend fun getAllSessionsAsync() = withContext(Dispatchers.IO) { getAllSessions() }
+    suspend fun getSessionHeadersAsync() = withContext(Dispatchers.IO) { getSessionHeaders() }
     suspend fun getSessionCountAsync() = withContext(Dispatchers.IO) { getSessionCount() }
 
     // Monotonic counter, not wall-clock (Bug 26): two mutations in the same
     // millisecond would set _historyVersion to an equal value and StateFlow
     // drops equal emissions, so a collector keyed on it could miss a refresh.
     private fun notifyHistoryChanged() { _historyVersion.update { it + 1 } }
+
+    private fun readSessionHeader(file: File): ChatSessionHeader? = try {
+        file.bufferedReader().use { reader ->
+            JsonReader(reader).use { json ->
+                var id = file.nameWithoutExtension
+                var title = ""
+                var pinned = false
+                var updatedAt = file.lastModified()
+                var preview: String? = null
+                var lastVisibleRole: String? = null
+                json.beginObject()
+                while (json.hasNext()) {
+                    when (json.nextName()) {
+                        "id" -> id = json.nextStringOrNull() ?: id
+                        "title" -> title = json.nextStringOrNull().orEmpty()
+                        "pinned" -> pinned = json.nextBooleanOrDefault(false)
+                        "updatedAt" -> updatedAt = json.nextLongOrDefault(updatedAt)
+                        "messages" -> {
+                            json.beginArray()
+                            while (json.hasNext()) {
+                                val message = json.readMessageHeader()
+                                val role = message.first
+                                val content = message.second
+                                if (role != null && role != "system") lastVisibleRole = role
+                                if (role == "user" && preview == null) preview = content.orEmpty().take(50)
+                            }
+                            json.endArray()
+                        }
+                        else -> json.skipValue()
+                    }
+                }
+                json.endObject()
+                ChatSessionHeader(
+                    id = id,
+                    title = title,
+                    preview = preview ?: "Empty chat",
+                    pinned = pinned,
+                    updatedAt = updatedAt,
+                    lastVisibleRole = lastVisibleRole
+                )
+            }
+        }
+    } catch (e: Exception) {
+        AppLog.e("ChatHistory", "Failed to parse header: ${e.message}")
+        null
+    }
+
+    private fun JsonReader.readMessageHeader(): Pair<String?, String?> {
+        var role: String? = null
+        var content: String? = null
+        beginObject()
+        while (hasNext()) {
+            when (nextName()) {
+                "role" -> role = nextStringOrNull()
+                "content" -> content = nextStringOrNull()
+                else -> skipValue()
+            }
+        }
+        endObject()
+        return role to content
+    }
+
+    private fun JsonReader.nextStringOrNull(): String? =
+        if (peek() == JsonToken.NULL) {
+            nextNull()
+            null
+        } else {
+            nextString()
+        }
+
+    private fun JsonReader.nextBooleanOrDefault(default: Boolean): Boolean =
+        if (peek() == JsonToken.NULL) {
+            nextNull()
+            default
+        } else {
+            nextBoolean()
+        }
+
+    private fun JsonReader.nextLongOrDefault(default: Long): Long =
+        if (peek() == JsonToken.NULL) {
+            nextNull()
+            default
+        } else {
+            nextLong()
+        }
 }

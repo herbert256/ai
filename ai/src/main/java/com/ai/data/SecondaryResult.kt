@@ -102,6 +102,7 @@ object SecondaryResultStorage {
             AppLog.e("SecondaryResultStorage", "Refusing to save result with suspect id ${result.id}")
             return result
         }
+        var saved = false
         lock.withLock {
             if (!ReportStorage.reportExists(context, result.reportId)) {
                 AppLog.w("SecondaryResultStorage", "Skipping save for deleted report ${result.reportId}")
@@ -113,7 +114,17 @@ object SecondaryResultStorage {
                 AppLog.e("SecondaryResultStorage", "Refusing to save result that escapes report dir: ${result.id}")
                 return result
             }
-            target.writeTextAtomic(gson.toJson(result))
+            if (!target.writeTextAtomic(gson.toJson(result))) {
+                AppLog.e("SecondaryResultStorage", "Failed to save result ${result.id}")
+                return result
+            }
+            if (!ReportStorage.reportExists(context, result.reportId)) {
+                target.delete()
+                if (dir.listFiles()?.isEmpty() == true) dir.delete()
+                AppLog.w("SecondaryResultStorage", "Removed late save for deleted report ${result.reportId}")
+                listCache[result.reportId]?.remove(target.name)
+                return result
+            }
             // Invalidate only this file's cache entry — other files in
             // the report directory stay cached, so the next
             // listForReport only re-parses what changed. Coarse-mtime
@@ -121,8 +132,9 @@ object SecondaryResultStorage {
             // can't bite here because the entry is removed BEFORE the
             // next listForReport re-reads it.
             listCache[result.reportId]?.remove(target.name)
+            saved = true
         }
-        SecondaryDataVersion.bump()
+        if (saved) SecondaryDataVersion.bump()
         return result
     }
 

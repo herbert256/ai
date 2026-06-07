@@ -108,10 +108,10 @@ fun BrokenWorkScreen(
             canDelete = !(v.first.kind == BatchFamilyKind.FAN_META && v.second == BrokenItemMode.UNFINISHED),
             busy = busy,
             onBack = { viewing = null },
-            onRestart = { if (!busy) { onRestart(v.first, v.second); viewing = null } },
-            onDelete = { if (!busy) { onDelete(v.first, v.second); viewing = null } },
-            onRestartItems = { ids -> if (!busy) { onRestartItems(v.first, v.second, ids); viewing = null } },
-            onDeleteItems = { ids -> if (!busy) { onDeleteItems(v.first, v.second, ids); viewing = null } },
+            onRestart = { if (!busy) onRestart(v.first, v.second) },
+            onDelete = { if (!busy) onDelete(v.first, v.second) },
+            onRestartItems = { ids -> if (!busy) onRestartItems(v.first, v.second, ids) },
+            onDeleteItems = { ids -> if (!busy) onDeleteItems(v.first, v.second, ids) },
         )
         return
     }
@@ -342,10 +342,12 @@ fun BrokenItemsScreen(
     BackHandler { onBack() }
     var rows by remember(batch, mode) { mutableStateOf<List<BrokenItemRow>?>(null) }
     var selectedIds by remember(batch, mode) { mutableStateOf<Set<String>>(emptySet()) }
-    LaunchedEffect(batch, mode) {
+    LaunchedEffect(batch, mode, busy) {
+        if (busy) return@LaunchedEffect
         val loaded = withContext(Dispatchers.IO) { loadItems(batch, mode) }
         rows = loaded
         selectedIds = selectedIds.intersect(loaded.map { it.id }.toSet())
+        if (loaded.isEmpty()) onBack()
     }
     var confirmDelete by remember { mutableStateOf(false) }
     val title = if (mode == BrokenItemMode.ERRORS) "Errors" else "Unfinished"

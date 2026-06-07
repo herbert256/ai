@@ -93,7 +93,7 @@ class RegenerateBatchEngine internal constructor(
      *  orchestrator is cancelled and replaced. */
     fun enqueueAndStart(context: Context, reportId: String) {
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
-            orchestratorJobs[reportId]?.cancel()
+            orchestratorJobs.remove(reportId)?.cancelAndJoin()
             val tasks = buildTaskList(context, reportId)
             val now = System.currentTimeMillis()
             // Start at the FIRST phase the enum declares — not a
@@ -357,7 +357,7 @@ class RegenerateBatchEngine internal constructor(
         while (true) {
             if (System.currentTimeMillis() - startedAt > timeoutMs) {
                 AppLog.w("RegenBatch", "phase $phase timed out for $reportId — pausing")
-                pauseOnError(context, reportId, rowIds.first(), "Phase timed out")
+                pauseOnError(context, reportId, timedOutRowId(context, reportId, phase, rowIds), "Phase timed out")
                 return PhaseOutcome.ERROR
             }
             val statuses = readRowStatuses(context, reportId, phase, rowIds)
@@ -397,6 +397,19 @@ class RegenerateBatchEngine internal constructor(
             if (allTerminal) return PhaseOutcome.SUCCESS
             delay(1500)
         }
+    }
+
+    private fun timedOutRowId(
+        context: Context,
+        reportId: String,
+        phase: RegeneratePhase,
+        fallbackRowIds: Set<String>
+    ): String {
+        val job = RegenerateBatchStorage.get(context, reportId)
+        return job?.tasks
+            ?.firstOrNull { it.phase == phase && it.state == RegenerateTaskState.RUNNING }
+            ?.rowId
+            ?: fallbackRowIds.first()
     }
 
     private sealed class RowStatus {

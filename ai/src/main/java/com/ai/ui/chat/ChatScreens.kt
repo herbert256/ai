@@ -266,9 +266,8 @@ fun ChatSessionScreen(
      *  values can be cleared from UiState. */
     onConsumeStarter: () -> Unit = {},
     /** Master experimental-features gate. When false the Knowledge
-     *  attach chip is hidden — KBs already attached to this session
-     *  still get sent at API time, so an existing chat that relied
-     *  on a KB keeps working invisibly. */
+     *  attach chip is hidden unless this session already has a KB
+     *  attached, so existing RAG context remains visible/removable. */
     experimentalFeatures: Boolean = false
 ) {
     // Outer BackHandler: only active when no overlay (moderation
@@ -343,6 +342,7 @@ fun ChatSessionScreen(
     // per turn via the pulldown next to the web-search chip.
     var reasoningEffort by remember { mutableStateOf(parameters.reasoningEffort ?: "") }
     var reasoningMenuExpanded by remember { mutableStateOf(false) }
+    var chipPersistencePrimed by remember(currentSessionId) { mutableStateOf(false) }
     // Clamp the persisted reasoning level against the active model's
     // supported set on first composition. A session resumed from a
     // model that supports `max` against a model that only supports
@@ -470,6 +470,16 @@ fun ChatSessionScreen(
         // system-prompt change / pin-or-KB toggle.
         val session = ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = persistedParams, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds, title = sessionTitle)
         scope.launch(Dispatchers.IO) { ChatHistoryManager.saveSession(session) }
+    }
+
+    LaunchedEffect(useWebSearch, reasoningEffort) {
+        if (!chipPersistencePrimed) {
+            chipPersistencePrimed = true
+            return@LaunchedEffect
+        }
+        if (messages.none { it.role == "user" }) return@LaunchedEffect
+        kotlinx.coroutines.delay(350)
+        saveSession(messages)
     }
 
     // System prompt initialization. Replace any existing system
@@ -718,7 +728,7 @@ fun ChatSessionScreen(
             // dialog over saved KBs. Shown only when at least one
             // KB exists. Per-turn injection happens in
             // ChatViewModel.{sendChatMessageStream,sendLocalLlmStream}.
-            if (experimentalFeatures && availableKbs.isNotEmpty()) {
+            if ((experimentalFeatures && availableKbs.isNotEmpty()) || attachedKnowledgeBaseIds.isNotEmpty()) {
                 val kbLabel = if (attachedKnowledgeBaseIds.isEmpty()) "${mi.library} Knowledge"
                     else "${mi.library} ${attachedKnowledgeBaseIds.size}"
                 Text(kbLabel, fontSize = 11.sp,
@@ -1137,8 +1147,9 @@ private fun StreamingMessageBubble(content: String) {
 
 @Composable
 private fun AnimatedTextLines(content: String) {
-    val lines = content.split("\n")
+    val lines = remember(content) { content.lineSequence().toList() }
     val targetLineCount = lines.size
+    val animateLines = targetLineCount <= 12
     var visibleLineCount by remember { mutableIntStateOf(0) }
 
     // Key on the line-count target, not on `content`: keying on content
@@ -1146,8 +1157,8 @@ private fun AnimatedTextLines(content: String) {
     // and oscillate. The target only grows during streaming, so the loop walks
     // monotonically up to it. Snap when there are too many lines to reveal
     // gracefully (a 100-line response used to take ~50s at the old cadence).
-    LaunchedEffect(targetLineCount) {
-        if (targetLineCount > 30) {
+    LaunchedEffect(targetLineCount, animateLines) {
+        if (!animateLines) {
             visibleLineCount = targetLineCount
             return@LaunchedEffect
         }
@@ -1159,8 +1170,13 @@ private fun AnimatedTextLines(content: String) {
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         lines.forEachIndexed { index, line ->
-            val targetAlpha = if (index < visibleLineCount) 1f else 0f
-            val alpha by animateFloatAsState(targetAlpha, animationSpec = tween(300))
+            val alpha = if (animateLines) {
+                val targetAlpha = if (index < visibleLineCount) 1f else 0f
+                val animatedAlpha by animateFloatAsState(targetAlpha, animationSpec = tween(300))
+                animatedAlpha
+            } else {
+                1f
+            }
             Text(line, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.alpha(alpha))
         }
     }

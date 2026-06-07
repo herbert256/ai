@@ -4,7 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -77,7 +77,7 @@ fun ExamplePromptPickerScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                items(sorted, key = { it.id }) { entry ->
+                itemsIndexed(sorted, key = { index, entry -> "${entry.id}:$index" }) { _, entry ->
                     Column(
                         modifier = Modifier.fillMaxWidth().clickable { onSelectEntry(entry) }
                             .padding(vertical = 10.dp, horizontal = 4.dp),
@@ -90,7 +90,7 @@ fun ExamplePromptPickerScreen(
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            entry.text.lineSequence().firstOrNull().orEmpty().take(120),
+                            examplePromptPreview(entry.text, search),
                             fontSize = 11.sp, color = AppColors.TextTertiary,
                             maxLines = 2, overflow = TextOverflow.Ellipsis
                         )
@@ -99,5 +99,25 @@ fun ExamplePromptPickerScreen(
                 }
             }
         }
+    }
+}
+
+private fun examplePromptPreview(text: String, search: String): String {
+    val compact = text
+        .lineSequence()
+        .joinToString(" ") { it.trim() }
+        .replace(Regex("\\s+"), " ")
+        .trim()
+    if (compact.isBlank()) return ""
+    val query = search.trim()
+    if (query.isBlank()) return compact.take(120)
+    val matchIndex = compact.indexOf(query, ignoreCase = true)
+    if (matchIndex < 0) return compact.take(120)
+    val start = (matchIndex - 60).coerceAtLeast(0)
+    val end = (matchIndex + query.length + 60).coerceAtMost(compact.length)
+    return buildString {
+        if (start > 0) append("... ")
+        append(compact.substring(start, end).trim())
+        if (end < compact.length) append(" ...")
     }
 }

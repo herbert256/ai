@@ -59,6 +59,8 @@ fun categoryDisplayName(category: String): String = when (category) {
     "meta_compare" -> "Compare prompts"
     "fan_out" -> "Fan-out prompts"
     "fan_in" -> "Fan-in prompts"
+    "icons" -> "Icon prompts"
+    "info" -> "Info prompts"
     "internal" -> "Other internal prompts"
     "workers" -> "Worker prompts"
     "alt" -> "Alternative prompts"
@@ -69,7 +71,8 @@ fun categoryDisplayName(category: String): String = when (category) {
  *  Delete). Single source of truth so the CRUD gating can't drift from the
  *  category definitions above. */
 fun isFixedListCategory(category: String): Boolean =
-    category == "internal" || category == "workers" || category == "alt"
+    category == "internal" || category == "icons" || category == "info" ||
+        category == "workers" || category == "alt"
 
 /** The "workers"-category prompt names that actually drive a covered kind, so
  *  the run-time Model-selection switch (*CONFIGURED / *SELECT) only shows where
@@ -154,7 +157,7 @@ fun InternalPromptEditScreen(
     // Either/or alternative to [agent]: pin a provider id + model. The
     // toggle starts in Provider+Model mode only when both were saved.
     var useProviderModel by remember(resetTick) {
-        mutableStateOf(!internalPrompt?.provider.isNullOrBlank() && !internalPrompt?.model.isNullOrBlank())
+        mutableStateOf(internalPrompt?.let { !it.provider.isNullOrBlank() && !it.model.isNullOrBlank() } ?: false)
     }
     var providerId by remember(resetTick) { mutableStateOf(internalPrompt?.provider ?: "") }
     var model by remember(resetTick) { mutableStateOf(internalPrompt?.model ?: "") }
@@ -299,7 +302,7 @@ fun InternalPromptEditScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors(),
                     enabled = !isFixedList,
                     isError = name.isNotBlank() && nameError != null,
-                    supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.DangerAccent) } } else null
+                    supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError, color = AppColors.DangerAccent) } } else null
                 )
                 OutlinedTextField(
                     value = title, onValueChange = { title = it },

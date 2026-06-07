@@ -239,8 +239,23 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ===== AI Settings =====
 
     fun loadSettings(): Settings {
-        return loadProviderSettings().copy(
-            agents = loadList(KEY_AI_AGENTS, TypeTokens.listAgentType),
+        val providerSettings = loadProviderSettings()
+        val rawAgents = loadList<Agent>(KEY_AI_AGENTS, TypeTokens.listAgentType)
+        val providersWithMigratedAgentKeys = rawAgents.fold(providerSettings.providers) { providers, agent ->
+            if (agent.apiKey.isBlank()) {
+                providers
+            } else {
+                val current = providers[agent.provider] ?: defaultProviderConfig(agent.provider)
+                if (current.apiKey.isBlank()) {
+                    providers + (agent.provider to current.copy(apiKey = agent.apiKey))
+                } else {
+                    providers
+                }
+            }
+        }
+        return providerSettings.copy(
+            providers = providersWithMigratedAgentKeys,
+            agents = scrubAgentApiKeys(rawAgents),
             flocks = loadList(KEY_AI_FLOCKS, TypeTokens.listFlockType),
             swarms = loadList(KEY_AI_SWARMS, TypeTokens.listSwarmType),
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
@@ -285,6 +300,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultMetaItems = loadList(KEY_AI_DEFAULT_META_ITEMS, TypeTokens.listDefaultMetaItemType)
         )
     }
+
+    private fun scrubAgentApiKeys(agents: List<Agent>): List<Agent> =
+        agents.map { agent -> if (agent.apiKey.isBlank()) agent else agent.copy(apiKey = "") }
 
     private fun loadProviderSettings(): Settings {
         val providers = AppService.entries.associateWith { service ->
@@ -347,11 +365,15 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun saveSettings(settings: Settings) {
+        val providerKeyFallbacks = settings.agents
+            .filter { it.apiKey.isNotBlank() }
+            .associate { it.provider to it.apiKey }
+        val agentsToStore = scrubAgentApiKeys(settings.agents)
         prefs.edit {
             for (service in AppService.entries) {
                 val key = service.id
                 val config = settings.providers[service] ?: defaultProviderConfig(service)
-                putString("${key}_api_key", config.apiKey)
+                putString("${key}_api_key", config.apiKey.ifBlank { providerKeyFallbacks[service].orEmpty() })
                 putString("${key}_manual_models", gson.toJson(config.models))
                 putString("${key}_model_types", gson.toJson(config.modelTypes))
                 // User-curated vision / web-search overrides + the per-fetch
@@ -377,7 +399,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 putString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
                 putString("${key}_system_prompt_id", config.systemPromptId)
             }
-            putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
+            putString(KEY_AI_AGENTS, gson.toJson(agentsToStore))
             putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
             putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
@@ -418,30 +440,51 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ===== Prompt History =====
 
     fun loadPromptHistory(): List<PromptHistoryEntry> {
+        promptHistoryCache?.let { return it }
+        return synchronized(promptHistoryLock) {
+            promptHistoryCache?.let { return@synchronized it }
+            readPromptHistoryFromDisk().also { promptHistoryCache = it }
+        }
+    }
+
+    private fun readPromptHistoryFromDisk(): List<PromptHistoryEntry> {
         val file = filesDir?.let { File(it, FILE_PROMPT_HISTORY) } ?: return emptyList()
         if (!file.exists()) return emptyList()
         return try { gson.fromJson(file.readText(), TypeTokens.listPromptHistoryType) ?: emptyList() } catch (_: Exception) { emptyList() }
     }
 
     fun savePromptToHistory(title: String, prompt: String) {
-        val history = loadPromptHistory().toMutableList()
-        history.indexOfFirst { it.title == title && it.prompt == prompt }.let { if (it >= 0) history.removeAt(it) }
-        history.add(0, PromptHistoryEntry(System.currentTimeMillis(), title, prompt))
-        savePromptHistoryList(history.take(MAX_PROMPT_HISTORY))
+        synchronized(promptHistoryLock) {
+            val history = (promptHistoryCache ?: readPromptHistoryFromDisk().also { promptHistoryCache = it }).toMutableList()
+            history.indexOfFirst { it.title == title && it.prompt == prompt }.let { if (it >= 0) history.removeAt(it) }
+            history.add(0, PromptHistoryEntry(System.currentTimeMillis(), title, prompt))
+            savePromptHistoryListLocked(history.take(MAX_PROMPT_HISTORY))
+        }
     }
 
     fun savePromptHistoryList(entries: List<PromptHistoryEntry>) {
+        synchronized(promptHistoryLock) {
+            savePromptHistoryListLocked(entries)
+        }
+    }
+
+    private fun savePromptHistoryListLocked(entries: List<PromptHistoryEntry>) {
         val file = filesDir?.let { File(it, FILE_PROMPT_HISTORY) } ?: return
-        file.writeTextAtomic(gson.toJson(entries))
+        val snapshot = entries.take(MAX_PROMPT_HISTORY)
+        file.writeTextAtomic(gson.toJson(snapshot))
+        promptHistoryCache = snapshot
     }
 
     /** Wipe the prompt-history file and return how many entries it
      *  held before the wipe. Callers that don't need the count can
      *  ignore the return value (Kotlin's standard discard rule). */
     fun clearPromptHistory(): Int {
-        val n = loadPromptHistory().size
-        filesDir?.let { File(it, FILE_PROMPT_HISTORY) }?.let { if (it.exists()) it.delete() }
-        return n
+        return synchronized(promptHistoryLock) {
+            val n = (promptHistoryCache ?: readPromptHistoryFromDisk().also { promptHistoryCache = it }).size
+            filesDir?.let { File(it, FILE_PROMPT_HISTORY) }?.let { if (it.exists()) it.delete() }
+            promptHistoryCache = emptyList()
+            n
+        }
     }
 
     fun clearLastReportPrompt() { prefs.edit { remove(KEY_LAST_AI_REPORT_TITLE); remove(KEY_LAST_AI_REPORT_PROMPT) } }
@@ -1020,6 +1063,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         @Volatile private var usageCategoryStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats>? = null
         @Volatile private var usageReportStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>? = null
         @Volatile private var lastUsageStatsFlush: Long = 0L
+        private val promptHistoryLock = Any()
+        @Volatile private var promptHistoryCache: List<PromptHistoryEntry>? = null
         private const val USAGE_STATS_FLUSH_MS = 2_000L
         const val PREFS_NAME = "eval_prefs"
 

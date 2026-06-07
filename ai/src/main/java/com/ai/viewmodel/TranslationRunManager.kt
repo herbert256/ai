@@ -171,42 +171,45 @@ class TranslationRunManager(
                 sourceText = sourceReport.prompt
             )
             sourceReport.agents
-                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 .forEach { agent ->
+                    val body = agent.responseBody?.takeIf(String::isNotBlank) ?: return@forEach
+                    if (agent.reportStatus != ReportStatus.SUCCESS) return@forEach
                     val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
                     items += TranslationItem(
                         id = "agent:${agent.agentId}",
                         label = "$provDisplay / ${shortModelName(agent.model)}",
                         kind = TranslationKind.AGENT_RESPONSE,
-                        sourceText = agent.responseBody!!,
+                        sourceText = body,
                         target = agent.agentId
                     )
                 }
             // Per-model response titles (ReportAgent.modelTitle), one
             // per success agent that has a generated title.
             sourceReport.agents
-                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.modelTitle.isNullOrBlank() }
                 .forEach { agent ->
+                    val title = agent.modelTitle?.takeIf(String::isNotBlank) ?: return@forEach
+                    if (agent.reportStatus != ReportStatus.SUCCESS) return@forEach
                     val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
                     items += TranslationItem(
                         id = "agentTitle:${agent.agentId}",
                         label = "Title: $provDisplay / ${shortModelName(agent.model)}",
                         kind = TranslationKind.AGENT_TITLE,
-                        sourceText = agent.modelTitle!!,
+                        sourceText = title,
                         target = agent.agentId
                     )
                 }
             // Per-fan-out-pair response titles (SecondaryResult.title on
             // fan-out pair rows), one per pair that has a generated title.
             secondaries
-                .filter { it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null && !it.title.isNullOrBlank() }
                 .forEach { s ->
+                    val title = s.title?.takeIf(String::isNotBlank) ?: return@forEach
+                    if (s.kind != SecondaryKind.META || s.fanOutSourceAgentId == null) return@forEach
                     val provDisplay = AppService.findById(s.providerId)?.id ?: s.providerId
                     items += TranslationItem(
                         id = "fanoutTitle:${s.id}",
                         label = "Fan title: $provDisplay / ${shortModelName(s.model)}",
                         kind = TranslationKind.FANOUT_TITLE,
-                        sourceText = s.title!!,
+                        sourceText = title,
                         target = s.id
                     )
                 }
@@ -217,6 +220,7 @@ class TranslationRunManager(
             // not a hardcoded "Summary" / "Compare".
             secondaries.filter { it.kind == SecondaryKind.META && !it.content.isNullOrBlank() }
                 .forEachIndexed { idx, s ->
+                    val content = s.content?.takeIf(String::isNotBlank) ?: return@forEachIndexed
                     val provDisplay = AppService.findById(s.providerId)?.id ?: s.providerId
                     val name = s.metaPromptName?.takeIf { it.isNotBlank() }
                         ?: com.ai.data.legacyKindDisplayName(s.kind)
@@ -224,7 +228,7 @@ class TranslationRunManager(
                         id = "meta:${s.id}",
                         label = "$name ${idx + 1}: $provDisplay / ${shortModelName(s.model)}",
                         kind = TranslationKind.META,
-                        sourceText = s.content!!,
+                        sourceText = content,
                         target = s.id
                     )
                 }
@@ -246,10 +250,11 @@ class TranslationRunManager(
             // is the disk-heavy phase the "Preparing N / M…" popup covers.
             if (buildKey != null) appViewModel.beginBuild(buildKey, itemsWithIds.size, "Translating to $targetLanguageName")
             itemsWithIds.forEachIndexed { idx, item ->
+                val rowId = item.persistedRowId ?: return@forEachIndexed
                 val srcKind = translateSrcKindOf(item.kind)
                 val srcTargetId = translateSrcTargetIdOf(item)
                 SecondaryResultStorage.save(context, SecondaryResult(
-                    id = item.persistedRowId!!,
+                    id = rowId,
                     reportId = sourceReportId,
                     kind = SecondaryKind.TRANSLATE,
                     providerId = "",

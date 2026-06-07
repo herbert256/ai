@@ -342,7 +342,7 @@ private fun AnalysisRepository.streamOpenAi(
             tools = if (params.webSearchTool) responsesWebSearchTool() else null,
             reasoning = reasoningField(service, model, params.reasoningEffort)
         )
-        val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) } }
+        val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) } }
         if (response.isSuccessful) {
             response.body()?.let { body ->
                 parseSseStream(
@@ -377,7 +377,7 @@ private fun AnalysisRepository.streamOpenAi(
                 it.isNotBlank() && isReasoningCapableForDispatch(service, model)
             }
         )
-        val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.chatStream(chatUrl, "Bearer $apiKey", request) } }
+        val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.chatStream(chatUrl, "Bearer $apiKey", request) } }
         if (response.isSuccessful) {
             response.body()?.let { body ->
                 // Emit content only, buffering reasoning, so the chain-of-
@@ -387,8 +387,23 @@ private fun AnalysisRepository.streamOpenAi(
                 // as a completed answer). Surface reasoning at the end only
                 // when no content streamed (answer-in-reasoning_content).
                 val ext = OpenAiContentExtractor()
-                parseSseStream(body, ext::extract).collect { emit(it) }
-                ext.reasoningFallback()?.let { emit(it) }
+                var reasoningFallbackEmitted = false
+                suspend fun flushReasoningFallback() {
+                    if (reasoningFallbackEmitted) return
+                    val fallback = ext.reasoningFallback() ?: return
+                    reasoningFallbackEmitted = true
+                    emit(fallback)
+                }
+                try {
+                    parseSseStream(body, ext::extract).collect { emit(it) }
+                    flushReasoningFallback()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    try { flushReasoningFallback() } catch (_: kotlinx.coroutines.CancellationException) {}
+                    throw e
+                } catch (e: Exception) {
+                    flushReasoningFallback()
+                    throw e
+                }
             } ?: throw Exception("Empty response body")
         } else {
             val errorMsg = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -416,7 +431,7 @@ private fun AnalysisRepository.streamAnthropic(
         thinking = bundle.thinking,
         output_config = bundle.outputConfig
     )
-    val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.createMessageStream(apiKey, request = request) } }
+    val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.createMessageStream(apiKey, request = request) } }
     if (response.isSuccessful) {
         response.body()?.let { body ->
             parseSseStream(
@@ -454,7 +469,7 @@ private fun AnalysisRepository.streamGemini(
         systemInstruction = systemInstruction,
         tools = if (params.webSearchTool) geminiWebSearchTool() else null
     )
-    val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.streamGenerateContent(model, apiKey, request = request) } }
+    val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.streamGenerateContent(model, apiKey, request = request) } }
     if (response.isSuccessful) {
         response.body()?.let { body ->
             parseSseStream(

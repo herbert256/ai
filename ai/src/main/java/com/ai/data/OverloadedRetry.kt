@@ -28,6 +28,9 @@ import kotlinx.coroutines.launch
 class OverloadedRetryInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
+        // Match RateLimitRetryInterceptor: clear any stale trace filename
+        // on this pooled thread before TracingInterceptor can fill it.
+        ApiTracer.lastTraceFilename.set(null)
         val response = chain.proceed(request)
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 529) return response
@@ -77,7 +80,13 @@ class OverloadedRetryInterceptor : Interceptor {
             // pin shared capacity either.
             RetryStats.record()
             RetryStats.enterBackoff()
-            try { ProviderThrottle.backoffSleep(sleepMs) } finally { RetryStats.exitBackoff() }
+            try {
+                try {
+                    ProviderThrottle.backoffSleep(sleepMs)
+                } catch (e: InterruptedException) {
+                    throw e.asThrottleCancellation()
+                }
+            } finally { RetryStats.exitBackoff() }
             attempt++
             AppLog.d("Overloaded", "529 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}")
             current = chain.proceed(request)
@@ -90,4 +99,3 @@ class OverloadedRetryInterceptor : Interceptor {
         return current
     }
 }
-

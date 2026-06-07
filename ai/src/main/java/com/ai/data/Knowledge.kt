@@ -1,6 +1,7 @@
 package com.ai.data
 
 import android.content.Context
+import com.google.gson.JsonParser
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
@@ -26,7 +27,11 @@ data class KnowledgeSource(
     val charCount: Int = 0,
     /** Set when the most recent index attempt failed. UI can surface
      *  this on the source row. */
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Set when the chunks were written but should not be trusted for
+     *  retrieval until the source or KB is rebuilt, e.g. after an
+     *  embedder dimension mismatch. */
+    val needsReindexReason: String? = null
 )
 
 /** Metadata for a knowledge base. The chunks live next door under
@@ -216,9 +221,16 @@ object KnowledgeStore {
             // API (Bug 40); the other public mutators wrap loadKb, so do the
             // same here and bail rather than crash the index flow.
             val current = runCatching { loadKb(kbDir) }.getOrNull() ?: return
+            val dimMismatch = current.embeddingDim != 0 && current.embeddingDim != embeddingDim
+            val reindexReason = if (dimMismatch) {
+                "Embedding dimension changed from ${current.embeddingDim} to $embeddingDim; recreate this KB"
+            } else {
+                null
+            }
             val replaced = current.sources.filter { it.id != source.id } + source.copy(
                 chunkCount = chunks.size,
-                charCount = chunks.sumOf { it.text.length }
+                charCount = chunks.sumOf { it.text.length },
+                needsReindexReason = reindexReason
             )
             // First write of any source — adopt its dim. Otherwise keep
             // the existing dim, but warn loudly when this re-index
@@ -228,7 +240,7 @@ object KnowledgeStore {
             // makes retrieval silently bogus.
             val newDim = when {
                 current.embeddingDim == 0 -> embeddingDim
-                current.embeddingDim == embeddingDim -> current.embeddingDim
+                !dimMismatch -> current.embeddingDim
                 else -> {
                     AppLog.w("Knowledge",
                         "Embedding dim mismatch on saveSource: kb=$kbId, " +
@@ -338,7 +350,32 @@ object KnowledgeStore {
 
     private fun loadKb(kbDir: File): KnowledgeBase {
         val text = File(kbDir, MANIFEST).readText()
-        return gson.fromJson(text, KnowledgeBase::class.java)
+        @Suppress("DEPRECATION")
+        val root = JsonParser().parse(text).asJsonObject
+        fun requiredString(name: String): String {
+            val value = root.get(name)?.takeIf { it.isJsonPrimitive }?.asString?.trim().orEmpty()
+            require(value.isNotBlank()) { "Knowledge base manifest missing $name" }
+            return value
+        }
+        val kb = gson.fromJson(text, KnowledgeBase::class.java)
+        val sources = runCatching { kb.sources }.getOrNull().orEmpty().mapNotNull { source ->
+            val valid = runCatching {
+                isSafeSourceId(source.id) &&
+                    source.name.isNotBlank() &&
+                    source.origin.isNotBlank()
+            }.getOrDefault(false)
+            if (valid) source else {
+                AppLog.w("Knowledge", "Dropping invalid source from KB manifest ${kbDir.name}")
+                null
+            }
+        }
+        return kb.copy(
+            id = requiredString("id"),
+            name = requiredString("name"),
+            embedderProviderId = requiredString("embedderProviderId"),
+            embedderModel = requiredString("embedderModel"),
+            sources = sources
+        )
     }
 
     private fun saveManifest(kbDir: File, kb: KnowledgeBase) {

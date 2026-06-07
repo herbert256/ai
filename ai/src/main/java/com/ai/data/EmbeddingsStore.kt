@@ -49,7 +49,15 @@ object EmbeddingsStore {
     internal fun get(filesDir: File, docId: String, providerId: String, model: String, content: String): List<Double>? {
         val f = fileFor(filesDir, docId, providerId, model, content)
         if (!f.exists()) return null
-        return try { gson.fromJson(f.readText(), type) } catch (_: Exception) { null }
+        return try {
+            val vector = gson.fromJson<List<Double>>(f.readText(), type)
+            if (vector.isNullOrEmpty()) {
+                AppLog.w("EmbeddingsStore", "get($docId, $providerId, $model) ignored empty cached vector")
+                null
+            } else {
+                vector
+            }
+        } catch (_: Exception) { null }
     }
 
     fun put(context: Context, docId: String, providerId: String, model: String, content: String, vector: List<Double>) {
@@ -57,6 +65,10 @@ object EmbeddingsStore {
     }
 
     internal fun put(filesDir: File, docId: String, providerId: String, model: String, content: String, vector: List<Double>) {
+        if (vector.isEmpty()) {
+            AppLog.w("EmbeddingsStore", "put($docId, $providerId, $model) refused empty vector")
+            return
+        }
         // writeTextAtomic returns false on disk-full / permission /
         // any I/O failure. Surface it as a log warning so a
         // corruption-during-store doesn't go unnoticed; the cache
@@ -94,15 +106,15 @@ object EmbeddingsStore {
         try { File(dir(context), "$key.json").delete() } catch (_: Exception) { false }
 
     /** Cosine similarity. Returns 0.0 when either vector is empty.
-     *  Logs a warning + returns 0.0 on a dim mismatch — the previous
-     *  silent-zero path made a "wrong embedder" mistake look like
-     *  "no relevant hits" with no breadcrumb anywhere. */
+     *  Logs a warning + returns NaN on a dim mismatch so callers can
+     *  distinguish "wrong embedder / stale vector" from a genuinely
+     *  orthogonal score. */
     fun cosine(a: List<Double>, b: List<Double>): Double {
         if (a.isEmpty() || b.isEmpty()) return 0.0
         if (a.size != b.size) {
             AppLog.w("EmbeddingsStore",
                 "cosine: dim mismatch a=${a.size} b=${b.size} — embedder swapped without re-embed?")
-            return 0.0
+            return Double.NaN
         }
         var dot = 0.0
         var normA = 0.0

@@ -104,13 +104,12 @@ suspend fun <R> withTracerTags(
  *  read the tags of the call's originating flow rather than whatever
  *  another concurrent flow happened to set last on the global pair.
  *
- *  Edge case: a queued OkHttp call promoted later (when a per-host
- *  slot frees up) is submitted to this executor from the worker
- *  thread completing the previous call, not the original caller.
- *  Tags for that call attribute to the previous worker's flow rather
- *  than the original caller — acceptable for the rare per-host-cap
- *  scenario; a fully race-free fix would require per-Call.tag
- *  attachment at OkHttp Call construction time. */
+ *  The shared ApiFactory also tags each OkHttp Request with
+ *  [OkHttpCallContext] at Call construction time and restores that
+ *  tag inside the interceptor chain. That request tag is the
+ *  authoritative source for queued calls promoted later by an OkHttp
+ *  worker; this executor remains the fallback for worker setup and
+ *  non-shared clients. */
 class TagPropagatingExecutor(
     private val delegate: java.util.concurrent.ExecutorService
 ) : java.util.concurrent.AbstractExecutorService() {

@@ -53,17 +53,25 @@ fun BackupRestoreScreen(
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
+                    var summary: BackupManager.BackupSummary? = null
                     shareExport(
                         context = context,
                         fileName = BackupManager.defaultFileName(),
                         mimeType = "application/zip",
                         chooserTitle = "Share backup"
-                    ) { out -> BackupManager.backup(context, out) }
+                    ) { out -> summary = BackupManager.backup(context, out) }
+                    summary ?: error("Backup completed without a summary")
                 }
             }
             busyLabel = null
             val msg = result.fold(
-                onSuccess = { "Backup ready — pick a destination from the share sheet" },
+                onSuccess = {
+                    if (it.skippedFiles > 0) {
+                        "Backup ready, but ${it.skippedFiles} file(s) could not be backed up — see Application log"
+                    } else {
+                        "Backup ready — pick a destination from the share sheet"
+                    }
+                },
                 onFailure = { "Backup failed: ${it.javaClass.simpleName}: ${it.message}" }
             )
             Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
@@ -78,7 +86,7 @@ fun BackupRestoreScreen(
         AlertDialog(
             onDismissRequest = { showRestoreConfirm = null },
             title = { Text("Restore from backup?") },
-            text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. You'll be prompted to restart when restore finishes.") },
+            text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. Installed Local LLM and LiteRT model files are kept on this device, not restored from the backup. You'll be prompted to restart when restore finishes.") },
             confirmButton = {
                 OutlinedButton(
                     onClick = {

@@ -115,6 +115,17 @@ data class ChatSession(
         get() = messages.firstOrNull { it.role == "user" }?.content?.take(50) ?: "Empty chat"
 }
 
+/** Lightweight chat-session projection for hub/list surfaces that do not need
+ *  full message bodies or image payloads. */
+data class ChatSessionHeader(
+    val id: String,
+    val title: String,
+    val preview: String,
+    val pinned: Boolean,
+    val updatedAt: Long,
+    val lastVisibleRole: String?
+)
+
 /**
  * Configuration for a dual-chat session.
  */

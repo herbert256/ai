@@ -185,11 +185,10 @@ object ProviderThrottle {
         return maxRetries to backoffMs
     }
 
-    /** Gate on per-minute rate first, then on concurrency. The
-     *  rate-limit branch appends a timestamp on admission — even if a
-     *  later concurrency-acquire blocks, the slot stays "used" for the
-     *  full minute, which is the safe direction (over-throttling
-     *  rather than silently exceeding the user's setting).
+    /** Gate on concurrency first, then on the per-minute rate. The
+     *  rate-limit branch appends a timestamp immediately before the
+     *  caller leaves this gate, so time queued behind the concurrency
+     *  cap does not consume a sliding-window slot.
      *
      *  Caps are resolved at acquire time per host:
      *    per-provider override (AppService.maxCalls… / maxConcurrent…)
@@ -209,30 +208,6 @@ object ProviderThrottle {
             ?: NetworkSettings.maxCallsPerProviderPerMinute).coerceAtLeast(1)
         val concurrentLimit = (override?.maxConcurrentCallsPerProvider
             ?: NetworkSettings.maxConcurrentCallsPerProvider).coerceAtLeast(1)
-        val window = windows.computeIfAbsent(host) { java.util.concurrent.ConcurrentLinkedDeque() }
-        // Rate-limit gate — loop until we claim a slot in the 60 s window.
-        while (true) {
-            val now = System.currentTimeMillis()
-            val sleepMs: Long = synchronized(window) {
-                while (true) {
-                    val head = window.peekFirst() ?: break
-                    if (head < now - 60_000L) window.pollFirst() else break
-                }
-                if (window.size < perMinuteLimit) {
-                    window.addLast(now)
-                    0L
-                } else {
-                    val oldest = window.peekFirst() ?: now
-                    (oldest + 60_001L - now).coerceIn(1L, 60_000L)
-                }
-            }
-            if (sleepMs == 0L) break
-            AppLog.d("Throttle", "rate-limit wait ${sleepMs}ms on $host (queue=${window.size}/$perMinuteLimit)")
-            try { Thread.sleep(sleepMs) } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-                throw e
-            }
-        }
         // Concurrency gate.
         val sem = sems.computeIfAbsent(host) {
             java.util.concurrent.Semaphore(concurrentLimit)
@@ -241,6 +216,35 @@ object ProviderThrottle {
         sem.acquire()
         if (concurrentWaitStart > 0L) {
             AppLog.d("Throttle", "concurrent-cap wait ${System.currentTimeMillis() - concurrentWaitStart}ms on $host (cap=$concurrentLimit)")
+        }
+        val window = windows.computeIfAbsent(host) { java.util.concurrent.ConcurrentLinkedDeque() }
+        try {
+            // Rate-limit gate — loop until we claim a slot in the 60 s window.
+            while (true) {
+                val now = System.currentTimeMillis()
+                val sleepMs: Long = synchronized(window) {
+                    while (true) {
+                        val head = window.peekFirst() ?: break
+                        if (head < now - 60_000L) window.pollFirst() else break
+                    }
+                    if (window.size < perMinuteLimit) {
+                        window.addLast(now)
+                        0L
+                    } else {
+                        val oldest = window.peekFirst() ?: now
+                        (oldest + 60_001L - now).coerceIn(1L, 60_000L)
+                    }
+                }
+                if (sleepMs == 0L) break
+                AppLog.d("Throttle", "rate-limit wait ${sleepMs}ms on $host (queue=${window.size}/$perMinuteLimit)")
+                try { Thread.sleep(sleepMs) } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    throw e
+                }
+            }
+        } catch (t: Throwable) {
+            sem.release()
+            throw t
         }
         return Releaser(sem)
     }
@@ -402,7 +406,11 @@ class ProviderThrottleInterceptor : Interceptor {
         if (ProviderThrottle.permitPreAcquired.get() == true) {
             return chain.proceed(request)
         }
-        val releaser = ProviderThrottle.acquire(request.url.host)
+        val releaser = try {
+            ProviderThrottle.acquire(request.url.host)
+        } catch (e: InterruptedException) {
+            throw e.asThrottleCancellation()
+        }
         try {
             return chain.proceed(request)
         } finally {
@@ -411,3 +419,9 @@ class ProviderThrottleInterceptor : Interceptor {
     }
 }
 
+internal fun InterruptedException.asThrottleCancellation(): kotlinx.coroutines.CancellationException {
+    Thread.currentThread().interrupt()
+    return kotlinx.coroutines.CancellationException("Provider throttle interrupted").also {
+        it.initCause(this)
+    }
+}

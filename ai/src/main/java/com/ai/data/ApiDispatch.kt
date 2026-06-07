@@ -20,10 +20,13 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * lets balance-gating providers (OpenRouter) pre-authorise the model's
  * entire output window against the account balance, which 402s expensive
  * models that would answer a normal request fine. Per-model rule first
- * (the provider's maxTokensDefaults table), then a sane fixed fallback.
+ * (the provider's maxTokensDefaults table), then the known output-token
+ * limit from models.dev when available, then a conservative fixed fallback.
  */
 internal fun defaultMaxTokens(service: AppService, model: String): Int =
-    service.maxTokensDefaults.resolveMaxTokens(model) ?: 4_096
+    service.maxTokensDefaults.resolveMaxTokens(model)
+        ?: PricingCache.modelsDevMaxOutputTokens(service, model)?.takeIf { it > 0 }
+        ?: 4_096
 
 /**
  * Hard coroutine-level ceiling for ONE outbound provider call. OkHttp's
@@ -41,21 +44,28 @@ internal fun defaultMaxTokens(service: AppService, model: String): Int =
  * surfaces as a different CancellationException that passes straight
  * through.
  *
- * Every call site wraps a single request/response or a *stream open* (the
- * `api.…Stream` call returns once the response HEADERS arrive — it does NOT
- * include the long SSE read loop, which OkHttp's per-chunk streaming read
- * timeout already guards). So one short ceiling fits all: the non-streaming
- * read budget + connect + 30 s margin, coerced so a 0 / "infinite" setting
- * can't disable the guard. (A long, legitimately slow token stream is
- * unaffected — only the open is bounded here.)
+ * Non-streaming call sites use the shorter non-streaming read budget.
+ * Streaming-open call sites pass [streamingOpen] so a provider that is
+ * slow to send SSE headers gets the same budget as the streaming read
+ * path. The long SSE body is still outside this wrapper and remains
+ * guarded by OkHttp's per-chunk streaming read timeout.
  */
-internal suspend fun <T> withApiCallTimeout(block: suspend () -> T): T {
-    val readSec = NetworkSettings.nonStreamingReadTimeoutSec.takeIf { it > 0 } ?: 120
+internal suspend fun <T> withApiCallTimeout(
+    streamingOpen: Boolean = false,
+    block: suspend () -> T
+): T {
+    val configuredReadSec = if (streamingOpen) {
+        NetworkSettings.streamingReadTimeoutSec
+    } else {
+        NetworkSettings.nonStreamingReadTimeoutSec
+    }
+    val readSec = configuredReadSec.takeIf { it > 0 } ?: 120
     val ceilingMs = (readSec.toLong() + com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC + 30L) * 1000L
     return try {
         kotlinx.coroutines.withTimeout(ceilingMs) { block() }
     } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-        throw java.io.IOException("API call timed out after ${ceilingMs / 1000}s (no response — possible network/DNS hang)")
+        val kind = if (streamingOpen) "stream open" else "API call"
+        throw java.io.IOException("$kind timed out after ${ceilingMs / 1000}s (no response — possible network/DNS hang)")
     }
 }
 
@@ -1233,7 +1243,7 @@ internal suspend fun AnalysisRepository.analyzeAgentStreaming(
 ): AnalysisResponse = withContext(Dispatchers.IO) {
     auditApiCall(service, model, baseUrl) {
         withHostGate(baseUrl) {
-            withApiCallTimeout {
+            withApiCallTimeout(streamingOpen = true) {
                 when (service.apiFormat) {
                     ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
                     ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
@@ -1246,6 +1256,8 @@ internal suspend fun AnalysisRepository.analyzeAgentStreaming(
 
 /** Drain an SSE [retrofit2.Response] into an [AnalysisResponse], emitting
  *  each text chunk through [onDelta] and merging any usage events. */
+private enum class StreamingUsageMergeMode { FieldMax, LastComplete }
+
 private suspend fun AnalysisRepository.collectStreamResponse(
     service: AppService,
     response: retrofit2.Response<okhttp3.ResponseBody>,
@@ -1253,6 +1265,7 @@ private suspend fun AnalysisRepository.collectStreamResponse(
     extractUsage: (String?, String) -> Pair<TokenUsage?, String?>?,
     isFinalChunk: (String?, String) -> Boolean = { _, _ -> false },
     requireTerminator: Boolean = false,
+    usageMergeMode: StreamingUsageMergeMode = StreamingUsageMergeMode.FieldMax,
     onDelta: (String) -> Unit
 ): AnalysisResponse {
     val headers = formatHeaders(response.headers())
@@ -1273,7 +1286,11 @@ private suspend fun AnalysisRepository.collectStreamResponse(
         requireTerminator = requireTerminator,
         extractUsage = extractUsage
     ) { u, raw ->
-        usage = mergeUsage(usage, u); if (!raw.isNullOrBlank()) rawUsage = raw
+        usage = when (usageMergeMode) {
+            StreamingUsageMergeMode.FieldMax -> mergeUsage(usage, u)
+            StreamingUsageMergeMode.LastComplete -> u
+        }
+        if (!raw.isNullOrBlank()) rawUsage = raw
     }.collect { chunk -> sb.append(chunk); onDelta(chunk) }
     val text = sb.toString().takeIf { it.isNotBlank() }
     return if (text != null)
@@ -1297,7 +1314,14 @@ private suspend fun AnalysisRepository.streamOpenAiReport(
     // back to the buffered reasoning only if no content streamed at all
     // (providers that put the answer in reasoning_content with empty content).
     val ext = OpenAiContentExtractor()
-    val resp = collectStreamResponse(service, response, ext::extract, extractOpenAiUsage(service), onDelta = onDelta)
+    val resp = collectStreamResponse(
+        service,
+        response,
+        ext::extract,
+        extractOpenAiUsage(service),
+        usageMergeMode = StreamingUsageMergeMode.LastComplete,
+        onDelta = onDelta
+    )
     return if (resp.analysis.isNullOrBlank())
         ext.reasoningFallback()?.let { resp.copy(analysis = it, error = null) } ?: resp
     else resp
@@ -1333,6 +1357,7 @@ private suspend fun AnalysisRepository.streamResponsesApiReport(
         ::extractResponsesApiContent,
         extractResponsesApiUsage,
         requireTerminator = true,
+        usageMergeMode = StreamingUsageMergeMode.LastComplete,
         onDelta = onDelta
     )
 }

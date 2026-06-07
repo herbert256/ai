@@ -160,7 +160,8 @@ private fun SideEffectsCard(intent: PendingExternalReport) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.DangerAccent.copy(alpha = 0.18f))) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("After generation", fontSize = 11.sp, color = AppColors.ErrorAccent, fontWeight = FontWeight.SemiBold)
-            if (!intent.email.isNullOrBlank()) {
+            val hasExplicitEmail = !intent.email.isNullOrBlank()
+            if (hasExplicitEmail) {
                 Text("• Email the report to ${intent.email}", fontSize = 12.sp, color = AppColors.TextSecondary)
             }
             when (intent.nextAction?.lowercase()) {
@@ -168,7 +169,9 @@ private fun SideEffectsCard(intent: PendingExternalReport) {
                 "view" -> Text("• Open the report viewer", fontSize = 12.sp, color = AppColors.TextSecondary)
                 "share" -> Text("• Share the report HTML", fontSize = 12.sp, color = AppColors.TextSecondary)
                 "browser" -> Text("• Open the report in Chrome", fontSize = 12.sp, color = AppColors.TextSecondary)
-                "email" -> Text("• Email the report to your default address", fontSize = 12.sp, color = AppColors.TextSecondary)
+                "email" -> if (!hasExplicitEmail) {
+                    Text("• Email the report to your default address", fontSize = 12.sp, color = AppColors.TextSecondary)
+                }
                 // Unknown but non-blank action: still disclose that
                 // SOMETHING will run rather than show an empty card.
                 else -> Text("• Run action: ${intent.nextAction}", fontSize = 12.sp, color = AppColors.TextSecondary)

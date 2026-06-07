@@ -202,6 +202,11 @@ object ApiFactory {
     private val gsonConverterFactory = GsonConverterFactory.create()
 
     private val okHttpClient = OkHttpClient.Builder()
+        // Restore per-call trace/throttle context captured at OkHttp
+        // Call construction time. This makes queued-call promotion
+        // race-free: the request carries its originating context even
+        // if OkHttp later submits it from a different worker thread.
+        .addInterceptor(OkHttpCallContextInterceptor())
         // Rate-limit retry first so each attempt (including retries) flows
         // through the trace recorder below — visible on the Trace screen.
         .addInterceptor(RateLimitRetryInterceptor())
@@ -263,12 +268,28 @@ object ApiFactory {
         .writeTimeout(com.ai.BuildConfig.NETWORK_WRITE_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .build()
 
-    private fun getRetrofit(baseUrl: String): Retrofit {
+    private val callFactory = ContextTaggingCallFactory(okHttpClient)
+    private val rawFetchClient = okHttpClient.newBuilder().apply {
+        // Raw model-list snapshot fetches are best-effort sidecars.
+        // Keep tracing/throttle visibility, but drop the sleeping retry
+        // interceptors so a 429/529 does not pin the caller while the
+        // typed model-list request is already handling the real result.
+        interceptors().clear()
+        addInterceptor(OkHttpCallContextInterceptor())
+        addInterceptor(ProviderThrottleInterceptor())
+        addInterceptor(ReadTimeoutInterceptor())
+        addInterceptor(TestCallTimeoutInterceptor())
+        addInterceptor(TracingInterceptor())
+        addInterceptor(HttpStatusStatsInterceptor())
+    }.build()
+
+    private fun getRetrofit(baseUrl: String, cacheNamespace: String): Retrofit {
         val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
-        return retrofitCache.getOrPut(normalizedUrl) {
+        val cacheKey = "$cacheNamespace|$normalizedUrl"
+        return retrofitCache.getOrPut(cacheKey) {
             Retrofit.Builder()
                 .baseUrl(normalizedUrl)
-                .client(okHttpClient)
+                .callFactory(callFactory)
                 .addConverterFactory(gsonConverterFactory)
                 .build()
         }
@@ -282,8 +303,8 @@ object ApiFactory {
         return try {
             val builder = okhttp3.Request.Builder().url(url).get()
             headers.forEach { (k, v) -> builder.addHeader(k, v) }
-            okHttpClient.newCall(builder.build()).execute().use { resp ->
-                if (resp.isSuccessful) resp.body?.string()
+            rawFetchClient.newCall(builder.build().withCapturedOkHttpCallContext()).execute().use { resp ->
+                if (resp.isSuccessful) resp.body.string()
                 else {
                     AppLog.w("ApiClient", "fetchUrlAsString non-2xx ${resp.code} for $url — raw snapshot skipped")
                     null
@@ -297,13 +318,13 @@ object ApiFactory {
         }
     }
 
-    fun createOpenAiApi(baseUrl: String): OpenAiApi = getRetrofit(baseUrl).create(OpenAiApi::class.java)
-    fun createClaudeApi(baseUrl: String): ClaudeApi = getRetrofit(baseUrl).create(ClaudeApi::class.java)
-    fun createGeminiApi(baseUrl: String): GeminiApi = getRetrofit(baseUrl).create(GeminiApi::class.java)
-    fun createOpenAiCompatibleApi(baseUrl: String): OpenAiCompatibleApi = getRetrofit(baseUrl).create(OpenAiCompatibleApi::class.java)
-    fun createOpenRouterModelsApi(baseUrl: String): OpenRouterModelsApi = getRetrofit(baseUrl).create(OpenRouterModelsApi::class.java)
-    fun createCohereNativeApi(): CohereNativeApi = getRetrofit("https://api.cohere.com/").create(CohereNativeApi::class.java)
-    fun createCohereRerankApi(): CohereRerankApi = getRetrofit("https://api.cohere.com/").create(CohereRerankApi::class.java)
-    fun createMistralModerationApi(): MistralModerationApi = getRetrofit("https://api.mistral.ai/").create(MistralModerationApi::class.java)
-    fun createHuggingFaceApi(): HuggingFaceApi = getRetrofit("https://huggingface.co/api/").create(HuggingFaceApi::class.java)
+    fun createOpenAiApi(baseUrl: String): OpenAiApi = getRetrofit(baseUrl, OpenAiApi::class.java.name).create(OpenAiApi::class.java)
+    fun createClaudeApi(baseUrl: String): ClaudeApi = getRetrofit(baseUrl, ClaudeApi::class.java.name).create(ClaudeApi::class.java)
+    fun createGeminiApi(baseUrl: String): GeminiApi = getRetrofit(baseUrl, GeminiApi::class.java.name).create(GeminiApi::class.java)
+    fun createOpenAiCompatibleApi(baseUrl: String): OpenAiCompatibleApi = getRetrofit(baseUrl, OpenAiCompatibleApi::class.java.name).create(OpenAiCompatibleApi::class.java)
+    fun createOpenRouterModelsApi(baseUrl: String): OpenRouterModelsApi = getRetrofit(baseUrl, OpenRouterModelsApi::class.java.name).create(OpenRouterModelsApi::class.java)
+    fun createCohereNativeApi(): CohereNativeApi = getRetrofit("https://api.cohere.com/", CohereNativeApi::class.java.name).create(CohereNativeApi::class.java)
+    fun createCohereRerankApi(): CohereRerankApi = getRetrofit("https://api.cohere.com/", CohereRerankApi::class.java.name).create(CohereRerankApi::class.java)
+    fun createMistralModerationApi(): MistralModerationApi = getRetrofit("https://api.mistral.ai/", MistralModerationApi::class.java.name).create(MistralModerationApi::class.java)
+    fun createHuggingFaceApi(): HuggingFaceApi = getRetrofit("https://huggingface.co/api/", HuggingFaceApi::class.java.name).create(HuggingFaceApi::class.java)
 }

@@ -141,6 +141,9 @@ fun SettingsScreen(
     // the initial entry point. SettingsSubScreen is an enum →
     // Bundle's serializable saver handles it.
     var currentSubScreen by rememberSaveable { mutableStateOf(initialSubScreen) }
+    var defaultMetaItemsParent by rememberSaveable {
+        mutableStateOf(SettingsSubScreen.SETTINGS_AUTOSTART)
+    }
     // Hold the runtime selection as the AppService id (a String) so a
     // mutating ProviderRegistry doesn't blow it away. The previous
     // approach keyed remember on AppService.entries.size to "re-resolve
@@ -279,8 +282,7 @@ fun SettingsScreen(
             SettingsSubScreen.SETTINGS_LOGGING,
             SettingsSubScreen.SETTINGS_AUTOSTART,
             SettingsSubScreen.SETTINGS_OTHER -> currentSubScreen = SettingsSubScreen.MAIN
-            // Default meta items now lives under Autostart — back returns there.
-            SettingsSubScreen.AI_DEFAULT_META_ITEMS -> currentSubScreen = SettingsSubScreen.SETTINGS_AUTOSTART
+            SettingsSubScreen.AI_DEFAULT_META_ITEMS -> currentSubScreen = defaultMetaItemsParent
             SettingsSubScreen.SETTINGS_METADATA -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_DEFAULT_ICONS -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_NETWORK_API_CALLS,
@@ -824,7 +826,10 @@ fun SettingsScreen(
             AutostartSubScreen(
                 generalSettings = generalSettings, aiSettings = aiSettings,
                 onSave = onSaveGeneral, onBack = goBack, onNavigateHome = onNavigateHome,
-                onOpenDefaultMetaItems = { currentSubScreen = SettingsSubScreen.AI_DEFAULT_META_ITEMS }
+                onOpenDefaultMetaItems = {
+                    defaultMetaItemsParent = currentSubScreen
+                    currentSubScreen = SettingsSubScreen.AI_DEFAULT_META_ITEMS
+                }
             )
         }
         SettingsSubScreen.SETTINGS_OTHER -> {

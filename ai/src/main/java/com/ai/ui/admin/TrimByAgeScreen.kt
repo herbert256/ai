@@ -20,6 +20,10 @@ import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.IconCardHeader
 import com.ai.ui.shared.TitleBar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+private data class TrimByAgeCounts(val reports: Int, val chats: Int, val traces: Int)
 
 @Composable
 fun TrimByAgeScreen(
@@ -44,22 +48,29 @@ fun TrimByAgeScreen(
             // a per-recomposition recompute could drift across the dialog's
             // lifetime and count-but-not-delete a boundary item.
             val cutoff = remember(days) { System.currentTimeMillis() - days.toLong() * 24 * 60 * 60 * 1000 }
-            // Counts off the IO thread would be cleaner, but the Trim
-            // path runs synchronously today and these reads are
-            // already on the UI thread; stay consistent with the
-            // existing pattern.
-            val rCount = ReportStorage.getAllReports(context).count { it.timestamp < cutoff }
-            val cCount = ChatHistoryManager.getAllSessions().count { it.updatedAt < cutoff }
-            val tCount = ApiTracer.getTraceFiles().count { it.timestamp < cutoff }
+            val counts by produceState<TrimByAgeCounts?>(initialValue = null, cutoff) {
+                value = withContext(Dispatchers.IO) {
+                    TrimByAgeCounts(
+                        reports = ReportStorage.getAllReports(context).count { it.timestamp < cutoff },
+                        chats = ChatHistoryManager.getAllSessions().count { it.updatedAt < cutoff },
+                        traces = ApiTracer.getTraceFiles().count { it.timestamp < cutoff }
+                    )
+                }
+            }
             AlertDialog(
                 onDismissRequest = { showTrimConfirm = false },
                 title = { Text("Trim by age?") },
                 text = {
-                    Text("Permanently deletes everything older than $days day${if (days == 1) "" else "s"}: " +
-                        "$rCount report${if (rCount == 1) "" else "s"}, " +
-                        "$cCount chat session${if (cCount == 1) "" else "s"}, " +
-                        "$tCount trace file${if (tCount == 1) "" else "s"}. " +
-                        "Cannot be undone.")
+                    val loadedCounts = counts
+                    if (loadedCounts == null) {
+                        Text("Counting reports, chats, and trace files older than $days day${if (days == 1) "" else "s"}...")
+                    } else {
+                        Text("Permanently deletes everything older than $days day${if (days == 1) "" else "s"}: " +
+                            "${loadedCounts.reports} report${if (loadedCounts.reports == 1) "" else "s"}, " +
+                            "${loadedCounts.chats} chat session${if (loadedCounts.chats == 1) "" else "s"}, " +
+                            "${loadedCounts.traces} trace file${if (loadedCounts.traces == 1) "" else "s"}. " +
+                            "Cannot be undone.")
+                    }
                 },
                 confirmButton = {
                     OutlinedButton(
@@ -76,6 +87,7 @@ fun TrimByAgeScreen(
                                 Toast.LENGTH_LONG
                             ).show()
                         },
+                        enabled = counts != null,
                         colors = AppColors.outlinedButtonColors()
                     ) { Text("Trim", maxLines = 1, softWrap = false) }
                 },

@@ -70,6 +70,9 @@ fun PromptTranslationsScreen(
         if (target.equals(source, ignoreCase = true)) {
             Toast.makeText(context, "Source and target are the same", Toast.LENGTH_SHORT).show(); return
         }
+        if (target.equals(InternalPromptSeed.BASE_LANGUAGE, ignoreCase = true)) {
+            Toast.makeText(context, "English is the editable baseline; choose another target language", Toast.LENGTH_LONG).show(); return
+        }
         scope.launch {
             busyMessage = "Translating into $target…"
             translatingLang = target
@@ -130,6 +133,11 @@ fun PromptTranslationsScreen(
         val displayLanguages = if (translatingLang != null && languages.none { it.equals(translatingLang, ignoreCase = true) })
             languages + translatingLang!!
         else languages
+        val storedCounts by produceState<Map<String, Int>>(initialValue = emptyMap(), refreshTick, displayLanguages) {
+            value = withContext(Dispatchers.IO) {
+                displayLanguages.associateWith { lang -> PromptTranslationStore.count(context, lang) }
+            }
+        }
 
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
@@ -141,7 +149,7 @@ fun PromptTranslationsScreen(
             }
             items(displayLanguages, key = { it }) { lang ->
                 val isBase = lang.equals(InternalPromptSeed.BASE_LANGUAGE, ignoreCase = true)
-                val storedCount = PromptTranslationStore.count(context, lang)
+                val storedCount = storedCounts[lang] ?: 0
                 val isTranslating = lang.equals(translatingLang, ignoreCase = true)
                 Card(
                     colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),

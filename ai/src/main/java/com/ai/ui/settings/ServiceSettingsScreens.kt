@@ -117,7 +117,7 @@ private fun ModelTypeChip(type: String) {
 private sealed class ModelTestStatus {
     object Running : ModelTestStatus()
     object Ok : ModelTestStatus()
-    data class Fail(val traceFile: String?) : ModelTestStatus()
+    data class Fail(val traceFile: String?, val message: String? = null) : ModelTestStatus()
 }
 
 @Composable
@@ -438,13 +438,15 @@ fun ProviderModelSettingsScreen(
                                                     // sibling cancellations would otherwise
                                                     // leave them stuck on Running forever.
                                                     val r = runCatching { onTestSpecificModel(m, com.ai.data.AnalysisRepository.TEST_PROMPT) }
+                                                    val failureMessage = r.exceptionOrNull()
+                                                        ?.let { it.message?.takeIf(String::isNotBlank) ?: it.javaClass.simpleName }
                                                     val (ok, trace) = r.getOrElse { false to null }
                                                     // Drop late writes for models the user
                                                     // already removed (the dropdown's prune
                                                     // happens on the main thread; we re-check
                                                     // against the current models list).
                                                     if (m in models) {
-                                                        testStatuses = testStatuses + (m to if (ok) ModelTestStatus.Ok else ModelTestStatus.Fail(trace))
+                                                        testStatuses = testStatuses + (m to if (ok) ModelTestStatus.Ok else ModelTestStatus.Fail(trace, failureMessage))
                                                     }
                                                 } finally {
                                                     sem.release()
@@ -588,6 +590,18 @@ fun ProviderModelSettingsScreen(
                             }
                         }
                     }
+                    (testStatuses[modelId] as? ModelTestStatus.Fail)
+                        ?.message
+                        ?.let { msg ->
+                            Text(
+                                msg,
+                                fontSize = 11.sp,
+                                color = AppColors.DangerAccent,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                            )
+                        }
                     com.ai.ui.shared.ModelAdvisoryCaptions(state)
                     }
                 }

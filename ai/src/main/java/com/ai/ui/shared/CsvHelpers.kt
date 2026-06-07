@@ -29,7 +29,7 @@ internal fun csvField(value: String): String {
  *  added to handle. Multiline values are not supported — the caller
  *  already splits the file on `\n`, and no real-world provider/model
  *  id contains a newline. */
-internal fun parseCsvRow(line: String): List<String> {
+internal fun parseCsvRow(line: String, delimiter: Char = ','): List<String> {
     val out = mutableListOf<String>()
     val sb = StringBuilder()
     var inQuotes = false
@@ -44,7 +44,7 @@ internal fun parseCsvRow(line: String): List<String> {
             }
         } else {
             when {
-                c == ',' -> { out.add(sb.toString()); sb.clear() }
+                c == delimiter -> { out.add(sb.toString()); sb.clear() }
                 c == '"' && sb.isEmpty() -> inQuotes = true
                 else -> sb.append(c)
             }

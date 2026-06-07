@@ -12,6 +12,7 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.text.textembedder.TextEmbedder
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * On-device embedding via MediaPipe Tasks (LiteRT under the hood).
@@ -27,12 +28,15 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object LocalEmbedder {
     private const val LOCAL_MODELS_DIR = "local_models"
+    private const val PARTIAL_DOWNLOAD_STALE_MS = 5L * 60L * 1000L
     private val instances = ConcurrentHashMap<String, TextEmbedder>()
 
     /** Live state for the dashboard's Local-runtime card. */
-    @Volatile private var embedding: String? = null
-    /** The model currently running [embed], or null when idle. */
-    val currentlyEmbedding: String? get() = embedding
+    private val embeddingCounts = ConcurrentHashMap<String, AtomicInteger>()
+    /** Models currently running [embed], or an empty list when idle. */
+    fun currentlyEmbeddingModels(): List<String> = embeddingCounts.keys.sorted()
+    /** Human-readable summary for the dashboard's existing single-field row. */
+    val currentlyEmbedding: String? get() = currentlyEmbeddingModels().joinToString(", ").takeIf { it.isNotBlank() }
     /** Names of embedder models loaded into memory right now. */
     fun loadedModelNames(): List<String> = instances.keys.toList()
 
@@ -111,6 +115,7 @@ object LocalEmbedder {
                         soFar += read
                         onProgress(soFar, total)
                     }
+                    output.fd.sync()
                 }
             }
             // Atomic move — the previous flow deleted target first
@@ -166,13 +171,25 @@ object LocalEmbedder {
     fun localModelsDir(context: Context): File =
         File(context.filesDir, LOCAL_MODELS_DIR).also { if (!it.exists()) it.mkdirs() }
 
+    fun sweepStalePartials(context: Context): Int {
+        val cutoff = System.currentTimeMillis() - PARTIAL_DOWNLOAD_STALE_MS
+        var removed = 0
+        localModelsDir(context).listFiles { f ->
+            f.isFile && f.name.endsWith(".part") && f.lastModified() <= cutoff
+        }?.forEach { if (it.delete()) removed++ }
+        if (removed > 0) AppLog.w("LocalEmbedder", "removed $removed stale partial download${if (removed == 1) "" else "s"}")
+        return removed
+    }
+
     /** Names of every .tflite file in [localModelsDir] (without
      *  extension). Drives the Local Semantic Search picker. */
-    fun availableModels(context: Context): List<String> =
-        localModelsDir(context).listFiles { f -> f.extension.equals("tflite", ignoreCase = true) }
+    fun availableModels(context: Context): List<String> {
+        sweepStalePartials(context)
+        return localModelsDir(context).listFiles { f -> f.extension.equals("tflite", ignoreCase = true) }
             ?.map { it.nameWithoutExtension }
             ?.sorted()
             .orEmpty()
+    }
 
     /** Resolve [modelName] (no extension) to its file path. Returns
      *  null when the file isn't present in [localModelsDir]. */
@@ -230,7 +247,7 @@ object LocalEmbedder {
         if (inputs.isEmpty()) return emptyList()
         val started = System.currentTimeMillis()
         AppLog.d("LocalEmbedder", "→ embed $modelName n=${inputs.size} avgLen=${if (inputs.isNotEmpty()) inputs.sumOf { it.length } / inputs.size else 0}")
-        embedding = modelName
+        markEmbeddingStart(modelName)
         return try {
             val embedder = getEmbedder(context, modelName)
             // Native TextEmbedder handle is not thread-safe — two
@@ -254,7 +271,19 @@ object LocalEmbedder {
                 durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
             null
         } finally {
-            embedding = null
+            markEmbeddingEnd(modelName)
+        }
+    }
+
+    private fun markEmbeddingStart(modelName: String) {
+        embeddingCounts.compute(modelName) { _, current ->
+            (current ?: AtomicInteger(0)).also { it.incrementAndGet() }
+        }
+    }
+
+    private fun markEmbeddingEnd(modelName: String) {
+        embeddingCounts.computeIfPresent(modelName) { _, current ->
+            if (current.decrementAndGet() <= 0) null else current
         }
     }
 

@@ -158,7 +158,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Each prompt save re-reads the entire history file from disk (`loadPromptHistory()`), mutates, and rewrites — O(n) disk read on every saved prompt.
 **Root cause:** No in-memory cache for prompt history (unlike usage stats which got a ConcurrentHashMap cache).
 **Proposed fix:** Cache the list in memory, or accept it (history is capped at 100).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — prompt history now uses a lock-protected in-memory cache for load/save/clear, so saving a prompt no longer re-reads the JSON file.
 
 ---
 
@@ -242,7 +242,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The confirmation dialog computes report/chat/trace counts by enumerating all reports, chat sessions, and trace files synchronously on the UI thread (acknowledged in the comment). For a device with many reports/traces this janks when the dialog opens.
 **Root cause:** Counts read disk in composition rather than on `Dispatchers.IO`.
 **Proposed fix:** Compute the counts in a `LaunchedEffect`/`produceState` off the main thread.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the trim confirmation now computes report/chat/trace counts in `produceState` on `Dispatchers.IO` and enables Trim after the snapshot loads.
 
 ---
 
@@ -275,14 +275,14 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** From a non-English source, the target language picker accepts English (`InternalPromptSeed.BASE_LANGUAGE`) as a target. Only `source == target` is blocked. Translating *into* English would generate a stored "English" set that shadows the editable English baseline.
 **Root cause:** No guard that `target != BASE_LANGUAGE`.
 **Proposed fix:** Reject English as a translation target.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — prompt translation runs now reject English as a generated target so the editable baseline cannot be shadowed.
 
 ### Bug 29 — Severity: LOW — Category: main-thread work
 **Location:** PromptTranslationsScreen.kt:144 (`PromptTranslationStore.count(context, lang)`) inside the `items(...)` lambda
 **Symptom:** Each language row reads its stored-prompt count from disk on the main thread during list composition; with several languages this re-reads on every recomposition.
 **Root cause:** Per-row synchronous disk read in the LazyColumn item.
 **Proposed fix:** Precompute counts once off-thread (a map keyed on the refresh tick).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — prompt translation counts are now precomputed once in `produceState` on `Dispatchers.IO` and reused by rows.
 
 ---
 
@@ -293,7 +293,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** If a flock's `agentIds` contains an id not present in `aiSettings.agents` (e.g. imported from a Workers bundle whose agents weren't imported), that id is counted in `selectedAgentIds.size` but never appears in `availableAgents`, so the count can read "N selected of M" with N > M, and the dangling id is persisted on save (`selectedAgentIds.toList()`).
 **Root cause:** `availableAgents` only includes agents present in settings (active or selected); a fully-absent id is invisible but still counted and saved. (Normal in-app agent deletion auto-prunes flocks, so this is an import-path edge.)
 **Proposed fix:** Drop ids not resolvable to a real agent before counting/saving, or surface them as a removable "(missing)" row.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Flock edit state now filters selected ids through known agents before counting, validation, and save payloads.
 
 ---
 
@@ -311,21 +311,21 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** After deleting entries inside `CacheEntriesScreen` and returning to the hub, the per-cache count/size on the hub is stale — it only recomputes when `registry` changes (which it never does).
 **Root cause:** Stats `produceState` is keyed only on the stable `registry`; no resume-refresh tick.
 **Proposed fix:** Key the stats `produceState` on a `resumeRefreshTick()` so it recomputes on return.
-**Status:** Open
+**Status:** Fixed in `CachesScreen.kt` by keying hub cache stats on `resumeRefreshTick()` as well as the registry.
 
 ### Bug 33 — Severity: LOW — Category: refresh feedback / fire-and-forget
 **Location:** CachesScreen.kt:198-207 (`onRefresh` for "Artificial Analysis"/"OpenRouter") + 378-387 (`CacheEntryRow` wrapper)
 **Symptom:** For the keyed pricing tiers, `onRefresh` is `{ _ -> onRefreshKeyed("pricing", s.name) }` — a fire-and-forget dispatch that returns instantly. The row wrapper then flips `busy=false` and bumps `refreshTick` immediately, re-listing before the refresh actually completes, so the entry still shows the old age/"never fetched".
 **Root cause:** The keyed refresh isn't awaited; the busy/refresh cycle assumes the lambda blocks until done.
 **Proposed fix:** Have the keyed path report completion (suspend or callback) before clearing busy / re-listing.
-**Status:** Open
+**Status:** Fixed in `CachesScreen.kt`, `DeveloperRoutes.kt`, and `AppViewModel.kt` by making keyed cache refreshes suspendable and awaiting the underlying VM refresh work.
 
 ### Bug 34 — Severity: LOW — Category: UX
 **Location:** CachesScreen.kt:330,378-387,457-459 (single `busy` flag)
 **Symptom:** A single screen-level `busy` flag gates `enabled` on every row's 🔄 button, so refreshing one entry disables refresh on all entries until it finishes.
 **Root cause:** `busy` is per-screen, not per-entry.
 **Proposed fix:** Track busy per entry id (or accept it).
-**Status:** Open
+**Status:** Fixed in `CachesScreen.kt` by tracking the currently refreshing cache entry key and disabling only that row's refresh button.
 
 ---
 
@@ -361,7 +361,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** `internalTotal` sums categories `meta + meta_compare + fan_out + fan_in + internal + workers + alt`. The InternalPrompt CRUD docs reference `icons` and `info` categories; if any prompts carry those categories they're neither counted in the badge nor reachable from any hub card.
 **Root cause:** The category set on the hub/count diverges from the categories that can exist in `internalPrompts`.
 **Proposed fix:** Confirm `icons`/`info` are folded into `internal`; if they can still exist, count and surface them (or migrate them).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — prompt-management counts now include `icons`/`info`, the internal-prompts hub exposes both categories, and fixed-list gating recognizes them.
 
 ---
 
@@ -372,21 +372,21 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The API Test screen persists the typed raw API key (and the raw request JSON, which may embed a key) into `eval_prefs` for convenience. Because `eval_prefs` is the app's main prefs file, the raw test key rides along in the full Backup zip.
 **Root cause:** Convenience persistence of a credential to the primary prefs store.
 **Proposed fix:** Don't persist the test key (or store it in a transient/excluded store).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — API Test now keeps the typed key only in process memory and removes the legacy `last_test_api_key` preference when building a request.
 
 ### Bug 40 — Severity: LOW — Category: no error feedback
 **Location:** DeveloperScreens.kt:215-225 (`ApiTestScreen` model fetch)
 **Symptom:** The "..." model picker fetch wraps `AnalysisRepository().fetchModels` in `catch (_: Exception) { emptyList() }`. A failed fetch (bad key / network) shows only "No models loaded yet — fetch first." with no error, indistinguishable from an empty catalog.
 **Root cause:** Exception swallowed with no surfaced message.
 **Proposed fix:** Surface the failure (toast / inline) instead of an empty list.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — API Test model fetch errors are now captured and shown inline in the model picker empty state.
 
 ### Bug 41 — Severity: LOW — Category: wrong trace correlation
 **Location:** DeveloperScreens.kt:347-351 (`EditApiRequestScreen` newest-trace pick)
 **Symptom:** After submitting the hand-crafted request, the screen identifies "this call's" trace as `getTraceFiles().firstOrNull()` whenever the count increased. A concurrent flow whose trace lands in the same window would be opened instead.
 **Root cause:** Newest-trace heuristic with no run/host correlation (the Agent test path, by contrast, filters by host and start time).
 **Proposed fix:** Correlate by a captured start timestamp + host like the Agent/Provider test flows.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — developer raw-request submit now captures start time and expected host, then opens the newest matching trace instead of the global newest trace.
 
 ### Bug 42 — Severity: LOW — Category: locale / comma-decimal
 **Location:** DeveloperScreens.kt:287 (`EditApiRequestScreen` temperature parse)
@@ -411,7 +411,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** After clearing / trimming, the screen reloads `AppLog.getLogFiles()` synchronously on the main thread inside the dialog button handler (the initial load uses `Dispatchers.IO`).
 **Root cause:** The post-action reload isn't dispatched off-thread.
 **Proposed fix:** Reload via the existing `refreshTick` / `produceState` path instead of a synchronous call.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — clear/trim now run file work on `Dispatchers.IO` and refresh the list via the existing async loader tick.
 
 ---
 
@@ -444,7 +444,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** When the intent sets both an explicit `email` and `nextAction == "email"`, the card shows two lines: "Email the report to {address}" and "Email the report to your default address". The user sees a redundant/contradictory disclosure of one action.
 **Root cause:** The `email` field and the `nextAction` email case are rendered independently with no de-dup.
 **Proposed fix:** Collapse to a single line when both express an email side effect.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — explicit email disclosure now suppresses the default-address `nextAction=email` line.
 
 ---
 
@@ -455,7 +455,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** `isUrl` requires the entire trimmed text to be a single whitespace-free token starting with http(s)://. A shared URL with any surrounding text, a trailing label, or a markdown link (`[x](https://…)`) is not recognized, so the "Add to Knowledge as URL" affordance is hidden for many real share payloads (browsers often append the page title to EXTRA_TEXT).
 **Root cause:** Whole-string match with a no-internal-whitespace rule.
 **Proposed fix:** Extract the first http(s) token from the text rather than requiring the entire payload to be the URL.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — SharedContent now extracts the first embedded http(s) URL and the Knowledge handoff queues that URL instead of the whole shared text.
 
 ---
 
@@ -466,7 +466,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Starting the stress test submits one report per Example Prompt, each running swarm "Level 2"'s full model set, with no cap and no displayed call count. The confirm warns "can be a lot of API calls" but doesn't show how many reports/models will fire.
 **Root cause:** No pre-flight count or cap surfaced before the fan-out.
 **Proposed fix:** Show "{N prompts × M models = K calls}" in the confirm so the spend is visible.
-**Status:** Open
+**Status:** Fixed in `StressTestScreen.kt` / `StressTestEngine.kt` by estimating active Level 2 members and showing prompts x models = API calls in the confirmation dialog.
 
 ---
 
@@ -477,7 +477,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The layered CSV is comma-separated and the prices use `.` decimals (Locale.US). On a comma-decimal locale, opening the file in a localized spreadsheet (which may switch to `;` separators and `,` decimals) and re-saving produces a file the importer can't parse (fields split wrong, prices null). There's no separator/decimal detection on import.
 **Root cause:** Fixed comma-separator + dot-decimal assumption, no locale tolerance on import.
 **Proposed fix:** Accept `;`-separated / comma-decimal variants on import, or document that the file must stay US-formatted.
-**Status:** Open
+**Status:** Fixed in `CostsMaintenanceScreen.kt` by detecting comma vs semicolon delimiters from the header and reusing the existing comma-decimal price parser.
 
 ---
 
@@ -510,7 +510,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The restore confirmation says it "overwrites all current configuration, API keys, reports, chats, and traces", but `BackupManager` excludes (and preserves) `local_llms/` + `local_models/`. A user restoring onto a device with different local models isn't told those are left as-is.
 **Root cause:** Confirm copy doesn't mention the preserved local-runtime exclusions.
 **Proposed fix:** Note that installed Local LLM/LiteRT models are kept (not restored), matching the backup-exclude design.
-**Status:** Open
+**Status:** Fixed in `BackupRestoreScreen.kt` by noting that installed Local LLM and LiteRT model files remain on the device and are not restored from the backup.
 
 ---
 
@@ -521,7 +521,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** When a single model test throws (vs returns a failure), `runCatching{...}.getOrElse { false to null }` records it as a plain Fail with a null trace, so the row's ✕ has no 🐞 deep-link and the user can't see why it failed (unlike the single-model test path which captures a trace).
 **Root cause:** Thrown exceptions are flattened to `false to null` with no captured trace/message.
 **Proposed fix:** Capture the exception's trace/message into `ModelTestStatus.Fail` so the row can link to it.
-**Status:** Open
+**Status:** Fixed in `ServiceSettingsScreens.kt` by carrying thrown test exceptions into `ModelTestStatus.Fail` and showing the failure message inline while preserving trace links when available.
 
 ---
 
@@ -532,7 +532,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Back from the Default-meta-items CRUD always lands on `SETTINGS_AUTOSTART`, on the assumption it was reached from Autostart. If it's ever reached from another entry point (the SetupScreens comment notes it "moved"), back goes to the wrong screen.
 **Root cause:** Hard-coded parent in `goBack` rather than tracking the actual caller.
 **Proposed fix:** Verify it's only reachable from Autostart, or track the entry point.
-**Status:** Open
+**Status:** Fixed in `SettingsScreen.kt` by remembering the Default-meta-items caller and routing Back to that stored parent instead of hard-coding Autostart.
 
 ---
 
@@ -543,4 +543,4 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Per-item restart/delete in the detail overlay always `viewing = null` (closes the overlay) rather than reloading the remaining items, so a user fixing items one at a time is bounced back to the batch list after each action instead of staying on the (now-shorter) item list.
 **Root cause:** The detail handlers close the overlay instead of re-running `loadItems`.
 **Proposed fix:** Re-load the item list and stay on the detail screen when items remain.
-**Status:** Open
+**Status:** Fixed in `BrokenWorkScreen.kt` by keeping the detail overlay open during actions and reloading its item list after the busy state clears, closing only when no rows remain.

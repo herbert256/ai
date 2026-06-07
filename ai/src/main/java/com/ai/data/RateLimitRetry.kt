@@ -95,9 +95,10 @@ class RateLimitRetryInterceptor : Interceptor {
                     ?.let { System.currentTimeMillis() + it }
             }
             if (benchUntil != null) {
-                // The Cohere Trial-cap body is itself proof it's Cohere,
-                // so bench it even when findByHost didn't resolve.
-                val providerId = resolvedProviderId ?: if (cohereTrialCap) "Cohere" else null
+                // The Cohere Trial-cap body is itself proof it's a
+                // Cohere-family call, so resolve by registered host family
+                // instead of hard-coding the provider id.
+                val providerId = resolvedProviderId ?: if (cohereTrialCap) cohereProviderIdFor(host) else null
                 val model = modelForRequest(request)
                 if (providerId != null && !model.isNullOrBlank()) {
                     ModelCooldownStore.markUnavailable(
@@ -137,9 +138,13 @@ class RateLimitRetryInterceptor : Interceptor {
         // bubbles up to the outer withRetry layer. A flow that opted
         // out of the sleeping retry loop (the "Test all models" sweep)
         // is treated as maxRetries == 0 — the 429 is returned as-is.
+        val hasBackoffYielder = ProviderThrottle.backoffPermitYielder.get() != null
         val (maxRetries, backoffMs) =
-            if (ProviderThrottle.suppressInlineRetry.get() == true) 0 to 0L
+            if (ProviderThrottle.suppressInlineRetry.get() == true || !hasBackoffYielder) 0 to 0L
             else ProviderThrottle.retryLimitsFor429(request.url.host)
+        if (!hasBackoffYielder && ProviderThrottle.suppressInlineRetry.get() != true) {
+            AppLog.d("RateLimit", "429 on ${request.url.host} has no backoff yielder; returning for coroutine-level retry")
+        }
         AppLog.d("RateLimit", "429 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)")
         var current = response
         var attempt = 0
@@ -173,7 +178,13 @@ class RateLimitRetryInterceptor : Interceptor {
             // live retry-pressure readout.
             RetryStats.record()
             RetryStats.enterBackoff()
-            try { ProviderThrottle.backoffSleep(sleepMs) } finally { RetryStats.exitBackoff() }
+            try {
+                try {
+                    ProviderThrottle.backoffSleep(sleepMs)
+                } catch (e: InterruptedException) {
+                    throw e.asThrottleCancellation()
+                }
+            } finally { RetryStats.exitBackoff() }
             attempt++
             AppLog.d("RateLimit", "429 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}")
             current = chain.proceed(request)
@@ -284,12 +295,14 @@ internal fun retryAfterHintMs(response: Response, peekedBody: String?): Long? {
     }.getOrNull()
 }
 
-/** Best-effort model id for a request being benched. Gemini
- *  path-encodes it (`/v1beta/models/<model>:generateContent`);
- *  every other provider carries it in the JSON request body's
- *  `model` field. The request has already been sent by the time
- *  this runs, so re-reading the body is inspection-only. */
+/** Best-effort model id for a request being benched. Prefer the
+ *  trace tag installed by the caller; Gemini path-encodes it
+ *  (`/v1beta/models/<model>:generateContent`); every other provider
+ *  carries it in the JSON request body's `model` field. The request
+ *  has already been sent by the time this runs, so body re-reading is
+ *  only a fallback for untagged calls. */
 internal fun modelForRequest(request: okhttp3.Request): String? {
+    ApiTracer.currentModel?.takeIf { it.isNotBlank() }?.let { return it }
     if (request.url.host == "generativelanguage.googleapis.com") {
         return request.url.pathSegments.lastOrNull()
             ?.substringBefore(":")?.takeIf { it.isNotBlank() }
@@ -301,6 +314,27 @@ internal fun modelForRequest(request: okhttp3.Request): String? {
         com.google.gson.JsonParser.parseString(buf.readUtf8())
             .asJsonObject.get("model")?.asString
     }.getOrNull()?.takeIf { it.isNotBlank() }
+}
+
+private fun cohereProviderIdFor(requestHost: String): String? {
+    ProviderRegistry.findByHost(requestHost)?.id?.let { return it }
+    return ProviderRegistry.getAll().firstOrNull { service ->
+        service.auxHosts.any(::isCohereHost) ||
+            isCohereHost(hostFromUrl(service.baseUrl)) ||
+            isCohereHost(hostFromUrl(service.nativeCapabilityUrl)) ||
+            isCohereHost(hostFromUrl(service.nativeRerankUrl)) ||
+            isCohereHost(hostFromUrl(service.nativeModerationUrl))
+    }?.id
+}
+
+private fun hostFromUrl(url: String?): String? {
+    if (url.isNullOrBlank()) return null
+    return runCatching { java.net.URI(url).host?.lowercase(Locale.ROOT) }.getOrNull()
+}
+
+private fun isCohereHost(host: String?): Boolean {
+    val normalized = host?.lowercase(Locale.ROOT) ?: return false
+    return normalized == "cohere.com" || normalized.endsWith(".cohere.com")
 }
 
 /** True when a Google 429 body reports a **per-day** quota as
@@ -401,4 +435,3 @@ private fun nextMonthStartMs(): Long {
     cal.set(java.util.Calendar.MILLISECOND, 0)
     return cal.timeInMillis
 }
-

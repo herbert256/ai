@@ -479,8 +479,17 @@ fun KnowledgeDetailScreen(
                                 append(src.type.name.lowercase())
                                 append(" · ").append(src.chunkCount).append(" chunks")
                                 src.errorMessage?.let { append(" · ").append(it) }
+                                src.needsReindexReason?.let { append(" · Needs re-index: ").append(it) }
                             }
-                            Text(sub, fontSize = 11.sp, color = if (src.errorMessage != null) AppColors.DangerAccent else AppColors.TextTertiary)
+                            Text(
+                                sub,
+                                fontSize = 11.sp,
+                                color = when {
+                                    src.errorMessage != null -> AppColors.DangerAccent
+                                    src.needsReindexReason != null -> AppColors.CautionAccent
+                                    else -> AppColors.TextTertiary
+                                }
+                            )
                         }
                         TextButton(
                             onClick = {

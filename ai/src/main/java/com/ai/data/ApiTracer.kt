@@ -13,6 +13,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
@@ -29,6 +30,8 @@ import kotlinx.coroutines.launch
  */
 object ApiTracer {
     private const val TRACE_DIR = "trace"
+    private const val MAX_TRACE_FILES = 2_000
+    private const val MAX_TRACE_BYTES = 50L * 1024L * 1024L
     private var traceDir: File? = null
     private val gson = createAppGson(prettyPrint = true)
     private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.US).withZone(ZoneId.systemDefault())
@@ -139,13 +142,14 @@ object ApiTracer {
         val resolvedFilename = filename ?: run {
             val ts = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
             val seq = fileSequence.incrementAndGet().toString(36)
+            val unique = UUID.randomUUID().toString().take(8)
             // Sanitise hostname so a `host:port` style host (some
             // configurations pass a port through) doesn't produce a
             // filename with `:` — Android's filesystem rejects that
             // and the trace silently fails to land. Replace any
             // non-alphanumeric / dot / dash with `_`.
             val safeHost = trace.hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
-            "${safeHost}_${ts}_${seq}.json"
+            "${safeHost}_${ts}_${seq}_${unique}.json"
         }
         val normalizedTrace = trace.copy(category = normalizeApiCallCategory(trace.category))
         val isUpdate = filename != null
@@ -173,6 +177,10 @@ object ApiTracer {
         // disk and re-sees the new trace.
         AppLog.d("ApiTracer", "trace written $resolvedFilename status=${normalizedTrace.response.statusCode} partial=${normalizedTrace.partial}")
         lock.withLock {
+            if (!File(dir, resolvedFilename).exists()) {
+                AppLog.w("ApiTracer", "Trace $resolvedFilename was removed before cache update — skipping cache entry")
+                return null
+            }
             try {
                 cachedTraceFiles?.let { current ->
                     val info = TraceFileInfo(
@@ -198,6 +206,8 @@ object ApiTracer {
                 AppLog.e("ApiTracer", "Cache update failed for $resolvedFilename — invalidating cache: ${e.message}")
                 cachedTraceFiles = null
             }
+            val pruned = pruneTraceDirLocked(dir, protectedFilename = resolvedFilename)
+            if (pruned > 0) AppLog.i("ApiTracer", "Pruned $pruned old trace file(s)")
             bumpTraceVersion()
             return resolvedFilename
         }
@@ -279,6 +289,37 @@ object ApiTracer {
         if (reader.peek() == com.google.gson.stream.JsonToken.NULL) {
             reader.nextNull(); null
         } else reader.nextString()
+
+    private data class TracePruneCandidate(val file: File, val info: TraceFileInfo, val size: Long)
+
+    private fun pruneTraceDirLocked(dir: File, protectedFilename: String): Int {
+        val candidates = dir.listFiles { file -> file.extension == "json" }
+            ?.mapNotNull { file ->
+                parseTraceFileInfoStreaming(file)?.let { info ->
+                    TracePruneCandidate(file, info, file.length().coerceAtLeast(0L))
+                }
+            }
+            ?.sortedByDescending { it.info.timestamp }
+            ?: return 0
+        var keptCount = 0
+        var keptBytes = 0L
+        val deletedNames = mutableSetOf<String>()
+        candidates.forEach { candidate ->
+            val protected = candidate.info.filename == protectedFilename
+            val keepByCount = keptCount < MAX_TRACE_FILES
+            val keepByBytes = keptBytes + candidate.size <= MAX_TRACE_BYTES || keptCount == 0
+            if (protected || (keepByCount && keepByBytes)) {
+                keptCount++
+                keptBytes += candidate.size
+            } else if (candidate.file.delete()) {
+                deletedNames += candidate.info.filename
+            }
+        }
+        if (deletedNames.isNotEmpty()) {
+            cachedTraceFiles = cachedTraceFiles?.filterNot { it.filename in deletedNames }
+        }
+        return deletedNames.size
+    }
 
     /** Cheap existence check for the Hub "AI API Traces" card. Avoids the
      *  parse-every-file cost of [getTraceFiles] on a hot path that just

@@ -72,7 +72,6 @@ fun AgentEditScreen(
     var name by remember(resetTick) { mutableStateOf(agent?.name ?: "") }
     var selectedProvider by remember(resetTick) { mutableStateOf(initialProvider) }
     var model by remember(resetTick) { mutableStateOf(agent?.model ?: "") }
-    var apiKey by remember(resetTick) { mutableStateOf(agent?.apiKey ?: "") }
     var selectedEndpointId by remember(resetTick) { mutableStateOf(agent?.endpointId) }
     var selectedParamsIds by remember(resetTick) { mutableStateOf(agent?.paramsIds ?: emptyList()) }
     var selectedSystemPromptId by remember(resetTick) { mutableStateOf(agent?.systemPromptId) }
@@ -128,7 +127,7 @@ fun AgentEditScreen(
     when (overlayMode) {
         1 -> { SelectProviderScreen(aiSettings = aiSettings, onSelectProvider = { selectedProvider = it; model = ""; overlayMode = 0 }, onBack = { overlayMode = 0 }, onNavigateHome = onNavigateHome); return }
         2 -> {
-            val effectiveKey = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
+            val effectiveKey = aiSettings.getApiKey(selectedProvider)
             SelectModelScreen(
                 provider = selectedProvider, aiSettings = aiSettings, currentModel = model, showDefaultOption = true,
                 onSelectModel = { model = it; overlayMode = 0 },
@@ -163,7 +162,7 @@ fun AgentEditScreen(
         )
         // Save / Create CTA hoisted to the top — the form below can
         // be long enough to push a bottom button out of reach.
-        fun buildAgent(id: String) = Agent(id, name.trim(), selectedProvider, model, apiKey, selectedEndpointId, selectedParamsIds, selectedSystemPromptId)
+        fun buildAgent(id: String) = Agent(id, name.trim(), selectedProvider, model, "", selectedEndpointId, selectedParamsIds, selectedSystemPromptId)
         // Persist the LiteLLM endpoint picked this session (only the selected
         // one) as part of saving — runs on each auto-save and on Create.
         fun persistSelectedEndpoint() {
@@ -209,13 +208,6 @@ fun AgentEditScreen(
             OutlinedButton(onClick = { overlayMode = 2 }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                 Text("Model: ${effectiveModel.ifBlank { "(default)" }}", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-
-            // API Key (optional override)
-            OutlinedTextField(
-                value = apiKey, onValueChange = { apiKey = it; testResult = null },
-                label = { Text("API Key (optional, overrides provider)") }, modifier = Modifier.fillMaxWidth(),
-                singleLine = true, colors = AppColors.outlinedFieldColors()
-            )
 
             // Endpoint — combines configured per-provider endpoints with
             // any extra paths LiteLLM lists in `supported_endpoints` for
@@ -303,13 +295,13 @@ fun AgentEditScreen(
             }
 
             // Test
-            if (apiKey.isNotBlank() || aiSettings.getApiKey(selectedProvider).isNotBlank()) {
+            if (aiSettings.getApiKey(selectedProvider).isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = {
                             scope.launch {
                                 isTesting = true; testResult = null; lastTraceFile = null
-                                val key = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
+                                val key = aiSettings.getApiKey(selectedProvider)
                                 // Snapshot the trace folder so we can identify the file produced by THIS test.
                                 // Trace enumeration parses every file on cold cache — push to IO so a large
                                 // trace dir doesn't hitch the picker animation.

@@ -73,8 +73,11 @@ fun LocalSemanticSearchScreen(
     // Latest "Local semantic search" trace — drives the 🐞 next to the
     // status text after a search completes. Refreshed each time
     // running flips back to false.
-    val latestTrace by produceState<String?>(initialValue = null, running) {
-        if (running) return@produceState
+    val latestTrace by produceState<String?>(initialValue = null, running, searchStartedAt) {
+        if (running || searchStartedAt <= 0L) {
+            value = null
+            return@produceState
+        }
         val startedAt = searchStartedAt
         value = withContext(Dispatchers.IO) {
             com.ai.data.ApiTracer.getTraceFiles()
@@ -243,9 +246,9 @@ private suspend fun runLocalEmbedSearch(
         }
     }
 
-    cached.map { c ->
-        LocalSemanticHit(c.reportId, c.title, c.timestamp,
-            EmbeddingsStore.cosine(queryVec, c.vec), iconById[c.reportId])
+    cached.mapNotNull { c ->
+        val score = EmbeddingsStore.cosine(queryVec, c.vec)
+        if (score.isNaN()) null else LocalSemanticHit(c.reportId, c.title, c.timestamp, score, iconById[c.reportId])
     }.sortedByDescending { it.score }.filter { it.score > 0.0 }.take(10)
 }
 

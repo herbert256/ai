@@ -38,12 +38,14 @@ data class AuditFileInfo(
  * cost is irrelevant and it sidesteps a per-report writer map.
  *
  * Retention: the audit file is **kept** when its report is deleted (a
- * trailing `Report deleted` line is appended). The Audit list is sourced
- * from these files, so deleted reports still appear.
+ * trailing `Report deleted` line is appended), then bounded by a newest-first
+ * count/size cap so old deleted-report audits do not grow forever.
  */
 object AuditLog {
     private const val DIR_NAME = "audit"
     private const val FILE_SUFFIX = ".log"
+    private const val MAX_AUDIT_FILES = 1_000
+    private const val MAX_AUDIT_BYTES = 20L * 1024L * 1024L
     private val LINE_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
         .withZone(ZoneId.systemDefault())
 
@@ -60,6 +62,7 @@ object AuditLog {
     fun init(context: Context) = lock.withLock {
         appContext = context.applicationContext
         auditDir = File(context.filesDir, DIR_NAME).also { if (!it.exists()) it.mkdirs() }
+        auditDir?.let(::pruneRetentionLocked)
     }
 
     // ===== Append API =====
@@ -83,6 +86,7 @@ object AuditLog {
                     w.write("$ts ${redactSecret(message)}")
                     w.newLine()
                 }
+                pruneRetentionLocked(dir)
             } catch (e: Exception) {
                 // Bury — auditing must never throw into caller code.
                 android.util.Log.w("AuditLog", "append failed: ${e.message}")
@@ -225,6 +229,21 @@ object AuditLog {
         if (c == null) "$?" else "$" + BigDecimal(c).setScale(6, RoundingMode.HALF_UP)
             .stripTrailingZeros().toPlainString()
 
+    private fun pruneRetentionLocked(dir: File) {
+        if (!dir.exists()) return
+        val files = dir.listFiles()
+            ?.filter { it.isFile && it.name.endsWith(FILE_SUFFIX) }
+            ?.sortedByDescending { it.lastModified() }
+            ?: return
+        var keptBytes = 0L
+        files.forEachIndexed { index, file ->
+            keptBytes += file.length()
+            if (index > 0 && (index >= MAX_AUDIT_FILES || keptBytes > MAX_AUDIT_BYTES)) {
+                runCatching { file.delete() }
+            }
+        }
+    }
+
     /** Same secret shapes [AppLog.redactSecret] guards against — a URL or
      *  message that leaks a Bearer token / raw key / Google `key=` param. */
     private fun redactSecret(text: String): String {
@@ -232,11 +251,15 @@ object AuditLog {
         var out = text
         out = out.replace(BEARER_REGEX) { m -> "${m.groupValues[1]} [REDACTED]" }
         out = out.replace(RAW_KEY_REGEX) { m -> "${m.groupValues[1]}[REDACTED]" }
+        out = out.replace(CONTEXT_SECRET_REGEX) { m -> "${m.groupValues[1]}[REDACTED]" }
         out = out.replace(GOOGLE_KEY_REGEX) { _ -> "key=[REDACTED]" }
         return out
     }
 
     private val BEARER_REGEX = Regex("""(?i)(Bearer|Basic)\s+[A-Za-z0-9._\-+/=]+""")
     private val RAW_KEY_REGEX = Regex("""(sk-|xai-|gsk_|key-)[A-Za-z0-9_\-]{16,}""")
+    private val CONTEXT_SECRET_REGEX = Regex(
+        """(?i)\b((?:api[_-]?key|key|token|secret|password|client[_-]?secret)\s*[:=]\s*["']?)[A-Za-z0-9._\-+/=]{24,}"""
+    )
     private val GOOGLE_KEY_REGEX = Regex("""key=[A-Za-z0-9_\-]{16,}""")
 }

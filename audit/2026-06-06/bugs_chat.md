@@ -120,7 +120,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** During streaming, each chunk re-splits the entire accumulated content (`content.split("\n")`) and rebuilds up to 30 `Text` composables each driving an `animateFloatAsState`, on every chunk — measurable churn on long responses.
 **Root cause:** The composable is called with the full streaming content and recomposes per chunk; only the >30-line case snaps.
 **Proposed fix:** Lower the snap threshold, or memoize the split and only animate newly-added lines.
-**Status:** Open
+**Status:** Fixed in `ChatScreens.kt` by memoizing line splitting per content value and snapping responses above 12 lines without per-line animation states.
 
 ### Bug 16 — Severity: LOW — Category: performance
 **Location:** ChatScreens.kt:494-495 (`val displayMessages = messages.filter { it.role != "system" }`)
@@ -162,7 +162,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Toggling the Web-search chip or changing the reasoning-effort level and then leaving the screen *without sending* loses the change — on return the chip reverts.
 **Root cause:** `useWebSearch`/`reasoningEffort` are only persisted via `saveSession` inside `actuallySend` (and in the system-prompt effect); a toggle alone never writes.
 **Proposed fix:** Persist on chip change too (debounced `saveSession`).
-**Status:** Open
+**Status:** Fixed in `ChatScreens.kt` by debouncing chip-state saves for sessions that already contain a user turn, while still avoiding empty-chat persistence.
 
 ### Bug 22 — Severity: LOW — Category: performance
 **Location:** ChatScreens.kt:1015-1023 (`ChatMessageBubble` per-bubble `produceState` over `ApiTracer.getTraceFiles()`)
@@ -248,21 +248,21 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The hub loads and parses **every** chat session JSON into memory on each `historyVersion` change, then iterates all of them to compute pinned / recent / unfinished. With a large history this is a heavy disk + parse pass just to render three short lists.
 **Root cause:** `getAllSessionsAsync()` returns full `ChatSession` objects (including image blobs) for the whole history; the hub only needs lightweight headers.
 **Proposed fix:** Add a lightweight session-header projection (id, title, preview, pinned, updatedAt, lastRole) to `ChatHistoryManager`.
-**Status:** Open
+**Status:** Fixed in `ChatHistoryManager.kt` / `ChatHub.kt` by adding a streaming `ChatSessionHeader` projection and using it for pinned/recent/unfinished hub sections.
 
 ### Bug 33 — Severity: LOW — Category: redundant I/O
 **Location:** ChatHub.kt:64-69 (`hasChatHistory` + `allSessionsForHub`)
 **Symptom:** Two separate `produceState` blocks both hit disk on the same `historyVersion`: one counts sessions, the other loads them all.
 **Root cause:** `hasChatHistory` could be derived from `allSessionsForHub.isNotEmpty()` instead of a separate `getSessionCountAsync()` call.
 **Proposed fix:** Derive `hasChatHistory` from the already-loaded list.
-**Status:** Open
+**Status:** Fixed in `ChatHub.kt` by deriving `hasChatHistory` from the hub session list instead of issuing a second disk count.
 
 ### Bug 34 — Severity: LOW — Category: UX
 **Location:** ChatHub.kt:92-98, 215-233 (`UnfinishedChatPill`)
 **Symptom:** When several chats are "awaiting reply", the pill always resumes only `unfinishedSessions.first()` (newest), with no way to pick which one.
 **Root cause:** The pill exposes a single `onResume = { onResumeSession(unfinishedSessions.first().id) }`.
 **Proposed fix:** Either route to a filtered list, or document that it resumes the most recent.
-**Status:** Open
+**Status:** Fixed in `ChatHub.kt` by resuming directly only for a single unfinished chat and routing multi-chat cases to Chat History with a Choose action.
 
 ---
 
@@ -402,7 +402,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** In malformed JSON, a token like `truething` would color `true` then continue — keyword matching has no trailing word-boundary check.
 **Root cause:** `regionMatches(i, "true", 0, 4)` without verifying the next char is a delimiter.
 **Proposed fix:** Require the following char to be non-alphanumeric. (Cosmetic; JSON-only.)
-**Status:** Open
+**Status:** Fixed in `ModelScreens.kt` by requiring a non-alphanumeric/end-of-string boundary after `true`, `false`, and `null` literals.
 
 ### Bug 52 — Severity: LOW — Category: redundant I/O
 **Location:** ModelScreens.kt:252-272 (`usageEntry` builds a fresh `SettingsPreferences(prefs, filesDir)`)
@@ -465,7 +465,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Rotation clears the query and results; the user must re-run the (paid) embedding search.
 **Root cause:** Plain `remember`.
 **Proposed fix:** `rememberSaveable` the query; re-derive or persist results.
-**Status:** Open
+**Status:** Fixed in `SemanticSearchScreen.kt` by saving the query and result hits across recreation with a compact `Saver`.
 
 ---
 
@@ -476,7 +476,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Before the first search (`searchStartedAt == 0L`), the `produceState` runs with `running=false` and would pick the newest "Local semantic search" trace with `timestamp >= 0` — i.e. the most recent trace from a *previous* run could surface as the title-bar 🐞 even though no search has happened this session.
 **Root cause:** `latestTrace` is computed on entry (running starts false) using `searchStartedAt = 0`, so the timestamp guard is a no-op on the first pass.
 **Proposed fix:** Gate the lookup on "a search has completed this session" (e.g. `searchStartedAt > 0`).
-**Status:** Open
+**Status:** Fixed in `LocalSemanticSearchScreen.kt` by requiring a nonzero current-session search timestamp before resolving a trace.
 
 ### Bug 60 — Severity: LOW — Category: ranking logic
 **Location:** LocalSemanticSearchScreen.kt:246-249 (`.take(10).filter{ it.score > 0.0 }`)
@@ -494,7 +494,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Quick search matches `Report.prompt` and agent response bodies but **not** the report title; a word that appears only in the (displayed) title returns no hit, which is confusing since the result row shows the title.
 **Root cause:** `matchesPrompt`/`matchesAnyResponse` never test `r.title` (the other two search screens include it).
 **Proposed fix:** Add `r.title.contains(needle, ignoreCase = true)` to the predicate.
-**Status:** Open
+**Status:** Fixed in `QuickLocalSearchScreen.kt` by including report titles in the quick-search match predicate.
 
 ### Bug 62 — Severity: LOW — Category: redundant work
 **Location:** QuickLocalSearchScreen.kt:127, 132-135 (`needle = word.lowercase(ROOT)` then `contains(needle, ignoreCase = true)`)
@@ -512,7 +512,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** While a search filter is active, deleting a row computes `remaining = filteredReports.size - 1` from a `filteredReports` that lags `allReports` by the 250 ms debounce, so the page-clamp math can use a stale count; the deleted row also stays visible until the debounce fires.
 **Root cause:** `filteredReports` is produced asynchronously (debounced) from `allReports`; the synchronous delete handler reads the not-yet-recomputed value.
 **Proposed fix:** Recompute the remaining count from `allReports` minus the deleted id, or clamp reactively only.
-**Status:** Open
+**Status:** Fixed in `HistoryScreen.kt` by deriving visible filtered rows from live report ids and recomputing post-delete page counts from the updated report list.
 
 ### Bug 64 — Severity: LOW — Category: performance
 **Location:** HistoryScreen.kt:67-77 (Response filter)
@@ -530,21 +530,21 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** On the pre-measure frame `maxHeight` is 0, so `pageSize` momentarily computes to 1 and the page count flickers — the sibling `HistoryScreen` guards this (`if (maxHeight.value <= 0f) return`), but `PromptHistoryScreen` does not.
 **Root cause:** Missing pre-measure guard.
 **Proposed fix:** Add the same `if (maxHeight.value <= 0f) return@BoxWithConstraints` guard.
-**Status:** Open
+**Status:** Fixed in `PromptHistoryScreen.kt` by returning from `BoxWithConstraints` until `maxHeight` is measured.
 
 ### Bug 66 — Severity: LOW — Category: reactivity
 **Location:** PromptHistoryScreen.kt:47-48 (`overrideEntries ?: loaded`)
 **Symptom:** After "Clear" sets `overrideEntries = emptyList()`, the screen is permanently pinned to the override; if prompt history is repopulated elsewhere while the screen is open, it won't reflect new entries (the override masks `loaded`).
 **Root cause:** The `overrideEntries` override is sticky with no invalidation.
 **Proposed fix:** Reset `overrideEntries` to null on resume/refresh, or reload `loaded` after a clear.
-**Status:** Open
+**Status:** Fixed in `PromptHistoryScreen.kt` by reloading on resume/refresh, clearing overrides after reload, and updating `loaded` directly on Clear.
 
 ### Bug 67 — Severity: LOW — Category: state loss
 **Location:** PromptHistoryScreen.kt:43-46 (`loaded` plain `remember` + `LaunchedEffect(Unit)`)
 **Symptom:** Rotation reloads the prompt-history file (re-parse) because `loaded` is plain `remember`.
 **Root cause:** Not `rememberSaveable`; benign but redundant disk work.
 **Proposed fix:** Acceptable; could cache via the shared prefs cache.
-**Status:** Open
+**Status:** Fixed in `PromptHistoryScreen.kt` by saving loaded prompt-history entries across recreation and reloading only when the resume refresh tick changes.
 
 ---
 
@@ -555,14 +555,14 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Two example prompts that share an `id` (possible after a duplicate/import) would crash Compose ("key already used").
 **Root cause:** Keyed solely on `id` with no uniqueness guarantee across user-editable/imported data.
 **Proposed fix:** Fall back to index-disambiguated keys, or dedupe ids on load.
-**Status:** Open
+**Status:** Fixed in `ExamplePromptPickerScreen.kt` by using index-disambiguated LazyColumn keys for imported duplicate prompt ids.
 
 ### Bug 69 — Severity: LOW — Category: search coverage
 **Location:** ExamplePromptPickerScreen.kt:37-44 (`filtered`)
 **Symptom:** Search matches title + full text but the row preview only shows the first line of text; a match deep in a multi-line prompt shows a row whose preview doesn't contain the query (minor confusion).
 **Root cause:** Preview is `text.lineSequence().firstOrNull()` while search scans the whole text.
 **Proposed fix:** Show a match-centered snippet (as ChatSearch does).
-**Status:** Open
+**Status:** Fixed in `ExamplePromptPickerScreen.kt` by rendering a compact match-centered preview snippet when search text matches deep in the prompt body.
 
 ---
 
@@ -574,14 +574,14 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** Inconsistent placement of the notify relative to the lock between save and delete.
 **Root mitigation:** StateFlow resumes collectors on their own dispatchers, so no synchronous re-entry happens today — hence LOW/unconfirmed.
 **Proposed fix:** Move `notifyHistoryChanged()` outside the `withLock` in `saveSession` for consistency.
-**Status:** Open
+**Status:** Fixed in `ChatHistoryManager.kt` by deferring the save-session history notification until after the lock is released.
 
 ### Bug 71 — Severity: LOW — Category: cache coherence (unconfirmed)
 **Location:** ChatHistoryManager.kt:88-101 (`getAllSessions` cache) + 30-66 (`saveSession`)
 **Symptom:** `cachedSessions` is invalidated on save/delete, but `setSessionPinned` does load→save as two separate locked ops; a reader between them sees the pre-pin list. Combined with Bug 11 this widens the lost-update window.
 **Root cause:** No single-transaction update path for in-place mutations.
 **Proposed fix:** Provide an atomic `mutateSession(id) { it.copy(...) }` under one lock acquisition.
-**Status:** Open
+**Status:** Fixed in `ChatHistoryManager.kt` by routing pin updates through a locked `mutateSession` helper and notifying observers after the lock is released.
 
 ### Bug 72 — Severity: LOW — Category: search/index dim mismatch (unconfirmed)
 **Location:** SemanticSearchScreen.kt:259-262 / LocalSemanticSearchScreen.kt:246-249 (`EmbeddingsStore.cosine(queryVec, c.vec)`)
@@ -595,7 +595,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** When the master Experimental toggle is off, an already-attached KB still injects RAG context at send time, but the chip is hidden — the user can neither see nor remove the attachment.
 **Root cause:** Visibility gated on `experimentalFeatures` while the dispatch path is not (documented as intentional).
 **Proposed fix:** Either always show the chip when a KB is already attached, or strip attachments when experimental is off.
-**Status:** Open
+**Status:** Fixed in `ChatScreens.kt` by showing the Knowledge chip whenever a session already has attached KB ids, even if Experimental is off.
 
 ### Bug 74 — Severity: LOW — Category: state loss
 **Location:** ChatScreens.kt:63-73 (ChatParametersScreen free-text fields)

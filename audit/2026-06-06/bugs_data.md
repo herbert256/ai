@@ -81,14 +81,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A queued OkHttp call promoted later (when a per-host slot frees) is submitted from the *previous* worker thread, so its trace/throttle tags attribute to the previous flow rather than the originating caller.
 **Root cause:** Documented in the class comment (lines 106-113): tags are snapshotted at submission time, and promotion submits from a worker thread. Acceptable but real.
 **Proposed fix:** Attach per-`Call.tag` at OkHttp Call construction time for race-free attribution (as the comment notes).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — shared Retrofit/raw calls now capture trace/throttle context into an OkHttp request tag at Call construction and restore it in the first interceptor, so queued-call promotion cannot inherit the prior worker's tags.
 
 ### Bug 11 — Severity: LOW — Category: thread-local lifecycle
 **Location:** TagPropagation.kt:136-139, 161-162 (`backoffPermitYielder`, `benchSignal` propagation)
 **Symptom:** The captured `backoffPermitYielder` lambda and `benchSignal` AtomicBoolean are propagated onto the worker and restored in `finally`. If the same originating coroutine submits two concurrent OkHttp calls that both run on pooled worker threads, both share the *same* `benchSignal` AtomicBoolean reference; a 429 on either sets it `true`, and the batch loop can't tell which item should be requeued.
 **Root cause:** A single per-attempt signal object is shared by reference across sibling calls that originate under the same context element.
 **Proposed fix:** Confirm `runThrottledBatch` installs a fresh `benchSignal` per *item* (not per batch); if a coroutine can launch >1 OkHttp call under one signal, scope the signal per dispatched call.
-**Status:** Open (unconfirmed — depends on runThrottledBatch granularity)
+**Status:** Fixed (2026-06-07) — confirmed `runThrottledBatch` allocates a fresh `AtomicBoolean` inside each bench item attempt and installs it only around that item body; no shared batch-level signal exists.
 
 ## File: ai/src/main/java/com/ai/data/ApiClient.kt
 
@@ -97,14 +97,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** On a non-2xx response the body is read implicitly via `resp.body?.string()` only on the success branch; the else branch logs and returns null but `.use{}` closes the response, so OK — but the raw GET shares the *same* `okHttpClient` and therefore the `RateLimitRetryInterceptor`/`ProviderThrottleInterceptor`. A model-list raw fetch that 429s will Thread.sleep-retry inside this synchronous `.execute()` on whatever coroutine thread called it.
 **Root cause:** Reuse of the fully-interceptor-stacked client for a plain blocking GET means the blocking retry/throttle loops run on the caller's thread.
 **Proposed fix:** Acceptable if always called on Dispatchers.IO; otherwise route raw fetches through a lighter client without the sleeping retry interceptors.
-**Status:** Open (unconfirmed)
+**Status:** Fixed (2026-06-07) — raw snapshot fetches now use a lighter client that keeps context/throttle/tracing but omits the sleeping 429/529 retry interceptors.
 
 ### Bug 13 — Severity: LOW — Category: cache key collision
 **Location:** ApiClient.kt:266-275 (`getRetrofit`)
 **Symptom:** Retrofit instances are cached by normalized base URL only. Two providers that share a base URL host but need different behaviour would share the same Retrofit/converter — harmless today, but a custom provider pointing at the same host as a built-in shares the cached instance.
 **Root cause:** Key is the URL string, not (URL, provider config).
 **Proposed fix:** Acceptable (interfaces are stateless); note only. Consider keying by URL + interface type if per-provider converters ever diverge.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Retrofit cache keys now include the API interface namespace as well as the normalized base URL.
 
 ## File: ai/src/main/java/com/ai/data/ApiDispatch.kt
 
@@ -127,7 +127,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The hard call ceiling is derived from `nonStreamingReadTimeoutSec`. For a *streaming open* of a provider that is slow to send headers but within the (longer) streaming read budget, the open can be cancelled by this shorter ceiling and surfaced as an IOException, masking a legitimate slow start.
 **Root cause:** One ceiling computed from the non-streaming read timeout is used for both streaming-open and non-streaming calls (line 52).
 **Proposed fix:** Use the streaming read timeout for the streaming-open call sites.
-**Status:** Open (unconfirmed; the comment argues stream-open is fast)
+**Status:** Fixed (2026-06-07) — `withApiCallTimeout(streamingOpen = true)` now uses the streaming read budget for report/chat stream-open call sites; regular calls keep the non-streaming ceiling.
 
 ### Bug 17 — Severity: LOW — Category: Gemini content extraction
 **Location:** ApiDispatch.kt:500-501 (`analyzeGemini` content pick)
@@ -141,14 +141,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Error responses call `response.errorBody()?.string()` (Retrofit) which is fine, but the success branches read `response.body()` once; for a body that fails mid-parse there is no explicit close. Retrofit closes for typed bodies, but the mixed raw/typed code paths are inconsistent.
 **Root cause:** Mixed Retrofit-typed and manual body handling across the dispatch functions.
 **Proposed fix:** Audit each branch ensures the ResponseBody is consumed/closed; standardise on Retrofit-typed responses where possible.
-**Status:** Open (unconfirmed)
+**Status:** Fixed (2026-06-07) — audited the listed branches: they use Retrofit typed bodies on success and consume `errorBody().string()` on error; no extra raw ResponseBody lifetime remains in those paths.
 
 ### Bug 19 — Severity: LOW — Category: default max_tokens
 **Location:** ApiDispatch.kt:24-25 (`defaultMaxTokens`)
 **Symptom:** When a provider has no `maxTokensDefaults` rule, every call without an explicit `maxTokens` is capped at 4096 output tokens, silently truncating long answers from models with much larger output windows (the user never set a cap; they just get cut off at 4096).
 **Root cause:** A fixed 4096 fallback chosen to avoid OpenRouter balance-gating, applied uniformly.
 **Proposed fix:** Derive the fallback from the model's known output-token limit (already fetched into capabilities) instead of a flat 4096, or only apply the floor for balance-gating providers.
-**Status:** Open
+**Status:** Fixed — default max-token selection now keeps provider-specific rules first, then uses the known models.dev output-token limit when present, before falling back to the conservative 4096 cap.
 
 ## File: ai/src/main/java/com/ai/data/ApiStreaming.kt
 
@@ -171,14 +171,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Field-wise `maxOf` is correct for Anthropic's split and Gemini's cumulative chunks, but for an OpenAI-compatible provider that emits *multiple* partial usage chunks where a later chunk legitimately reports a *smaller* corrected count, `maxOf` keeps the stale larger value, over-counting tokens/cost.
 **Root cause:** `maxOf` assumes monotonic non-decreasing usage across events.
 **Proposed fix:** For the OpenAI final-chunk case, take the last complete `usage` rather than field-wise max; reserve max-merge for the Anthropic/Gemini split/cumulative shapes.
-**Status:** Open (unconfirmed)
+**Status:** Fixed — streaming collection now selects its usage merge policy per API shape: OpenAI-compatible Chat/Responses streams keep the last complete usage event, while Anthropic and Gemini keep field-wise max merging for split/cumulative usage.
 
 ### Bug 23 — Severity: LOW — Category: reasoning fallback ordering
 **Location:** ApiStreaming.kt:378-380 (`OpenAiContentExtractor` + `reasoningFallback`)
 **Symptom:** When a provider streams reasoning *interleaved* with content but content is empty until the end, `reasoningFallback()` is emitted only after the content stream completes; if the stream is cancelled mid-flight, buffered reasoning is lost even though it was the only "answer" produced.
 **Root cause:** Reasoning is buffered and only flushed post-stream; cancellation skips the post-stream emit.
 **Proposed fix:** On cancellation/teardown, still flush `reasoningFallback()` if no content was seen.
-**Status:** Open
+**Status:** Fixed — OpenAI chat streaming now flushes the buffered reasoning fallback once from the stream teardown path when no content chunk was seen, including active exceptional cleanup before rethrow.
 
 ## File: ai/src/main/java/com/ai/data/TracingInterceptor.kt
 
@@ -194,14 +194,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The body redaction regex matches any JSON field named `key`/`token`/`secret`/etc. anywhere in the request body, so a legitimate user prompt that contains JSON like `{"token": "..."}` (e.g. asking the model about a code snippet) gets its content silently redacted in the trace, making the trace useless for debugging that call.
 **Root cause:** The regex is content-agnostic and matches inside the prompt text, not only auth fields.
 **Proposed fix:** Restrict redaction to top-level request fields known to carry secrets, not arbitrary nested occurrences inside user content.
-**Status:** Open
+**Status:** Fixed — trace body redaction now parses JSON and redacts only known top-level secret fields, leaving nested prompt content and JSON examples untouched.
 
 ### Bug 26 — Severity: LOW — Category: streaming trace correctness
 **Location:** TracingInterceptor.kt:204-223 (`teedSource` capture window)
 **Symptom:** `sink.copyTo(captured, sink.size - n, toCopy)` assumes the `n` newly-read bytes sit at the tail of `sink` at offset `sink.size - n`. If a downstream `ForwardingSource` in the chain consumed from `sink` between reads (it doesn't today), the offset math would copy the wrong window into the trace.
 **Root cause:** Offset arithmetic depends on `sink` being append-only across reads.
 **Proposed fix:** Capture into a dedicated buffer passed to `super.read` then copy forward, decoupling from `sink`'s state.
-**Status:** Open (unconfirmed; correct for the current chain)
+**Status:** Fixed — the streaming trace tee now reads upstream bytes into a private chunk buffer, copies from that buffer into the capture buffer, then forwards the bytes to the caller sink, so capture no longer depends on caller sink offset assumptions.
 
 ## File: ai/src/main/java/com/ai/data/ApiTracer.kt
 
@@ -210,21 +210,21 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** When `cachedTraceFiles` is non-null and a save lands, the entry is appended/replaced and re-sorted. But the disk write happened *outside* the lock (line 149-150) while the cache mutation is inside the lock; two concurrent saves to *new* filenames both pass the disk write, then serialize on the cache append — fine — but a concurrent `clearTraces()` between the disk write and the cache append re-adds the just-cleared trace's cache entry, leaving a cache entry for a file `clearTraces` already deleted.
 **Root cause:** The disk write and cache update are intentionally not atomic; `clearTraces` sets `cachedTraceFiles = emptyList()` but a racing `saveTrace` then does `emptyList() + info`.
 **Proposed fix:** Have `saveTrace` re-check that the file still exists before re-adding, or hold the lock across both steps for the append case.
-**Status:** Open (low likelihood)
+**Status:** Fixed in `ApiTracer.kt` by re-checking the just-written trace file under the cache lock before appending it to `cachedTraceFiles`.
 
 ### Bug 28 — Severity: LOW — Category: filename uniqueness
 **Location:** ApiTracer.kt:38, 129-138 (`fileSequence` + filename)
 **Symptom:** The per-process random-seeded sequence avoids cross-restart collisions, but `incrementAndGet().toString(36)` can wrap past `Long.MAX` only theoretically; more practically, two processes (unlikely on Android but possible with a restarted process reading the same dir) could pick overlapping random ranges and collide on `host_ts_seq.json`, overwriting a prior trace.
 **Root cause:** In-memory sequence + random offset is collision-*unlikely*, not collision-*free*.
 **Proposed fix:** Append a short UUID segment (the atomic writer already uses one for staging) to fully eliminate collisions.
-**Status:** Open (very low likelihood)
+**Status:** Fixed in `ApiTracer.kt` by appending an 8-character UUID segment to generated trace filenames.
 
 ### Bug 29 — Severity: LOW — Category: unbounded growth
 **Location:** ApiTracer.kt (trace dir) + BackupManager inclusion
 **Symptom:** Trace files accumulate in `filesDir/trace` with no automatic cap (only manual `deleteTracesOlderThan` from a sweep); a long tracing session with 50-pair fan-outs writes thousands of files that all roll into the backup zip.
 **Root cause:** No size/count ceiling on the trace directory.
 **Proposed fix:** Cap trace count/total bytes with an LRU eviction at save time.
-**Status:** Open
+**Status:** Fixed in `ApiTracer.kt` by pruning oldest trace files after saves once the trace dir exceeds 2,000 files or 50 MB, while protecting the just-written trace.
 
 ## File: ai/src/main/java/com/ai/data/RateLimitRetry.kt
 
@@ -240,21 +240,21 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** For a non-Gemini request, the model id is recovered by re-serializing the request body (`body.writeTo(buf)`). A one-shot/streaming `RequestBody` could throw or already be consumed, so the bench silently skips (`providerId != null && model not blank` fails) and the model is never benched despite a long-retry 429.
 **Root cause:** Re-reading a possibly-non-repeatable RequestBody after it was sent.
 **Proposed fix:** Carry the model id via a per-call tag (ApiTracer already has `currentModel`) instead of re-parsing the body.
-**Status:** Open
+**Status:** Fixed in `RateLimitRetry.kt` by resolving bench model ids from `ApiTracer.currentModel` before falling back to URL/body inspection.
 
 ### Bug 32 — Severity: LOW — Category: retry/dispatcher slot occupancy
 **Location:** RateLimitRetry.kt:146-180 (429 retry loop)
 **Symptom:** When no `backoffPermitYielder` is registered (chat / single calls), `ProviderThrottle.backoffSleep` falls to `Thread.sleep` while still holding the OkHttp dispatcher per-host slot; with `maxRetries` raised by the user and a long Retry-After, the slot is pinned for the full sleep.
 **Root cause:** In-place sleep on the OkHttp worker thread for non-batch flows (documented as bounded, but user-tunable retry count + Retry-After can extend it to 5 min via the clamp).
 **Proposed fix:** Even for non-batch flows, perform the wait at the coroutine layer (release the throttle/dispatcher slot during the sleep) as the batch path does.
-**Status:** Open
+**Status:** Fixed — non-batch 429s no longer enter the interceptor sleep loop when no backoff yielder is installed; they return immediately so the repository-level coroutine retry can wait without pinning an OkHttp worker.
 
 ### Bug 33 — Severity: LOW — Category: Cohere bench host fallback
 **Location:** RateLimitRetry.kt:97-108
 **Symptom:** When `resolvedProviderId` is null but the body matches the Cohere trial-cap text, it benches under literal `"Cohere"`. If the user renamed the Cohere provider id, the bench key won't match the model picker's `providerId:model` key and the picker won't show the cooldown.
 **Root cause:** Hardcoded `"Cohere"` provider id fallback.
 **Proposed fix:** Resolve the provider by API format / host family rather than a literal id.
-**Status:** Open
+**Status:** Fixed in `RateLimitRetry.kt` by resolving Cohere trial-cap benches from registered Cohere-family hosts instead of the literal provider id.
 
 ## File: ai/src/main/java/com/ai/data/OverloadedRetry.kt
 
@@ -263,7 +263,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Unlike `RateLimitRetryInterceptor` (which clears `ApiTracer.lastTraceFilename` before `chain.proceed`), `OverloadedRetryInterceptor` does not, so a 529 short-bench has no defined trace-filename reset; the bench may reference a stale `lastTraceFilename` from a previous call on the pooled thread.
 **Root cause:** Missing the `ApiTracer.lastTraceFilename.set(null)` reset that the 429 sibling performs.
 **Proposed fix:** Mirror the 429 interceptor's reset at the top of `intercept`. (529 path doesn't pass a trace file to markShortBench today, but should for consistency.)
-**Status:** Open
+**Status:** Fixed in `OverloadedRetry.kt` by clearing `ApiTracer.lastTraceFilename` before the 529 interceptor proceeds the request.
 
 ## File: ai/src/main/java/com/ai/data/ProviderThrottling.kt
 
@@ -272,21 +272,21 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A timestamp is added to the per-minute window (line 222) before the concurrency semaphore is acquired (line 241). If the concurrency acquire blocks for a long time, the window slot is "spent" for that minute even though the call hasn't gone out, slightly over-throttling.
 **Root cause:** Documented as the safe direction (over-throttle), but it means the effective rate can dip below the configured cap under concurrency pressure.
 **Proposed fix:** Acceptable; if exactness is wanted, add the window timestamp only once both gates are passed.
-**Status:** Open
+**Status:** Fixed — blocking host acquire now takes the concurrency semaphore first, then records the per-minute window timestamp after that gate has passed; interrupted rate waits release the semaphore before propagating.
 
 ### Bug 36 — Severity: LOW — Category: cap change vs in-flight
 **Location:** ProviderThrottling.kt:339-342 (`resetForNewLimits`)
 **Symptom:** Clearing the `sems`/`windows` maps while calls hold permits on the old (now-unreferenced) semaphores means the host can briefly run at up to old-cap + new-cap concurrency.
 **Root cause:** Documented; semaphore swap doesn't drain in-flight holders.
 **Proposed fix:** Acceptable for a user-driven setting tweak; note only.
-**Status:** Open
+**Status:** Closed — note-only item; `resetForNewLimits` already documents that in-flight calls release old semaphores correctly and that a brief old-cap plus new-cap overlap is acceptable for user-driven setting changes.
 
 ### Bug 37 — Severity: LOW — Category: interrupt handling
 **Location:** ProviderThrottling.kt:231-234, 109-121 (`Thread.sleep` in rate gate / `backoffSleep`)
 **Symptom:** `acquire`'s rate-limit `Thread.sleep` re-throws `InterruptedException` after re-setting the interrupt flag, but the caller (OkHttp interceptor) may translate it into a generic IOException, losing the "cancelled" semantics and potentially triggering the outer retry on a cancellation.
 **Root cause:** Interrupt surfaces as a thrown exception inside the interceptor stack.
 **Proposed fix:** Ensure the interceptor maps `InterruptedException` to a cancellation, not a retryable failure.
-**Status:** Open (unconfirmed)
+**Status:** Fixed — provider throttle acquire and 429/529 backoff sleeps now translate `InterruptedException` into `CancellationException`, preserving cancellation semantics for outer coroutine retry handling.
 
 ## File: ai/src/main/java/com/ai/data/ModelCooldownStore.kt
 
@@ -295,7 +295,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `shortBenchMap` is never pruned of expired entries; across a long session with many transient 429/529s it grows unboundedly, and `_shortBenches` snapshots (published to the dashboard) include long-expired entries forever.
 **Root cause:** No expiry sweep for the short-bench tier (unlike `cooldownMap`'s `pruneExpired`).
 **Proposed fix:** Drop expired keys on `markShortBench`/`isShortBenched`, or run a periodic prune.
-**Status:** Open
+**Status:** Fixed in `ModelCooldownStore.kt` by pruning expired short benches on reads/writes and publishing cleaned short-bench snapshots.
 
 ### Bug 39 — Severity: LOW — Category: SharedPreferences write on network thread
 **Location:** ModelCooldownStore.kt:119-130, 214-221 (`markUnavailable` → `persist`)
@@ -309,7 +309,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `importMerge` does `cooldownMap.putAll(incoming)` — imported cooldowns unconditionally overwrite an existing-but-longer local bench for the same key, potentially un-benching a model earlier than the device's own observation.
 **Root cause:** putAll lets the incoming value win even when the local value is later.
 **Proposed fix:** Merge by `max(existing, incoming)` per key.
-**Status:** Open
+**Status:** Fixed in `ModelCooldownStore.kt` by merging imported cooldowns per key and keeping the later expiry.
 
 ## File: ai/src/main/java/com/ai/data/PricingCache.kt
 
@@ -318,14 +318,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The class-level KDoc states "LITELLM sits ahead of OVERRIDE so the curated BerriAI/litellm prices win over stale manual entries" — the exact opposite of the actual precedence (OVERRIDE is now checked first, line 389; confirmed by CLAUDE.md). A maintainer trusting the doc could "fix" the precedence the wrong way and silently break user overrides.
 **Root cause:** Doc not updated when OVERRIDE was moved ahead of the curated tiers.
 **Proposed fix:** Rewrite the class doc to match the implemented order (provider self-report → OVERRIDE → curated tiers → OpenRouter fallback → Helicone → DEFAULT).
-**Status:** Open
+**Status:** Fixed in `PricingCache.kt` by updating the class KDoc and nearby precedence comment to match the implemented manual-override-first ordering.
 
 ### Bug 42 — Severity: LOW — Category: cold-window cost skew
 **Location:** PricingCache.kt:369-371 (`getPricing` main-thread short-circuit) + ApiUsageRates.costWithin
 **Symptom:** During the pre-preload window, `getPricing` returns `DEFAULT_PRICING` on the main thread; the Live Dashboard's `costWithin` (ApiUsageRates.kt:61-81) then computes spend from DEFAULT rates, briefly showing a wrong cost figure until the preload finishes.
 **Root cause:** Documented cold-window behaviour bleeds into a numeric dashboard, not just a UI placeholder.
 **Proposed fix:** Have `costWithin` skip/withhold the cost figure until `preloadCompleted`, rather than pricing at DEFAULT.
-**Status:** Open
+**Status:** Fixed in `ApiUsageRates.kt`, `PricingCache.kt`, and `AiDashboardScreen.kt` by returning null before pricing preload completes and rendering pending spend as an ellipsis.
 
 ### Bug 43 — Severity: LOW — Category: precedence parity drift
 **Location:** PricingCache.kt:408-429 (`getPricingWithoutOverride`) vs 437-455 (`lookupPricing`)
@@ -348,14 +348,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `cosine` returns 0.0 on a dim mismatch (with a warn log). A caller comparing a remote (List<Double>) cache vector against a re-embedded vector of a different dimension gets "no similarity" rather than an error — RAG retrieval silently returns nothing when the embedder changed but stale vectors remain on disk.
 **Root cause:** Dim mismatch maps to 0.0, indistinguishable from "genuinely orthogonal".
 **Proposed fix:** Already mitigated for KnowledgeService (it skips mismatched chunks with a warn). For any other consumer, return a sentinel/throw so the swap is surfaced, not silently zeroed.
-**Status:** Open
+**Status:** Fixed in `EmbeddingsStore.kt` by returning `NaN` for `List<Double>` dimension mismatches and updating semantic-search/local-rerank callers to skip or report invalid scores.
 
 ### Bug 46 — Severity: LOW — Category: cache read robustness
 **Location:** EmbeddingsStore.kt:49-53 (`get`)
 **Symptom:** A truncated/corrupt embedding JSON returns `null` (cache miss) silently — fine — but `put` (lines 59-71) does not verify the vector is non-empty, so a provider that returned an empty embedding caches `[]`, and the next `get` returns an empty list that `cosine` then treats as 0.0 for every query against that doc.
 **Root cause:** No validation that the stored vector is non-empty.
 **Proposed fix:** Refuse to `put` an empty vector; log instead.
-**Status:** Open
+**Status:** Fixed in `EmbeddingsStore.kt` by refusing empty vectors on write and treating any existing empty cached vector as a logged cache miss on read.
 
 ## File: ai/src/main/java/com/ai/data/local/LocalEmbedder.kt
 
@@ -364,21 +364,21 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The model is streamed to a `.part` file via `tmp.outputStream().use{}` with no `fd.sync()` before the `ATOMIC_MOVE`. Unlike `writeTextAtomic`, a power loss after the move but before the page cache flush can surface a zero-length/partial `.tflite` that the runtime then refuses to load (or crashes on).
 **Root cause:** Missing fsync of the downloaded temp file before the atomic move.
 **Proposed fix:** fsync the FileOutputStream before `Files.move`, mirroring `writeTextAtomic`.
-**Status:** Open
+**Status:** Fixed in `LocalEmbedder.kt` by fsyncing the downloaded `.part` file before moving it into place.
 
 ### Bug 48 — Severity: LOW — Category: concurrent state clobber
 **Location:** LocalEmbedder.kt:33-37, 233-258 (`embedding` @Volatile + `finally { embedding = null }`)
 **Symptom:** `currentlyEmbedding` is a single @Volatile var. Two concurrent `embed` calls on *different* models (allowed — serialization is per-embedder, not global) clobber each other's `currentlyEmbedding`, and the first to finish sets `embedding = null` while the other is still running, so the dashboard shows "idle" mid-embed.
 **Root cause:** Single global var modelling per-model live state.
 **Proposed fix:** Track a set/count of in-flight model names rather than one var.
-**Status:** Open
+**Status:** Fixed in `LocalEmbedder.kt` by tracking per-model in-flight counts and deriving the dashboard summary from active model names.
 
 ### Bug 49 — Severity: LOW — Category: dangling temp on failure
 **Location:** LocalEmbedder.kt:134-139 (`download` catch)
 **Symptom:** On failure `tmp.delete()` is called unconditionally without existence check; harmless, but the partial `.part` may already have been partly moved/locked, leaving a stale `<name>.tflite.part` that `availableModels` ignores but that wastes space and is backed-up-excluded only because it's under `local_models`.
 **Root cause:** No guaranteed cleanup of `.part` artifacts.
 **Proposed fix:** Sweep `*.part` on startup of the Local models screen.
-**Status:** Open
+**Status:** Fixed in `LocalEmbedder.kt` by sweeping stale `.part` downloads whenever local LiteRT models are enumerated.
 
 ## File: ai/src/main/java/com/ai/data/local/LocalLlm.kt
 
@@ -387,7 +387,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Same class as Bug 48 — two concurrent `generate` calls on different `.task` models clobber `currentlyGenerating` and the first finish nulls it while the other runs.
 **Root cause:** Single var for per-model live state.
 **Proposed fix:** Track in-flight model names as a set.
-**Status:** Open
+**Status:** Fixed in `LocalLlm.kt` by tracking per-model in-flight generation counts and deriving the dashboard summary from active model names.
 
 ### Bug 51 — Severity: LOW — Category: locale-sensitive formatting
 **Location:** LocalLlm.kt:180 (`"%.1f".format(rate)`)
@@ -480,7 +480,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A session whose provider id was removed/renamed throws in `AppServiceAdapter` (Bug 8) and is `mapNotNull`-dropped; the dropped session is then cached in `cachedSessions`, so even after the provider is restored the session stays hidden until the cache is invalidated.
 **Root cause:** The failure is cached as "not present" with no re-attempt.
 **Proposed fix:** Don't cache a list built while any file failed to parse, or invalidate on provider-registry changes.
-**Status:** Open
+**Status:** Fixed in `ChatHistoryManager.kt` by skipping session/header cache population whenever any chat file fails to parse.
 
 ## File: ai/src/main/java/com/ai/data/ModelListCache.kt
 
@@ -489,7 +489,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `safeId` maps any non-`[A-Za-z0-9._-]` char to `_`, so two distinct provider ids that differ only in a stripped char (e.g. `My API` vs `My/API`) collide on the same cache file, mixing model lists.
 **Root cause:** Lossy sanitisation without a disambiguating hash.
 **Proposed fix:** Append a short hash of the original id to the sanitised filename.
-**Status:** Open (low likelihood; ids are usually UUID/clean)
+**Status:** Fixed in `ModelListCache.kt` by appending an 8-hex SHA-256 suffix to sanitized provider ids, with legacy filename fallback for reads/deletes.
 
 ## File: ai/src/main/java/com/ai/data/BackupManager.kt
 
@@ -513,14 +513,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The backup zip stores `MAIN_PREFS` (which holds API keys) and `Agent.apiKey` (SettingsModels.kt:111) verbatim in plaintext; anyone with the zip has every key.
 **Root cause:** Keys must restore, so they're included unencrypted (by design) — but there's no warning or optional encryption.
 **Proposed fix:** Offer an optional passphrase-encrypted backup, or at minimum warn the user the zip contains plaintext keys.
-**Status:** Open (design tradeoff; flag for awareness)
+**Status:** Fixed (2026-06-07) — Backup & Restore shows a prominent plaintext-key warning before creating a backup zip.
 
 ### Bug 67 — Severity: LOW — Category: manifest version parse strictness
 **Location:** BackupManager.kt:422-445 (`readManifestVersion`)
 **Symptom:** `(manifest["version"] as? Number)?.toInt()` returns -1 (→ reject) if a valid backup ever wrote `version` as a JSON string; a tolerant producer/consumer mismatch would refuse a real backup.
 **Root cause:** Strict Number cast; no string fallback.
 **Proposed fix:** Accept a numeric string for `version` too.
-**Status:** Open (low likelihood; producer writes an Int)
+**Status:** Fixed in `BackupManager.kt` by accepting numeric string manifest versions in addition to JSON numbers.
 
 ## File: ai/src/main/java/com/ai/data/Knowledge.kt
 
@@ -536,14 +536,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** When a re-index produces a different embedding dim than the manifest, the manifest dim is *retained* and only a warn is logged; the new source's chunks then silent-zero against the query (different vector space) — retrieval quietly degrades with no user-facing signal.
 **Root cause:** Mixed-embedder chunks coexist; only a log warns.
 **Proposed fix:** Mark the source (or KB) as "needs re-index" and surface it in the KB UI instead of only logging.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — sources saved with an embedding-dimension mismatch now carry a visible needs-reindex warning in the Knowledge UI.
 
 ### Bug 70 — Severity: LOW — Category: KB manifest Gson null trap
 **Location:** Knowledge.kt:328-331 (`loadKb`)
 **Symptom:** `KnowledgeBase.name`/`embedderProviderId`/`embedderModel` are non-null String; a corrupt manifest missing one loads with a null (Bug-1 class) and NPEs at retrieve time (`first.embedderProviderId`). Callers wrap `loadKb` in `runCatching` so a parse *exception* is handled, but a successful-parse-with-null is not.
 **Root cause:** Same Gson Unsafe trap; `runCatching` doesn't catch the later NPE.
 **Proposed fix:** Validate non-null fields in `loadKb` and treat a null as a load failure.
-**Status:** Open
+**Status:** Fixed in `Knowledge.kt` by validating required KB manifest string fields inside `loadKb` and normalizing invalid source rows before returning a `KnowledgeBase`.
 
 ## File: ai/src/main/java/com/ai/data/KnowledgeService.kt
 
@@ -568,14 +568,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Raw-key redaction only matches the prefixes `sk-`/`xai-`/`gsk_`/`key-`. Provider keys without those prefixes (Mistral 32-hex, Cohere, Together, DeepSeek, custom providers) embedded in an audit/log message are *not* redacted. Bearer headers are caught, but a key logged outside an `Authorization` header is not.
 **Root cause:** Prefix allow-list rather than entropy/context-based detection.
 **Proposed fix:** Add the known key formats for the wired providers, or redact any token longer than N chars adjacent to a `key`-like context.
-**Status:** Open
+**Status:** Fixed in `AuditLog.kt` and `AppLog.kt` by adding a context-based secret redaction pass for long values next to key/token/secret/password field names.
 
 ### Bug 74 — Severity: LOW — Category: unbounded audit growth
 **Location:** AuditLog.kt:185-202 (retention)
 **Symptom:** Audit files are *kept* on report delete (a `Report deleted` line is appended) and never auto-pruned; over time `filesDir/audit` grows unboundedly. Unlike `applog`, the audit dir is NOT in `FILES_DIR_BACKUP_EXCLUDES`, so it also bloats every backup zip.
 **Root cause:** Deliberate retention with no cap and no backup exclusion.
 **Proposed fix:** Cap audit dir size/age, or exclude it from backup like `applog`.
-**Status:** Open
+**Status:** Fixed in `AuditLog.kt` by pruning newest-first audit retention to 1,000 files / 20 MB on startup and append.
 
 ## File: ai/src/main/java/com/ai/data/AppLog.kt
 
@@ -584,7 +584,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Daily rotation compares `writerDate != today` (string) and reopens the writer. The `getLogFiles` cache (`cachedFiles`) is invalidated by `deleteLog`/`clearLogs` but NOT by a normal `appendLine` that rolls into a *new* day's file — so after midnight the cached file list omits the newly-created day's file until something else invalidates it.
 **Root cause:** Append path that creates a new day file doesn't invalidate `cachedFiles`.
 **Proposed fix:** Invalidate/append to `cachedFiles` when a new day's writer is opened.
-**Status:** Open
+**Status:** Fixed (already present) — `appendLine` invalidates `cachedFiles` after every successful write, including the first write after daily rotation.
 
 ## File: ai/src/main/java/com/ai/data/PromptCache.kt + MetaCache.kt
 
@@ -609,14 +609,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `enqueueAndStart` cancels the existing orchestrator (async, not joined), persists a fresh job, then `startOrchestrator` cancels again and launches. The old orchestrator coroutine may still be executing a non-suspend `mutateJob` and write stale task state over the freshly-persisted job between the persist and the new launch.
 **Root cause:** Cancellation is requested but not joined before the new job is written.
 **Proposed fix:** `cancelAndJoin()` the previous orchestrator before persisting the new job (as `deleteJob` already does).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — enqueue now removes and cancelAndJoin()s any previous orchestrator before persisting the fresh job.
 
 ### Bug 79 — Severity: LOW — Category: phase-timeout pause picks arbitrary row
 **Location:** RegenerateBatchEngine.kt:344-349 (`pauseOnError(... rowIds.first() ...)`)
 **Symptom:** On a 30-min phase timeout, the job is paused on `rowIds.first()` — an arbitrary set-iteration-order row, not necessarily the row that actually stalled — so the detail screen highlights the wrong row and the auto-resume watches the wrong row's error state.
 **Root cause:** `rowIds.first()` on a `Set` has undefined order and no relation to which row stalled.
 **Proposed fix:** Pause on the first row still in RUNNING state (the actual stalled one), not an arbitrary set element.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — phase timeout now pauses on the first persisted RUNNING task for that phase, with the old row set only as a fallback.
 
 ## File: ai/src/main/java/com/ai/data/ApiUsageRates.kt
 
@@ -625,7 +625,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `costWithin` calls `PricingCache.getPricing(context, ...)` per (provider,model) group; on the main thread during the cold pricing window it returns DEFAULT and the live dashboard cost reads wrong (see Bug 42), and after warm-up the per-group `getPricing` does a layered lookup on the UI thread on every dashboard tick.
 **Root cause:** Pricing resolution on the dashboard read path.
 **Proposed fix:** Precompute/caches a price snapshot per (provider,model) and reuse; gate cost display on `preloadCompleted`.
-**Status:** Open
+**Status:** Fixed in `ApiUsageRates.kt` by reusing per-provider/model pricing snapshots after pricing preload instead of repeating layered lookups on every dashboard tick.
 
 ## File: ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt + TranslationRunManager.kt
 
@@ -634,7 +634,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** These `!!` are currently safe because each is preceded by a `filter { !it.X.isNullOrBlank() }`, but the guard and the assertion are textually separated (the filter is on one collection, the `!!` on the mapped element), so a future refactor that changes the filter predicate or reorders the map would turn these into NPEs at run time.
 **Root cause:** Invariant enforced by a distant filter rather than a local non-null binding.
 **Proposed fix:** Bind the non-null value inside the `mapNotNull`/`filter` (`val body = it.responseBody ?: return@mapNotNull null`) so the non-null is local and the `!!` disappears.
-**Status:** Open
+**Status:** Fixed in `SecondaryRunManager.kt`, `SecondaryModelSwitchManager.kt`, and `TranslationRunManager.kt` by replacing distant filter-plus-`!!` invariants with local non-null bindings.
 
 ## File: ai/src/main/java/com/ai/model/SettingsModels.kt
 
@@ -650,7 +650,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Per-agent API keys are stored in the settings prefs blob (and thus the backup zip, Bug 66) in plaintext, duplicating the per-provider key storage and widening the plaintext-key surface.
 **Root cause:** Keys denormalised onto each Agent.
 **Proposed fix:** Reference the provider's stored key rather than copying it onto each Agent, reducing plaintext copies.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — settings load/save migrates legacy agent keys to provider storage when needed and strips agent.apiKey from the persisted agent list; the Agent editor no longer writes per-agent keys.
 
 ## File: ai/src/main/java/com/ai/data/PricingParsers.kt
 
@@ -659,4 +659,4 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Pricing fields are read as `Number` (Gson parses JSON numbers to Double) — safe for well-formed catalogs. But catalogs that ship prices as *strings* (OpenRouter's `OpenRouterPricing` uses String fields elsewhere) would yield null here, silently zeroing that tier's price for the affected models.
 **Root cause:** `as? Number` returns null for a stringified number; no `toDoubleOrNull()` fallback for string-typed values.
 **Proposed fix:** Fall back to `(info[key] as? String)?.toDoubleOrNull()` when the value is a numeric string.
-**Status:** Open (low likelihood per this parser's source shape)
+**Status:** Fixed in `PricingParsers.kt` by accepting numeric strings for LiteLLM pricing fields.
