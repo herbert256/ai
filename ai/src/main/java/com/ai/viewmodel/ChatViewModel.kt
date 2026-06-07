@@ -128,7 +128,14 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         )
         val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
         val outputTokens = AppViewModel.estimateTokens(response)
-        appViewModel.settingsPrefs.updateUsageStatsAsync(service, model, inputTokens, outputTokens, inputTokens + outputTokens)
+        appViewModel.settingsPrefs.updateUsageStatsAsync(
+            service,
+            model,
+            inputTokens,
+            outputTokens,
+            inputTokens + outputTokens,
+            kind = "Dual chat"
+        )
         return response
     }
 
@@ -181,6 +188,13 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         inputTokens: Int,
         outputTokens: Int
     ) {
-        appViewModel.settingsPrefs.updateUsageStatsAsync(service, model, inputTokens, outputTokens, inputTokens + outputTokens)
+        appViewModel.settingsPrefs.updateUsageStatsAsync(
+            service,
+            model,
+            inputTokens,
+            outputTokens,
+            inputTokens + outputTokens,
+            kind = "Chat"
+        )
     }
 }

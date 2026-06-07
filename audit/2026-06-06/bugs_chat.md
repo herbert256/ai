@@ -14,7 +14,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** `recordChatStatistics` calls `updateUsageStatsAsync(service, model, in, out, total)` with no `kind` argument, so it defaults to `kind="report"`. `SettingsPreferences.updateUsageStats` (line 637) derives the category as `normalizeUsageKind(ApiTracer.currentCategory ?: kind)`. But in `actuallySend` the `onRecordStatistics(...)` call is placed *outside* the `withTracerTags(reportId=…, category="Chat")` block (it runs after the `collect` completes), so `ApiTracer.currentCategory` has already been restored to null → it falls back to the literal `"report"`.
 **Reproduction:** Send a chat turn; open AI Usage / Costs; the call lands in the Reports category, not a Chat category.
 **Proposed fix:** Pass `kind = "chat"` explicitly from `recordChatStatistics` (and from `sendDualChatMessage`), or move the `onRecordStatistics` call inside the `withTracerTags("Chat")` block in `actuallySend`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — chat and dual-chat usage stats now pass explicit "Chat" / "Dual chat" kinds instead of falling back to the default report bucket after tracer tags are cleared
 
 ### Bug 2 — Severity: LOW — Category: cost tracking
 **Location:** ChatViewModel.kt:55-71, 78-111 (`sendChatMessageStream` / `messagesWithRag`)
