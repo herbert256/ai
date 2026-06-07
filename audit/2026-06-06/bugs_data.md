@@ -536,7 +536,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** When a re-index produces a different embedding dim than the manifest, the manifest dim is *retained* and only a warn is logged; the new source's chunks then silent-zero against the query (different vector space) — retrieval quietly degrades with no user-facing signal.
 **Root cause:** Mixed-embedder chunks coexist; only a log warns.
 **Proposed fix:** Mark the source (or KB) as "needs re-index" and surface it in the KB UI instead of only logging.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — sources saved with an embedding-dimension mismatch now carry a visible needs-reindex warning in the Knowledge UI.
 
 ### Bug 70 — Severity: LOW — Category: KB manifest Gson null trap
 **Location:** Knowledge.kt:328-331 (`loadKb`)

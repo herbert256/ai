@@ -27,7 +27,11 @@ data class KnowledgeSource(
     val charCount: Int = 0,
     /** Set when the most recent index attempt failed. UI can surface
      *  this on the source row. */
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Set when the chunks were written but should not be trusted for
+     *  retrieval until the source or KB is rebuilt, e.g. after an
+     *  embedder dimension mismatch. */
+    val needsReindexReason: String? = null
 )
 
 /** Metadata for a knowledge base. The chunks live next door under
@@ -217,9 +221,16 @@ object KnowledgeStore {
             // API (Bug 40); the other public mutators wrap loadKb, so do the
             // same here and bail rather than crash the index flow.
             val current = runCatching { loadKb(kbDir) }.getOrNull() ?: return
+            val dimMismatch = current.embeddingDim != 0 && current.embeddingDim != embeddingDim
+            val reindexReason = if (dimMismatch) {
+                "Embedding dimension changed from ${current.embeddingDim} to $embeddingDim; recreate this KB"
+            } else {
+                null
+            }
             val replaced = current.sources.filter { it.id != source.id } + source.copy(
                 chunkCount = chunks.size,
-                charCount = chunks.sumOf { it.text.length }
+                charCount = chunks.sumOf { it.text.length },
+                needsReindexReason = reindexReason
             )
             // First write of any source — adopt its dim. Otherwise keep
             // the existing dim, but warn loudly when this re-index
@@ -229,7 +240,7 @@ object KnowledgeStore {
             // makes retrieval silently bogus.
             val newDim = when {
                 current.embeddingDim == 0 -> embeddingDim
-                current.embeddingDim == embeddingDim -> current.embeddingDim
+                !dimMismatch -> current.embeddingDim
                 else -> {
                     AppLog.w("Knowledge",
                         "Embedding dim mismatch on saveSource: kb=$kbId, " +
