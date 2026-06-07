@@ -57,6 +57,7 @@ fun PromptHistoryScreen(
     LaunchedEffect(searchText) { currentPage = 0 }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        if (maxHeight.value <= 0f) return@BoxWithConstraints
         val rowHeight = 56
         val overhead = 160
         val pageSize = maxOf(1, ((maxHeight.value - overhead) / rowHeight).toInt())

@@ -530,7 +530,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** On the pre-measure frame `maxHeight` is 0, so `pageSize` momentarily computes to 1 and the page count flickers — the sibling `HistoryScreen` guards this (`if (maxHeight.value <= 0f) return`), but `PromptHistoryScreen` does not.
 **Root cause:** Missing pre-measure guard.
 **Proposed fix:** Add the same `if (maxHeight.value <= 0f) return@BoxWithConstraints` guard.
-**Status:** Open
+**Status:** Fixed in `PromptHistoryScreen.kt` by returning from `BoxWithConstraints` until `maxHeight` is measured.
 
 ### Bug 66 — Severity: LOW — Category: reactivity
 **Location:** PromptHistoryScreen.kt:47-48 (`overrideEntries ?: loaded`)
