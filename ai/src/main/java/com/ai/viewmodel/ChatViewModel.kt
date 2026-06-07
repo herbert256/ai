@@ -182,8 +182,16 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         }
         val out = LocalLlm.generate(context, modelName, prompt)
             ?: throw IllegalStateException("Local LLM \"$modelName\" failed — verify it loaded in Housekeeping → Local LLMs.")
-        emit(out)
+        emit(cleanLocalChatOutput(out))
     }.flowOn(Dispatchers.IO)
+
+    private fun cleanLocalChatOutput(raw: String): String =
+        raw
+            .substringBefore("\nUser:")
+            .substringBefore("\nUSER:")
+            .removePrefix("Assistant:")
+            .removePrefix("ASSISTANT:")
+            .trim()
 
     /**
      * Record usage statistics for streaming chat (call after stream completes).

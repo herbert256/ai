@@ -28,7 +28,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** On-device LLM replies can be lower quality / run on, because the conversation is flattened into a bare `User:/Assistant:` transcript with no model-specific chat template and no stop sequence.
 **Root cause:** The prompt builder appends `"User: "/"Assistant: "` lines and a trailing `"Assistant: "`. `LocalLlm.generate` then runs unbounded with no `</s>`/turn-delimiter stop, so a chatty model may hallucinate a fake `User:` turn.
 **Proposed fix:** Look up a per-model chat template (or at least stop at the first generated `"\nUser:"`), and trim the echoed prefix.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — local chat output is now trimmed at generated `User:` turn boundaries and common echoed `Assistant:` prefixes are removed before display
 
 ### Bug 4 — Severity: LOW — Category: cost accuracy
 **Location:** ChatViewModel.kt:117-133 (`sendDualChatMessage`)
