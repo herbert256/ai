@@ -237,7 +237,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The same report cost is shown to a different number of decimals on the Costs view (4), the Answer Matrix (2–4 by magnitude), and the Report-info screen (2), so a user comparing them sees mismatched figures.
 **Root cause:** Three private `formatCentsValue`/`formatCents` call sites with divergent decimal rules and no shared policy.
 **Proposed fix:** Centralise a single cents formatter with one decimal policy and use it across the three screens.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Costs, Answer Matrix, and Report Info now share the same cents-native formatter
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Moderation.kt
 

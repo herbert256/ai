@@ -37,7 +37,7 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.report.manage.view.rememberReportCostData
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.formatCentsValue
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -146,7 +146,7 @@ fun ReportInfoScreen(
             Section("Totals")
             InfoRow("API calls", apiCalls.toString())
             InfoRow("Total API time", formatDuration(totalDurationMs))
-            InfoRow("Total cost", formatCents(totalCents, 2))
+            InfoRow("Total cost", formatCentsValue(totalCents))
             InfoRow("Models used", modelCount.toString())
             InfoRow("Tokens", "$inTokens in · $outTokens out")
 
@@ -282,7 +282,7 @@ private fun ReportInfoCostTable(
                 first = row.label,
                 calls = row.calls.toString(),
                 duration = formatDuration(row.durationMs),
-                costs = formatCents(row.cents, 2),
+                costs = formatCentsValue(row.cents),
                 onFirstClick = if (onModelClick != null && row.provider != null && row.model != null) {
                     { onModelClick(row) }
                 } else null
