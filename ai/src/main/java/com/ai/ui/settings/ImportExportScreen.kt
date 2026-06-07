@@ -328,6 +328,14 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     })
     addProperty("loggingMasterEnabled", g.loggingMasterEnabled)
     addProperty("tracingEnabled", g.tracingEnabled)
+    // Previously dropped from the JSON Settings export (audit settings#11), so a
+    // config round-trip to a clean install lost them.
+    addProperty("auditLogEnabled", g.auditLogEnabled)
+    addProperty("usageStatsEnabled", g.usageStatsEnabled)
+    addProperty("uiColorMode", g.uiColorMode.name)
+    add("uiColorOverridesDay", JsonObject().apply { g.uiColorOverridesDay.forEach { (k, v) -> addProperty(k, v) } })
+    add("pinnedDashboardCards", createAppGson().toJsonTree(g.pinnedDashboardCards))
+    add("dashboardCardOrder", createAppGson().toJsonTree(g.dashboardCardOrder))
     addProperty("fullScreen", g.fullScreen)
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("appHomeMode", g.appHomeMode.name)
@@ -416,6 +424,14 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         }
         m
     }
+    val uiColorOverridesDay: Map<String, Int>? = obj.getAsJsonObject("uiColorOverridesDay")?.let { o ->
+        val m = LinkedHashMap<String, Int>()
+        o.entrySet().forEach { (k, v) ->
+            if (v.isJsonPrimitive && v.asJsonPrimitive.isNumber) runCatching { v.asInt }.getOrNull()?.let { m[k] = it }
+        }
+        m
+    }
+    val uiColorMode = str("uiColorMode")?.let { runCatching { com.ai.viewmodel.UiColorMode.valueOf(it) }.getOrNull() }
     val titleMode = str("reportTitleMode")?.let {
         runCatching { com.ai.viewmodel.ReportTitleMode.valueOf(it) }.getOrNull()
     }
@@ -436,6 +452,12 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         defaultTypePaths = typePaths ?: current.defaultTypePaths,
         loggingMasterEnabled = bool("loggingMasterEnabled") ?: current.loggingMasterEnabled,
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
+        auditLogEnabled = bool("auditLogEnabled") ?: current.auditLogEnabled,
+        usageStatsEnabled = bool("usageStatsEnabled") ?: current.usageStatsEnabled,
+        uiColorMode = uiColorMode ?: current.uiColorMode,
+        uiColorOverridesDay = uiColorOverridesDay ?: current.uiColorOverridesDay,
+        pinnedDashboardCards = strList("pinnedDashboardCards")?.toSet() ?: current.pinnedDashboardCards,
+        dashboardCardOrder = strList("dashboardCardOrder") ?: current.dashboardCardOrder,
         fullScreen = bool("fullScreen") ?: current.fullScreen,
         modelNameLayout = layout ?: current.modelNameLayout,
         appHomeMode = appHomeMode ?: current.appHomeMode,

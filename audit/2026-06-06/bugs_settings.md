@@ -112,7 +112,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The "Settings" JSON export (and the `settings` section of the All bundle) still drops several `GeneralSettings` fields, so round-tripping config to a clean install loses them: `usageStatsEnabled` (the master usage-statistics switch), `uiColorOverridesDay` (day-mode color overrides), `uiColorMode` (NIGHT/DAY selection), `pinnedDashboardCards`, and `dashboardCardOrder`.
 **Root cause:** `buildGeneralSettingsTree` enumerates fields by hand and these five were never added (the earlier audit added the metadata/network/throttle set but missed these). The full Backup zip carries them via raw prefs; the JSON Settings export does not.
 **Proposed fix:** Emit and re-apply these five fields (setters already exist), or generate the tree from the data class to avoid future drift.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - export+import now carry usageStatsEnabled, auditLogEnabled, uiColorMode, uiColorOverridesDay, pinnedDashboardCards, dashboardCardOrder
 
 ### Bug 12 — Severity: LOW — Category: main-thread work
 **Location:** ImportExportScreen.kt:839-841 (`readFromUri`) used in the import launcher callbacks (e.g. 1498-1511 `all`, 1475-1497 `runtimeAll`)
