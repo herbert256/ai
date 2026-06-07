@@ -231,7 +231,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** (a) The in-progress `AlertDialog` has `onDismissRequest = {}` and an empty `confirmButton`, so a hung fetch leaves a non-dismissable spinner. (b) The per-tier result objects and `showXDialog` flags are plain `remember`; rotating while a result page is open loses the result and closes the page.
 **Root cause:** No cancel affordance on the progress dialog; result state isn't `rememberSaveable`.
 **Proposed fix:** Add a Cancel that cancels the task; consider saveable result state (or accept the loss, since the run state itself lives in the VM).
-**Status:** Open
+**Status:** Fixed — the cloud update screen no longer runs a five-second metadata poll; source-file metadata is loaded on `Dispatchers.IO` through `produceState` and refreshed only when the source URI is picked or an install attempt completes.
 
 ---
 
