@@ -424,9 +424,12 @@ fun DualChatSessionScreen(
     val pricing2 = remember(config.model2Provider, config.model2Name, pricingTick) {
         PricingCache.getPricing(context, config.model2Provider, config.model2Name)
     }
-    val model1Cost by remember { derivedStateOf { (model1InputTokens * pricing1.promptPrice + model1OutputTokens * pricing1.completionPrice) * 100 } }
-    val model2Cost by remember { derivedStateOf { (model2InputTokens * pricing2.promptPrice + model2OutputTokens * pricing2.completionPrice) * 100 } }
-    val totalCost by remember { derivedStateOf { model1Cost + model2Cost } }
+    // Key the derivedStateOf on the pricing objects — an unkeyed remember{}
+    // captured the FIRST (cold) pricing and never re-priced after PricingCache
+    // primed, freezing the cost rows (audit chat#26).
+    val model1Cost by remember(pricing1) { derivedStateOf { (model1InputTokens * pricing1.promptPrice + model1OutputTokens * pricing1.completionPrice) * 100 } }
+    val model2Cost by remember(pricing2) { derivedStateOf { (model2InputTokens * pricing2.promptPrice + model2OutputTokens * pricing2.completionPrice) * 100 } }
+    val totalCost by remember(pricing1, pricing2) { derivedStateOf { model1Cost + model2Cost } }
 
     fun buildMessagesForModel(modelIndex: Int): List<ChatMessage> {
         val result = mutableListOf<ChatMessage>()

@@ -202,7 +202,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Same cold-pricing defect as Bug 8 — the cost rows are frozen at the pricing captured on first composition and never re-price when `PricingCache` primes.
 **Root cause:** Unkeyed `remember { derivedStateOf { … } }` closes over the first `pricing1`/`pricing2` values; `derivedStateOf` only re-evaluates on token changes, re-reading the stale pricing objects.
 **Proposed fix:** `remember(pricing1) { … }` / `remember(pricing2) { … }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - cost derivedStateOf now keyed on pricing1/pricing2 (and totalCost on both), so it re-prices when PricingCache primes
 
 ### Bug 27 — Severity: LOW — Category: missing persistence
 **Location:** DualChatScreen.kt:360-631 (whole session)
