@@ -204,8 +204,15 @@ class JudgeEvalEngine internal constructor(
             try {
                 withTracerTags(reportId = reportId, category = "after/judges", runId = runId) {
                     val aiSettings = appViewModel.uiState.value.aiSettings
-                    val prompt = judgePrompt(aiSettings)
-                        ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                    // ♻️ report-models become the judge pool, winning over a *SELECT pick.
+                    val prompt = judgePrompt(aiSettings)?.let {
+                        when {
+                            report.useReportModelsAsWorkers -> it.copy(workers = reportModelWorkers(report))
+                            overrideWorkers != null -> it.copy(workers = overrideWorkers)
+                            else -> it
+                        }
+                    }
                     if (prompt == null) {
                         AppLog.w("JudgeEval", "workers/tournament prompt not configured — aborting")
                         return@withTracerTags
@@ -215,7 +222,6 @@ class JudgeEvalEngine internal constructor(
                         AppLog.w("JudgeEval", "no resolvable judges in the prompt's swarm — aborting")
                         return@withTracerTags
                     }
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
 
                     // Distinct random answer-pairs, randomising which side is A.

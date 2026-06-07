@@ -967,7 +967,9 @@ class SecondaryRunManager(
                         )
                     }
                     runSecondaryViaSwarm(
-                        context, reportId, SecondaryKind.META, metaPrompt, swarm,
+                        context, reportId, SecondaryKind.META, metaPrompt,
+                        // ♻️ report-models as the worker swarm when the flag is on.
+                        if (report.useReportModelsAsWorkers) reportModelWorkers(report) else swarm,
                         resolution.resolvedPrompt, aiSettings, report, base,
                         targetLanguage = sourceLanguage,
                         targetLanguageNative = resolution.languageNative,
@@ -1345,7 +1347,11 @@ class SecondaryRunManager(
                     )
                 }
                 runSecondaryViaSwarm(
-                    context, reportId, kind, metaPrompt, swarm,
+                    context, reportId, kind, metaPrompt,
+                    // ♻️ When the report flag is on, the worker swarm is the
+                    // report's own models; runSecondaryViaSwarm shuffles, so
+                    // a single Meta result picks one at random.
+                    if (report.useReportModelsAsWorkers) reportModelWorkers(report) else swarm,
                     resolvedPrompt, aiSettings, report, base,
                     targetLanguage = seedLang.first, targetLanguageNative = seedLang.second,
                     referenceLegend = referenceLegend,

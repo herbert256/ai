@@ -488,6 +488,10 @@ data class UiState(
     // preset reasoningEffort. Non-reasoning models silently ignore the
     // field at dispatch time.
     val reportReasoningEffort: String? = null,
+    /** ♻️ Per-report "use report-models as workers" toggle, captured on the
+     *  New AI Report screen and written onto the created Report so all later
+     *  secondary / batch / auto-icon runs read it. */
+    val reportUseReportModelsAsWorkers: Boolean = false,
     /** Knowledge bases attached to the next report run. The selection
      *  screen toggles entries here; ReportViewModel.generateGenericReports
      *  copies the snapshot onto the new Report's knowledgeBaseIds.

@@ -180,13 +180,19 @@ class TournamentEngine internal constructor(
             try {
                 withTracerTags(reportId = reportId, category = "after/tournament", runId = runId) {
                     val aiSettings = appViewModel.uiState.value.aiSettings
-                    val prompt = tournamentPrompt(aiSettings)
-                        ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                    // ♻️ report-models as the worker pool wins over a *SELECT pick.
+                    val prompt = tournamentPrompt(aiSettings)?.let {
+                        when {
+                            report.useReportModelsAsWorkers -> it.copy(workers = reportModelWorkers(report))
+                            overrideWorkers != null -> it.copy(workers = overrideWorkers)
+                            else -> it
+                        }
+                    }
                     if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                         AppLog.w("Tournament", "workers/tournament not configured — aborting")
                         return@withTracerTags
                     }
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     val successful = report.agents.filter {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()

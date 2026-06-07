@@ -162,13 +162,19 @@ class CompareEngine internal constructor(
             try {
                 withTracerTags(reportId = reportId, category = TRACE_CATEGORY, runId = runId) {
                     val aiSettings = appViewModel.uiState.value.aiSettings
-                    val prompt = comparePromptById(aiSettings, promptId)
-                        ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                    // ♻️ report-models as the compare worker pool, winning over a *SELECT pick.
+                    val prompt = comparePromptById(aiSettings, promptId)?.let {
+                        when {
+                            report.useReportModelsAsWorkers -> it.copy(workers = reportModelWorkers(report))
+                            overrideWorkers != null -> it.copy(workers = overrideWorkers)
+                            else -> it
+                        }
+                    }
                     if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                         AppLog.w("Compare", "meta_compare prompt not configured / no runnable workers — aborting")
                         return@withTracerTags
                     }
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     val successful = report.agents.filter {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()

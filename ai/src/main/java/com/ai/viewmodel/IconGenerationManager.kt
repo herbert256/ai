@@ -327,12 +327,16 @@ class IconGenerationManager(
                     ?: report?.title?.takeIf { it.isNotBlank() }
                     ?: promptText
                 val resolved = iconPrompt.text.replace("@TITLE_LONG@", titleLong)
+                // ♻️ When the report flag is on, retrieve the icon from one of the
+                // report's own models (workerRunner shuffles → random report-model).
+                val effIconPrompt = if (report?.useReportModelsAsWorkers == true)
+                    iconPrompt.copy(workers = reportModelWorkers(report)) else iconPrompt
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
                     // A worker reply with no parseable emoji is a logical miss —
                     // fall through to the next worker instead of accepting an
                     // empty 200 and storing the 📝 fallback.
-                    rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
+                    rvm.workerRunner.run(effIconPrompt, resolved, aiSettings, context) {
                         extractFirstEmoji(it.analysis) != null
                     }
                 }
@@ -796,6 +800,10 @@ class IconGenerationManager(
         return withTracerTags(reportId = reportId, category = "model/icons") {
             val started = System.currentTimeMillis()
             val resolved = prompt.text.replace("@TITLE@", title)
+            // ♻️ report flag → the agent icon is retrieved from a report-model.
+            val report = ReportStorage.getReport(context, reportId)
+            val effPrompt = if (report?.useReportModelsAsWorkers == true)
+                prompt.copy(workers = reportModelWorkers(report)) else prompt
             // Capture the trace filename of the winning icon call so the
             // Model-response screen's 🐞 next to the big icon can deep-link
             // to the exact call that decided this icon (the worker runs on
@@ -804,7 +812,7 @@ class IconGenerationManager(
             // No parseable emoji is a logical miss — advance to the next worker
             // rather than accepting a 200 that leaves the agent icon-less.
             val outcome = withTraceFilenameSink(traceSink) {
-                rvm.workerRunner.run(prompt, resolved, aiSettings, context) {
+                rvm.workerRunner.run(effPrompt, resolved, aiSettings, context) {
                     extractFirstEmoji(it.analysis) != null
                 }
             }
@@ -869,13 +877,21 @@ class IconGenerationManager(
         val resolvedName = namePrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
+            // ♻️ When the report flag is on, language detect + icon run on the
+            // report's own models too (workerRunner shuffles → random model).
+            val langReport = ReportStorage.getReport(context, reportId)
+            val effNamePrompt = if (langReport?.useReportModelsAsWorkers == true)
+                namePrompt.copy(workers = reportModelWorkers(langReport)) else namePrompt
+            val effIconPrompt = iconPrompt?.let {
+                if (langReport?.useReportModelsAsWorkers == true) it.copy(workers = reportModelWorkers(langReport)) else it
+            }
             // ---- 1) Language name ----
             val detectedName = try {
                 withTracerTags(reportId = reportId, category = "report/language") {
                     val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                     val started = System.currentTimeMillis()
                     val outcome = withTraceFilenameSink(traceSink) {
-                        rvm.workerRunner.run(namePrompt, resolvedName, aiSettings, context) {
+                        rvm.workerRunner.run(effNamePrompt, resolvedName, aiSettings, context) {
                             parseLanguageDetectionResponse(it.analysis) != null
                         }
                     }
@@ -932,8 +948,8 @@ class IconGenerationManager(
                 // Same language → same emoji; serve from the 7-day meta
                 // cache when present and skip the LLM call entirely.
                 val cachedIcon = com.ai.data.MetaCache.get("language-icon", detectedName)
-                val iconRunnable = iconPrompt != null &&
-                    iconPrompt.workers.any { aiSettings.resolveWorker(it) != null }
+                val iconRunnable = effIconPrompt != null &&
+                    effIconPrompt.workers.any { aiSettings.resolveWorker(it) != null }
                 if (cachedIcon != null) {
                     ReportStorage.updateReportLanguageIcon(
                         context, reportId,
@@ -948,10 +964,10 @@ class IconGenerationManager(
                     try {
                         withTracerTags(reportId = reportId, category = "report/language-icon") {
                             val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-                            val resolvedIcon = iconPrompt!!.text.replace("@LANGUAGE@", detectedName)
+                            val resolvedIcon = effIconPrompt!!.text.replace("@LANGUAGE@", detectedName)
                             val started = System.currentTimeMillis()
                             val outcome = withTraceFilenameSink(traceSink) {
-                                rvm.workerRunner.run(iconPrompt, resolvedIcon, aiSettings, context) {
+                                rvm.workerRunner.run(effIconPrompt, resolvedIcon, aiSettings, context) {
                                     extractFirstEmoji(it.analysis.orEmpty()) != null
                                 }
                             }

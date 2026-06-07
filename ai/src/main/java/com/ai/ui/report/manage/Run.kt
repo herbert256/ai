@@ -47,7 +47,9 @@ import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.UiState
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Post-Generate page in the report flow — the per-report manage
@@ -194,6 +196,16 @@ internal fun ReportRunScreen(
             withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
         } ?: false
     }
+    // ♻️ Same disk-read + tick pattern as isPinned: drives the bottom-bar
+    // toggle tint and lets the covered secondary launch sites skip the
+    // *SELECT worker picker (the engines use the report's own models).
+    var reportModelsTick by remember(currentReportId) { mutableStateOf(0) }
+    val useReportModelsAsWorkers by produceState(initialValue = false, currentReportId, reportModelsTick) {
+        value = currentReportId?.let { rid ->
+            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.useReportModelsAsWorkers == true }
+        } ?: false
+    }
+    val reportModelsScope = rememberCoroutineScope()
     // The select callback is pulled from LocalSystemPromptChange so we
     // don't thread it through the call site as another arg.
     val systemPromptChange = com.ai.ui.shared.LocalSystemPromptChange.current
@@ -235,7 +247,7 @@ internal fun ReportRunScreen(
                         onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
                         compareEngine?.startRun(context, rid, listOf(id), comparePrompt.id, key, ws)
                     }
-                    if (comparePrompt.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                    if (!useReportModelsAsWorkers && comparePrompt.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
                         st.runtimeWorkerPick.value = RuntimeWorkerPick(
                             "Compare — pick workers", comparePrompt.workers, { picked -> arm(picked) }, {})
                     } else arm(null)
@@ -414,6 +426,20 @@ internal fun ReportRunScreen(
                 { generationHandlers.onTogglePin(); pinTick++ }
             } else null,
             isPinned = isPinned,
+            // ♻️ Toggle "use report-models as workers" on this report; persists
+            // then bumps the tick so the produceState re-reads and the tint flips.
+            onReportModels = if (currentReportId != null) {
+                {
+                    currentReportId?.let { rid ->
+                        val next = !useReportModelsAsWorkers
+                        reportModelsScope.launch(Dispatchers.IO) {
+                            ReportStorage.setUseReportModelsAsWorkers(context, rid, next)
+                        }
+                        reportModelsTick++
+                    }
+                }
+            } else null,
+            reportModelsActive = useReportModelsAsWorkers,
             onToggleModelRowLabels = if (currentReportId != null) {
                 { showModelNamesInReportRows = !showModelNamesInReportRows }
             } else null,
@@ -817,7 +843,7 @@ internal fun ReportRunScreen(
                                 onRunTournament(rid, key, ws)
                             }
                             val driver = aiSettings.workerPromptByName("tournament")
-                            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                            if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
                                 st.runtimeWorkerPick.value = RuntimeWorkerPick(
                                     "Tournament — pick workers", driver.workers, { picked -> arm(picked) }, {})
                             } else arm(null)
@@ -856,7 +882,7 @@ internal fun ReportRunScreen(
                                 onRunJudgeJudges(rid, key, ws)
                             }
                             val driver = aiSettings.workerPromptByName("tournament")
-                            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                            if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
                                 st.runtimeWorkerPick.value = RuntimeWorkerPick(
                                     "Judge the judges — pick workers", driver.workers, { picked -> arm(picked) }, {})
                             } else arm(null)

@@ -78,6 +78,7 @@ object ReportStorage {
         imageBase64: String? = null, imageMime: String? = null,
         webSearchTool: Boolean = false,
         reasoningEffort: String? = null,
+        useReportModelsAsWorkers: Boolean = false,
         // Optional explicit id — used by the translation flow so the new
         // report's UUID can be reserved up front and threaded into
         // ApiTracer.currentReportId before any translation API calls run.
@@ -98,7 +99,8 @@ object ReportStorage {
         val report = Report(explicitId ?: UUID.randomUUID().toString(), now, createdAt = now, title = title, prompt = prompt,
             agents = agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
             imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool,
-            reasoningEffort = reasoningEffort, sourceReportId = sourceReportId,
+            reasoningEffort = reasoningEffort, useReportModelsAsWorkers = useReportModelsAsWorkers,
+            sourceReportId = sourceReportId,
             knowledgeBaseIds = knowledgeBaseIds, runId = runId,
             parameterPresetIds = parameterPresetIds, advancedParameters = advancedParameters,
             selectionParamsById = selectionParamsById, reportSystemPromptId = reportSystemPromptId,
@@ -320,6 +322,7 @@ object ReportStorage {
         imageBase64: String? = null, imageMime: String? = null,
         webSearchTool: Boolean = false,
         reasoningEffort: String? = null,
+        useReportModelsAsWorkers: Boolean = false,
         explicitId: String? = null,
         sourceReportId: String? = null,
         knowledgeBaseIds: List<String> = emptyList(),
@@ -328,7 +331,7 @@ object ReportStorage {
         advancedParameters: AgentParameters? = null,
         selectionParamsById: Map<String, List<String>> = emptyMap(),
         reportSystemPromptId: String? = null
-    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId, sourceReportId, knowledgeBaseIds, runId, parameterPresetIds, advancedParameters, selectionParamsById, reportSystemPromptId) }
+    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, useReportModelsAsWorkers, explicitId, sourceReportId, knowledgeBaseIds, runId, parameterPresetIds, advancedParameters, selectionParamsById, reportSystemPromptId) }
 
     suspend fun markAgentRunningAsync(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
         withContext(Dispatchers.IO) { markAgentRunning(context, reportId, agentId, requestHeaders, requestBody) }
@@ -740,6 +743,19 @@ object ReportStorage {
             report.pinned = pinned
             saveReport(report)
             AuditLog.append(reportId, if (pinned) "Pinned the report" else "Unpinned the report")
+        }
+    }
+
+    /** Toggle (or set) the ♻️ "use report-models as workers" flag on
+     *  [reportId]. Strictly a worker-source signal — doesn't change the
+     *  report's body. See [Report.useReportModelsAsWorkers]. */
+    fun setUseReportModelsAsWorkers(context: Context, reportId: String, value: Boolean) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            report.useReportModelsAsWorkers = value
+            saveReport(report)
+            AuditLog.append(reportId, if (value) "Enabled report-models as workers (♻️)" else "Disabled report-models as workers (♻️)")
         }
     }
 

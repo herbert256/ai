@@ -105,6 +105,10 @@ fun NewReportScreen(
     }
     var attachError by remember { mutableStateOf<String?>(null) }
     var useWebSearch by remember { mutableStateOf(false) }
+    // ♻️ Use report-models as workers — default off (grayed). When on,
+    // covered secondary / batch / auto-icon ops draw their workers from
+    // this report's own answer models. Persisted onto the Report.
+    var useReportModelsAsWorkers by remember { mutableStateOf(false) }
     // Per-report reasoning level. "" = none; one of low/medium/high
     // gets OR'd onto every agent's params at dispatch (non-thinking
     // models drop the field).
@@ -209,7 +213,9 @@ fun NewReportScreen(
             onClear = { title = ""; prompt = ""; userTagBlock = ""; attachedImage = null },
             onAttach = { showAttachChooser = true },
             onValidatePrompt = { if (moderationModel == null) showModerationPicker = true else moderationModel = null },
-            validatePromptActive = moderationModel != null)
+            validatePromptActive = moderationModel != null,
+            onReportModels = { useReportModelsAsWorkers = !useReportModelsAsWorkers },
+            reportModelsActive = useReportModelsAsWorkers)
 
         if (sharedKbUris.isNotEmpty() && sharedKbState !is SharedKbBannerState.Skipped) {
             SharedKbBanner(
@@ -279,7 +285,8 @@ fun NewReportScreen(
                             imageBase64 = attachedImage?.second,
                             imageMime = attachedImage?.first,
                             webSearchTool = useWebSearch,
-                            reasoningEffort = reasoningEffort.ifBlank { null }
+                            reasoningEffort = reasoningEffort.ifBlank { null },
+                            useReportModelsAsWorkers = useReportModelsAsWorkers
                         )
                     }
 
@@ -437,7 +444,8 @@ fun NewReportScreen(
                         imageBase64 = attachedImage?.second,
                         imageMime = attachedImage?.first,
                         webSearchTool = useWebSearch,
-                        reasoningEffort = reasoningEffort.ifBlank { null }
+                        reasoningEffort = reasoningEffort.ifBlank { null },
+                        useReportModelsAsWorkers = useReportModelsAsWorkers
                     )
                 }) { Text("Proceed anyway", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },

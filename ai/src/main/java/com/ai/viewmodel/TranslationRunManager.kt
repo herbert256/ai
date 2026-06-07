@@ -288,10 +288,14 @@ class TranslationRunManager(
             // (title) prompt, which shuffles its swarm and falls back
             // on a 429 / miss. An item only ERRORs when the whole chain
             // is exhausted.
+            // ♻️ When the source report's flag is on, the whole translation runs
+            // against its own answer models (winning over a *SELECT pick); the
+            // swarm spreads across every report-model.
+            val reportSwarm = if (sourceReport.useReportModelsAsWorkers) reportModelWorkers(sourceReport) else null
             val textPrompt = workerTranslatePrompt(aiSettings, title = false)
-                ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
+                ?.let { p -> reportSwarm?.let { p.copy(workers = it) } ?: overrideWorkers?.let { p.copy(workers = it) } ?: p }
             val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
-                ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
+                ?.let { p -> reportSwarm?.let { p.copy(workers = it) } ?: overrideWorkers?.let { p.copy(workers = it) } ?: p }
             if (textPrompt == null && titlePrompt == null) {
                 AppLog.w("Translation", "no workers/translate-text|title prompt — marking all items error")
                 itemsWithIds.forEach {

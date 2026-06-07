@@ -397,6 +397,9 @@ fun ReportsScreen(
     val loadedReportPrompt = runtime.loadedReportPrompt
     val loadedReportTitle = runtime.loadedReportTitle
     val loadedReportTimestamp = runtime.loadedReportTimestamp
+    // ♻️ When on, covered secondary launch sites skip the *SELECT worker
+    // picker (the engines substitute the report's own models instead).
+    val useReportModelsAsWorkers = runtime.loadedReportUseReportModelsAsWorkers
     val effectiveReportIcon = runtime.effectiveReportIcon
     val onDeleteSecondaryWithRefresh = runtime.onDeleteSecondaryWithRefresh
     val onSecondaryRefresh = runtime.onSecondaryRefresh
@@ -1101,7 +1104,7 @@ fun ReportsScreen(
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
             val driver = aiSettings.workerPromptByName("meta")
-            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+            if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
                 st.runtimeWorkerPick.value = RuntimeWorkerPick(
                     titleText = "Meta — pick workers", initial = driver.workers,
                     onConfirm = { picked -> onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, picked) },
@@ -1123,7 +1126,7 @@ fun ReportsScreen(
             fanInPickerPrompt = null
             fanInPickerSourceLanguage = null
             val driver = aiSettings.workerPromptByName("fan-in")
-            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+            if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
                 st.runtimeWorkerPick.value = RuntimeWorkerPick(
                     titleText = "Fan-in — pick workers", initial = driver.workers,
                     onConfirm = { picked -> onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, picked) },
@@ -1173,7 +1176,7 @@ fun ReportsScreen(
                         // *SELECT on the driving translate-text prompt → pick the
                         // workers once for the whole run; else run straight.
                         val driver = aiSettings.workerPromptByName("translate-text")
-                        if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                        if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
                             st.runtimeWorkerPick.value = RuntimeWorkerPick(
                                 "Translate — pick workers", driver.workers, { picked -> startWith(picked) }, {})
                         } else startWith(null)

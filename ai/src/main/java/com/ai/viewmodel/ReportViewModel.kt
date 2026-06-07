@@ -353,7 +353,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         title: String, prompt: String,
         imageBase64: String? = null, imageMime: String? = null,
         webSearchTool: Boolean = false,
-        reasoningEffort: String? = null
+        reasoningEffort: String? = null,
+        useReportModelsAsWorkers: Boolean = false
     ) {
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
@@ -361,6 +362,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             reportImageBase64 = imageBase64, reportImageMime = imageMime,
             reportWebSearchTool = webSearchTool,
             reportReasoningEffort = reasoningEffort,
+            reportUseReportModelsAsWorkers = useReportModelsAsWorkers,
             showGenericAgentSelection = true, showGenericReportsDialog = false,
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
@@ -480,6 +482,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 imageBase64 = imageBase64, imageMime = imageMime,
                 webSearchTool = state.reportWebSearchTool,
                 reasoningEffort = state.reportReasoningEffort,
+                useReportModelsAsWorkers = state.reportUseReportModelsAsWorkers,
                 knowledgeBaseIds = state.attachedKnowledgeBaseIds,
                 runId = runId,
                 // Capture the generation config so Regenerate replays these

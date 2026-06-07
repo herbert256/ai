@@ -12,6 +12,7 @@ import com.ai.data.TokenUsage
 import com.ai.data.buildResultsBlock
 import com.ai.model.ReportModel
 import com.ai.model.Settings
+import com.ai.model.Worker
 import com.ai.model.expandAgentToModel
 import com.ai.model.toReportModel
 
@@ -149,6 +150,18 @@ internal fun reportToModels(report: Report, aiSettings: Settings): List<ReportMo
             ?: toReportModel(provider, ra.model)
     }
 }
+
+/** The report's own answer models as model-only [Worker]s — the
+ *  worker swarm used when the ♻️ [Report.useReportModelsAsWorkers]
+ *  flag is on. Distinct by provider:model; each resolves via
+ *  [Settings.resolveWorker] into a dispatchable agent. The swarm
+ *  consumers (runSecondaryViaSwarm / WorkerRunner) shuffle, so a
+ *  single-worker kind picks one at random and a batch spreads across
+ *  the whole set — no per-kind branching needed. */
+internal fun reportModelWorkers(report: Report): List<Worker> =
+    report.agents
+        .distinctBy { "${it.provider}:${it.model}" }
+        .map { Worker(agent = "*N/A", provider = it.provider, model = it.model) }
 
 /** Extract the host from a provider's baseUrl so the fan-out
  *  pre-acquire path can call [PricingCache] er, [com.ai.data.ProviderThrottle.acquire]

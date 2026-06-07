@@ -265,6 +265,16 @@ data class Report(
      *  above the recent rows on the AI Reports hub. Persisted on the
      *  Report file so it survives across launches. */
     var pinned: Boolean = false,
+    /** ♻️ "Use report-models as workers". When on, every covered
+     *  secondary / batch / auto-icon call for this report draws its
+     *  workers from the report's own answer models (the providers +
+     *  models that produced its main answers) instead of the
+     *  configured / *SELECT worker chain — random one when a single
+     *  worker is needed, the whole set for batches. Rerank and
+     *  Moderation ignore it (they use special models). Set on the New
+     *  report screen and toggleable on Manage report; persisted here.
+     *  Default off on every legacy / new report. */
+    var useReportModelsAsWorkers: Boolean = false,
     /** Sum of input + output cost (USD) for every row deleted from
      *  this report — agent rows, secondary results, fan-out pairs,
      *  fan-in rows, translations, etc. Bumped on every delete by the
