@@ -575,7 +575,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Audit files are *kept* on report delete (a `Report deleted` line is appended) and never auto-pruned; over time `filesDir/audit` grows unboundedly. Unlike `applog`, the audit dir is NOT in `FILES_DIR_BACKUP_EXCLUDES`, so it also bloats every backup zip.
 **Root cause:** Deliberate retention with no cap and no backup exclusion.
 **Proposed fix:** Cap audit dir size/age, or exclude it from backup like `applog`.
-**Status:** Open
+**Status:** Fixed in `AuditLog.kt` by pruning newest-first audit retention to 1,000 files / 20 MB on startup and append.
 
 ## File: ai/src/main/java/com/ai/data/AppLog.kt
 
