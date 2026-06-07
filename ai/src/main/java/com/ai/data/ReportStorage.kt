@@ -461,8 +461,20 @@ object ReportStorage {
      *  added after a report was persisted deserialize as null. Re-assert
      *  non-null defaults for those new fields so the rest of the app can
      *  treat them as the non-null types they're declared as. */
-    private fun normalizeReport(r: Report): Report {
+    private fun normalizeReport(r: Report): Report? {
+        // A null core identity field means a corrupt / truncated read. An id-less
+        // report can't be saved or looked up, so reject it outright rather than
+        // letting a null core String escape and NPE far from the loader
+        // (audit data#57). Both callers handle a null (?.let / mapNotNull).
+        if ((r.id as String?) == null) {
+            AppLog.e("ReportStorage", "Dropping report with null id (corrupt file)")
+            return null
+        }
         var res = r
+        // title / prompt are non-null display fields — default a null from a
+        // partial write so the list row / header don't NPE.
+        if ((res.title as String?) == null) res = res.copy(title = "")
+        if ((res.prompt as String?) == null) res = res.copy(prompt = "")
         if ((res.promptHistory as List<PromptRevision>?) == null) {
             res = res.copy(promptHistory = emptyList())
         }
@@ -485,9 +497,15 @@ object ReportStorage {
         // identifiers at this load site (the documented field-specific-default
         // pattern) so the per-model viewer doesn't NPE on agent.provider /
         // agent.model far from the read.
-        if (res.agents.any { (it.provider as String?) == null || (it.model as String?) == null }) {
+        if (res.agents.any {
+            (it.provider as String?) == null || (it.model as String?) == null ||
+                (it.agentId as String?) == null || (it.agentName as String?) == null
+        }) {
             res = res.copy(agents = res.agents.map {
-                it.copy(provider = (it.provider as String?) ?: "", model = (it.model as String?) ?: "")
+                it.copy(
+                    provider = (it.provider as String?) ?: "", model = (it.model as String?) ?: "",
+                    agentId = (it.agentId as String?) ?: "", agentName = (it.agentName as String?) ?: ""
+                )
             }.toMutableList())
         }
         // iconCalls / userNotes / apiCallCosts are declared MutableList, but the
