@@ -56,9 +56,10 @@ object ApiUsageRates {
 
     /** Dollars over the trailing [windowMs], priced through [PricingCache].
      *  Events are grouped by (provider, model) so each model is priced once.
-     *  Safe on the main thread — getPricing returns DEFAULT during the cold
-     *  pricing-cache window and real values once preloaded. */
-    fun costWithin(context: Context, windowMs: Long): Double {
+     *  Returns null while the pricing cache is still preloading so the live
+     *  dashboard doesn't briefly display DEFAULT-priced spend. */
+    fun costWithin(context: Context, windowMs: Long): Double? {
+        if (!PricingCache.isPreloadCompleted()) return null
         val cutoff = System.currentTimeMillis() - windowMs
         val sums = HashMap<String, LongArray>()       // key -> [in, out]
         val provOf = HashMap<String, AppService>()

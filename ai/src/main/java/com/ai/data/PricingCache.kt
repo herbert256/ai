@@ -398,6 +398,8 @@ object PricingCache {
         return DEFAULT_PRICING
     }
 
+    fun isPreloadCompleted(): Boolean = preloadCompleted
+
     private fun tracePricing(provider: AppService, model: String, tier: String, p: ModelPricing): ModelPricing {
         AppLog.d("PricingCache", "match ${provider.id}/$model → $tier in=${p.promptPrice * 1_000_000} out=${p.completionPrice * 1_000_000}")
         return p

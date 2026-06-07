@@ -325,7 +325,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** During the pre-preload window, `getPricing` returns `DEFAULT_PRICING` on the main thread; the Live Dashboard's `costWithin` (ApiUsageRates.kt:61-81) then computes spend from DEFAULT rates, briefly showing a wrong cost figure until the preload finishes.
 **Root cause:** Documented cold-window behaviour bleeds into a numeric dashboard, not just a UI placeholder.
 **Proposed fix:** Have `costWithin` skip/withhold the cost figure until `preloadCompleted`, rather than pricing at DEFAULT.
-**Status:** Open
+**Status:** Fixed in `ApiUsageRates.kt`, `PricingCache.kt`, and `AiDashboardScreen.kt` by returning null before pricing preload completes and rendering pending spend as an ellipsis.
 
 ### Bug 43 — Severity: LOW — Category: precedence parity drift
 **Location:** PricingCache.kt:408-429 (`getPricingWithoutOverride`) vs 437-455 (`lookupPricing`)

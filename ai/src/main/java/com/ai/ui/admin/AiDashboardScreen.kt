@@ -2355,7 +2355,7 @@ private fun SpendTokensBody(context: android.content.Context) {
         Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
         Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
     }
-    SpendRow("Spend", money(cost1), money(cost5), AppColors.SuccessAccent)
+    SpendRow("Spend", cost1?.let(::money) ?: "…", cost5?.let(::money) ?: "…", AppColors.SuccessAccent)
     SpendRow("Tokens in", fmtTokens(tok1.inTok), fmtTokens(tok5.inTok), AppColors.TextPrimary)
     SpendRow("Tokens out", fmtTokens(tok1.outTok), fmtTokens(tok5.outTok), AppColors.TextPrimary)
 }
