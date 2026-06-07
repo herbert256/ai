@@ -78,7 +78,7 @@ fun BackupRestoreScreen(
         AlertDialog(
             onDismissRequest = { showRestoreConfirm = null },
             title = { Text("Restore from backup?") },
-            text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. You'll be prompted to restart when restore finishes.") },
+            text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. Installed Local LLM and LiteRT model files are kept on this device, not restored from the backup. You'll be prompted to restart when restore finishes.") },
             confirmButton = {
                 OutlinedButton(
                     onClick = {

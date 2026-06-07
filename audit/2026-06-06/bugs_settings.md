@@ -510,7 +510,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The restore confirmation says it "overwrites all current configuration, API keys, reports, chats, and traces", but `BackupManager` excludes (and preserves) `local_llms/` + `local_models/`. A user restoring onto a device with different local models isn't told those are left as-is.
 **Root cause:** Confirm copy doesn't mention the preserved local-runtime exclusions.
 **Proposed fix:** Note that installed Local LLM/LiteRT models are kept (not restored), matching the backup-exclude design.
-**Status:** Open
+**Status:** Fixed in `BackupRestoreScreen.kt` by noting that installed Local LLM and LiteRT model files remain on the device and are not restored from the backup.
 
 ---
 
