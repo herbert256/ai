@@ -89,7 +89,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Each L2 row always renders a cost cell via `formatCents(item.costDollars)` even when the cost is 0.0, while the header (line 115) and the L1 rows gate the cost on `cost > 0.0`. A queued/pending item shows "0.0000".
 **Root cause:** The row's third column is unconditional, unlike every sibling cost cell which hides zero.
 **Proposed fix:** Gate the row cost on `item.costDollars > 0.0` (or render an em-dash) for consistency.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — L2 row cost cells now render blank when the item cost is zero
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/TranslationL3.kt
 
