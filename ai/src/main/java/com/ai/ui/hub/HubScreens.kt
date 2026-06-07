@@ -321,7 +321,7 @@ fun ReportsHubScreen(
     // them. Broken-work reports likewise stay in their normal card with the
     // warning icon.
     val latestReports = remember(allReports) {
-        allReports.filter { !it.pinned }.take(5)
+        allReports.filter { !it.pinned }.take(10)
     }
     val bumpDelete: (String) -> Unit = { rid ->
         reportViewModel.deleteReport(context, rid)
@@ -363,12 +363,14 @@ fun ReportsHubScreen(
             onSearchReports = onNavigateToSearchAiReports,
             onAllReports = onNavigateToAllReports
         )
-        // Section cards, with empty ones sunk to the bottom so the populated
-        // buckets lead. Examples stays last.
-        val hubCards = listOf(
-            Triple(MetadataDefaults.PIN, AppColors.CautionAccent, "Pinned AI Reports") to pinnedReports,
-            Triple(MetadataDefaults.CLOCK_RECENT, AppColors.InfoAccent, "Latest AI Reports") to latestReports,
-        ).sortedBy { it.second.isEmpty() }
+        // Pinned leads when there are any pinned reports (hidden otherwise);
+        // Latest always follows. Examples stays last.
+        val hubCards = buildList {
+            if (pinnedReports.isNotEmpty()) {
+                add(Triple(MetadataDefaults.PIN, AppColors.CautionAccent, "Pinned AI Reports") to pinnedReports)
+            }
+            add(Triple(MetadataDefaults.CLOCK_RECENT, AppColors.InfoAccent, "Latest AI Reports") to latestReports)
+        }
         hubCards.forEachIndexed { i, (meta, reports) ->
             if (i > 0) Spacer(modifier = Modifier.height(10.dp))
             ReportsHubListCard(

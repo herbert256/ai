@@ -2218,6 +2218,8 @@ private fun TitleBarIcon(
  *  screens. Also read by [com.ai.ui.admin.HelpScreen] to suppress the now-
  *  redundant icon-table help content on these screens. */
 internal val LEGEND_OVERLAY_TOPICS = setOf(
+    // Reports hub — its bottom bar carries the New / Search / All icons.
+    "reports_hub",
     // Manage hub + its edit/create overlays and sub-editors.
     "report_run",
     "report_edit_overview", "report_edit_icons", "report_edit_titles",
