@@ -21,7 +21,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** RAG retrieval makes an embedding API call per user turn whose token usage and cost are never recorded; the chat cost banner and AI Usage under-report when KBs are attached.
 **Root cause:** `messagesWithRag` → `KnowledgeService.retrieve` embeds the query via `repository.embed`, but no `updateUsageStats` call is made for that embedding round-trip. Only the chat model's estimated tokens are recorded (`recordChatStatistics`).
 **Proposed fix:** Record embedding usage at the `retrieve` call site (the embedder provider/model are known there), tagged `kind="embedding"` or `"chat/rag"`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — successful chat RAG retrieval attempts now record estimated query-token usage against the KB embedder provider/model with kind `chat/rag`
 
 ### Bug 3 — Severity: LOW — Category: prompt formatting
 **Location:** ChatViewModel.kt:143-173 (`sendLocalLlmStream`)

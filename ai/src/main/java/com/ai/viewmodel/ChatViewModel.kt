@@ -89,8 +89,10 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         }
         AppLog.d("Chat.RAG", "retrieving for kbs=${knowledgeBaseIds.joinToString(",")} queryLen=${lastUser.length}")
         val hits = runCatching {
-            KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
+            val retrieved = KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
                 knowledgeBaseIds, lastUser)
+            recordRagEmbeddingUsage(context, knowledgeBaseIds, lastUser)
+            retrieved
         }.onFailure { e ->
             // Surface retrieval failures (network, auth, dim mismatch,
             // embedder model not available) instead of silently
@@ -114,6 +116,30 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         } else {
             listOf(ChatMessage(role = "system", content = ctx)) + messages
         }
+    }
+
+    private suspend fun recordRagEmbeddingUsage(
+        context: android.content.Context,
+        knowledgeBaseIds: List<String>,
+        query: String
+    ) {
+        val kb = knowledgeBaseIds.asSequence()
+            .mapNotNull { KnowledgeStore.loadKnowledgeBase(context, it) }
+            .firstOrNull()
+            ?: return
+        val service = AppService.findById(kb.embedderProviderId) ?: return
+        if (service != AppService.LOCAL && appViewModel.uiState.value.aiSettings.getApiKey(service).isBlank()) {
+            return
+        }
+        val inputTokens = AppViewModel.estimateTokens(query)
+        appViewModel.settingsPrefs.updateUsageStatsAsync(
+            service,
+            kb.embedderModel,
+            inputTokens,
+            0,
+            inputTokens,
+            kind = "chat/rag"
+        )
     }
 
     /**
