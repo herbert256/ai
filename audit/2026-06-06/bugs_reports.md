@@ -114,7 +114,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Two summaries with a blank/identical `runId` (legacy translation runs that predate `translationRunId`) collide on the LazyColumn key, dropping one row.
 **Root cause:** The key uses only `runId`; legacy rows can share an empty runId.
 **Proposed fix:** Use a composite key (e.g. `runId.ifBlank { targetLanguage }` plus an index) so legacy summaries stay distinct.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — finished translation summaries now use indexed composite keys with a legacy language fallback
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/FindAlternativeTitles.kt
 

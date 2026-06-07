@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -114,7 +115,10 @@ internal fun ReportTranslationsScreen(
                     onClick = { onOpenRun(run.runId) }
                 )
             }
-            items(finishedSummaries, key = { "trs-${it.runId}" }) { run ->
+            itemsIndexed(
+                finishedSummaries,
+                key = { index, run -> "trs-${run.runId.ifBlank { "legacy:${run.targetLanguage.orEmpty()}" }}-$index" }
+            ) { _, run ->
                 val label = run.targetLanguageNative?.takeIf { it.isNotBlank() }
                     ?: run.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translate"
                 val emoji = run.targetLanguage?.takeIf { it.isNotBlank() }
