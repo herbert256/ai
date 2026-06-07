@@ -1,6 +1,7 @@
 package com.ai.data
 
 import android.content.Context
+import com.google.gson.JsonParser
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
@@ -338,7 +339,32 @@ object KnowledgeStore {
 
     private fun loadKb(kbDir: File): KnowledgeBase {
         val text = File(kbDir, MANIFEST).readText()
-        return gson.fromJson(text, KnowledgeBase::class.java)
+        @Suppress("DEPRECATION")
+        val root = JsonParser().parse(text).asJsonObject
+        fun requiredString(name: String): String {
+            val value = root.get(name)?.takeIf { it.isJsonPrimitive }?.asString?.trim().orEmpty()
+            require(value.isNotBlank()) { "Knowledge base manifest missing $name" }
+            return value
+        }
+        val kb = gson.fromJson(text, KnowledgeBase::class.java)
+        val sources = runCatching { kb.sources }.getOrNull().orEmpty().mapNotNull { source ->
+            val valid = runCatching {
+                isSafeSourceId(source.id) &&
+                    source.name.isNotBlank() &&
+                    source.origin.isNotBlank()
+            }.getOrDefault(false)
+            if (valid) source else {
+                AppLog.w("Knowledge", "Dropping invalid source from KB manifest ${kbDir.name}")
+                null
+            }
+        }
+        return kb.copy(
+            id = requiredString("id"),
+            name = requiredString("name"),
+            embedderProviderId = requiredString("embedderProviderId"),
+            embedderModel = requiredString("embedderModel"),
+            sources = sources
+        )
     }
 
     private fun saveManifest(kbDir: File, kb: KnowledgeBase) {

@@ -543,7 +543,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `KnowledgeBase.name`/`embedderProviderId`/`embedderModel` are non-null String; a corrupt manifest missing one loads with a null (Bug-1 class) and NPEs at retrieve time (`first.embedderProviderId`). Callers wrap `loadKb` in `runCatching` so a parse *exception* is handled, but a successful-parse-with-null is not.
 **Root cause:** Same Gson Unsafe trap; `runCatching` doesn't catch the later NPE.
 **Proposed fix:** Validate non-null fields in `loadKb` and treat a null as a load failure.
-**Status:** Open
+**Status:** Fixed in `Knowledge.kt` by validating required KB manifest string fields inside `loadKb` and normalizing invalid source rows before returning a `KnowledgeBase`.
 
 ## File: ai/src/main/java/com/ai/data/KnowledgeService.kt
 
