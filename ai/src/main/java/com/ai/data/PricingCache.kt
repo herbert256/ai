@@ -431,10 +431,9 @@ object PricingCache {
 
     /** Resolve a `-latest` rolling alias to the catalog's most recent dated
      *  snapshot. Strips the `-latest` suffix, finds every key whose
-     *  remainder after the stripped base is a date-like token (digits and
-     *  dashes only, must contain at least one digit), and picks the
-     *  lexically max — works for YYYYMMDD ("claude-3-5-sonnet-20241022"),
-     *  YYYY-MM-DD ("gpt-4o-2024-11-20"), and YYMM ("mistral-large-2411").
+     *  remainder after the stripped base is a supported date-like token,
+     *  and picks the chronologically max. Supported forms are YYYYMMDD,
+     *  YYYY-MM-DD, YYYYMM, YYYY-MM, and YYMM.
      *
      *  Candidates are bucketed by prefix so the provider's own catalog
      *  prefix wins over arbitrary other prefixes (azure/, bedrock/,
@@ -454,7 +453,7 @@ object PricingCache {
         if (base.isEmpty()) return null
         val declaredBase = declaredPrefix?.takeIf { it.isNotBlank() }?.let { "${normalizeModelId(it)}/$base" }
         val idBase = "${normalizeModelId(idLowercase)}/$base"
-        val buckets = arrayOfNulls<Pair<String, String>>(4)
+        val buckets = arrayOfNulls<Pair<String, Int>>(4)
         for (key in keys) {
             val nk = normalizeModelId(key)
             var priority = -1
@@ -472,13 +471,37 @@ object PricingCache {
                 }
             }
             if (priority < 0) continue
-            if (suffix.isEmpty()) continue
-            if (suffix.any { !it.isDigit() && it != '-' }) continue
-            if (suffix.none { it.isDigit() }) continue
+            val suffixScore = latestAliasDateScore(suffix) ?: continue
             val cur = buckets[priority]
-            if (cur == null || suffix > cur.second) buckets[priority] = key to suffix
+            if (cur == null || suffixScore > cur.second) buckets[priority] = key to suffixScore
         }
         return buckets.firstOrNull { it != null }?.first
+    }
+
+    private fun latestAliasDateScore(suffix: String): Int? {
+        if (suffix.isBlank()) return null
+        if (suffix.any { !it.isDigit() && it != '-' }) return null
+        val compact = suffix.replace("-", "")
+        if (compact.any { !it.isDigit() }) return null
+        val (year, month, day) = when {
+            suffix.contains('-') -> {
+                val parts = suffix.split('-')
+                when {
+                    parts.size == 3 && parts[0].length == 4 && parts[1].length == 2 && parts[2].length == 2 ->
+                        Triple(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
+                    parts.size == 2 && parts[0].length == 4 && parts[1].length == 2 ->
+                        Triple(parts[0].toInt(), parts[1].toInt(), 0)
+                    else -> return null
+                }
+            }
+            compact.length == 8 -> Triple(compact.take(4).toInt(), compact.substring(4, 6).toInt(), compact.takeLast(2).toInt())
+            compact.length == 6 && compact.take(4).toIntOrNull()?.let { it in 2000..2199 } == true ->
+                Triple(compact.take(4).toInt(), compact.substring(4, 6).toInt(), 0)
+            compact.length == 4 -> Triple(2000 + compact.take(2).toInt(), compact.takeLast(2).toInt(), 0)
+            else -> return null
+        }
+        if (year !in 2000..2199 || month !in 1..12 || day !in 0..31) return null
+        return year * 10_000 + month * 100 + day
     }
 
     private fun findOpenRouterPricing(provider: AppService, model: String): ModelPricing? {

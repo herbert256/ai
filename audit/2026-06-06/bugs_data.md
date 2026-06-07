@@ -339,7 +339,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Resolving `-latest` to the lexically-max dated sibling assumes date tokens sort lexically in chronological order. Mixed formats within one prefix bucket (`20241022` vs `2024-11-20` vs `2411`) can sort wrong (e.g. `2411` > `2024-11-20` lexically), picking an older snapshot's price for a `-latest` alias.
 **Root cause:** Lexical max over heterogeneous date formats bucketed only by prefix, not by format.
 **Proposed fix:** Normalise candidate date tokens to a comparable canonical form before taking the max.
-**Status:** Open (unconfirmed; same-provider buckets usually use one format)
+**Status:** Fixed — `-latest` alias lookup now parses supported date suffixes into a canonical chronological score before selecting the newest sibling, so mixed `YYYYMMDD`, `YYYY-MM-DD`, `YYYYMM`, and `YYMM` buckets no longer sort by raw string order.
 
 ## File: ai/src/main/java/com/ai/data/EmbeddingsStore.kt
 
