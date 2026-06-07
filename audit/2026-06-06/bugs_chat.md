@@ -465,7 +465,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Rotation clears the query and results; the user must re-run the (paid) embedding search.
 **Root cause:** Plain `remember`.
 **Proposed fix:** `rememberSaveable` the query; re-derive or persist results.
-**Status:** Open
+**Status:** Fixed in `SemanticSearchScreen.kt` by saving the query and result hits across recreation with a compact `Saver`.
 
 ---
 

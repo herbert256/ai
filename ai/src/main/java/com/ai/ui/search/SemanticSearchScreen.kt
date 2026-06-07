@@ -8,6 +8,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -71,8 +73,8 @@ fun SemanticSearchScreen(
     LaunchedEffect(embeddingChoices) {
         if (picked != null && picked !in embeddingChoices) picked = embeddingChoices.firstOrNull()
     }
-    var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<SearchHit>>(emptyList()) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var results by rememberSaveable(stateSaver = SearchHitListSaver) { mutableStateOf<List<SearchHit>>(emptyList()) }
     var status by remember { mutableStateOf<String?>(null) }
     var running by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
@@ -212,6 +214,25 @@ internal fun supportedEmbeddingChoices(aiSettings: Settings): List<Pair<AppServi
 }
 
 private data class SearchHit(val reportId: String, val title: String, val timestamp: String, val score: Double, val icon: String?)
+
+private val SearchHitListSaver = Saver<List<SearchHit>, Any>(
+    save = { hits ->
+        hits.map { hit ->
+            listOf(hit.reportId, hit.title, hit.timestamp, hit.score, hit.icon)
+        }
+    },
+    restore = { saved ->
+        (saved as? List<*>)?.mapNotNull { row ->
+            val values = row as? List<*> ?: return@mapNotNull null
+            val reportId = values.getOrNull(0) as? String ?: return@mapNotNull null
+            val title = values.getOrNull(1) as? String ?: return@mapNotNull null
+            val timestamp = values.getOrNull(2) as? String ?: return@mapNotNull null
+            val score = (values.getOrNull(3) as? Number)?.toDouble() ?: return@mapNotNull null
+            val icon = values.getOrNull(4) as? String
+            SearchHit(reportId, title, timestamp, score, icon)
+        }.orEmpty()
+    }
+)
 
 /** Embed [query], embed each report's representative text (cached), score by
  *  cosine similarity, return top 10 sorted descending. */
