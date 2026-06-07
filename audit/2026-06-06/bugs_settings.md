@@ -325,7 +325,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** A single screen-level `busy` flag gates `enabled` on every row's 🔄 button, so refreshing one entry disables refresh on all entries until it finishes.
 **Root cause:** `busy` is per-screen, not per-entry.
 **Proposed fix:** Track busy per entry id (or accept it).
-**Status:** Open
+**Status:** Fixed in `CachesScreen.kt` by tracking the currently refreshing cache entry key and disabling only that row's refresh button.
 
 ---
 

@@ -329,7 +329,7 @@ fun CacheEntriesScreen(
     var refreshTick by remember { mutableStateOf(0) }
     var confirmClear by remember { mutableStateOf(false) }
     var viewing by remember { mutableStateOf<CacheEntryVM?>(null) }
-    var busy by remember { mutableStateOf(false) }
+    var busyEntryKey by remember { mutableStateOf<String?>(null) }
 
     val entries by produceState(initialValue = emptyList<CacheEntryVM>(), currentId, refreshTick) {
         value = withContext(Dispatchers.IO) { descriptor.list(context) }
@@ -373,17 +373,21 @@ fun CacheEntriesScreen(
                 )
             }
             items(entries, key = { it.id }) { entry ->
+                val entryKey = "$currentId::${entry.id}"
                 CacheEntryRow(
                     entry = entry,
-                    busy = busy,
+                    busy = busyEntryKey == entryKey,
                     onView = { viewing = entry },
                     onRefresh = entry.onRefresh?.let { refresh ->
                         {
                             scope.launch {
-                                busy = true
-                                withContext(Dispatchers.IO) { refresh(context) }
-                                busy = false
-                                refreshTick++
+                                busyEntryKey = entryKey
+                                try {
+                                    withContext(Dispatchers.IO) { refresh(context) }
+                                } finally {
+                                    if (busyEntryKey == entryKey) busyEntryKey = null
+                                    refreshTick++
+                                }
                             }
                         }
                     },
