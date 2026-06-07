@@ -41,7 +41,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** During the brief window after a translation run's rows persist but before a `TranslationRunSummary` for that runId exists, the run's cost is counted both in `liveTranslationCost` and in `secondaryTotals` (computed from the just-persisted rows), briefly inflating the bottom-bar total.
 **Root cause:** The live fold excludes runs whose runId is in `translationRunSummaries`, but `secondaryTotals` is computed upstream from disk independently. If the summaries list lags the secondary totals (different recompute cadence), the exclusion set is empty for that runId while secondaryTotals already includes it.
 **Proposed fix:** Exclude any runId that already has a persisted TRANSLATE row in `secondaryTotals` from the live fold (track persisted runIds from the same source the totals use), not just runIds that have a summary object.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — live translation totals now exclude run ids already present in persisted TRANSLATE rows
 
 ### Bug 6 — Severity: LOW — Category: coarse remember key
 **Location:** GenerationPhase.kt:655 (`displayRows = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings)`)

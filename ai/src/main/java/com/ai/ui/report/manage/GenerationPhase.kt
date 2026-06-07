@@ -558,12 +558,11 @@ internal fun ColumnScope.GenerationPhase(
     // rows persist and the live row is consumed within ~200ms (no
     // double-count window worth worrying about). Single pass — was
     // three separate filter+sum walks before.
-    val liveTranslation = remember(translationRuns, translationRunSummaries) {
-        // Exclude runs whose rows already persisted (a summary exists for
-        // the runId) so the ~200ms window between rows-persisted and
-        // live-state-evicted doesn't count the run's cost twice — once here
-        // and once via secondaryTotals (computed from the persisted rows).
-        val persistedRunIds = translationRunSummaries.map { it.runId }.toSet()
+    val liveTranslation = remember(translationRuns, translateRows) {
+        // Exclude runs whose rows already persisted so the window between
+        // rows-persisted and live-state-evicted doesn't count the run's cost
+        // twice — once here and once via secondaryTotals.
+        val persistedRunIds = translateRows.map { translationRunGroupingId(it) }.toSet()
         var input = 0; var output = 0; var cost = 0.0
         translationRuns.forEach { run ->
             if (run.isFinished || run.runId in persistedRunIds) return@forEach
