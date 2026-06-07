@@ -908,6 +908,12 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
+    val missingPromptIconKickoffs = remember(reportId) { mutableSetOf<String>() }
+    fun kickOffMissingPromptIcon(prompt: com.ai.model.InternalPrompt, cached: String?) {
+        if (!useInternalPromptsIcons || cached != null || prompt.name.isBlank()) return
+        val key = "${prompt.id}|${prompt.name}|${prompt.title}"
+        if (missingPromptIconKickoffs.add(key)) onMissingPromptIcon(prompt)
+    }
     val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, iconRefreshTick, onOpenHtmlPreview, onViewIcons, everyItems) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
@@ -972,7 +978,7 @@ internal fun ViewAiReportScreen(
     // prompt-icon cache is cold or the master toggle is off). The
     // active language is shown by the View screen's top picker
     // strip; no per-tile language badge needed.
-    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, loadedReport, reportLanguageName, onBack) {
+    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, loadedReport, reportLanguageName, onMissingPromptIcon, onBack) {
         everyItems["meta"].orEmpty().map { item ->
             val prompt = item.prompt
             // Per-row icon override wins over the shared per-(name,title)
@@ -990,6 +996,7 @@ internal fun ViewAiReportScreen(
             val cachedEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
                 com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
             } else null
+            if (prompt != null && rowIcon == null) kickOffMissingPromptIcon(prompt, cachedEmoji)
             val promptEmoji = rowIcon ?: cachedEmoji
             val metaEnabled = item.availableLanguages?.contains(currentLang) ?: true
             // sourceRows is now single-element per META item — its id
@@ -1038,7 +1045,7 @@ internal fun ViewAiReportScreen(
     // pulls from [InternalPromptIconCache] so each fan-out prompt
     // can carry its own dynamic glyph; falls back to the static
     // 🌀 when no cached icon exists yet.
-    val fanOutTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang) {
+    val fanOutTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, onMissingPromptIcon) {
         everyItems["fan_out"].orEmpty().map { item ->
             val fanOutEnabled = item.availableLanguages?.contains(currentLang) ?: true
             // Fan-out items synthesised from fanOutSummaries carry no
@@ -1055,6 +1062,7 @@ internal fun ViewAiReportScreen(
             ) {
                 com.ai.data.InternalPromptIconCache.get(resolvedPrompt.name, resolvedPrompt.title)
             } else null
+            if (resolvedPrompt != null) kickOffMissingPromptIcon(resolvedPrompt, promptEmoji)
             IdentifiedTile(
                 id = "fan_out:${item.label}",
                 tile = ViewTile(
@@ -1077,7 +1085,7 @@ internal fun ViewAiReportScreen(
     // Dynamic per-prompt icon via [InternalPromptIconCache];
     // 🪢 fallback matches the previous aggregated tile glyph.
     // (fan_in is excluded from [computedTiles] below.)
-    val fanInTiles = remember(everyItems, useInternalPromptsIcons, iconRefreshTick, currentLang) {
+    val fanInTiles = remember(everyItems, useInternalPromptsIcons, iconRefreshTick, currentLang, onMissingPromptIcon) {
         everyItems["fan_in"].orEmpty().map { item ->
             val fanInEnabled = item.availableLanguages?.contains(currentLang) ?: true
             val prompt = item.prompt
@@ -1089,6 +1097,7 @@ internal fun ViewAiReportScreen(
             val cachedEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
                 com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
             } else null
+            if (prompt != null && rowIcon == null) kickOffMissingPromptIcon(prompt, cachedEmoji)
             val promptEmoji = rowIcon ?: cachedEmoji
             val rowId = sourceRow?.id ?: item.label
             IdentifiedTile(

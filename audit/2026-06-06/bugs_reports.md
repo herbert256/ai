@@ -173,7 +173,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** When a meta/fan-out/fan-in tile's prompt has no cached emoji, the View grid never kicks off icon generation, so the tile stays on the static fallback indefinitely (the cold-cache path the result list uses is never exercised here).
 **Root cause:** `onMissingPromptIcon` is wired by the caller (`PrimaryOverlays.kt:477` / `GenerationPhase.kt:450` → `promptIconCallbacks.onKickoff`) but `ViewAiReportScreen` never calls it; the comment at line 1048 claims the fan-out tile "fire[s] onMissingPromptIcon to kick off generation" but the code does not.
 **Proposed fix:** In the tile builders, when `resolvedPrompt != null && cached == null && useInternalPromptsIcons`, fire `onMissingPromptIcon(resolvedPrompt)` (guarded so it fires once per prompt, e.g. via a remembered set), matching the result-list cold-cache path.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — ViewAiReportScreen now fires onMissingPromptIcon once per missing meta/fan-out/fan-in prompt cache entry while internal-prompt icons are enabled
 
 ### Bug 22 — Severity: MEDIUM — Category: overlay back-stack / wrong route pop
 **Location:** Main.kt:674-682 (`seededFromOutside`) and 706-719 (Reports onBack)
