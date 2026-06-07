@@ -318,7 +318,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The class-level KDoc states "LITELLM sits ahead of OVERRIDE so the curated BerriAI/litellm prices win over stale manual entries" — the exact opposite of the actual precedence (OVERRIDE is now checked first, line 389; confirmed by CLAUDE.md). A maintainer trusting the doc could "fix" the precedence the wrong way and silently break user overrides.
 **Root cause:** Doc not updated when OVERRIDE was moved ahead of the curated tiers.
 **Proposed fix:** Rewrite the class doc to match the implemented order (provider self-report → OVERRIDE → curated tiers → OpenRouter fallback → Helicone → DEFAULT).
-**Status:** Open
+**Status:** Fixed in `PricingCache.kt` by updating the class KDoc and nearby precedence comment to match the implemented manual-override-first ordering.
 
 ### Bug 42 — Severity: LOW — Category: cold-window cost skew
 **Location:** PricingCache.kt:369-371 (`getPricing` main-thread short-circuit) + ApiUsageRates.costWithin

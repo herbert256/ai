@@ -12,12 +12,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Cached model pricing with five-tier lookup: API > LITELLM > OVERRIDE > OPENROUTER > DEFAULT.
- * Exception: For the OpenRouter provider itself, OPENROUTER pricing is checked first.
+ * Cached model pricing with layered lookup:
+ * provider self-report (OpenRouter/Together for their own calls) > manual
+ * OVERRIDE > curated bulk tiers (LiteLLM, models.dev, llm-prices,
+ * Artificial Analysis) > OpenRouter cross-provider fallback > Helicone >
+ * DEFAULT.
  *
- * LITELLM sits ahead of OVERRIDE so the curated BerriAI/litellm prices win over
- * stale manual entries by default — users now only need to keep an override for
- * models LiteLLM doesn't track, not for routine price refreshes.
+ * Manual overrides intentionally beat curated tiers so a user can correct a
+ * stale catalog price without waiting for the upstream source to refresh.
  */
 object PricingCache {
     private const val PREFS_NAME = "pricing_cache"
@@ -275,7 +277,7 @@ object PricingCache {
     fun computeInOutCost(usage: TokenUsage, pricing: ModelPricing): Pair<Double, Double> {
         val totalInput = usage.inputTokens + usage.cachedInputTokens + usage.cacheCreationTokens
         val highTier = totalInput > 200_000 && pricing.promptPriceAbove200k != null
-        val pIn = if (highTier) pricing.promptPriceAbove200k!! else pricing.promptPrice
+        val pIn = if (highTier) pricing.promptPriceAbove200k else pricing.promptPrice
         val pOut = if (highTier) (pricing.completionPriceAbove200k ?: pricing.completionPrice) else pricing.completionPrice
         val pCacheR = if (highTier) (pricing.cachedReadPriceAbove200k ?: pricing.cachedReadPrice ?: pIn)
                      else (pricing.cachedReadPrice ?: pIn)
@@ -383,9 +385,8 @@ object PricingCache {
         // a user adding a manual override specifically to correct a
         // stale catalog entry was silently ignored — exactly the
         // opposite of what the Cost Config screen's UI suggests.
-        // Then: provider self-report → curated bulk sources →
-        // OPENROUTER fan out-provider fallback → HELICONE last resort →
-        // DEFAULT.
+        // Then: curated bulk sources → OPENROUTER fan-out provider
+        // fallback → HELICONE last resort → DEFAULT.
         manualPricing?.get("${provider.id}:$model")?.let { return tracePricing(provider, model, "OVERRIDE", it) }
         findLiteLLMPricing(provider, model)?.let { return tracePricing(provider, model, "LITELLM", it) }
         findModelsDevPricing(provider, model)?.let { return tracePricing(provider, model, "MODELSDEV", it) }
