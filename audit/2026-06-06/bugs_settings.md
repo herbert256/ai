@@ -231,7 +231,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** (a) The in-progress `AlertDialog` has `onDismissRequest = {}` and an empty `confirmButton`, so a hung fetch leaves a non-dismissable spinner. (b) The per-tier result objects and `showXDialog` flags are plain `remember`; rotating while a result page is open loses the result and closes the page.
 **Root cause:** No cancel affordance on the progress dialog; result state isn't `rememberSaveable`.
 **Proposed fix:** Add a Cancel that cancels the task; consider saveable result state (or accept the loss, since the run state itself lives in the VM).
-**Status:** Fixed — the cloud update screen no longer runs a five-second metadata poll; source-file metadata is loaded on `Dispatchers.IO` through `produceState` and refreshed only when the source URI is picked or an install attempt completes.
+**Status:** Fixed — per-catalog refresh result/error dialogs now use `rememberSaveable`, and the in-progress refresh dialog exposes a Cancel button wired to the active coroutine job instead of being non-dismissable.
 
 ---
 
@@ -253,7 +253,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** While the screen is open it polls the source document's metadata via `ContentResolver.query` every 5 s forever. For a cloud DocumentsProvider URI this re-queries the provider indefinitely (battery / wakeups), purely to refresh the displayed mtime.
 **Root cause:** Unbounded `while(true)` ticker with no lifecycle backoff.
 **Proposed fix:** Poll only on resume / on demand, or stop the ticker after the first read; `queryDocumentInfo` itself also runs on the main thread per tick.
-**Status:** Open
+**Status:** Fixed — the cloud update screen no longer runs a five-second metadata poll; source-file metadata is loaded on `Dispatchers.IO` through `produceState` and refreshed only when the source URI is picked or an install attempt completes.
 
 ---
 

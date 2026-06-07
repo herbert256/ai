@@ -5,6 +5,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,6 +28,7 @@ import com.ai.viewmodel.RefreshStepStatus
 import com.ai.viewmodel.WorkerRow
 import com.ai.viewmodel.WorkerStage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -58,23 +60,25 @@ fun RefreshScreen(
     var progressTitle by remember { mutableStateOf("") }
     var progressText by remember { mutableStateOf("") }
     val isAnyRunning by remember { derivedStateOf { progressTitle.isNotBlank() } }
-    var taskError by remember { mutableStateOf<String?>(null) }
+    var runningTask by remember { mutableStateOf<Job?>(null) }
+    var taskError by rememberSaveable { mutableStateOf<String?>(null) }
 
-    var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
-    var litellmResult by remember { mutableStateOf<Int?>(null) }
-    var modelsDevResult by remember { mutableStateOf<Int?>(null) }
-    var heliconeResult by remember { mutableStateOf<Int?>(null) }
-    var llmPricesResult by remember { mutableStateOf<Int?>(null) }
-    var aaResult by remember { mutableStateOf<Int?>(null) }
-    var showOpenRouterDialog by remember { mutableStateOf(false) }
-    var showLiteLLMDialog by remember { mutableStateOf(false) }
-    var showModelsDevDialog by remember { mutableStateOf(false) }
-    var showHeliconeDialog by remember { mutableStateOf(false) }
-    var showLLMPricesDialog by remember { mutableStateOf(false) }
-    var showAaDialog by remember { mutableStateOf(false) }
+    var openRouterResult by rememberSaveable { mutableStateOf<Triple<Int, Int, Int>?>(null) }
+    var litellmResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var modelsDevResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var heliconeResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var llmPricesResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var aaResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showOpenRouterDialog by rememberSaveable { mutableStateOf(false) }
+    var showLiteLLMDialog by rememberSaveable { mutableStateOf(false) }
+    var showModelsDevDialog by rememberSaveable { mutableStateOf(false) }
+    var showHeliconeDialog by rememberSaveable { mutableStateOf(false) }
+    var showLLMPricesDialog by rememberSaveable { mutableStateOf(false) }
+    var showAaDialog by rememberSaveable { mutableStateOf(false) }
 
     fun launchTask(title: String, initialText: String = "", block: suspend () -> Unit) {
-        scope.launch {
+        runningTask?.cancel()
+        runningTask = scope.launch {
             progressTitle = title; progressText = initialText
             try { block() }
             catch (e: kotlinx.coroutines.CancellationException) { throw e }
@@ -86,16 +90,18 @@ fun RefreshScreen(
                 // message string.
                 taskError = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
             }
-            finally { progressTitle = ""; progressText = "" }
+            finally { progressTitle = ""; progressText = ""; runningTask = null }
         }
     }
 
     if (isAnyRunning) {
-        AlertDialog(onDismissRequest = {}, title = { Text(progressTitle) },
+        AlertDialog(onDismissRequest = { runningTask?.cancel() }, title = { Text(progressTitle) },
             text = { Column {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                 if (progressText.isNotBlank()) { Spacer(modifier = Modifier.height(8.dp)); Text(progressText, fontSize = 12.sp, color = AppColors.TextTertiary) }
-            }}, confirmButton = {})
+            }}, confirmButton = {
+                TextButton(onClick = { runningTask?.cancel() }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            })
     }
 
     taskError?.let { error ->
