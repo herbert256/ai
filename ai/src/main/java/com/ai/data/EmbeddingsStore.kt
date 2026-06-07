@@ -49,7 +49,15 @@ object EmbeddingsStore {
     internal fun get(filesDir: File, docId: String, providerId: String, model: String, content: String): List<Double>? {
         val f = fileFor(filesDir, docId, providerId, model, content)
         if (!f.exists()) return null
-        return try { gson.fromJson(f.readText(), type) } catch (_: Exception) { null }
+        return try {
+            val vector = gson.fromJson<List<Double>>(f.readText(), type)
+            if (vector.isNullOrEmpty()) {
+                AppLog.w("EmbeddingsStore", "get($docId, $providerId, $model) ignored empty cached vector")
+                null
+            } else {
+                vector
+            }
+        } catch (_: Exception) { null }
     }
 
     fun put(context: Context, docId: String, providerId: String, model: String, content: String, vector: List<Double>) {
@@ -57,6 +65,10 @@ object EmbeddingsStore {
     }
 
     internal fun put(filesDir: File, docId: String, providerId: String, model: String, content: String, vector: List<Double>) {
+        if (vector.isEmpty()) {
+            AppLog.w("EmbeddingsStore", "put($docId, $providerId, $model) refused empty vector")
+            return
+        }
         // writeTextAtomic returns false on disk-full / permission /
         // any I/O failure. Surface it as a log warning so a
         // corruption-during-store doesn't go unnoticed; the cache

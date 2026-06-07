@@ -355,7 +355,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A truncated/corrupt embedding JSON returns `null` (cache miss) silently — fine — but `put` (lines 59-71) does not verify the vector is non-empty, so a provider that returned an empty embedding caches `[]`, and the next `get` returns an empty list that `cosine` then treats as 0.0 for every query against that doc.
 **Root cause:** No validation that the stored vector is non-empty.
 **Proposed fix:** Refuse to `put` an empty vector; log instead.
-**Status:** Open
+**Status:** Fixed in `EmbeddingsStore.kt` by refusing empty vectors on write and treating any existing empty cached vector as a logged cache miss on read.
 
 ## File: ai/src/main/java/com/ai/data/local/LocalEmbedder.kt
 
