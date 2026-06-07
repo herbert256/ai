@@ -170,6 +170,13 @@ object KnowledgeService {
                 error("Embedder returned dim ${v.size} on chunk $i (expected $embeddingDim) for $displayName")
             }
         }
+        // The mapIndexed below over-indexes vectors[i] when the embedder
+        // returned fewer rows than chunks (partial batch / deduped rows),
+        // surfacing as a cryptic IndexOutOfBoundsException. Fail with a clear
+        // count-mismatch message instead (audit chat#41).
+        if (vectors.size != pieces.size) {
+            error("Embedder returned ${vectors.size} vectors for ${pieces.size} chunks for $displayName")
+        }
         val chunks = pieces.mapIndexed { i, t ->
             KnowledgeChunk(
                 id = UUID.randomUUID().toString(),

@@ -324,7 +324,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** The validation loop (`vectors.forEachIndexed { … if (v.size != embeddingDim) error(…) }`) checks each *returned* vector's dimension but never checks `vectors.size == pieces.size`. The subsequent `pieces.mapIndexed { i, t -> … vectors[i] … }` then over-indexes. Note the cloud/local *search* screens already guard this exact case with `vecs.getOrNull(j) ?: continue` — the indexing path does not.
 **Reproduction:** Use an embedder/provider that returns fewer rows than inputs for one batch → indexing fails with an opaque error.
 **Proposed fix:** After the embed loop, assert `vectors.size == pieces.size` and `error("Embedder returned ${vectors.size} vectors for ${pieces.size} chunks")`, or zip defensively with `getOrNull`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - assert vectors.size == pieces.size before the mapIndexed, with a clear count-mismatch error instead of IndexOutOfBounds
 
 ---
 
