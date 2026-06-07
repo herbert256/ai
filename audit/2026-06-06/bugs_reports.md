@@ -419,7 +419,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Report text that *literally* contains an HTML entity the user typed (e.g. `&lt;`) is escaped once by `convertMarkdownToSimpleHtml` (`&` → `&amp;` → `&amp;lt;`) and then unescaped here back to `&lt;` and finally to `<`, so a typed `&lt;` is shown as `<`.
 **Root cause:** The annotated-string pass reverses the escaping the simple-HTML pass applied, but applies a second `&lt;→<` step that also catches literal entities the user authored.
 **Proposed fix:** Carry the already-escaped HTML through without re-unescaping, or do a single faithful unescape pass.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — report HTML entities are now decoded once while appending text, so literal user-authored entities stay visible
 
 ## File: ai/src/main/java/com/ai/ui/helpers/WordOdtExport.kt
 

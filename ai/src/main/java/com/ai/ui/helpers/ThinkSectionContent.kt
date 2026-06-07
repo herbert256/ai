@@ -225,8 +225,14 @@ private fun HtmlContentDisplay(htmlContent: String) {
 }
 
 private fun parseHtmlToAnnotatedString(html: String): androidx.compose.ui.text.AnnotatedString {
-    val cleanHtml = html.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-        .replace("&quot;", "\"").replace("&#39;", "'")
+    fun decodeHtmlEntitiesOnce(value: String): String = value
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+
+    val cleanHtml = html
         .replace("<p>", "").replace("</p>", "\n\n").replace("<br>", "\n")
         .replace("<ul>", "\n").replace("</ul>", "\n")
         .replace("<li>", "  \u2022 ").replace("</li>", "\n")
@@ -239,7 +245,9 @@ private fun parseHtmlToAnnotatedString(html: String): androidx.compose.ui.text.A
         val styleStack = mutableListOf<Pair<String, Int>>()
 
         for (match in matches) {
-            if (match.range.first > lastEnd) append(cleanHtml.substring(lastEnd, match.range.first))
+            if (match.range.first > lastEnd) {
+                append(decodeHtmlEntitiesOnce(cleanHtml.substring(lastEnd, match.range.first)))
+            }
             val isClosing = match.groupValues[1] == "/"
             val tagName = match.groupValues[2]
             if (!isClosing) {
@@ -262,6 +270,6 @@ private fun parseHtmlToAnnotatedString(html: String): androidx.compose.ui.text.A
             }
             lastEnd = match.range.last + 1
         }
-        if (lastEnd < cleanHtml.length) append(cleanHtml.substring(lastEnd))
+        if (lastEnd < cleanHtml.length) append(decodeHtmlEntitiesOnce(cleanHtml.substring(lastEnd)))
     }
 }
