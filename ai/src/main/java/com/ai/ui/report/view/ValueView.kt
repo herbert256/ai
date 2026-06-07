@@ -152,7 +152,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             ValueScatter(points, modifier = Modifier.fillMaxWidth().height(240.dp).padding(bottom = 12.dp))
             best?.let {
                 Text(
-                    "${com.ai.data.MetadataIconsHolder.current.gem} Best value: ${it.provider} · ${it.modelShort} — score ${formatScore(it.quality)} at ${formatCents(it.costCents)}",
+                    "${com.ai.data.MetadataIconsHolder.current.gem} Best value: ${it.provider} · ${it.modelShort} — score ${formatScore(it.quality)} at ${formatCents(it.costCents / 100.0)}",
                     color = AppColors.SuccessAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
@@ -259,7 +259,7 @@ private fun ValueRow(p: ValuePoint) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("${p.provider} · ${p.modelShort}", color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "${formatCents(p.costCents)}   ·   score ${formatScore(p.quality)}",
+                    "${formatCents(p.costCents / 100.0)}   ·   score ${formatScore(p.quality)}",
                     color = AppColors.TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace
                 )
             }

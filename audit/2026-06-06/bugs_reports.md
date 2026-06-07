@@ -296,7 +296,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Every cost figure on the Value view (the "Best value" annotation and every model row) is displayed 100× larger than the real cost — e.g. a $0.012 (1.2 ¢) call reads "120".
 **Root cause:** `ValuePoint.costCents` is already in cents (`costUsd * 100.0`, line 88), but the shared `formatCents(value)` helper expects **dollars** and multiplies by 100 internally (`UiFormatting.kt:28` → `value * 100`). Passing cents into `formatCents` double-applies the ×100. (AnswerMatrix avoids this by using its own `formatCentsValue` that does *not* re-multiply.)
 **Proposed fix:** Either pass dollars (`p.costCents / 100.0`) to `formatCents`, or use a cents-native formatter (like AnswerMatrix's `formatCentsValue`) that doesn't re-multiply.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — costCents now divided by 100 before formatCents (which re-multiplies)
 
 ### Bug 37 — Severity: LOW — Category: mixed quality units in Pareto
 **Location:** ValueView.kt:84-99 (`buildValuePoints`, `quality = row.score ?: rank?.let { (n - it + 1) }`)
