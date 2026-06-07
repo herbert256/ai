@@ -372,7 +372,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The API Test screen persists the typed raw API key (and the raw request JSON, which may embed a key) into `eval_prefs` for convenience. Because `eval_prefs` is the app's main prefs file, the raw test key rides along in the full Backup zip.
 **Root cause:** Convenience persistence of a credential to the primary prefs store.
 **Proposed fix:** Don't persist the test key (or store it in a transient/excluded store).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — API Test now keeps the typed key only in process memory and removes the legacy `last_test_api_key` preference when building a request.
 
 ### Bug 40 — Severity: LOW — Category: no error feedback
 **Location:** DeveloperScreens.kt:215-225 (`ApiTestScreen` model fetch)

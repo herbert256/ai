@@ -28,6 +28,10 @@ import kotlinx.coroutines.withContext
 
 // ===== API Test Screen =====
 
+private object ApiTestDraftSecrets {
+    var apiKey: String = ""
+}
+
 @Composable
 fun ApiTestScreen(
     onBackClick: () -> Unit,
@@ -47,7 +51,7 @@ fun ApiTestScreen(
         prefs.getString("last_test_provider", null)?.let { AppService.findById(it) } ?: activeProviders.firstOrNull() ?: AppService.entries.first()
     ) }
     var apiUrl by remember { mutableStateOf(prefs.getString("last_test_api_url", selectedProvider.baseUrl) ?: selectedProvider.baseUrl) }
-    var apiKey by remember { mutableStateOf(prefs.getString("last_test_api_key", "") ?: "") }
+    var apiKey by remember { mutableStateOf(ApiTestDraftSecrets.apiKey.ifBlank { uiState.aiSettings.getApiKey(selectedProvider) }) }
     var model by remember { mutableStateOf(prefs.getString("last_test_model", selectedProvider.defaultModel) ?: selectedProvider.defaultModel) }
     var prompt by remember { mutableStateOf(prefs.getString("last_test_prompt", "Hello, how are you?") ?: "Hello, how are you?") }
     var systemPrompt by remember { mutableStateOf(prefs.getString("last_test_system_prompt", "") ?: "") }
@@ -242,10 +246,11 @@ fun ApiTestScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedButton(onClick = {
+            ApiTestDraftSecrets.apiKey = apiKey
             prefs.edit().apply {
                 putString("last_test_provider", selectedProvider.id)
                 putString("last_test_api_url", apiUrl)
-                putString("last_test_api_key", apiKey)
+                remove("last_test_api_key")
                 putString("last_test_model", model)
                 putString("last_test_prompt", prompt)
                 putString("last_test_system_prompt", systemPrompt)
@@ -273,7 +278,7 @@ fun EditApiRequestScreen(
     val prefs = remember { context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE) }
     val provider = remember { AppService.findById(prefs.getString("last_test_provider", "") ?: "") ?: AppService.entries.first() }
     val apiUrl = remember { prefs.getString("last_test_api_url", provider.baseUrl) ?: provider.baseUrl }
-    val apiKey = remember { prefs.getString("last_test_api_key", "") ?: "" }
+    val apiKey = remember { ApiTestDraftSecrets.apiKey }
     val model = remember { prefs.getString("last_test_model", "") ?: "" }
     var isLoading by remember { mutableStateOf(false) }
 
