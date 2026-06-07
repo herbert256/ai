@@ -506,7 +506,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** An expanded note card collapses on rotation / process death because its expanded flag isn't saved.
 **Root cause:** `remember` (not `rememberSaveable`).
 **Proposed fix:** Use `rememberSaveable(note.id)` for the expanded flag.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — secondary detail now refreshes parent report metadata on `ReportDataVersion` and trace links on `ApiTracer.traceVersion`
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/view/SecondaryDetail.kt
 
@@ -522,7 +522,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The 🐞 trace link and the title-bar report icon/language don't refresh if a trace is captured/purged or the report metadata changes while the detail screen stays open.
 **Root cause:** Neither `produceState` keys on `ApiTracer`/`ReportDataVersion`.
 **Proposed fix:** Key `parentReportState` on `ReportDataVersion.version`; refresh the trace lookup on a trace-data signal (or accept it as load-once and document it).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — secondary detail now refreshes parent report metadata on `ReportDataVersion` and trace links on `ApiTracer.traceVersion`
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Main.kt (additional)
 
