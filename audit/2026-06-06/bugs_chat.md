@@ -451,7 +451,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The result list can contain fewer than 10 hits even when more than 10 reports have positive similarity, because the `> 0.0` filter is applied *after* `take(10)` — any zero/negative scores in the top 10 are dropped without being backfilled from rank 11+.
 **Root cause:** Filter ordered after the take.
 **Proposed fix:** `.filter { it.score > 0.0 }.take(10)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — positive-score filtering now happens before the top-10 truncation
 
 ### Bug 57 — Severity: LOW — Category: provider coverage
 **Location:** SemanticSearchScreen.kt:204-212 (`supportedEmbeddingChoices`)
