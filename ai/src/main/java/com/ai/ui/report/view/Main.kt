@@ -918,7 +918,7 @@ internal fun ViewAiReportScreen(
         val key = "${prompt.id}|${prompt.name}|${prompt.title}"
         if (missingPromptIconKickoffs.add(key)) onMissingPromptIcon(prompt)
     }
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, iconRefreshTick, onOpenHtmlPreview, onViewIcons, everyItems) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, iconRefreshTick, onOpenHtmlPreview, onViewIcons, everyItems, tournamentRows) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -964,9 +964,10 @@ internal fun ViewAiReportScreen(
             // result page's bottom-bar icons (📜 App Log, 🐞 Trace
             // list).
             add(IdentifiedTile("doc:Icons", ViewTile("Icons", com.ai.data.MetadataIconsHolder.current.image, AppColors.WarningAccent) { onViewIcons() }))
-            // Value view — cost × quality frontier. Only meaningful with a
-            // rerank to supply per-model quality scores.
-            if (everyItems["rerank"].orEmpty().isNotEmpty()) {
+            // Value view — cost × quality frontier. Needs a ranking to
+            // supply per-model quality scores: a rerank OR a tournament
+            // (the Value view's top switch picks which one feeds the chart).
+            if (everyItems["rerank"].orEmpty().isNotEmpty() || tournamentRows.isNotEmpty()) {
                 add(IdentifiedTile("doc:Value", ViewTile("Value view", com.ai.data.MetadataIconsHolder.current.gem, AppColors.SuccessAccent) { showValueView = true }))
             }
         }
