@@ -18,7 +18,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A per-model title call that concluded with no title and no error message renders as a green ✅ "done" row (doneIcon = the model's icon, label = the model name), implying a title was produced when none was.
 **Root cause:** `titleStateFor` returns `InfoJobState.DONE` when `a.modelTitleAttempted()` is true even though `a.modelTitle` is blank and `modelTitleErrorMessage` is null. The "attempted but empty" terminal state is collapsed into DONE with no visual distinction from a real success.
 **Proposed fix:** Add a distinct terminal "empty" presentation (e.g. a dimmed ⃠ / "no title" label) for the `modelTitleAttempted() && modelTitle.isNullOrBlank()` case, separate from a genuine DONE.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — attempted-but-empty model-title jobs now render as a dim empty terminal state with a no-title label
 
 ### Bug 3 — Severity: LOW — Category: shared running-key ambiguity
 **Location:** GetInfo.kt:135,152 (`"${report.id}|language" in running`)
