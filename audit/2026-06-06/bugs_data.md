@@ -55,7 +55,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A failed write logs to `AppLog.e` and returns `false`, but the partial-staging tmp cleanup `tmp.delete()` is itself wrapped in a swallow; on a full disk the orphan `<name>.<uuid>.tmp` files can accumulate in `filesDir` and are themselves backed up.
 **Root cause:** No sweep of orphan `*.tmp` staging files; UUID names make them un-deduplicated.
 **Proposed fix:** Periodically prune `*.<uuid>.tmp` older than N minutes, or use a single-attempt temp with a deterministic-but-per-thread name cleaned in a finally.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — atomic writes now prune stale sibling temp files and warn when temp cleanup fails
 
 ## File: ai/src/main/java/com/ai/data/AppService.kt
 

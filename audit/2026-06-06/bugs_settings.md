@@ -40,7 +40,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** For legacy usage rows that predate persisted call-time cost, a row that has *both* token counts and search units is mis-costed: it charges only `searchUnits * perQueryPrice` and reports `outputCost = 0`, ignoring the token spend entirely.
 **Root cause:** The fallback branch is `if (searchUnits > 0) searchUnits*perQueryPrice else tokens*price` — an either/or, not additive. New rows (carrying persisted cost) are unaffected; only legacy rows recomputed on the fly.
 **Proposed fix:** Sum token cost + search cost like `PricingCache.computeUsageCostSnapshot` does at write time.
-**Status:** Fixed (2026-06-07) — provider model-type maps now deserialize through `TypeTokens.mapStringStringType`
+**Status:** Open
 
 ---
 
@@ -119,7 +119,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Every JSON import branch reads the picked file with `readFromUri` synchronously on the main thread inside the SAF result callback. The comment claims "tiny sync JSON reads", but the All / runtime-All / reports bundles can be large and block the UI.
 **Root cause:** Only the zip flows use `Dispatchers.IO`; the JSON branches do not.
 **Proposed fix:** Read + parse the larger bundle imports off the main thread.
-**Status:** Fixed (2026-06-07) — JSON string-set prefs now deserialize through `TypeTokens.listStringType`
+**Status:** Open
 
 ### Bug 13 — Severity: LOW — Category: silent overwrite on re-import
 **Location:** ImportExportScreen.kt:626-636 (`applyParameters`), 673-683 (`applySystemPrompts`), and the other `apply*` upsert helpers
@@ -137,14 +137,14 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Per-provider model-type maps are parsed via `gson.fromJson(it, Map::class.java) as? Map<String, String>` — an unchecked cast that defers a `ClassCastException` to first use if any value isn't a String.
 **Root cause:** This path was never migrated to a concrete `TypeToken<Map<String,String>>`, unlike `defaultTypePaths` (lines 62-71) which the comment there says was fixed for exactly this reason.
 **Proposed fix:** Use `TypeTokens.mapStringStringType` here too.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — provider model-type maps now deserialize through `TypeTokens.mapStringStringType`
 
 ### Bug 15 — Severity: LOW — Category: deferred ClassCastException
 **Location:** SettingsPreferences.kt:334-340 (`loadJsonStringSet`)
 **Symptom:** `gson.fromJson(json, List::class.java) as? List<String>` — numeric/boolean entries deserialize to `Double`/`Boolean` and the unchecked cast defers a CCE to iteration time.
 **Root cause:** Untyped `List::class.java` parse + unchecked cast.
 **Proposed fix:** Parse with `TypeTokens.listStringType`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — JSON string-set prefs now deserialize through `TypeTokens.listStringType`
 
 ### Bug 16 — Severity: LOW — Category: cost attribution
 **Location:** SettingsPreferences.kt:636-640 (`updateUsageStats`)
