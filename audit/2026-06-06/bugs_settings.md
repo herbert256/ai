@@ -444,7 +444,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** When the intent sets both an explicit `email` and `nextAction == "email"`, the card shows two lines: "Email the report to {address}" and "Email the report to your default address". The user sees a redundant/contradictory disclosure of one action.
 **Root cause:** The `email` field and the `nextAction` email case are rendered independently with no de-dup.
 **Proposed fix:** Collapse to a single line when both express an email side effect.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — explicit email disclosure now suppresses the default-address `nextAction=email` line.
 
 ---
 
