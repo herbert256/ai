@@ -371,29 +371,9 @@ object PricingCache {
     fun getPricing(context: Context, provider: AppService, model: String): ModelPricing {
         if (!preloadCompleted && isMainThread()) return DEFAULT_PRICING
         ensureLoaded(context)
-        val isOpenRouter = provider.crossProviderModelList
-        val isTogether = provider.pricingFromModelList
-        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return tracePricing(provider, model, "OPENROUTER-SELF", it) }
-        // Together's native pricing tier — same provider-self-report
-        // logic as OpenRouter: when the caller's provider is Together,
-        // its own /v1/models pricing block is the authoritative
-        // billing rate, more accurate than LiteLLM's community
-        // mirror.
-        if (isTogether) findTogetherPricing(provider, model)?.let { return tracePricing(provider, model, "TOGETHER-SELF", it) }
-        // User OVERRIDE wins over every curated bulk source. The
-        // previous order put OVERRIDE behind LITELLM/MODELSDEV/etc., so
-        // a user adding a manual override specifically to correct a
-        // stale catalog entry was silently ignored — exactly the
-        // opposite of what the Cost Config screen's UI suggests.
-        // Then: curated bulk sources → OPENROUTER fan-out provider
-        // fallback → HELICONE last resort → DEFAULT.
-        manualPricing?.get("${provider.id}:$model")?.let { return tracePricing(provider, model, "OVERRIDE", it) }
-        findLiteLLMPricing(provider, model)?.let { return tracePricing(provider, model, "LITELLM", it) }
-        findModelsDevPricing(provider, model)?.let { return tracePricing(provider, model, "MODELSDEV", it) }
-        findLLMPricesPricing(provider, model)?.let { return tracePricing(provider, model, "LLMPRICES", it) }
-        findArtificialAnalysisPricing(provider, model)?.let { return tracePricing(provider, model, "AA", it) }
-        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return tracePricing(provider, model, "OPENROUTER", it) }
-        findHeliconePricing(provider, model)?.let { return tracePricing(provider, model, "HELICONE", it) }
+        findPricingMatch(provider, model, includeOverride = true)?.let {
+            return tracePricing(provider, model, it.tier, it.pricing)
+        }
         AppLog.d("PricingCache", "miss ${provider.id}/$model → DEFAULT")
         return DEFAULT_PRICING
     }
@@ -410,25 +390,7 @@ object PricingCache {
 
     fun getPricingWithoutOverride(context: Context, provider: AppService, model: String): ModelPricing {
         ensureLoaded(context)
-        // Mirror getPricing's precedence exactly (provider self-report
-        // first, then curated tiers, then the OpenRouter fan out-provider
-        // fallback, then Helicone, then DEFAULT) but skip the manual
-        // override step. Used by cleanupRedundantManualOverrides to
-        // decide whether an override would still win the live lookup;
-        // the previous implementation consulted OpenRouter ahead of
-        // LiteLLM unconditionally, so cleanup deleted overrides that
-        // getPricing would never have lost to OpenRouter.
-        val isOpenRouter = provider.crossProviderModelList
-        val isTogether = provider.pricingFromModelList
-        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        if (isTogether) findTogetherPricing(provider, model)?.let { return it }
-        findLiteLLMPricing(provider, model)?.let { return it }
-        findModelsDevPricing(provider, model)?.let { return it }
-        findLLMPricesPricing(provider, model)?.let { return it }
-        findArtificialAnalysisPricing(provider, model)?.let { return it }
-        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        findHeliconePricing(provider, model)?.let { return it }
-        return DEFAULT_PRICING
+        return findPricingMatch(provider, model, includeOverride = false)?.pricing ?: DEFAULT_PRICING
     }
 
     /** Context-free, in-memory-only variant of [getPricing] used by
@@ -438,23 +400,28 @@ object PricingCache {
      *  never touches SharedPreferences or the bundled asset and never
      *  blocks. Returns DEFAULT_PRICING when catalogs aren't loaded. */
     fun lookupPricing(provider: AppService, model: String): ModelPricing {
+        return findPricingMatch(provider, model, includeOverride = true)?.pricing ?: DEFAULT_PRICING
+    }
+
+    private data class PricingMatch(val tier: String, val pricing: ModelPricing)
+
+    private fun findPricingMatch(
+        provider: AppService,
+        model: String,
+        includeOverride: Boolean
+    ): PricingMatch? {
         val isOpenRouter = provider.crossProviderModelList
         val isTogether = provider.pricingFromModelList
-        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        if (isTogether) findTogetherPricing(provider, model)?.let { return it }
-        // Mirror getPricing's precedence exactly: user OVERRIDE wins over
-        // every curated bulk source (Bug 35). The previous order put the
-        // override after LITELLM/MODELSDEV/etc., so the cached capability
-        // snapshot showed a curated price while live cost computation used
-        // the override — a persistent picker-vs-billed disagreement.
-        manualPricing?.get("${provider.id}:$model")?.let { return it }
-        findLiteLLMPricing(provider, model)?.let { return it }
-        findModelsDevPricing(provider, model)?.let { return it }
-        findLLMPricesPricing(provider, model)?.let { return it }
-        findArtificialAnalysisPricing(provider, model)?.let { return it }
-        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        findHeliconePricing(provider, model)?.let { return it }
-        return DEFAULT_PRICING
+        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER-SELF", it) }
+        if (isTogether) findTogetherPricing(provider, model)?.let { return PricingMatch("TOGETHER-SELF", it) }
+        if (includeOverride) manualPricing?.get("${provider.id}:$model")?.let { return PricingMatch("OVERRIDE", it) }
+        findLiteLLMPricing(provider, model)?.let { return PricingMatch("LITELLM", it) }
+        findModelsDevPricing(provider, model)?.let { return PricingMatch("MODELSDEV", it) }
+        findLLMPricesPricing(provider, model)?.let { return PricingMatch("LLMPRICES", it) }
+        findArtificialAnalysisPricing(provider, model)?.let { return PricingMatch("AA", it) }
+        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER", it) }
+        findHeliconePricing(provider, model)?.let { return PricingMatch("HELICONE", it) }
+        return null
     }
 
     /** OpenRouter and Anthropic disagree on punctuation — Anthropic ships
