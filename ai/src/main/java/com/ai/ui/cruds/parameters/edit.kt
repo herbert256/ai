@@ -21,15 +21,18 @@ internal fun ParametersEditForm(
     aiSettings: Settings,
     onSaved: (Parameters) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    forceAdd: Boolean = false
 ) {
+    val excludeId = if (forceAdd) "" else item?.id ?: ""
     ParametersEditScreen(
         params = item,
         existingNames = aiSettings.parameters
-            .filter { it.id != (item?.id ?: "") }
+            .filter { it.id != excludeId }
             .map { it.name.lowercase(Locale.ROOT) }.toSet(),
         onSave = onSaved,
         onBack = onBack,
-        onNavigateHome = onNavigateHome
+        onNavigateHome = onNavigateHome,
+        forceAdd = forceAdd
     )
 }

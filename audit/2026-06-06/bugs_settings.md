@@ -191,7 +191,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Duplicating a Parameters preset opens it in **Edit** mode (title reads "Edit Parameters") with a fresh id, and — because edit auto-saves on dispose — the copy is committed even if the user immediately backs out without changing anything. Other CRUDs route copy through an Add screen with an explicit Create button.
 **Root cause:** Copy reuses `Mode.Edit` instead of an Add flow.
 **Proposed fix:** Route the copy through `Mode.Add`/an add screen for parity, or gate the duplicate commit on an explicit action.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Parameters copy now opens Add mode with prefilled values and only persists through the Create button.
 
 ---
 

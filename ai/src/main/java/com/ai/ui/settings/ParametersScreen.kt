@@ -19,10 +19,11 @@ fun ParametersEditScreen(
     existingNames: Set<String>,
     onSave: (Parameters) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    forceAdd: Boolean = false
 ) {
     BackHandler { onBack() }
-    val isEditing = params != null
+    val isEditing = params != null && !forceAdd
     var resetTick by remember { mutableStateOf(0) }
 
     var name by remember(resetTick) { mutableStateOf(params?.name ?: "") }
@@ -42,11 +43,11 @@ fun ParametersEditScreen(
     var reasoningEffort by remember(resetTick) { mutableStateOf(params?.reasoningEffort ?: "") }
 
     val dup = com.ai.ui.shared.rememberDuplicateMode(
-        isEditingExisting = params != null,
+        isEditingExisting = isEditing,
         onDuplicate = { name = "$name-copy" }
     )
-    val isAddMode = dup.isAddMode
-    val effectiveExistingNames = if (isAddMode && params != null) {
+    val isAddMode = forceAdd || dup.isAddMode
+    val effectiveExistingNames = if (isAddMode && isEditing) {
         existingNames + params.name.lowercase()
     } else existingNames
 
@@ -106,7 +107,7 @@ fun ParametersEditScreen(
                 label = { Text("Preset name") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors(),
                 isError = name.isNotBlank() && nameError != null,
-                supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.DangerAccent) } } else null
+                supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError, color = AppColors.DangerAccent) } } else null
             )
 
             // Numeric fields surface a number-pad keyboard. Decimal
