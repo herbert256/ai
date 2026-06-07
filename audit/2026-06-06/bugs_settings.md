@@ -318,7 +318,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** For the keyed pricing tiers, `onRefresh` is `{ _ -> onRefreshKeyed("pricing", s.name) }` — a fire-and-forget dispatch that returns instantly. The row wrapper then flips `busy=false` and bumps `refreshTick` immediately, re-listing before the refresh actually completes, so the entry still shows the old age/"never fetched".
 **Root cause:** The keyed refresh isn't awaited; the busy/refresh cycle assumes the lambda blocks until done.
 **Proposed fix:** Have the keyed path report completion (suspend or callback) before clearing busy / re-listing.
-**Status:** Open
+**Status:** Fixed in `CachesScreen.kt`, `DeveloperRoutes.kt`, and `AppViewModel.kt` by making keyed cache refreshes suspendable and awaiting the underlying VM refresh work.
 
 ### Bug 34 — Severity: LOW — Category: UX
 **Location:** CachesScreen.kt:330,378-387,457-459 (single `busy` flag)

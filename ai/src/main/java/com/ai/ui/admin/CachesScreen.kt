@@ -97,7 +97,7 @@ data class CacheDescriptor(
  *  (see DeveloperRoutes). The public pricing fetchers (LiteLLM / models.dev /
  *  llm-prices / Helicone) are key-free and awaited inline. */
 fun cacheRegistry(
-    onRefreshKeyed: (cacheId: String, entryId: String) -> Unit,
+    onRefreshKeyed: suspend (cacheId: String, entryId: String) -> Unit,
 ): List<CacheDescriptor> = listOf(
     CacheDescriptor(
         id = "prompts", icon = "🔖", title = "Prompts", helpTopic = "cache_prompts",
