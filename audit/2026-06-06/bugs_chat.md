@@ -483,7 +483,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Same post-`take` filter ordering as Bug 56 — can return fewer than 10 results when zero-score items occupy top ranks.
 **Root cause:** Filter after take.
 **Proposed fix:** `.filter { it.score > 0.0 }.take(10)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — local semantic search now filters positive scores before taking the top 10
 
 ---
 
