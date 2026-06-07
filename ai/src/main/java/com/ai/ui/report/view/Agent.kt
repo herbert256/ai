@@ -65,6 +65,16 @@ import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+internal data class ReportFanOutRun(
+    val metaPromptName: String,
+    val icon: String?
+)
+
+private data class PendingFanOutRunChoice(
+    val agentId: String,
+    val activeLanguage: String?
+)
+
 /**
  * Content-only "View" sibling of [ReportsViewerScreen] (no
  * initialSection — the per-agent response list path). Reached from
@@ -95,17 +105,13 @@ fun ReportsViewScreen(
     /** Which language to land on. null / "" = Original. */
     initialLanguage: String? = null,
     initialAgentId: String? = null,
-    /** The report's fan-out run, when one exists: its routing name and
-     *  the icon to surface on the response card. Both null → no fan-out
-     *  affordance is shown. */
-    fanOutMetaPromptName: String? = null,
-    fanOutIcon: String? = null,
-    /** Opens the fan-out View for the given (currently-displayed) model
-     *  as the initiator. Null → the fan-out icon is not interactive. */
-    /** agentId + the language active on THIS page (null/"" = Original) so the
-     *  fan-out View opens on the same language the user was reading, not the
-     *  report's original. */
-    onOpenFanOut: ((agentId: String, activeLanguage: String?) -> Unit)? = null,
+    /** The report's fan-out runs. One run opens directly from the response
+     *  card; multiple runs show a chooser before opening. */
+    fanOutRuns: List<ReportFanOutRun> = emptyList(),
+    /** Opens the selected fan-out run for the given displayed model as the
+     *  initiator. The active language is from THIS page, not the outer View
+     *  picker. Null → the fan-out icon is not interactive. */
+    onOpenFanOut: ((metaPromptName: String, agentId: String, activeLanguage: String?) -> Unit)? = null,
     /** Bubbled the currently-active language (null = Original) so
      *  the parent's picker can adopt it. Mirrors PromptViewScreen. */
     onBack: (activeLanguage: String?) -> Unit
@@ -130,6 +136,7 @@ fun ReportsViewScreen(
     val activeLanguage = if (languages.isEmpty()) ""
         else languages[langPagerState.currentPage.wrapTo(languages.size)]
     val activeLangState = androidx.compose.runtime.rememberUpdatedState(activeLanguage)
+    var pendingFanOutChoice by remember { mutableStateOf<PendingFanOutRunChoice?>(null) }
     val scope = rememberCoroutineScope()
     // Tapping the prompt card's language flag advances to the next
     // language, wrapping past the last back to the first (the pager is
@@ -424,10 +431,10 @@ fun ReportsViewScreen(
                             val pageTitle = translatedTitleByAgentId[agent.agentId]?.takeIf { it.isNotBlank() }
                                 ?: agent.modelTitle?.takeIf { it.isNotBlank() }
                             // Fan-out affordance (top-right): shown when
-                            // the report carries a fan-out run. Tapping it
-                            // opens the fan-out View landing on THIS model
-                            // as the initiator.
-                            val fanOutFlag = if (fanOutMetaPromptName != null) fanOutIcon else null
+                            // the report carries fan-out runs. Tapping it
+                            // opens directly for one run, or shows a chooser
+                            // before landing on THIS model as the initiator.
+                            val fanOutFlag = fanOutRuns.firstOrNull()?.icon
                             AgentResponseCard(
                                 agent = agent,
                                 overrideBody = translatedByAgentId[agent.agentId],
@@ -435,7 +442,14 @@ fun ReportsViewScreen(
                                 onIconClick = advanceModel,
                                 fanOutIcon = fanOutFlag,
                                 onFanOutClick = if (fanOutFlag != null && onOpenFanOut != null)
-                                    ({ onOpenFanOut(agent.agentId, activeLangState.value) }) else null
+                                    ({
+                                        val activeLang = activeLangState.value
+                                        if (fanOutRuns.size == 1) {
+                                            onOpenFanOut(fanOutRuns.first().metaPromptName, agent.agentId, activeLang)
+                                        } else {
+                                            pendingFanOutChoice = PendingFanOutRunChoice(agent.agentId, activeLang)
+                                        }
+                                    }) else null
                             )
                         }
                     }
@@ -458,6 +472,37 @@ fun ReportsViewScreen(
                 }
             }
         }
+    }
+
+    pendingFanOutChoice?.let { choice ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingFanOutChoice = null },
+            title = { Text("Open fan-out") },
+            text = {
+                Column {
+                    fanOutRuns.forEach { run ->
+                        Text(
+                            text = "${run.icon.orEmpty()} ${run.metaPromptName}".trim(),
+                            color = AppColors.TextPrimary,
+                            fontSize = 14.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    pendingFanOutChoice = null
+                                    onOpenFanOut?.invoke(run.metaPromptName, choice.agentId, choice.activeLanguage)
+                                }
+                                .padding(vertical = 10.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingFanOutChoice = null }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
 }
 

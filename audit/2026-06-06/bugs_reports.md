@@ -187,7 +187,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** On a report with more than one fan-out run, the Reports view's per-response fan-out affordance always shows the *first* run's name + icon and opens that run, regardless of which fan-out the user intends — the other runs are unreachable from the Reports response card.
 **Root cause:** `firstFanOutItem = everyItems["fan_out"].orEmpty().firstOrNull()` collapses the whole fan-out set to one, and that single name/icon is threaded into `ReportsViewScreen`.
 **Proposed fix:** Either pass the full fan-out list and let the response card present a chooser when >1 run exists, or scope the affordance to the run whose initiator matches the displayed model.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — ReportsViewScreen now receives all fan-out runs, opens the single run directly, and shows a chooser when multiple runs are available from a response card
 
 ### Bug 24 — Severity: LOW — Category: recomputation (unstable key)
 **Location:** Main.kt:1294-1298 (`combinedTiles` then `sortedTiles = remember(combinedTiles, savedOrder)`)

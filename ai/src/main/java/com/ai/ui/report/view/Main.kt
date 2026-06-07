@@ -613,21 +613,21 @@ internal fun ViewAiReportScreen(
         }
         return
     }
-    // The report's fan-out run (first one, if any). Drives the fan-out
-    // affordance on the Reports view's response card: the icon matches
-    // the fan-out tile (cached per-prompt glyph, else 🌀); the name is
-    // the routing key for [FanOutViewScreen]. iconRefreshTick re-keys so
-    // a freshly-generated icon is picked up.
-    val firstFanOutItem = remember(everyItems) { everyItems["fan_out"].orEmpty().firstOrNull() }
-    val firstFanOutName = firstFanOutItem?.label
-    val firstFanOutIcon = remember(firstFanOutItem, internalPrompts, useInternalPromptsIcons, iconRefreshTick) {
-        firstFanOutItem?.let { item ->
+    // The report's fan-out runs. Drives the fan-out affordance on the
+    // Reports view's response card: one run opens directly, multiple
+    // runs show a chooser. iconRefreshTick re-keys so freshly-generated
+    // prompt icons are picked up.
+    val reportFanOutRuns = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick) {
+        everyItems["fan_out"].orEmpty().map { item ->
             val resolvedPrompt = item.prompt ?: internalPrompts.firstOrNull {
                 it.category == "fan_out" && it.name == item.label
             }
             val cached = if (useInternalPromptsIcons && resolvedPrompt != null && resolvedPrompt.name.isNotBlank())
                 com.ai.data.InternalPromptIconCache.get(resolvedPrompt.name, resolvedPrompt.title) else null
-            cached ?: com.ai.data.MetadataIconsHolder.current.cyclone
+            ReportFanOutRun(
+                metaPromptName = item.label,
+                icon = cached ?: com.ai.data.MetadataIconsHolder.current.cyclone
+            )
         }
     }
     // Fan-out "View" overlay mount — placed before the Reports block so
@@ -692,10 +692,9 @@ internal fun ViewAiReportScreen(
                 availableLanguages = reportsLanguages,
                 initialLanguage = reportsViewLanguage,
                 initialAgentId = reportsViewInitialAgentId,
-                fanOutMetaPromptName = firstFanOutName,
-                fanOutIcon = firstFanOutIcon,
-                onOpenFanOut = firstFanOutName?.let { fname ->
-                    val openFanOut: (String, String?) -> Unit = { agentId, activeLang ->
+                fanOutRuns = reportFanOutRuns,
+                onOpenFanOut = if (reportFanOutRuns.isNotEmpty()) {
+                    val openFanOut: (String, String, String?) -> Unit = { metaPromptName, agentId, activeLang ->
                         // Remember which model so Back lands here again, carry
                         // the language ACTIVE ON THIS PAGE (not the outer View
                         // flow's), then open fan-out on that model as the
@@ -703,10 +702,10 @@ internal fun ViewAiReportScreen(
                         reportsViewInitialAgentId = agentId
                         fanOutViewLanguage = activeLang
                         fanOutViewInitiatorAgentId = agentId
-                        fanOutViewName = fname
+                        fanOutViewName = metaPromptName
                     }
                     openFanOut
-                },
+                } else null,
                 onBack = { activeLang ->
                     val target = activeLang ?: ""
                     val newKey = if (target.isBlank()) LangTab.ORIGINAL_KEY
