@@ -555,7 +555,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Two example prompts that share an `id` (possible after a duplicate/import) would crash Compose ("key already used").
 **Root cause:** Keyed solely on `id` with no uniqueness guarantee across user-editable/imported data.
 **Proposed fix:** Fall back to index-disambiguated keys, or dedupe ids on load.
-**Status:** Open
+**Status:** Fixed in `ExamplePromptPickerScreen.kt` by using index-disambiguated LazyColumn keys for imported duplicate prompt ids.
 
 ### Bug 69 — Severity: LOW — Category: search coverage
 **Location:** ExamplePromptPickerScreen.kt:37-44 (`filtered`)

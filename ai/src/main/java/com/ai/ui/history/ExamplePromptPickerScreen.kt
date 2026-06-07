@@ -4,7 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -77,7 +77,7 @@ fun ExamplePromptPickerScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                items(sorted, key = { it.id }) { entry ->
+                itemsIndexed(sorted, key = { index, entry -> "${entry.id}:$index" }) { _, entry ->
                     Column(
                         modifier = Modifier.fillMaxWidth().clickable { onSelectEntry(entry) }
                             .padding(vertical = 10.dp, horizontal = 4.dp),
