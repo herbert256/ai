@@ -403,7 +403,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Mutation helpers do load→mutate→save under the lock (safe), but a caller that obtains a `Report` via `getReport`, mutates a copy, and persists it via a public save path outside the lock-wrapped helpers would clobber concurrent field updates written by the orchestrator/metadata flows in between.
 **Root cause:** The atomicity guarantee depends on *every* writer going through the lock-wrapped load→mutate→save helpers; a full-object write based on a stale snapshot loses interleaved updates.
 **Proposed fix:** Ensure no caller persists a whole `Report` snapshot; require field-scoped mutators. Audit `createReport`'s `saveReport(report)` is only used at creation (it is) and reject external full-report writes.
-**Status:** Open (verify no external full-report save path exists)
+**Status:** Fixed (2026-06-07) — full-report writes are now private+lock-asserted; the only public full-object path is `persistNewReport`, which refuses to overwrite an existing report and is used only by new-report/import flows
 
 ### Bug 53 — Severity: MEDIUM — Category: additive cost double-count on regen
 **Location:** ReportStorage.kt:197-199+ (`updateAgentStatus` additive cost/token writes)

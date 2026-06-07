@@ -525,7 +525,14 @@ object ReportStorage {
         return res
     }
 
+    /**
+     * Private full-object writer. Callers must hold [lock] and either be
+     * creating a fresh report or have loaded the current report inside the
+     * same critical section before mutating it. Keeping this private prevents
+     * a stale [getReport] snapshot from being written back over newer fields.
+     */
     private fun saveReport(report: Report) {
+        check(lock.isHeldByCurrentThread) { "ReportStorage.saveReport must be called under lock" }
         val dir = reportsDir ?: return
         // Defence in depth: a runtime-import JSON payload can carry a
         // crafted `id` ("../prefs/foo") that would otherwise escape
@@ -2390,15 +2397,24 @@ object ReportStorage {
      *  them would double-count metas / translations on history /
      *  totals. Returns the new id, or null when [reportId] can't be
      *  loaded. */
-    /** Persist a fully-formed [Report] verbatim. Used by the
+    /** Persist a fully-formed *new* [Report] verbatim. Used by the
      *  "Create Report from fan-out" flow which constructs a complete
      *  report off-screen (prompt + ready-made agent rows) and just
      *  needs it on disk. Caller is responsible for setting
      *  completedAt / totalCost / sourceReportId. Mirrors the same
-     *  init + lock + saveReport pattern as [createReport]. */
-    fun persistReport(context: Context, report: Report) {
+     *  init + lock + saveReport pattern as [createReport]. Refuses to
+     *  overwrite an existing report so this API cannot be used as a stale
+     *  full-report update path. */
+    fun persistNewReport(context: Context, report: Report): Boolean {
         init(context)
-        lock.withLock { saveReport(report) }
+        return lock.withLock {
+            if (loadReport(report.id) != null) {
+                AppLog.e("ReportStorage", "Refusing to overwrite existing report ${report.id} via persistNewReport")
+                return@withLock false
+            }
+            saveReport(report)
+            true
+        }
     }
 
     fun copyReport(context: Context, reportId: String): String? {

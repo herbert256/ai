@@ -247,7 +247,7 @@ private fun applyRuntimeReports(context: Context, root: JsonObject): ImportRepor
         if (report.id.isBlank()) { skipped++; return@forEach }
         val isNew = report.id !in existingIds
         if (isNew) {
-            ReportStorage.persistReport(context, report)
+            ReportStorage.persistNewReport(context, report)
             added++
         } else {
             skipped++
