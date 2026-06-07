@@ -140,12 +140,15 @@ fun ChatParametersScreen(
                 onStartChat(
                     ChatParameters(
                         systemPrompt = resolvedSp,
-                        temperature = temperature.toFloatOrNull() ?: presetParams?.temperature,
+                        // Comma→dot before parse: the Decimal keyboard offers a
+                        // comma on comma-decimal locales (nl-NL) and toFloatOrNull
+                        // is dot-only, so "0,7" would silently drop the value.
+                        temperature = temperature.replace(',', '.').toFloatOrNull() ?: presetParams?.temperature,
                         maxTokens = maxTokens.toIntOrNull() ?: presetParams?.maxTokens,
-                        topP = topP.toFloatOrNull() ?: presetParams?.topP,
+                        topP = topP.replace(',', '.').toFloatOrNull() ?: presetParams?.topP,
                         topK = topK.toIntOrNull() ?: presetParams?.topK,
-                        frequencyPenalty = frequencyPenalty.toFloatOrNull() ?: presetParams?.frequencyPenalty,
-                        presencePenalty = presencePenalty.toFloatOrNull() ?: presetParams?.presencePenalty,
+                        frequencyPenalty = frequencyPenalty.replace(',', '.').toFloatOrNull() ?: presetParams?.frequencyPenalty,
+                        presencePenalty = presencePenalty.replace(',', '.').toFloatOrNull() ?: presetParams?.presencePenalty,
                         searchEnabled = presetParams?.searchEnabled == true,
                         returnCitations = returnCitations && (presetParams?.returnCitations != false),
                         searchRecency = searchRecency.takeIf { it.isNotBlank() } ?: presetParams?.searchRecency,

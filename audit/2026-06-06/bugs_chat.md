@@ -77,7 +77,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** `String.toFloatOrNull()` parses with a `.` decimal separator (Java `Float.parseFloat`), independent of locale, so `"0,7".toFloatOrNull()` returns null. There is no comma→dot normalization.
 **Reproduction:** On the nl-NL device, set Temperature `0,7`, Start Chat → the request uses the preset/null temperature, not 0.7.
 **Proposed fix:** Normalize `,`→`.` before parsing, or parse with the device locale's `NumberFormat`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — onStartChat float fields normalize comma→dot before toFloatOrNull
 
 ### Bug 10 — Severity: MEDIUM — Category: phantom data
 **Location:** ChatScreens.kt:465-486 (`LaunchedEffect(parameters.systemPrompt)`)
