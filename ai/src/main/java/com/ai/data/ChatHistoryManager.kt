@@ -155,30 +155,41 @@ object ChatHistoryManager {
      *  as their own section on the AI Chat hub. Doesn't bump
      *  updatedAt — pinning is metadata, not activity. */
     fun setSessionPinned(sessionId: String, pinned: Boolean): Boolean {
+        return mutateSession(sessionId, "pin session") { it.copy(pinned = pinned) }
+    }
+
+    private fun mutateSession(
+        sessionId: String,
+        operation: String,
+        transform: (ChatSession) -> ChatSession
+    ): Boolean {
         val dir = historyDir ?: run { AppLog.w("ChatHistory", "Not initialized"); return false }
         if (!isSafeSessionFile(dir, sessionId)) {
-            AppLog.e("ChatHistory", "Refusing to pin session with unsafe id: $sessionId")
+            AppLog.e("ChatHistory", "Refusing to $operation with unsafe id: $sessionId")
             return false
         }
-        return lock.withLock {
+        var notifyChanged = false
+        val changed = lock.withLock {
             val file = File(dir, "$sessionId.json")
             if (!file.exists()) return@withLock false
             try {
                 val current = file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) }
                     ?: return@withLock false
-                val json = gson.toJson(current.copy(pinned = pinned))
+                val json = gson.toJson(transform(current))
                 val ok = file.writeTextAtomic(json)
                 if (ok) {
                     cachedSessions = null
                     cachedHeaders = null
-                    notifyHistoryChanged()
+                    notifyChanged = true
                 }
                 ok
             } catch (e: Exception) {
-                AppLog.e("ChatHistory", "Failed to pin session: ${e.message}")
+                AppLog.e("ChatHistory", "Failed to $operation: ${e.message}")
                 false
             }
         }
+        if (notifyChanged) notifyHistoryChanged()
+        return changed
     }
 
     fun deleteAllSessions(): Int {

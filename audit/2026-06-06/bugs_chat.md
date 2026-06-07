@@ -581,7 +581,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** `cachedSessions` is invalidated on save/delete, but `setSessionPinned` does load→save as two separate locked ops; a reader between them sees the pre-pin list. Combined with Bug 11 this widens the lost-update window.
 **Root cause:** No single-transaction update path for in-place mutations.
 **Proposed fix:** Provide an atomic `mutateSession(id) { it.copy(...) }` under one lock acquisition.
-**Status:** Open
+**Status:** Fixed in `ChatHistoryManager.kt` by routing pin updates through a locked `mutateSession` helper and notifying observers after the lock is released.
 
 ### Bug 72 — Severity: LOW — Category: search/index dim mismatch (unconfirmed)
 **Location:** SemanticSearchScreen.kt:259-262 / LocalSemanticSearchScreen.kt:246-249 (`EmbeddingsStore.cosine(queryVec, c.vec)`)
