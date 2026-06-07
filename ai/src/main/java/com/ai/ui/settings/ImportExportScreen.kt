@@ -1722,7 +1722,11 @@ fun ImportExportScreen(
         // opens this one. Cards keep their identity through the
         // navigation hops via rememberSaveable so a back-pop returns
         // to the same open card.
-        var openCard by rememberSaveable { mutableStateOf<String?>(null) }
+        // On first run (import-only — no provider active yet) open the API keys
+        // card straight away: that's why the user is here (First launch →
+        // "Import API keys"), so the Import button is front-and-centre instead
+        // of an all-collapsed hub. Normal entry starts all-collapsed as before.
+        var openCard by rememberSaveable { mutableStateOf(if (importOnly) "keys" else null) }
         fun toggle(id: String) { openCard = if (openCard == id) null else id }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
