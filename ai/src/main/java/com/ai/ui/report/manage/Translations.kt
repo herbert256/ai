@@ -6,10 +6,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
@@ -46,11 +49,18 @@ internal fun ReportTranslationsScreen(
     originalLanguage: String?,
     originalLanguageIcon: String,
     summaries: List<TranslationRunSummary>,
+    /** In-progress translation runs for this report — shown above the finished
+     *  ones with a green progress bar. */
+    activeRuns: List<com.ai.viewmodel.TranslationRunState>,
     onOpenRun: (String) -> Unit,
     onOpenOriginal: () -> Unit,
     onNewTranslation: () -> Unit,
     onBack: () -> Unit
 ) {
+    // A run that's still running has its partial rows on disk too, so it would
+    // also appear in [summaries] — drop those so it shows once (as in-progress).
+    val activeIds = activeRuns.map { it.runId }.toSet()
+    val finishedSummaries = summaries.filter { it.runId !in activeIds }
     BackHandler { onBack() }
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
@@ -83,7 +93,28 @@ internal fun ReportTranslationsScreen(
                     onClick = onOpenOriginal
                 )
             }
-            items(summaries, key = { "trs-${it.runId}" }) { run ->
+            // In-progress translations — green progress bar + "done / total".
+            items(activeRuns, key = { "tra-${it.runId}" }) { run ->
+                val label = run.targetLanguageNative.takeIf { it.isNotBlank() }
+                    ?: run.targetLanguageName.takeIf { it.isNotBlank() } ?: "Translate"
+                val emoji = run.targetLanguageName.takeIf { it.isNotBlank() }
+                    ?.let { com.ai.data.InternalPromptIconCache.get("translation_icon", it) }
+                    ?: com.ai.data.MetadataIconsHolder.current.translationRow
+                TranslationLanguageRow(
+                    icon = emoji,
+                    label = label,
+                    progressFraction = if (run.total > 0) run.completed.toFloat() / run.total else 0f,
+                    trailing = {
+                        Text(
+                            "${run.completed} / ${run.total}",
+                            fontSize = 12.sp, color = AppColors.TextSecondary,
+                            modifier = Modifier.padding(start = 8.dp, end = 4.dp)
+                        )
+                    },
+                    onClick = { onOpenRun(run.runId) }
+                )
+            }
+            items(finishedSummaries, key = { "trs-${it.runId}" }) { run ->
                 val label = run.targetLanguageNative?.takeIf { it.isNotBlank() }
                     ?: run.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translate"
                 val emoji = run.targetLanguage?.takeIf { it.isNotBlank() }
@@ -99,15 +130,30 @@ internal fun ReportTranslationsScreen(
     }
 }
 
-/** One language row: a leading icon and the language name, nothing else. */
+/**
+ * One language row: a leading icon and the language name. When
+ * [progressFraction] > 0 a green fill is drawn behind the row (how much of an
+ * in-progress translation is done); [trailing] adds an optional right-aligned
+ * slot (the "done / total" count).
+ */
 @Composable
 private fun TranslationLanguageRow(
     icon: String,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    progressFraction: Float = 0f,
+    trailing: (@Composable RowScope.() -> Unit)? = null
 ) {
+    val barColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth()
+            .clickable { onClick() }
+            .drawBehind {
+                if (progressFraction > 0f) {
+                    drawRect(color = barColor, size = Size(size.width * progressFraction.coerceIn(0f, 1f), size.height))
+                }
+            }
+            .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.width(28.dp), contentAlignment = Alignment.Center) {
@@ -116,8 +162,9 @@ private fun TranslationLanguageRow(
         Text(
             label, fontSize = 14.sp, color = AppColors.TextPrimary,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 8.dp)
+            modifier = Modifier.padding(start = 8.dp).weight(1f)
         )
+        if (trailing != null) trailing()
     }
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 }

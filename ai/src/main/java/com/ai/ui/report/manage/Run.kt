@@ -781,6 +781,9 @@ internal fun ReportRunScreen(
                     originalLanguageIcon = languageIcon?.takeIf { it.isNotBlank() }
                         ?: com.ai.data.MetadataIconsHolder.current.languageIcon,
                     summaries = translationRunSummaries,
+                    // translationRuns is already filtered to this report (Nav.kt);
+                    // show the still-running ones with a green progress bar.
+                    activeRuns = translationRuns.filter { !it.isFinished && !it.cancelled },
                     onOpenRun = { st.openTranslationRunId.value = it },
                     onOpenOriginal = { showTranslationsList = false },
                     onNewTranslation = { generationHandlers.onTranslate() },
