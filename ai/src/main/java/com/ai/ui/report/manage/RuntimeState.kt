@@ -282,6 +282,9 @@ internal fun rememberReportRuntimeState(
                     // Compare-with-meta cells collapse into the single
                     // CompareManageRow drill-in — same as tournament above.
                     .filter { it.kind != SecondaryKind.COMPARE }
+                    // Translator-rank cells + aggregate collapse into the single
+                    // (per-language) TranslatorRankManageRow drill-in.
+                    .filter { it.kind != SecondaryKind.TRANSRANK }
                     .filter { it.fanOutSourceAgentId == null }
                     .sortedByDescending { it.timestamp }
                 translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }

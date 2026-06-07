@@ -831,6 +831,11 @@ internal fun ColumnScope.GenerationPhase(
         item(key = "compare-batch-row") {
             CompareManageRow()
         }
+        // Rank-the-translators batch — one self-hiding row per ranked
+        // language; opens the L1 leaderboard drill-in overlay.
+        item(key = "translator-rank-batch-row") {
+            TranslatorRankManageRow()
+        }
         // Meta runs — one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
         // agent rows' layout (status icon + label + cost). Status

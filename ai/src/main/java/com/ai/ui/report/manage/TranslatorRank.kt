@@ -59,6 +59,55 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
+// ===================================================================
+// Manage row — one self-hiding row PER ranked language; opens its L1.
+// ===================================================================
+
+@Composable
+fun TranslatorRankManageRow() {
+    val engine = com.ai.ui.shared.LocalTranslatorRankEngine.current ?: return
+    val openState = com.ai.ui.shared.LocalTransRankOpenState.current
+    val reportId = com.ai.ui.shared.LocalCurrentReportIdForSwipe.current ?: return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(reportId) {
+        if (engine.runs.value.keys.none { it.startsWith("$reportId|") }) {
+            withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
+        }
+    }
+    val runs by engine.runs.collectAsState()
+    val myRuns = runs.filterKeys { it.startsWith("$reportId|") }.values
+        .sortedBy { it.targetLanguageName }
+    if (myRuns.isEmpty()) return
+    val medal = com.ai.ui.shared.LocalMetadataIcons.current.translatorRank
+        .takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.TRANSLATOR_RANK
+    Column(Modifier.fillMaxWidth()) {
+        myRuns.forEach { run ->
+            val lang = run.targetLanguageNative.takeIf { it.isNotBlank() } ?: run.targetLanguageName
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    .clickable { openState?.value = run.key },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                when {
+                    !run.allTerminal -> Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) { AnimatedHourglass(fontSize = 16.sp) }
+                    run.errorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    else -> Text(medal, fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                }
+                RowTypeCell("transrank")
+                Text(
+                    "Rank the translators · $lang", color = AppColors.TextPrimary, fontSize = 13.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
+                )
+                if (run.totalCost > 0.0) {
+                    Text(formatCents(run.totalCost), fontSize = 10.sp,
+                        color = AppColors.TextTertiary, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                }
+            }
+            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+        }
+    }
+}
+
 /** Overlay-mount helper called by ReportsScreenNav when the open-state var
  *  (the run key "$reportId|$sourceTranslationRunId") is non-null. */
 @Composable
