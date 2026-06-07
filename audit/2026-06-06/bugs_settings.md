@@ -404,7 +404,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Same integer-truncation issue as CachesScreen — `b / (1024*1024)` shows e.g. a 1.8 MB log as "1 MB".
 **Root cause:** Integer division, no decimal.
 **Proposed fix:** Use `%.1f` (Locale.US).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — app log sizes now use one-decimal `Locale.US` KB/MB formatting
 
 ### Bug 44 — Severity: LOW — Category: main-thread work
 **Location:** AppLogScreen.kt:184-187 (`confirmClearAll`) and 207-209 (`confirmTrim`)
