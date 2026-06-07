@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -265,13 +266,31 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     // Axis names for the chart. X = cost; Y = the active ranking.
     val rankingName = selected?.label ?: "Ranking"
 
+    // Cycle the ranking source by [dir] (-1 prev / +1 next), wrapping with
+    // no edge — drives the full-screen graph's left/right taps and keeps the
+    // underlying chip selection in step.
+    val cycleSource: (Int) -> Unit = { dir ->
+        if (sources.isNotEmpty()) {
+            val cur = sources.indexOfFirst { it.key() == selected?.key() }.coerceAtLeast(0)
+            val next = ((cur + dir) % sources.size + sources.size) % sources.size
+            selectedKey = sources[next].key()
+        }
+    }
+
     // Tap the chart → truly full-screen, chrome-less, zoomable graph,
     // rendered in its OWN Dialog window so it covers the app's title and
     // bottom icon bars (an early-return overlay would still sit inside
-    // them). See [ValueGraphFullScreen].
+    // them). Left/right half taps cycle the ranking. See [ValueGraphFullScreen].
     var showFullGraph by rememberSaveable(reportId) { mutableStateOf(false) }
     if (showFullGraph && points.isNotEmpty()) {
-        ValueGraphFullScreen(points, "Cost", rankingName) { showFullGraph = false }
+        ValueGraphFullScreen(
+            points = points,
+            xAxisTitle = "Cost",
+            yAxisTitle = rankingName,
+            onPrev = { cycleSource(-1) },
+            onNext = { cycleSource(1) },
+            onBack = { showFullGraph = false }
+        )
     }
 
     Column(
@@ -384,7 +403,11 @@ private fun ValueScatterCanvas(
     points: List<ValuePoint>,
     xAxisTitle: String,
     yAxisTitle: String,
-    modifier: Modifier
+    modifier: Modifier,
+    /** Landscape full-screen: draw whole model names (no 14-char clip). */
+    fullModelNames: Boolean = false,
+    /** Scales the model-name label text (landscape full-screen bumps it). */
+    labelScale: Float = 1f
 ) {
     if (points.isEmpty()) return
     val axis = AppColors.TextTertiary
@@ -431,7 +454,7 @@ private fun ValueScatterCanvas(
 
         // points + model-name labels
         val labelPaint = android.graphics.Paint().apply {
-            color = labelArgb; textSize = 22f; isAntiAlias = true
+            color = labelArgb; textSize = 22f * labelScale; isAntiAlias = true
         }
         points.forEach { p ->
             val o = px(p)
@@ -443,7 +466,8 @@ private fun ValueScatterCanvas(
                 p.dominated -> drawCircle(domC, radius = 7f, center = o)
                 else -> drawCircle(regC, radius = 9f, center = o)
             }
-            nc.drawText(p.modelShort.take(14), o.x + 14f, o.y + 8f, labelPaint)
+            val name = if (fullModelNames) p.modelShort else p.modelShort.take(14)
+            nc.drawText(name, o.x + 14f, o.y + 8f, labelPaint)
         }
 
         // --- X-axis numeric ticks (cost) at left / mid / right ---
@@ -491,12 +515,16 @@ private fun ValueScatterCanvas(
  *  bottom icon bar (a plain overlay sits inside them). The Android system
  *  bars are hidden for the lifetime of the dialog and restored
  *  automatically when it's dismissed. The whole window is the scatter,
- *  pinch-zoomed and panned. */
+ *  pinch-zoomed and panned. Tapping the left / right half steps the ranking
+ *  ([onPrev] / [onNext], wrapping). In landscape the model labels show full
+ *  names in a slightly larger font. */
 @Composable
 private fun ValueGraphFullScreen(
     points: List<ValuePoint>,
     xAxisTitle: String,
     yAxisTitle: String,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
     onBack: () -> Unit
 ) {
     Dialog(
@@ -520,12 +548,24 @@ private fun ValueGraphFullScreen(
             }
             onDispose { }
         }
-        var scale by remember { mutableStateOf(1f) }
-        var offset by remember { mutableStateOf(Offset.Zero) }
+        val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        // Reset zoom/pan whenever the ranking changes (keyed on the Y title)
+        // so each ranking opens fresh.
+        var scale by remember(yAxisTitle) { mutableStateOf(1f) }
+        var offset by remember(yAxisTitle) { mutableStateOf(Offset.Zero) }
         Box(
             modifier = Modifier.fillMaxSize()
                 .background(AppColors.AppBackground)
-                .pointerInput(Unit) {
+                // Tap left half → previous ranking, right half → next (wraps).
+                // Keyed on yAxisTitle (changes each cycle) so the detector
+                // recaptures the current onPrev/onNext + zoom state.
+                .pointerInput(yAxisTitle) {
+                    detectTapGestures { tap ->
+                        if (tap.x < size.width / 2f) onPrev() else onNext()
+                    }
+                }
+                .pointerInput(yAxisTitle) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         scale = (scale * zoom).coerceIn(1f, 8f)
                         offset += pan
@@ -537,7 +577,9 @@ private fun ValueGraphFullScreen(
                 Modifier.fillMaxSize().padding(12.dp).graphicsLayer(
                     scaleX = scale, scaleY = scale,
                     translationX = offset.x, translationY = offset.y
-                )
+                ),
+                fullModelNames = isLandscape,
+                labelScale = if (isLandscape) 1.35f else 1f
             )
         }
     }
