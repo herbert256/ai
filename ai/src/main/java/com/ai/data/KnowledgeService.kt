@@ -34,7 +34,7 @@ object KnowledgeService {
     /** Status callback for long-running indexing. The UI surfaces
      *  the message verbatim. */
     fun interface IndexProgress {
-        fun onProgress(message: String, done: Int, total: Int)
+        suspend fun onProgress(message: String, done: Int, total: Int)
     }
 
     suspend fun indexFile(

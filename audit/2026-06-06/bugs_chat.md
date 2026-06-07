@@ -291,7 +291,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Each visible history row independently calls `ApiTracer.getTraceFiles()` to decide whether to show its 🐞, so one page does (rows × full-trace-dir-scan) work.
 **Root cause:** Per-row trace probe with no shared load.
 **Proposed fix:** Load the set of session ids that have traces once per page and look up locally.
-**Status:** Open
+**Status:** Fixed — `KnowledgeService.IndexProgress` is now suspend, Knowledge screen progress callbacks use `withContext(Dispatchers.Main)` instead of detached `scope.launch(Main)`, and New Report’s shared-KB auto-attach progress is likewise emitted on Main from the indexing coroutine.
 
 ### Bug 38 — Severity: LOW — Category: text slicing (documented)
 **Location:** ChatHistory.kt:155-171 (`searchInChats` preview windowing)

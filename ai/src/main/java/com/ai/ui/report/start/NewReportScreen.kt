@@ -568,24 +568,27 @@ private suspend fun ingestSharedKb(
     }.getOrElse { return@withContext SharedKbBannerState.Failed(it.message ?: "Could not create KB") }
     var totalChunks = 0
     var sourcesIndexed = 0
+    suspend fun emitProgress(message: String) {
+        withContext(Dispatchers.Main) { onProgress(message) }
+    }
     uris.forEachIndexed { idx, raw ->
         val trimmed = raw.trim()
         if (trimmed.isBlank()) return@forEachIndexed
         val isHttp = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
-        onProgress("Ingesting ${idx + 1}/${uris.size}…")
+        emitProgress("Ingesting ${idx + 1}/${uris.size}…")
         val result = if (isHttp) {
             KnowledgeService.indexUrl(context, repository, aiSettings, kb.id, trimmed) { msg, _, _ ->
-                onProgress("(${idx + 1}/${uris.size}) $msg")
+                emitProgress("(${idx + 1}/${uris.size}) $msg")
             }
         } else {
             val u = android.net.Uri.parse(trimmed)
             val displayName = displayNameForUri(context, u) ?: "shared_${System.currentTimeMillis()}"
             val type = pickTypeForUri(context, u) ?: run {
-                onProgress("Skipping unsupported source: $displayName")
+                emitProgress("Skipping unsupported source: $displayName")
                 return@forEachIndexed
             }
             KnowledgeService.indexFile(context, repository, aiSettings, kb.id, type, u, displayName) { msg, _, _ ->
-                onProgress("(${idx + 1}/${uris.size}) $displayName: $msg")
+                emitProgress("(${idx + 1}/${uris.size}) $displayName: $msg")
             }
         }
         result.onSuccess { src ->

@@ -330,7 +330,7 @@ fun KnowledgeDetailScreen(
                     status = "Fetching $trimmed…"
                     val result = withContext(Dispatchers.IO) {
                         KnowledgeService.indexUrl(context, repository, aiSettings, loaded.id, trimmed) { msg, _, _ ->
-                            scope.launch(Dispatchers.Main) { status = "$trimmed: $msg" }
+                            withContext(Dispatchers.Main) { status = "$trimmed: $msg" }
                         }
                     }
                     status = result.fold(
@@ -350,7 +350,7 @@ fun KnowledgeDetailScreen(
                     status = "Reading $displayName…"
                     val result = withContext(Dispatchers.IO) {
                         KnowledgeService.indexFile(context, repository, aiSettings, loaded.id, type, uri, displayName) { msg, _, _ ->
-                            scope.launch(Dispatchers.Main) { status = "$displayName: $msg" }
+                            withContext(Dispatchers.Main) { status = "$displayName: $msg" }
                         }
                     }
                     status = result.fold(
