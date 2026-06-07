@@ -14,6 +14,7 @@ import com.ai.data.JudgeCellStatus
 import com.ai.data.JudgeEvalRunKey
 import com.ai.data.JudgeEvalRunState
 import com.ai.data.PricingCache
+import com.ai.data.Report
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
@@ -112,6 +113,25 @@ class JudgeEvalEngine internal constructor(
     private fun judgeFromRow(row: SecondaryResult): Judge =
         Judge(Worker(provider = row.providerId, model = row.model), row.providerId, row.model)
 
+    /** Pick up to [JUDGE_MATCH_COUNT] distinct random answer-pairs from the
+     *  report's successful agents, randomising which side is A. Empty when the
+     *  report has fewer than two usable answers. Shared by [startRun] (the
+     *  initial match set) and [addJudgeToRun] (to re-establish a match set when
+     *  the run has been emptied by deleting every judge — without this, adding
+     *  the first judge back to an empty run would have nothing to judge). */
+    private fun pickJudgeMatches(report: Report): List<Triple<String, String, Int>> {
+        val successful = report.agents.filter {
+            it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+        }
+        if (successful.size < 2) return emptyList()
+        val ids = successful.map { it.agentId }
+        val allPairs = ArrayList<Pair<String, String>>()
+        for (i in ids.indices) for (j in i + 1 until ids.size) allPairs.add(ids[i] to ids[j])
+        return allPairs.shuffled().take(JUDGE_MATCH_COUNT).map { (x, y) ->
+            if (kotlin.random.Random.nextBoolean()) Triple(x, y, 0) else Triple(y, x, 0)
+        }
+    }
+
     // -----------------------------------------------------------------
     // Hydration — disk → StateFlow
     // -----------------------------------------------------------------
@@ -196,18 +216,10 @@ class JudgeEvalEngine internal constructor(
                     }
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
-                    val successful = report.agents.filter {
-                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                    }
-                    if (successful.size < 2) return@withTracerTags
 
                     // Distinct random answer-pairs, randomising which side is A.
-                    val ids = successful.map { it.agentId }
-                    val allPairs = ArrayList<Pair<String, String>>()
-                    for (i in ids.indices) for (j in i + 1 until ids.size) allPairs.add(ids[i] to ids[j])
-                    val chosen = allPairs.shuffled().take(JUDGE_MATCH_COUNT).map { (x, y) ->
-                        if (kotlin.random.Random.nextBoolean()) Triple(x, y, 0) else Triple(y, x, 0)
-                    }
+                    val chosen = pickJudgeMatches(report)
+                    if (chosen.isEmpty()) return@withTracerTags
                     AuditLog.append(reportId, "Start Judge-the-judges — ${judges.size} judges × ${chosen.size} matches")
                     val scopeEncoded = SecondaryScope.AllReports.encode()
 
@@ -522,10 +534,15 @@ class JudgeEvalEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val judgeKey = "${provider.id}/$model"
             if (run.cells.values.any { it.judgeKey == judgeKey }) return@launch
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            // Normally the new judge inherits the SAME matches as the others, so
+            // re-derive them from the existing cells. But if every judge was
+            // deleted the run has no cells left to derive from — fall back to a
+            // fresh random pick so adding a judge to an empty run still works.
             val matches = run.cells.values
                 .map { Triple(it.responseAId, it.responseBId, it.orientation) }.distinct()
+                .ifEmpty { pickJudgeMatches(report) }
             if (matches.isEmpty()) return@launch
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val prompt = run.prompt
             val runId = run.runId
             val scopeEncoded = SecondaryScope.AllReports.encode()
