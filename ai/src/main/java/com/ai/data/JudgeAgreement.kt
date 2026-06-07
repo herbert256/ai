@@ -92,6 +92,32 @@ fun analyzeJudges(cells: List<JudgeCellState>): List<JudgeStats> {
 fun List<JudgeStats>.consensusStrength(): Double =
     if (isEmpty()) 0.0 else map { it.agreement }.average()
 
+/** Rank the ANSWERS (not the judges) by what the panel of judges
+ *  collectively decided: take each match's plurality [consensusForMatch]
+ *  verdict, then fold those consensus verdicts through the same
+ *  [computeWinMatrix] the Tournament uses. Feeds the Value view's "Judges"
+ *  ranking source so a Judge-the-judges run yields a per-answer ranking the
+ *  same way a Tournament does. [idForAgentId] maps a response's agentId to
+ *  its 1-based `[N]` id (unresolved cells are skipped by computeWinMatrix). */
+fun judgesConsensusWinMatrix(
+    cells: List<JudgeCellState>,
+    idForAgentId: (String) -> Int?
+): WinMatrix {
+    val consensusMatches = cells.groupBy { it.matchKey }.mapNotNull { (_, cs) ->
+        val cons = consensusForMatch(cs.mapNotNull { it.verdict }) ?: return@mapNotNull null
+        val first = cs.first()
+        MatchState(
+            id = "judges-consensus:${first.matchKey}",
+            responseAId = first.responseAId,
+            responseBId = first.responseBId,
+            orientation = first.orientation,
+            status = MatchStatus.DONE,
+            verdict = cons
+        )
+    }
+    return computeWinMatrix(consensusMatches, idForAgentId)
+}
+
 /** Serialise the ranked judge stats for the AGGREGATE row's `content`.
  *  Recomputable from the cells, so this is a convenience snapshot for
  *  exports / inspection; the UI recomputes live. */

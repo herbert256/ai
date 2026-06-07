@@ -60,7 +60,9 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.data.TournamentMethod
 import com.ai.data.WinMatrix
 import com.ai.data.decodeTournamentMatrix
+import com.ai.data.judgesConsensusWinMatrix
 import com.ai.data.rankFor
+import com.ai.data.toJudgeCellState
 import com.ai.ui.helpers.RerankRow
 import com.ai.ui.helpers.parseRerankRows
 import com.ai.ui.report.view.helpers.ViewReportCache
@@ -74,15 +76,21 @@ import kotlinx.coroutines.withContext
 // ---------------------------------------------------------------------
 // Value view — cost × quality (Pareto) frontier. Pure derivation from
 // data already persisted: per-agent cost + a ranking. The ranking source
-// is picked with the top switch — the report's Rerank, or any of the
-// Tournament aggregation methods (recomputed locally from the stored win
-// matrix). No API calls. Reached from the View hub's "Value view" tile
-// (shown when the report has a rerank OR a tournament).
+// is picked with the top switch — the report's Rerank, the Judge-the-judges
+// consensus (Copeland over the panel's plurality verdicts), or any of the
+// Tournament aggregation methods (all recomputed locally from stored
+// verdicts / win matrices). No API calls. Reached from the View hub's
+// "Value view" tile (shown when the report has a rerank, a tournament, OR a
+// Judge-the-judges run).
 // ---------------------------------------------------------------------
 
 /** Which ranking feeds the quality axis. */
 private sealed class RankSource(val label: String) {
     object Rerank : RankSource("Rerank")
+    /** Judge-the-judges: answers ranked by the panel's CONSENSUS verdict
+     *  per match (Copeland over the consensus win matrix). One source, like
+     *  Rerank — sits between Rerank and the Tournament methods. */
+    object Judges : RankSource("Judges")
     data class Tournament(val method: TournamentMethod) :
         RankSource(method.name.lowercase().replaceFirstChar { it.uppercase() })
 }
@@ -90,6 +98,7 @@ private sealed class RankSource(val label: String) {
 /** Stable key for [rememberSaveable] selection + chip-selected matching. */
 private fun RankSource.key(): String = when (this) {
     is RankSource.Rerank -> "rerank"
+    is RankSource.Judges -> "judges"
     is RankSource.Tournament -> "tournament:${method.name}"
 }
 
@@ -150,10 +159,13 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
         val rerankModel: String?,
         val tournamentMatrix: WinMatrix?,
         val tournamentDefaultMethod: TournamentMethod?,
+        /** Consensus win matrix from the latest Judge-the-judges run, or null
+         *  when none (or too few resolvable answers). */
+        val judgesMatrix: WinMatrix?,
         val reportTitle: String?
     )
     val loadedState = produceState(
-        Loaded(null, emptyList(), null, null, null, null),
+        Loaded(null, emptyList(), null, null, null, null, null),
         reportId, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
@@ -167,12 +179,35 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 .filter { it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE" }
                 .maxByOrNull { it.timestamp }
             val decoded = decodeTournamentMatrix(aggRow?.tournamentMatrix)
+            // Judge-the-judges → a per-answer consensus ranking. Pick the
+            // latest run (by its AGGREGATE row, else newest cell), fold its
+            // judge cells' consensus through the tournament win matrix. The
+            // ids are 1-based SUCCESS positions, the same numbering buildValuePoints uses.
+            val judgesMatrix = run {
+                val judgeCellRows = rows.filter {
+                    it.kind == SecondaryKind.JUDGES && it.tournamentRole == "MATCH"
+                }
+                if (judgeCellRows.isEmpty()) return@run null
+                val runId = rows
+                    .filter { it.kind == SecondaryKind.JUDGES && it.tournamentRole == "AGGREGATE" }
+                    .maxByOrNull { it.timestamp }?.tournamentJudgeRunId
+                    ?: judgeCellRows.maxByOrNull { it.timestamp }?.tournamentJudgeRunId
+                val cells = judgeCellRows
+                    .filter { it.tournamentJudgeRunId == runId }
+                    .mapNotNull { it.toJudgeCellState() }
+                if (cells.isEmpty()) return@run null
+                val successIds = report?.agents
+                    ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    ?.mapIndexed { idx, a -> a.agentId to (idx + 1) }?.toMap() ?: emptyMap()
+                judgesConsensusWinMatrix(cells) { successIds[it] }.takeIf { it.n >= 2 }
+            }
             Loaded(
                 report = report,
                 rerankRows = rerankRows,
                 rerankModel = rerank?.let { shortModelName(it.model) },
                 tournamentMatrix = decoded?.first,
                 tournamentDefaultMethod = decoded?.second,
+                judgesMatrix = judgesMatrix,
                 reportTitle = report?.barTitle
             )
         }
@@ -184,6 +219,8 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     val sources = remember(loaded) {
         buildList {
             if (loaded.rerankRows.isNotEmpty()) add(RankSource.Rerank)
+            // Judges sits right after Rerank, before the Tournament methods.
+            if (loaded.judgesMatrix != null) add(RankSource.Judges)
             if (loaded.tournamentMatrix != null) {
                 TournamentMethod.values().forEach { add(RankSource.Tournament(it)) }
             }
@@ -205,6 +242,11 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
         val report = loaded.report ?: return@remember emptyList<ValuePoint>()
         val rows = when (val s = selected) {
             is RankSource.Rerank -> loaded.rerankRows
+            is RankSource.Judges -> loaded.judgesMatrix?.let { m ->
+                // Copeland (win-rate) over the consensus matrix — the robust,
+                // interpretable default for a plurality-of-judges ranking.
+                rankFor(TournamentMethod.COPELAND, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
+            } ?: emptyList()
             is RankSource.Tournament -> loaded.tournamentMatrix?.let { m ->
                 rankFor(s.method, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
             } ?: emptyList()
@@ -216,6 +258,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
 
     val subject = when (val s = selected) {
         is RankSource.Rerank -> loaded.rerankModel?.let { "ranked by $it" }
+        is RankSource.Judges -> "Judge the judges · consensus"
         is RankSource.Tournament -> "Tournament · ${s.label}"
         null -> null
     }
@@ -260,7 +303,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
 
         if (points.isEmpty()) {
             Text(
-                "No ranking to compare. Run a Rerank or Tournament on this report first.",
+                "No ranking to compare. Run a Rerank, Tournament, or Judge-the-judges on this report first.",
                 color = AppColors.TextSecondary, fontSize = 13.sp,
                 modifier = Modifier.padding(top = 16.dp)
             )
