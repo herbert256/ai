@@ -35,7 +35,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Dual-chat cost is computed from `AppViewModel.estimateTokens` (a heuristic char/word count) rather than the provider's reported `usage`, so the cost row can be materially off for tokenizer-divergent models.
 **Root cause:** `sendChat` returns only the text; the actual `usage` block from the response is discarded, and the screen re-estimates locally.
 **Proposed fix:** Thread the API `usage` (prompt/completion tokens) back from `repository.sendChat` and prefer it over the estimate when present.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — non-streaming chat dispatch now returns token usage, and dual chat prefers provider-reported usage before falling back to estimates
 
 ### Bug 5 — Severity: LOW — Category: RAG edge case
 **Location:** ChatViewModel.kt:83 (`messagesWithRag`)

@@ -131,14 +131,30 @@ suspend fun AnalysisRepository.sendChat(
     messages: List<ChatMessage>,
     params: ChatParameters,
     baseUrl: String = service.baseUrl
-): String = withContext(Dispatchers.IO) {
+): String {
+    val response = sendChatResponse(service, apiKey, model, messages, params, baseUrl)
+    return response.analysis ?: throw Exception(response.error ?: "No response content")
+}
+
+/**
+ * Send a non-streaming chat message and preserve provider token usage when the
+ * response format exposes it.
+ */
+suspend fun AnalysisRepository.sendChatResponse(
+    service: AppService,
+    apiKey: String,
+    model: String,
+    messages: List<ChatMessage>,
+    params: ChatParameters,
+    baseUrl: String = service.baseUrl
+): AnalysisResponse = withContext(Dispatchers.IO) {
     AppLog.d("ApiDispatch", "sendChat ${service.id}/$model fmt=${service.apiFormat} msgs=${messages.size}")
     withHostGate(baseUrl) {
         withApiCallTimeout {
             when (service.apiFormat) {
-                ApiFormat.ANTHROPIC -> chatAnthropic(service, apiKey, model, messages, params)
-                ApiFormat.GOOGLE -> chatGemini(service, apiKey, model, messages, params)
-                ApiFormat.OPENAI_COMPATIBLE -> chatOpenAi(service, apiKey, model, messages, params, baseUrl)
+                ApiFormat.ANTHROPIC -> chatAnthropicResponse(service, apiKey, model, messages, params)
+                ApiFormat.GOOGLE -> chatGeminiResponse(service, apiKey, model, messages, params)
+                ApiFormat.OPENAI_COMPATIBLE -> chatOpenAiResponse(service, apiKey, model, messages, params, baseUrl)
             }
         }
     }
@@ -533,15 +549,15 @@ private suspend fun AnalysisRepository.analyzeGemini(
 // Chat implementations
 // ============================================================================
 
-private suspend fun AnalysisRepository.chatOpenAi(
+private suspend fun AnalysisRepository.chatOpenAiResponse(
     service: AppService,
     apiKey: String,
     model: String,
     messages: List<ChatMessage>,
     params: ChatParameters,
     baseUrl: String
-): String {
-    if (usesResponsesApi(service, model)) return chatResponsesApi(service, apiKey, model, messages, params, baseUrl)
+): AnalysisResponse {
+    if (usesResponsesApi(service, model)) return chatResponsesApiResponse(service, apiKey, model, messages, params, baseUrl)
 
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
     val chatUrl = buildChatUrl(baseUrl, service.chatPath, service.knownEndpointPaths())
@@ -559,6 +575,8 @@ private suspend fun AnalysisRepository.chatOpenAi(
         }
     )
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
     if (response.isSuccessful) {
         // Reasoning models on OpenAI-compatible chat sometimes return
         // empty `content` with the answer in `reasoning_content`
@@ -566,20 +584,26 @@ private suspend fun AnalysisRepository.chatOpenAi(
         // (OpenRouter) — mirror the streaming path's fallback and the
         // analyze() path's so a thinking model with a tight max_tokens
         // doesn't surface as "No response content".
-        val msg = response.body()?.choices?.firstOrNull()?.message
-        return msg?.contentAsString()
+        val body = response.body()
+        val msg = body?.choices?.firstOrNull()?.message
+        val content = msg?.contentAsString()
             ?: msg?.reasoning_content
             ?: msg?.reasoning
-            ?: throw Exception("No response content")
+        val usage = body?.usage?.toTokenUsage(service)
+        return if (content != null) {
+            AnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            AnalysisResponse(service, null, "No response content", usage, httpHeaders = headers, httpStatusCode = statusCode)
+        }
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
-        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
+        return AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 
-private suspend fun AnalysisRepository.chatResponsesApi(
+private suspend fun AnalysisRepository.chatResponsesApiResponse(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters, baseUrl: String
-): String {
+): AnalysisResponse {
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
     val responsesUrl = responsesUrlFor(service, baseUrl)
     val systemPrompt = messages.find { it.role == "system" }?.content
@@ -613,11 +637,20 @@ private suspend fun AnalysisRepository.chatResponsesApi(
         }
     }
     val response = api.responses(responsesUrl, "Bearer $apiKey", request)
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
     if (response.isSuccessful) {
-        return extractResponsesApiContent(response.body()) ?: throw Exception("No response content")
+        val body = response.body()
+        val content = extractResponsesApiContent(body)
+        val usage = body?.usage?.toTokenUsage(service)
+        return if (content != null) {
+            AnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, httpHeaders = headers, httpStatusCode = statusCode)
+        }
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
-        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
+        return AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 
@@ -681,9 +714,9 @@ internal suspend fun AnalysisRepository.auditApiCall(
     }
 }
 
-private suspend fun AnalysisRepository.chatAnthropic(
+private suspend fun AnalysisRepository.chatAnthropicResponse(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters
-): String {
+): AnalysisResponse {
     val api = ApiFactory.createClaudeApi(service.baseUrl)
     val claudeMessages = messages.filter { it.role != "system" }.map { it.toClaudeMessage() }
     val systemPrompt = messages.find { it.role == "system" }?.content
@@ -697,23 +730,31 @@ private suspend fun AnalysisRepository.chatAnthropic(
         output_config = bundle.outputConfig
     )
     val response = api.createMessage(apiKey, request = request)
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
     if (response.isSuccessful) {
         // See analyzeAnthropic for why we concatenate every text block.
-        return response.body()?.content
+        val body = response.body()
+        val content = body?.content
             ?.filter { it.type == "text" }
             ?.mapNotNull { it.text }
             ?.joinToString(separator = "")
             ?.takeIf { it.isNotBlank() }
-            ?: throw Exception("No response content")
+        val usage = body?.usage?.toTokenUsage()
+        return if (content != null) {
+            AnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            AnalysisResponse(service, null, "No response content", usage, httpHeaders = headers, httpStatusCode = statusCode)
+        }
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
-        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
+        return AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 
-private suspend fun AnalysisRepository.chatGemini(
+private suspend fun AnalysisRepository.chatGeminiResponse(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters
-): String {
+): AnalysisResponse {
     val api = ApiFactory.createGeminiApi(service.baseUrl)
     val contents = messages.filter { it.role != "system" }.map { it.toGeminiContent() }
     val systemInstruction = messages.find { it.role == "system" }?.let { GeminiContent(listOf(GeminiPart(text = it.content))) }
@@ -728,6 +769,8 @@ private suspend fun AnalysisRepository.chatGemini(
         tools = if (params.webSearchTool) geminiWebSearchTool() else null
     )
     val response = api.generateContent(model, apiKey, request)
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
     if (response.isSuccessful) {
         val body = response.body()
         val joined = body?.candidates
@@ -737,10 +780,15 @@ private suspend fun AnalysisRepository.chatGemini(
             ?.takeIf { it.isNotEmpty() }
         val content = joined
             ?: body?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-        return content ?: throw Exception("No response content")
+        val usage = body?.usageMetadata?.toTokenUsage()
+        return if (content != null) {
+            AnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            AnalysisResponse(service, null, "No response content", usage, httpHeaders = headers, httpStatusCode = statusCode)
+        }
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
-        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
+        return AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 

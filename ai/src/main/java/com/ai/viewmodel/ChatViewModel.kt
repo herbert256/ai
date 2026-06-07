@@ -154,21 +154,27 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         params: ChatParameters
     ): String {
         AppLog.d("Chat", "sendDualChatMessage ${service.id}/$model msgs=${messages.size}")
-        val response = appViewModel.repository.sendChat(
+        val response = appViewModel.repository.sendChatResponse(
             service = service, apiKey = apiKey, model = model,
             messages = messages, params = params
         )
-        val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
-        val outputTokens = AppViewModel.estimateTokens(response)
-        appViewModel.settingsPrefs.updateUsageStatsAsync(
-            service,
-            model,
-            inputTokens,
-            outputTokens,
-            inputTokens + outputTokens,
-            kind = "Dual chat"
-        )
-        return response
+        val text = response.analysis ?: throw Exception(response.error ?: "No response content")
+        val usage = response.tokenUsage
+        if (usage != null && usage.totalTokens > 0) {
+            appViewModel.settingsPrefs.updateUsageStatsAsync(service, model, usage, kind = "Dual chat")
+        } else {
+            val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
+            val outputTokens = AppViewModel.estimateTokens(text)
+            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                service,
+                model,
+                inputTokens,
+                outputTokens,
+                inputTokens + outputTokens,
+                kind = "Dual chat"
+            )
+        }
+        return text
     }
 
     /**
