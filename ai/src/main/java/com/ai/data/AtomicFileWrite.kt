@@ -48,14 +48,22 @@ fun File.writeTextAtomic(content: String): Boolean {
                 java.nio.file.StandardCopyOption.REPLACE_EXISTING,
                 java.nio.file.StandardCopyOption.ATOMIC_MOVE
             )
-            true
         } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
             java.nio.file.Files.move(
                 tmp.toPath(), toPath(),
                 java.nio.file.StandardCopyOption.REPLACE_EXISTING
             )
-            true
         }
+        // fsync the PARENT DIRECTORY so the rename itself is durable — fsyncing
+        // the file content above doesn't persist the new directory entry, and
+        // POSIX needs a dir fsync to survive a power loss after the move.
+        // Best-effort: some filesystems / platforms reject opening a dir.
+        try {
+            toPath().parent?.let { dir ->
+                java.nio.channels.FileChannel.open(dir, java.nio.file.StandardOpenOption.READ).use { it.force(true) }
+            }
+        } catch (_: Exception) { /* best effort */ }
+        true
     } catch (e: Exception) {
         AppLog.e("AtomicFileWrite", "Failed to write $absolutePath: ${e.message}")
         try { if (tmp.exists()) tmp.delete() } catch (_: Exception) {}

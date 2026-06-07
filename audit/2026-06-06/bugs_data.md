@@ -48,7 +48,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** After the `ATOMIC_MOVE` rename, a power loss before the *directory* metadata is flushed can leave the directory entry still pointing at the old inode (or none), even though the file's own data was fsync'd. The "atomic" promise covers the file content but not the rename's durability.
 **Root cause:** The code fsyncs the temp file's descriptor (line 43) but never fsyncs the *parent directory* after `Files.move`. POSIX requires an fsync on the directory to make a rename durable.
 **Proposed fix:** After the move, open the parent directory and `fsync` it (best-effort, ignore on platforms that reject it), mirroring the file fsync already done.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — parent directory is fsync'd after the move (best-effort) so the rename is durable
 
 ### Bug 7 — Severity: LOW — Category: error visibility
 **Location:** AtomicFileWrite.kt:59-63
