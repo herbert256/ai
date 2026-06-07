@@ -22,11 +22,21 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * models that would answer a normal request fine. Per-model rule first
  * (the provider's maxTokensDefaults table), then the known output-token
  * limit from models.dev when available, then a conservative fixed fallback.
+ *
+ * models.dev often reports a model's max OUTPUT as the whole context window,
+ * and several providers count input + output against that window (OpenRouter
+ * 400, Together 422 — "input + max_new_tokens must be <= context"). So when a
+ * context size is known, cap the output cap to leave [INPUT_HEADROOM] tokens
+ * for the prompt; a true small output limit (output < context) is untouched.
  */
-internal fun defaultMaxTokens(service: AppService, model: String): Int =
-    service.maxTokensDefaults.resolveMaxTokens(model)
-        ?: PricingCache.modelsDevMaxOutputTokens(service, model)?.takeIf { it > 0 }
-        ?: 4_096
+private const val INPUT_HEADROOM = 4_096
+
+internal fun defaultMaxTokens(service: AppService, model: String): Int {
+    service.maxTokensDefaults.resolveMaxTokens(model)?.let { return it }
+    val out = PricingCache.modelsDevMaxOutputTokens(service, model)?.takeIf { it > 0 } ?: return 4_096
+    val context = PricingCache.modelsDevMaxInputTokens(service, model)?.takeIf { it > 0 }
+    return if (context != null) out.coerceAtMost((context - INPUT_HEADROOM).coerceAtLeast(1_024)) else out
+}
 
 /**
  * Hard coroutine-level ceiling for ONE outbound provider call. OkHttp's
@@ -1125,7 +1135,14 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
 suspend fun AnalysisRepository.testModel(service: AppService, apiKey: String, model: String): String? = withContext(Dispatchers.IO) {
     withTraceCategory("Provider test") {
         try {
-            val response = analyze(service, apiKey, AnalysisRepository.TEST_PROMPT, model)
+            // Reachability probe — only needs "OK" back, so cap tiny rather
+            // than inheriting defaultMaxTokens (the model's full output window,
+            // which overflows input+output context limits → OpenRouter 400 /
+            // Together 422, and balance-pre-auths expensive models).
+            val response = analyze(
+                service, apiKey, AnalysisRepository.TEST_PROMPT, model,
+                params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
+            )
             if (response.isSuccess) null else response.error ?: "Unknown error"
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -1138,7 +1155,10 @@ suspend fun AnalysisRepository.testModelWithPrompt(
 ): Pair<String?, String?> = withContext(Dispatchers.IO) {
     withTraceCategory("Provider test") {
         try {
-            val response = analyze(service, apiKey, prompt, model)
+            val response = analyze(
+                service, apiKey, prompt, model,
+                params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
+            )
             if (response.isSuccess) Pair(response.analysis, null) else Pair(null, response.error ?: "Unknown error")
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
