@@ -275,14 +275,25 @@ object KnowledgeStore {
         val chunksDir = File(kbDir, CHUNKS_DIR)
         if (!chunksDir.exists()) return
         chunksDir.listFiles { f -> f.extension == "json" }?.forEach { f ->
-            runCatching {
-                // Stream straight into Gson — a large source's chunks
-                // file (book-sized PDF, multi-MB text) would otherwise
-                // allocate the full JSON as a String alongside Gson's
-                // parse buffer, doubling peak heap during retrieval.
-                val arr = f.bufferedReader().use { gson.fromJson(it, Array<KnowledgeChunk>::class.java) }
-                arr.forEach(block)
+            // Stream straight into Gson — a large source's chunks file
+            // (book-sized PDF, multi-MB text) would otherwise allocate the full
+            // JSON as a String alongside Gson's parse buffer, doubling peak heap
+            // during retrieval.
+            val arr = runCatching {
+                f.bufferedReader().use { gson.fromJson(it, Array<KnowledgeChunk>::class.java) }
+            }.getOrNull()
+            if (arr == null) {
+                AppLog.w("Knowledge", "forEachChunk: skipped unreadable chunk file ${f.name}")
+                return@forEach
             }
+            // Per-chunk try so ONE corrupt chunk (e.g. a null embedding) doesn't
+            // abort the rest of the source and silently drop every other chunk
+            // of that source from retrieval (audit data#68).
+            var skipped = 0
+            for (chunk in arr) {
+                try { block(chunk) } catch (_: Exception) { skipped++ }
+            }
+            if (skipped > 0) AppLog.w("Knowledge", "forEachChunk: skipped $skipped corrupt chunk(s) in ${f.name}")
         }
     }
 

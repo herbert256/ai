@@ -529,7 +529,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Each source's chunk file is parsed into `Array<KnowledgeChunk>` and iterated inside one `runCatching`. A single malformed chunk (e.g. missing/`null` `embedding` FloatArray per the Bug-1 trap, or `arr == null`) throws mid-`arr.forEach(block)`, and the `runCatching` swallows it — silently dropping *every* chunk of that source from retrieval (not just the bad one).
 **Root cause:** The catch wraps the whole-file iteration, so any per-chunk failure aborts the rest of the file; `gson.fromJson(..., Array::class)` returning null also NPEs `arr.forEach`.
 **Proposed fix:** Null-guard `arr`, and iterate with a per-chunk try so one corrupt chunk doesn't drop the source; log the count skipped.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - null-guard the parsed array + per-chunk try so one corrupt chunk skips itself (logged), not the whole source
 
 ### Bug 69 — Severity: LOW — Category: embedder swap silent mis-rank
 **Location:** Knowledge.kt:229-242 (`saveSource` dim retention)
