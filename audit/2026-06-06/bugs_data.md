@@ -104,7 +104,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Retrofit instances are cached by normalized base URL only. Two providers that share a base URL host but need different behaviour would share the same Retrofit/converter — harmless today, but a custom provider pointing at the same host as a built-in shares the cached instance.
 **Root cause:** Key is the URL string, not (URL, provider config).
 **Proposed fix:** Acceptable (interfaces are stateless); note only. Consider keying by URL + interface type if per-provider converters ever diverge.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Retrofit cache keys now include the API interface namespace as well as the normalized base URL.
 
 ## File: ai/src/main/java/com/ai/data/ApiDispatch.kt
 
