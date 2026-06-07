@@ -177,6 +177,10 @@ object ApiTracer {
         // disk and re-sees the new trace.
         AppLog.d("ApiTracer", "trace written $resolvedFilename status=${normalizedTrace.response.statusCode} partial=${normalizedTrace.partial}")
         lock.withLock {
+            if (!File(dir, resolvedFilename).exists()) {
+                AppLog.w("ApiTracer", "Trace $resolvedFilename was removed before cache update — skipping cache entry")
+                return null
+            }
             try {
                 cachedTraceFiles?.let { current ->
                     val info = TraceFileInfo(

@@ -210,7 +210,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** When `cachedTraceFiles` is non-null and a save lands, the entry is appended/replaced and re-sorted. But the disk write happened *outside* the lock (line 149-150) while the cache mutation is inside the lock; two concurrent saves to *new* filenames both pass the disk write, then serialize on the cache append — fine — but a concurrent `clearTraces()` between the disk write and the cache append re-adds the just-cleared trace's cache entry, leaving a cache entry for a file `clearTraces` already deleted.
 **Root cause:** The disk write and cache update are intentionally not atomic; `clearTraces` sets `cachedTraceFiles = emptyList()` but a racing `saveTrace` then does `emptyList() + info`.
 **Proposed fix:** Have `saveTrace` re-check that the file still exists before re-adding, or hold the lock across both steps for the append case.
-**Status:** Open (low likelihood)
+**Status:** Fixed in `ApiTracer.kt` by re-checking the just-written trace file under the cache lock before appending it to `cachedTraceFiles`.
 
 ### Bug 28 — Severity: LOW — Category: filename uniqueness
 **Location:** ApiTracer.kt:38, 129-138 (`fileSequence` + filename)
