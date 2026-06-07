@@ -138,9 +138,13 @@ class RateLimitRetryInterceptor : Interceptor {
         // bubbles up to the outer withRetry layer. A flow that opted
         // out of the sleeping retry loop (the "Test all models" sweep)
         // is treated as maxRetries == 0 — the 429 is returned as-is.
+        val hasBackoffYielder = ProviderThrottle.backoffPermitYielder.get() != null
         val (maxRetries, backoffMs) =
-            if (ProviderThrottle.suppressInlineRetry.get() == true) 0 to 0L
+            if (ProviderThrottle.suppressInlineRetry.get() == true || !hasBackoffYielder) 0 to 0L
             else ProviderThrottle.retryLimitsFor429(request.url.host)
+        if (!hasBackoffYielder && ProviderThrottle.suppressInlineRetry.get() != true) {
+            AppLog.d("RateLimit", "429 on ${request.url.host} has no backoff yielder; returning for coroutine-level retry")
+        }
         AppLog.d("RateLimit", "429 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)")
         var current = response
         var attempt = 0

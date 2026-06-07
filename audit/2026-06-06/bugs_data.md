@@ -247,7 +247,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** When no `backoffPermitYielder` is registered (chat / single calls), `ProviderThrottle.backoffSleep` falls to `Thread.sleep` while still holding the OkHttp dispatcher per-host slot; with `maxRetries` raised by the user and a long Retry-After, the slot is pinned for the full sleep.
 **Root cause:** In-place sleep on the OkHttp worker thread for non-batch flows (documented as bounded, but user-tunable retry count + Retry-After can extend it to 5 min via the clamp).
 **Proposed fix:** Even for non-batch flows, perform the wait at the coroutine layer (release the throttle/dispatcher slot during the sleep) as the batch path does.
-**Status:** Open
+**Status:** Fixed — non-batch 429s no longer enter the interceptor sleep loop when no backoff yielder is installed; they return immediately so the repository-level coroutine retry can wait without pinning an OkHttp worker.
 
 ### Bug 33 — Severity: LOW — Category: Cohere bench host fallback
 **Location:** RateLimitRetry.kt:97-108
