@@ -11,7 +11,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Root cause:** Gson constructs via `UnsafeAllocator`, bypassing the primary constructor and its defaults. The safety net here only coerces fields whose declared type is assignable to `List`/`Set`/`Map`/`Collection` (lines 54-61). It deliberately skips `String` (documented, lines 36-44) and structurally also skips primitive arrays such as `KnowledgeChunk.embedding: FloatArray`. So any non-null non-collection field that is genuinely absent stays at the JVM zero value (`null`) inside a type the rest of the app trusts as non-null.
 **Reproduction:** Truncate/corrupt a `reports/<id>.json` so `provider` or `model` on a `ReportAgent` is absent (still valid JSON), reopen the report — `loadReport` succeeds (no parse exception), then the per-model viewer NPEs on `agent.provider`/`agent.model`.
 **Proposed fix:** Either (a) deserialize through a moshi-kotlin-style / kotlinx.serialization codec that honours Kotlin non-null + defaults, or (b) extend the factory to also re-assert field-specific defaults for the small set of genuinely-non-null `String`/array fields (it already lists them in `normalizeReport`) instead of leaving the contract violated.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — non-null agent provider/model defaulted at the load site (normalizeReport), the documented field-specific-default pattern; the global factory/codec swap NOT taken (documented String?-sentinel hazard, needs build verification)
 
 ### Bug 2 — Severity: LOW — Category: cost extraction
 **Location:** ApiModels.kt:899-914 (`extractApiCost(OpenAiUsage)`)
