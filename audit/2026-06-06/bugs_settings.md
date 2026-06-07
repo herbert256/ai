@@ -76,7 +76,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Exporting the layered-costs CSV calls `PricingCache.getTierBreakdown(context, provider, model)` once per (active provider × model) synchronously on the main thread inside the `CreateDocument` result callback. For a large catalog (thousands of models, each a layered lookup) this blocks the UI and can ANR.
 **Root cause:** The whole CSV build runs in the launcher callback with no `withContext(Dispatchers.IO)`.
 **Proposed fix:** Build the CSV (and the import loop, Bug 8) off the main thread; show a spinner while it runs.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - both layered-CSV exports build + write inside withContext(Dispatchers.IO) via a coroutine scope; Toast on completion
 
 ### Bug 8 — Severity: LOW — Category: main-thread work
 **Location:** CostsMaintenanceScreen.kt:105-137 (`importLayeredLauncher`)

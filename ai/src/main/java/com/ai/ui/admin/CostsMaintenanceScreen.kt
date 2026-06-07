@@ -15,6 +15,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -29,6 +30,9 @@ import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.csvField
 import com.ai.ui.shared.exportTimestamp
 import com.ai.ui.shared.parseCsvRow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Housekeeping → Costs. Bulk maintenance for manual price overrides:
@@ -46,6 +50,7 @@ fun CostsMaintenanceScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     fun writeToUri(uri: android.net.Uri, content: String) {
         context.contentResolver.openOutputStream(uri)?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
@@ -90,17 +95,24 @@ fun CostsMaintenanceScreen(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val (csv, kept) = buildLayeredCsv(filterCovered = false)
-        writeToUri(uri, csv)
-        Toast.makeText(context, "$kept layered cost rows exported", Toast.LENGTH_SHORT).show()
+        // Off the main thread: the layered build does a per-(provider,model)
+        // tier lookup over the whole catalog and would ANR for large catalogs
+        // (audit settings#7).
+        scope.launch {
+            val (csv, kept) = withContext(Dispatchers.IO) { buildLayeredCsv(filterCovered = false) }
+            withContext(Dispatchers.IO) { writeToUri(uri, csv) }
+            Toast.makeText(context, "$kept layered cost rows exported", Toast.LENGTH_SHORT).show()
+        }
     }
     val exportLayeredFilteredLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val (csv, kept) = buildLayeredCsv(filterCovered = true)
-        writeToUri(uri, csv)
-        Toast.makeText(context, "$kept rows not covered by any catalog tier exported", Toast.LENGTH_SHORT).show()
+        scope.launch {
+            val (csv, kept) = withContext(Dispatchers.IO) { buildLayeredCsv(filterCovered = true) }
+            withContext(Dispatchers.IO) { writeToUri(uri, csv) }
+            Toast.makeText(context, "$kept rows not covered by any catalog tier exported", Toast.LENGTH_SHORT).show()
+        }
     }
     val importLayeredLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
