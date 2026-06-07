@@ -166,7 +166,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A freshly-generated internal-prompt / report icon does not appear on the View tile grid until some unrelated recomposition; the tile keeps showing the static fallback glyph.
 **Root cause:** These `remember(...)` blocks each call `InternalPromptIconCache.get(...)` but do **not** include `iconRefreshTick` in their key lists, so a cache write (which bumps `iconRefreshTick`) doesn't invalidate them. `firstFanOutIcon` (line 620) *does* include `iconRefreshTick`, proving the intended pattern; the tile builders diverge. The screen's own KDoc (line 113-116) promises the tiles recompose on `iconRefreshTick`.
 **Proposed fix:** Add `iconRefreshTick` to the key lists of `metaTiles`, `fanOutTiles`, `fanInTiles` (and `docTiles` for the report icon).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — doc/meta/fan-out/fan-in tile builders now key their remember blocks on iconRefreshTick, so cache writes invalidate the View grid icons
 
 ### Bug 21 — Severity: MEDIUM — Category: dead parameter / missing cold-cache trigger
 **Location:** Main.kt:120 (`onMissingPromptIcon` param) — never invoked anywhere in the function (only referenced in a comment at 1048)

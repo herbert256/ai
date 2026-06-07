@@ -908,7 +908,7 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, onOpenHtmlPreview, onViewIcons, everyItems) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, iconRefreshTick, onOpenHtmlPreview, onViewIcons, everyItems) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -972,7 +972,7 @@ internal fun ViewAiReportScreen(
     // prompt-icon cache is cold or the master toggle is off). The
     // active language is shown by the View screen's top picker
     // strip; no per-tile language badge needed.
-    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, currentLang, loadedReport, reportLanguageName, onBack) {
+    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, loadedReport, reportLanguageName, onBack) {
         everyItems["meta"].orEmpty().map { item ->
             val prompt = item.prompt
             // Per-row icon override wins over the shared per-(name,title)
@@ -1038,7 +1038,7 @@ internal fun ViewAiReportScreen(
     // pulls from [InternalPromptIconCache] so each fan-out prompt
     // can carry its own dynamic glyph; falls back to the static
     // 🌀 when no cached icon exists yet.
-    val fanOutTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, currentLang) {
+    val fanOutTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang) {
         everyItems["fan_out"].orEmpty().map { item ->
             val fanOutEnabled = item.availableLanguages?.contains(currentLang) ?: true
             // Fan-out items synthesised from fanOutSummaries carry no
@@ -1077,7 +1077,7 @@ internal fun ViewAiReportScreen(
     // Dynamic per-prompt icon via [InternalPromptIconCache];
     // 🪢 fallback matches the previous aggregated tile glyph.
     // (fan_in is excluded from [computedTiles] below.)
-    val fanInTiles = remember(everyItems, useInternalPromptsIcons, currentLang) {
+    val fanInTiles = remember(everyItems, useInternalPromptsIcons, iconRefreshTick, currentLang) {
         everyItems["fan_in"].orEmpty().map { item ->
             val fanInEnabled = item.availableLanguages?.contains(currentLang) ?: true
             val prompt = item.prompt
