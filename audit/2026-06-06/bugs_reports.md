@@ -455,7 +455,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The "costs from deleted items" line in the in-app Manage cost tables renders with a comma on a comma-decimal device, while the surrounding cells (via `formatCents`, `Locale.US`) use a period.
 **Root cause:** Default-locale `"+%.2f ¢".format(...)`.
 **Proposed fix:** Use `String.format(Locale.US, "+%.2f ¢", deletedCents)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — deleted-cost rows in the manage cost tables now use `String.format(Locale.US, ...)`
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/Tournament.kt
 
