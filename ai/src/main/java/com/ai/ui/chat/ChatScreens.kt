@@ -290,9 +290,10 @@ fun ChatSessionScreen(
     // initialMessages — otherwise recreation resets the UI to the stale snapshot
     // and the next saveSession overwrites the on-disk session with that truncated
     // set. Re-reading the session on recreation recovers the turns saved so far.
-    var messages by remember(currentSessionId) {
-        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.messages ?: initialMessages)
+    val initialMessagesForSession = remember(currentSessionId) {
+        ChatHistoryManager.loadSession(currentSessionId)?.messages ?: initialMessages
     }
+    var messages by remember(currentSessionId) { mutableStateOf(initialMessagesForSession) }
     // Pre-fill the input box with text staged by the share-target
     // chooser, then drop the staged value so leaving + returning
     // doesn't re-stuff it.
@@ -323,8 +324,11 @@ fun ChatSessionScreen(
     // the cold-pricing window: turns that completed before PricingCache primed
     // used to stay frozen at default rates in the accumulator; now they re-price
     // once `pricing` recomputes (matching DualChatScreen's convention).
-    var totalInputTokens by remember { mutableIntStateOf(0) }
-    var totalOutputTokens by remember { mutableIntStateOf(0) }
+    val initialTokenTotals = remember(currentSessionId) {
+        estimatePersistedChatTokenTotals(initialMessagesForSession)
+    }
+    var totalInputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.first) }
+    var totalOutputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.second) }
     // (mime, base64) of an image attached to the next user message.
     // rememberSaveable via a Saver so a rotation / process-recreation
     // between picking the image and tapping Send doesn't drop it.
@@ -1165,6 +1169,19 @@ private fun AnimatedTextLines(content: String) {
 // The former ParametersSelectorDialog / SystemPromptSelectorDialog are
 // gone — replaced by the full-screen com.ai.ui.shared.ParametersSelectScreen
 // / SystemPromptSelectScreen opened from the 🌡️ / 🎭 bottom-bar icons.
+
+private fun estimatePersistedChatTokenTotals(messages: List<ChatMessage>): Pair<Int, Int> {
+    var inputTokens = 0
+    var outputTokens = 0
+    messages.forEachIndexed { index, message ->
+        if (message.role == "assistant") {
+            inputTokens += messages.take(index).sumOf { AppViewModel.estimateTokens(it.content) }
+            val billedContent = message.content.substringBefore("\n\n[Stream interrupted:")
+            outputTokens += AppViewModel.estimateTokens(billedContent)
+        }
+    }
+    return inputTokens to outputTokens
+}
 
 /** Fire-and-forget call to the `chat_title` internal prompt. Mirrors
  *  [com.ai.viewmodel.ReportViewModel.kickOffIconGeneration]: looks up

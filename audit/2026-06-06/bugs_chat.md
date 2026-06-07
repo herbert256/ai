@@ -99,7 +99,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Resuming a long, previously-expensive chat shows a running cost of `null`/no-cost in the title bar until the next message is sent, under-reporting what the conversation actually cost.
 **Root cause:** The token accumulators are `remember { 0 }` and are never seeded from the persisted session, so on resume the banner reflects only this visit's turns.
 **Proposed fix:** Either label the banner "cost this visit", or reconstruct an approximate cumulative figure from the persisted messages on entry.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — chat sessions now seed their running token counters from persisted messages, reconstructing approximate input/output totals on resume
 
 ### Bug 13 — Severity: LOW — Category: cost tracking
 **Location:** ChatScreens.kt:601-606 (`catch (e: Exception)` branch in `actuallySend`)
