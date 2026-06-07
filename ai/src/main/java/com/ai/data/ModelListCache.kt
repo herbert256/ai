@@ -2,6 +2,7 @@ package com.ai.data
 
 import android.content.Context
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * On-disk cache for the latest /models response per provider. Each
@@ -31,11 +32,23 @@ object ModelListCache {
      *  resolve fileFor() outside the cache directory. Strip every
      *  character that isn't alphanumeric / dash / underscore so the
      *  result is always a flat file inside [dir]. */
-    private fun safeId(providerId: String): String =
+    private fun legacySafeId(providerId: String): String =
         providerId.replace(Regex("[^A-Za-z0-9._-]"), "_")
+
+    private fun safeId(providerId: String): String {
+        val clean = legacySafeId(providerId)
+        val hash = MessageDigest.getInstance("SHA-256")
+            .digest(providerId.toByteArray(Charsets.UTF_8))
+            .take(4)
+            .joinToString("") { "%02x".format(it) }
+        return "${clean}_$hash"
+    }
 
     private fun fileFor(context: Context, providerId: String): File =
         File(dir(context), "${safeId(providerId)}.$EXT")
+
+    private fun legacyFileFor(context: Context, providerId: String): File =
+        File(dir(context), "${legacySafeId(providerId)}.$EXT")
 
     /** Persist [rawResponse] for [providerId]. No-op when the body is
      *  null or blank — fetches that produced no body shouldn't
@@ -63,7 +76,9 @@ object ModelListCache {
      *  fetch has been recorded. Returned text is the provider's
      *  original response — JSON for every wired provider today. */
     fun read(context: Context, providerId: String): String? = try {
-        val f = fileFor(context, providerId)
+        val current = fileFor(context, providerId)
+        val legacy = legacyFileFor(context, providerId)
+        val f = if (current.exists()) current else legacy
         if (f.exists()) {
             val ageMs = System.currentTimeMillis() - f.lastModified()
             AppLog.d("ModelListCache", "hit $providerId age=${ageMs / 1000}s size=${f.length()}")
@@ -82,7 +97,9 @@ object ModelListCache {
     /** Last-modified timestamp (epoch ms) for [providerId]'s cached
      *  body, or null when the file doesn't exist. */
     fun fetchedAt(context: Context, providerId: String): Long? {
-        val f = fileFor(context, providerId)
+        val current = fileFor(context, providerId)
+        val legacy = legacyFileFor(context, providerId)
+        val f = if (current.exists()) current else legacy
         return if (f.exists()) f.lastModified() else null
     }
 
@@ -91,7 +108,10 @@ object ModelListCache {
     /** Drop the cached body for [providerId]. Safe to call when no
      *  cache file exists. */
     fun delete(context: Context, providerId: String) {
-        try { fileFor(context, providerId).delete() } catch (_: Exception) {}
+        try {
+            fileFor(context, providerId).delete()
+            legacyFileFor(context, providerId).delete()
+        } catch (_: Exception) {}
     }
 
     /** Wipe every cached body — used by the housekeeping "clear all"

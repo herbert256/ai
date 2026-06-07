@@ -489,7 +489,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `safeId` maps any non-`[A-Za-z0-9._-]` char to `_`, so two distinct provider ids that differ only in a stripped char (e.g. `My API` vs `My/API`) collide on the same cache file, mixing model lists.
 **Root cause:** Lossy sanitisation without a disambiguating hash.
 **Proposed fix:** Append a short hash of the original id to the sanitised filename.
-**Status:** Open (low likelihood; ids are usually UUID/clean)
+**Status:** Fixed in `ModelListCache.kt` by appending an 8-hex SHA-256 suffix to sanitized provider ids, with legacy filename fallback for reads/deletes.
 
 ## File: ai/src/main/java/com/ai/data/BackupManager.kt
 
