@@ -80,7 +80,13 @@ class OverloadedRetryInterceptor : Interceptor {
             // pin shared capacity either.
             RetryStats.record()
             RetryStats.enterBackoff()
-            try { ProviderThrottle.backoffSleep(sleepMs) } finally { RetryStats.exitBackoff() }
+            try {
+                try {
+                    ProviderThrottle.backoffSleep(sleepMs)
+                } catch (e: InterruptedException) {
+                    throw e.asThrottleCancellation()
+                }
+            } finally { RetryStats.exitBackoff() }
             attempt++
             AppLog.d("Overloaded", "529 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}")
             current = chain.proceed(request)

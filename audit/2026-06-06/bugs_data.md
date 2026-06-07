@@ -286,7 +286,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `acquire`'s rate-limit `Thread.sleep` re-throws `InterruptedException` after re-setting the interrupt flag, but the caller (OkHttp interceptor) may translate it into a generic IOException, losing the "cancelled" semantics and potentially triggering the outer retry on a cancellation.
 **Root cause:** Interrupt surfaces as a thrown exception inside the interceptor stack.
 **Proposed fix:** Ensure the interceptor maps `InterruptedException` to a cancellation, not a retryable failure.
-**Status:** Open (unconfirmed)
+**Status:** Fixed — provider throttle acquire and 429/529 backoff sleeps now translate `InterruptedException` into `CancellationException`, preserving cancellation semantics for outer coroutine retry handling.
 
 ## File: ai/src/main/java/com/ai/data/ModelCooldownStore.kt
 

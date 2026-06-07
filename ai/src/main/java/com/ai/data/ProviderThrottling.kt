@@ -406,11 +406,22 @@ class ProviderThrottleInterceptor : Interceptor {
         if (ProviderThrottle.permitPreAcquired.get() == true) {
             return chain.proceed(request)
         }
-        val releaser = ProviderThrottle.acquire(request.url.host)
+        val releaser = try {
+            ProviderThrottle.acquire(request.url.host)
+        } catch (e: InterruptedException) {
+            throw e.asThrottleCancellation()
+        }
         try {
             return chain.proceed(request)
         } finally {
             releaser.release()
         }
+    }
+}
+
+internal fun InterruptedException.asThrottleCancellation(): kotlinx.coroutines.CancellationException {
+    Thread.currentThread().interrupt()
+    return kotlinx.coroutines.CancellationException("Provider throttle interrupted").also {
+        it.initCause(this)
     }
 }
