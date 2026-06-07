@@ -195,7 +195,7 @@ class JudgeEvalEngine internal constructor(
      *  answer-pairs, pre-create judges×matches CELL placeholders + one
      *  AGGREGATE placeholder, judge every cell with its fixed judge, then fold
      *  the verdicts into the per-judge agreement analysis. */
-    fun startRun(context: Context, reportId: String, buildKey: String? = null): Job? {
+    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? {
         val rk: JudgeEvalRunKey = reportId
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -205,6 +205,7 @@ class JudgeEvalEngine internal constructor(
                 withTracerTags(reportId = reportId, category = "after/judges", runId = runId) {
                     val aiSettings = appViewModel.uiState.value.aiSettings
                     val prompt = judgePrompt(aiSettings)
+                        ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
                     if (prompt == null) {
                         AppLog.w("JudgeEval", "workers/tournament prompt not configured — aborting")
                         return@withTracerTags

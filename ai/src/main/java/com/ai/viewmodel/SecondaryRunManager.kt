@@ -216,7 +216,10 @@ class SecondaryRunManager(
          *  language". Multi-language Selected just picks the first. */
         languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent,
         paramsIds: List<String> = emptyList(),
-        systemPromptId: String? = null
+        systemPromptId: String? = null,
+        /** When non-null (the driving prompt is *SELECT), run against these
+         *  user-picked workers instead of the configured "second-rerank" chain. */
+        overrideWorkers: List<com.ai.model.Worker>? = null
     ): Job? {
         AppLog.i("Rerank", "→ start report=$reportId via the Rerank worker swarm")
         val aiSettings = appViewModel.uiState.value.aiSettings
@@ -259,7 +262,7 @@ class SecondaryRunManager(
                         )
                     }
                     runSecondaryViaSwarm(
-                        context, reportId, SecondaryKind.RERANK, rerankPrompt, rerankPrompt.workers,
+                        context, reportId, SecondaryKind.RERANK, rerankPrompt, overrideWorkers ?: rerankPrompt.workers,
                         resolvedPrompt, aiSettings, report, base,
                         targetLanguage = sourceLanguage, targetLanguageNative = langCtx?.native,
                         paramsIds = paramsIds, systemPromptId = systemPromptId
@@ -289,7 +292,10 @@ class SecondaryRunManager(
          *  moderation API receives translated bodies (fallback per-
          *  agent to the original) and the persisted row is tagged
          *  with the language so it appears under that section. */
-        languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
+        languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent,
+        /** When non-null (the driving prompt is *SELECT), run against these
+         *  user-picked workers instead of the configured "second-moderation" chain. */
+        overrideWorkers: List<com.ai.model.Worker>? = null
     ): Job? {
         AppLog.i("Moderation", "→ start report=$reportId via the Moderation worker swarm")
         val aiSettings = appViewModel.uiState.value.aiSettings
@@ -333,7 +339,7 @@ class SecondaryRunManager(
                         )
                     }
                     runSecondaryViaSwarm(
-                        context, reportId, SecondaryKind.MODERATION, moderationPrompt, moderationPrompt.workers,
+                        context, reportId, SecondaryKind.MODERATION, moderationPrompt, overrideWorkers ?: moderationPrompt.workers,
                         resolvedPrompt = "", aiSettings = aiSettings, report = report, base = base,
                         targetLanguage = sourceLanguage, targetLanguageNative = native
                     )
@@ -913,11 +919,14 @@ class SecondaryRunManager(
          *  in the report list. */
         sourceLanguage: String? = null,
         paramsIds: List<String> = emptyList(),
-        systemPromptId: String? = null
+        systemPromptId: String? = null,
+        /** When non-null (the driving prompt is *SELECT), run against these
+         *  user-picked workers instead of the configured "fan-in" chain. */
+        overrideWorkers: List<com.ai.model.Worker>? = null
     ): Job? {
         AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via the Fan-in worker swarm")
         val aiSettings0 = appViewModel.uiState.value.aiSettings
-        val swarm = workerSwarmPrompt(aiSettings0, "fan-in")?.workers ?: emptyList()
+        val swarm = overrideWorkers ?: workerSwarmPrompt(aiSettings0, "fan-in")?.workers ?: emptyList()
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             val cat = "${metaPrompt.category}/${metaPrompt.name}"
@@ -1181,12 +1190,15 @@ class SecondaryRunManager(
         scopeChoice: SecondaryScope = SecondaryScope.AllReports,
         languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent,
         paramsIds: List<String> = emptyList(),
-        systemPromptId: String? = null
+        systemPromptId: String? = null,
+        /** When non-null (the driving prompt is *SELECT), run against these
+         *  user-picked workers instead of the configured "meta" chain. */
+        overrideWorkers: List<com.ai.model.Worker>? = null
     ): Job? {
         val kind = SecondaryKind.META
         // Swarm from the dedicated workers/meta holder prompt; the
         // content comes from the user's chosen meta prompt.
-        val swarm = workerSwarmPrompt(appViewModel.uiState.value.aiSettings, "meta")?.workers ?: emptyList()
+        val swarm = overrideWorkers ?: workerSwarmPrompt(appViewModel.uiState.value.aiSettings, "meta")?.workers ?: emptyList()
         AppLog.i("Meta", "→ start \"${metaPrompt.name}\" report=$reportId via the Meta worker swarm")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 

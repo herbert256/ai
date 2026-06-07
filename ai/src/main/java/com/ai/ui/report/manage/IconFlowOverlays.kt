@@ -142,7 +142,11 @@ internal fun ReportIconFlowOverlays(
         // If the active flow's alt prompt has a worker (Model/Agent/Flock/Swarm)
         // configured, skip the model-selection screen and run the fan-out on the
         // resolved worker models; empty ⇒ show the picker as before.
-        val autoModels = altFlowFor(st, uiState, currentReportId)
+        // *SELECT on the flow's alt prompt forces the model picker (empties the
+        // auto-resolved workers); *CONFIGURED keeps the skip-the-picker behaviour.
+        val altFlow = altFlowFor(st, uiState, currentReportId)
+        val autoModels = altFlow
+            ?.takeIf { com.ai.viewmodel.altPromptModelSelection(aiSettings, it) != com.ai.model.MODEL_SELECTION_SELECT }
             ?.let { com.ai.viewmodel.altWorkerModels(aiSettings, it) }
             ?: emptyList()
         CompositionLocalProvider(

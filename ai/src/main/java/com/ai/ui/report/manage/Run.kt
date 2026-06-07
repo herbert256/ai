@@ -114,9 +114,9 @@ internal fun ReportRunScreen(
     onChatWithReportPrompt: (String) -> Unit,
     /** Launch a worker-judged pairwise tournament on the report (reportId,
      *  build-stage key). */
-    onRunTournament: (String, String?) -> Unit = { _, _ -> },
+    onRunTournament: (String, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
     /** Launch the "Judge the judges" batch on the report. */
-    onRunJudgeJudges: (String, String?) -> Unit = { _, _ -> },
+    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
     /** Arm the build-stage popup: (buildKey, label, on-done nav, on-cancel). */
     onArmBuildStage: (String, String, () -> Unit, () -> Unit) -> Unit = { _, _, _, _ -> },
     /** Delete a tournament / judges run (build-stage Cancel cleanup). */
@@ -231,8 +231,14 @@ internal fun ReportRunScreen(
                     // Build stage: block behind "Preparing…" while the cell grid
                     // is created, then open the L1 once done.
                     val key = java.util.UUID.randomUUID().toString()
-                    onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
-                    compareEngine?.startRun(context, rid, listOf(id), comparePrompt.id, key)
+                    val arm = { ws: List<com.ai.model.Worker>? ->
+                        onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
+                        compareEngine?.startRun(context, rid, listOf(id), comparePrompt.id, key, ws)
+                    }
+                    if (comparePrompt.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                        st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                            "Compare — pick workers", comparePrompt.workers, { picked -> arm(picked) }, {})
+                    } else arm(null)
                 }
                 compareStep = 0
             },
@@ -803,8 +809,15 @@ internal fun ReportRunScreen(
                             // Build stage: block behind "Preparing…" while the
                             // match grid is created, then open the L1 once done.
                             val key = java.util.UUID.randomUUID().toString()
-                            onArmBuildStage(key, "Building tournament", { tournamentOpenState?.value = rid }, { onDeleteTournamentRun(rid) })
-                            onRunTournament(rid, key)
+                            val arm = { ws: List<com.ai.model.Worker>? ->
+                                onArmBuildStage(key, "Building tournament", { tournamentOpenState?.value = rid }, { onDeleteTournamentRun(rid) })
+                                onRunTournament(rid, key, ws)
+                            }
+                            val driver = aiSettings.workerPromptByName("tournament")
+                            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                                st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                                    "Tournament — pick workers", driver.workers, { picked -> arm(picked) }, {})
+                            } else arm(null)
                         }
                         confirmTournament = false
                     }) { androidx.compose.material3.Text("Run") }
@@ -835,8 +848,15 @@ internal fun ReportRunScreen(
                     androidx.compose.material3.TextButton(onClick = {
                         currentReportId?.let { rid ->
                             val key = java.util.UUID.randomUUID().toString()
-                            onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
-                            onRunJudgeJudges(rid, key)
+                            val arm = { ws: List<com.ai.model.Worker>? ->
+                                onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
+                                onRunJudgeJudges(rid, key, ws)
+                            }
+                            val driver = aiSettings.workerPromptByName("tournament")
+                            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                                st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                                    "Judge the judges — pick workers", driver.workers, { picked -> arm(picked) }, {})
+                            } else arm(null)
                         }
                         confirmJudgeJudges = false
                     }) { androidx.compose.material3.Text("Run") }

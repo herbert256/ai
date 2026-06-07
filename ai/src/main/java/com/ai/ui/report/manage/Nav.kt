@@ -542,8 +542,8 @@ fun ReportsScreenNav(
         hasPrevReport = hasPrevReport,
         hasNextReport = hasNextReport,
         initialModels = initialModels,
-        onRunSecondary = { reportId, metaPrompt, scopeChoice, languageScope, paramsIds, systemPromptId ->
-            reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, scopeChoice, languageScope, paramsIds, systemPromptId)
+        onRunSecondary = { reportId, metaPrompt, scopeChoice, languageScope, paramsIds, systemPromptId, overrideWorkers ->
+            reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, scopeChoice, languageScope, paramsIds, systemPromptId, overrideWorkers)
         },
         onTranslateMissingItems = { reportId, items, target, targetNative ->
             reportViewModel.translation.translateMissingItems(context, reportId, items, target, targetNative)
@@ -551,8 +551,8 @@ fun ReportsScreenNav(
         onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId, includeSelf, buildKey ->
             reportViewModel.fanOutEngine.startRun(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId, includeSelfResponses = includeSelf, buildKey = buildKey)
         },
-        onRunFanIn = { reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId ->
-            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId)
+        onRunFanIn = { reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId, overrideWorkers ->
+            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId, overrideWorkers)
         },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
@@ -567,17 +567,17 @@ fun ReportsScreenNav(
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.secondary.runLocalRerank(context, reportId, modelName)
         },
-        onRunRerank = { reportId, languageScope, paramsIds, systemPromptId ->
-            reportViewModel.secondary.runRerank(context, reportId, languageScope, paramsIds, systemPromptId)
+        onRunRerank = { reportId, languageScope, paramsIds, systemPromptId, overrideWorkers ->
+            reportViewModel.secondary.runRerank(context, reportId, languageScope, paramsIds, systemPromptId, overrideWorkers)
         },
-        onRunModeration = { reportId, languageScope ->
-            reportViewModel.secondary.runModeration(context, reportId, languageScope)
+        onRunModeration = { reportId, languageScope, overrideWorkers ->
+            reportViewModel.secondary.runModeration(context, reportId, languageScope, overrideWorkers)
         },
-        onRunTournament = { reportId, buildKey ->
-            reportViewModel.tournamentEngine.startRun(context, reportId, buildKey)
+        onRunTournament = { reportId, buildKey, overrideWorkers ->
+            reportViewModel.tournamentEngine.startRun(context, reportId, buildKey, overrideWorkers)
         },
-        onRunJudgeJudges = { reportId, buildKey ->
-            reportViewModel.judgeEvalEngine.startRun(context, reportId, buildKey)
+        onRunJudgeJudges = { reportId, buildKey, overrideWorkers ->
+            reportViewModel.judgeEvalEngine.startRun(context, reportId, buildKey, overrideWorkers)
         },
         onDeleteTournamentRun = { reportId ->
             reportViewModel.tournamentEngine.deleteRun(context, reportId)
@@ -717,11 +717,11 @@ fun ReportsScreenNav(
             .filter { it.sourceReportId == uiState.currentReportId }
             .toList(),
         throttledTranslationItems = throttledTranslationItems,
-        onStartTranslation = { sourceId, langName, langNative, buildKey ->
+        onStartTranslation = { sourceId, langName, langNative, buildKey, overrideWorkers ->
             // Returns the new run's id so Manage can land on the Translation
-            // L1 page once the build stage finishes. No model picker — the
-            // translate worker swarm handles model selection + fallback.
-            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, buildKey).first
+            // L1 page once the build stage finishes. overrideWorkers is set when
+            // the translate-text prompt is *SELECT (user picked the workers).
+            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, buildKey, overrideWorkers).first
         },
         batchBuildProgress = batchBuildProgress,
         onBeginBuild = { key, total, label -> viewModel.beginBuild(key, total, label) },

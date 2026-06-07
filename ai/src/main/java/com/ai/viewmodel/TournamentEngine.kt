@@ -171,7 +171,7 @@ class TournamentEngine internal constructor(
      *  placeholders (sentinel provider/model) + one AGGREGATE placeholder,
      *  publishes the run with all matches PENDING, runs each match through
      *  the worker batch, then folds the verdicts into the aggregate ranking. */
-    fun startRun(context: Context, reportId: String, buildKey: String? = null): Job? {
+    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? {
         val rk = tournamentRunKey(reportId)
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -181,6 +181,7 @@ class TournamentEngine internal constructor(
                 withTracerTags(reportId = reportId, category = "after/tournament", runId = runId) {
                     val aiSettings = appViewModel.uiState.value.aiSettings
                     val prompt = tournamentPrompt(aiSettings)
+                        ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
                     if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                         AppLog.w("Tournament", "workers/tournament not configured — aborting")
                         return@withTracerTags

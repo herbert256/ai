@@ -160,6 +160,19 @@ internal class ReportsScreenState(
     val pendingBuildKey: MutableState<String?>,
     val pendingBuildNav: MutableState<(() -> Unit)?>,
     val pendingBuildCancel: MutableState<(() -> Unit)?>,
+    /** Run-time worker picker request: shown (full-screen) when a *SELECT
+     *  Internal Prompt is about to run, so the user picks the workers first.
+     *  Plain `remember` (not saveable) — it carries lambdas. */
+    val runtimeWorkerPick: MutableState<RuntimeWorkerPick?>,
+)
+
+/** A pending "pick workers before running" request (see [InternalPrompt.modelSelection]
+ *  == *SELECT). [initial] pre-seeds the picker with the prompt's configured chain. */
+internal data class RuntimeWorkerPick(
+    val titleText: String,
+    val initial: List<Worker>,
+    val onConfirm: (List<Worker>) -> Unit,
+    val onCancel: () -> Unit
 )
 
 @Composable
@@ -248,6 +261,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val pendingBuildKey = remember { mutableStateOf<String?>(null) }
     val pendingBuildNav = remember { mutableStateOf<(() -> Unit)?>(null) }
     val pendingBuildCancel = remember { mutableStateOf<(() -> Unit)?>(null) }
+    val runtimeWorkerPick = remember { mutableStateOf<RuntimeWorkerPick?>(null) }
     return remember {
         ReportsScreenState(
         openMetaResultId,
@@ -333,7 +347,8 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         showAltTranslatePicker,
         pendingBuildKey,
         pendingBuildNav,
-        pendingBuildCancel
+        pendingBuildCancel,
+        runtimeWorkerPick
         )
     }
 }

@@ -261,6 +261,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                     title = (raw.title as String?) ?: "",
                     parameters = (raw.parameters as String?) ?: "*NONE",
                     systemPrompt = (raw.systemPrompt as String?) ?: "*NONE",
+                    modelSelection = (raw.modelSelection as String?) ?: com.ai.model.MODEL_SELECTION_CONFIGURED,
                     // Same Gson-no-constructor hazard for the nested workers:
                     // the flock / swarm fields, added later, land null on JSON
                     // saved before they existed. Reassert the "*N/A" sentinel

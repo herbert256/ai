@@ -71,6 +71,21 @@ fun categoryDisplayName(category: String): String = when (category) {
 fun isFixedListCategory(category: String): Boolean =
     category == "internal" || category == "workers" || category == "alt"
 
+/** The "workers"-category prompt names that actually drive a covered kind, so
+ *  the run-time Model-selection switch (*CONFIGURED / *SELECT) only shows where
+ *  it does something. meta_compare (Compare) and alt (Find-alternative) always
+ *  qualify — they carry their own per-prompt worker chains. */
+private val MODEL_SELECTION_WORKER_NAMES = setOf(
+    "meta", "fan-in", "second-rerank", "second-moderation",
+    "tournament", "translate-text", "translate-title", "find-translation"
+)
+fun internalPromptSupportsModelSelection(category: String, name: String): Boolean = when {
+    category.equals("meta_compare", ignoreCase = true) -> true
+    category.equals("alt", ignoreCase = true) -> true
+    category.equals("workers", ignoreCase = true) -> name.lowercase() in MODEL_SELECTION_WORKER_NAMES
+    else -> false
+}
+
 /** Singular label for a single [InternalPrompt.category] entry — used
  *  for View-page titles and delete-confirm copy. Carried explicitly per
  *  category instead of string-munging the plural (a naive `removeSuffix("s")`
@@ -158,6 +173,13 @@ fun InternalPromptEditScreen(
         category.equals("alt", ignoreCase = true)
     val isAltWorkers = category.equals("alt", ignoreCase = true)
     var workers by remember(resetTick) { mutableStateOf(internalPrompt?.workers ?: emptyList()) }
+    // Run-time worker selection: *CONFIGURED (use [workers]) vs *SELECT (pick
+    // workers each run). Only shown for the worker prompts that drive a covered
+    // kind (see [internalPromptSupportsModelSelection]).
+    var selectedModelSelection by remember(resetTick) {
+        mutableStateOf(internalPrompt?.modelSelection ?: com.ai.model.MODEL_SELECTION_CONFIGURED)
+    }
+    val showModelSelectionSwitch = internalPromptSupportsModelSelection(category, name)
     // Per-prompt Parameters / System-prompt preset NAMES ("*NONE" = unset).
     var selectedParametersName by remember(resetTick) { mutableStateOf(internalPrompt?.parameters ?: "*NONE") }
     var selectedSystemPromptName by remember(resetTick) { mutableStateOf(internalPrompt?.systemPrompt ?: "*NONE") }
@@ -246,7 +268,8 @@ fun InternalPromptEditScreen(
             model = if (!isWorkers && pmActive) model else null,
             parameters = selectedParametersName,
             systemPrompt = selectedSystemPromptName,
-            workers = if (isWorkers) workers else emptyList()
+            workers = if (isWorkers) workers else emptyList(),
+            modelSelection = if (showModelSelectionSwitch) selectedModelSelection else com.ai.model.MODEL_SELECTION_CONFIGURED
         )
         Spacer(modifier = Modifier.height(8.dp))
         if (isAddMode) {
@@ -457,6 +480,27 @@ fun InternalPromptEditScreen(
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("+ Add worker", fontSize = 13.sp) }
             }
+            if (showModelSelectionSwitch) {
+                SectionCard {
+                    Text("Model selection", fontSize = 12.sp, color = AppColors.TextTertiary)
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = selectedModelSelection == com.ai.model.MODEL_SELECTION_CONFIGURED,
+                            onClick = { selectedModelSelection = com.ai.model.MODEL_SELECTION_CONFIGURED },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        ) { Text("Configured", fontSize = 13.sp) }
+                        SegmentedButton(
+                            selected = selectedModelSelection == com.ai.model.MODEL_SELECTION_SELECT,
+                            onClick = { selectedModelSelection = com.ai.model.MODEL_SELECTION_SELECT },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        ) { Text("Select at run time", fontSize = 13.sp) }
+                    }
+                    Text(
+                        "*CONFIGURED uses the workers above. *SELECT shows the worker picker each time, just before this runs.",
+                        fontSize = 11.sp, color = AppColors.TextDim
+                    )
+                }
+            }
           }
 
             // Per-prompt Parameters / System-prompt presets. When set,
@@ -526,7 +570,7 @@ fun InternalPromptEditScreen(
  *  mode. Each user action emits a fresh normalised [Worker] via
  *  [onChange]. Reuses the same controls as the single-prompt editor. */
 @Composable
-private fun WorkerRowEditor(
+internal fun WorkerRowEditor(
     index: Int,
     worker: Worker,
     agentNames: List<String>,

@@ -153,7 +153,7 @@ class CompareEngine internal constructor(
      *  Pre-creates agents×meta CELL placeholders (sentinel provider/model),
      *  publishes the run with all cells PENDING, then scores each cell through
      *  the worker batch. */
-    fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String, buildKey: String? = null): Job? {
+    fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? {
         val rk: CompareRunKey = reportId
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -163,6 +163,7 @@ class CompareEngine internal constructor(
                 withTracerTags(reportId = reportId, category = TRACE_CATEGORY, runId = runId) {
                     val aiSettings = appViewModel.uiState.value.aiSettings
                     val prompt = comparePromptById(aiSettings, promptId)
+                        ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
                     if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                         AppLog.w("Compare", "meta_compare prompt not configured / no runnable workers — aborting")
                         return@withTracerTags

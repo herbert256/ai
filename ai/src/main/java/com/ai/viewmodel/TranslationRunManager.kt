@@ -124,7 +124,11 @@ class TranslationRunManager(
          *  "Preparing…" popup. Non-null only from the manual Translate
          *  launch; resume / cross-translate paths pass null and skip the
          *  popup. The build phase = persisting the placeholder rows below. */
-        buildKey: String? = null
+        buildKey: String? = null,
+        /** When non-null (the driving "translate-text" prompt is *SELECT), run
+         *  the whole translation against these user-picked workers instead of
+         *  the configured translate-text / translate-title chains. */
+        overrideWorkers: List<com.ai.model.Worker>? = null
     ): Pair<String, Job> {
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
@@ -285,7 +289,9 @@ class TranslationRunManager(
             // on a 429 / miss. An item only ERRORs when the whole chain
             // is exhausted.
             val textPrompt = workerTranslatePrompt(aiSettings, title = false)
+                ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
             val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
+                ?.let { if (overrideWorkers != null) it.copy(workers = overrideWorkers) else it }
             if (textPrompt == null && titlePrompt == null) {
                 AppLog.w("Translation", "no workers/translate-text|title prompt — marking all items error")
                 itemsWithIds.forEach {

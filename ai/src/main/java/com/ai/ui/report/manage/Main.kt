@@ -213,22 +213,22 @@ fun ReportsScreen(
     onCopyReport: (String) -> Unit = {},
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
-    onRunSecondary: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
+    onRunSecondary: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope, List<String>, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _, _, _, _, _ -> },
     /** Fired by the View screen's "Language missing" popup. Routes
      *  to ReportViewModel.translateMissingItems. */
     onTranslateMissingItems: (String, List<com.ai.viewmodel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
     onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?, Boolean, String?) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
-    onRunFanIn: (String, com.ai.model.InternalPrompt, String?, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
+    onRunFanIn: (String, com.ai.model.InternalPrompt, String?, List<String>, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
      *  active model. The new report's id is built inside the
      *  ReportViewModel; this lambda navigates after the save. */
     onCreateReportFromFanOut: (String, String, String) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
-    onRunRerank: (String, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _ -> },
-    onRunModeration: (String, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _ -> },
-    onRunTournament: (String, String?) -> Unit = { _, _ -> },
-    onRunJudgeJudges: (String, String?) -> Unit = { _, _ -> },
+    onRunRerank: (String, com.ai.data.SecondaryLanguageScope, List<String>, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _, _, _ -> },
+    onRunModeration: (String, com.ai.data.SecondaryLanguageScope, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
+    onRunTournament: (String, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
+    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
     onDeleteTournamentRun: (String) -> Unit = { },
     onDeleteJudgeRun: (String) -> Unit = { },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
@@ -266,7 +266,7 @@ fun ReportsScreen(
     /** Item ids currently parked on a provider rate / concurrency gate;
      *  feeds the translation L1 "Throttled" stat. */
     throttledTranslationItems: Set<String> = emptySet(),
-    onStartTranslation: (String, String, String, String?) -> String? = { _, _, _, _ -> null },
+    onStartTranslation: (String, String, String, String?, List<com.ai.model.Worker>?) -> String? = { _, _, _, _, _ -> null },
     /** Build-stage progress for big batches, keyed by the UUID the launch
      *  site minted (collected from [AppViewModel.batchBuildProgress]). The
      *  blocking "Preparing…" overlay shows while `st.pendingBuildKey`'s
@@ -1068,9 +1068,28 @@ fun ReportsScreen(
         return
     }
 
-    // Meta runs now go straight through the Meta worker swarm — there's
-    // no model picker. When the scope step sets the meta prompt, fire the
-    // run and tear down the whole meta-creation stack.
+    // Run-time worker picker (a *SELECT Internal Prompt is about to run): take
+    // over the screen so the user picks workers before the run kicks off.
+    st.runtimeWorkerPick.value?.let { req ->
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { st.runtimeWorkerPick.value = null; req.onCancel() },
+            com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null
+        ) {
+            RuntimeWorkerPickerScreen(
+                titleText = req.titleText,
+                initial = req.initial,
+                aiSettings = aiSettings,
+                onConfirm = { picked -> st.runtimeWorkerPick.value = null; req.onConfirm(picked) },
+                onBack = { st.runtimeWorkerPick.value = null; req.onCancel() }
+            )
+        }
+        return
+    }
+
+    // Meta runs go through the Meta worker swarm; when the driving "meta"
+    // worker prompt is *SELECT, ask for the workers first (else run straight).
     val pickerMetaPrompt = secondaryPickerMetaPrompt
     if (pickerMetaPrompt != null && currentReportId != null) {
         val rid = currentReportId
@@ -1081,7 +1100,14 @@ fun ReportsScreen(
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null)
+            val driver = aiSettings.workerPromptByName("meta")
+            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                    titleText = "Meta — pick workers", initial = driver.workers,
+                    onConfirm = { picked -> onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, picked) },
+                    onCancel = {}
+                )
+            } else onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, null)
         }
         return
     }
@@ -1096,7 +1122,14 @@ fun ReportsScreen(
         LaunchedEffect(fanInPicker) {
             fanInPickerPrompt = null
             fanInPickerSourceLanguage = null
-            onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null)
+            val driver = aiSettings.workerPromptByName("fan-in")
+            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                    titleText = "Fan-in — pick workers", initial = driver.workers,
+                    onConfirm = { picked -> onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, picked) },
+                    onCancel = {}
+                )
+            } else onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, null)
         }
         return
     }
@@ -1121,20 +1154,29 @@ fun ReportsScreen(
                         // Build stage: show the blocking "Preparing…" popup,
                         // persist all placeholders, then land on the
                         // Translation L1 page only once the build is done.
-                        val key = java.util.UUID.randomUUID().toString()
-                        onBeginBuild(key, 0, "Translating to ${lang.name}")
-                        pendingBuildKey = key
-                        val newRunId = onStartTranslation(rid, lang.name, lang.native, key)
-                        if (newRunId.isNullOrBlank()) {
-                            onClearBuild(key); pendingBuildKey = null
-                        } else {
-                            pendingBuildNav = { openTranslationRunId = newRunId }
-                            pendingBuildCancel = {
-                                translationLifecycle.onDeleteRun(rid, newRunId)
-                                onClearBuild(key)
-                                pendingBuildKey = null; pendingBuildNav = null; pendingBuildCancel = null
+                        val startWith = { ws: List<com.ai.model.Worker>? ->
+                            val key = java.util.UUID.randomUUID().toString()
+                            onBeginBuild(key, 0, "Translating to ${lang.name}")
+                            pendingBuildKey = key
+                            val newRunId = onStartTranslation(rid, lang.name, lang.native, key, ws)
+                            if (newRunId.isNullOrBlank()) {
+                                onClearBuild(key); pendingBuildKey = null
+                            } else {
+                                pendingBuildNav = { openTranslationRunId = newRunId }
+                                pendingBuildCancel = {
+                                    translationLifecycle.onDeleteRun(rid, newRunId)
+                                    onClearBuild(key)
+                                    pendingBuildKey = null; pendingBuildNav = null; pendingBuildCancel = null
+                                }
                             }
                         }
+                        // *SELECT on the driving translate-text prompt → pick the
+                        // workers once for the whole run; else run straight.
+                        val driver = aiSettings.workerPromptByName("translate-text")
+                        if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                            st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                                "Translate — pick workers", driver.workers, { picked -> startWith(picked) }, {})
+                        } else startWith(null)
                     }
                 },
                 onBack = { showTranslateLanguagePicker = false },
@@ -1153,7 +1195,14 @@ fun ReportsScreen(
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            onRunRerank(rid, ls, emptyList(), null)
+            val driver = aiSettings.workerPromptByName("second-rerank")
+            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                    titleText = "Rerank — pick workers", initial = driver.workers,
+                    onConfirm = { picked -> onRunRerank(rid, ls, emptyList(), null, picked) },
+                    onCancel = {}
+                )
+            } else onRunRerank(rid, ls, emptyList(), null, null)
         }
         return
     }
@@ -1168,7 +1217,14 @@ fun ReportsScreen(
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            onRunModeration(rid, ls)
+            val driver = aiSettings.workerPromptByName("second-moderation")
+            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                    titleText = "Moderation — pick workers", initial = driver.workers,
+                    onConfirm = { picked -> onRunModeration(rid, ls, picked) },
+                    onCancel = {}
+                )
+            } else onRunModeration(rid, ls, null)
         }
         return
     }
@@ -1357,11 +1413,11 @@ fun ReportsScreen(
         return
     }
     if (altTgt != null && showAltTranslatePicker && currentReportId != null) {
-        // Find-alternative translation now runs straight on the
-        // "Find translation" worker swarm — no model picker. One
-        // candidate per swarm member. Falls back to the picker only if
-        // the swarm is empty (misconfigured).
-        val autoModels = com.ai.viewmodel.findAltTranslationModels(aiSettings)
+        // Find-alternative translation runs on the "find-translation" worker
+        // swarm — no model picker — UNLESS that prompt is *SELECT, which empties
+        // the auto models so the picker shows. Empty swarm also falls back.
+        val findTransSelect = aiSettings.workerPromptByName("find-translation")?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT
+        val autoModels = if (findTransSelect) emptyList() else com.ai.viewmodel.findAltTranslationModels(aiSettings)
         if (autoModels.isNotEmpty()) {
             LaunchedEffect(altTgt) {
                 onStartAltTranslationFanOut(altTgt.reportId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, autoModels, emptyList(), null)

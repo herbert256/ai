@@ -100,6 +100,16 @@ fun altWorkerModels(aiSettings: Settings, flow: AltPromptFlow): List<ReportModel
         .distinctBy { "${it.provider.id}/${it.model}" }
 }
 
+/** The Model-selection mode of the "alt" prompt a [flow] composes (or
+ *  *CONFIGURED when none). When *SELECT, the caller forces the model-selection
+ *  screen (empties the auto-resolved workers) so the user picks per run. */
+fun altPromptModelSelection(aiSettings: Settings, flow: AltPromptFlow): String {
+    val name = altPromptNameFor(flow) ?: return com.ai.model.MODEL_SELECTION_CONFIGURED
+    return aiSettings.internalPrompts.firstOrNull {
+        it.category == "alt" && it.name.equals(name, ignoreCase = true)
+    }?.modelSelection ?: com.ai.model.MODEL_SELECTION_CONFIGURED
+}
+
 /** The worker models for the Find-alternative-translation flow: resolve
  *  the workers/find-translation holder prompt's swarm to concrete
  *  provider/model [ReportModel]s (one candidate each). Empty when the

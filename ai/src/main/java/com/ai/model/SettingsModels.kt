@@ -254,8 +254,20 @@ data class InternalPrompt(
      *  succeeds. Each [Worker] is a Model / Agent / Flock / Swarm pick;
      *  Flock / Swarm entries expand to their members (see
      *  [Settings.expandWorker]). Empty for every other category. */
-    val workers: List<Worker> = emptyList()
+    val workers: List<Worker> = emptyList(),
+    /** Worker selection mode for the kinds this prompt drives (Meta / Fan-in /
+     *  Rerank / Moderation / the type-B batches / Find-alternative).
+     *  [MODEL_SELECTION_CONFIGURED] (default) = run against the configured
+     *  [workers]. [MODEL_SELECTION_SELECT] = at run time, before the work
+     *  starts, show the +Agent/+Flock/+Swarm/+Model picker and run against the
+     *  workers the user picks (never written back here). Only meaningful for the
+     *  worker-carrying prompts that drive those kinds. */
+    val modelSelection: String = MODEL_SELECTION_CONFIGURED
 )
+
+/** Worker-selection sentinels for [InternalPrompt.modelSelection]. */
+const val MODEL_SELECTION_CONFIGURED = "*CONFIGURED"
+const val MODEL_SELECTION_SELECT = "*SELECT"
 
 /** One entry in a "workers"-category prompt's chain. One of four kinds,
  *  told apart by which field is set (the others stay at the "*N/A"
@@ -767,6 +779,9 @@ data class Settings(
     fun getSystemPromptById(id: String) = systemPrompts.find { it.id == id }
     fun getInternalPromptById(id: String) = internalPrompts.find { it.id == id }
     fun getInternalPromptByName(name: String) = internalPrompts.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    /** The "workers"-category prompt named [name] — the worker driver for a
+     *  secondary kind (e.g. "meta", "second-rerank", "tournament"). Null if absent. */
+    fun workerPromptByName(name: String) = internalPrompts.firstOrNull { it.category == "workers" && it.name.equals(name, ignoreCase = true) }
     fun getExamplePromptById(id: String) = examplePrompts.find { it.id == id }
     fun getParametersById(id: String) = parameters.find { it.id == id }
     fun getParametersByName(name: String) = parameters.find { it.name.equals(name, ignoreCase = true) }
