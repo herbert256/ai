@@ -200,7 +200,7 @@ fun TournamentPodiumViewScreen(
             }
             if (showTotal) {
                 // Total view: one row per model with a column per ranking
-                // method (1..5), sorted by the model's average position. No
+                // method (1..N), sorted by the model's average position. No
                 // green Leaderboard line, no per-method rank cards.
                 item {
                     TournamentStatsStrip(
@@ -473,13 +473,7 @@ private fun MethodSelector(selected: TournamentMethod, onSelect: (TournamentMeth
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        listOf(
-            TournamentMethod.COPELAND,
-            TournamentMethod.ELO,
-            TournamentMethod.DAVIDSON,
-            TournamentMethod.TIDEMAN,
-            TournamentMethod.MARKOV
-        ).forEach { method ->
+        TournamentMethod.entries.forEach { method ->
             TournamentMethodChip(methodLabel(method), selected == method) {
                 onSelect(method)
             }
@@ -894,11 +888,14 @@ private fun methodLabel(method: TournamentMethod): String = when (method) {
     TournamentMethod.DAVIDSON -> "Davidson"
     TournamentMethod.TIDEMAN -> "Tideman"
     TournamentMethod.MARKOV -> "Markov"
+    TournamentMethod.SCHULZE -> "Schulze"
+    TournamentMethod.MINIMAX -> "Minimax"
+    TournamentMethod.COLLEY -> "Colley"
 }
 
 /** Total view: every ranking method applied to the same win matrix,
  *  laid out as a model × method position grid. Columns are numbered
- *  1..5 (one per [TournamentMethod] in declaration order); a legend at
+ *  1..N (one per [TournamentMethod] in declaration order); a legend at
  *  the bottom maps each number to its method. Rows are sorted by the
  *  model's average position across all methods. */
 @Composable
@@ -930,8 +927,10 @@ private fun TournamentTotalTable(matrixJson: String?, rankings: List<TournamentR
     }.sortedBy { it.avg }
 
     val cModel = 150.dp; val cCol = 40.dp
-    Column {
-        // Header: Model | 1 | 2 | 3 | 4 | 5 | avg
+    // Horizontally scrollable — one column per ranking method, so the grid
+    // grows past the screen as methods are added.
+    Column(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+        // Header: Model | 1 | 2 | … | avg
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
             Text("Model", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppColors.TextTertiary, modifier = Modifier.width(cModel))
             methods.forEachIndexed { i, _ ->
@@ -972,7 +971,10 @@ private fun scoreText(score: Double?, method: TournamentMethod): String {
         TournamentMethod.COPELAND,
         TournamentMethod.DAVIDSON,
         TournamentMethod.TIDEMAN,
-        TournamentMethod.MARKOV -> String.format(java.util.Locale.US, "%.1f", score)
+        TournamentMethod.MARKOV,
+        TournamentMethod.SCHULZE,
+        TournamentMethod.MINIMAX,
+        TournamentMethod.COLLEY -> String.format(java.util.Locale.US, "%.1f", score)
         else -> formatRerankScore(score)
     }
 }

@@ -16,7 +16,7 @@ import com.google.gson.JsonParser
  * (`extractTopRankedIds`).
  */
 
-enum class TournamentMethod { COPELAND, ELO, DAVIDSON, TIDEMAN, MARKOV }
+enum class TournamentMethod { COPELAND, ELO, DAVIDSON, TIDEMAN, MARKOV, SCHULZE, MINIMAX, COLLEY }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
@@ -107,6 +107,9 @@ fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (metho
     TournamentMethod.DAVIDSON -> davidson(m)
     TournamentMethod.TIDEMAN -> tideman(m)
     TournamentMethod.MARKOV -> markov(m)
+    TournamentMethod.SCHULZE -> schulze(m)
+    TournamentMethod.MINIMAX -> minimax(m)
+    TournamentMethod.COLLEY -> colley(m)
 }
 
 /** Win-count / Copeland: rank by total fractional wins; score = win-rate
@@ -350,6 +353,135 @@ fun elo(m: WinMatrix): List<RankRow> {
         RankScored(m.ids[i], Math.round(r[i]).toDouble(), "Elo %d".format(Math.round(r[i])))
     }
     return assignRanks(scored)
+}
+
+/** Directed pairwise points — the total credit response i earned against j
+ *  across both judged orientations (0 for an uncontested pair). The shared
+ *  building block for the Condorcet methods below. */
+private fun WinMatrix.points(i: Int, j: Int): Double =
+    wins[i][j] * (games.getOrNull(i)?.getOrNull(j) ?: 0.0)
+
+/** Schulze method (beatpaths). Seeds each ordered pair with the winner's
+ *  pairwise points, then computes the strongest (widest) path between every
+ *  pair via Floyd–Warshall; response i outranks j when its strongest path to
+ *  j beats j's path back. It's an ordering method, so the visible score is
+ *  rank-based and the beatpath win count is the reason. A respected
+ *  Condorcet method (used by Debian / Wikimedia), distinct from Tideman's
+ *  ranked pairs in how it resolves cycles. */
+fun schulze(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
+    // p[i][j] = strength of the strongest path i→j; seed with the direct
+    // winning support (the winner's points; 0 when i didn't win the pair).
+    val p = Array(n) { i ->
+        DoubleArray(n) { j -> if (i != j && m.points(i, j) > m.points(j, i)) m.points(i, j) else 0.0 }
+    }
+    for (k in 0 until n) for (i in 0 until n) if (i != k) for (j in 0 until n) if (j != i && j != k) {
+        val widen = minOf(p[i][k], p[k][j])
+        if (widen > p[i][j]) p[i][j] = widen
+    }
+    val beatWins = IntArray(n) { i -> (0 until n).count { j -> j != i && p[i][j] > p[j][i] } }
+    val strength = DoubleArray(n) { i -> (0 until n).sumOf { j -> p[i][j] } }
+    val order = (0 until n).sortedWith(
+        compareByDescending<Int> { beatWins[it] }
+            .thenByDescending { strength[it] }
+            .thenBy { m.ids[it] }
+    )
+    val denom = (n - 1).coerceAtLeast(1)
+    return order.mapIndexed { rank, i ->
+        val score = 100.0 * (n - 1 - rank) / denom
+        RankRow(
+            id = m.ids[i],
+            rank = rank + 1,
+            score = Math.round(score * 10.0) / 10.0,
+            reason = String.format(java.util.Locale.US, "Beats %d via strongest paths", beatWins[i])
+        )
+    }
+}
+
+/** Minimax (Simpson–Kramer). Each response's worst pairwise defeat is the
+ *  largest margin by which any opponent beat it; the response whose worst
+ *  defeat is smallest ranks first (a Condorcet winner's worst defeat is 0).
+ *  An ordering method — rank-based score, worst-defeat margin as the reason. */
+fun minimax(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
+    val worstDefeat = DoubleArray(n) { i ->
+        (0 until n).filter { it != i }
+            .maxOfOrNull { j -> (m.points(j, i) - m.points(i, j)).coerceAtLeast(0.0) } ?: 0.0
+    }
+    val order = (0 until n).sortedWith(
+        compareBy<Int> { worstDefeat[it] }.thenBy { m.ids[it] }
+    )
+    val denom = (n - 1).coerceAtLeast(1)
+    return order.mapIndexed { rank, i ->
+        val score = 100.0 * (n - 1 - rank) / denom
+        RankRow(
+            id = m.ids[i],
+            rank = rank + 1,
+            score = Math.round(score * 10.0) / 10.0,
+            reason = String.format(java.util.Locale.US, "Worst defeat margin %.1f", worstDefeat[i])
+        )
+    }
+}
+
+/** Colley's bias-free rating (the sports/BCS method). Solves the Colley
+ *  system C·r = b, where C_ii = 2 + games_i, C_ij = −games_ij, and
+ *  b_i = 1 + (wins_i − losses_i)/2. Ratings centre near 0.5 and fold in
+ *  schedule strength without margin bias; the visible score rescales them so
+ *  the strongest response is 100. */
+fun colley(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
+    val games = Array(n) { i -> DoubleArray(n) { j -> if (i == j) 0.0 else (m.games.getOrNull(i)?.getOrNull(j) ?: 0.0) } }
+    val totalGames = DoubleArray(n) { i -> (0 until n).sumOf { j -> games[i][j] } }
+    // Fractional wins (a tie counts 0.5 each); losses are the complement.
+    val wins = DoubleArray(n) { i -> (0 until n).sumOf { j -> m.wins[i][j] * games[i][j] } }
+    val losses = DoubleArray(n) { i -> totalGames[i] - wins[i] }
+    val c = Array(n) { i -> DoubleArray(n) { j -> if (i == j) 2.0 + totalGames[i] else -games[i][j] } }
+    val b = DoubleArray(n) { i -> 1.0 + 0.5 * (wins[i] - losses[i]) }
+    val r = solveLinearSystem(c, b)
+    val scored = if (r == null || r.any { !it.isFinite() }) {
+        // C is symmetric positive-definite so this shouldn't happen; fall back
+        // to a plain win share if the solve degenerates.
+        (0 until n).map { i ->
+            val share = if (totalGames[i] > 0.0) 100.0 * wins[i] / totalGames[i] else 0.0
+            RankScored(m.ids[i], Math.round(share * 10.0) / 10.0, "Win share %.0f%%".format(share))
+        }
+    } else {
+        val maxR = r.maxOrNull() ?: 1.0
+        (0 until n).map { i ->
+            val raw = if (maxR > 0.0) 100.0 * r[i] / maxR else 0.0
+            RankScored(m.ids[i], Math.round(raw * 10.0) / 10.0,
+                String.format(java.util.Locale.US, "Colley rating %.3f", r[i]))
+        }
+    }
+    return assignRanks(scored)
+}
+
+/** Solve A·x = b for a small dense system via Gauss–Jordan elimination with
+ *  partial pivoting. Returns null if the system is singular. A and b are
+ *  copied internally, not mutated. */
+private fun solveLinearSystem(a: Array<DoubleArray>, b: DoubleArray): DoubleArray? {
+    val n = b.size
+    if (n == 0) return DoubleArray(0)
+    val mtx = Array(n) { i -> DoubleArray(n + 1) { col -> if (col < n) a[i][col] else b[i] } }
+    for (col in 0 until n) {
+        var pivot = col
+        for (r in col + 1 until n) if (kotlin.math.abs(mtx[r][col]) > kotlin.math.abs(mtx[pivot][col])) pivot = r
+        if (kotlin.math.abs(mtx[pivot][col]) < 1e-12) return null
+        if (pivot != col) { val tmp = mtx[pivot]; mtx[pivot] = mtx[col]; mtx[col] = tmp }
+        for (r in 0 until n) {
+            if (r == col) continue
+            val factor = mtx[r][col] / mtx[col][col]
+            if (factor == 0.0) continue
+            for (c in col..n) mtx[r][c] -= factor * mtx[col][c]
+        }
+    }
+    return DoubleArray(n) { i -> mtx[i][n] / mtx[i][i] }
 }
 
 private data class RankScored(val id: Int, val score: Double, val reason: String)
