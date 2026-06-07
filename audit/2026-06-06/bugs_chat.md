@@ -255,7 +255,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Two separate `produceState` blocks both hit disk on the same `historyVersion`: one counts sessions, the other loads them all.
 **Root cause:** `hasChatHistory` could be derived from `allSessionsForHub.isNotEmpty()` instead of a separate `getSessionCountAsync()` call.
 **Proposed fix:** Derive `hasChatHistory` from the already-loaded list.
-**Status:** Open
+**Status:** Fixed in `ChatHub.kt` by deriving `hasChatHistory` from the hub session list instead of issuing a second disk count.
 
 ### Bug 34 — Severity: LOW — Category: UX
 **Location:** ChatHub.kt:92-98, 215-233 (`UnfinishedChatPill`)

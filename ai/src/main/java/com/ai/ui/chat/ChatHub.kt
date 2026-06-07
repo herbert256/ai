@@ -61,12 +61,10 @@ fun ChatsHubScreen(
         }
     }
     val historyVersion by ChatHistoryManager.historyVersion.collectAsState()
-    val hasChatHistory by produceState(initialValue = false, historyVersion) {
-        value = ChatHistoryManager.getSessionCountAsync() > 0
-    }
     val allSessionsForHub by produceState<List<com.ai.data.ChatSession>>(initialValue = emptyList(), historyVersion) {
         value = ChatHistoryManager.getAllSessionsAsync().sortedByDescending { it.updatedAt }
     }
+    val hasChatHistory = allSessionsForHub.isNotEmpty()
     val pinnedSessions = allSessionsForHub.filter { it.pinned }
     val recentSessions = allSessionsForHub.filter { !it.pinned }.take(3)
     // "Unfinished" chats — the user-visible last message is from the
