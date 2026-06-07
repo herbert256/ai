@@ -497,8 +497,15 @@ private suspend fun AnalysisRepository.analyzeGemini(
     val statusCode = response.code()
     return if (response.isSuccessful) {
         val body = response.body()
-        val content = body?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-            ?: body?.candidates?.flatMap { it.content?.parts ?: emptyList() }?.firstNotNullOfOrNull { it.text }
+        val content = body?.candidates
+            ?.asSequence()
+            ?.mapNotNull { candidate ->
+                candidate.content?.parts
+                    ?.mapNotNull { it.text }
+                    ?.joinToString(separator = "")
+                    ?.takeIf { it.isNotEmpty() }
+            }
+            ?.firstOrNull()
         val rawUsageJson = formatUsageJson(body?.usageMetadata)
         val usage = body?.usageMetadata?.toTokenUsage()
         val webData = extractGeminiWebSearch(body)

@@ -134,7 +134,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Content is taken from `candidates[0].content.parts[0].text` then falls back to the first non-null text across all candidates' parts, but multi-part answers (text split across parts) keep only the first part — a multi-part Gemini answer is truncated to its first part.
 **Root cause:** `firstOrNull()`/`firstNotNullOfOrNull` instead of joining all `parts.text`.
 **Proposed fix:** Join all `parts.mapNotNull { it.text }` like the streaming extractor `extractGeminiContent` does (ApiStreaming.kt:295-297).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — non-streaming Gemini now joins every text part in the first candidate with text, matching the streaming extractor and avoiding truncated multi-part answers
 
 ### Bug 18 — Severity: LOW — Category: error body drain
 **Location:** ApiDispatch.kt:415-418, 467-470, 510-513 (non-stream error branches)
