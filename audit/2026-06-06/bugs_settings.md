@@ -466,7 +466,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Starting the stress test submits one report per Example Prompt, each running swarm "Level 2"'s full model set, with no cap and no displayed call count. The confirm warns "can be a lot of API calls" but doesn't show how many reports/models will fire.
 **Root cause:** No pre-flight count or cap surfaced before the fan-out.
 **Proposed fix:** Show "{N prompts × M models = K calls}" in the confirm so the spend is visible.
-**Status:** Open
+**Status:** Fixed in `StressTestScreen.kt` / `StressTestEngine.kt` by estimating active Level 2 members and showing prompts x models = API calls in the confirmation dialog.
 
 ---
 

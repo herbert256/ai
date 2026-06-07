@@ -33,6 +33,13 @@ class StressTestEngine internal constructor(
         val errorMessage: String? = null,
     )
 
+    data class Estimate(
+        val promptCount: Int,
+        val modelCount: Int,
+    ) {
+        val apiCallCount: Int get() = promptCount * modelCount
+    }
+
     /** Cumulative across every stress run this session — the IDs of every
      *  report any run launched, plus run-count and timing. The Stress Test
      *  Dashboard scopes all its metrics to [reportIds]. Reset clears it. */
@@ -55,6 +62,21 @@ class StressTestEngine internal constructor(
 
     @Volatile private var job: Job? = null
     val isRunning: Boolean get() = job?.isActive == true
+
+    fun estimate(): Estimate {
+        val settings = appViewModel.uiState.value.aiSettings
+        val level2 = settings.swarms.find { it.name == SWARM_NAME }
+        val modelCount = level2
+            ?.let { swarm ->
+                settings.getMembersForSwarms(setOf(swarm.id))
+                    .count { settings.isProviderActive(it.provider) }
+            }
+            ?: 0
+        return Estimate(
+            promptCount = settings.examplePrompts.size,
+            modelCount = modelCount,
+        )
+    }
 
     /** Kick off the stress test. No-op if one is already running. */
     fun start(context: Context) {

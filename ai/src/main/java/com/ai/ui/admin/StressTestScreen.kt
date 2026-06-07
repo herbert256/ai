@@ -96,13 +96,19 @@ fun StressTestScreen(
     }
 
     if (showConfirm) {
+        val estimate = engine.estimate()
+        val promptLabel = if (estimate.promptCount == 1) "prompt" else "prompts"
+        val modelLabel = if (estimate.modelCount == 1) "model" else "models"
+        val callLabel = if (estimate.apiCallCount == 1) "API call" else "API calls"
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("Start stress test?") },
             text = {
                 Text(
                     "Generates one report per Example Prompt with swarm \"Level 2\", all at once. " +
-                        "This can be a lot of API calls. Existing data is left untouched."
+                        "Current estimate: ${estimate.promptCount} $promptLabel x " +
+                        "${estimate.modelCount} active $modelLabel = ${estimate.apiCallCount} $callLabel. " +
+                        "Existing data is left untouched."
                 )
             },
             confirmButton = {
