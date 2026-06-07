@@ -284,12 +284,14 @@ internal fun retryAfterHintMs(response: Response, peekedBody: String?): Long? {
     }.getOrNull()
 }
 
-/** Best-effort model id for a request being benched. Gemini
- *  path-encodes it (`/v1beta/models/<model>:generateContent`);
- *  every other provider carries it in the JSON request body's
- *  `model` field. The request has already been sent by the time
- *  this runs, so re-reading the body is inspection-only. */
+/** Best-effort model id for a request being benched. Prefer the
+ *  trace tag installed by the caller; Gemini path-encodes it
+ *  (`/v1beta/models/<model>:generateContent`); every other provider
+ *  carries it in the JSON request body's `model` field. The request
+ *  has already been sent by the time this runs, so body re-reading is
+ *  only a fallback for untagged calls. */
 internal fun modelForRequest(request: okhttp3.Request): String? {
+    ApiTracer.currentModel?.takeIf { it.isNotBlank() }?.let { return it }
     if (request.url.host == "generativelanguage.googleapis.com") {
         return request.url.pathSegments.lastOrNull()
             ?.substringBefore(":")?.takeIf { it.isNotBlank() }
@@ -401,4 +403,3 @@ private fun nextMonthStartMs(): Long {
     cal.set(java.util.Calendar.MILLISECOND, 0)
     return cal.timeInMillis
 }
-

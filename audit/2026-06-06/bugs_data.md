@@ -240,7 +240,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** For a non-Gemini request, the model id is recovered by re-serializing the request body (`body.writeTo(buf)`). A one-shot/streaming `RequestBody` could throw or already be consumed, so the bench silently skips (`providerId != null && model not blank` fails) and the model is never benched despite a long-retry 429.
 **Root cause:** Re-reading a possibly-non-repeatable RequestBody after it was sent.
 **Proposed fix:** Carry the model id via a per-call tag (ApiTracer already has `currentModel`) instead of re-parsing the body.
-**Status:** Open
+**Status:** Fixed in `RateLimitRetry.kt` by resolving bench model ids from `ApiTracer.currentModel` before falling back to URL/body inspection.
 
 ### Bug 32 — Severity: LOW — Category: retry/dispatcher slot occupancy
 **Location:** RateLimitRetry.kt:146-180 (429 retry loop)
