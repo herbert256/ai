@@ -303,7 +303,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** When some rerank rows carry a numeric `score` and others only a `rank`, the Pareto-dominance and best-value computation compares score-scaled qualities against rank-scaled ones — incomparable units, so dominance/best-value can be wrong.
 **Root cause:** The fallback derives a synthetic quality `(n - rank + 1)` on a different scale from real model scores, then both feed the same `>=`/dominance comparison.
 **Proposed fix:** Use one consistent quality basis for all points (all-rank or all-score); if mixing is unavoidable, normalise to a common 0–1 scale before comparing.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Value view now derives all point quality values from one ordered rank scale before Pareto comparison
 
 ## File: ai/src/main/java/com/ai/ui/report/view/FanPair.kt
 
