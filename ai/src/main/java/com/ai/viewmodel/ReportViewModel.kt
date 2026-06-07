@@ -375,7 +375,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun generateGenericReports(
         context: Context,
         selectedAgentIds: Set<String>,
-        selectedSwarmIds: Set<String> = emptySet(),
+        /** Explicit "swarm:provider:model" ids of the swarm-sourced models the
+         *  user KEPT — NOT swarm ids (those would re-expand to the full swarm,
+         *  re-adding members the user removed on the select-models screen).
+         *  Kept distinct from [directModelIds] so swarm members still skip the
+         *  per-report-model param fallback (see directModelSids). */
+        swarmModelIds: Set<String> = emptySet(),
         directModelIds: Set<String> = emptySet(),
         parametersIds: List<String> = emptyList(),
         selectionParamsById: Map<String, List<String>> = emptyMap(),
@@ -421,7 +426,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             )
 
             val agents = selectedAgentIds.mapNotNull { aiSettings.getAgentById(it) }
-            val swarmMembers = aiSettings.getMembersForSwarms(selectedSwarmIds)
+            // Resolve the kept swarm members from their explicit ids — do NOT
+            // re-expand swarm ids (that's the "ran all 12 after removing 3" bug).
+            val swarmMembers = swarmModelIds.mapNotNull { mid ->
+                val parts = mid.removePrefix("swarm:").split(":", limit = 2)
+                val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null) ?: return@mapNotNull null
+                SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
+            }
             val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val uniqueDirectModelIds = directModelIds.filter { it !in swarmMemberIds }.toSet()
 
@@ -2129,11 +2140,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // Prefer a staged list from Edit Models — falls back to the on-disk agent set.
             val rebuilt = if (staged.isNotEmpty()) staged else reportToModels(report, ai)
             val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
-            val swarmIds = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
+            // Kept swarm members from their explicit (provider, model) — never
+            // re-expand swarm ids, which re-adds removed members (e.g. via Edit
+            // Models). Distinct from direct models so they skip the report-model
+            // param fallback (directModelSids).
+            val swarmMembers = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.map { SwarmMember(it.provider, it.model) }
+            val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val directIds = rebuilt.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val agents = agentIds.mapNotNull { ai.getAgentById(it) }
-            val swarmMembers = ai.getMembersForSwarms(swarmIds)
-            val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val uniqueDirectIds = directIds.filter { it !in swarmMemberIds }.toSet()
             val directModels = uniqueDirectIds.mapNotNull { mid ->
                 val parts = mid.removePrefix("swarm:").split(":", limit = 2)
@@ -2315,13 +2329,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val ai = state.aiSettings
             val rebuilt = reportToModels(report, ai)
             val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
-            val swarmIds = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }
-                .mapNotNull { it.sourceId }.toSet()
+            // Kept swarm members from their explicit (provider, model) — never
+            // re-expand swarm ids, which re-adds removed members.
+            val swarmMembers = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.map { SwarmMember(it.provider, it.model) }
+            val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val directIds = rebuilt.filter { it.sourceType == "model" }
                 .map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val agents = agentIds.mapNotNull { ai.getAgentById(it) }
-            val swarmMembers = ai.getMembersForSwarms(swarmIds)
-            val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val uniqueDirectIds = directIds.filter { it !in swarmMemberIds }.toSet()
             val directModels = uniqueDirectIds.mapNotNull { mid ->
                 val parts = mid.removePrefix("swarm:").split(":", limit = 2)

@@ -593,12 +593,18 @@ fun ReportsScreenNav(
         },
         onGenerate = { models, paramsIds, reportType ->
             val agentIds = models.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
-            val swarmIds = models.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
+            // Pass the swarm-sourced models as EXPLICIT (provider, model) ids of
+            // exactly the members the user kept — never swarm ids, which were
+            // re-expanded to the full swarm at generation, re-adding members the
+            // user removed (the "ran all 12 after removing 3" bug). Agents stay
+            // agent ids — each is its own row, so removing one already drops it.
+            val swarmModelIds = models.filter { it.sourceType == "swarm" && it.type == "model" }
+                .map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val directIds = models.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             viewModel.saveReportAgents(agentIds)
             viewModel.saveReportModels(models.map(::encodeSavedReportModelSelection).toSet())
             reportViewModel.generateGenericReports(
-                context = context, selectedAgentIds = agentIds, selectedSwarmIds = swarmIds,
+                context = context, selectedAgentIds = agentIds, swarmModelIds = swarmModelIds,
                 directModelIds = directIds, parametersIds = paramsIds, reportType = reportType
             )
         },
