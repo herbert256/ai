@@ -134,7 +134,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Two display messages sharing role + millisecond `timestamp` + identical content would collide on the composite key and crash Compose ("key already used").
 **Root cause:** Key = `role_timestamp_content.hashCode()`; the content hash disambiguates most cases but two identical short messages constructed in the same ms (e.g. duplicate user "ok") still collide. Very narrow — unconfirmed in practice.
 **Proposed fix:** Add a stable per-message UUID to `ChatMessage` (as `DualMessage` already has) and key on that.
-**Status:** Open
+**Status:** Fixed — `ChatMessage` now carries a default per-message UUID and the chat LazyColumn keys on that id, with a legacy composite-plus-index fallback for messages loaded from older JSON without ids.
 
 ### Bug 18 — Severity: LOW — Category: cost attribution
 **Location:** ChatScreens.kt:1143-1187 (`kickOffChatTitleGeneration` → `analyzeWithAgent`)

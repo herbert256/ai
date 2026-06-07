@@ -789,13 +789,14 @@ fun ChatSessionScreen(
                 ) {
                     items(
                         displayMessages.size,
-                        // Stable, non-positional key: role + timestamp + content
-                        // hash. Including the list index made the key positional,
-                        // so any insertion re-keyed every following item and forced
-                        // full re-composition. The content hash disambiguates two
-                        // messages that share role+timestamp (system + first user
-                        // seeded in the same ms).
-                        key = { "${displayMessages[it].role}_${displayMessages[it].timestamp}_${displayMessages[it].content.hashCode()}" }
+                        // New messages carry a persisted UUID. Legacy
+                        // sessions saved before that field fall back to a
+                        // composite plus index so duplicate old rows cannot
+                        // collide and crash LazyColumn.
+                        key = {
+                            val msg = displayMessages[it]
+                            msg.id ?: "legacy_${msg.role}_${msg.timestamp}_${msg.content.hashCode()}_$it"
+                        }
                     ) { idx ->
                         val msg = displayMessages[idx]
                         ChatMessageBubble(msg, userName, model, onNavigateToTraceFile, currentSessionId)
