@@ -385,7 +385,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The per-million pricing display ("12,34 / 56,78") uses comma decimals on a comma-decimal device, unlike the sibling `formatTokenPricePerMillion` which pins `Locale.US`.
 **Root cause:** `"%.2f".format(...)` uses the default locale.
 **Proposed fix:** Use `String.format(Locale.US, "%.2f", ...)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — per-million pricing display now uses `String.format(Locale.US, ...)`
 
 ## File: ai/src/main/java/com/ai/ui/helpers/RerankTable.kt
 
