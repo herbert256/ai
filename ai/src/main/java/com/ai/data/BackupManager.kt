@@ -233,6 +233,14 @@ object BackupManager {
             // first, destroy second.
             val staged = readAllEntriesValidated(context, tempZip)
             AppLog.d("Backup", "manifest version=$version, staged ${staged.size} entries (${staged.values.sumOf { it.size }} bytes)")
+            // Sanity floor before the destructive wipe: a structurally-valid
+            // backup with ZERO files/ entries (the historical "0 files" /
+            // symlink-skip regression) would otherwise wipe the device's
+            // reports / chats / KBs and write nothing back. Refuse here, before
+            // any prefs apply or wipe, so the current data stays untouched.
+            if (staged.keys.none { it.startsWith("files/") }) {
+                throw IllegalStateException("Backup contains no data files — refusing to restore; your current data is untouched.")
+            }
             // Commit prefs first — SharedPreferences.commit() is
             // synchronous and atomic per file, so once this returns
             // every restored prefs file is durable on disk. A process

@@ -499,7 +499,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Root cause:** Validate-then-write protects against mid-stream corruption but there is no sanity floor on the staged payload before the destructive wipe.
 **Reproduction:** Restore a backup produced by a build with the symlink-skip regression (manifest + prefs only, 0 file entries) — filesDir is wiped and nothing restored.
 **Proposed fix:** Refuse to proceed past the wipe when the staged set has zero `files/` entries (or fewer than the manifest implies); require a minimum payload sanity check.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — restore refuses (before any wipe/prefs apply) when the staged set has zero files/ entries
 
 ### Bug 65 — Severity: LOW — Category: silent partial backup
 **Location:** BackupManager.kt:576-582 (`addDirectoryRecursive` per-file catch)
