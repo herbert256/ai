@@ -1137,8 +1137,9 @@ private fun StreamingMessageBubble(content: String) {
 
 @Composable
 private fun AnimatedTextLines(content: String) {
-    val lines = content.split("\n")
+    val lines = remember(content) { content.lineSequence().toList() }
     val targetLineCount = lines.size
+    val animateLines = targetLineCount <= 12
     var visibleLineCount by remember { mutableIntStateOf(0) }
 
     // Key on the line-count target, not on `content`: keying on content
@@ -1146,8 +1147,8 @@ private fun AnimatedTextLines(content: String) {
     // and oscillate. The target only grows during streaming, so the loop walks
     // monotonically up to it. Snap when there are too many lines to reveal
     // gracefully (a 100-line response used to take ~50s at the old cadence).
-    LaunchedEffect(targetLineCount) {
-        if (targetLineCount > 30) {
+    LaunchedEffect(targetLineCount, animateLines) {
+        if (!animateLines) {
             visibleLineCount = targetLineCount
             return@LaunchedEffect
         }
@@ -1159,8 +1160,13 @@ private fun AnimatedTextLines(content: String) {
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         lines.forEachIndexed { index, line ->
-            val targetAlpha = if (index < visibleLineCount) 1f else 0f
-            val alpha by animateFloatAsState(targetAlpha, animationSpec = tween(300))
+            val alpha = if (animateLines) {
+                val targetAlpha = if (index < visibleLineCount) 1f else 0f
+                val animatedAlpha by animateFloatAsState(targetAlpha, animationSpec = tween(300))
+                animatedAlpha
+            } else {
+                1f
+            }
             Text(line, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.alpha(alpha))
         }
     }

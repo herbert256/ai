@@ -120,7 +120,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** During streaming, each chunk re-splits the entire accumulated content (`content.split("\n")`) and rebuilds up to 30 `Text` composables each driving an `animateFloatAsState`, on every chunk — measurable churn on long responses.
 **Root cause:** The composable is called with the full streaming content and recomposes per chunk; only the >30-line case snaps.
 **Proposed fix:** Lower the snap threshold, or memoize the split and only animate newly-added lines.
-**Status:** Open
+**Status:** Fixed in `ChatScreens.kt` by memoizing line splitting per content value and snapping responses above 12 lines without per-line animation states.
 
 ### Bug 16 — Severity: LOW — Category: performance
 **Location:** ChatScreens.kt:494-495 (`val displayMessages = messages.filter { it.role != "system" }`)
