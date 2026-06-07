@@ -51,7 +51,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Every keystroke (and every pasted character) in the provider API-key field triggers a full `onSave(aiSettings.withProvider(...))`, which serializes the entire Settings blob to SharedPreferences. Pasting a 100-char key writes the whole config ~100 times in rapid succession.
 **Root cause:** `LaunchedEffect(apiKey, selectedParametersIds, selectedSystemPromptId)` has no debounce. The sibling `ExternalServicesScreen` (SetupScreens.kt:716-734) was explicitly fixed with a 400 ms debounce + dispose-flush for exactly this reason; this screen never got the same fix.
 **Proposed fix:** Debounce the key write (e.g. `delay(400)` keyed on `apiKey`, flush on dispose), mirroring `ExternalServicesScreen`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - provider apiKey/params auto-save now debounced 400ms + flushed on dispose (shared saveProviderEdits), mirroring ExternalServicesScreen
 
 ### Bug 5 — Severity: MEDIUM — Category: unexpected spend / no confirmation
 **Location:** ServiceSettingsScreens.kt:417-457 (`ProviderModelSettingsScreen` "Test all models")
