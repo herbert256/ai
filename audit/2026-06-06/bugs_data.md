@@ -394,7 +394,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The chars/sec rate in the debug log uses the default locale; on the user's nl-NL device it renders `1,5` instead of `1.5`. Cosmetic (log only) but inconsistent with the repo's Locale.US discipline.
 **Root cause:** `String.format` default locale.
 **Proposed fix:** Use `String.format(Locale.US, "%.1f", rate)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — local LLM chars/sec debug log now formats with `Locale.US`
 
 ## File: ai/src/main/java/com/ai/data/ReportStorage.kt
 

@@ -11,6 +11,7 @@ import com.ai.data.TraceResponse
 import com.ai.data.createAppGson
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import java.io.File
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -177,7 +178,7 @@ object LocalLlm {
             recordTrace(modelName, prompt, out, durationMs = durMs, error = null)
             val outLen = out?.length ?: 0
             val rate = if (durMs > 0) (outLen.toDouble() * 1000.0 / durMs) else 0.0
-            AppLog.d("LocalLlm", "← generate $modelName outChars=$outLen ${durMs}ms (${"%.1f".format(rate)} chars/s)")
+            AppLog.d("LocalLlm", "← generate $modelName outChars=$outLen ${durMs}ms (${String.format(Locale.US, "%.1f", rate)} chars/s)")
             out
         } catch (e: Exception) {
             AppLog.e("LocalLlm", "generate failed: ${e.message}", e)
