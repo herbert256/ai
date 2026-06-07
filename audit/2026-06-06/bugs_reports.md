@@ -150,7 +150,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The translate-pair list uses index-based identity; when the row set changes (a new translation lands, or a report swap repopulates), Compose reuses item state by position rather than by `SecondaryResult.id`.
 **Root cause:** No `key = { it.id }` on the `items` call. The `expanded` map is keyed by `row.id` so the user-visible collapse state survives, but recomposition/animation efficiency and any future per-row remember would mis-associate.
 **Proposed fix:** Add `key = { it.id }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Translate view rows now use `SecondaryResult.id` as their LazyColumn key
 
 ### Bug 19 — Severity: LOW — Category: state leak across report swipe
 **Location:** Translate.kt:120 (`val expanded = remember { TranslateExpansionMap() }`)

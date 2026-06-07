@@ -206,7 +206,7 @@ fun TranslateViewScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
         ) {
-            items(rows) { row ->
+            items(rows, key = { it.id }) { row ->
                 TranslatePair(
                     row = row,
                     report = report,
