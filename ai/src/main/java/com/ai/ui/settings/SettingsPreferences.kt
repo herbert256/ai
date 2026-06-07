@@ -641,7 +641,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val outputTokens = usage.outputTokens
         com.ai.data.ApiUsageRates.record(provider, model, inputTokens, outputTokens)
         val normalizedKind = normalizeUsageKind(kind)
-        val category = normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)
+        val category = if (normalizedKind == "report") {
+            normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)
+        } else {
+            normalizedKind
+        }
         val costs = computeUsageCostSnapshot(provider, model, usage, searchUnits)
         val stats = ensureUsageStatsCache()
         val key = "${provider.id}::$model::$category"

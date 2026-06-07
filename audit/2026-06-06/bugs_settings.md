@@ -151,7 +151,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The `kind` argument passed by callers is overridden whenever `ApiTracer.currentCategory` is set: `category = normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)`. A call site that passes an explicit `kind` but runs inside a tracer-category block has its category silently replaced (cross-references the chat-audit cost-attribution bug).
 **Root cause:** `ApiTracer.currentCategory` takes precedence over the explicit `kind`.
 **Proposed fix:** Prefer the explicit non-default `kind` when provided, falling back to the tracer category only for the default.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — updateUsageStats now preserves explicit non-default kinds and only uses ApiTracer.currentCategory for the default report kind.
 
 ### Bug 17 — Severity: LOW — Category: redundant disk IO
 **Location:** SettingsPreferences.kt:419-424 (`savePromptToHistory`)
