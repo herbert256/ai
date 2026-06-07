@@ -271,6 +271,7 @@ dependencies {
     // Unit tests
     testImplementation(libs.junit)
     testImplementation(libs.truth)
+    testImplementation(libs.okhttp.mockwebserver3)
 
     // Instrumented tests (run on a connected device / emulator).
     // The Compose BOM is applied here too so ui-test-junit4 picks up
