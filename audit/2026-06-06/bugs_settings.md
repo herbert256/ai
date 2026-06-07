@@ -40,7 +40,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** For legacy usage rows that predate persisted call-time cost, a row that has *both* token counts and search units is mis-costed: it charges only `searchUnits * perQueryPrice` and reports `outputCost = 0`, ignoring the token spend entirely.
 **Root cause:** The fallback branch is `if (searchUnits > 0) searchUnits*perQueryPrice else tokens*price` — an either/or, not additive. New rows (carrying persisted cost) are unaffected; only legacy rows recomputed on the fly.
 **Proposed fix:** Sum token cost + search cost like `PricingCache.computeUsageCostSnapshot` does at write time.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — legacy usage cost fallback now adds token input/output cost plus per-query search cost instead of choosing one branch.
 
 ---
 
