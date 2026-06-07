@@ -178,7 +178,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** When a provider streams reasoning *interleaved* with content but content is empty until the end, `reasoningFallback()` is emitted only after the content stream completes; if the stream is cancelled mid-flight, buffered reasoning is lost even though it was the only "answer" produced.
 **Root cause:** Reasoning is buffered and only flushed post-stream; cancellation skips the post-stream emit.
 **Proposed fix:** On cancellation/teardown, still flush `reasoningFallback()` if no content was seen.
-**Status:** Open
+**Status:** Fixed — OpenAI chat streaming now flushes the buffered reasoning fallback once from the stream teardown path when no content chunk was seen, including active exceptional cleanup before rethrow.
 
 ## File: ai/src/main/java/com/ai/data/TracingInterceptor.kt
 

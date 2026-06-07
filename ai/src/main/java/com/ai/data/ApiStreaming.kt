@@ -387,8 +387,23 @@ private fun AnalysisRepository.streamOpenAi(
                 // as a completed answer). Surface reasoning at the end only
                 // when no content streamed (answer-in-reasoning_content).
                 val ext = OpenAiContentExtractor()
-                parseSseStream(body, ext::extract).collect { emit(it) }
-                ext.reasoningFallback()?.let { emit(it) }
+                var reasoningFallbackEmitted = false
+                suspend fun flushReasoningFallback() {
+                    if (reasoningFallbackEmitted) return
+                    val fallback = ext.reasoningFallback() ?: return
+                    reasoningFallbackEmitted = true
+                    emit(fallback)
+                }
+                try {
+                    parseSseStream(body, ext::extract).collect { emit(it) }
+                    flushReasoningFallback()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    try { flushReasoningFallback() } catch (_: kotlinx.coroutines.CancellationException) {}
+                    throw e
+                } catch (e: Exception) {
+                    flushReasoningFallback()
+                    throw e
+                }
             } ?: throw Exception("Empty response body")
         } else {
             val errorMsg = try { response.errorBody()?.string() } catch (_: Exception) { null }
