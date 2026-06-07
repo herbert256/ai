@@ -316,12 +316,12 @@ fun ReportsHubScreen(
         allReports.filter { it.pinned }.sortedByDescending { it.timestamp }.take(5)
     }
     val homeReportLists by rememberHomeReportLists(refreshTick, reportViewModel)
-    // "Latest" excludes anything already shown under "Running" so a report
-    // surfaces in only one card. Problem reports are no longer split into
-    // their own card (the top-bar ⚠️ flags them), so they appear here too.
-    val latestReports = remember(allReports, homeReportLists) {
-        val shown = homeReportLists.running.mapTo(HashSet()) { it.id }
-        allReports.filter { !it.pinned && it.id !in shown }.take(5)
+    // No separate Running card any more — running reports appear under Latest
+    // (with the spinning hourglass instead of their own icon), so don't exclude
+    // them. Broken-work reports likewise stay in their normal card with the
+    // warning icon.
+    val latestReports = remember(allReports) {
+        allReports.filter { !it.pinned }.take(5)
     }
     val bumpDelete: (String) -> Unit = { rid ->
         reportViewModel.deleteReport(context, rid)
@@ -343,7 +343,9 @@ fun ReportsHubScreen(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
             onOpenView = onOpenReportView,
-            onDelete = bumpDelete
+            onDelete = bumpDelete,
+            runningIds = homeReportLists.running.mapTo(HashSet()) { it.id },
+            brokenIds = homeReportLists.problems.mapTo(HashSet()) { it.id }
         )
     ) {
     Column(modifier = Modifier
@@ -351,31 +353,19 @@ fun ReportsHubScreen(
         .background(AppColors.AppBackground)
         .verticalScroll(rememberScrollState())
         .padding(16.dp)) {
-        TitleBar(helpTopic = "reports_hub", title = "Reports", subject = "Create, browse and search your reports", onBackClick = onNavigateBack, onHousekeeping = onHousekeeping)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = onNavigateToNewAiReport,
-                modifier = Modifier.weight(1f)
-            ) { Text("New", maxLines = 1, softWrap = false) }
-            Button(
-                onClick = onNavigateToSearchAiReports,
-                modifier = Modifier.weight(1f)
-            ) { Text("Search", maxLines = 1, softWrap = false) }
-            Button(
-                onClick = onNavigateToAllReports,
-                modifier = Modifier.weight(1f)
-            ) { Text("All", maxLines = 1, softWrap = false) }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        // Section cards, with empty ones (e.g. Running) sunk to the bottom so
-        // the populated buckets lead. Examples stays last. Reports with
-        // problems no longer get their own card — the top-bar ⚠️ badge (which
-        // opens the Broken-work screen) is the single problem indicator now.
+        // New / Search / All now live as icons in the bottom icon bar (not as
+        // top buttons); housekeeping is intentionally not surfaced here.
+        TitleBar(
+            helpTopic = "reports_hub", title = "Reports",
+            subject = "Create, browse and search your reports",
+            onBackClick = onNavigateBack,
+            onNewReport = onNavigateToNewAiReport,
+            onSearchReports = onNavigateToSearchAiReports,
+            onAllReports = onNavigateToAllReports
+        )
+        // Section cards, with empty ones sunk to the bottom so the populated
+        // buckets lead. Examples stays last.
         val hubCards = listOf(
-            Triple(MetadataDefaults.STATUS_PENDING, AppColors.WarningAccent, "Running AI reports") to homeReportLists.running,
             Triple(MetadataDefaults.PIN, AppColors.CautionAccent, "Pinned AI Reports") to pinnedReports,
             Triple(MetadataDefaults.CLOCK_RECENT, AppColors.InfoAccent, "Latest AI Reports") to latestReports,
         ).sortedBy { it.second.isEmpty() }

@@ -268,16 +268,23 @@ fun ReportListRow(
     }
     val iconGenEnabled = LocalIconGenEnabled.current
     val defaultLogo = LocalMetadataIcons.current.reportIcon
+    val bundle = LocalReportListIconBundle.current
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onOpenManage(report.id) }
             .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = (if (iconGenEnabled) report.icon?.takeIf { it.isNotBlank() } else null) ?: defaultLogo,
-            fontSize = 22.sp
-        )
+        // A running report shows the spinning hourglass; a report with broken
+        // work shows the warning icon; otherwise its own (or default) icon.
+        when {
+            report.id in bundle.runningIds -> AnimatedHourglass(fontSize = 22.sp)
+            report.id in bundle.brokenIds -> Text(LocalMetadataIcons.current.statusWarning, fontSize = 22.sp)
+            else -> Text(
+                text = (if (iconGenEnabled) report.icon?.takeIf { it.isNotBlank() } else null) ?: defaultLogo,
+                fontSize = 22.sp
+            )
+        }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = report.title.ifBlank { "Untitled" },

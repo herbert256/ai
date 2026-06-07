@@ -781,7 +781,13 @@ data class ReportListIconBundle(
      *  screen's 🗂️ so the user lands back on that same overlay for the
      *  chosen report. Null = land on the Manage hub. Consumed once by
      *  [SeedInitialManageOverlay]. */
-    val initialManageOverlay: String? = null
+    val initialManageOverlay: String? = null,
+    /** Report ids currently RUNNING — [ReportListRow] shows a spinning
+     *  hourglass instead of the report's own icon. Set by the Reports hub. */
+    val runningIds: Set<String> = emptySet(),
+    /** Report ids with BROKEN WORK (also on the Broken-work screen) —
+     *  [ReportListRow] shows the warning icon instead of the report's own. */
+    val brokenIds: Set<String> = emptySet()
 )
 val LocalReportListIconBundle = compositionLocalOf { ReportListIconBundle() }
 
@@ -986,6 +992,11 @@ data class TitleBarIcons(
     /** Optional 📒 list-all-notes hook (Manage report only). Null →
      *  glyph hidden. */
     val onListNotes: (() -> Unit)? = null,
+    /** Reports-hub nav actions surfaced as leading bottom-bar icons — 🆕 New,
+     *  🔍 Search, 🗂️ All — which replaced the former top buttons. Null → hidden. */
+    val onNewReport: (() -> Unit)? = null,
+    val onSearchReports: (() -> Unit)? = null,
+    val onAllReports: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Screens with a clear
      *  counterpart Housekeeping screen (e.g. AI Setup → Costs ↔
      *  Housekeeping → Costs) publish it to navigate there. Null →
@@ -1304,6 +1315,10 @@ fun TitleBar(
     onClear: (() -> Unit)? = null,
     onAttach: (() -> Unit)? = null,
     onValidatePrompt: (() -> Unit)? = null,
+    /** Reports-hub leading bottom-bar actions (🆕 New / 🔍 Search / 🗂️ All). */
+    onNewReport: (() -> Unit)? = null,
+    onSearchReports: (() -> Unit)? = null,
+    onAllReports: (() -> Unit)? = null,
     validatePromptActive: Boolean = false,
     /** Optional 🧹 jump-to-Housekeeping hook. Null → glyph hidden. */
     onHousekeeping: (() -> Unit)? = null,
@@ -1397,6 +1412,9 @@ fun TitleBar(
         onEdit = onEdit,
         onAddNote = onAddNote,
         onListNotes = onListNotes,
+        onNewReport = onNewReport,
+        onSearchReports = onSearchReports,
+        onAllReports = onAllReports,
         onParameters = onParameters,
         onSystemPrompt = onSystemPrompt,
         onClear = onClear,
@@ -1902,6 +1920,10 @@ private fun buildBottomBarIcons(
     suppressShare: Boolean = false
 ): List<BottomBarIcon> = buildList {
     val D = com.ai.data.MetadataDefaults
+    // Reports-hub leading actions: 🆕 New, 🔍 Search, 🗂️ All (replaced the top buttons).
+    icons.onNewReport?.let { add(BottomBarIcon(mi.add, Color.Unspecified, it, 28, legendKey = D.ADD)) }
+    icons.onSearchReports?.let { add(BottomBarIcon(mi.search, Color.Unspecified, it, 28, legendKey = D.SEARCH)) }
+    icons.onAllReports?.let { add(BottomBarIcon(mi.pickReport, Color.Unspecified, it, 28, legendKey = D.PICK_REPORT)) }
     // Glyph for the add slot: the screen's per-screen override (e.g. 🔗 Meta on
     // Manage report) when set, else the user's Default-icons 🆕. legendKey =
     // that same glyph so the legend can name it.
