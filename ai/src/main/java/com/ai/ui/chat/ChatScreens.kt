@@ -504,7 +504,7 @@ fun ChatSessionScreen(
 
     // Auto-scroll — parent only reads messages.size and isStreaming (booleans); chunk updates
     // are observed via snapshotFlow so the parent doesn't recompose per chunk.
-    val displayMessages = messages.filter { it.role != "system" }
+    val displayMessages = remember(messages) { messages.filter { it.role != "system" } }
     val bottomItemCount = displayMessages.size + (if (isStreaming) 1 else 0)
     LaunchedEffect(bottomItemCount) {
         if (bottomItemCount > 0) listState.animateScrollToItem(bottomItemCount - 1)

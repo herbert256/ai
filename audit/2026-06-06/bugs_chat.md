@@ -127,7 +127,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The system-message filter runs on every recomposition of the whole session screen (not just when `messages` changes), allocating a new list each time.
 **Root cause:** `displayMessages` is a plain val, not `remember(messages)`.
 **Proposed fix:** `val displayMessages = remember(messages) { messages.filter { it.role != "system" } }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — `displayMessages` is now memoized with `remember(messages)`
 
 ### Bug 17 — Severity: LOW — Category: list key collision (unconfirmed)
 **Location:** ChatScreens.kt:757 (LazyColumn `key`)
