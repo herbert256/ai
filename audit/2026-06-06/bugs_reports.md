@@ -330,7 +330,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** On a comma-decimal device every cost-cents / score number in the shared HTML export renders with commas ("12,34"), unlike the in-app figures (period). The HTML is a shareable artifact; comma decimals in a "Total cents" column break spreadsheet import and read inconsistently next to the rest of the document.
 **Root cause:** All these use `"%.2f"/"%.1f"/"%.4f"/"%.0f".format(...)` which uses the default locale, rather than `String.format(Locale.US, ...)`.
 **Proposed fix:** Pin every export numeric format to `Locale.US`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - cost tables + seconds route through Locale.US formatExportCents/formatExportSeconds; the decimal moderation score uses Locale.US too (the %.0f rerank score has no separator and was already safe)
 
 ### Bug 41 — Severity: LOW — Category: markdown converted inside code fences
 **Location:** ReportExport.kt:1325-1334 (`convertMarkdownToHtmlForExport`)
@@ -428,7 +428,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The cost tables and scores in exported Word/OpenDocument files render with comma decimals on a comma-decimal device, inconsistent with the in-app figures and unsafe for downstream numeric use.
 **Root cause:** Default-locale `"%.2f"/"%.1f"/"%.0f".format(...)`.
 **Proposed fix:** Pin `Locale.US` on every numeric format in the DOCX/ODT builders.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - cost tables + seconds route through Locale.US formatExportCents/formatExportSeconds; the decimal moderation score uses Locale.US too (the %.0f rerank score has no separator and was already safe)
 
 ## File: ai/src/main/java/com/ai/ui/helpers/ZippedHtmlExport.kt
 
@@ -437,7 +437,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Same comma-decimal issue as ReportExport.kt, in the zipped-HTML cost table and rerank score.
 **Root cause:** Default-locale `format`.
 **Proposed fix:** Pin `Locale.US`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - cost tables + seconds route through Locale.US formatExportCents/formatExportSeconds; the decimal moderation score uses Locale.US too (the %.0f rerank score has no separator and was already safe)
 
 ## File: ai/src/main/java/com/ai/ui/helpers/BulkExport.kt
 

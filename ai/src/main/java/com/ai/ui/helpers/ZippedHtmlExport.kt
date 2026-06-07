@@ -661,21 +661,21 @@ private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData, basePath: Stri
     var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
     sorted.forEach { r ->
         tIn += r.inT; tOut += r.outT; tInC += r.inC; tOutC += r.outC
-        val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
+        val secs = r.durationMs?.let { formatExportSeconds(it) } ?: ""
         sb.append("<tr><td>").append(esc(r.type)).append("</td><td>").append(esc(r.provider))
             .append("</td><td>").append(esc(r.model)).append("</td><td>").append(esc(r.tier))
             .append("</td><td class='num'>").append(secs)
             .append("</td><td class='num'>").append(r.inT).append("</td><td class='num'>").append(r.outT)
-            .append("</td><td class='num'>").append("%.2f".format(r.inC))
-            .append("</td><td class='num'>").append("%.2f".format(r.outC))
-            .append("</td><td class='num'>").append("%.2f".format(r.inC + r.outC)).append("</td></tr>")
+            .append("</td><td class='num'>").append(formatExportCents(r.inC))
+            .append("</td><td class='num'>").append(formatExportCents(r.outC))
+            .append("</td><td class='num'>").append(formatExportCents(r.inC + r.outC)).append("</td></tr>")
     }
     sb.append("</tbody>")
     sb.append("<tfoot><tr class='total'><td colspan='5'>Total</td>")
     sb.append("<td class='num'>").append(tIn).append("</td><td class='num'>").append(tOut).append("</td>")
-    sb.append("<td class='num'>").append("%.2f".format(tInC)).append("</td>")
-    sb.append("<td class='num'>").append("%.2f".format(tOutC)).append("</td>")
-    sb.append("<td class='num'>").append("%.2f".format(tInC + tOutC)).append("</td></tr></tfoot>")
+    sb.append("<td class='num'>").append(formatExportCents(tInC)).append("</td>")
+    sb.append("<td class='num'>").append(formatExportCents(tOutC)).append("</td>")
+    sb.append("<td class='num'>").append(formatExportCents(tInC + tOutC)).append("</td></tr></tfoot>")
     sb.append("</table>")
     sb.append("</div>")
     // Inline sort script — only this page uses it, so no point dragging

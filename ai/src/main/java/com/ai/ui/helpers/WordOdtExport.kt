@@ -241,7 +241,7 @@ private fun appendCosts(out: MutableList<DocBlock>, data: com.ai.ui.helpers.Html
     for (a in agentRows) {
         rows += Row(
             "report", a.providerDisplay, a.model, a.pricingTier ?: "",
-            a.durationMs?.let { "%.1f".format(it / 1000.0) } ?: "",
+            a.durationMs?.let { formatExportSeconds(it) } ?: "",
             a.inputTokens ?: 0, a.outputTokens ?: 0,
             (a.inputCost ?: 0.0) * 100, (a.outputCost ?: 0.0) * 100
         )
@@ -266,7 +266,7 @@ private fun appendCosts(out: MutableList<DocBlock>, data: com.ai.ui.helpers.Html
             }
         rows += Row(
             type, s.providerDisplay, s.model, s.pricingTier ?: "",
-            s.durationMs?.let { "%.1f".format(it / 1000.0) } ?: "",
+            s.durationMs?.let { formatExportSeconds(it) } ?: "",
             s.inputTokens ?: 0, s.outputTokens ?: 0,
             (s.inputCost ?: 0.0) * 100, (s.outputCost ?: 0.0) * 100
         )
@@ -282,15 +282,15 @@ private fun appendCosts(out: MutableList<DocBlock>, data: com.ai.ui.helpers.Html
         tableRows += listOf(
             r.type, r.provider, r.model, r.tier, r.secs,
             r.inT.toString(), r.outT.toString(),
-            "%.2f".format(r.inC), "%.2f".format(r.outC),
-            "%.2f".format(r.inC + r.outC)
+            formatExportCents(r.inC), formatExportCents(r.outC),
+            formatExportCents(r.inC + r.outC)
         )
     }
     tableRows += listOf(
         "Total", "", "", "", "",
         tIn.toString(), tOut.toString(),
-        "%.2f".format(tInC), "%.2f".format(tOutC),
-        "%.2f".format(tInC + tOutC)
+        formatExportCents(tInC), formatExportCents(tOutC),
+        formatExportCents(tInC + tOutC)
     )
     out += DocBlock(
         kind = DocBlockKind.TABLE,

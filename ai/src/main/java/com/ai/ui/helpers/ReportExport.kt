@@ -1035,23 +1035,23 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData, secondaryFo
             sb.append("<td class='num'>${g.calls}</td>")
             sb.append("<td class='num'>${g.inputTokens}</td>")
             sb.append("<td class='num'>${g.outputTokens}</td>")
-            sb.append("<td class='num'>${"%.2f".format(g.inCents)}</td>")
-            sb.append("<td class='num'>${"%.2f".format(g.outCents)}</td>")
-            sb.append("<td class='num'>${"%.2f".format(g.inCents + g.outCents)}</td>")
+            sb.append("<td class='num'>${formatExportCents(g.inCents)}</td>")
+            sb.append("<td class='num'>${formatExportCents(g.outCents)}</td>")
+            sb.append("<td class='num'>${formatExportCents(g.inCents + g.outCents)}</td>")
             sb.append("</tr>")
         }
         if (deletedCents > 0.0) {
             sb.append("<tr>")
             if (isByModel) sb.append("<td colspan='2'>deleted</td>") else sb.append("<td>deleted</td>")
             sb.append("<td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td>")
-            sb.append("<td class='num'>${"%.2f".format(deletedCents)}</td></tr>")
+            sb.append("<td class='num'>${formatExportCents(deletedCents)}</td></tr>")
         }
         sb.append("<tr class='total-row'>")
         if (isByModel) sb.append("<td colspan='2'>Total</td>") else sb.append("<td>Total</td>")
         sb.append("<td class='num'>$totalCalls</td>")
         sb.append("<td class='num'>$iT</td><td class='num'>$oT</td>")
-        sb.append("<td class='num'>${"%.2f".format(iC)}</td><td class='num'>${"%.2f".format(oC)}</td>")
-        sb.append("<td class='num'>${"%.2f".format(iC + oC + deletedCents)}</td></tr>")
+        sb.append("<td class='num'>${formatExportCents(iC)}</td><td class='num'>${formatExportCents(oC)}</td>")
+        sb.append("<td class='num'>${formatExportCents(iC + oC + deletedCents)}</td></tr>")
         sb.append("</table>")
     }
 
@@ -1063,13 +1063,13 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData, secondaryFo
         var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
         sorted.forEach { r ->
             tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
-            val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
-            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(com.ai.ui.shared.shortModelName(r.model))}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+            val secs = r.durationMs?.let { formatExportSeconds(it) } ?: ""
+            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(com.ai.ui.shared.shortModelName(r.model))}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${formatExportCents(r.inCents)}</td><td class='num'>${formatExportCents(r.outCents)}</td><td class='num'>${formatExportCents(r.inCents + r.outCents)}</td></tr>")
         }
         if (deletedCents > 0.0) {
-            sb.append("<tr><td>deleted</td><td></td><td></td><td></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'>${"%.2f".format(deletedCents)}</td></tr>")
+            sb.append("<tr><td>deleted</td><td></td><td></td><td></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'>${formatExportCents(deletedCents)}</td></tr>")
         }
-        sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC + deletedCents)}</td></tr>")
+        sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${formatExportCents(tInC)}</td><td class='num'>${formatExportCents(tOutC)}</td><td class='num'>${formatExportCents(tInC + tOutC + deletedCents)}</td></tr>")
         sb.append("</table>")
     }
 
@@ -1269,7 +1269,7 @@ private fun renderModerationContent(content: String, contextId: String, agentsBy
                 val score = r.allScores[cat]
                 val rowStyle = if (fired) " style='color:#ff7a7a'" else ""
                 val flagCell = if (fired) com.ai.data.MetadataIconsHolder.current.validatePrompt else "·"
-                val scoreCell = score?.let { "%.4f".format(it) } ?: "—"
+                val scoreCell = score?.let { String.format(Locale.US, "%.4f", it) } ?: "—"
                 sb.append("<tr$rowStyle><td>$flagCell</td><td>${esc(cat)}</td><td class='num'>$scoreCell</td></tr>")
             }
             sb.append("</table>")
@@ -1357,6 +1357,13 @@ internal fun convertMarkdownToHtmlForExport(markdown: String): String {
     }
     return html
 }
+
+/** Locale-safe cost / seconds formatters for the export cost tables —
+ *  String.format with Locale.US so a comma-decimal device (nl-NL) doesn't emit
+ *  "1,23" into the shared HTML / DOCX / ODT cost tables (audit reports#40/52/53).
+ *  Shared across ReportExport, WordOdtExport and ZippedHtmlExport (same pkg). */
+internal fun formatExportCents(cents: Double): String = String.format(Locale.US, "%.2f", cents)
+internal fun formatExportSeconds(ms: Long): String = String.format(Locale.US, "%.1f", ms / 1000.0)
 
 private fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
 private fun escId(s: String) = s.replace("'", "").replace("\"", "").replace("&", "").replace("<", "").replace(">", "")
