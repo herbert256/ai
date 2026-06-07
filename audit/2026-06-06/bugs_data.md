@@ -224,7 +224,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Trace files accumulate in `filesDir/trace` with no automatic cap (only manual `deleteTracesOlderThan` from a sweep); a long tracing session with 50-pair fan-outs writes thousands of files that all roll into the backup zip.
 **Root cause:** No size/count ceiling on the trace directory.
 **Proposed fix:** Cap trace count/total bytes with an LRU eviction at save time.
-**Status:** Open
+**Status:** Fixed in `ApiTracer.kt` by pruning oldest trace files after saves once the trace dir exceeds 2,000 files or 50 MB, while protecting the just-written trace.
 
 ## File: ai/src/main/java/com/ai/data/RateLimitRetry.kt
 
