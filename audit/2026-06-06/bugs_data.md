@@ -378,7 +378,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** On failure `tmp.delete()` is called unconditionally without existence check; harmless, but the partial `.part` may already have been partly moved/locked, leaving a stale `<name>.tflite.part` that `availableModels` ignores but that wastes space and is backed-up-excluded only because it's under `local_models`.
 **Root cause:** No guaranteed cleanup of `.part` artifacts.
 **Proposed fix:** Sweep `*.part` on startup of the Local models screen.
-**Status:** Open
+**Status:** Fixed in `LocalEmbedder.kt` by sweeping stale `.part` downloads whenever local LiteRT models are enumerated.
 
 ## File: ai/src/main/java/com/ai/data/local/LocalLlm.kt
 

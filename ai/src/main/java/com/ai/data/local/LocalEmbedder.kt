@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object LocalEmbedder {
     private const val LOCAL_MODELS_DIR = "local_models"
+    private const val PARTIAL_DOWNLOAD_STALE_MS = 5L * 60L * 1000L
     private val instances = ConcurrentHashMap<String, TextEmbedder>()
 
     /** Live state for the dashboard's Local-runtime card. */
@@ -167,13 +168,25 @@ object LocalEmbedder {
     fun localModelsDir(context: Context): File =
         File(context.filesDir, LOCAL_MODELS_DIR).also { if (!it.exists()) it.mkdirs() }
 
+    fun sweepStalePartials(context: Context): Int {
+        val cutoff = System.currentTimeMillis() - PARTIAL_DOWNLOAD_STALE_MS
+        var removed = 0
+        localModelsDir(context).listFiles { f ->
+            f.isFile && f.name.endsWith(".part") && f.lastModified() <= cutoff
+        }?.forEach { if (it.delete()) removed++ }
+        if (removed > 0) AppLog.w("LocalEmbedder", "removed $removed stale partial download${if (removed == 1) "" else "s"}")
+        return removed
+    }
+
     /** Names of every .tflite file in [localModelsDir] (without
      *  extension). Drives the Local Semantic Search picker. */
-    fun availableModels(context: Context): List<String> =
-        localModelsDir(context).listFiles { f -> f.extension.equals("tflite", ignoreCase = true) }
+    fun availableModels(context: Context): List<String> {
+        sweepStalePartials(context)
+        return localModelsDir(context).listFiles { f -> f.extension.equals("tflite", ignoreCase = true) }
             ?.map { it.nameWithoutExtension }
             ?.sorted()
             .orEmpty()
+    }
 
     /** Resolve [modelName] (no extension) to its file path. Returns
      *  null when the file isn't present in [localModelsDir]. */
