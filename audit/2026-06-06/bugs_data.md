@@ -72,7 +72,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `serialize(src=null)` emits `JsonPrimitive("")`, and `deserialize` of `""` would then throw (empty id is "unknown"). A null `AppService` field thus round-trips into a hard failure on the next read rather than a null.
 **Root cause:** Asymmetric null handling — serialize tolerates null (writes `""`), deserialize rejects it.
 **Proposed fix:** Serialize null as JSON null and let deserialize return null for JSON null (Gson skips), instead of the empty-string sentinel.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — null AppService values now serialize as JSON null and deserialize null/blank provider ids as null instead of an empty unknown provider id
 
 ## File: ai/src/main/java/com/ai/data/TagPropagation.kt
 
