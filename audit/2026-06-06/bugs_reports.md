@@ -531,7 +531,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Two Meta tiles for legacy aggregate items (no `sourceRow`) that share a `metaPromptName` produce the same IdentifiedTile id `meta:<label>:<label>`, so the persisted tile-order map can't tell them apart and one can be lost from the saved order.
 **Root cause:** The id falls back to `item.label` when `sourceRow` is null, which isn't unique across two items of the same label.
 **Proposed fix:** Include an index or a secondary discriminator in the fallback id so legacy aggregate tiles stay distinct.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — legacy aggregate Meta tile ids now use an indexed fallback when no source row id exists
 
 ## File: ai/src/main/java/com/ai/ui/report/view/FanIn.kt (additional)
 
