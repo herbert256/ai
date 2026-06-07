@@ -371,7 +371,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `currentlyEmbedding` is a single @Volatile var. Two concurrent `embed` calls on *different* models (allowed — serialization is per-embedder, not global) clobber each other's `currentlyEmbedding`, and the first to finish sets `embedding = null` while the other is still running, so the dashboard shows "idle" mid-embed.
 **Root cause:** Single global var modelling per-model live state.
 **Proposed fix:** Track a set/count of in-flight model names rather than one var.
-**Status:** Open
+**Status:** Fixed in `LocalEmbedder.kt` by tracking per-model in-flight counts and deriving the dashboard summary from active model names.
 
 ### Bug 49 — Severity: LOW — Category: dangling temp on failure
 **Location:** LocalEmbedder.kt:134-139 (`download` catch)

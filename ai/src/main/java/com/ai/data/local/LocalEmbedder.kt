@@ -12,6 +12,7 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.text.textembedder.TextEmbedder
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * On-device embedding via MediaPipe Tasks (LiteRT under the hood).
@@ -31,9 +32,11 @@ object LocalEmbedder {
     private val instances = ConcurrentHashMap<String, TextEmbedder>()
 
     /** Live state for the dashboard's Local-runtime card. */
-    @Volatile private var embedding: String? = null
-    /** The model currently running [embed], or null when idle. */
-    val currentlyEmbedding: String? get() = embedding
+    private val embeddingCounts = ConcurrentHashMap<String, AtomicInteger>()
+    /** Models currently running [embed], or an empty list when idle. */
+    fun currentlyEmbeddingModels(): List<String> = embeddingCounts.keys.sorted()
+    /** Human-readable summary for the dashboard's existing single-field row. */
+    val currentlyEmbedding: String? get() = currentlyEmbeddingModels().joinToString(", ").takeIf { it.isNotBlank() }
     /** Names of embedder models loaded into memory right now. */
     fun loadedModelNames(): List<String> = instances.keys.toList()
 
@@ -244,7 +247,7 @@ object LocalEmbedder {
         if (inputs.isEmpty()) return emptyList()
         val started = System.currentTimeMillis()
         AppLog.d("LocalEmbedder", "→ embed $modelName n=${inputs.size} avgLen=${if (inputs.isNotEmpty()) inputs.sumOf { it.length } / inputs.size else 0}")
-        embedding = modelName
+        markEmbeddingStart(modelName)
         return try {
             val embedder = getEmbedder(context, modelName)
             // Native TextEmbedder handle is not thread-safe — two
@@ -268,7 +271,19 @@ object LocalEmbedder {
                 durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
             null
         } finally {
-            embedding = null
+            markEmbeddingEnd(modelName)
+        }
+    }
+
+    private fun markEmbeddingStart(modelName: String) {
+        embeddingCounts.compute(modelName) { _, current ->
+            (current ?: AtomicInteger(0)).also { it.incrementAndGet() }
+        }
+    }
+
+    private fun markEmbeddingEnd(modelName: String) {
+        embeddingCounts.computeIfPresent(modelName) { _, current ->
+            if (current.decrementAndGet() <= 0) null else current
         }
     }
 
