@@ -279,7 +279,9 @@ fun ChatSessionScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val focusRequester = remember { FocusRequester() }
-    val currentSessionId = remember { sessionId ?: java.util.UUID.randomUUID().toString() }
+    // rememberSaveable: a new-chat (null sessionId) must keep its minted UUID
+    // across recreation, else rotation orphans the prior save under the old id.
+    val currentSessionId = rememberSaveable { sessionId ?: java.util.UUID.randomUUID().toString() }
 
     var messages by remember { mutableStateOf(initialMessages) }
     // Pre-fill the input box with text staged by the share-target

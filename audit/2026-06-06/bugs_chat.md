@@ -62,7 +62,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** `remember` (not `rememberSaveable`) regenerates the UUID on activity recreation whenever the incoming `sessionId` param is null (the new-chat case).
 **Reproduction:** Start a new chat, send a turn (saved under UUID-A), rotate → a new UUID-B is in play; UUID-A's file lingers in history; further sends write UUID-B.
 **Proposed fix:** `rememberSaveable { sessionId ?: UUID.randomUUID().toString() }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — currentSessionId now rememberSaveable, survives recreation
 
 ### Bug 8 — Severity: MEDIUM — Category: stale pricing / wrong cost
 **Location:** ChatScreens.kt:405-409 (`val totalCost by remember { derivedStateOf { … pricing.promptPrice … } }`)
