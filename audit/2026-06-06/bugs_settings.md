@@ -393,7 +393,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The developer test request builds `temperature` via `prefs.getString(...).toFloatOrNull()`; on a comma-decimal locale a `0,7` temperature entered on the API Test screen is dropped.
 **Root cause:** Dot-only `toFloatOrNull`.
 **Proposed fix:** Normalize comma→dot (dev-screen, low impact).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — developer test temperature now normalizes comma decimals before parsing
 
 ---
 

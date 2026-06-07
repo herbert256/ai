@@ -284,7 +284,7 @@ fun EditApiRequestScreen(
         else {
             val prompt = prefs.getString("last_test_prompt", "") ?: ""
             val systemPrompt = prefs.getString("last_test_system_prompt", "") ?: ""
-            val temperature = prefs.getString("last_test_temperature", "")?.toFloatOrNull()
+            val temperature = prefs.getString("last_test_temperature", "")?.replace(',', '.')?.toFloatOrNull()
             val maxTokens = prefs.getString("last_test_max_tokens", "")?.toIntOrNull()
             val jsonObj = buildMap<String, Any> {
                 put("model", model)
