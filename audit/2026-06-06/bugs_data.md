@@ -127,7 +127,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The hard call ceiling is derived from `nonStreamingReadTimeoutSec`. For a *streaming open* of a provider that is slow to send headers but within the (longer) streaming read budget, the open can be cancelled by this shorter ceiling and surfaced as an IOException, masking a legitimate slow start.
 **Root cause:** One ceiling computed from the non-streaming read timeout is used for both streaming-open and non-streaming calls (line 52).
 **Proposed fix:** Use the streaming read timeout for the streaming-open call sites.
-**Status:** Open (unconfirmed; the comment argues stream-open is fast)
+**Status:** Fixed (2026-06-07) — `withApiCallTimeout(streamingOpen = true)` now uses the streaming read budget for report/chat stream-open call sites; regular calls keep the non-streaming ceiling.
 
 ### Bug 17 — Severity: LOW — Category: Gemini content extraction
 **Location:** ApiDispatch.kt:500-501 (`analyzeGemini` content pick)

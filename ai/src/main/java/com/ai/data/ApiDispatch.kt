@@ -41,21 +41,28 @@ internal fun defaultMaxTokens(service: AppService, model: String): Int =
  * surfaces as a different CancellationException that passes straight
  * through.
  *
- * Every call site wraps a single request/response or a *stream open* (the
- * `api.…Stream` call returns once the response HEADERS arrive — it does NOT
- * include the long SSE read loop, which OkHttp's per-chunk streaming read
- * timeout already guards). So one short ceiling fits all: the non-streaming
- * read budget + connect + 30 s margin, coerced so a 0 / "infinite" setting
- * can't disable the guard. (A long, legitimately slow token stream is
- * unaffected — only the open is bounded here.)
+ * Non-streaming call sites use the shorter non-streaming read budget.
+ * Streaming-open call sites pass [streamingOpen] so a provider that is
+ * slow to send SSE headers gets the same budget as the streaming read
+ * path. The long SSE body is still outside this wrapper and remains
+ * guarded by OkHttp's per-chunk streaming read timeout.
  */
-internal suspend fun <T> withApiCallTimeout(block: suspend () -> T): T {
-    val readSec = NetworkSettings.nonStreamingReadTimeoutSec.takeIf { it > 0 } ?: 120
+internal suspend fun <T> withApiCallTimeout(
+    streamingOpen: Boolean = false,
+    block: suspend () -> T
+): T {
+    val configuredReadSec = if (streamingOpen) {
+        NetworkSettings.streamingReadTimeoutSec
+    } else {
+        NetworkSettings.nonStreamingReadTimeoutSec
+    }
+    val readSec = configuredReadSec.takeIf { it > 0 } ?: 120
     val ceilingMs = (readSec.toLong() + com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC + 30L) * 1000L
     return try {
         kotlinx.coroutines.withTimeout(ceilingMs) { block() }
     } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-        throw java.io.IOException("API call timed out after ${ceilingMs / 1000}s (no response — possible network/DNS hang)")
+        val kind = if (streamingOpen) "stream open" else "API call"
+        throw java.io.IOException("$kind timed out after ${ceilingMs / 1000}s (no response — possible network/DNS hang)")
     }
 }
 
@@ -1233,7 +1240,7 @@ internal suspend fun AnalysisRepository.analyzeAgentStreaming(
 ): AnalysisResponse = withContext(Dispatchers.IO) {
     auditApiCall(service, model, baseUrl) {
         withHostGate(baseUrl) {
-            withApiCallTimeout {
+            withApiCallTimeout(streamingOpen = true) {
                 when (service.apiFormat) {
                     ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
                     ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
