@@ -336,7 +336,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Removing a Local LLM does `File(...).delete()` but ignores the boolean result and always reports `"Removed $name"`. If the `.task` is locked / in use, the file survives but the user is told it was removed (the list re-read at line 317 may still show it). The sibling LiteRT screen (lines 142-153) was explicitly fixed to check `delete()` and report "Could not remove … (file in use?)".
 **Root cause:** Return value of `delete()` discarded; success message unconditional.
 **Proposed fix:** Branch on `delete()` like the LiteRT screen does.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Local LLM removal now checks `delete()` and reports a failure when the file survives
 
 ---
 
