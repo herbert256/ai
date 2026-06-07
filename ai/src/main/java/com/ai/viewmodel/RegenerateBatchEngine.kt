@@ -93,7 +93,7 @@ class RegenerateBatchEngine internal constructor(
      *  orchestrator is cancelled and replaced. */
     fun enqueueAndStart(context: Context, reportId: String) {
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
-            orchestratorJobs[reportId]?.cancel()
+            orchestratorJobs.remove(reportId)?.cancelAndJoin()
             val tasks = buildTaskList(context, reportId)
             val now = System.currentTimeMillis()
             // Start at the FIRST phase the enum declares — not a

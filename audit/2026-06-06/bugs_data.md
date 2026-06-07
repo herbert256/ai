@@ -609,7 +609,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `enqueueAndStart` cancels the existing orchestrator (async, not joined), persists a fresh job, then `startOrchestrator` cancels again and launches. The old orchestrator coroutine may still be executing a non-suspend `mutateJob` and write stale task state over the freshly-persisted job between the persist and the new launch.
 **Root cause:** Cancellation is requested but not joined before the new job is written.
 **Proposed fix:** `cancelAndJoin()` the previous orchestrator before persisting the new job (as `deleteJob` already does).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — enqueue now removes and cancelAndJoin()s any previous orchestrator before persisting the fresh job.
 
 ### Bug 79 — Severity: LOW — Category: phase-timeout pause picks arbitrary row
 **Location:** RegenerateBatchEngine.kt:344-349 (`pauseOnError(... rowIds.first() ...)`)
