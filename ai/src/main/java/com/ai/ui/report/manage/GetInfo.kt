@@ -363,7 +363,7 @@ fun ReportGetInfoScreen(
         iconRefreshTick,
         metadataIcons,
         runningInfoJobs,
-        settings,
+        settings.internalPrompts,
         iconGenEnabled,
         reportLanguageOn,
         titleModeAi,
