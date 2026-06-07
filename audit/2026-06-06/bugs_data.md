@@ -113,7 +113,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Gemini *chat streaming* (`streamGemini`) builds `GeminiGenerationConfig` with only temperature/topP/topK/maxTokens/search/thinking — `frequencyPenalty`, `presencePenalty`, `stopSequences`, and `seed` from `ChatParameters` are silently dropped, so a Gemini chat with those set behaves differently than the non-streaming `analyzeGemini` path (ApiDispatch.kt:479-482 passes them).
 **Root cause:** The streaming config omits the positional args the non-streaming path includes.
 **Proposed fix:** Pass the same full argument set the non-streaming `analyzeGemini` config uses.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - streamGemini's GeminiGenerationConfig now passes frequencyPenalty + presencePenalty (stopSequences/seed aren't on ChatParameters)
 
 ### Bug 15 — Severity: LOW — Category: host gate resolution
 **Location:** ApiDispatch.kt:77-87 (`withHostGate`)

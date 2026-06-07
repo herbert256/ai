@@ -427,6 +427,12 @@ private fun AnalysisRepository.streamGemini(
         contents = contents,
         generationConfig = GeminiGenerationConfig(
             params.temperature, params.topP, params.topK, params.maxTokens,
+            // frequency/presence penalty were dropped on the streaming path, so a
+            // Gemini chat with them set behaved differently from the non-streaming
+            // analyzeGemini path (audit data#14). (stopSequences/seed aren't on
+            // ChatParameters, so they stay unset for chat.)
+            frequencyPenalty = params.frequencyPenalty,
+            presencePenalty = params.presencePenalty,
             search = if (params.searchEnabled) true else null,
             thinkingConfig = geminiThinkingConfigField(service, model, params.reasoningEffort)
         ),
