@@ -343,6 +343,7 @@ fun ChatSessionScreen(
     // per turn via the pulldown next to the web-search chip.
     var reasoningEffort by remember { mutableStateOf(parameters.reasoningEffort ?: "") }
     var reasoningMenuExpanded by remember { mutableStateOf(false) }
+    var chipPersistencePrimed by remember(currentSessionId) { mutableStateOf(false) }
     // Clamp the persisted reasoning level against the active model's
     // supported set on first composition. A session resumed from a
     // model that supports `max` against a model that only supports
@@ -470,6 +471,16 @@ fun ChatSessionScreen(
         // system-prompt change / pin-or-KB toggle.
         val session = ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = persistedParams, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds, title = sessionTitle)
         scope.launch(Dispatchers.IO) { ChatHistoryManager.saveSession(session) }
+    }
+
+    LaunchedEffect(useWebSearch, reasoningEffort) {
+        if (!chipPersistencePrimed) {
+            chipPersistencePrimed = true
+            return@LaunchedEffect
+        }
+        if (messages.none { it.role == "user" }) return@LaunchedEffect
+        kotlinx.coroutines.delay(350)
+        saveSession(messages)
     }
 
     // System prompt initialization. Replace any existing system

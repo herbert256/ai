@@ -162,7 +162,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Toggling the Web-search chip or changing the reasoning-effort level and then leaving the screen *without sending* loses the change — on return the chip reverts.
 **Root cause:** `useWebSearch`/`reasoningEffort` are only persisted via `saveSession` inside `actuallySend` (and in the system-prompt effect); a toggle alone never writes.
 **Proposed fix:** Persist on chip change too (debounced `saveSession`).
-**Status:** Open
+**Status:** Fixed in `ChatScreens.kt` by debouncing chip-state saves for sessions that already contain a user turn, while still avoiding empty-chat persistence.
 
 ### Bug 22 — Severity: LOW — Category: performance
 **Location:** ChatScreens.kt:1015-1023 (`ChatMessageBubble` per-bubble `produceState` over `ApiTracer.getTraceFiles()`)
