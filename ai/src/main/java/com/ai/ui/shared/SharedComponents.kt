@@ -2057,8 +2057,8 @@ fun HomeIconBar(
     // only in the bottom bar, exactly like Home Screen mode; 📊 Statistics took
     // its old slot. 📋 copy likewise stays only in the bottom bar.
     val slots: List<@Composable () -> Unit> = buildList {
-        // size 36 (was 42) — a little less space before/after the leading logo.
-        add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 36.dp, contentDescription = "About") }
+        // Leading logo: slightly bigger (40), nudged up (y 0) and left (x -4).
+        add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(x = (-4).dp, y = 0.dp), size = 40.dp, contentDescription = "About") }
         add { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) }
