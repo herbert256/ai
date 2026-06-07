@@ -132,7 +132,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Candidates are rendered in a `Column.forEach` with no stable key; two candidates sharing the same `(provider, model)` (e.g. a model selected twice, or the same model re-run) reuse composition slots by position, so a Running→Done transition can flash the wrong row's body/cost.
 **Root cause:** Positional composition without keys for a list whose elements aren't guaranteed unique by `(provider,model)`.
 **Proposed fix:** Use a stable per-candidate id (candidate's own id, or `(provider,model,index)`) and a `key(...)` block around each row.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — alternative translation rows now use keyed composition by provider/model/index
 
 ## File: ai/src/main/java/com/ai/ui/helpers/TranslationGrouping.kt
 
