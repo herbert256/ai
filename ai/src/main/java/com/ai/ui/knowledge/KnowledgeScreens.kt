@@ -162,6 +162,7 @@ fun NewKnowledgeBaseScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var name by remember { mutableStateOf("") }
     // Re-list local models on ON_RESUME so one installed in Housekeeping shows
@@ -182,6 +183,7 @@ fun NewKnowledgeBaseScreen(
         if (selected == null || selected !in options) selected = options.firstOrNull()
     }
     var pickerOpen by remember { mutableStateOf(false) }
+    var creating by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "knowledge_new", title = "New knowledge base", subject = "Name a base to add documents to", onBackClick = onBack)
@@ -242,10 +244,20 @@ fun NewKnowledgeBaseScreen(
         Button(
             onClick = {
                 val (providerId, model, _) = selected ?: return@Button
-                val kb = KnowledgeStore.createKnowledgeBase(context, name.ifBlank { "Knowledge base" }, providerId, model)
-                onCreated(kb.id)
+                if (creating) return@Button
+                creating = true
+                scope.launch {
+                    try {
+                        val kb = withContext(Dispatchers.IO) {
+                            KnowledgeStore.createKnowledgeBase(context, name.ifBlank { "Knowledge base" }, providerId, model)
+                        }
+                        onCreated(kb.id)
+                    } finally {
+                        creating = false
+                    }
+                }
             },
-            enabled = selected != null,
+            enabled = selected != null && !creating,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Create", maxLines = 1, softWrap = false) }

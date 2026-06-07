@@ -335,7 +335,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Creating a KB runs the manifest mkdir + JSON write on the main thread in the button's onClick.
 **Root cause:** `KnowledgeStore.createKnowledgeBase(...)` is called directly (not in `withContext(Dispatchers.IO)`), unlike every other store mutation in this file.
 **Proposed fix:** Wrap the create in `scope.launch(Dispatchers.IO) { … }` then navigate on completion.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — KB creation now runs in a coroutine with the manifest write on `Dispatchers.IO`, guarded against duplicate taps
 
 ### Bug 43 — Severity: LOW — Category: coroutine lifecycle
 **Location:** KnowledgeScreens.kt:311-313, 327-329, 353-354, 463-465 (progress callbacks `scope.launch(Dispatchers.Main) { status = … }`)
