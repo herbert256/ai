@@ -70,6 +70,9 @@ fun PromptTranslationsScreen(
         if (target.equals(source, ignoreCase = true)) {
             Toast.makeText(context, "Source and target are the same", Toast.LENGTH_SHORT).show(); return
         }
+        if (target.equals(InternalPromptSeed.BASE_LANGUAGE, ignoreCase = true)) {
+            Toast.makeText(context, "English is the editable baseline; choose another target language", Toast.LENGTH_LONG).show(); return
+        }
         scope.launch {
             busyMessage = "Translating into $target…"
             translatingLang = target

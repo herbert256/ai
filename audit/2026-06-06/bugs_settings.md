@@ -275,7 +275,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** From a non-English source, the target language picker accepts English (`InternalPromptSeed.BASE_LANGUAGE`) as a target. Only `source == target` is blocked. Translating *into* English would generate a stored "English" set that shadows the editable English baseline.
 **Root cause:** No guard that `target != BASE_LANGUAGE`.
 **Proposed fix:** Reject English as a translation target.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — prompt translation runs now reject English as a generated target so the editable baseline cannot be shadowed.
 
 ### Bug 29 — Severity: LOW — Category: main-thread work
 **Location:** PromptTranslationsScreen.kt:144 (`PromptTranslationStore.count(context, lang)`) inside the `items(...)` lambda
