@@ -123,30 +123,33 @@ class RegenerateBatchEngine internal constructor(
      *  no-op. CANCELLED jobs always restart at `currentPhase`. */
     fun restart(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
-            val job = RegenerateBatchStorage.get(context, reportId) ?: return@launch
-            if (job.status == RegenerateJobStatus.DONE) return@launch
-            if (job.status == RegenerateJobStatus.RUNNING &&
-                orchestratorJobs[reportId]?.isActive == true) {
-                return@launch  // already running
-            }
-            if (job.status == RegenerateJobStatus.PAUSED_ON_ERROR) {
-                // Only resume if the row that paused us is no longer
-                // in an error state on disk. The user may have hit
-                // Restart prematurely — in that case the orchestrator
-                // would just hit the same error again, so bail.
-                val pausedRowId = job.pausedOnRowId
-                if (pausedRowId != null && isRowStillErrored(context, reportId, job, pausedRowId)) {
-                    AppLog.d("RegenBatch", "restart no-op: row $pausedRowId still errored")
-                    return@launch
+            var shouldStart = false
+            mutateJob(context, reportId, allowTerminalMutation = true) { job ->
+                when {
+                    job.status == RegenerateJobStatus.DONE -> job
+                    job.status == RegenerateJobStatus.RUNNING &&
+                        orchestratorJobs[reportId]?.isActive == true -> job
+                    job.status == RegenerateJobStatus.PAUSED_ON_ERROR -> {
+                        // Only resume if the row that paused us is no longer
+                        // in an error state on disk. The user may have hit
+                        // Restart prematurely — in that case the orchestrator
+                        // would just hit the same error again, so bail.
+                        val pausedRowId = job.pausedOnRowId
+                        if (pausedRowId != null && isRowStillErrored(context, reportId, job, pausedRowId)) {
+                            AppLog.d("RegenBatch", "restart no-op: row $pausedRowId still errored")
+                            job
+                        } else {
+                            shouldStart = true
+                            job.copy(status = RegenerateJobStatus.RUNNING, pausedOnRowId = null)
+                        }
+                    }
+                    else -> {
+                        shouldStart = true
+                        job.copy(status = RegenerateJobStatus.RUNNING, pausedOnRowId = null)
+                    }
                 }
             }
-            val resumed = job.copy(
-                status = RegenerateJobStatus.RUNNING,
-                pausedOnRowId = null,
-                updatedAt = System.currentTimeMillis()
-            )
-            persist(context, resumed)
-            startOrchestrator(context, reportId)
+            if (shouldStart) startOrchestrator(context, reportId)
         }
 
     /** Synchronously cancel the orchestrator coroutine for [reportId]
@@ -168,13 +171,14 @@ class RegenerateBatchEngine internal constructor(
             // here too double-counted the same logical batch end, drifting
             // the "batches running" badge below the real count.
             orchestratorJobs.remove(reportId)?.cancel()
-            val job = RegenerateBatchStorage.get(context, reportId) ?: return@launch
-            if (job.status == RegenerateJobStatus.DONE ||
-                job.status == RegenerateJobStatus.CANCELLED) return@launch
-            persist(context, job.copy(
-                status = RegenerateJobStatus.CANCELLED,
-                updatedAt = System.currentTimeMillis()
-            ))
+            mutateJob(context, reportId) { job ->
+                if (job.status == RegenerateJobStatus.DONE ||
+                    job.status == RegenerateJobStatus.CANCELLED) {
+                    job
+                } else {
+                    job.copy(status = RegenerateJobStatus.CANCELLED)
+                }
+            }
         }
     }
 
@@ -202,12 +206,21 @@ class RegenerateBatchEngine internal constructor(
                     return
                 }
                 AppLog.i("RegenBatch", "auto-resuming PAUSED batch for $reportId — error cleared")
-                val resumed = job.copy(
-                    status = RegenerateJobStatus.RUNNING,
-                    pausedOnRowId = null,
-                    updatedAt = System.currentTimeMillis()
-                )
-                persist(context, resumed)
+                var shouldStart = false
+                mutateJob(context, reportId) { current ->
+                    if (current.status != RegenerateJobStatus.PAUSED_ON_ERROR) {
+                        current
+                    } else {
+                        val currentPausedRowId = current.pausedOnRowId
+                        if (currentPausedRowId != null && isRowStillErrored(context, reportId, current, currentPausedRowId)) {
+                            current
+                        } else {
+                            shouldStart = true
+                            current.copy(status = RegenerateJobStatus.RUNNING, pausedOnRowId = null)
+                        }
+                    }
+                }
+                if (!shouldStart) return
                 startOrchestrator(context, reportId)
             }
         }
@@ -652,17 +665,26 @@ class RegenerateBatchEngine internal constructor(
 
     private fun mutateJob(
         context: Context, reportId: String,
+        allowTerminalMutation: Boolean = false,
         mutator: (RegenerateJob) -> RegenerateJob
     ): RegenerateJob? {
-        // Atomic get→mutate→save under the storage lock (Bug 58) so a
-        // concurrent cancel (on another coroutine) can't be clobbered by an
-        // orchestrator update built from a stale RUNNING snapshot.
+        // Atomic get→mutate→save under the storage lock so a concurrent
+        // cancel/restart can't be clobbered by an orchestrator update built
+        // from a stale RUNNING snapshot.
         val updated = RegenerateBatchStorage.update(context, reportId) { current ->
-            mutator(current).copy(updatedAt = System.currentTimeMillis())
+            if (!allowTerminalMutation && current.status.isTerminal()) {
+                current
+            } else {
+                val next = mutator(current)
+                if (next == current) current else next.copy(updatedAt = System.currentTimeMillis())
+            }
         } ?: return null
         _jobs.update { it + (updated.reportId to updated) }
         return updated
     }
+
+    private fun RegenerateJobStatus.isTerminal(): Boolean =
+        this == RegenerateJobStatus.DONE || this == RegenerateJobStatus.CANCELLED
 
     private fun persist(context: Context, job: RegenerateJob) {
         RegenerateBatchStorage.save(context, job)

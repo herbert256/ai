@@ -83,7 +83,9 @@ object RegenerateBatchStorage {
                 null
             } ?: return@withLock null
             val updated = mutator(current)
-            file.writeTextAtomic(gson.toJson(updated))
+            if (updated != current) {
+                file.writeTextAtomic(gson.toJson(updated))
+            }
             updated
         }
     }

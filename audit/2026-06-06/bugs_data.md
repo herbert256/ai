@@ -602,7 +602,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `cancel()`/`restart()`/`reconcile()` persist the job via `persist()` → `RegenerateBatchStorage.save()` (blind full-object write), while the orchestrator mutates via `mutateJob()` → `update()` (atomic RMW). A `cancel()` that reads RUNNING, then writes CANCELLED via blind save, can be raced by a still-running orchestrator's `pauseOnError`/`advanceToNextPhase` RMW that reads CANCELLED and writes PAUSED_ON_ERROR/RUNNING — resurrecting a cancelled job (exactly the failure the `mutateJob` Bug-58 comment claims to prevent, but the cancel side doesn't use the atomic path).
 **Root cause:** Inconsistent persistence: status transitions on the user/sweep side use blind `save`, the orchestrator uses `update`. The orchestrator coroutine's `mutateJob` is a non-suspend disk operation, so cooperative cancellation can't interrupt it mid-write.
 **Proposed fix:** Route `cancel`/`restart`/`reconcile` status writes through `RegenerateBatchStorage.update` (RMW) too, and have the orchestrator's RMW bail when it reads a terminal (CANCELLED/DONE) status instead of overwriting it.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — cancel/restart/reconcile status changes now route through the same atomic update path as orchestrator mutations; orchestrator mutations preserve terminal CANCELLED/DONE jobs so a late RMW cannot resurrect a cancelled batch
 
 ### Bug 78 — Severity: LOW — Category: double-cancel orchestrator window
 **Location:** RegenerateBatchEngine.kt:94-116 (`enqueueAndStart`), 254-271 (`startOrchestrator`)
