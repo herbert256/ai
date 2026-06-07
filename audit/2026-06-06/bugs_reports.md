@@ -180,7 +180,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** After one external-seed navigation (Model Info View → `aiReportViewAtAgent`), any *later* opening of the Reports sub-overlay (the Reports tile, or the rerank-podium jump) makes Back/`onBack` call `seedBundle.onExitToList?.invoke()`, popping the whole AI_REPORTS route instead of returning to the View tile grid.
 **Root cause:** `seededFromOutside` is `remember(seedBundle.initialReportsAgentId) { ...isNotBlank() }`, reading the *raw* bundle value, which is never cleared for the lifetime of the route. `lastSeededAgentId` guards re-seeding the overlay but does not gate `seededFromOutside`; so once the bundle carries a non-blank id, every Reports-overlay exit takes the external-seed pop path.
 **Proposed fix:** Gate `seededFromOutside` on whether *this* open was the seeded one (e.g. compare `reportsViewInitialAgentId == seedBundle.initialReportsAgentId` at open time, or clear/consume the bundle's id after the first seed) rather than on the persistent raw bundle value.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Reports overlay now carries a per-open reportsViewSeededFromOutside flag set only by the external seed and cleared for normal tile/rerank opens and on close
 
 ### Bug 23 — Severity: MEDIUM — Category: only-first-run picked
 **Location:** Main.kt:618-629 (`firstFanOutItem`/`firstFanOutName`/`firstFanOutIcon`), 691-705 (Reports view fan-out wiring)

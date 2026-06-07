@@ -253,6 +253,7 @@ internal fun ViewAiReportScreen(
     var reportsViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     var reportsViewOpen by rememberSaveable(resetTick) { mutableStateOf(false) }
     var reportsViewInitialAgentId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    var reportsViewSeededFromOutside by rememberSaveable(resetTick) { mutableStateOf(false) }
     // Fan-out "View" overlay, opened from inside the Reports view when
     // the user taps the fan-out icon on a model's response card. Keyed
     // on resetTick like the rest. [fanOutViewInitiatorAgentId] lands the
@@ -280,6 +281,7 @@ internal fun ViewAiReportScreen(
         val aid = seedBundle.initialReportsAgentId?.takeIf { it.isNotBlank() }
         if (aid != null && aid != lastSeededAgentId) {
             reportsViewInitialAgentId = aid
+            reportsViewSeededFromOutside = true
             reportsViewOpen = true
             lastSeededAgentId = aid
         }
@@ -299,6 +301,7 @@ internal fun ViewAiReportScreen(
                 onOpenReportForAgent = { agentId ->
                     rerankViewRowId = null
                     reportsViewInitialAgentId = agentId
+                    reportsViewSeededFromOutside = false
                     reportsViewOpen = true
                 }
             )
@@ -669,15 +672,16 @@ internal fun ViewAiReportScreen(
         // back should pop the AI_REPORTS route entirely so the user
         // returns to the Model Info View they came from — not via
         // the intermediate View tile grid that they never asked for.
-        // Detect the external-seed case by checking the bundle's
-        // initialReportsAgentId at this moment.
-        val seededFromOutside = remember(seedBundle.initialReportsAgentId) {
-            seedBundle.initialReportsAgentId?.isNotBlank() == true
-        }
+        // Detect the external-seed case from the per-open flag set
+        // by the seed consumer above. The raw bundle id persists for
+        // this whole route and must not make later tile/rerank opens
+        // pop the whole route.
+        val seededFromOutside = reportsViewSeededFromOutside
         val backToMain: () -> Unit = {
             reportsViewOpen = false
             reportsViewLanguage = null
             reportsViewInitialAgentId = null
+            reportsViewSeededFromOutside = false
             if (seededFromOutside) seedBundle.onExitToList?.invoke()
         }
         androidx.compose.runtime.CompositionLocalProvider(
@@ -712,6 +716,7 @@ internal fun ViewAiReportScreen(
                     reportsViewOpen = false
                     reportsViewLanguage = null
                     reportsViewInitialAgentId = null
+                    reportsViewSeededFromOutside = false
                     // External-seed exit: pop back to the source
                     // route (Model Info View) instead of falling
                     // through to the View tile grid.
@@ -941,6 +946,7 @@ internal fun ViewAiReportScreen(
                 // Fresh open from the tile starts at the first model —
                 // clear any agent seed left by a fan-out round-trip.
                 reportsViewInitialAgentId = null
+                reportsViewSeededFromOutside = false
                 reportsViewOpen = true
             }))
             add(IdentifiedTile("doc:Matrix", ViewTile(
