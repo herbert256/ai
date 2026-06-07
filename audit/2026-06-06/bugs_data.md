@@ -450,7 +450,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Root cause:** `get()`/`save()` are separate lock acquisitions; `save()` writes the whole row from the stale snapshot, unlike the bump methods which read+write under one lock.
 **Reproduction:** During a regenerate batch, trigger an Apply on a fan-out pair while its icon-chain cost bump is in flight; the row's icon cost reverts.
 **Proposed fix:** Add a lock-wrapped `update(reportId, resultId) { mutate }` RMW and route `updateContent`/`updateChatMessages` through it (mirror `RegenerateBatchStorage.update`).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — `updateChatMessages`, `updateContent`, and the same-shaped model-switch update now use a single locked `updateResult` read-modify-write, so concurrent cost/icon bumps are preserved
 
 ### Bug 59 — Severity: LOW — Category: token fidelity loss on accumulation
 **Location:** SecondaryResult.kt:303-325 (`mergeCostFromDisk`)
