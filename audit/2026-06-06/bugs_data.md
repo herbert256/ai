@@ -471,7 +471,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `save` checks `ReportStorage.reportExists` twice (before and inside the lock) but `ReportStorage` uses a *different* lock, so a `deleteReport` could complete between the inner check and `writeTextAtomic`, recreating the secondary directory + file under a just-deleted report (orphaned data).
 **Root cause:** Cross-object check-then-act across two independent locks.
 **Proposed fix:** Have `deleteReport` also remove the secondary dir under a shared ordering, or recheck existence immediately after write and clean up.
-**Status:** Open (low likelihood)
+**Status:** Fixed — `SecondaryResultStorage.save` now rechecks report existence after a successful write, deletes any late orphan file and empty report directory, and invalidates the cache entry before returning.
 
 ## File: ai/src/main/java/com/ai/data/ChatHistoryManager.kt
 
