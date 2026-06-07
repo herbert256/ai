@@ -625,7 +625,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `costWithin` calls `PricingCache.getPricing(context, ...)` per (provider,model) group; on the main thread during the cold pricing window it returns DEFAULT and the live dashboard cost reads wrong (see Bug 42), and after warm-up the per-group `getPricing` does a layered lookup on the UI thread on every dashboard tick.
 **Root cause:** Pricing resolution on the dashboard read path.
 **Proposed fix:** Precompute/caches a price snapshot per (provider,model) and reuse; gate cost display on `preloadCompleted`.
-**Status:** Open
+**Status:** Fixed in `ApiUsageRates.kt` by reusing per-provider/model pricing snapshots after pricing preload instead of repeating layered lookups on every dashboard tick.
 
 ## File: ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt + TranslationRunManager.kt
 

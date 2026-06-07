@@ -29,6 +29,7 @@ object ApiUsageRates {
 
     private val lock = Any()
     private val events = ArrayDeque<Ev>()
+    private val priceSnapshots = HashMap<String, PricingCache.ModelPricing>()
 
     /** Record one call's token usage. No-op when both counts are zero
      *  (e.g. an errored call that reported nothing). */
@@ -75,7 +76,9 @@ object ApiUsageRates {
         }
         var cost = 0.0
         for ((k, acc) in sums) {
-            val p = PricingCache.getPricing(context, provOf.getValue(k), modelOf.getValue(k))
+            val p = synchronized(lock) { priceSnapshots[k] }
+                ?: PricingCache.getPricing(context, provOf.getValue(k), modelOf.getValue(k))
+                    .also { synchronized(lock) { priceSnapshots[k] = it } }
             cost += acc[0] * p.promptPrice + acc[1] * p.completionPrice
         }
         return cost
