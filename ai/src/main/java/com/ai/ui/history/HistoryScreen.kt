@@ -42,6 +42,7 @@ fun HistoryScreenNav(
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
     var allReports by remember { mutableStateOf(emptyList<Report>()) }
+    var reportLoadFailures by remember { mutableStateOf(emptyList<ReportLoadFailure>()) }
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
     LaunchedEffect(refreshTick) {
         // getAllReports re-reads + parses every report JSON, including
@@ -50,6 +51,7 @@ fun HistoryScreenNav(
         // every ON_RESUME so navigating away to delete / regenerate a
         // report and coming back shows the updated list.
         allReports = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
+        reportLoadFailures = ReportStorage.getLastLoadFailures(context)
     }
     var searchTitle by remember { mutableStateOf("") }
     var searchPrompt by remember { mutableStateOf("") }
@@ -100,6 +102,21 @@ fun HistoryScreenNav(
                 onClear = if (searchExpanded) ({ searchTitle = ""; searchPrompt = ""; searchReport = "" }) else null,
                 onHousekeeping = onHousekeeping
             )
+            if (reportLoadFailures.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Text(
+                        text = "${reportLoadFailures.size} report file${if (reportLoadFailures.size == 1) "" else "s"} failed to load. Check App log for details.",
+                        modifier = Modifier.padding(12.dp),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
             // Search toggle
             if (!searchExpanded) {
