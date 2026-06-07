@@ -413,7 +413,7 @@ fun ChatSessionScreen(
     val pricing = remember(provider, model, pricingTick) { PricingCache.getPricing(context, provider, model) }
     // Running cost in cents, always priced at the current tier (re-derives when
     // pricing primes or token totals change).
-    val totalCost by remember {
+    val totalCost by remember(pricing) {
         derivedStateOf {
             (totalInputTokens * pricing.promptPrice + totalOutputTokens * pricing.completionPrice) * 100
         }

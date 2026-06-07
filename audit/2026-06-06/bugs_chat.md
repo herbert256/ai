@@ -69,7 +69,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The running-cost banner is computed against the pricing object captured at the *first* composition. When `PricingCache` finishes priming (the comment claims this fixes the cold window), the banner does **not** re-price — it stays frozen at the cold/default rate for the whole session.
 **Root cause:** The `remember {}` wrapping `derivedStateOf` has no keys, so the lambda is created once and closes over the first-composition `pricing` value. `pricing.promptPrice` is a plain field read (not snapshot state), so `derivedStateOf` only re-evaluates when `totalInputTokens`/`totalOutputTokens` change — always re-reading the captured (stale) `pricing`. The recomputed `pricing` local from later compositions is never observed.
 **Proposed fix:** Key the remember on pricing: `val totalCost by remember(pricing) { derivedStateOf { … } }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — totalCost's derivedStateOf is now keyed on pricing, so the chat banner reprices when PricingCache refreshes the provider/model price
 
 ### Bug 9 — Severity: MEDIUM — Category: locale / comma-decimal
 **Location:** ChatScreens.kt:143-153 (`onStartChat`, `temperature.toFloatOrNull()` etc.)
