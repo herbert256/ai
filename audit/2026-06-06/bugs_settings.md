@@ -126,7 +126,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Importing a parameters/system-prompts file upserts by `id`: a row whose id matches an existing preset **replaces** it. A user who exported, then locally edited a preset, then re-imports the old file silently loses the edit with no conflict prompt.
 **Root cause:** `merged = working.X.filterNot { it.id in incomingIds } + incoming` — incoming always wins, no merge/conflict surface.
 **Proposed fix:** Acceptable for device-sync, but consider skip-if-present (additive) or a conflict count in the toast so silent overwrite is visible.
-**Status:** Open
+**Status:** Fixed — id/key-based imports still upsert for device-sync compatibility, but parameters, system prompts, model overrides, blocked models, test-excluded models, and inaccessible models now count replaced rows and show that count in standalone import toasts and full-bundle summaries.
 
 ---
 
