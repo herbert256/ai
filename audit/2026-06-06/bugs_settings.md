@@ -354,7 +354,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The three key fields are `remember { mutableStateOf(prop) }` without keying on the incoming prop. If the key changes elsewhere while the screen is open (e.g. an All-bundle import on another screen, or a reset), the field keeps showing the stale value.
 **Root cause:** `remember` not keyed on the prop (and no re-sync effect).
 **Proposed fix:** Key the remember on the incoming value, or add a sync `LaunchedEffect`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — external-service key fields are now remembered with their incoming prop as the key
 
 ### Bug 38 — Severity: LOW — Category: count mismatch / unreachable category
 **Location:** SetupScreens.kt:361-365 (`PromptsSetupScreen.internalTotal`) and 399-414 (`InternalPromptsHubScreen`)

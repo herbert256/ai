@@ -707,9 +707,9 @@ fun ExternalServicesScreen(
     onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
-    var hfKey by remember { mutableStateOf(huggingFaceApiKey) }
-    var orKey by remember { mutableStateOf(openRouterApiKey) }
-    var aaKey by remember { mutableStateOf(artificialAnalysisApiKey) }
+    var hfKey by remember(huggingFaceApiKey) { mutableStateOf(huggingFaceApiKey) }
+    var orKey by remember(openRouterApiKey) { mutableStateOf(openRouterApiKey) }
+    var aaKey by remember(artificialAnalysisApiKey) { mutableStateOf(artificialAnalysisApiKey) }
 
     // Debounce keystrokes — every character was firing a prefs write,
     // so pasting a 96-char key wrote 96 times in rapid succession.
