@@ -477,7 +477,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The layered CSV is comma-separated and the prices use `.` decimals (Locale.US). On a comma-decimal locale, opening the file in a localized spreadsheet (which may switch to `;` separators and `,` decimals) and re-saving produces a file the importer can't parse (fields split wrong, prices null). There's no separator/decimal detection on import.
 **Root cause:** Fixed comma-separator + dot-decimal assumption, no locale tolerance on import.
 **Proposed fix:** Accept `;`-separated / comma-decimal variants on import, or document that the file must stay US-formatted.
-**Status:** Open
+**Status:** Fixed in `CostsMaintenanceScreen.kt` by detecting comma vs semicolon delimiters from the header and reusing the existing comma-decimal price parser.
 
 ---
 

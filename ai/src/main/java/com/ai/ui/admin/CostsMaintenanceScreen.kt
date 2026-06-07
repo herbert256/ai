@@ -60,6 +60,11 @@ fun CostsMaintenanceScreen(
     }
     fun parsePerMillion(raw: String): Double? =
         raw.trim().replace(',', '.').toDoubleOrNull()?.div(1_000_000)
+    fun detectCsvDelimiter(header: String): Char {
+        val commaColumns = parseCsvRow(header, ',').size
+        val semicolonColumns = parseCsvRow(header, ';').size
+        return if (semicolonColumns > commaColumns) ';' else ','
+    }
 
     fun buildLayeredCsv(filterCovered: Boolean): Pair<String, Int> {
         fun fmt(p: Double?): String = p?.let { "%.4f".format(java.util.Locale.US, it * 1_000_000) } ?: ""
@@ -125,10 +130,12 @@ fun CostsMaintenanceScreen(
             val result = withContext(Dispatchers.IO) {
                 val csv = readFromUri(uri)
                 if (csv.isNullOrBlank()) return@withContext null
+                val lines = csv.lineSequence().toList()
+                val delimiter = lines.firstOrNull()?.let(::detectCsvDelimiter) ?: ','
                 var imported = 0
                 var skipped = 0
-                csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
-                    val parts = parseCsvRow(line)
+                lines.drop(1).filter { it.isNotBlank() }.forEach { line ->
+                    val parts = parseCsvRow(line, delimiter)
                     if (parts.size < 4) return@forEach
                     val rawIn = parts[2].trim()
                     val rawOut = parts[3].trim()
@@ -146,7 +153,7 @@ fun CostsMaintenanceScreen(
                             if (inp == null) inp = current.promptPrice
                             if (outp == null) outp = current.completionPrice
                         }
-                        PricingCache.setManualPricing(context, provider, model, inp!!, outp!!)
+                        PricingCache.setManualPricing(context, provider, model, inp, outp)
                         imported++
                     } else {
                         skipped++
