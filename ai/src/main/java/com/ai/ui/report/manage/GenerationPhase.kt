@@ -758,7 +758,10 @@ internal fun ColumnScope.GenerationPhase(
     // changes and we re-anchor to the top, which is what the user
     // wants to see.
     val newRowTrigger = "${secondaryRuns.size}|${fanOutSummaries.size}|${activeTranslationRuns.size}|${visibleTranslationSummaries.size}"
-    LaunchedEffect(currentReportId, newRowTrigger, paused) {
+    // NOTE: `paused` only GATES the body — it is deliberately NOT a key. Keying
+    // on it re-ran the effect when an overlay set paused=true then cleared it,
+    // snapping a long list back to the top on overlay close (audit reports#4).
+    LaunchedEffect(currentReportId, newRowTrigger) {
         if (currentReportId == null || paused) return@LaunchedEffect
         resultListState.scrollToItem(0)
     }

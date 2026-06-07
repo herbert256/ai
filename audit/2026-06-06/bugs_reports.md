@@ -34,7 +34,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Opening the "Report - Get info" overlay (or any overlay that flips `paused`) and returning to the result list snaps the result LazyColumn back to the top, discarding the user's scroll position on a long report.
 **Root cause:** The auto-scroll-to-top effect keys on `paused` in addition to `currentReportId`/`newRowTrigger`. When an overlay sets `paused=true` and then clears it, the effect re-runs `resultListState.scrollToItem(0)`. The comment only describes report-open and new-row appends as the intended triggers; `paused` is an unintended re-anchor trigger.
 **Proposed fix:** Drop `paused` from the effect key (it is only used to *suppress* the scroll inside the body via `if (paused) return`); gate the body on `paused` but don't re-key on it.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - dropped 'paused' from the scroll-to-top LaunchedEffect key (it now only gates the body), so closing a paused overlay no longer re-anchors the list
 
 ### Bug 5 — Severity: LOW — Category: cost double-count window
 **Location:** GenerationPhase.kt:561-577 (`liveTranslation` fold), 594-595 (`totalCost`)
