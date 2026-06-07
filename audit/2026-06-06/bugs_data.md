@@ -387,7 +387,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Same class as Bug 48 — two concurrent `generate` calls on different `.task` models clobber `currentlyGenerating` and the first finish nulls it while the other runs.
 **Root cause:** Single var for per-model live state.
 **Proposed fix:** Track in-flight model names as a set.
-**Status:** Open
+**Status:** Fixed in `LocalLlm.kt` by tracking per-model in-flight generation counts and deriving the dashboard summary from active model names.
 
 ### Bug 51 — Severity: LOW — Category: locale-sensitive formatting
 **Location:** LocalLlm.kt:180 (`"%.1f".format(rate)`)

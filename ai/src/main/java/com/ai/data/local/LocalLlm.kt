@@ -13,6 +13,7 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * On-device LLM via MediaPipe Tasks GenAI (LiteRT under the hood).
@@ -33,9 +34,11 @@ object LocalLlm {
     private val instances = ConcurrentHashMap<String, LlmInference>()
 
     /** Live state for the dashboard's Local-runtime card. */
-    @Volatile private var generating: String? = null
-    /** The model currently running [generate], or null when idle. */
-    val currentlyGenerating: String? get() = generating
+    private val generatingCounts = ConcurrentHashMap<String, AtomicInteger>()
+    /** Models currently running [generate], or an empty list when idle. */
+    fun currentlyGeneratingModels(): List<String> = generatingCounts.keys.sorted()
+    /** Human-readable summary for the dashboard's existing single-field row. */
+    val currentlyGenerating: String? get() = currentlyGeneratingModels().joinToString(", ").takeIf { it.isNotBlank() }
     /** Names of models loaded into memory right now. */
     fun loadedModelNames(): List<String> = instances.keys.toList()
 
@@ -170,7 +173,7 @@ object LocalLlm {
     fun generate(context: Context, modelName: String, prompt: String): String? {
         val started = System.currentTimeMillis()
         AppLog.d("LocalLlm", "→ generate $modelName promptChars=${prompt.length}")
-        generating = modelName
+        markGeneratingStart(modelName)
         return try {
             val engine = getEngine(context, modelName)
             val out = synchronized(engine) { engine.generateResponse(prompt) }
@@ -185,7 +188,19 @@ object LocalLlm {
             recordTrace(modelName, prompt, null, durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
             null
         } finally {
-            generating = null
+            markGeneratingEnd(modelName)
+        }
+    }
+
+    private fun markGeneratingStart(modelName: String) {
+        generatingCounts.compute(modelName) { _, current ->
+            (current ?: AtomicInteger(0)).also { it.incrementAndGet() }
+        }
+    }
+
+    private fun markGeneratingEnd(modelName: String) {
+        generatingCounts.computeIfPresent(modelName) { _, current ->
+            if (current.decrementAndGet() <= 0) null else current
         }
     }
 
