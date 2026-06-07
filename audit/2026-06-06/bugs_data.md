@@ -417,7 +417,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A single global `ReentrantLock` serializes every report write across *all* reports. During a many-report regenerate batch with frequent per-agent status writes, writers to unrelated reports queue behind each other, adding latency.
 **Root cause:** One global lock instead of per-report locks.
 **Proposed fix:** Stripe the lock by reportId.
-**Status:** Open
+**Status:** Fixed — secondary list-cache entries now include a CRC32 content hash, so same-second same-length rewrites are detected even if a future writer misses explicit invalidation.
 
 ### Bug 55 — Severity: LOW — Category: load failure → silent skip
 **Location:** ReportStorage.kt:451-458 (`loadAllReports`)
