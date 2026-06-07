@@ -158,7 +158,7 @@ fun ModelInfoViewScreen(
         if (openRouterApiKey.isBlank()) return@produceState
         value = withContext(Dispatchers.IO) {
             try {
-                val models = ModelInfoLookupCache.getOpenRouterModels(openRouterApiKey)
+                val models = OpenRouterModelInfoCache.getOpenRouterModels(openRouterApiKey)
                 fun norm(s: String) = s.replace('.', '-').lowercase()
                 val targetNorm = norm(modelName)
                 val orName = provider.openRouterName
@@ -1039,29 +1039,4 @@ private fun computeUsages(
         ) { onOpenReportAtAgent(report.id, matchingAgent.agentId.ifBlank { matchingAgent.agentName }) }
     }
     return out
-}
-
-/** Tiny per-process cache for the OpenRouter models list — same
- *  shape as the Manage screen's [ModelInfoCache] but kept private
- *  here so this file doesn't leak through to the Manage screen. */
-private object ModelInfoLookupCache {
-    @Volatile private var apiKey: String? = null
-    @Volatile private var openRouterModels: List<OpenRouterModelInfo>? = null
-    @Volatile private var fetchedAt: Long = 0L
-    private const val TTL_MS = 6L * 60 * 60 * 1000
-
-    suspend fun getOpenRouterModels(apiKey: String): List<OpenRouterModelInfo> {
-        if (apiKey.isBlank()) return emptyList()
-        val fresh = System.currentTimeMillis() - fetchedAt < TTL_MS
-        if (this.apiKey == apiKey && fresh) {
-            openRouterModels?.let { return it }
-        }
-        val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
-        val response = withTraceCategory("info/provider") { api.listModelsDetailed("Bearer $apiKey") }
-        val models = if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
-        this.apiKey = apiKey
-        openRouterModels = models
-        fetchedAt = System.currentTimeMillis()
-        return models
-    }
 }

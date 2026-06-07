@@ -428,7 +428,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The View and Manage Model-Info screens keep two separate per-process OpenRouter caches, so navigating between them can trigger a second full `/models` fetch even though the data is identical.
 **Root cause:** Deliberately-private duplicate caches (per the comment) that don't share state.
 **Proposed fix:** Share one process-level OR-models cache between the two screens.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — both model-info screens now use the shared `OpenRouterModelInfoCache`, preserving the TTL and mutex guard while avoiding duplicate OpenRouter `/models` fetches.
 
 ---
 
