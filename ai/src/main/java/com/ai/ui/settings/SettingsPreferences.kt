@@ -296,8 +296,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 loadJsonList("${key}_manual_models") ?: emptyList()
             val storedTypes: Map<String, String> = prefs.getString("${key}_model_types", null)?.let {
                 try {
-                    @Suppress("UNCHECKED_CAST")
-                    gson.fromJson(it, Map::class.java) as? Map<String, String>
+                    gson.fromJson<Map<String, String>>(it, TypeTokens.mapStringStringType)
                 } catch (_: Exception) { null }
             } ?: emptyMap()
             val types = models.associateWith { id -> storedTypes[id] ?: com.ai.data.ModelType.infer(id) }
