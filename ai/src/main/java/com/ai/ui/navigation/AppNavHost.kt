@@ -478,6 +478,7 @@ fun AppNavHost(
             onTraceFallback = { navigateHomeBarRoute(NavRoutes.TRACE_LIST) },
             onHelpFallback = { navigateHomeBarRoute(NavRoutes.HELP) },
             onAbout = { navigateHomeBarRoute(NavRoutes.ABOUT) },
+            onStatistics = { navigateHomeBarRoute(NavRoutes.AI_STATISTICS) },
             fullScreen = rootUiStateForLayout.generalSettings.fullScreen
         )
     }
@@ -511,7 +512,9 @@ fun AppNavHost(
         com.ai.ui.shared.BottomIconBar(
             icons = bottomBarIconState.value,
             suppressScreenTraceAndHelp = homeBarEnabled,
-            suppressShare = homeBarEnabled
+            // Share now lives in the bottom bar in BOTH modes (it was removed
+            // from the Home icon bar), exactly like Home Screen mode.
+            suppressShare = false
         )
     }
     } // end Column
