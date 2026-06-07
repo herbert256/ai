@@ -673,25 +673,17 @@ fun ChatSessionScreen(
                 com.ai.data.withTraceCategory("Chat validate input") {
                     val (modProvider, modModelId) = mod
                     val apiKey = aiSettings.getApiKey(modProvider)
-                    // Snapshot the wall clock just before the call so we can
-                    // pick out the resulting trace by "model match + timestamp
-                    // ≥ this value" — avoids grabbing an earlier trace of the
-                    // same model from a previous turn.
-                    val callStart = System.currentTimeMillis()
-                    val (results, apiResult) = com.ai.data.callModerationApi(modProvider, apiKey, modModelId, listOf(input))
+                    val traceSink = java.util.concurrent.atomic.AtomicReference<String?>()
+                    val (results, apiResult) = com.ai.data.withTraceFilenameSink(traceSink) {
+                        com.ai.data.callModerationApi(modProvider, apiKey, modModelId, listOf(input))
+                    }
                     val r = results?.firstOrNull()
                     if (apiResult.errorMessage != null || r == null) {
                         moderationError = apiResult.errorMessage ?: "No moderation result"
                         handedOffToSend = true
                         actuallySend(input, img)
                     } else if (r.flagged) {
-                        val traceFilename = withContext(Dispatchers.IO) {
-                            com.ai.data.ApiTracer.getTraceFiles()
-                                .filter { it.reportId == null && it.model == modModelId && it.timestamp >= callStart }
-                                .minByOrNull { it.timestamp }
-                                ?.filename
-                        }
-                        pendingFlagged = FlaggedState(input, r, img, traceFilename)
+                        pendingFlagged = FlaggedState(input, r, img, traceSink.get())
                     } else {
                         handedOffToSend = true
                         actuallySend(input, img)

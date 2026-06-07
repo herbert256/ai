@@ -148,7 +148,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The 🐞 on a flagged-input dialog can open an unrelated trace.
 **Root cause:** The lookup filters `it.reportId == null && it.model == modModelId && it.timestamp >= callStart` and takes the earliest. Any other untagged (reportId==null) trace of the same moderation model produced after `callStart` (e.g. a concurrent moderation elsewhere) could be picked.
 **Proposed fix:** Tag the moderation call with a unique reportId/category and filter on it.
-**Status:** Open
+**Status:** Fixed — pre-send moderation now wraps `callModerationApi` in `withTraceFilenameSink` and stores that exact filename on the flagged-input dialog, removing the timestamp/model trace-dir scan that could select another concurrent moderation trace.
 
 ### Bug 20 — Severity: LOW — Category: state loss
 **Location:** ChatScreens.kt:307 (`var error by remember`), 369-370 (`moderationError`, `isModerating`)
