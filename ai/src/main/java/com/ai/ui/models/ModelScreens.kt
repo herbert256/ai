@@ -1403,13 +1403,13 @@ private fun colorizeJson(json: String): androidx.compose.ui.text.AnnotatedString
                     while (i < n && (json[i].isDigit() || json[i] == '.' || json[i] == 'e' || json[i] == 'E' || json[i] == '+' || json[i] == '-')) i++
                     withStyle(numStyle) { append(json.substring(start, i)) }
                 }
-                c == 't' && i + 4 <= n && json.regionMatches(i, "true", 0, 4) -> {
+                c == 't' && i + 4 <= n && json.regionMatches(i, "true", 0, 4) && jsonLiteralBoundary(json, i + 4) -> {
                     withStyle(boolStyle) { append("true") }; i += 4
                 }
-                c == 'f' && i + 5 <= n && json.regionMatches(i, "false", 0, 5) -> {
+                c == 'f' && i + 5 <= n && json.regionMatches(i, "false", 0, 5) && jsonLiteralBoundary(json, i + 5) -> {
                     withStyle(boolStyle) { append("false") }; i += 5
                 }
-                c == 'n' && i + 4 <= n && json.regionMatches(i, "null", 0, 4) -> {
+                c == 'n' && i + 4 <= n && json.regionMatches(i, "null", 0, 4) && jsonLiteralBoundary(json, i + 4) -> {
                     withStyle(nullStyle) { append("null") }; i += 4
                 }
                 else -> {
@@ -1419,6 +1419,9 @@ private fun colorizeJson(json: String): androidx.compose.ui.text.AnnotatedString
         }
     }
 }
+
+private fun jsonLiteralBoundary(json: String, index: Int): Boolean =
+    index >= json.length || !json[index].isLetterOrDigit()
 
 /** One clickable row inside the "Model in AI configuration" /
  *  "Workers" cards on Model Info. Label on the left (blue, fixed

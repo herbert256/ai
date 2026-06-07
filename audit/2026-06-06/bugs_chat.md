@@ -402,7 +402,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** In malformed JSON, a token like `truething` would color `true` then continue — keyword matching has no trailing word-boundary check.
 **Root cause:** `regionMatches(i, "true", 0, 4)` without verifying the next char is a delimiter.
 **Proposed fix:** Require the following char to be non-alphanumeric. (Cosmetic; JSON-only.)
-**Status:** Open
+**Status:** Fixed in `ModelScreens.kt` by requiring a non-alphanumeric/end-of-string boundary after `true`, `false`, and `null` literals.
 
 ### Bug 52 — Severity: LOW — Category: redundant I/O
 **Location:** ModelScreens.kt:252-272 (`usageEntry` builds a fresh `SettingsPreferences(prefs, filesDir)`)
