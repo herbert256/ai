@@ -302,7 +302,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `markUnavailable` is invoked from the OkHttp interceptor worker thread and calls `persist()` which does `gson.toJson(...)` of two maps and a SharedPreferences `.apply()`. The serialization runs synchronously on the network worker thread on every long-429.
 **Root cause:** Synchronous serialize-and-write on the interceptor thread.
 **Proposed fix:** Acceptable (`apply` is async, maps are small); if cooldown maps grow, move persistence off-thread.
-**Status:** Fixed — `ReportStorage.loadAllReports` now records per-file load failures, and History shows a visible banner when any report file was dropped from the list.
+**Status:** Fixed — cooldown persistence now snapshots the maps and performs JSON serialization plus SharedPreferences writes on a dedicated background executor instead of the caller's OkHttp worker.
 
 ### Bug 40 — Severity: LOW — Category: import overwrite
 **Location:** ModelCooldownStore.kt:181-186 (`importMerge`)
