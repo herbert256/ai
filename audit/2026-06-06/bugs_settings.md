@@ -83,7 +83,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** CSV import reads the file and runs `PricingCache.getPricing` + `PricingCache.setManualPricing` per row synchronously on the main thread; a large file janks the UI.
 **Root cause:** No `withContext(Dispatchers.IO)` around the read/parse/write loop.
 **Proposed fix:** Move the parse + per-row writes off the main thread.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — layered CSV import now reads, parses, looks up, and writes overrides inside `Dispatchers.IO`
 
 ### Bug 9 — Severity: LOW — Category: locale / comma-decimal
 **Location:** CostsMaintenanceScreen.kt:122-123 (`rawIn.toDoubleOrNull()` / `rawOut.toDoubleOrNull()`)
