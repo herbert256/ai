@@ -101,7 +101,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** If the process is recreated (rotation with no `configChanges`, or "Don't keep activities" / low memory while a SAF picker is up) during an Agent/Flock/Swarm/Prompt edit, `currentSubScreen` restores to e.g. `AI_AGENT_EDIT` but the matching `editing*Id` resets to its `initial*` (null for in-app navigation). The edit screen then resolves `agent = null` → renders as **Add** mode, and the edit target is lost; an auto-save can even mint a spurious new entity.
 **Root cause:** The `editing*Id` selection vars are plain `remember`, while the sub-screen they drive is `rememberSaveable`. The two restore inconsistently.
 **Proposed fix:** Make the `editing*Id` vars `rememberSaveable` (Strings/enum survive the Bundle saver), so the edit target survives alongside the sub-screen.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - the editing* id vars are now rememberSaveable, so the edit target survives recreation alongside currentSubScreen
 
 ---
 

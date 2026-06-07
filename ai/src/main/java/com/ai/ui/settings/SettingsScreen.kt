@@ -158,12 +158,16 @@ fun SettingsScreen(
         mutableStateOf(initialProviderId)
     }
     val selectedProvider: AppService? = selectedProviderId?.let { AppService.findById(it) }
-    var editingAgentId by remember { mutableStateOf(initialEditingAgentId) }
-    var editingFlockId by remember { mutableStateOf(initialEditingFlockId) }
-    var editingSwarmId by remember { mutableStateOf(initialEditingSwarmId) }
-    var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
-    var editingInternalPromptId by remember { mutableStateOf(initialEditingInternalPromptId) }
-    var editingExamplePromptId by remember { mutableStateOf<String?>(null) }
+    // rememberSaveable (not plain remember) so the edit target survives process
+    // recreation alongside currentSubScreen — otherwise a rotation / SAF-picker
+    // recreation mid-edit reset these to their initials, dropping the edit
+    // target and rendering the edit screen as Add (audit settings#10).
+    var editingAgentId by rememberSaveable { mutableStateOf(initialEditingAgentId) }
+    var editingFlockId by rememberSaveable { mutableStateOf(initialEditingFlockId) }
+    var editingSwarmId by rememberSaveable { mutableStateOf(initialEditingSwarmId) }
+    var editingSystemPromptId by rememberSaveable { mutableStateOf<String?>(null) }
+    var editingInternalPromptId by rememberSaveable { mutableStateOf(initialEditingInternalPromptId) }
+    var editingExamplePromptId by rememberSaveable { mutableStateOf<String?>(null) }
     // "providerId:model" key of the blocked-model row being edited;
     // null = adding a new one.
     // Which Internal Prompts CRUD bucket is currently open. Set by the
