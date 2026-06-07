@@ -90,7 +90,11 @@ fun ChatsHubScreen(
         if (unfinishedSessions.isNotEmpty()) {
             UnfinishedChatPill(
                 count = unfinishedSessions.size,
-                onResume = { onResumeSession(unfinishedSessions.first().id) }
+                actionLabel = if (unfinishedSessions.size == 1) "Resume" else "Choose",
+                onResume = {
+                    if (unfinishedSessions.size == 1) onResumeSession(unfinishedSessions.first().id)
+                    else onNavigateToChatHistory()
+                }
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -211,7 +215,7 @@ private fun LocalLlmChatCard(installed: List<String>, onPick: (String) -> Unit) 
  *  response before it could be appended). Tap resumes the most recent
  *  such session so the user can continue from where they left off. */
 @Composable
-private fun UnfinishedChatPill(count: Int, onResume: () -> Unit) {
+private fun UnfinishedChatPill(count: Int, actionLabel: String, onResume: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onResume() },
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
@@ -225,7 +229,7 @@ private fun UnfinishedChatPill(count: Int, onResume: () -> Unit) {
             val label = if (count == 1) "1 chat awaiting reply" else "$count chats awaiting reply"
             Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
-            Text("Resume", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.Bold)
+            Text(actionLabel, fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.Bold)
         }
     }
 }

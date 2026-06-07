@@ -262,7 +262,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** When several chats are "awaiting reply", the pill always resumes only `unfinishedSessions.first()` (newest), with no way to pick which one.
 **Root cause:** The pill exposes a single `onResume = { onResumeSession(unfinishedSessions.first().id) }`.
 **Proposed fix:** Either route to a filtered list, or document that it resumes the most recent.
-**Status:** Open
+**Status:** Fixed in `ChatHub.kt` by resuming directly only for a single unfinished chat and routing multi-chat cases to Chat History with a Choose action.
 
 ---
 
