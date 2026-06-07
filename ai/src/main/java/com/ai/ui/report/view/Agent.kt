@@ -65,7 +65,7 @@ import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-internal data class ReportFanOutRun(
+data class ReportFanOutRun(
     val metaPromptName: String,
     val icon: String?
 )
