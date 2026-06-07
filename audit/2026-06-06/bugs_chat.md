@@ -544,7 +544,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Rotation reloads the prompt-history file (re-parse) because `loaded` is plain `remember`.
 **Root cause:** Not `rememberSaveable`; benign but redundant disk work.
 **Proposed fix:** Acceptable; could cache via the shared prefs cache.
-**Status:** Open
+**Status:** Fixed in `PromptHistoryScreen.kt` by saving loaded prompt-history entries across recreation and reloading only when the resume refresh tick changes.
 
 ---
 

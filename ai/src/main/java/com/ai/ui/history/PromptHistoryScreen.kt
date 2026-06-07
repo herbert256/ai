@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,9 +42,15 @@ fun PromptHistoryScreen(
     val refreshTick = resumeRefreshTick()
     // Load off the main thread — a long prompt-history JSON parse blocked the
     // first frame when done synchronously in the state initializer.
-    var loaded by remember { mutableStateOf<List<PromptHistoryEntry>?>(null) }
+    var loaded by rememberSaveable(stateSaver = PromptHistoryEntriesSaver) {
+        mutableStateOf<List<PromptHistoryEntry>?>(null)
+    }
+    var loadedForTick by rememberSaveable { mutableStateOf<Int?>(null) }
     LaunchedEffect(refreshTick) {
-        loaded = withContext(Dispatchers.IO) { settingsPrefs.loadPromptHistory() }
+        if (loaded == null || loadedForTick != refreshTick) {
+            loaded = withContext(Dispatchers.IO) { settingsPrefs.loadPromptHistory() }
+            loadedForTick = refreshTick
+        }
     }
     val allEntries = loaded ?: emptyList()
     var searchText by rememberSaveable { mutableStateOf("") }
@@ -71,7 +78,7 @@ fun PromptHistoryScreen(
         Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(helpTopic = "prompt_history", title = "Prompt History", subject = "Reuse a prompt you sent before", onBackClick = onNavigateBack,
                 onClear = if (allEntries.isNotEmpty()) ({
-                    loaded = emptyList(); currentPage = 0
+                    loaded = emptyList(); loadedForTick = refreshTick; currentPage = 0
                     scope.launch(Dispatchers.IO) { settingsPrefs.clearPromptHistory() }
                 }) else null)
 
@@ -112,6 +119,21 @@ fun PromptHistoryScreen(
         }
     }
 }
+
+private val PromptHistoryEntriesSaver = Saver<List<PromptHistoryEntry>?, Any>(
+    save = { entries ->
+        entries?.map { entry -> listOf(entry.timestamp, entry.title, entry.prompt) }.orEmpty()
+    },
+    restore = { saved ->
+        (saved as? List<*>)?.mapNotNull { row ->
+            val values = row as? List<*> ?: return@mapNotNull null
+            val timestamp = (values.getOrNull(0) as? Number)?.toLong() ?: return@mapNotNull null
+            val title = values.getOrNull(1) as? String ?: return@mapNotNull null
+            val prompt = values.getOrNull(2) as? String ?: return@mapNotNull null
+            PromptHistoryEntry(timestamp, title, prompt)
+        }
+    }
+)
 
 @Composable
 private fun PromptHistoryRow(entry: PromptHistoryEntry, onClick: () -> Unit) {
