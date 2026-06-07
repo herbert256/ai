@@ -473,7 +473,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The judge-cell confidence renders with a comma on a comma-decimal device.
 **Root cause:** Default-locale `"%.2f".format(...)`.
 **Proposed fix:** Pin `Locale.US`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — judge-eval confidence cells now format with `Locale.US`
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/Nav.kt
 

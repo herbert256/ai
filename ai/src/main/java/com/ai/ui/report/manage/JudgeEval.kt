@@ -70,6 +70,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 // ===================================================================
 // Manage row — appears only once a judge-eval run exists for the report.
@@ -682,7 +683,9 @@ private fun JudgeEvalL3(
                     Text("Verdict: ", color = AppColors.TextSecondary, fontSize = 13.sp)
                     Text(verdictLabel(cell.verdict), color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.weight(1f))
-                    cell.confidence?.let { Text("conf ${"%.2f".format(it)}", color = AppColors.TextTertiary, fontSize = 12.sp) }
+                    cell.confidence?.let {
+                        Text("conf ${String.format(Locale.US, "%.2f", it)}", color = AppColors.TextTertiary, fontSize = 12.sp)
+                    }
                 }
                 Spacer(Modifier.height(2.dp))
                 Text("Consensus: ${verdictLabel(consensus)}", color = AppColors.TextTertiary, fontSize = 12.sp)
