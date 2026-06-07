@@ -48,7 +48,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The agent display-row list rebuilds on any `Settings` re-emit, even when only an unrelated setting changed.
 **Root cause:** Keys on the whole `aiSettings` object; the builder only needs `getAgentById`/`getEffectiveModelForAgent` (agent definitions). A new `Settings` instance on any edit invalidates the memo.
 **Proposed fix:** Key on `aiSettings.agents` (the slice the builder reads) rather than the whole Settings.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — display rows now remember against `aiSettings.agents` instead of the full settings object
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/TranslationRun.kt
 

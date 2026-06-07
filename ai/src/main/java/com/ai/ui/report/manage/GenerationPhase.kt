@@ -651,7 +651,7 @@ internal fun ColumnScope.GenerationPhase(
     }
 
     data class DisplayRow(val rowId: String, val displayName: String, val providerDisplay: String, val isNew: Boolean)
-    val displayRows: List<DisplayRow> = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings) {
+    val displayRows: List<DisplayRow> = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings.agents) {
         val rows = if (isStagedMode) {
             staged.map { m ->
                 val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId!!
