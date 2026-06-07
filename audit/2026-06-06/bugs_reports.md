@@ -296,7 +296,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Every cost figure on the Value view (the "Best value" annotation and every model row) is displayed 100× larger than the real cost — e.g. a $0.012 (1.2 ¢) call reads "120".
 **Root cause:** `ValuePoint.costCents` is already in cents (`costUsd * 100.0`, line 88), but the shared `formatCents(value)` helper expects **dollars** and multiplies by 100 internally (`UiFormatting.kt:28` → `value * 100`). Passing cents into `formatCents` double-applies the ×100. (AnswerMatrix avoids this by using its own `formatCentsValue` that does *not* re-multiply.)
 **Proposed fix:** Either pass dollars (`p.costCents / 100.0`) to `formatCents`, or use a cents-native formatter (like AnswerMatrix's `formatCentsValue`) that doesn't re-multiply.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — costCents now divided by 100 before formatCents (which re-multiplies)
 
 ### Bug 37 — Severity: LOW — Category: mixed quality units in Pareto
 **Location:** ValueView.kt:84-99 (`buildValuePoints`, `quality = row.score ?: rank?.let { (n - it + 1) }`)
@@ -492,7 +492,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Root cause:** Groups are built per distinct `(targetKind, targetId)`, but `noteTargetLabel` returns non-unique labels for distinct targets — e.g. two RERANK secondaries both → "Rerank", two COMPARE on the same model → "Compare · X", or (very common) two deleted targets both → "Deleted item". Each group emits `item(key = "h:<label>")`, so two same-labelled groups produce duplicate LazyColumn keys, which Compose rejects at composition.
 **Reproduction:** Add a note to two different rerank rows (or annotate two secondaries then delete both targets), open the report's User notes screen — it crashes.
 **Proposed fix:** Make the header key unique by group identity, not label — e.g. `key = "h:${group.targetKind}:${group.targetId}"` (carry the keying pair on `Group`), or append the group index.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — header key now uses group target identity (targetKind:targetId), not the non-unique label
 
 ### Bug 60 — Severity: LOW — Category: repeated full-report disk read
 **Location:** UserNotes.kt:148-160 (`ViewUserNotes` `produceState(... ReportDataVersion ...)`)
@@ -515,7 +515,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** On a META detail screen, the language icon picker doesn't update when a translation is added or deleted while the screen is open — newly-translated languages don't appear and deleted ones linger.
 **Root cause:** `translatesState`'s `produceState` keys only on `result.reportId`, omitting `SecondaryDataVersion.version`. The sibling `resultFresh` (line 116) *does* subscribe to `secDataVersion`, so the body content refreshes but the language tab set goes stale.
 **Proposed fix:** Add `SecondaryDataVersion.version` to the `translatesState` key list.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — translatesState now keys on SecondaryDataVersion.version (single shared subscription)
 
 ### Bug 63 — Severity: LOW — Category: stale trace / report (missing version keys)
 **Location:** SecondaryDetail.kt:82-88 (`traceFilenameState` keyed on `result.id`), 106-108 (`parentReportState` keyed on `result.reportId`)

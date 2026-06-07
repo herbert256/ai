@@ -11,7 +11,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Root cause:** Gson constructs via `UnsafeAllocator`, bypassing the primary constructor and its defaults. The safety net here only coerces fields whose declared type is assignable to `List`/`Set`/`Map`/`Collection` (lines 54-61). It deliberately skips `String` (documented, lines 36-44) and structurally also skips primitive arrays such as `KnowledgeChunk.embedding: FloatArray`. So any non-null non-collection field that is genuinely absent stays at the JVM zero value (`null`) inside a type the rest of the app trusts as non-null.
 **Reproduction:** Truncate/corrupt a `reports/<id>.json` so `provider` or `model` on a `ReportAgent` is absent (still valid JSON), reopen the report — `loadReport` succeeds (no parse exception), then the per-model viewer NPEs on `agent.provider`/`agent.model`.
 **Proposed fix:** Either (a) deserialize through a moshi-kotlin-style / kotlinx.serialization codec that honours Kotlin non-null + defaults, or (b) extend the factory to also re-assert field-specific defaults for the small set of genuinely-non-null `String`/array fields (it already lists them in `normalizeReport`) instead of leaving the contract violated.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — non-null agent provider/model defaulted at the load site (normalizeReport), the documented field-specific-default pattern; the global factory/codec swap NOT taken (documented String?-sentinel hazard, needs build verification)
 
 ### Bug 2 — Severity: LOW — Category: cost extraction
 **Location:** ApiModels.kt:899-914 (`extractApiCost(OpenAiUsage)`)
@@ -48,7 +48,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** After the `ATOMIC_MOVE` rename, a power loss before the *directory* metadata is flushed can leave the directory entry still pointing at the old inode (or none), even though the file's own data was fsync'd. The "atomic" promise covers the file content but not the rename's durability.
 **Root cause:** The code fsyncs the temp file's descriptor (line 43) but never fsyncs the *parent directory* after `Files.move`. POSIX requires an fsync on the directory to make a rename durable.
 **Proposed fix:** After the move, open the parent directory and `fsync` it (best-effort, ignore on platforms that reject it), mirroring the file fsync already done.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — parent directory is fsync'd after the move (best-effort) so the rename is durable
 
 ### Bug 7 — Severity: LOW — Category: error visibility
 **Location:** AtomicFileWrite.kt:59-63
@@ -499,7 +499,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Root cause:** Validate-then-write protects against mid-stream corruption but there is no sanity floor on the staged payload before the destructive wipe.
 **Reproduction:** Restore a backup produced by a build with the symlink-skip regression (manifest + prefs only, 0 file entries) — filesDir is wiped and nothing restored.
 **Proposed fix:** Refuse to proceed past the wipe when the staged set has zero `files/` entries (or fewer than the manifest implies); require a minimum payload sanity check.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — restore refuses (before any wipe/prefs apply) when the staged set has zero files/ entries
 
 ### Bug 65 — Severity: LOW — Category: silent partial backup
 **Location:** BackupManager.kt:576-582 (`addDirectoryRecursive` per-file catch)

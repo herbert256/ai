@@ -53,8 +53,7 @@ class ReportsHubScreenTest {
         rule.onNodeWithText("New").assertIsDisplayed()
         rule.onNodeWithText("Search").assertIsDisplayed()
         rule.onNodeWithText("All").assertIsDisplayed()
-        // Four list-card labels
-        rule.onNodeWithText("Reports with problems").assertIsDisplayed()
+        // Three list-card labels (the "Reports with problems" card was removed)
         rule.onNodeWithText("Running AI reports").assertIsDisplayed()
         rule.onNodeWithText("Pinned AI Reports").assertIsDisplayed()
         rule.onNodeWithText("Latest AI Reports").assertIsDisplayed()

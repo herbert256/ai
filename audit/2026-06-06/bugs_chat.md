@@ -54,7 +54,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** `messages` is a plain `remember`, which does not survive configuration change. The screen never re-seeds `messages` from `persistedSession?.messages` on re-entry (it uses the stale `initialMessages` param), and `saveSession(msgs)` writes whatever is currently in `messages`. The manifest has no `android:configChanges`, so rotation recreates the Activity.
 **Reproduction:** Start a chat, send 3-4 turns, rotate the phone → the bubbles vanish; send one more message → disk now holds only `initialMessages + 1`.
 **Proposed fix:** Seed from disk on entry (`mutableStateOf(persistedSession?.messages ?: initialMessages)`) keyed on `currentSessionId`, or persist `messages` via a `rememberSaveable` Saver (mirroring `DualMessagesSaver`).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — messages re-seed from the on-disk session keyed on currentSessionId, surviving recreation
 
 ### Bug 7 — Severity: HIGH — Category: state loss / orphaned data
 **Location:** ChatScreens.kt:282 (`val currentSessionId = remember { sessionId ?: java.util.UUID.randomUUID().toString() }`)
@@ -62,7 +62,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** `remember` (not `rememberSaveable`) regenerates the UUID on activity recreation whenever the incoming `sessionId` param is null (the new-chat case).
 **Reproduction:** Start a new chat, send a turn (saved under UUID-A), rotate → a new UUID-B is in play; UUID-A's file lingers in history; further sends write UUID-B.
 **Proposed fix:** `rememberSaveable { sessionId ?: UUID.randomUUID().toString() }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — currentSessionId now rememberSaveable, survives recreation
 
 ### Bug 8 — Severity: MEDIUM — Category: stale pricing / wrong cost
 **Location:** ChatScreens.kt:405-409 (`val totalCost by remember { derivedStateOf { … pricing.promptPrice … } }`)
@@ -77,7 +77,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** `String.toFloatOrNull()` parses with a `.` decimal separator (Java `Float.parseFloat`), independent of locale, so `"0,7".toFloatOrNull()` returns null. There is no comma→dot normalization.
 **Reproduction:** On the nl-NL device, set Temperature `0,7`, Start Chat → the request uses the preset/null temperature, not 0.7.
 **Proposed fix:** Normalize `,`→`.` before parsing, or parse with the device locale's `NumberFormat`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — onStartChat float fields normalize comma→dot before toFloatOrNull
 
 ### Bug 10 — Severity: MEDIUM — Category: phantom data
 **Location:** ChatScreens.kt:465-486 (`LaunchedEffect(parameters.systemPrompt)`)
@@ -181,7 +181,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** `config` is read from `uiState` via a plain `remember`, then a `LaunchedEffect(Unit)` *clears* `uiState.dualChatConfig` to null right after capture. On recreation the plain `remember` re-runs and now reads the cleared `null` config, triggering `if (config == null) { onNavigateBack() }`. The `DualMessagesSaver` survives, but with no config the screen exits before it can be used.
 **Reproduction:** Start a dual chat, let it run a few rounds, rotate → you're bounced to the previous screen and the conversation is gone.
 **Proposed fix:** Persist the config (a `rememberSaveable` Saver for `DualChatConfig`, or don't clear it from UiState until the screen disposes), so it survives recreation alongside the saved messages.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — config no longer cleared on entry; survives recreation, cleared only on real exit (onExit)
 
 ### Bug 24 — Severity: MEDIUM — Category: state loss / cost desync
 **Location:** DualChatScreen.kt:408-411 (`model1InputTokens` … `model2OutputTokens` via plain `remember`)

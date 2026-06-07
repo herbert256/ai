@@ -93,7 +93,11 @@ internal fun SecondaryResultDetailScreen(
     // Model response). When the user selects a non-original language
     // the picker overlay swaps content, trace, copy/share onto the
     // matching TRANSLATE row.
-    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), result.reportId) {
+    // Re-read the TRANSLATE rows on secondary-data changes too, not just on
+    // reportId — else the language tabs go stale when a translation is added or
+    // deleted while this screen is open (resultFresh below already does this).
+    val secDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
+    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), result.reportId, secDataVersion) {
         value = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, result.reportId, SecondaryKind.TRANSLATE)
                 .filter { !it.content.isNullOrBlank() }
@@ -112,7 +116,6 @@ internal fun SecondaryResultDetailScreen(
     // Apply (which rewrites content) reflects here even though `result`
     // arrives as a stale param from the list mount. Drives the Original-
     // language content + the refine chat's persisted conversation.
-    val secDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
     val resultFresh by produceState<SecondaryResult?>(null, result.id, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, result.reportId, result.id) }
     }

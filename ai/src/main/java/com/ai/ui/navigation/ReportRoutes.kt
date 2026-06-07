@@ -89,7 +89,16 @@ internal fun NavGraphBuilder.reportRoutes(
                         ReportStorage.getAllReports(hubContext).firstOrNull()?.id
                     }
                     if (latestId == null) {
-                        navController.navigate(NavRoutes.AI_FIRST_LAUNCH) {
+                        // No reports: an already-configured user (has API keys)
+                        // goes to the Reports hub; only an unconfigured one to
+                        // First launch. Disk read so it's correct regardless of
+                        // bootstrap timing.
+                        val hasKeys = withContext(Dispatchers.IO) {
+                            appViewModel.settingsPrefs.loadSettings().hasAnyApiKey()
+                        }
+                        navController.navigate(
+                            if (hasKeys) NavRoutes.AI_REPORTS_HUB else NavRoutes.AI_FIRST_LAUNCH
+                        ) {
                             popUpTo(NavRoutes.AI) { inclusive = true }
                             launchSingleTop = true
                         }

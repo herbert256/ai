@@ -3,7 +3,6 @@ package com.ai.ui.report.manage
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -39,9 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -287,14 +284,12 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
         }
     }
 
-    var level by rememberSaveable { mutableStateOf(1) }   // 1 = L1, 2 = L2, 3 = L3
+    var level by rememberSaveable { mutableStateOf(1) }   // 1 = L1, 2 = L2 (cell detail)
     var groupKey by rememberSaveable { mutableStateOf("") }
-    var cellKey by rememberSaveable { mutableStateOf("") }
     var confirmRedo by rememberSaveable { mutableStateOf(false) }
 
     BackHandler {
         when {
-            level == 3 -> level = 2
             level == 2 -> level = 1
             else -> onBack()
         }
@@ -302,7 +297,7 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
 
     if (run == null) {
         Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)) {
-            TitleBar(helpTopic = "compare_l1", title = "Compare", subject = reportTitle,
+            TitleBar(helpTopic = "compare_l1", title = "Compare with meta", subject = reportTitle,
                 reportIcon = reportIcon, onBackClick = onBack)
             Spacer(Modifier.height(20.dp))
             Text("No compare run on this report.", color = AppColors.TextSecondary, fontSize = 14.sp)
@@ -311,13 +306,9 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
     }
 
     when (level) {
-        2 -> CompareL2(run, agents, metaLabels, reportTitle, reportIcon, groupKey,
-            openCell = { ck -> cellKey = ck; level = 3 },
+        2 -> CompareL2(run, agents, metaLabels, metaRowsById, reportTitle, report?.prompt.orEmpty(), reportIcon, groupKey,
+            onRerun = { ck -> scope.launch { engine.rerunCell(context, reportId, ck) } },
             onBack = { level = 1 })
-        3 -> CompareL3(run, agents, metaLabels, metaRowsById, reportTitle, reportIcon, cellKey, groupKey,
-            onBack = { level = 2 },
-            onRerun = { scope.launch { engine.rerunCell(context, reportId, cellKey) } },
-            onStep = { ck -> cellKey = ck })
         else -> CompareL1(run, agents, reportTitle, reportIcon, throttled,
             openGroup = { gk -> groupKey = gk; level = 2 },
             onRedo = { confirmRedo = true },
@@ -420,7 +411,7 @@ private fun CompareL1(
     val counts = summary.counts
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "compare_l1", title = "Compare",
+            helpTopic = "compare_l1", title = "Compare with meta",
             subject = reportTitle, reportIcon = reportIcon,
             onBackClick = onBack, onReload = onRedo, onDelete = onDeleteRun
         )
@@ -477,11 +468,9 @@ private fun CompareGroupRowItem(group: CompareGroupRow, onClick: () -> Unit) {
         )
         Column(Modifier.weight(1f)) {
             Text(group.label, color = AppColors.TextPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val sub = buildString {
-                append("${group.done}/${group.total} scored")
-                if (group.errored > 0) append(" · ${group.errored} failed")
+            if (group.errored > 0) {
+                Text("${group.errored} failed", color = AppColors.TextTertiary, fontSize = 11.sp)
             }
-            Text(sub, color = AppColors.TextTertiary, fontSize = 11.sp)
         }
         if (group.cost > 0) {
             Text("${formatCents(group.cost)} ¢", color = AppColors.TextTertiary, fontSize = 11.sp)
@@ -490,118 +479,33 @@ private fun CompareGroupRowItem(group: CompareGroupRow, onClick: () -> Unit) {
     HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
 }
 
-// ---------- L2 ----------
+// ---------- L2 (cell detail) ----------
 
 @Composable
 private fun CompareL2(
     run: CompareRunState,
     agents: Map<String, ReportAgent>,
     metaLabels: Map<String, String>,
-    reportTitle: String,
-    reportIcon: String,
-    groupKey: String,
-    openCell: (String) -> Unit,
-    onBack: () -> Unit
-) {
-    val cells = cellsForGroup(run, groupKey)
-    val title = agentLabel(agents, groupKey.substringAfter(":"))
-    // Groups are always report models; each row is the meta item the answer
-    // was scored against.
-    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "compare_l2", title = "Compare - model", subject = reportTitle,
-            reportIcon = reportIcon, onBackClick = onBack)
-        CompareGreenSubject(title)
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(cells.sortedByDescending { it.percent ?: -1 }, key = { it.key }) { c ->
-                val rowLabel = metaLabels[c.metaResultId] ?: "meta"
-                CompareCellRow(c, rowLabel) { openCell(c.key) }
-            }
-            item { Spacer(Modifier.height(24.dp)) }
-        }
-    }
-}
-
-@Composable
-private fun CompareGreenSubject(text: String) {
-    Text(
-        text = text, color = AppColors.SuccessAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-        maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)
-    )
-}
-
-@Composable
-private fun CompareCellRow(c: CompareCellState, label: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val status = when {
-            c.status == CompareCellStatus.ERROR -> com.ai.data.MetadataIconsHolder.current.statusFailed
-            c.status == CompareCellStatus.RUNNING || c.status == CompareCellStatus.PENDING -> "⏳"
-            else -> null
-        }
-        if (status != null) {
-            Text(status, fontSize = 14.sp, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
-        } else {
-            Text(pctText(c.percent), color = pctColor(c.percent), fontSize = 15.sp,
-                fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
-                textAlign = TextAlign.End, modifier = Modifier.width(40.dp))
-        }
-        Text(label, color = AppColors.TextPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(start = 10.dp))
-    }
-    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
-}
-
-// ---------- L3 ----------
-
-@Composable
-private fun CompareL3(
-    run: CompareRunState,
-    agents: Map<String, ReportAgent>,
-    metaLabels: Map<String, String>,
     metaRowsById: Map<String, SecondaryResult>,
     reportTitle: String,
+    question: String,
     reportIcon: String,
-    cellKey: String,
     groupKey: String,
-    onBack: () -> Unit,
-    onRerun: () -> Unit,
-    onStep: (String) -> Unit
+    onRerun: (String) -> Unit,
+    onBack: () -> Unit
 ) {
-    val scoped = cellsForGroup(run, groupKey).sortedByDescending { it.percent ?: -1 }
-    val idx = scoped.indexOfFirst { it.key == cellKey }
-    val c = scoped.getOrNull(idx) ?: run.cells[cellKey]
-    val swipeThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
-    var swipeDragX by remember(cellKey) { mutableStateOf(0f) }
+    // 1×1: each report-model group holds a single cell — show its detail here.
+    val c = cellsForGroup(run, groupKey).sortedByDescending { it.percent ?: -1 }.firstOrNull()
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "compare_l3", title = "Compare - cell", subject = reportTitle,
-            reportIcon = reportIcon, onBackClick = onBack, onReload = onRerun)
+        TitleBar(helpTopic = "compare_l2", title = "Compare with meta - model", subject = reportTitle,
+            reportIcon = reportIcon, onBackClick = onBack, onReload = c?.let { cell -> { onRerun(cell.key) } })
         if (c == null) {
             Text("Cell not found.", color = AppColors.TextSecondary, fontSize = 14.sp)
             return@Column
         }
         val answerLabel = agentLabel(agents, c.agentId)
         val metaLabel = metaLabels[c.metaResultId] ?: "meta"
-        Column(
-            Modifier.fillMaxSize()
-                .pointerInput(idx, scoped.size, cellKey) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { swipeDragX = 0f },
-                        onHorizontalDrag = { _, d -> swipeDragX += d },
-                        onDragCancel = { swipeDragX = 0f },
-                        onDragEnd = {
-                            when {
-                                swipeDragX > swipeThresholdPx -> scoped.getOrNull(idx - 1)?.let { onStep(it.key) }
-                                swipeDragX < -swipeThresholdPx -> scoped.getOrNull(idx + 1)?.let { onStep(it.key) }
-                            }
-                            swipeDragX = 0f
-                        }
-                    )
-                }
-                .verticalScroll(rememberScrollState())
-        ) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(6.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
                 Text(pctText(c.percent), color = pctColor(c.percent), fontSize = 30.sp, fontWeight = FontWeight.Bold)
@@ -612,25 +516,40 @@ private fun CompareL3(
                     Spacer(Modifier.height(6.dp))
                     Text(c.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
                 }
-                c.judgeModel?.let { Text("Scored by: $it", color = AppColors.TextTertiary, fontSize = 11.sp) }
                 c.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.DangerAccent, fontSize = 11.sp) }
             }
             Spacer(Modifier.height(12.dp))
-            ComparePane("Answer — $answerLabel", AppColors.SuccessAccent, agents[c.agentId]?.responseBody)
+            // Card 1 — the models + prompt behind this cell's score. The edit
+            // pencil opens the meta_compare prompt (which picks the compare models).
+            val editPrompt = com.ai.ui.shared.LocalEditInternalPrompt.current
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
+                Text("Report model: $answerLabel", color = AppColors.TextPrimary, fontSize = 14.sp)
+                Spacer(Modifier.height(4.dp))
+                Text("Compare model: ${c.judgeModel ?: "(pending)"}", color = AppColors.TextPrimary, fontSize = 14.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Prompt used: ${secondaryPromptDisplayName(run.comparePrompt.name)}", color = AppColors.TextPrimary, fontSize = 14.sp)
+                    Text(com.ai.ui.shared.LocalMetadataIcons.current.edit, fontSize = 16.sp,
+                        modifier = Modifier.clickable { editPrompt(run.comparePrompt.id) }.padding(start = 8.dp))
+                }
+            }
             Spacer(Modifier.height(12.dp))
-            ComparePane("Meta — $metaLabel", AppColors.InfoAccent,
-                metaRowsById[c.metaResultId]?.content?.let { com.ai.data.stripMetaReferenceLegend(it) })
+            // Card 2 — the API interaction (resolved compare prompt + worker
+            // reply), like the Icon-lookup page.
+            val apiInteraction = remember(c.id, c.content, c.agentId, c.metaResultId) {
+                val resolved = com.ai.data.resolveSecondaryPrompt(
+                    run.comparePrompt.text, question = question, results = "", count = 1, title = reportTitle
+                )
+                    .replace("@RESPONSE@", agents[c.agentId]?.responseBody.orEmpty())
+                    .replace("@META_RESPONSE@", metaRowsById[c.metaResultId]?.content?.let { com.ai.data.stripMetaReferenceLegend(it) }.orEmpty())
+                buildOneShotApiInteraction(resolved, c.content)
+            }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
+                Text("API interaction", color = AppColors.TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text(apiInteraction, color = AppColors.TextPrimary, fontSize = 13.sp, lineHeight = 18.sp, fontFamily = FontFamily.Monospace)
+            }
             Spacer(Modifier.height(24.dp))
         }
-    }
-}
-
-@Composable
-private fun ComparePane(header: String, headerColor: Color, body: String?) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
-        Text(header, color = headerColor, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(4.dp))
-        Text(body?.trim().orEmpty(), color = AppColors.TextSecondary, fontSize = 12.sp)
     }
 }

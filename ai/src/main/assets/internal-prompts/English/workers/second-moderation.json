@@ -8,7 +8,7 @@
       "provider": "*N/A",
       "model": "*N/A",
       "flock": "*N/A",
-      "swarm": "Moderation"
+      "swarm": "workers"
     }
   ],
   "parameters": "*NONE",

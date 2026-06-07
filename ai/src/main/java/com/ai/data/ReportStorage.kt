@@ -478,6 +478,18 @@ object ReportStorage {
         if ((res.apiCallCosts as List<ReportApiCallCost>?) == null) {
             res = res.copy(apiCallCosts = mutableListOf())
         }
+        // Non-null String fields can still come back null from a corrupt /
+        // hand-edited / truncated read — Gson's UnsafeAllocator bypasses the
+        // constructor and NullSafeFieldAdapterFactory deliberately skips String
+        // (its sentinel concern). Default the genuinely-non-null agent
+        // identifiers at this load site (the documented field-specific-default
+        // pattern) so the per-model viewer doesn't NPE on agent.provider /
+        // agent.model far from the read.
+        if (res.agents.any { (it.provider as String?) == null || (it.model as String?) == null }) {
+            res = res.copy(agents = res.agents.map {
+                it.copy(provider = (it.provider as String?) ?: "", model = (it.model as String?) ?: "")
+            }.toMutableList())
+        }
         // iconCalls / userNotes / apiCallCosts are declared MutableList, but the
         // NullSafeFieldAdapterFactory coerces a *missing* field to the
         // IMMUTABLE emptyList() singleton (reflection bypasses the type).

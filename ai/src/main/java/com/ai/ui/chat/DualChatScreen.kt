@@ -366,23 +366,24 @@ fun DualChatSessionScreen(
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit = {}
 ) {
-    BackHandler { onNavigateBack() }
-
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    // Clear the staged config from UiState only on a REAL exit — never in a
+    // LaunchedEffect on entry. Clearing on entry meant a rotation (which re-runs
+    // the `config` remember below) re-read a null config and bounced out of the
+    // session, discarding the whole conversation. Keeping it in UiState lets
+    // `config` survive recreation; the next setup launch overwrites it anyway.
+    val onExit = {
+        appViewModel.updateUiState { it.copy(dualChatConfig = null) }
+        onNavigateBack()
+    }
+    BackHandler { onExit() }
+
     val config = remember { appViewModel.uiState.value.dualChatConfig }
     if (config == null) {
         LaunchedEffect(Unit) { onNavigateBack() }
         return
-    }
-    // Drop the staged config from UiState now that we've captured it
-    // into the screen's `config` local. Without this clear, leaving
-    // and re-entering this screen reused the same config object —
-    // which the user may have intended to be one-shot. Mirrors the
-    // generateGenericReports pattern of "capture then drop".
-    LaunchedEffect(Unit) {
-        appViewModel.updateUiState { it.copy(dualChatConfig = null) }
     }
 
     val sessionId = rememberSaveable { "dualchat_${System.currentTimeMillis()}" }
@@ -512,7 +513,7 @@ fun DualChatSessionScreen(
     ) {
         TitleBar(
             helpTopic = "dual_chat_session",
-            title = "Dual Chat", subject = "Two models taking turns automatically", onBackClick = onNavigateBack,
+            title = "Dual Chat", subject = "Two models taking turns automatically", onBackClick = onExit,
             onInfo = { showInfoPicker = true }
         )
 

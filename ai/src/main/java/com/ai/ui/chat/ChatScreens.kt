@@ -140,12 +140,15 @@ fun ChatParametersScreen(
                 onStartChat(
                     ChatParameters(
                         systemPrompt = resolvedSp,
-                        temperature = temperature.toFloatOrNull() ?: presetParams?.temperature,
+                        // Comma→dot before parse: the Decimal keyboard offers a
+                        // comma on comma-decimal locales (nl-NL) and toFloatOrNull
+                        // is dot-only, so "0,7" would silently drop the value.
+                        temperature = temperature.replace(',', '.').toFloatOrNull() ?: presetParams?.temperature,
                         maxTokens = maxTokens.toIntOrNull() ?: presetParams?.maxTokens,
-                        topP = topP.toFloatOrNull() ?: presetParams?.topP,
+                        topP = topP.replace(',', '.').toFloatOrNull() ?: presetParams?.topP,
                         topK = topK.toIntOrNull() ?: presetParams?.topK,
-                        frequencyPenalty = frequencyPenalty.toFloatOrNull() ?: presetParams?.frequencyPenalty,
-                        presencePenalty = presencePenalty.toFloatOrNull() ?: presetParams?.presencePenalty,
+                        frequencyPenalty = frequencyPenalty.replace(',', '.').toFloatOrNull() ?: presetParams?.frequencyPenalty,
+                        presencePenalty = presencePenalty.replace(',', '.').toFloatOrNull() ?: presetParams?.presencePenalty,
                         searchEnabled = presetParams?.searchEnabled == true,
                         returnCitations = returnCitations && (presetParams?.returnCitations != false),
                         searchRecency = searchRecency.takeIf { it.isNotBlank() } ?: presetParams?.searchRecency,
@@ -279,9 +282,17 @@ fun ChatSessionScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val focusRequester = remember { FocusRequester() }
-    val currentSessionId = remember { sessionId ?: java.util.UUID.randomUUID().toString() }
+    // rememberSaveable: a new-chat (null sessionId) must keep its minted UUID
+    // across recreation, else rotation orphans the prior save under the old id.
+    val currentSessionId = rememberSaveable { sessionId ?: java.util.UUID.randomUUID().toString() }
 
-    var messages by remember { mutableStateOf(initialMessages) }
+    // Seed from disk keyed on the (saveable) session id, NOT a plain remember of
+    // initialMessages — otherwise recreation resets the UI to the stale snapshot
+    // and the next saveSession overwrites the on-disk session with that truncated
+    // set. Re-reading the session on recreation recovers the turns saved so far.
+    var messages by remember(currentSessionId) {
+        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.messages ?: initialMessages)
+    }
     // Pre-fill the input box with text staged by the share-target
     // chooser, then drop the staged value so leaving + returning
     // doesn't re-stuff it.

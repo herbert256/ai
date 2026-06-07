@@ -41,10 +41,10 @@ class SettingsPreferencesUsageStatsTest {
         assertThat(row["outputTokens"].asLong).isEqualTo(6)
     }
 
-    @Test fun loadGeneralSettings_defaults_appHomeMode_to_homeScreen() {
+    @Test fun loadGeneralSettings_defaults_appHomeMode_to_homeBar() {
         val prefs = SettingsPreferences(MemorySharedPreferences(), tmp.root)
 
-        assertThat(prefs.loadGeneralSettings().appHomeMode).isEqualTo(AppHomeMode.HOME_SCREEN)
+        assertThat(prefs.loadGeneralSettings().appHomeMode).isEqualTo(AppHomeMode.HOME_BAR)
     }
 
     @Test fun saveGeneralSettings_roundTrips_appHomeMode_homeBar() {

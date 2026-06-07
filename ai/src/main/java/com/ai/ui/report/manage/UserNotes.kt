@@ -294,7 +294,10 @@ internal fun ReportNotesListScreen(
         }
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             groups.forEach { group ->
-                item(key = "h:${group.label}") {
+                // Key by the group's target identity, NOT its display label —
+                // noteTargetLabel collides for distinct targets ("Rerank",
+                // "Deleted item"), and duplicate LazyColumn keys crash Compose.
+                item(key = "h:${group.notes.first().targetKind}:${group.notes.first().targetId}") {
                     Text(
                         group.label,
                         color = AppColors.TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
