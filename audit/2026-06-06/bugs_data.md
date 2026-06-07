@@ -417,21 +417,21 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A single global `ReentrantLock` serializes every report write across *all* reports. During a many-report regenerate batch with frequent per-agent status writes, writers to unrelated reports queue behind each other, adding latency.
 **Root cause:** One global lock instead of per-report locks.
 **Proposed fix:** Stripe the lock by reportId.
-**Status:** Fixed — secondary list-cache entries now include a CRC32 content hash, so same-second same-length rewrites are detected even if a future writer misses explicit invalidation.
+**Status:** Open
 
 ### Bug 55 — Severity: LOW — Category: load failure → silent skip
 **Location:** ReportStorage.kt:451-458 (`loadAllReports`)
 **Symptom:** A report file that throws during parse (e.g. the Bug-1 null-String NPE happens *inside* `normalizeReport`/Gson) is `mapNotNull`-dropped with an error log; the report vanishes from History with no user-visible signal.
 **Root cause:** Per-file catch drops the whole report silently.
 **Proposed fix:** Surface a "N reports failed to load" banner so corruption isn't invisible.
-**Status:** Fixed — report total recomputation now uses the complete API-cost ledger when available, with the old structured-field sum retained only as a legacy fallback before ledger reconciliation.
+**Status:** Fixed — `ReportStorage.loadAllReports` now records per-file load failures, and History shows a visible banner when any report file was dropped from the list.
 
 ### Bug 56 — Severity: LOW — Category: cost recompute scope
 **Location:** ReportStorage.kt:122-150 (`computeReportTotalCost`)
 **Symptom:** The total deliberately excludes `costsFromDeletedItems` and includes only specific `iconCalls` types (`TITLE_ALT_TYPES`, `note/title`). A future secondary cost category with no structured home and no matching `iconCalls.type` would be silently omitted from the report total.
 **Root cause:** Allow-list of cost categories; new categories must be added here or they're dropped.
 **Proposed fix:** Compute the total from the append-only `apiCallCosts` ledger (which is intended to be complete) rather than re-summing per-field categories.
-**Status:** Open
+**Status:** Fixed — report total recomputation now uses the complete API-cost ledger when available, with the old structured-field sum retained only as a legacy fallback before ledger reconciliation.
 
 ## File: ai/src/main/java/com/ai/data/ReportModels.kt
 
@@ -464,7 +464,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The list cache validates entries by `(mtime, length)`. A write that produces the *same* byte length within the same filesystem-second and is *not* routed through the invalidation (any future writer that forgets `listCache[...].remove`) would serve a stale parsed row.
 **Root cause:** Correctness depends on every writer invalidating the cache entry; the mtime+length check alone can't catch same-second same-length overwrites.
 **Proposed fix:** Add a per-file content hash or monotonic version to the cache key, decoupling correctness from every writer remembering to invalidate.
-**Status:** Open
+**Status:** Fixed — secondary list-cache entries now include a CRC32 content hash, so same-second same-length rewrites are detected even if a future writer misses explicit invalidation.
 
 ### Bug 61 — Severity: LOW — Category: save guarded by report existence (TOCTOU)
 **Location:** SecondaryResult.kt:89-127 (`save`)
