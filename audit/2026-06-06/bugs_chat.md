@@ -312,7 +312,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Search results are dropped on rotation; the screen briefly shows "No matches" until the `LaunchedEffect(historyVersion, hasSearched)` re-runs the search.
 **Root cause:** `searchResults` is plain `remember` while `searchQuery`/`hasSearched` are saveable, so the trio is inconsistent across recreation.
 **Proposed fix:** Re-run search deterministically on restore, or persist a lightweight result set.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — restored searches now initialize `isSearching` from the saved query/trigger so results reload without a no-matches flash
 
 ---
 

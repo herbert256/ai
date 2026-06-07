@@ -184,7 +184,9 @@ fun ChatSearchScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ChatSearchResult>>(emptyList()) }
     var hasSearched by rememberSaveable { mutableStateOf(false) }
-    var isSearching by remember { mutableStateOf(false) }
+    var isSearching by remember(hasSearched, searchQuery) {
+        mutableStateOf(hasSearched && searchQuery.isNotBlank())
+    }
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()) }
     val focusRequester = remember { FocusRequester() }
     val historyVersion by ChatHistoryManager.historyVersion.collectAsState()
