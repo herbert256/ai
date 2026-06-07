@@ -1,5 +1,6 @@
 package com.ai.ui.share
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,8 +39,14 @@ fun ShareChooserScreen(
     experimentalFeatures: Boolean = false
 ) {
     BackHandler { onCancel() }
+    val context = LocalContext.current
     val hasText = !shared.text.isNullOrBlank()
     val hasUris = shared.uris.isNotEmpty()
+    val hasImageUris = shared.uris.any { uri ->
+        runCatching { context.contentResolver.getType(Uri.parse(uri)) }.getOrNull()
+            ?.startsWith("image/") == true ||
+            shared.mime?.startsWith("image/") == true
+    }
 
     Column(modifier = Modifier
         .fillMaxSize()
@@ -89,8 +97,8 @@ fun ShareChooserScreen(
         ShareCard(
             icon = com.ai.data.MetadataIconsHolder.current.chat,
             title = "New Chat",
-            description = "Open a chat with this text staged as the first turn.",
-            enabled = hasText,
+            description = "Open a chat with this text and first image staged as the first turn.",
+            enabled = hasText || hasImageUris,
             onClick = onSendToChat
         )
         if (experimentalFeatures) {

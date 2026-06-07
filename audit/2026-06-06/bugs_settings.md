@@ -264,7 +264,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Tapping an API-call audit line opens the trace whose timestamp is nearest within a 30 s window. Two API calls in the same report within 30 s of each other can resolve a line to the wrong trace.
 **Root cause:** Timestamp-nearest matching with a coarse 30 s window and no per-call id linkage.
 **Proposed fix:** Persist a call id / trace filename on the audit line so the link is exact.
-**Status:** Open
+**Status:** Fixed — the share chooser now enables New Chat for shared image URIs, and the share-to-chat route decodes the first image on `Dispatchers.IO` and stages it through the existing chat starter-image fields before navigating to the chat provider picker.
 
 ---
 

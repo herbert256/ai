@@ -221,14 +221,10 @@ fun AppNavHost(
                 }
             },
             onSendToChat = {
-                appViewModel.updateUiState { it.copy(chatStarterText = sharedContent.text) }
-                // Land on the configure-on-the-fly provider picker so
-                // the user picks model/parameters; the staged starter
-                // text follows them into ChatSessionScreen via UiState.
-                navController.navigate(NavRoutes.AI_CHAT_PROVIDER) {
-                    popUpTo(NavRoutes.AI) { inclusive = false }
+                scope.launch {
+                    routeShareToChat(context, appViewModel, navController, sharedContent)
+                    onSharedContentHandled()
                 }
-                onSharedContentHandled()
             },
             onSendToKnowledge = {
                 // Build the queue once: any attachment URIs + the URL
@@ -666,12 +662,46 @@ fun SetupScreenNav(
         initialSubScreen = SettingsSubScreen.AI_SETUP)
 }
 
+/** Route a share-target payload to New Chat. Text becomes the input
+ *  draft and the first image URI, when present, becomes the first
+ *  turn's staged vision attachment. */
+private suspend fun routeShareToChat(
+    context: android.content.Context,
+    appViewModel: AppViewModel,
+    navController: androidx.navigation.NavHostController,
+    shared: com.ai.data.SharedContent
+) {
+    fun mimeOf(uri: String): String? =
+        runCatching { context.contentResolver.getType(android.net.Uri.parse(uri)) }.getOrNull()
+            ?: shared.mime
+    val firstImageUri = shared.uris.firstOrNull { mimeOf(it)?.startsWith("image/") == true }
+    val imagePair = firstImageUri?.let { uri ->
+        withContext(Dispatchers.IO) {
+            runCatching {
+                com.ai.data.loadImageAsBase64(context, android.net.Uri.parse(uri))
+            }.getOrNull()
+        }
+    }
+    appViewModel.updateUiState {
+        it.copy(
+            chatStarterText = shared.text,
+            chatStarterImageBase64 = imagePair?.second,
+            chatStarterImageMime = imagePair?.first
+        )
+    }
+    // Land on the configure-on-the-fly provider picker so the user
+    // picks model/parameters; staged text/image follow into
+    // ChatSessionScreen via UiState.
+    navController.navigate(NavRoutes.AI_CHAT_PROVIDER) {
+        popUpTo(NavRoutes.AI) { inclusive = false }
+    }
+}
+
 /** Route a SharedContent payload onto the New Report flow. Text /
  *  subject become title + prompt; the first image attachment (if
  *  any) becomes the report's vision attachment via base64; non-image
- *  attachments don't have a per-report home (Knowledge handles
- *  documents) so they're dropped quietly here — the user can still
- *  send the same payload to Knowledge separately. */
+ *  attachments queue for one-tap knowledge-base auto-attach on the
+ *  New Report screen. */
 private suspend fun routeShareToReport(
     context: android.content.Context,
     appViewModel: AppViewModel,
