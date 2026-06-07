@@ -388,7 +388,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** For a non-LOCAL provider whose `baseUrl` host can't be parsed (null), the count falls back to model-name-only matching, conflating same-named models across providers — the exact bug the host match was added to prevent.
 **Root cause:** `providerHost == null || tf.hostname.equals(providerHost)` — a null host disables the host filter entirely.
 **Proposed fix:** When the host can't be derived for a non-LOCAL provider, count nothing (or log) rather than matching by model name alone.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — non-local providers with an unparseable host now report zero trace matches instead of model-name-only matches
 
 ### Bug 50 — Severity: LOW — Category: main-thread I/O
 **Location:** ModelScreens.kt:489-491, 666-685, 815-817 (`getManualPricing`, `getLiteLLMRawEntry`, `getTierBreakdown`, etc. in `remember`)
