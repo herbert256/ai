@@ -1,41 +1,25 @@
 {
-  "id": "90719df5-e7bb-47ec-bb38-7e47438a1e9c",
+  "id": "7e8eaffc-32ad-4813-9daa-31e12a1e575c",
   "members": [
+    {
+      "model": "mistral-medium-latest",
+      "provider": "Mistral"
+    },
     {
       "model": "gpt-4o-mini",
       "provider": "OpenAI"
     },
     {
-      "model": "deepseek-chat",
-      "provider": "DeepSeek"
-    },
-    {
-      "model": "llama-3.1-8b-instant",
+      "model": "llama-3.3-70b-versatile",
       "provider": "Groq"
     },
     {
-      "model": "llama3.1-8b",
+      "model": "gpt-oss-120b",
       "provider": "Cerebras"
     },
     {
-      "model": "Meta-Llama-3.1-8B-Instruct",
-      "provider": "SambaNova"
-    },
-    {
-      "model": "gemini-2.5-flash-lite",
-      "provider": "Google"
-    },
-    {
-      "model": "gpt-4.1-nano",
-      "provider": "OpenAI"
-    },
-    {
-      "model": "ministral-8b-latest",
-      "provider": "Mistral"
-    },
-    {
-      "model": "grok-4-1-fast-non-reasoning",
-      "provider": "xAI"
+      "model": "deepseek-v4-flash",
+      "provider": "DeepSeek"
     }
   ],
   "name": "workers",
