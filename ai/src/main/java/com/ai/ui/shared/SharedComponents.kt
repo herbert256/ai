@@ -2057,7 +2057,8 @@ fun HomeIconBar(
     // only in the bottom bar, exactly like Home Screen mode; 📊 Statistics took
     // its old slot. 📋 copy likewise stays only in the bottom bar.
     val slots: List<@Composable () -> Unit> = buildList {
-        add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 42.dp, contentDescription = "About") }
+        // size 36 (was 42) — a little less space before/after the leading logo.
+        add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(y = 3.dp), size = 36.dp, contentDescription = "About") }
         add { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) }
@@ -2074,8 +2075,13 @@ fun HomeIconBar(
         // AI Setup sits right before Settings.
         add { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
-        // Narrow box for ❓ so less space is reserved before/after it.
-        add { TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 26.dp, heightDp = h, fontSize = fs) }
+        // ❓ help (trailing): shifted left so there's MORE space after it
+        // (before the right edge) and LESS space before it (next to Settings).
+        add {
+            androidx.compose.foundation.layout.Box(modifier = Modifier.offset(x = (-7).dp)) {
+                TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 26.dp, heightDp = h, fontSize = fs)
+            }
+        }
     }
 
     // Detect the top camera cutout (punch-hole) at runtime via the platform
