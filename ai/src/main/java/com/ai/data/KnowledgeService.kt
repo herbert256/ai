@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.ai.data.local.LocalEmbedder
 import com.ai.model.Settings
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -216,6 +217,7 @@ object KnowledgeService {
         maxContextChars: Int = 8000
     ): List<Hit> {
         if (kbIds.isEmpty() || query.isBlank()) return emptyList()
+        if (topK <= 0) return emptyList()
         val kbs = kbIds.mapNotNull { KnowledgeStore.loadKnowledgeBase(context, it) }
         if (kbs.isEmpty()) return emptyList()
         val first = kbs.first()
@@ -310,13 +312,13 @@ object KnowledgeService {
         AppLog.d(
             "Knowledge",
             "retrieve kbs=${kbs.size} topK=$topK queryLen=${query.length} → hits=${out.size}" +
-                (out.firstOrNull()?.score?.let { " topScore=${"%.3f".format(it)}" } ?: "")
+                (out.firstOrNull()?.score?.let { " topScore=${String.format(Locale.US, "%.3f", it)}" } ?: "")
         )
         // TRACE the top-10 scored candidates (independent of the
         // char-budget filter above) so a "why didn't this chunk win?"
         // question is answerable from the log alone.
         sorted.take(10).forEachIndexed { i, s ->
-            AppLog.d("Knowledge", "  cand[$i] kb=${s.hit.kbName} src=${s.hit.sourceName} score=${"%.3f".format(s.score)} chars=${s.hit.text.length}")
+            AppLog.d("Knowledge", "  cand[$i] kb=${s.hit.kbName} src=${s.hit.sourceName} score=${String.format(Locale.US, "%.3f", s.score)} chars=${s.hit.text.length}")
         }
         return out
     }

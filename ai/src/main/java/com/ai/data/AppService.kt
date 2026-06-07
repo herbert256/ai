@@ -3,6 +3,7 @@ package com.ai.data
 import com.google.gson.JsonDeserializationContext
 import com.google.gson.JsonDeserializer
 import com.google.gson.JsonElement
+import com.google.gson.JsonNull
 import com.google.gson.JsonParseException
 import com.google.gson.JsonPrimitive
 import com.google.gson.JsonSerializationContext
@@ -240,8 +241,9 @@ class AppService(
  * Gson serializer/deserializer for AppService — serializes as string ID.
  */
 class AppServiceAdapter : JsonDeserializer<AppService>, JsonSerializer<AppService> {
-    override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): AppService {
-        val id = json?.asString ?: throw JsonParseException("Null AppService")
+    override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): AppService? {
+        if (json == null || json is JsonNull) return null
+        val id = json.asString.takeIf { it.isNotBlank() } ?: return null
         // Route through AppService.findById so the synthetic LOCAL
         // sentinel resolves — a chat session whose provider is Local
         // would otherwise fail to deserialize and silently disappear
@@ -257,6 +259,6 @@ class AppServiceAdapter : JsonDeserializer<AppService>, JsonSerializer<AppServic
         )
     }
     override fun serialize(src: AppService?, typeOfSrc: Type?, context: JsonSerializationContext?): JsonElement {
-        return JsonPrimitive(src?.id ?: "")
+        return src?.id?.let { JsonPrimitive(it) } ?: JsonNull.INSTANCE
     }
 }

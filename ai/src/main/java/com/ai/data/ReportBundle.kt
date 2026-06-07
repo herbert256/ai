@@ -238,7 +238,7 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
         languageTraceFile = remapTrace(parsedReport.languageTraceFile),
         languageIconTraceFile = remapTrace(parsedReport.languageIconTraceFile)
     )
-    ReportStorage.persistReport(context, report)
+    ReportStorage.persistNewReport(context, report)
 
     // Pass 3b — persist every secondary onto its new id, with reportId,
     // translate cross-link, and trace pointer remapped.

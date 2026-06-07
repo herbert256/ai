@@ -60,17 +60,17 @@ fun ChatParametersScreen(
 ) {
     BackHandler { onNavigateBack() }
 
-    var systemPrompt by remember { mutableStateOf("") }
+    var systemPrompt by rememberSaveable { mutableStateOf("") }
     var selectedSystemPromptId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedParametersIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
-    var temperature by remember { mutableStateOf("") }
-    var maxTokens by remember { mutableStateOf("") }
-    var topP by remember { mutableStateOf("") }
-    var topK by remember { mutableStateOf("") }
-    var frequencyPenalty by remember { mutableStateOf("") }
-    var presencePenalty by remember { mutableStateOf("") }
-    var returnCitations by remember { mutableStateOf(true) }
-    var searchRecency by remember { mutableStateOf("") }
+    var temperature by rememberSaveable { mutableStateOf("") }
+    var maxTokens by rememberSaveable { mutableStateOf("") }
+    var topP by rememberSaveable { mutableStateOf("") }
+    var topK by rememberSaveable { mutableStateOf("") }
+    var frequencyPenalty by rememberSaveable { mutableStateOf("") }
+    var presencePenalty by rememberSaveable { mutableStateOf("") }
+    var returnCitations by rememberSaveable { mutableStateOf(true) }
+    var searchRecency by rememberSaveable { mutableStateOf("") }
     var showParamsDialog by rememberSaveable { mutableStateOf(false) }
     var showSystemPromptDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -290,9 +290,10 @@ fun ChatSessionScreen(
     // initialMessages — otherwise recreation resets the UI to the stale snapshot
     // and the next saveSession overwrites the on-disk session with that truncated
     // set. Re-reading the session on recreation recovers the turns saved so far.
-    var messages by remember(currentSessionId) {
-        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.messages ?: initialMessages)
+    val initialMessagesForSession = remember(currentSessionId) {
+        ChatHistoryManager.loadSession(currentSessionId)?.messages ?: initialMessages
     }
+    var messages by remember(currentSessionId) { mutableStateOf(initialMessagesForSession) }
     // Pre-fill the input box with text staged by the share-target
     // chooser, then drop the staged value so leaving + returning
     // doesn't re-stuff it.
@@ -315,7 +316,7 @@ fun ChatSessionScreen(
     // consumed the saved state takes over; the seed only applies on the
     // very first composition.
     var userInput by rememberSaveable { mutableStateOf(if (starterConsumed) "" else (starter ?: "")) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     var isStreaming by remember { mutableStateOf(false) }
     val streamingContentState = remember { mutableStateOf("") }
     // Accumulate per-turn token counts rather than a baked-in cost sum so the
@@ -323,8 +324,11 @@ fun ChatSessionScreen(
     // the cold-pricing window: turns that completed before PricingCache primed
     // used to stay frozen at default rates in the accumulator; now they re-price
     // once `pricing` recomputes (matching DualChatScreen's convention).
-    var totalInputTokens by remember { mutableIntStateOf(0) }
-    var totalOutputTokens by remember { mutableIntStateOf(0) }
+    val initialTokenTotals = remember(currentSessionId) {
+        estimatePersistedChatTokenTotals(initialMessagesForSession)
+    }
+    var totalInputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.first) }
+    var totalOutputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.second) }
     // (mime, base64) of an image attached to the next user message.
     // rememberSaveable via a Saver so a rotation / process-recreation
     // between picking the image and tapping Send doesn't drop it.
@@ -377,8 +381,9 @@ fun ChatSessionScreen(
     var pendingFlagged by rememberSaveable(stateSaver = FlaggedStateSaver) {
         mutableStateOf<FlaggedState?>(null)
     }
-    var moderationError by remember { mutableStateOf<String?>(null) }
+    var moderationError by rememberSaveable { mutableStateOf<String?>(null) }
     var isModerating by remember { mutableStateOf(false) }
+    var sendInFlight by rememberSaveable { mutableStateOf(false) }
 
     // Conditional outer BackHandler — disabled while the moderation
     // picker overlay or the flagged-input dialog is up so back-press
@@ -503,7 +508,7 @@ fun ChatSessionScreen(
 
     // Auto-scroll — parent only reads messages.size and isStreaming (booleans); chunk updates
     // are observed via snapshotFlow so the parent doesn't recompose per chunk.
-    val displayMessages = messages.filter { it.role != "system" }
+    val displayMessages = remember(messages) { messages.filter { it.role != "system" } }
     val bottomItemCount = displayMessages.size + (if (isStreaming) 1 else 0)
     LaunchedEffect(bottomItemCount) {
         if (bottomItemCount > 0) listState.animateScrollToItem(bottomItemCount - 1)
@@ -613,11 +618,17 @@ fun ChatSessionScreen(
             } catch (e: Exception) {
                 error = e.message ?: "Streaming error"
                 if (sb.isNotEmpty()) {
-                    messages = messages + ChatMessage(role = "assistant", content = "$sb\n\n[Stream interrupted: ${e.message}]")
+                    val partialContent = sb.toString()
+                    messages = messages + ChatMessage(role = "assistant", content = "$partialContent\n\n[Stream interrupted: ${e.message}]")
                     saveSession(messages)
+                    val outputTokens = AppViewModel.estimateTokens(partialContent)
+                    totalInputTokens += inputTokens
+                    totalOutputTokens += outputTokens
+                    onRecordStatistics(inputTokens, outputTokens)
                 }
             } finally {
                 isStreaming = false; streamingContentState.value = ""
+                sendInFlight = false
             }
         }
     }
@@ -630,6 +641,8 @@ fun ChatSessionScreen(
     // and the message is sent anyway (fail-open) so a temporary network
     // blip doesn't block conversation.
     fun trySend(input: String) {
+        if (sendInFlight) return
+        sendInFlight = true
         val mod = moderationModel
         val img = attachedImage
         // Reset any leftover moderation error from a previous turn —
@@ -640,6 +653,7 @@ fun ChatSessionScreen(
         if (mod == null) { actuallySend(input, img); return }
         scope.launch {
             isModerating = true
+            var handedOffToSend = false
             try {
                 com.ai.data.withTraceCategory("Chat validate input") {
                     val (modProvider, modModelId) = mod
@@ -653,6 +667,7 @@ fun ChatSessionScreen(
                     val r = results?.firstOrNull()
                     if (apiResult.errorMessage != null || r == null) {
                         moderationError = apiResult.errorMessage ?: "No moderation result"
+                        handedOffToSend = true
                         actuallySend(input, img)
                     } else if (r.flagged) {
                         val traceFilename = withContext(Dispatchers.IO) {
@@ -663,11 +678,15 @@ fun ChatSessionScreen(
                         }
                         pendingFlagged = FlaggedState(input, r, img, traceFilename)
                     } else {
+                        handedOffToSend = true
                         actuallySend(input, img)
                     }
                 }
             } finally {
                 isModerating = false
+                if (!handedOffToSend && pendingFlagged == null) {
+                    sendInFlight = false
+                }
             }
         }
     }
@@ -927,8 +946,8 @@ fun ChatSessionScreen(
                 maxLines = 4, colors = AppColors.outlinedFieldColors()
             )
             OutlinedButton(
-                onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating) trySend(userInput.trim()) },
-                enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating,
+                onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating && !sendInFlight) trySend(userInput.trim()) },
+                enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating && !sendInFlight,
                 colors = AppColors.outlinedButtonColors()
             ) { Text("Send", maxLines = 1, softWrap = false) }
         }
@@ -955,7 +974,10 @@ fun ChatSessionScreen(
     val flagged = pendingFlagged
     if (flagged != null) {
         AlertDialog(
-            onDismissRequest = { pendingFlagged = null },
+            onDismissRequest = {
+                pendingFlagged = null
+                sendInFlight = false
+            },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Input flagged by moderation", modifier = Modifier.weight(1f))
@@ -998,7 +1020,10 @@ fun ChatSessionScreen(
                 }) { Text("Proceed anyway", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingFlagged = null }) {
+                TextButton(onClick = {
+                    pendingFlagged = null
+                    sendInFlight = false
+                }) {
                     Text("Cancel", maxLines = 1, softWrap = false)
                 }
             }
@@ -1144,6 +1169,19 @@ private fun AnimatedTextLines(content: String) {
 // The former ParametersSelectorDialog / SystemPromptSelectorDialog are
 // gone — replaced by the full-screen com.ai.ui.shared.ParametersSelectScreen
 // / SystemPromptSelectScreen opened from the 🌡️ / 🎭 bottom-bar icons.
+
+private fun estimatePersistedChatTokenTotals(messages: List<ChatMessage>): Pair<Int, Int> {
+    var inputTokens = 0
+    var outputTokens = 0
+    messages.forEachIndexed { index, message ->
+        if (message.role == "assistant") {
+            inputTokens += messages.take(index).sumOf { AppViewModel.estimateTokens(it.content) }
+            val billedContent = message.content.substringBefore("\n\n[Stream interrupted:")
+            outputTokens += AppViewModel.estimateTokens(billedContent)
+        }
+    }
+    return inputTokens to outputTokens
+}
 
 /** Fire-and-forget call to the `chat_title` internal prompt. Mirrors
  *  [com.ai.viewmodel.ReportViewModel.kickOffIconGeneration]: looks up

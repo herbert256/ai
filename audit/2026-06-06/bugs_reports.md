@@ -337,7 +337,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** `**bold**`, `*em*`, and `#`/`##`/`###` headings *inside* a fenced code block get converted to `<strong>`/`<em>`/`<h*>` in the HTML export, mangling code samples.
 **Root cause:** The code-fence regex wraps fences in `<pre><code>…</code></pre>` first (line 1325), but the subsequent inline/heading `replace` passes operate on the whole string, including the text already inside `<pre>`.
 **Proposed fix:** Extract fenced code blocks into placeholders (as is done for tables) before the inline passes, and re-insert them after.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — fenced code blocks are now extracted to placeholders before inline markdown conversion and restored afterward
 
 ### Bug 42 — Severity: LOW — Category: back-translation dropped from Original tab
 **Location:** ReportExport.kt:489-500 (`originalSecondary = nonTranslateSecondary.filter { it.targetLanguage == null }`), 534-541
@@ -360,14 +360,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A table cell containing an escaped pipe (`\|`) is split into extra columns, then truncated back to the header width (line 45-49), silently losing the cell content after the escaped pipe.
 **Root cause:** `split("|")` doesn't honour `\|` escapes that GFM allows inside cells.
 **Proposed fix:** Split on unescaped pipes only (e.g. a regex with a negative-lookbehind for `\`) and unescape `\|` → `|` afterward.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — table rows now split only on unescaped pipes and unescape `\|` inside cells
 
 ### Bug 45 — Severity: LOW — Category: pipe-less GFM tables not detected
 **Location:** MarkdownTables.kt:31 (`isHeader = line.trimStart().startsWith("|") && ...`)
 **Symptom:** A valid GFM table whose header row omits the leading/trailing pipe isn't recognised, so it renders as raw text (both in-app and in every export).
 **Root cause:** Detection requires the header line to start with `|`; GFM permits tables without outer pipes.
 **Proposed fix:** Relax the detector to also accept a header line that contains an inner `|` and is followed by a separator row, even without a leading pipe.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — table detection now accepts rows with unescaped inner pipes, so GFM tables without outer pipes are parsed
 
 ## File: ai/src/main/java/com/ai/ui/helpers/ReportExportScreen.kt
 
@@ -376,7 +376,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** With "One language" selected, tapping "Export all (zip)" produces a zip containing only that single language, despite the Language card's copy describing the all-languages layout ("one top-level directory per language").
 **Root cause:** "Export all" forwards the same `exportLanguage` the single "Export" button uses; when `ONE_LANGUAGE` is selected `exportLanguage` is `Single(name)`, so `bulkExportAndShare` falls into its flat single-language layout.
 **Proposed fix:** Either force `ExportLanguage.All` for the Export-all button, or update the help text to state Export-all honours the One-language selection.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Export all (zip) now always requests `ExportLanguage.All`, while single export still honors the selected scope
 
 ## File: ai/src/main/java/com/ai/ui/helpers/PricingFormat.kt
 
@@ -385,7 +385,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The per-million pricing display ("12,34 / 56,78") uses comma decimals on a comma-decimal device, unlike the sibling `formatTokenPricePerMillion` which pins `Locale.US`.
 **Root cause:** `"%.2f".format(...)` uses the default locale.
 **Proposed fix:** Use `String.format(Locale.US, "%.2f", ...)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — per-million pricing display now uses `String.format(Locale.US, ...)`
 
 ## File: ai/src/main/java/com/ai/ui/helpers/RerankTable.kt
 
@@ -394,7 +394,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Fractional rerank scores (and the Tournament Davidson scores via `scoreDecimals`) render with commas on a comma-decimal device.
 **Root cause:** Default-locale `format`.
 **Proposed fix:** Use `String.format(Locale.US, ...)` in `formatRerankScore` and the `scoreDecimals` branch.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — rerank and fixed-decimal tournament score formatting now use `Locale.US`
 
 ## File: ai/src/main/java/com/ai/ui/helpers/ModerationTable.kt
 

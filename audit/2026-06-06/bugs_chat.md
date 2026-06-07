@@ -21,28 +21,28 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** RAG retrieval makes an embedding API call per user turn whose token usage and cost are never recorded; the chat cost banner and AI Usage under-report when KBs are attached.
 **Root cause:** `messagesWithRag` → `KnowledgeService.retrieve` embeds the query via `repository.embed`, but no `updateUsageStats` call is made for that embedding round-trip. Only the chat model's estimated tokens are recorded (`recordChatStatistics`).
 **Proposed fix:** Record embedding usage at the `retrieve` call site (the embedder provider/model are known there), tagged `kind="embedding"` or `"chat/rag"`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — successful chat RAG retrieval attempts now record estimated query-token usage against the KB embedder provider/model with kind `chat/rag`
 
 ### Bug 3 — Severity: LOW — Category: prompt formatting
 **Location:** ChatViewModel.kt:143-173 (`sendLocalLlmStream`)
 **Symptom:** On-device LLM replies can be lower quality / run on, because the conversation is flattened into a bare `User:/Assistant:` transcript with no model-specific chat template and no stop sequence.
 **Root cause:** The prompt builder appends `"User: "/"Assistant: "` lines and a trailing `"Assistant: "`. `LocalLlm.generate` then runs unbounded with no `</s>`/turn-delimiter stop, so a chatty model may hallucinate a fake `User:` turn.
 **Proposed fix:** Look up a per-model chat template (or at least stop at the first generated `"\nUser:"`), and trim the echoed prefix.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — local chat output is now trimmed at generated `User:` turn boundaries and common echoed `Assistant:` prefixes are removed before display
 
 ### Bug 4 — Severity: LOW — Category: cost accuracy
 **Location:** ChatViewModel.kt:117-133 (`sendDualChatMessage`)
 **Symptom:** Dual-chat cost is computed from `AppViewModel.estimateTokens` (a heuristic char/word count) rather than the provider's reported `usage`, so the cost row can be materially off for tokenizer-divergent models.
 **Root cause:** `sendChat` returns only the text; the actual `usage` block from the response is discarded, and the screen re-estimates locally.
 **Proposed fix:** Thread the API `usage` (prompt/completion tokens) back from `repository.sendChat` and prefer it over the estimate when present.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — non-streaming chat dispatch now returns token usage, and dual chat prefers provider-reported usage before falling back to estimates
 
 ### Bug 5 — Severity: LOW — Category: RAG edge case
 **Location:** ChatViewModel.kt:83 (`messagesWithRag`)
 **Symptom:** A user turn that has only an attached image and a blank text body never triggers RAG retrieval, even when a KB is attached.
 **Root cause:** `val lastUser = messages.lastOrNull { it.role == "user" }?.content?.takeIf { it.isNotBlank() } ?: return messages` — a blank-but-image turn returns the messages unchanged.
 **Proposed fix:** Acceptable for text-only embedders; if vision-OCR retrieval is ever wanted, fall back to a caption or skip silently with a log line (currently silent).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — image-only chat turns now log an explicit RAG skip because retrieval still requires a text query
 
 ---
 
@@ -99,21 +99,21 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Resuming a long, previously-expensive chat shows a running cost of `null`/no-cost in the title bar until the next message is sent, under-reporting what the conversation actually cost.
 **Root cause:** The token accumulators are `remember { 0 }` and are never seeded from the persisted session, so on resume the banner reflects only this visit's turns.
 **Proposed fix:** Either label the banner "cost this visit", or reconstruct an approximate cumulative figure from the persisted messages on entry.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — chat sessions now seed their running token counters from persisted messages, reconstructing approximate input/output totals on resume
 
 ### Bug 13 — Severity: LOW — Category: cost tracking
 **Location:** ChatScreens.kt:601-606 (`catch (e: Exception)` branch in `actuallySend`)
 **Symptom:** When a stream errors after partial output, the partial assistant text is saved with `[Stream interrupted]`, but its output tokens are never added to `totalOutputTokens` / `onRecordStatistics`, so the partial (billed) output is invisible in cost/usage.
 **Root cause:** The token accounting (`totalOutputTokens += …; onRecordStatistics(…)`) lives only in the success path before the catch.
 **Proposed fix:** Count the partial `sb` content in the error branch too.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — interrupted streams now estimate tokens from the partial assistant text and record the same input/output usage as successful turns
 
 ### Bug 14 — Severity: LOW — Category: race / double send
 **Location:** ChatScreens.kt:620-661, 917-921 (`trySend` / Send button)
 **Symptom:** A very fast double-tap on Send can fire two sends (or two moderation calls) for one input.
 **Root cause:** The button's `enabled`/onClick guards on `isStreaming`/`isModerating`, but both flags are set inside the launched coroutine (`scope.launch { isStreaming = true … }`), which is dispatched, not run synchronously. Between `trySend` returning and the coroutine running, a second tap still sees the old (false) flags.
 **Proposed fix:** Set a synchronous in-flight guard (`if (sending) return; sending = true`) on the main thread before launching.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — `trySend` now sets a synchronous saveable `sendInFlight` guard before moderation/streaming launch and clears it only after streaming finishes or flagged input is dismissed
 
 ### Bug 15 — Severity: LOW — Category: performance
 **Location:** ChatScreens.kt:1101-1130 (`AnimatedTextLines`)
@@ -127,7 +127,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The system-message filter runs on every recomposition of the whole session screen (not just when `messages` changes), allocating a new list each time.
 **Root cause:** `displayMessages` is a plain val, not `remember(messages)`.
 **Proposed fix:** `val displayMessages = remember(messages) { messages.filter { it.role != "system" } }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — `displayMessages` is now memoized with `remember(messages)`
 
 ### Bug 17 — Severity: LOW — Category: list key collision (unconfirmed)
 **Location:** ChatScreens.kt:757 (LazyColumn `key`)
@@ -155,7 +155,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** A visible error / moderation banner disappears on rotation.
 **Root cause:** These transient flags use plain `remember`; rotation resets them. Mostly benign but the user loses the displayed failure reason.
 **Proposed fix:** `rememberSaveable` for `error`/`moderationError`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — visible chat and moderation error strings now use `rememberSaveable` so banners survive recreation
 
 ### Bug 21 — Severity: LOW — Category: per-turn flag persistence
 **Location:** ChatScreens.kt:788-843 (Web search / 🧠 reasoning chips)
@@ -223,7 +223,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The Rounds / Extra-chats fields accept arbitrary text (no numeric keyboard, no digit filter); a non-numeric value silently disables the button with no feedback.
 **Root cause:** Plain `OutlinedTextField` with `toIntOrNull()` parsing; no `keyboardType = Number` or digit filtering (unlike `ChatManageScreen.daysText`).
 **Proposed fix:** Add a numeric keyboard + digit filter.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Rounds and Extra-chats now use a numeric keyboard and digit-only input filtering
 
 ### Bug 30 — Severity: LOW — Category: bundle size limit (unconfirmed)
 **Location:** DualChatScreen.kt:87-119 (`DualMessagesSaver`)
@@ -273,7 +273,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Each "Export all" writes a new `ai_chats_backup_<ts>.zip` into `cacheDir/chat_backup` and never deletes prior exports; repeated exports accumulate cache files.
 **Root cause:** No cleanup of the output directory before/after writing.
 **Proposed fix:** Clear `chat_backup/` (or delete old zips) before writing the new archive.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — chat export now clears old files from the dedicated `chat_backup` cache directory before writing the new zip
 
 ### Bug 36 — Severity: LOW — Category: state loss
 **Location:** ChatManageScreen.kt:48 (`var daysText by remember { mutableStateOf("30") }`)
@@ -602,7 +602,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Rotation wipes every typed parameter on the Chat Parameters setup screen (system prompt, temperature, max tokens, top P, top K, frequency/presence penalty, search recency) — only the preset-id selections and dialog flags are saveable.
 **Root cause:** These fields use plain `remember` (only `selectedSystemPromptId`/`selectedParametersIds`/dialog flags are `rememberSaveable`).
 **Proposed fix:** `rememberSaveable` the free-text fields.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Chat Parameters setup fields now use `rememberSaveable`, including the citation toggle
 
 ### Bug 75 — Severity: LOW — Category: performance
 **Location:** DualChatScreen.kt:655-661 (`DualMessageBubble` per-bubble `produceState` over `ApiTracer.getTraceFiles()`)

@@ -80,11 +80,19 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         knowledgeBaseIds: List<String>,
         messages: List<ChatMessage>
     ): List<ChatMessage> {
-        val lastUser = messages.lastOrNull { it.role == "user" }?.content?.takeIf { it.isNotBlank() } ?: return messages
+        val lastUserMessage = messages.lastOrNull { it.role == "user" } ?: return messages
+        val lastUser = lastUserMessage.content.takeIf { it.isNotBlank() } ?: run {
+            if (!lastUserMessage.imageBase64.isNullOrBlank()) {
+                AppLog.i("Chat.RAG", "Skipping KB retrieval for image-only chat turn; text embedder requires a text query")
+            }
+            return messages
+        }
         AppLog.d("Chat.RAG", "retrieving for kbs=${knowledgeBaseIds.joinToString(",")} queryLen=${lastUser.length}")
         val hits = runCatching {
-            KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
+            val retrieved = KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
                 knowledgeBaseIds, lastUser)
+            recordRagEmbeddingUsage(context, knowledgeBaseIds, lastUser)
+            retrieved
         }.onFailure { e ->
             // Surface retrieval failures (network, auth, dim mismatch,
             // embedder model not available) instead of silently
@@ -110,6 +118,30 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    private suspend fun recordRagEmbeddingUsage(
+        context: android.content.Context,
+        knowledgeBaseIds: List<String>,
+        query: String
+    ) {
+        val kb = knowledgeBaseIds.asSequence()
+            .mapNotNull { KnowledgeStore.loadKnowledgeBase(context, it) }
+            .firstOrNull()
+            ?: return
+        val service = AppService.findById(kb.embedderProviderId) ?: return
+        if (service != AppService.LOCAL && appViewModel.uiState.value.aiSettings.getApiKey(service).isBlank()) {
+            return
+        }
+        val inputTokens = AppViewModel.estimateTokens(query)
+        appViewModel.settingsPrefs.updateUsageStatsAsync(
+            service,
+            kb.embedderModel,
+            inputTokens,
+            0,
+            inputTokens,
+            kind = "chat/rag"
+        )
+    }
+
     /**
      * Send a chat message for dual chat with explicit ChatParameters.
      * Throws on error.
@@ -122,21 +154,27 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         params: ChatParameters
     ): String {
         AppLog.d("Chat", "sendDualChatMessage ${service.id}/$model msgs=${messages.size}")
-        val response = appViewModel.repository.sendChat(
+        val response = appViewModel.repository.sendChatResponse(
             service = service, apiKey = apiKey, model = model,
             messages = messages, params = params
         )
-        val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
-        val outputTokens = AppViewModel.estimateTokens(response)
-        appViewModel.settingsPrefs.updateUsageStatsAsync(
-            service,
-            model,
-            inputTokens,
-            outputTokens,
-            inputTokens + outputTokens,
-            kind = "Dual chat"
-        )
-        return response
+        val text = response.analysis ?: throw Exception(response.error ?: "No response content")
+        val usage = response.tokenUsage
+        if (usage != null && usage.totalTokens > 0) {
+            appViewModel.settingsPrefs.updateUsageStatsAsync(service, model, usage, kind = "Dual chat")
+        } else {
+            val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
+            val outputTokens = AppViewModel.estimateTokens(text)
+            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                service,
+                model,
+                inputTokens,
+                outputTokens,
+                inputTokens + outputTokens,
+                kind = "Dual chat"
+            )
+        }
+        return text
     }
 
     /**
@@ -176,8 +214,16 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         }
         val out = LocalLlm.generate(context, modelName, prompt)
             ?: throw IllegalStateException("Local LLM \"$modelName\" failed — verify it loaded in Housekeeping → Local LLMs.")
-        emit(out)
+        emit(cleanLocalChatOutput(out))
     }.flowOn(Dispatchers.IO)
+
+    private fun cleanLocalChatOutput(raw: String): String =
+        raw
+            .substringBefore("\nUser:")
+            .substringBefore("\nUSER:")
+            .removePrefix("Assistant:")
+            .removePrefix("ASSISTANT:")
+            .trim()
 
     /**
      * Record usage statistics for streaming chat (call after stream completes).

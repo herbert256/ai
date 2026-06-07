@@ -173,7 +173,7 @@ internal fun ReportExportScreen(
                     scope.launch {
                         progress = 0 to 1
                         try {
-                            onExportAll(exportLanguage) { d, t -> progress = d to t }
+                            onExportAll(ExportLanguage.All) { d, t -> progress = d to t }
                             progress = null
                             onBack()
                         } catch (e: Exception) {

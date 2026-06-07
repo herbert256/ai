@@ -1179,7 +1179,7 @@ class SecondaryRunManager(
         newReport.languageName = source.languageName
         newReport.languageIcon = source.languageIcon
         newReport.languageIconErrorMessage = source.languageIconErrorMessage
-        ReportStorage.persistReport(context, newReport)
+        ReportStorage.persistNewReport(context, newReport)
         newReport.id
     }
 

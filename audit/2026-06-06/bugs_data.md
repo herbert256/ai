@@ -18,7 +18,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** For a provider that ships `cost_in_usd_ticks` on a scale other than 1e10 and has no `costTicksDivisor` configured, the cost is computed with the hardcoded `10_000_000_000.0` fallback (lines 910-912) and is silently wrong.
 **Root cause:** The `else` fallback assumes every unknown provider uses the xAI tick scale. There is no signal that the divisor was inferred vs configured.
 **Proposed fix:** Only apply the 1e10 fallback for providers actually known to use it (gate on `provider == xAI`); otherwise return `null` so the layered pricing path computes cost from tokens.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the hardcoded 1e10 tick fallback is now gated to provider id `xAI`; other providers without `costTicksDivisor` return null and use token-based pricing fallback
 
 ### Bug 3 — Severity: LOW — Category: token accounting
 **Location:** ApiModels.kt:855-868 (`OpenAiUsage.toTokenUsage`)
@@ -39,7 +39,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Request bodies serialized for traces can embed large base64 image payloads (vision); the trace request body is captured in full (no cap on the request side — see TracingInterceptor Bug 24) and rolls into the backup zip.
 **Root cause:** Image content blocks live inside the request body; there is no size cap on the captured request body.
 **Proposed fix:** Cap/elide base64 `image_url` / `inline_data` payloads in the trace request body the way response bodies are capped.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — `updateChatMessages`, `updateContent`, and the same-shaped model-switch update now use a single locked `updateResult` read-modify-write, so concurrent cost/icon bumps are preserved
 
 ## File: ai/src/main/java/com/ai/data/AtomicFileWrite.kt
 
@@ -72,7 +72,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `serialize(src=null)` emits `JsonPrimitive("")`, and `deserialize` of `""` would then throw (empty id is "unknown"). A null `AppService` field thus round-trips into a hard failure on the next read rather than a null.
 **Root cause:** Asymmetric null handling — serialize tolerates null (writes `""`), deserialize rejects it.
 **Proposed fix:** Serialize null as JSON null and let deserialize return null for JSON null (Gson skips), instead of the empty-string sentinel.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — null AppService values now serialize as JSON null and deserialize null/blank provider ids as null instead of an empty unknown provider id
 
 ## File: ai/src/main/java/com/ai/data/TagPropagation.kt
 
@@ -120,7 +120,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The coroutine-layer throttle gate resolves the host via `java.net.URI(baseUrl).host`; if the URI has no host (relative/odd baseUrl), it returns blank and the call proceeds *ungated* at the coroutine layer, falling back only to the (thread-blocking) interceptor acquire.
 **Root cause:** Blank host → `return dispatch()` with no permit.
 **Proposed fix:** Fall back to `okhttp3.HttpUrl.parse(baseUrl)?.host` and, if still blank, log so a mis-configured provider's lack of throttling is visible.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — host-gate resolution now falls back to OkHttp URL parsing and logs when no throttle host can be resolved
 
 ### Bug 16 — Severity: LOW — Category: timeout coupling
 **Location:** ApiDispatch.kt:51-59 (`withApiCallTimeout`)
@@ -134,7 +134,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Content is taken from `candidates[0].content.parts[0].text` then falls back to the first non-null text across all candidates' parts, but multi-part answers (text split across parts) keep only the first part — a multi-part Gemini answer is truncated to its first part.
 **Root cause:** `firstOrNull()`/`firstNotNullOfOrNull` instead of joining all `parts.text`.
 **Proposed fix:** Join all `parts.mapNotNull { it.text }` like the streaming extractor `extractGeminiContent` does (ApiStreaming.kt:295-297).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — non-streaming Gemini now joins every text part in the first candidate with text, matching the streaming extractor and avoiding truncated multi-part answers
 
 ### Bug 18 — Severity: LOW — Category: error body drain
 **Location:** ApiDispatch.kt:415-418, 467-470, 510-513 (non-stream error branches)
@@ -187,7 +187,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The request body is captured in full (`buffer.readUtf8()`) with no size cap, unlike the response body which is capped at 8 MiB (lines 37, 144-145). A vision request with a multi-MB base64 image produces a multi-MB trace file on disk that also enters the backup zip.
 **Root cause:** No cap on the request side.
 **Proposed fix:** Apply the same `BODY_CAP_BYTES` truncation to the captured request body.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — request-body trace capture now writes through a capped sink and appends the same 8 MiB truncation marker used for responses
 
 ### Bug 25 — Severity: LOW — Category: redaction false-positive
 **Location:** TracingInterceptor.kt:300-301 (`BODY_KEY_FIELD_REGEX`)
@@ -403,14 +403,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Mutation helpers do load→mutate→save under the lock (safe), but a caller that obtains a `Report` via `getReport`, mutates a copy, and persists it via a public save path outside the lock-wrapped helpers would clobber concurrent field updates written by the orchestrator/metadata flows in between.
 **Root cause:** The atomicity guarantee depends on *every* writer going through the lock-wrapped load→mutate→save helpers; a full-object write based on a stale snapshot loses interleaved updates.
 **Proposed fix:** Ensure no caller persists a whole `Report` snapshot; require field-scoped mutators. Audit `createReport`'s `saveReport(report)` is only used at creation (it is) and reject external full-report writes.
-**Status:** Open (verify no external full-report save path exists)
+**Status:** Fixed (2026-06-07) — full-report writes are now private+lock-asserted; the only public full-object path is `persistNewReport`, which refuses to overwrite an existing report and is used only by new-report/import flows
 
 ### Bug 53 — Severity: MEDIUM — Category: additive cost double-count on regen
 **Location:** ReportStorage.kt:197-199+ (`updateAgentStatus` additive cost/token writes)
 **Symptom:** Cost and token counts are *added* onto the existing values on every status update. If a single dispatch results in two `markAgentSuccess` calls for the same agent (e.g. a retry path that both the streaming collector and a fallback non-streaming path report), the agent's cost is double-counted.
 **Root cause:** Additive accumulation with no per-attempt idempotency key; correctness relies on exactly-once success reporting per dispatch.
 **Proposed fix:** Key cost additions by an attempt/trace id and dedupe, or have the dispatcher reset-then-add per attempt.
-**Status:** Open (unconfirmed; depends on exactly-once success reporting)
+**Status:** Fixed (2026-06-07) — primary SUCCESS cost/token additions are now idempotent for the same trace file, preserving additive regenerate costs across distinct traces while deduping duplicate success bookkeeping for one API attempt
 
 ### Bug 54 — Severity: LOW — Category: serialized cross-report writes
 **Location:** ReportStorage.kt:44, all mutators (`lock`)
@@ -450,14 +450,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Root cause:** `get()`/`save()` are separate lock acquisitions; `save()` writes the whole row from the stale snapshot, unlike the bump methods which read+write under one lock.
 **Reproduction:** During a regenerate batch, trigger an Apply on a fan-out pair while its icon-chain cost bump is in flight; the row's icon cost reverts.
 **Proposed fix:** Add a lock-wrapped `update(reportId, resultId) { mutate }` RMW and route `updateContent`/`updateChatMessages` through it (mirror `RegenerateBatchStorage.update`).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — `updateChatMessages`, `updateContent`, and the same-shaped model-switch update now use a single locked `updateResult` read-modify-write, so concurrent cost/icon bumps are preserved
 
 ### Bug 59 — Severity: LOW — Category: token fidelity loss on accumulation
 **Location:** SecondaryResult.kt:303-325 (`mergeCostFromDisk`)
 **Symptom:** On a Regenerate re-dispatch, the merged `TokenUsage` is rebuilt as `TokenUsage(inputTokens, outputTokens)` only — `cachedInputTokens`, `cacheCreationTokens`, and `reasoningTokens` are dropped, so the displayed token breakdown for an accumulated secondary loses its cache/reasoning components.
 **Root cause:** The merge constructs a 2-field TokenUsage instead of summing all buckets.
 **Proposed fix:** Sum all `TokenUsage` buckets when merging prior + new.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — secondary regenerate cost merging now sums every TokenUsage bucket, including cached, cache-creation, reasoning, and apiCost values
 
 ### Bug 60 — Severity: LOW — Category: list cache mtime granularity
 **Location:** SecondaryResult.kt:34-35, 159-180 (`CachedEntry` mtime+length check)
@@ -552,14 +552,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** With `topK == 0` (`cap == 0`), the `heap.size < cap` branch is never taken, so every candidate hits `else if (sim > heap.peek()!!.score)` with an empty heap → `peek()` returns null → NPE inside `forEachChunk`'s block (caught per Bug 68, so the source is silently dropped).
 **Root cause:** No guard for `topK <= 0`.
 **Proposed fix:** Coerce `topK`/`cap` to at least 1, or early-return for `topK <= 0`.
-**Status:** Open (unconfirmed; default topK=8, but callers may pass a setting)
+**Status:** Fixed (2026-06-07) — retrieval now returns empty immediately for `topK <= 0`, before embedding or heap construction
 
 ### Bug 72 — Severity: LOW — Category: locale-sensitive log formatting
 **Location:** KnowledgeService.kt:306, 312 (`"%.3f".format(...)`)
 **Symptom:** Retrieval score logs use the default locale; on nl-NL scores render with a comma. Cosmetic (log only) and consistent with other `%.Nf` log sites.
 **Root cause:** `String.format` default locale.
 **Proposed fix:** Use `Locale.US` for the score formatting.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — retrieval score log formatting now uses `String.format(Locale.US, "%.3f", ...)`
 
 ## File: ai/src/main/java/com/ai/data/AuditLog.kt
 
@@ -602,7 +602,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `cancel()`/`restart()`/`reconcile()` persist the job via `persist()` → `RegenerateBatchStorage.save()` (blind full-object write), while the orchestrator mutates via `mutateJob()` → `update()` (atomic RMW). A `cancel()` that reads RUNNING, then writes CANCELLED via blind save, can be raced by a still-running orchestrator's `pauseOnError`/`advanceToNextPhase` RMW that reads CANCELLED and writes PAUSED_ON_ERROR/RUNNING — resurrecting a cancelled job (exactly the failure the `mutateJob` Bug-58 comment claims to prevent, but the cancel side doesn't use the atomic path).
 **Root cause:** Inconsistent persistence: status transitions on the user/sweep side use blind `save`, the orchestrator uses `update`. The orchestrator coroutine's `mutateJob` is a non-suspend disk operation, so cooperative cancellation can't interrupt it mid-write.
 **Proposed fix:** Route `cancel`/`restart`/`reconcile` status writes through `RegenerateBatchStorage.update` (RMW) too, and have the orchestrator's RMW bail when it reads a terminal (CANCELLED/DONE) status instead of overwriting it.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — cancel/restart/reconcile status changes now route through the same atomic update path as orchestrator mutations; orchestrator mutations preserve terminal CANCELLED/DONE jobs so a late RMW cannot resurrect a cancelled batch
 
 ### Bug 78 — Severity: LOW — Category: double-cancel orchestrator window
 **Location:** RegenerateBatchEngine.kt:94-116 (`enqueueAndStart`), 254-271 (`startOrchestrator`)

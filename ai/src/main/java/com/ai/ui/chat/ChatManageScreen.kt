@@ -177,6 +177,9 @@ fun ChatManageScreen(
 private fun zipAllChats(context: android.content.Context): Pair<File?, Int> {
     val ts = SimpleDateFormat("yyMMdd_HHmmss", Locale.US).format(Date())
     val outDir = File(context.cacheDir, "chat_backup").also { it.mkdirs() }
+    outDir.listFiles()?.forEach { file ->
+        runCatching { if (file.isFile) file.delete() }
+    }
     val outFile = File(outDir, "ai_chats_backup_$ts.zip")
     val historyDir = File(context.filesDir, "chat-history")
     // Only zip .json session files (skip any stray/foreign file a restore

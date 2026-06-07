@@ -163,6 +163,9 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val agent = report.agents.find { it.agentId == agentId } ?: return@withLock false
+            val duplicateSuccessForTrace = status == ReportStatus.SUCCESS &&
+                traceFile != null &&
+                agent.traceFile == traceFile
             agent.reportStatus = status
             agent.httpStatus = httpStatus
             if (requestHeaders != null) agent.requestHeaders = requestHeaders
@@ -200,22 +203,25 @@ object ReportStorage {
             // new) instead of just the latest call's expenditure.
             // For fresh runs the prior is null/0 so additive ≡
             // overwrite — no change in behaviour. Error paths
-            // pass cost=null and so don't touch the counters.
-            if (tokenUsage != null) {
+            // pass cost=null and so don't touch the counters. A
+            // duplicate SUCCESS for the same trace is idempotent so
+            // retry/fallback bookkeeping cannot double-count a single
+            // API attempt.
+            if (tokenUsage != null && !duplicateSuccessForTrace) {
                 agent.tokenUsage = TokenUsage(
                     inputTokens = (agent.tokenUsage?.inputTokens ?: 0) + tokenUsage.inputTokens,
                     outputTokens = (agent.tokenUsage?.outputTokens ?: 0) + tokenUsage.outputTokens
                 )
             }
-            if (cost != null) {
+            if (cost != null && !duplicateSuccessForTrace) {
                 agent.cost = (agent.cost ?: 0.0) + cost
             }
-            if (inputCost != null) agent.inputCost = (agent.inputCost ?: 0.0) + inputCost
-            if (outputCost != null) agent.outputCost = (agent.outputCost ?: 0.0) + outputCost
+            if (inputCost != null && !duplicateSuccessForTrace) agent.inputCost = (agent.inputCost ?: 0.0) + inputCost
+            if (outputCost != null && !duplicateSuccessForTrace) agent.outputCost = (agent.outputCost ?: 0.0) + outputCost
             // Recompute the report total whenever any cost field changed,
             // not only on the primary-cost path (Bug 28): an icon-cost bump
             // arriving with cost=null would otherwise leave totalCost stale.
-            if (cost != null || inputCost != null || outputCost != null) {
+            if (!duplicateSuccessForTrace && (cost != null || inputCost != null || outputCost != null)) {
                 report.totalCost = computeReportTotalCost(report)
             }
             if (durationMs != null) agent.durationMs = durationMs
@@ -227,7 +233,7 @@ object ReportStorage {
             // Functional line for the model call (success only — an errored
             // call already has its central technical line and per spec gets
             // no functional line).
-            if (status == ReportStatus.SUCCESS) {
+            if (status == ReportStatus.SUCCESS && !duplicateSuccessForTrace) {
                 AuditLog.append(reportId, "Response received for report model ${agent.provider}/${agent.model}")
             }
             true
@@ -525,7 +531,14 @@ object ReportStorage {
         return res
     }
 
+    /**
+     * Private full-object writer. Callers must hold [lock] and either be
+     * creating a fresh report or have loaded the current report inside the
+     * same critical section before mutating it. Keeping this private prevents
+     * a stale [getReport] snapshot from being written back over newer fields.
+     */
     private fun saveReport(report: Report) {
+        check(lock.isHeldByCurrentThread) { "ReportStorage.saveReport must be called under lock" }
         val dir = reportsDir ?: return
         // Defence in depth: a runtime-import JSON payload can carry a
         // crafted `id` ("../prefs/foo") that would otherwise escape
@@ -2390,15 +2403,24 @@ object ReportStorage {
      *  them would double-count metas / translations on history /
      *  totals. Returns the new id, or null when [reportId] can't be
      *  loaded. */
-    /** Persist a fully-formed [Report] verbatim. Used by the
+    /** Persist a fully-formed *new* [Report] verbatim. Used by the
      *  "Create Report from fan-out" flow which constructs a complete
      *  report off-screen (prompt + ready-made agent rows) and just
      *  needs it on disk. Caller is responsible for setting
      *  completedAt / totalCost / sourceReportId. Mirrors the same
-     *  init + lock + saveReport pattern as [createReport]. */
-    fun persistReport(context: Context, report: Report) {
+     *  init + lock + saveReport pattern as [createReport]. Refuses to
+     *  overwrite an existing report so this API cannot be used as a stale
+     *  full-report update path. */
+    fun persistNewReport(context: Context, report: Report): Boolean {
         init(context)
-        lock.withLock { saveReport(report) }
+        return lock.withLock {
+            if (loadReport(report.id) != null) {
+                AppLog.e("ReportStorage", "Refusing to overwrite existing report ${report.id} via persistNewReport")
+                return@withLock false
+            }
+            saveReport(report)
+            true
+        }
     }
 
     fun copyReport(context: Context, reportId: String): String? {
