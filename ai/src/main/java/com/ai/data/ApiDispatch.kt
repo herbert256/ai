@@ -3,6 +3,7 @@ package com.ai.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -76,8 +77,11 @@ internal suspend fun <T> withApiCallTimeout(block: suspend () -> T): T {
  */
 private suspend fun <T> withHostGate(baseUrl: String, dispatch: suspend () -> T): T {
     if (ProviderThrottle.permitPreAcquired.get() == true) return dispatch()
-    val host = runCatching { java.net.URI(baseUrl).host ?: "" }.getOrDefault("")
-    if (host.isBlank()) return dispatch()
+    val host = resolveHostForGate(baseUrl)
+    if (host.isBlank()) {
+        AppLog.w("ApiDispatch", "Unable to resolve throttle host for baseUrl=$baseUrl; proceeding without coroutine host gate")
+        return dispatch()
+    }
     val releaser = ProviderThrottle.acquireOrWait(host)
     return try {
         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) { dispatch() }
@@ -85,6 +89,10 @@ private suspend fun <T> withHostGate(baseUrl: String, dispatch: suspend () -> T)
         releaser.release()
     }
 }
+
+private fun resolveHostForGate(baseUrl: String): String =
+    runCatching { java.net.URI(baseUrl).host?.takeIf { it.isNotBlank() } }.getOrNull()
+        ?: baseUrl.toHttpUrlOrNull()?.host.orEmpty()
 
 /**
  * Analyze a prompt using the appropriate API format.

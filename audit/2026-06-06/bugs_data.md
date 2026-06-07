@@ -120,7 +120,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The coroutine-layer throttle gate resolves the host via `java.net.URI(baseUrl).host`; if the URI has no host (relative/odd baseUrl), it returns blank and the call proceeds *ungated* at the coroutine layer, falling back only to the (thread-blocking) interceptor acquire.
 **Root cause:** Blank host → `return dispatch()` with no permit.
 **Proposed fix:** Fall back to `okhttp3.HttpUrl.parse(baseUrl)?.host` and, if still blank, log so a mis-configured provider's lack of throttling is visible.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — host-gate resolution now falls back to OkHttp URL parsing and logs when no throttle host can be resolved
 
 ### Bug 16 — Severity: LOW — Category: timeout coupling
 **Location:** ApiDispatch.kt:51-59 (`withApiCallTimeout`)
