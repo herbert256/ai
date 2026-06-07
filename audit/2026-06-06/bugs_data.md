@@ -559,7 +559,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Retrieval score logs use the default locale; on nl-NL scores render with a comma. Cosmetic (log only) and consistent with other `%.Nf` log sites.
 **Root cause:** `String.format` default locale.
 **Proposed fix:** Use `Locale.US` for the score formatting.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — retrieval score log formatting now uses `String.format(Locale.US, "%.3f", ...)`
 
 ## File: ai/src/main/java/com/ai/data/AuditLog.kt
 
