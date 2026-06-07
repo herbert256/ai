@@ -239,8 +239,23 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ===== AI Settings =====
 
     fun loadSettings(): Settings {
-        return loadProviderSettings().copy(
-            agents = loadList(KEY_AI_AGENTS, TypeTokens.listAgentType),
+        val providerSettings = loadProviderSettings()
+        val rawAgents = loadList<Agent>(KEY_AI_AGENTS, TypeTokens.listAgentType)
+        val providersWithMigratedAgentKeys = rawAgents.fold(providerSettings.providers) { providers, agent ->
+            if (agent.apiKey.isBlank()) {
+                providers
+            } else {
+                val current = providers[agent.provider] ?: defaultProviderConfig(agent.provider)
+                if (current.apiKey.isBlank()) {
+                    providers + (agent.provider to current.copy(apiKey = agent.apiKey))
+                } else {
+                    providers
+                }
+            }
+        }
+        return providerSettings.copy(
+            providers = providersWithMigratedAgentKeys,
+            agents = scrubAgentApiKeys(rawAgents),
             flocks = loadList(KEY_AI_FLOCKS, TypeTokens.listFlockType),
             swarms = loadList(KEY_AI_SWARMS, TypeTokens.listSwarmType),
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
@@ -285,6 +300,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultMetaItems = loadList(KEY_AI_DEFAULT_META_ITEMS, TypeTokens.listDefaultMetaItemType)
         )
     }
+
+    private fun scrubAgentApiKeys(agents: List<Agent>): List<Agent> =
+        agents.map { agent -> if (agent.apiKey.isBlank()) agent else agent.copy(apiKey = "") }
 
     private fun loadProviderSettings(): Settings {
         val providers = AppService.entries.associateWith { service ->
@@ -347,11 +365,15 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun saveSettings(settings: Settings) {
+        val providerKeyFallbacks = settings.agents
+            .filter { it.apiKey.isNotBlank() }
+            .associate { it.provider to it.apiKey }
+        val agentsToStore = scrubAgentApiKeys(settings.agents)
         prefs.edit {
             for (service in AppService.entries) {
                 val key = service.id
                 val config = settings.providers[service] ?: defaultProviderConfig(service)
-                putString("${key}_api_key", config.apiKey)
+                putString("${key}_api_key", config.apiKey.ifBlank { providerKeyFallbacks[service].orEmpty() })
                 putString("${key}_manual_models", gson.toJson(config.models))
                 putString("${key}_model_types", gson.toJson(config.modelTypes))
                 // User-curated vision / web-search overrides + the per-fetch
@@ -377,7 +399,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 putString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
                 putString("${key}_system_prompt_id", config.systemPromptId)
             }
-            putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
+            putString(KEY_AI_AGENTS, gson.toJson(agentsToStore))
             putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
             putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))

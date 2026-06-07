@@ -650,7 +650,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Per-agent API keys are stored in the settings prefs blob (and thus the backup zip, Bug 66) in plaintext, duplicating the per-provider key storage and widening the plaintext-key surface.
 **Root cause:** Keys denormalised onto each Agent.
 **Proposed fix:** Reference the provider's stored key rather than copying it onto each Agent, reducing plaintext copies.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — settings load/save migrates legacy agent keys to provider storage when needed and strips agent.apiKey from the persisted agent list; the Agent editor no longer writes per-agent keys.
 
 ## File: ai/src/main/java/com/ai/data/PricingParsers.kt
 
