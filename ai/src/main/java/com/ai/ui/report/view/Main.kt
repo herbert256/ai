@@ -364,24 +364,6 @@ internal fun ViewAiReportScreen(
         }
         return
     }
-    // Translate "View" overlay — keyed by translationRunId so all
-    // siblings of a single Translate batch render together as a
-    // stacked source/translation list.
-    var translateViewRunId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
-    val activeTranslateViewRunId = translateViewRunId
-    if (activeTranslateViewRunId != null) {
-        val backToMain: () -> Unit = { translateViewRunId = null }
-        androidx.compose.runtime.CompositionLocalProvider(
-            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
-        ) {
-            TranslateViewScreen(
-                reportId = reportId,
-                translationRunId = activeTranslateViewRunId,
-                onBack = backToMain
-            )
-        }
-        return
-    }
     // Prompt "View" overlay state — only the var declarations sit
     // here so the tile click below this block (which sets
     // [promptViewOpen] = true) can reach them. The actual early-
@@ -1165,11 +1147,11 @@ internal fun ViewAiReportScreen(
                 "tournament", "Tournament", tournamentIcon, AppColors.SuccessAccent,
                 sublabel = "head-to-head", style = ViewTileStyle.Tournament
             ),
-            ComputedSpec("moderation", "Moderation", moderationEmoji, moderationColor),
+            ComputedSpec("moderation", "Moderation", moderationEmoji, moderationColor)
             // fan_in is no longer in computedTiles — it has its own
             // per-run tile set ([fanInTiles]) with dynamic icons,
-            // mirroring the fan_out pattern.
-            ComputedSpec("translate", "Translate", com.ai.data.MetadataIconsHolder.current.world, AppColors.WarningAccent)
+            // mirroring the fan_out pattern. Translate has no View tile
+            // (the raw source/translation list view was removed).
         )
         specs.mapNotNull { s ->
             val items = if (s.key == "tournament") tournamentItems else everyItems[s.key].orEmpty()
@@ -1199,8 +1181,7 @@ internal fun ViewAiReportScreen(
                                 openFanIn = { id ->
                                     fanInViewLanguage = currentLanguageState.value
                                     fanInViewRowId = id
-                                },
-                                openTranslate = { runId -> translateViewRunId = runId })
+                                })
                             else -> { expandedKind = if (expandedKind == s.key) null else s.key }
                         }
                     }
@@ -1389,8 +1370,7 @@ internal fun ViewAiReportScreen(
                                 openFanIn = { id ->
                                     fanInViewLanguage = currentLanguageState.value
                                     fanInViewRowId = id
-                                },
-                                openTranslate = { runId -> translateViewRunId = runId }
+                                }
                             )
                         }
                     )
@@ -1846,8 +1826,7 @@ private fun openComputedItem(
     openRerank: (String) -> Unit,
     openTournament: (String) -> Unit,
     openModeration: (String) -> Unit,
-    openFanIn: (String) -> Unit,
-    openTranslate: (String) -> Unit
+    openFanIn: (String) -> Unit
 ) {
     val seed = item.sourceRows?.firstOrNull()
     val rowId = seed?.id
@@ -1856,16 +1835,6 @@ private fun openComputedItem(
         "tournament" -> if (rowId != null) openTournament(rowId) else item.open(language)
         "moderation" -> if (rowId != null) openModeration(rowId) else item.open(language)
         "fan_in" -> if (rowId != null) openFanIn(rowId) else item.open(language)
-        "translate" -> {
-            // Translate items key by translationRunId (or a synthesised
-            // lang:<name> sentinel for legacy rows missing a runId).
-            // Use the shared [translationRunGroupingId] so this matches
-            // buildEveryItems' grouping exactly even when both runId and
-            // targetLanguage are null (→ "lang:"); the TranslateViewScreen
-            // then loads every row sharing this id.
-            val runKey = seed?.let { com.ai.ui.helpers.translationRunGroupingId(it) }
-            if (runKey != null) openTranslate(runKey) else item.open(language)
-        }
         else -> item.open(language)
     }
 }
