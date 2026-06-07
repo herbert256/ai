@@ -95,9 +95,10 @@ class RateLimitRetryInterceptor : Interceptor {
                     ?.let { System.currentTimeMillis() + it }
             }
             if (benchUntil != null) {
-                // The Cohere Trial-cap body is itself proof it's Cohere,
-                // so bench it even when findByHost didn't resolve.
-                val providerId = resolvedProviderId ?: if (cohereTrialCap) "Cohere" else null
+                // The Cohere Trial-cap body is itself proof it's a
+                // Cohere-family call, so resolve by registered host family
+                // instead of hard-coding the provider id.
+                val providerId = resolvedProviderId ?: if (cohereTrialCap) cohereProviderIdFor(host) else null
                 val model = modelForRequest(request)
                 if (providerId != null && !model.isNullOrBlank()) {
                     ModelCooldownStore.markUnavailable(
@@ -303,6 +304,27 @@ internal fun modelForRequest(request: okhttp3.Request): String? {
         com.google.gson.JsonParser.parseString(buf.readUtf8())
             .asJsonObject.get("model")?.asString
     }.getOrNull()?.takeIf { it.isNotBlank() }
+}
+
+private fun cohereProviderIdFor(requestHost: String): String? {
+    ProviderRegistry.findByHost(requestHost)?.id?.let { return it }
+    return ProviderRegistry.getAll().firstOrNull { service ->
+        service.auxHosts.any(::isCohereHost) ||
+            isCohereHost(hostFromUrl(service.baseUrl)) ||
+            isCohereHost(hostFromUrl(service.nativeCapabilityUrl)) ||
+            isCohereHost(hostFromUrl(service.nativeRerankUrl)) ||
+            isCohereHost(hostFromUrl(service.nativeModerationUrl))
+    }?.id
+}
+
+private fun hostFromUrl(url: String?): String? {
+    if (url.isNullOrBlank()) return null
+    return runCatching { java.net.URI(url).host?.lowercase(Locale.ROOT) }.getOrNull()
+}
+
+private fun isCohereHost(host: String?): Boolean {
+    val normalized = host?.lowercase(Locale.ROOT) ?: return false
+    return normalized == "cohere.com" || normalized.endsWith(".cohere.com")
 }
 
 /** True when a Google 429 body reports a **per-day** quota as

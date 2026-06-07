@@ -254,7 +254,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** When `resolvedProviderId` is null but the body matches the Cohere trial-cap text, it benches under literal `"Cohere"`. If the user renamed the Cohere provider id, the bench key won't match the model picker's `providerId:model` key and the picker won't show the cooldown.
 **Root cause:** Hardcoded `"Cohere"` provider id fallback.
 **Proposed fix:** Resolve the provider by API format / host family rather than a literal id.
-**Status:** Open
+**Status:** Fixed in `RateLimitRetry.kt` by resolving Cohere trial-cap benches from registered Cohere-family hosts instead of the literal provider id.
 
 ## File: ai/src/main/java/com/ai/data/OverloadedRetry.kt
 
