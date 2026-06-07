@@ -181,7 +181,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** `config` is read from `uiState` via a plain `remember`, then a `LaunchedEffect(Unit)` *clears* `uiState.dualChatConfig` to null right after capture. On recreation the plain `remember` re-runs and now reads the cleared `null` config, triggering `if (config == null) { onNavigateBack() }`. The `DualMessagesSaver` survives, but with no config the screen exits before it can be used.
 **Reproduction:** Start a dual chat, let it run a few rounds, rotate → you're bounced to the previous screen and the conversation is gone.
 **Proposed fix:** Persist the config (a `rememberSaveable` Saver for `DualChatConfig`, or don't clear it from UiState until the screen disposes), so it survives recreation alongside the saved messages.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — config no longer cleared on entry; survives recreation, cleared only on real exit (onExit)
 
 ### Bug 24 — Severity: MEDIUM — Category: state loss / cost desync
 **Location:** DualChatScreen.kt:408-411 (`model1InputTokens` … `model2OutputTokens` via plain `remember`)
