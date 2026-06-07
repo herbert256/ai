@@ -464,7 +464,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The per-match confidence percentage uses default-locale formatting (irrelevant for `%.0f` integers, but the pattern is locale-fragile and inconsistent with the codebase convention).
 **Root cause:** Default-locale `"%.0f".format(...)`.
 **Proposed fix:** Pin `Locale.US` (harmless now, prevents regression if decimals are ever added).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — tournament confidence percentage formatting now pins `Locale.US`
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/JudgeEval.kt
 

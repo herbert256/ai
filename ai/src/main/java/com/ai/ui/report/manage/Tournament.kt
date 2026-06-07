@@ -71,6 +71,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 // ===================================================================
 // Manage row — appears only once a tournament exists for the report.
@@ -794,7 +795,9 @@ private fun TournamentL3(
                 Text("A - $labelA", color = colorA, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("B - $labelB", color = colorB, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(6.dp))
-                m.confidence?.let { Text("Confidence: ${"%.0f".format(it * 100)}%", color = AppColors.TextSecondary, fontSize = 12.sp) }
+                m.confidence?.let {
+                    Text("Confidence: ${String.format(Locale.US, "%.0f", it * 100)}%", color = AppColors.TextSecondary, fontSize = 12.sp)
+                }
                 if (!m.reason.isNullOrBlank()) Text(m.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
                 Text("Orientation: ${if (m.orientation == 0) "A-vs-B" else "B-vs-A (swapped)"}", color = AppColors.TextTertiary, fontSize = 11.sp)
                 m.judgeModel?.let { Text("Judged by: ${it}", color = AppColors.TextTertiary, fontSize = 11.sp) }
