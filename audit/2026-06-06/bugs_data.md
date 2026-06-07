@@ -194,7 +194,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The body redaction regex matches any JSON field named `key`/`token`/`secret`/etc. anywhere in the request body, so a legitimate user prompt that contains JSON like `{"token": "..."}` (e.g. asking the model about a code snippet) gets its content silently redacted in the trace, making the trace useless for debugging that call.
 **Root cause:** The regex is content-agnostic and matches inside the prompt text, not only auth fields.
 **Proposed fix:** Restrict redaction to top-level request fields known to carry secrets, not arbitrary nested occurrences inside user content.
-**Status:** Open
+**Status:** Fixed — trace body redaction now parses JSON and redacts only known top-level secret fields, leaving nested prompt content and JSON examples untouched.
 
 ### Bug 26 — Severity: LOW — Category: streaming trace correctness
 **Location:** TracingInterceptor.kt:204-223 (`teedSource` capture window)

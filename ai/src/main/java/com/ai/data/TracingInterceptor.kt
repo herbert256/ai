@@ -313,19 +313,41 @@ class TracingInterceptor : Interceptor {
     private val URL_KEY_PARAM_REGEX =
         Regex("""([?&](?:key|api[_-]?key|access_token|token)=)([^&\s]+)""", RegexOption.IGNORE_CASE)
 
-    /** Redact key-bearing fields inside a JSON request body before it's
-     *  persisted in the trace JSON (Bug 17). Headers and the URL `?key=`
-     *  are already redacted, but a provider/proxy that places a secret in
-     *  the JSON body would otherwise land plaintext on disk (trace files
-     *  roll up into the backup zip). Best-effort string match on the known
-     *  key field names; leaves a non-matching body untouched. */
+    /** Redact top-level key-bearing fields inside a JSON request body before
+     *  it's persisted in the trace JSON (Bug 17). Headers and the URL `?key=`
+     *  are already redacted, but a provider/proxy that places a secret in the
+     *  JSON body would otherwise land plaintext on disk. Keep this scoped to
+     *  actual top-level request fields so user prompt content that happens to
+     *  contain JSON examples such as {"token": "..."} remains debuggable. */
     private fun redactBody(body: String?): String? {
         if (body.isNullOrBlank()) return body
-        return BODY_KEY_FIELD_REGEX.replace(body) { m -> "${m.groupValues[1]}\"[REDACTED]\"" }
+        return try {
+            val root = com.google.gson.JsonParser.parseString(body)
+            if (!root.isJsonObject) return body
+            val obj = root.asJsonObject
+            val keysToRedact = obj.entrySet()
+                .mapNotNull { (key, _) -> key.takeIf(::isSensitiveBodyField) }
+            if (keysToRedact.isEmpty()) return body
+            keysToRedact.forEach { key -> obj.addProperty(key, "[REDACTED]") }
+            obj.toString()
+        } catch (_: Exception) {
+            body
+        }
     }
 
-    private val BODY_KEY_FIELD_REGEX =
-        Regex("""("(?:api[_-]?key|apikey|access_token|authorization|secret|token|key)"\s*:\s*)"(?:[^"\\]|\\.)*"""", RegexOption.IGNORE_CASE)
+    private fun isSensitiveBodyField(name: String): Boolean =
+        name.lowercase(Locale.US) in TOP_LEVEL_BODY_SECRET_FIELDS
+
+    private val TOP_LEVEL_BODY_SECRET_FIELDS = setOf(
+        "api_key",
+        "api-key",
+        "apikey",
+        "access_token",
+        "authorization",
+        "secret",
+        "token",
+        "key"
+    )
 }
 
 /** Pull a human-readable error message out of an API response body, then
