@@ -2033,7 +2033,7 @@ fun HomeIconBar(
     onTraceFallback: () -> Unit,
     onHelpFallback: () -> Unit,
     onAbout: () -> Unit,
-    onStatistics: () -> Unit,
+    onAppLog: () -> Unit,
     /** When the "Full screen" setting hides the status bar, the bar uses the
      *  freed space by sitting at the very top edge. If there's a top camera
      *  punch-hole, the icons split into a left + right group with a gap over
@@ -2070,8 +2070,8 @@ fun HomeIconBar(
             TitleBarIcon(mi.traces, Color.Unspecified, if (tracesActive) traceAction else ({}), width = w, heightDp = h, fontSize = fs,
                 alpha = if (tracesActive) 1f else 0.35f)
         }
-        // 📊 Statistics — in the slot 📤 share used to occupy.
-        add { TitleBarIcon(mi.statistics, Color.Unspecified, onStatistics, width = w, heightDp = h, fontSize = fs) }
+        // 📜 Application log — in the slot 📤 share used to occupy.
+        add { TitleBarIcon(mi.appLog, Color.Unspecified, onAppLog, width = w, heightDp = h, fontSize = fs) }
         // AI Setup sits right before Settings.
         add { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
