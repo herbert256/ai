@@ -512,7 +512,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** While a search filter is active, deleting a row computes `remaining = filteredReports.size - 1` from a `filteredReports` that lags `allReports` by the 250 ms debounce, so the page-clamp math can use a stale count; the deleted row also stays visible until the debounce fires.
 **Root cause:** `filteredReports` is produced asynchronously (debounced) from `allReports`; the synchronous delete handler reads the not-yet-recomputed value.
 **Proposed fix:** Recompute the remaining count from `allReports` minus the deleted id, or clamp reactively only.
-**Status:** Open
+**Status:** Fixed in `HistoryScreen.kt` by deriving visible filtered rows from live report ids and recomputing post-delete page counts from the updated report list.
 
 ### Bug 64 — Severity: LOW — Category: performance
 **Location:** HistoryScreen.kt:67-77 (Response filter)

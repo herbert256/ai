@@ -68,12 +68,12 @@ fun HistoryScreenNav(
         if (!isSearchActive) { value = allReports; return@produceState }
         kotlinx.coroutines.delay(250)
         value = withContext(Dispatchers.Default) {
-            allReports.filter { report ->
-                (searchTitle.isBlank() || report.title.contains(searchTitle, ignoreCase = true)) &&
-                (searchPrompt.isBlank() || report.prompt.contains(searchPrompt, ignoreCase = true)) &&
-                (searchReport.isBlank() || report.agents.any { it.responseBody?.contains(searchReport, ignoreCase = true) == true })
-            }
+            allReports.filter { report -> historyMatchesSearch(report, searchTitle, searchPrompt, searchReport) }
         }
+    }
+    val visibleReports = remember(filteredReports, allReports) {
+        val liveIds = allReports.mapTo(HashSet()) { it.id }
+        filteredReports.filter { it.id in liveIds }
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
@@ -84,12 +84,12 @@ fun HistoryScreenNav(
         val rowHeight = 56
         val overhead = if (searchExpanded) 280 else 150
         val pageSize = maxOf(1, ((maxHeight.value - overhead) / rowHeight).toInt())
-        val totalPages = if (filteredReports.isEmpty()) 1 else (filteredReports.size + pageSize - 1) / pageSize
+        val totalPages = if (visibleReports.isEmpty()) 1 else (visibleReports.size + pageSize - 1) / pageSize
 
         LaunchedEffect(totalPages) { if (currentPage >= totalPages) currentPage = (totalPages - 1).coerceAtLeast(0) }
 
         val startIndex = currentPage * pageSize
-        val pageItems = filteredReports.subList(startIndex.coerceAtMost(filteredReports.size), (startIndex + pageSize).coerceAtMost(filteredReports.size))
+        val pageItems = visibleReports.subList(startIndex.coerceAtMost(visibleReports.size), (startIndex + pageSize).coerceAtMost(visibleReports.size))
 
         var confirmClearAll by remember { mutableStateOf(false) }
         Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
@@ -130,7 +130,7 @@ fun HistoryScreenNav(
             if (totalPages > 1) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) { Text("< Prev", maxLines = 1, softWrap = false) }
-                    Text("${currentPage + 1} / $totalPages (${filteredReports.size})", fontSize = 12.sp, color = AppColors.TextTertiary)
+                    Text("${currentPage + 1} / $totalPages (${visibleReports.size})", fontSize = 12.sp, color = AppColors.TextTertiary)
                     TextButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) { Text("Next >", maxLines = 1, softWrap = false) }
                 }
             }
@@ -149,11 +149,16 @@ fun HistoryScreenNav(
                             // the background. The previous flow re-read
                             // every report file on every delete — an
                             // O(N²) cost when the user deleted in bulk.
-                            allReports = allReports.filterNot { it.id == report.id }
+                            val nextReports = allReports.filterNot { it.id == report.id }
+                            allReports = nextReports
                             // Clamp the page in the same handler that shrinks the
                             // list so the last page can't momentarily render empty
                             // before the reactive LaunchedEffect(totalPages) fires.
-                            val remaining = filteredReports.size - 1
+                            val remaining = if (isSearchActive) {
+                                nextReports.count { historyMatchesSearch(it, searchTitle, searchPrompt, searchReport) }
+                            } else {
+                                nextReports.size
+                            }
                             val newTotalPages = if (remaining <= 0) 1 else (remaining + pageSize - 1) / pageSize
                             if (currentPage >= newTotalPages) currentPage = (newTotalPages - 1).coerceAtLeast(0)
                             onDeleteReport(report.id)
@@ -190,6 +195,16 @@ fun HistoryScreenNav(
         }
     }
 }
+
+private fun historyMatchesSearch(
+    report: Report,
+    searchTitle: String,
+    searchPrompt: String,
+    searchReport: String
+): Boolean =
+    (searchTitle.isBlank() || report.title.contains(searchTitle, ignoreCase = true)) &&
+        (searchPrompt.isBlank() || report.prompt.contains(searchPrompt, ignoreCase = true)) &&
+        (searchReport.isBlank() || report.agents.any { it.responseBody?.contains(searchReport, ignoreCase = true) == true })
 
 @Composable
 private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () -> Unit, onDeleteReport: () -> Unit) {
