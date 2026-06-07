@@ -312,7 +312,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A collapsed pair bubble's preview can cut through a `<think>…</think>` tag, a ``` ``` ``` code fence, or an `MDTBL<n>` table placeholder mid-token, producing broken markdown in the preview (unclosed think section / half a table placeholder shown as text).
 **Root cause:** A hard character cut at 360 with no line-boundary awareness. The sibling Translate.kt `SidePanel` explicitly cuts on a newline boundary to avoid exactly this; FanPair does not.
 **Proposed fix:** Reuse the line-boundary cut logic from `Translate.kt:329-338` (break on the last `\n` inside the preview window).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — FanPair collapsed previews now prefer a newline boundary before adding the ellipsis
 
 ## File: ai/src/main/java/com/ai/ui/report/info/ReportInfoScreen.kt
 
