@@ -82,7 +82,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** In TYPES mode (grouping by trace/cost type) an empty group still reads "No items for this model".
 **Root cause:** The empty-state string is hardcoded for the MODELS dimension; it is not branched on `isModels`.
 **Proposed fix:** Use `if (isModels) "No items for this model" else "No items for this type"`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the L2 empty state now says model or type based on the active grouping
 
 ### Bug 11 — Severity: LOW — Category: cosmetic inconsistency
 **Location:** TranslationL2.kt:168-172 (per-row cost cell)
