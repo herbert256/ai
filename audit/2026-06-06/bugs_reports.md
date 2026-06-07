@@ -98,7 +98,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** For a persisted (legacy, reconstructed-from-disk) run where items carry no `traceFile`, every item the same model translated links to the *same* most-recent translate-tagged trace, so the 🐞 trace icon opens the wrong call for all but the latest item.
 **Root cause:** The fallback picks `ApiTracer.getTraceFiles().filter { model && category startsWith "translate" }.maxByOrNull { timestamp }` — a single shared result for the whole model, with no per-item disambiguation.
 **Proposed fix:** Match the trace by timestamp proximity to the item (closest-timestamp tiebreak, as `SecondaryResultDetailScreen` does), or hide the trace icon for legacy rows lacking `traceFile`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Translation L3 now shows trace links only for exact stored trace filenames and hides unsafe legacy fallbacks
 
 ### Bug 13 — Severity: LOW — Category: stale content (missing version key)
 **Location:** TranslationL3.kt:134 (`source` produceState keyed on `reportId, item.id, item.kind, item.target`)
