@@ -203,16 +203,18 @@ class TracingInterceptor : Interceptor {
         }
         val teedSource = object : ForwardingSource(originalBody.source()) {
             override fun read(sink: Buffer, byteCount: Long): Long {
-                val n = super.read(sink, byteCount)
+                val chunk = Buffer()
+                val n = super.read(chunk, byteCount)
                 if (n == -1L) {
                     finishOnce()
-                } else if (captured.size < BODY_CAP_BYTES) {
-                    val toCopy = minOf(n, BODY_CAP_BYTES - captured.size)
-                    if (toCopy > 0) {
-                        // sink received `n` new bytes at offset (sink.size - n);
-                        // copy that window into our capture buffer.
-                        sink.copyTo(captured, sink.size - n, toCopy)
+                } else {
+                    if (captured.size < BODY_CAP_BYTES) {
+                        val toCopy = minOf(n, BODY_CAP_BYTES - captured.size)
+                        if (toCopy > 0) {
+                            chunk.copyTo(captured, 0, toCopy)
+                        }
                     }
+                    sink.write(chunk, n)
                 }
                 return n
             }

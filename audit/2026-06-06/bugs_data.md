@@ -201,7 +201,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `sink.copyTo(captured, sink.size - n, toCopy)` assumes the `n` newly-read bytes sit at the tail of `sink` at offset `sink.size - n`. If a downstream `ForwardingSource` in the chain consumed from `sink` between reads (it doesn't today), the offset math would copy the wrong window into the trace.
 **Root cause:** Offset arithmetic depends on `sink` being append-only across reads.
 **Proposed fix:** Capture into a dedicated buffer passed to `super.read` then copy forward, decoupling from `sink`'s state.
-**Status:** Open (unconfirmed; correct for the current chain)
+**Status:** Fixed — the streaming trace tee now reads upstream bytes into a private chunk buffer, copies from that buffer into the capture buffer, then forwards the bytes to the caller sink, so capture no longer depends on caller sink offset assumptions.
 
 ## File: ai/src/main/java/com/ai/data/ApiTracer.kt
 
