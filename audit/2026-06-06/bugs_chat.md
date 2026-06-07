@@ -54,7 +54,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** `messages` is a plain `remember`, which does not survive configuration change. The screen never re-seeds `messages` from `persistedSession?.messages` on re-entry (it uses the stale `initialMessages` param), and `saveSession(msgs)` writes whatever is currently in `messages`. The manifest has no `android:configChanges`, so rotation recreates the Activity.
 **Reproduction:** Start a chat, send 3-4 turns, rotate the phone → the bubbles vanish; send one more message → disk now holds only `initialMessages + 1`.
 **Proposed fix:** Seed from disk on entry (`mutableStateOf(persistedSession?.messages ?: initialMessages)`) keyed on `currentSessionId`, or persist `messages` via a `rememberSaveable` Saver (mirroring `DualMessagesSaver`).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — messages re-seed from the on-disk session keyed on currentSessionId, surviving recreation
 
 ### Bug 7 — Severity: HIGH — Category: state loss / orphaned data
 **Location:** ChatScreens.kt:282 (`val currentSessionId = remember { sessionId ?: java.util.UUID.randomUUID().toString() }`)

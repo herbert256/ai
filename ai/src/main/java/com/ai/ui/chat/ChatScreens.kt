@@ -283,7 +283,13 @@ fun ChatSessionScreen(
     // across recreation, else rotation orphans the prior save under the old id.
     val currentSessionId = rememberSaveable { sessionId ?: java.util.UUID.randomUUID().toString() }
 
-    var messages by remember { mutableStateOf(initialMessages) }
+    // Seed from disk keyed on the (saveable) session id, NOT a plain remember of
+    // initialMessages — otherwise recreation resets the UI to the stale snapshot
+    // and the next saveSession overwrites the on-disk session with that truncated
+    // set. Re-reading the session on recreation recovers the turns saved so far.
+    var messages by remember(currentSessionId) {
+        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.messages ?: initialMessages)
+    }
     // Pre-fill the input box with text staged by the share-target
     // chooser, then drop the staged value so leaving + returning
     // doesn't re-stuff it.
