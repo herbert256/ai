@@ -521,7 +521,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** When a single model test throws (vs returns a failure), `runCatching{...}.getOrElse { false to null }` records it as a plain Fail with a null trace, so the row's ✕ has no 🐞 deep-link and the user can't see why it failed (unlike the single-model test path which captures a trace).
 **Root cause:** Thrown exceptions are flattened to `false to null` with no captured trace/message.
 **Proposed fix:** Capture the exception's trace/message into `ModelTestStatus.Fail` so the row can link to it.
-**Status:** Open
+**Status:** Fixed in `ServiceSettingsScreens.kt` by carrying thrown test exceptions into `ModelTestStatus.Fail` and showing the failure message inline while preserving trace links when available.
 
 ---
 
