@@ -54,6 +54,7 @@ import com.ai.ui.report.view.helpers.wrapTo
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * Content-only "View" variant of a MODERATION row. Reached from the
@@ -382,7 +383,7 @@ private fun CategoryChip(cat: String, fired: Boolean, score: Double) {
         score >= 0.3 -> AppColors.WarningAccent
         else -> AppColors.SuccessAccent
     }
-    val text = "$cat ${"%.2f".format(score)}"
+    val text = "$cat ${String.format(Locale.US, "%.2f", score)}"
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))

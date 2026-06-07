@@ -246,7 +246,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** On a comma-decimal locale (the user's nl-NL device) moderation category chips render scores with a comma ("violence 0,30") while the rest of the app uses period decimals.
 **Root cause:** `"%.2f".format(score)` uses the default locale; the codebase otherwise pins numeric formatting to `Locale.US` (see `UiFormatting.kt`).
 **Proposed fix:** Use `String.format(Locale.US, "%.2f", score)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — moderation category chips now format scores with `Locale.US`
 
 ### Bug 31 — Severity: LOW — Category: index-based agent mapping mismatch
 **Location:** Moderation.kt:104-114 (`labels`/`responses` mapped by `idx+1`), 232/246/251 (`agentLabels[r.id]`, `agentResponses[r.id]`)
