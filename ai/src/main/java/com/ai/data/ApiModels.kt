@@ -283,7 +283,7 @@ data class OpenAiResponsesError(val message: String?, val type: String?, val cod
  * Anthropic message. [content] accepts either a String (text-only) or a List
  * of content blocks (text + image source) for vision requests.
  */
-data class ClaudeMessage(val role: String, val content: Any)
+data class ClaudeMessage(val role: String, val content: Any?)
 
 data class ClaudeRequest(
     val model: String,

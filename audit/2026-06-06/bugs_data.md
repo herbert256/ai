@@ -32,7 +32,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `content` is declared `Any` (non-null). A persisted/replayed Claude message with a null content would deserialize to `null` in a non-null field (same class of issue as Bug 1) and NPE when re-serialized for a regenerate.
 **Root cause:** `Any` (vs `Any?`) participates in the Unsafe-allocator null trap and is not coercible.
 **Proposed fix:** Declare `content: Any?` and null-guard at the build sites, or never persist `ClaudeMessage` (it is a wire type — confirm it is never written to disk).
-**Status:** Open (unconfirmed)
+**Status:** Fixed (2026-06-07) — `ClaudeMessage.content` is now nullable to tolerate null replay/deserialization payloads
 
 ### Bug 5 — Severity: LOW — Category: trace redaction completeness
 **Location:** ApiModels.kt (wire request types e.g. `OpenAiRequest`, `GeminiRequest`)
