@@ -482,7 +482,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The four batch overlays use positional early returns with no shared back-stack. If two open-state slots are ever non-null simultaneously (e.g. a Regenerate batch is enqueued while a Tournament overlay is already open), the earlier-positioned overlay shadows the later one, and the user's back press peels the wrong layer — the documented recurring overlay anti-pattern.
 **Root cause:** Independent open-state vars with positional `return` precedence rather than a single LIFO dispatcher; nothing prevents two from being set at once.
 **Proposed fix:** Route the four overlays through one ordered back-stack (push/pop one per back press) or guard so opening one clears the others.
-**Status:** Fixed (2026-06-07) — read-only View note strips now use a streaming notes-only ReportStorage accessor instead of loading the full report
+**Status:** Open
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/UserNotes.kt
 
@@ -499,14 +499,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Every View screen mounts `ViewUserNotes`, which re-reads and re-parses the entire report from disk on each `ReportDataVersion` bump just to fetch the notes for one target.
 **Root cause:** `ReportStorage.getReport(...)` (full file + Gson parse) is invoked per target per version bump; there's no narrower notes accessor.
 **Proposed fix:** Add a lightweight notes-only read (or cache the parsed report) so each view-screen note strip doesn't reparse the whole report on every change.
-**Status:** Fixed (2026-06-07) — note-card expanded state now uses `rememberSaveable(note.id)`
+**Status:** Fixed (2026-06-07) — read-only View note strips now use a streaming notes-only ReportStorage accessor instead of loading the full report
 
 ### Bug 61 — Severity: LOW — Category: collapse state lost on config change
 **Location:** UserNotes.kt:89 (`var expanded by remember(note.id) { mutableStateOf(false) }`)
 **Symptom:** An expanded note card collapses on rotation / process death because its expanded flag isn't saved.
 **Root cause:** `remember` (not `rememberSaveable`).
 **Proposed fix:** Use `rememberSaveable(note.id)` for the expanded flag.
-**Status:** Fixed (2026-06-07) — secondary detail now refreshes parent report metadata on `ReportDataVersion` and trace links on `ApiTracer.traceVersion`
+**Status:** Fixed (2026-06-07) — note-card expanded state now uses `rememberSaveable(note.id)`
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/view/SecondaryDetail.kt
 
@@ -540,4 +540,4 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** If the parent re-opens the same fan-in row (same `currentResultId`) with a *different* requested `language`, the pager doesn't re-centre because `centeredFor` already equals `currentResultId` — the requested launch language is ignored on the second open.
 **Root cause:** The one-shot guard keys on `currentResultId` only; a new `language` value for the same result doesn't reset `centeredFor`.
 **Proposed fix:** Include `language` in the guard (e.g. `centeredFor != (currentResultId to language)`), matching the intent of "open on the requested language".
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Fan-in view now re-centres once per result and requested language, not just per result id
