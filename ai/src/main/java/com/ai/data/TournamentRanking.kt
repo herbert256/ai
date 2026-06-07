@@ -16,7 +16,7 @@ import com.google.gson.JsonParser
  * (`extractTopRankedIds`).
  */
 
-enum class TournamentMethod { COPELAND, ELO, DAVIDSON, TIDEMAN, MARKOV, SCHULZE, MINIMAX, COLLEY }
+enum class TournamentMethod { COPELAND, ELO, DAVIDSON, TIDEMAN, MARKOV, SCHULZE, MINIMAX, COLLEY, GLICKO2, POINTS, TRUESKILL2 }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
@@ -110,6 +110,9 @@ fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (metho
     TournamentMethod.SCHULZE -> schulze(m)
     TournamentMethod.MINIMAX -> minimax(m)
     TournamentMethod.COLLEY -> colley(m)
+    TournamentMethod.GLICKO2 -> glicko2(m)
+    TournamentMethod.POINTS -> pointsRanking(m)
+    TournamentMethod.TRUESKILL2 -> trueskill2(m)
 }
 
 /** Win-count / Copeland: rank by total fractional wins; score = win-rate
@@ -482,6 +485,205 @@ private fun solveLinearSystem(a: Array<DoubleArray>, b: DoubleArray): DoubleArra
         }
     }
     return DoubleArray(n) { i -> mtx[i][n] / mtx[i][i] }
+}
+
+/** Points: the plain head-to-head points tally (win = 1, draw = 0.5),
+ *  summed across every contested pair. Unlike Copeland it is NOT a win-rate
+ *  — it's the raw total, so playing (and winning) more matches counts for
+ *  more. The visible score is the points total. */
+fun pointsRanking(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    val scored = (0 until n).map { i ->
+        val pts = (0 until n).sumOf { j -> m.points(i, j) }
+        val played = (0 until n).sumOf { j -> m.games.getOrNull(i)?.getOrNull(j) ?: 0.0 }
+        RankScored(m.ids[i], Math.round(pts * 10.0) / 10.0,
+            String.format(java.util.Locale.US, "%.1f points from %.0f games", pts, played))
+    }
+    return assignRanks(scored)
+}
+
+/** Glicko-2 (Glickman). Every response starts at rating 1500, RD 350,
+ *  volatility 0.06, then a SINGLE rating period folds in all of its games
+ *  against the other responses (held at their start-of-period ratings, the
+ *  standard simultaneous update). The volatility is solved with Glickman's
+ *  Illinois iteration. The visible score is the updated rating. */
+fun glicko2(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
+    val scale = 173.7178
+    val tau = 0.5
+    val phi0 = 350.0 / scale
+    val sigma0 = 0.06
+    val piSq = Math.PI * Math.PI
+    fun g(phi: Double) = 1.0 / kotlin.math.sqrt(1.0 + 3.0 * phi * phi / piSq)
+
+    val ratings = DoubleArray(n) { 1500.0 }
+    for (i in 0 until n) {
+        val mu = 0.0          // (rating 1500) at the start of the period
+        val phi = phi0
+        var vInv = 0.0
+        var sumTerm = 0.0
+        var totalGames = 0.0
+        for (j in 0 until n) {
+            if (j == i) continue
+            val cnt = m.games.getOrNull(i)?.getOrNull(j) ?: 0.0
+            if (cnt <= 0.0) continue
+            val gj = g(phi0)                       // opponent at start-of-period RD
+            val e = 1.0 / (1.0 + kotlin.math.exp(-gj * (mu - 0.0)))
+            vInv += cnt * gj * gj * e * (1.0 - e)
+            sumTerm += cnt * gj * (m.wins[i][j] - e)
+            totalGames += cnt
+        }
+        if (totalGames <= 0.0 || vInv <= 1e-12) continue
+        val v = 1.0 / vInv
+        val delta = v * sumTerm
+        // volatility update — root of f via the Illinois (regula falsi) method.
+        val a = kotlin.math.ln(sigma0 * sigma0)
+        val phi2 = phi * phi
+        fun f(x: Double): Double {
+            val ex = kotlin.math.exp(x)
+            val d2 = delta * delta
+            return ex * (d2 - phi2 - v - ex) / (2.0 * (phi2 + v + ex) * (phi2 + v + ex)) - (x - a) / (tau * tau)
+        }
+        var lo = a
+        var hi: Double
+        val d2 = delta * delta
+        if (d2 > phi2 + v) {
+            hi = kotlin.math.ln(d2 - phi2 - v)
+        } else {
+            var k = 1
+            while (f(a - k * tau) < 0.0 && k < 100) k++
+            hi = a - k * tau
+        }
+        var fLo = f(lo)
+        var fHi = f(hi)
+        var iter = 0
+        while (kotlin.math.abs(hi - lo) > 1e-6 && iter < 100) {
+            val mid = lo + (lo - hi) * fLo / (fHi - fLo)
+            val fMid = f(mid)
+            if (fMid * fHi <= 0.0) { lo = hi; fLo = fHi } else { fLo /= 2.0 }
+            hi = mid; fHi = fMid
+            iter++
+        }
+        val sigmaNew = kotlin.math.exp(lo / 2.0)
+        val phiStar = kotlin.math.sqrt(phi2 + sigmaNew * sigmaNew)
+        val phiNew = 1.0 / kotlin.math.sqrt(1.0 / (phiStar * phiStar) + 1.0 / v)
+        val muNew = mu + phiNew * phiNew * sumTerm
+        ratings[i] = scale * muNew + 1500.0
+    }
+    val scored = (0 until n).map { i ->
+        RankScored(m.ids[i], Math.round(ratings[i]).toDouble(),
+            String.format(java.util.Locale.US, "Glicko-2 %.0f", ratings[i]))
+    }
+    return assignRanks(scored)
+}
+
+/** TrueSkill (the 1-v-1 core of Microsoft's TrueSkill2). A Bayesian skill
+ *  belief — mean μ and uncertainty σ per response — updated through every
+ *  contested pair (processed in id order, winner = higher pairwise points,
+ *  equal points = a draw, draw margin estimated from the observed tie rate).
+ *  TrueSkill2's extra factors (team make-up, player experience, time) have no
+ *  analogue in 1-v-1 answer judging, so they drop out. The visible score is
+ *  the conservative skill estimate μ − 3σ, TrueSkill's own leaderboard
+ *  convention. */
+fun trueskill2(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
+    val mu = DoubleArray(n) { 25.0 }
+    val sigma2 = DoubleArray(n) { (25.0 / 3.0) * (25.0 / 3.0) }
+    val beta = (25.0 / 3.0) / 2.0
+    val tau2 = ((25.0 / 3.0) / 100.0).let { it * it }
+    var totalGames = 0.0; var totalTies = 0.0
+    for (i in 0 until n) for (j in i + 1 until n) {
+        totalGames += m.games.getOrNull(i)?.getOrNull(j) ?: 0.0
+        totalTies += m.ties.getOrNull(i)?.getOrNull(j) ?: 0.0
+    }
+    val drawProb = if (totalGames > 0.0) (totalTies / totalGames).coerceIn(0.001, 0.8) else 0.1
+    val drawMargin = invNormCdf((drawProb + 1.0) / 2.0) * kotlin.math.sqrt(2.0) * beta
+
+    for (i in 0 until n) for (j in i + 1 until n) {
+        val cnt = m.games.getOrNull(i)?.getOrNull(j) ?: 0.0
+        if (cnt <= 0.0) continue
+        val pi = m.points(i, j); val pj = m.points(j, i)
+        val draw = kotlin.math.abs(pi - pj) < 1e-9
+        val a = if (pi >= pj) i else j   // winner
+        val b = if (pi >= pj) j else i   // loser
+        sigma2[a] += tau2; sigma2[b] += tau2
+        val c2 = 2.0 * beta * beta + sigma2[a] + sigma2[b]
+        val c = kotlin.math.sqrt(c2)
+        val t = (mu[a] - mu[b]) / c
+        val eps = drawMargin / c
+        val v = if (draw) tsVDraw(t, eps) else tsVWin(t, eps)
+        val w = if (draw) tsWDraw(t, eps) else tsWWin(t, eps)
+        mu[a] += (sigma2[a] / c) * v
+        mu[b] -= (sigma2[b] / c) * v
+        sigma2[a] *= (1.0 - (sigma2[a] / c2) * w).coerceAtLeast(1e-4)
+        sigma2[b] *= (1.0 - (sigma2[b] / c2) * w).coerceAtLeast(1e-4)
+    }
+    val scored = (0 until n).map { i ->
+        val sigma = kotlin.math.sqrt(sigma2[i])
+        RankScored(m.ids[i], Math.round((mu[i] - 3.0 * sigma) * 10.0) / 10.0,
+            String.format(java.util.Locale.US, "TrueSkill μ %.1f σ %.1f", mu[i], sigma))
+    }
+    return assignRanks(scored)
+}
+
+// --- Gaussian helpers for TrueSkill (no erf/quantile in the stdlib) ---
+
+/** erf via Abramowitz & Stegun 7.1.26 (|error| < 1.5e-7). */
+private fun erf(x: Double): Double {
+    val t = 1.0 / (1.0 + 0.3275911 * kotlin.math.abs(x))
+    val y = 1.0 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) *
+        t * kotlin.math.exp(-x * x)
+    return if (x >= 0.0) y else -y
+}
+
+private fun stdCdf(x: Double): Double = 0.5 * (1.0 + erf(x / kotlin.math.sqrt(2.0)))
+private fun stdPdf(x: Double): Double = kotlin.math.exp(-0.5 * x * x) / kotlin.math.sqrt(2.0 * Math.PI)
+
+/** Inverse standard-normal CDF via Acklam's rational approximation. */
+private fun invNormCdf(p: Double): Double {
+    val pp = p.coerceIn(1e-9, 1.0 - 1e-9)
+    val a = doubleArrayOf(-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00)
+    val b = doubleArrayOf(-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01)
+    val c = doubleArrayOf(-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00)
+    val d = doubleArrayOf(7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00)
+    val plow = 0.02425; val phigh = 1.0 - plow
+    return when {
+        pp < plow -> {
+            val q = kotlin.math.sqrt(-2.0 * kotlin.math.ln(pp))
+            (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+                ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0)
+        }
+        pp <= phigh -> {
+            val q = pp - 0.5; val r = q * q
+            (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q /
+                (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1.0)
+        }
+        else -> {
+            val q = kotlin.math.sqrt(-2.0 * kotlin.math.ln(1.0 - pp))
+            -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+                ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0)
+        }
+    }
+}
+
+private fun tsVWin(t: Double, eps: Double): Double = stdPdf(t - eps) / stdCdf(t - eps).coerceAtLeast(1e-10)
+private fun tsWWin(t: Double, eps: Double): Double {
+    val v = tsVWin(t, eps)
+    return (v * (v + t - eps)).coerceIn(0.0, 1.0)
+}
+private fun tsVDraw(t: Double, eps: Double): Double {
+    val denom = (stdCdf(eps - t) - stdCdf(-eps - t)).coerceAtLeast(1e-10)
+    return (stdPdf(-eps - t) - stdPdf(eps - t)) / denom
+}
+private fun tsWDraw(t: Double, eps: Double): Double {
+    val denom = (stdCdf(eps - t) - stdCdf(-eps - t)).coerceAtLeast(1e-10)
+    val v = tsVDraw(t, eps)
+    return (v * v + ((eps - t) * stdPdf(eps - t) - (-eps - t) * stdPdf(-eps - t)) / denom).coerceIn(0.0, 1.0)
 }
 
 private data class RankScored(val id: Int, val score: Double, val reason: String)

@@ -891,6 +891,9 @@ private fun methodLabel(method: TournamentMethod): String = when (method) {
     TournamentMethod.SCHULZE -> "Schulze"
     TournamentMethod.MINIMAX -> "Minimax"
     TournamentMethod.COLLEY -> "Colley"
+    TournamentMethod.GLICKO2 -> "Glicko-2"
+    TournamentMethod.POINTS -> "Points"
+    TournamentMethod.TRUESKILL2 -> "TrueSkill2"
 }
 
 /** Total view: every ranking method applied to the same win matrix,
