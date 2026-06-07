@@ -351,7 +351,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Any `[N]` in META/rerank prose where `N` happens to fall in `1..maxAnchor` becomes a hyperlink to a result card, even when it's not a citation (e.g. a list marker or a quoted "[2]").
 **Root cause:** The regex blindly linkifies every `[digits]` in range; there's no context check that the bracket is actually a result reference.
 **Proposed fix:** Tighten the match (e.g. require the model's documented citation form), or accept it as best-effort and document the limitation.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — export anchor linkification now requires citation-like context before `[N]`
 
 ## File: ai/src/main/java/com/ai/ui/helpers/MarkdownTables.kt
 

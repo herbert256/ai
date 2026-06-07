@@ -1287,15 +1287,16 @@ private fun renderModerationContent(content: String, contextId: String, agentsBy
     return sb.toString()
 }
 
-/** Replace bracketed `[N]` references in already-rendered HTML with
+/** Replace citation-like `[N]` references in already-rendered HTML with
  *  `<a href='#result-N'>[N]</a>` anchors. Operates post-conversion
- *  so the markdown pass's HTML-escape doesn't shred the inserted
- *  tags. `[` / `]` are inert in HTML and survive both the markdown
- *  rules and the escape unchanged. */
+ *  so the markdown pass's HTML-escape doesn't shred the inserted tags.
+ *  The context word requirement avoids turning arbitrary bracketed
+ *  numbers, list markers, or quoted text into result-card links. */
 private fun linkifyAnchorRefs(html: String, maxAnchor: Int): String =
-    Regex("""\[(\d+)\]""").replace(html) { m ->
-        val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
-        if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else m.value
+    Regex("""(?i)\b((?:as|from|result|response|answer|model|agent|row|option|candidate|reference|ref|according to|and|or)\s+)\[(\d+)\]""")
+        .replace(html) { m ->
+            val id = m.groupValues[2].toIntOrNull() ?: return@replace m.value
+            if (id in 1..maxAnchor) "${m.groupValues[1]}<a href='#result-$id'>[$id]</a>" else m.value
     }
 
 internal fun processThinkSections(text: String, agentId: String): String {
