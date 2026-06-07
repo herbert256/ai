@@ -379,7 +379,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The "..." model picker fetch wraps `AnalysisRepository().fetchModels` in `catch (_: Exception) { emptyList() }`. A failed fetch (bad key / network) shows only "No models loaded yet — fetch first." with no error, indistinguishable from an empty catalog.
 **Root cause:** Exception swallowed with no surfaced message.
 **Proposed fix:** Surface the failure (toast / inline) instead of an empty list.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — API Test model fetch errors are now captured and shown inline in the model picker empty state.
 
 ### Bug 41 — Severity: LOW — Category: wrong trace correlation
 **Location:** DeveloperScreens.kt:347-351 (`EditApiRequestScreen` newest-trace pick)

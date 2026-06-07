@@ -62,6 +62,7 @@ fun ApiTestScreen(
     var showEndpointDialog by remember { mutableStateOf(false) }
     var isLoadingModels by remember { mutableStateOf(false) }
     var availableModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    var modelFetchError by remember { mutableStateOf<String?>(null) }
 
     // Update fields when provider changes (after init)
     LaunchedEffect(selectedProvider) {
@@ -109,7 +110,11 @@ fun ApiTestScreen(
                 }
             } else if (availableModels.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("No models loaded yet — fetch first.", color = AppColors.TextTertiary, fontSize = 13.sp)
+                    Text(
+                        modelFetchError ?: "No models loaded yet — fetch first.",
+                        color = if (modelFetchError == null) AppColors.TextTertiary else AppColors.DangerAccent,
+                        fontSize = 13.sp
+                    )
                 }
             } else {
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -219,9 +224,13 @@ fun ApiTestScreen(
                     onClick = {
                         scope.launch {
                             isLoadingModels = true
+                            modelFetchError = null
                             availableModels = try {
                                 withContext(Dispatchers.IO) { AnalysisRepository().fetchModels(selectedProvider, apiKey) }
-                            } catch (_: Exception) { emptyList() }
+                            } catch (e: Exception) {
+                                modelFetchError = e.message?.takeIf { it.isNotBlank() } ?: e::class.java.simpleName
+                                emptyList()
+                            }
                             isLoadingModels = false; showModelDialog = true
                         }
                     },
