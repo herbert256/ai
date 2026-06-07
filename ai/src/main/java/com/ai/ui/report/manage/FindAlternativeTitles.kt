@@ -57,7 +57,6 @@ private fun TitleCandidateRow(candidate: TitleCandidate, onPickTitle: (TitleCand
         is TitleCandidate.Error -> candidate.cost
         is TitleCandidate.Running -> 0.0
     }
-    val tappable = candidate is TitleCandidate.Done
     Card(
         modifier = Modifier.fillMaxWidth().then(
             if (candidate is TitleCandidate.Done) Modifier.clickable { onPickTitle(candidate) } else Modifier

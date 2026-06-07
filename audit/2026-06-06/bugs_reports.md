@@ -123,7 +123,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** `tappable` is computed but never referenced; the clickable modifier re-derives the same condition inline (line 63).
 **Root cause:** Leftover local from an earlier refactor.
 **Proposed fix:** Delete the unused `tappable` val.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — removed the unused `tappable` local
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/FindAlternativeTranslations.kt
 
