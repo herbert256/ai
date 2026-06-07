@@ -650,13 +650,15 @@ private fun AddProviderNameDialog(
 ) {
     var name by remember { mutableStateOf("") }
     val normalized = name.trim().replace(" ", "")
-    // Spaces would break SharedPreferences key prefixes (`<id>_api_key`,
-    // `<id>_model`, …); "Local" / "LOCAL" is the synthetic on-device
-    // sentinel that AppService.findById short-circuits — both rejected.
+    // Keep custom ids safe for SharedPreferences key prefixes
+    // (`<id>_api_key`, `<id>_model`, …) and composite provider:model keys.
+    val validId = normalized.matches(Regex("[A-Za-z0-9._-]+"))
+    // "Local" / "LOCAL" is the synthetic on-device sentinel that
+    // AppService.findById short-circuits — both rejected.
     val reserved = normalized.equals("Local", ignoreCase = true)
     val taken = normalized.isNotBlank() &&
         existingIds.any { it.equals(normalized, ignoreCase = true) }
-    val canSave = normalized.isNotBlank() && !reserved && !taken
+    val canSave = normalized.isNotBlank() && validId && !reserved && !taken
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -671,6 +673,7 @@ private fun AddProviderNameDialog(
                     when {
                         reserved -> Text("Local is reserved for the on-device provider", color = AppColors.DangerAccent, fontSize = 11.sp)
                         taken -> Text("Already in use", color = AppColors.DangerAccent, fontSize = 11.sp)
+                        normalized.isNotBlank() && !validId -> Text("Use letters, numbers, dot, dash, or underscore", color = AppColors.DangerAccent, fontSize = 11.sp)
                         name.contains(" ") -> Text("Spaces will be stripped — saved as \"$normalized\"", color = AppColors.TextTertiary, fontSize = 11.sp)
                     }
                 }

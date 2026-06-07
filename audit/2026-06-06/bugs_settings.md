@@ -347,7 +347,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** A new provider id only has spaces stripped (`normalized = name.trim().replace(" ", "")`). Characters like `/`, `:`, `.` are accepted, but the id is used as a SharedPreferences key prefix (`<id>_api_key`, `<id>_manual_models`, …) and in `provider:model` composite keys. A `/` or `:` in the id can collide with or corrupt key parsing.
 **Root cause:** Only spaces are sanitized; the reserved `Local` id is rejected but punctuation isn't.
 **Proposed fix:** Restrict the id to `[A-Za-z0-9._-]` (or similar) like the model-file sanitizers do.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — add-provider IDs are now limited to letters, numbers, dot, dash, and underscore after spaces are stripped
 
 ### Bug 37 — Severity: LOW — Category: stale prop / external change
 **Location:** SetupScreens.kt:707-709 (`ExternalServicesScreen` `hfKey`/`orKey`/`aaKey` `remember`)
