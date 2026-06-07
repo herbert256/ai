@@ -40,7 +40,6 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.ReportViewModel
@@ -224,7 +223,7 @@ internal fun TranslationL3Screen(
         )
         if (item.costDollars > 0.0) {
             Text(
-                "Cost: ${formatCents(item.costDollars)} ¢",
+                "Cost: ${formatTranslationCost(item.costDollars)}",
                 fontSize = 12.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(vertical = 4.dp)
             )

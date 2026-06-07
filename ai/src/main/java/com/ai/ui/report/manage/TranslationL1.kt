@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.TranslationStatus
 
@@ -148,7 +147,7 @@ internal fun TranslationL1Screen(
             Triple("Run", runningCount.toString(), AppColors.WarningAccent),
             Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
             Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", "${formatCents(run.totalCostDollars, decimals = 2)} ¢", AppColors.InfoAccent)
+            Triple("Costs", formatTranslationCost(run.totalCostDollars), AppColors.InfoAccent)
         ))
 
         // L1 lists translation *types* (per trace/cost-type rows). The
@@ -288,7 +287,7 @@ internal fun TranslationWorkersScreen(
             Triple("Run", counts.running.toString(), AppColors.WarningAccent),
             Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
             Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", "${formatCents(run.totalCostDollars, decimals = 2)} ¢", AppColors.InfoAccent)
+            Triple("Costs", formatTranslationCost(run.totalCostDollars), AppColors.InfoAccent)
         ))
         Spacer(modifier = Modifier.height(8.dp))
         val showBars = summary.activeOutstanding && !run.cancelled
@@ -358,7 +357,7 @@ private fun TranslationL1Row(
         )
         if (cost > 0.0) {
             Text(
-                formatCents(cost), fontSize = 11.sp,
+                formatTranslationCost(cost), fontSize = 11.sp,
                 color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(end = 8.dp)
             )

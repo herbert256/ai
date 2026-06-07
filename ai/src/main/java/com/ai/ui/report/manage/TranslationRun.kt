@@ -35,6 +35,7 @@ import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.TranslationItem
 import com.ai.viewmodel.TranslationRunState
@@ -53,6 +54,9 @@ internal fun translationModelKey(item: TranslationItem): String? {
 /** The dimension the L1 list groups by. Models = per-model rows (the
  *  historical default); Types = per-trace/cost-type rows. */
 enum class TranslationGroupMode { MODELS, TYPES }
+
+internal fun formatTranslationCost(valueDollars: Double): String =
+    "${formatCents(valueDollars)} ¢"
 
 private data class PersistedTranslationRunLoad(
     val loaded: Boolean,

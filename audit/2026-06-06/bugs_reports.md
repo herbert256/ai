@@ -73,7 +73,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The same run's cost is rendered with 2 decimals + "¢" on L1, 4 decimals + no unit on the L2 header, and 4 decimals + "¢" on L3 — three different presentations within one feature.
 **Root cause:** Each level calls `formatCents` with different `decimals` and a hand-appended (or omitted) "¢" suffix; no shared cost-cell helper.
 **Proposed fix:** Introduce one shared cost-cell formatter (fixed decimals + unit) and use it in L1/L2/L3.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — L1/L2/L3 translation cost cells now share one cents formatter with a consistent unit suffix
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/TranslationL2.kt
 
