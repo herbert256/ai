@@ -971,12 +971,16 @@ fun ProviderSettingsScreen(
                                     // provider in "error" state with no agent created.
                                     val fetchError = onFetchModelsAwait(fresh, apiKey)
                                     if (fetchError != null) {
+                                        isInactive = true
                                         onProviderStateChange("error")
                                         return@launch
                                     }
                                     val testError = onTestApiKey(fresh, apiKey, defaultModel)
                                     if (testError == null) onProviderTestedOkNoFetch(defaultModel)
-                                    else onProviderStateChange("error")
+                                    else {
+                                        isInactive = true
+                                        onProviderStateChange("error")
+                                    }
                                 }
                             }
                         }

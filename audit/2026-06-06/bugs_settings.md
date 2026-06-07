@@ -65,7 +65,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Flipping the "Provider inactive" switch OFF (activate) sets `isInactive = false` immediately, then runs fetch+test asynchronously. If activation fails the provider state is set to `"error"` but the switch stays in the active position — the toggle and the actual provider state disagree until the screen is recomposed from settings.
 **Root cause:** `isInactive` is local UI state set optimistically before the async result; it is never reverted on the failure branch.
 **Proposed fix:** Revert `isInactive = true` (or re-derive from `getProviderState`) when the activation fetch/test fails.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — activation fetch/test failures now restore the local inactive switch before setting provider state to error
 
 ---
 
