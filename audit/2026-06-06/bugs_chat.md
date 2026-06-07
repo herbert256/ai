@@ -349,7 +349,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Any unknown/binary file (e.g. a `.zip`, image, or proprietary doc) falls through to `KnowledgeSourceType.TEXT` and is "indexed" as garbage text rather than rejected.
 **Root cause:** The final `else` returns `TEXT` for everything, including non-text MIME types.
 **Proposed fix:** Return null/refuse for clearly-binary MIME types and surface "unsupported source type".
-**Status:** Open
+**Status:** Fixed (2026-06-07) — unsupported/unknown and common binary MIME types now return null, and ingest shows an unsupported-source status instead of indexing as text
 
 ### Bug 45 — Severity: LOW — Category: state loss
 **Location:** KnowledgeScreens.kt:166, 178 (`name`, `selected` via plain `remember`)

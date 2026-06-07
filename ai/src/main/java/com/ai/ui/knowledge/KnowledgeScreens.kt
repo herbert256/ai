@@ -331,10 +331,14 @@ fun KnowledgeDetailScreen(
                     )
                 } else {
                     val uri = runCatching { Uri.parse(trimmed) }.getOrNull() ?: continue
-                    val type = pickTypeForUri(context, uri)
                     // Append the batch index so two share-target files arriving
                     // in the same millisecond don't collide on the fallback name.
                     val displayName = displayNameForUri(context, uri) ?: "shared_${System.currentTimeMillis()}_$uriIdx"
+                    val type = pickTypeForUri(context, uri)
+                    if (type == null) {
+                        status = "Unsupported source type: $displayName"
+                        continue
+                    }
                     status = "Reading $displayName…"
                     val result = withContext(Dispatchers.IO) {
                         KnowledgeService.indexFile(context, repository, aiSettings, loaded.id, type, uri, displayName) { msg, _, _ ->
@@ -356,8 +360,12 @@ fun KnowledgeDetailScreen(
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val type = pickTypeForUri(context, uri)
         val displayName = displayNameForUri(context, uri) ?: "source_${System.currentTimeMillis()}"
+        val type = pickTypeForUri(context, uri)
+        if (type == null) {
+            status = "Unsupported source type: $displayName"
+            return@rememberLauncherForActivityResult
+        }
         scope.launch {
             working = true
             status = "Reading ${displayName}…"
@@ -529,8 +537,10 @@ fun KnowledgeDetailScreen(
  *  first (the SAF picker usually exposes a real filename); falls
  *  back to the URI's MIME type for share-target / document-provider
  *  URIs that hand us an opaque content:// without a useful name.
- *  Plain text is the last-resort default. */
-internal fun pickTypeForUri(context: android.content.Context, uri: Uri): KnowledgeSourceType {
+ *  Plain text is accepted only for text MIME types or explicit text
+ *  extensions; binary/unknown files are rejected so they don't get indexed as
+ *  garbage text. */
+internal fun pickTypeForUri(context: android.content.Context, uri: Uri): KnowledgeSourceType? {
     val name = displayNameForUri(context, uri).orEmpty().lowercase()
     val byExtension = when {
         name.endsWith(".pdf") -> KnowledgeSourceType.PDF
@@ -556,10 +566,28 @@ internal fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowled
         "text/tab-separated-values" -> KnowledgeSourceType.CSV
         else -> when {
             mime?.startsWith("text/") == true -> KnowledgeSourceType.TEXT
-            else -> KnowledgeSourceType.TEXT
+            isBinaryMime(mime) || mime == null -> null
+            else -> null
         }
     }
 }
+
+private fun isBinaryMime(mime: String?): Boolean =
+    mime != null && (
+        mime.startsWith("image/") ||
+            mime.startsWith("audio/") ||
+            mime.startsWith("video/") ||
+            mime.startsWith("font/") ||
+            mime == "application/octet-stream" ||
+            mime == "application/zip" ||
+            mime == "application/x-zip-compressed" ||
+            mime == "application/gzip" ||
+            mime == "application/x-tar" ||
+            mime == "application/x-7z-compressed" ||
+            mime == "application/vnd.rar" ||
+            mime == "application/x-msdownload" ||
+            mime == "application/vnd.android.package-archive"
+        )
 
 internal fun displayNameForUri(context: android.content.Context, uri: Uri): String? {
     return runCatching {
