@@ -287,7 +287,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The child-overlay selection state isn't reset when the screen swaps reports in place; stale agent/pair ids from the previous report survive the swipe.
 **Root cause:** The overlay vars use `rememberSaveable { }` without keying on `currentReportId`. Today the outer swipe is only active while no overlay is open, so it's not user-visible, but the state is logically wrong after a swap.
 **Proposed fix:** Key the overlay-state `rememberSaveable(currentReportId)` so a report swap clears them.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Icons child-overlay state is now keyed by `currentReportId`
 
 ## File: ai/src/main/java/com/ai/ui/report/view/ValueView.kt
 
