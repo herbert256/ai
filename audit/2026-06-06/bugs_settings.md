@@ -169,7 +169,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Every CRUD edit form (blocked model, inaccessible model, cooldown, manual override, default-meta-item, parameters, …) auto-persists on each keystroke. Because most `onSave` callbacks serialize the whole `Settings` blob (e.g. blocked/inaccessible "reason" fields), typing in a free-text field rewrites the entire config to SharedPreferences per character.
 **Root cause:** `AutoSaveOnChange(current, onSave)` fires on every `current` change with no debounce; the upstream `onSave` is a full-Settings write.
 **Proposed fix:** Debounce the auto-save (the same fix Bug 4 needs), or make the save incremental.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - already resolved: AutoSaveOnChange debounces (350ms delay on a LaunchedEffect(current) that restarts per change), so it no longer writes per keystroke; flush still happens on dispose. No code change.
 
 ---
 
