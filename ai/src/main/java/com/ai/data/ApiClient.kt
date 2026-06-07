@@ -202,6 +202,11 @@ object ApiFactory {
     private val gsonConverterFactory = GsonConverterFactory.create()
 
     private val okHttpClient = OkHttpClient.Builder()
+        // Restore per-call trace/throttle context captured at OkHttp
+        // Call construction time. This makes queued-call promotion
+        // race-free: the request carries its originating context even
+        // if OkHttp later submits it from a different worker thread.
+        .addInterceptor(OkHttpCallContextInterceptor())
         // Rate-limit retry first so each attempt (including retries) flows
         // through the trace recorder below — visible on the Trace screen.
         .addInterceptor(RateLimitRetryInterceptor())
@@ -263,12 +268,14 @@ object ApiFactory {
         .writeTimeout(com.ai.BuildConfig.NETWORK_WRITE_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .build()
 
+    private val callFactory = ContextTaggingCallFactory(okHttpClient)
+
     private fun getRetrofit(baseUrl: String): Retrofit {
         val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
         return retrofitCache.getOrPut(normalizedUrl) {
             Retrofit.Builder()
                 .baseUrl(normalizedUrl)
-                .client(okHttpClient)
+                .callFactory(callFactory)
                 .addConverterFactory(gsonConverterFactory)
                 .build()
         }
@@ -282,7 +289,7 @@ object ApiFactory {
         return try {
             val builder = okhttp3.Request.Builder().url(url).get()
             headers.forEach { (k, v) -> builder.addHeader(k, v) }
-            okHttpClient.newCall(builder.build()).execute().use { resp ->
+            okHttpClient.newCall(builder.build().withCapturedOkHttpCallContext()).execute().use { resp ->
                 if (resp.isSuccessful) resp.body?.string()
                 else {
                     AppLog.w("ApiClient", "fetchUrlAsString non-2xx ${resp.code} for $url — raw snapshot skipped")

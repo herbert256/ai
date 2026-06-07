@@ -81,7 +81,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A queued OkHttp call promoted later (when a per-host slot frees) is submitted from the *previous* worker thread, so its trace/throttle tags attribute to the previous flow rather than the originating caller.
 **Root cause:** Documented in the class comment (lines 106-113): tags are snapshotted at submission time, and promotion submits from a worker thread. Acceptable but real.
 **Proposed fix:** Attach per-`Call.tag` at OkHttp Call construction time for race-free attribution (as the comment notes).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — shared Retrofit/raw calls now capture trace/throttle context into an OkHttp request tag at Call construction and restore it in the first interceptor, so queued-call promotion cannot inherit the prior worker's tags.
 
 ### Bug 11 — Severity: LOW — Category: thread-local lifecycle
 **Location:** TagPropagation.kt:136-139, 161-162 (`backoffPermitYielder`, `benchSignal` propagation)
