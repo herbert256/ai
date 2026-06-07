@@ -86,7 +86,7 @@ internal fun UserNoteCard(
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {}
 ) {
-    var expanded by remember(note.id) { mutableStateOf(false) }
+    var expanded by rememberSaveable(note.id) { mutableStateOf(false) }
     val headline = note.title?.takeIf { it.isNotBlank() } ?: note.text
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),

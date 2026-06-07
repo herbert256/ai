@@ -499,7 +499,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Every View screen mounts `ViewUserNotes`, which re-reads and re-parses the entire report from disk on each `ReportDataVersion` bump just to fetch the notes for one target.
 **Root cause:** `ReportStorage.getReport(...)` (full file + Gson parse) is invoked per target per version bump; there's no narrower notes accessor.
 **Proposed fix:** Add a lightweight notes-only read (or cache the parsed report) so each view-screen note strip doesn't reparse the whole report on every change.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — note-card expanded state now uses `rememberSaveable(note.id)`
 
 ### Bug 61 — Severity: LOW — Category: collapse state lost on config change
 **Location:** UserNotes.kt:89 (`var expanded by remember(note.id) { mutableStateOf(false) }`)
