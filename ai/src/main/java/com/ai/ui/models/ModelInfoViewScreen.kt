@@ -234,12 +234,12 @@ fun ModelInfoViewScreen(
         }
     }
 
-    // AI introduction — self-loading card. Uses the new
+    // AI introduction — on-demand card. Uses the new
     // `model_intro_view` internal prompt (separate from the legacy
     // `model_info` one the Manage screen reads). On mount we
     // SHOW the cached body immediately via [PromptCache.getRaw]
-    // (no spinner) and fire a fresh call only when the cache is
-    // missing OR older than 1 week.
+    // (no spinner). Fresh calls require an explicit tap because the
+    // self-introduction is a paid model request.
     var aiIntro by remember(provider, modelName) { mutableStateOf<String?>(null) }
     var aiLoading by remember(provider, modelName) { mutableStateOf(false) }
     val introTemplate = remember(aiSettings) {
@@ -281,15 +281,12 @@ fun ModelInfoViewScreen(
             }
         }
     }
-    // Auto-load the cached body. Only auto-fire the (paid) self-intro when
-    // there is NO cached intro at all — a merely-stale one is shown as-is and
-    // the user refreshes it via the "Ask again" affordance. Auto-refreshing on
-    // every stale open silently spent money while browsing already-introduced
-    // models. getRaw avoids PromptCache's destructive 48h TTL.
+    // Load the cached body only. getRaw avoids PromptCache's destructive 48h
+    // TTL so an older cached intro stays visible until the user explicitly
+    // asks again.
     LaunchedEffect(introCacheKey) {
         val raw = withContext(Dispatchers.IO) { PromptCache.getRaw(introCacheKey) }
         if (raw != null) aiIntro = raw.response
-        if (raw == null && canRequestIntro) requestIntroduction()
     }
 
     // When a source overlay is open we mount it as a full-screen
@@ -484,9 +481,8 @@ fun ModelInfoViewScreen(
                 item { WorkersCard(matchedAgents, matchedFlocks, matchedSwarms) }
             }
 
-            // 12) AI Introduction — LAST card. Self-loading: cached
-            //     body shows immediately; a fresh call fires only on
-            //     missing cache or > 1 week age.
+            // 12) AI Introduction — LAST card. Cached body shows
+            //     immediately; fresh calls require an explicit tap.
             if (canRequestIntro || aiIntro != null) {
                 item {
                     SectionCard(title = "Introduction") {
@@ -518,8 +514,11 @@ fun ModelInfoViewScreen(
                                 }
                             }
                             else -> Text(
-                                text = "(no introduction yet — the model couldn't be reached)",
-                                fontSize = 12.sp, color = AppColors.TextTertiary
+                                text = "Ask the model to introduce itself",
+                                fontSize = 12.sp,
+                                color = AppColors.InfoAccent,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable { requestIntroduction() }
                             )
                         }
                     }

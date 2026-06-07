@@ -421,7 +421,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** The View screen auto-requests when there's no cached intro; failures don't write a cache, so the auto-fire repeats.
 **Reproduction:** Open View → Model Info for a fresh model with a working API key → a billed call goes out without any user action; if it errors, rotate → another billed call.
 **Proposed fix:** Require an explicit tap (as Manage does), or write a negative/cooldown cache marker on failure so it doesn't re-fire on every open.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — ModelInfoViewScreen now only loads cached introductions on open; missing intros show an explicit ask action before any paid self-introduction call is made
 
 ### Bug 54 — Severity: LOW — Category: duplicate cache / extra fetch
 **Location:** ModelInfoViewScreen.kt:1035-1055 (`ModelInfoLookupCache`) vs ModelScreens.kt:137-159 (`ModelInfoCache`)
