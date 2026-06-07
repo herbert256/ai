@@ -253,7 +253,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Moderation pages map each parsed row's `id` (1-based) to the n-th SUCCESS agent's model/response. If the report's successful-agent set changed since the moderation ran (an agent removed/added/regenerated), the chips and response card pair with the wrong model, or fall to "(unknown)".
 **Root cause:** The row→agent association is purely positional (re-derived from the *current* agent list each load), not stored against a stable agentId in the moderation result.
 **Proposed fix:** Persist the moderated agentId per moderation row, or render a clear "agent set changed" notice when the row count and current success-agent count disagree.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Moderation view now warns when parsed rows no longer match the current successful-agent count
 
 ## File: ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt
 

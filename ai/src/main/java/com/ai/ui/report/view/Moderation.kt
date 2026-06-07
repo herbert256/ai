@@ -85,13 +85,14 @@ fun ModerationViewScreen(
         val result: SecondaryResult?,
         val agentLabels: Map<Int, String>,
         val agentResponses: Map<Int, String>,
+        val successfulAgentCount: Int,
         val reportTitle: String?
     )
 
     val reportDataVersion by ReportDataVersion.version.collectAsState()
     val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
     val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap(), emptyMap(), null),
+        initialValue = Loaded(null, emptyMap(), emptyMap(), 0, null),
         currentReportId, currentResultId, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
@@ -112,7 +113,7 @@ fun ModerationViewScreen(
             val responses = successful.mapIndexed { idx, agent ->
                 (idx + 1) to (agent.responseBody ?: "")
             }.toMap()
-            Loaded(r, labels, responses, report?.barTitle)
+            Loaded(r, labels, responses, successful.size, report?.barTitle)
         }
     }
     val loaded = loadedState.value
@@ -199,6 +200,16 @@ fun ModerationViewScreen(
                 }
             }
             return@Column
+        }
+        val agentSetChanged = loaded.successfulAgentCount != rows.size
+        if (agentSetChanged) {
+            Text(
+                text = "Agent set changed since this moderation ran; model labels and responses may no longer line up with these rows.",
+                color = AppColors.CautionAccent,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            )
         }
         // Build a stable union of categories across every row so the
         // chip row width doesn't jump per agent. Sorted alphabetical
