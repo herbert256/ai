@@ -616,4 +616,4 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** When web search is on, a fixed LiteLLM tool-use overhead is added to the estimated input token count and billed to the cost banner regardless of whether the provider actually used the tool that turn, slightly over-counting input cost on turns where no search ran.
 **Root cause:** `toolOverhead` is added unconditionally whenever `useWebSearch` is true, not conditioned on the response actually invoking the tool.
 **Proposed fix:** Add the overhead only when the response indicates a tool call (where the dispatch exposes that), or document it as an upper-bound estimate.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — chat streaming still cannot observe final tool-use metadata, so turns that include LiteLLM web-search overhead now mark the running cost with a `≤` upper-bound prefix instead of presenting the conservative estimate as exact.

@@ -46,6 +46,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 // ===== Parameters Screen =====
 
@@ -331,6 +332,7 @@ fun ChatSessionScreen(
     }
     var totalInputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.first) }
     var totalOutputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.second) }
+    var totalCostHasUpperBoundEstimate by remember(currentSessionId) { mutableStateOf(false) }
     // (mime, base64) of an image attached to the next user message.
     // rememberSaveable via a Saver so a rotation / process-recreation
     // between picking the image and tapping Send doesn't drop it.
@@ -425,6 +427,13 @@ fun ChatSessionScreen(
         derivedStateOf {
             (totalInputTokens * pricing.promptPrice + totalOutputTokens * pricing.completionPrice) * 100
         }
+    }
+    val totalCostSubject = when {
+        totalCost <= 0.0 -> null
+        totalCostHasUpperBoundEstimate && totalCost < 0.01 -> "≤0.01c"
+        totalCostHasUpperBoundEstimate -> "≤%.2fc".format(Locale.US, totalCost)
+        totalCost < 0.01 -> "<0.01c"
+        else -> "%.2fc".format(Locale.US, totalCost)
     }
 
     // Load the persisted session record ONCE on entry rather than calling
@@ -594,12 +603,6 @@ fun ChatSessionScreen(
         }
         saveSession(messages)
 
-        // Add LiteLLM-reported tool_use overhead when web-search is on so
-        // the client-side cost estimate isn't 5–10× under the actual bill
-        // for tool-using turns (Claude with web_search adds ~3-4k system
-        // tokens; the conversation text alone misses that).
-        val toolOverhead = if (useWebSearch) (PricingCache.liteLLMToolUseOverhead(provider, model) ?: 0) else 0
-        val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) } + toolOverhead
         // Snapshot the per-turn flags + attachments at entry. The
         // coroutine below captures these by-reference; if the user
         // toggles 🌐 / changes 📚 selection / changes 🧠 effort while
@@ -610,6 +613,15 @@ fun ChatSessionScreen(
         val sentReasoning = reasoningEffort
         val sentKbIds = attachedKnowledgeBaseIds
         val sentMessages = messages
+        // Add LiteLLM-reported tool_use overhead when web-search is on so
+        // the client-side cost estimate isn't 5–10× under the actual bill
+        // for tool-using turns (Claude with web_search adds ~3-4k system
+        // tokens; the conversation text alone misses that). Chat streaming
+        // exposes text chunks only, not a final "tool actually ran" flag, so
+        // this is an upper-bound estimate and the title cost gets a ≤ prefix.
+        val toolOverhead = if (sentWebSearch) (PricingCache.liteLLMToolUseOverhead(provider, model) ?: 0) else 0
+        val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) } + toolOverhead
+        val inputTokensAreUpperBound = toolOverhead > 0
 
         scope.launch {
             isStreaming = true; streamingContentState.value = ""
@@ -634,6 +646,7 @@ fun ChatSessionScreen(
                 val outputTokens = AppViewModel.estimateTokens(finalContent)
                 totalInputTokens += inputTokens
                 totalOutputTokens += outputTokens
+                if (inputTokensAreUpperBound) totalCostHasUpperBoundEstimate = true
                 onRecordStatistics(inputTokens, outputTokens)
                 // After the very first assistant response, kick off a
                 // background DeepSeek call (chat_title internal prompt)
@@ -675,6 +688,7 @@ fun ChatSessionScreen(
                     val outputTokens = AppViewModel.estimateTokens(partialContent)
                     totalInputTokens += inputTokens
                     totalOutputTokens += outputTokens
+                    if (inputTokensAreUpperBound) totalCostHasUpperBoundEstimate = true
                     onRecordStatistics(inputTokens, outputTokens)
                 }
             } finally {
@@ -748,9 +762,7 @@ fun ChatSessionScreen(
             // alongside the "Chat" title in BOTH mode or replaces it
             // in SUBJECT mode. Sub-cent costs render "<0.01c" so a
             // tiny cost reads differently from a literal zero.
-            subject = if (totalCost > 0) {
-                if (totalCost < 0.01) "<0.01c" else "%.2fc".format(totalCost)
-            } else null,
+            subject = totalCostSubject,
             onInfo = { navToModelInfo(provider, model) }
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
