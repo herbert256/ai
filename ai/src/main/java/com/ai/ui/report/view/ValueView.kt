@@ -34,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -343,7 +342,6 @@ private fun ValueScatterCanvas(
 ) {
     if (points.isEmpty()) return
     val axis = AppColors.TextTertiary
-    val frontier = AppColors.InfoAccent
     val bestC = AppColors.SuccessAccent
     val domC = AppColors.TextDim
     val regC = AppColors.WarningAccent
@@ -361,29 +359,27 @@ private fun ValueScatterCanvas(
         val maxCost = points.maxOf { it.costCents }
         val minQ = points.minOf { it.quality }
         val maxQ = points.maxOf { it.quality }
-        val costSpan = (maxCost - minCost).takeIf { it > 1e-9 } ?: 1.0
-        val qSpan = (maxQ - minQ).takeIf { it > 1e-9 } ?: 1.0
+        // Pad each axis by 10% of its range on BOTH ends so no point ever
+        // sits on an axis line / edge. The ticks below still show the real
+        // data values (positioned inside the padded range).
+        val costRange = maxCost - minCost
+        val qRange = maxQ - minQ
+        val costPad = if (costRange > 1e-9) costRange * 0.10 else (kotlin.math.abs(maxCost) * 0.10).coerceAtLeast(0.5)
+        val qPad = if (qRange > 1e-9) qRange * 0.10 else (kotlin.math.abs(maxQ) * 0.10).coerceAtLeast(0.5)
+        val plotMinCost = minCost - costPad
+        val plotMinQ = minQ - qPad
+        val costSpan = (maxCost + costPad - plotMinCost).coerceAtLeast(1e-9)
+        val qSpan = (maxQ + qPad - plotMinQ).coerceAtLeast(1e-9)
 
         // px position: x grows with cost (cheap left), y inverted (high quality at top)
-        fun px(p: ValuePoint): Offset {
-            val fx = ((p.costCents - minCost) / costSpan).toFloat()
-            val fy = ((p.quality - minQ) / qSpan).toFloat()
-            return Offset(x0 + fx * plotW, y0 + (1f - fy) * plotH)
-        }
+        fun fxOf(costCents: Double) = ((costCents - plotMinCost) / costSpan).toFloat()
+        fun fyOf(q: Double) = ((q - plotMinQ) / qSpan).toFloat()
+        fun px(p: ValuePoint): Offset =
+            Offset(x0 + fxOf(p.costCents) * plotW, y0 + (1f - fyOf(p.quality)) * plotH)
 
         // axes
         drawLine(axis, Offset(x0, y0), Offset(x0, y0 + plotH), strokeWidth = 2f)
         drawLine(axis, Offset(x0, y0 + plotH), Offset(x0 + plotW, y0 + plotH), strokeWidth = 2f)
-
-        // frontier polyline through non-dominated points, sorted by cost
-        val frontierPts = points.filter { !it.dominated }.sortedBy { it.costCents }.map { px(it) }
-        if (frontierPts.size >= 2) {
-            val path = Path().apply {
-                moveTo(frontierPts.first().x, frontierPts.first().y)
-                frontierPts.drop(1).forEach { lineTo(it.x, it.y) }
-            }
-            drawPath(path, frontier, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f))
-        }
 
         val nc = drawContext.canvas.nativeCanvas
 
@@ -408,25 +404,24 @@ private fun ValueScatterCanvas(
         val tickPaint = android.graphics.Paint().apply {
             color = tickArgb; textSize = 20f; isAntiAlias = true
         }
-        listOf(0f, 0.5f, 1f).forEach { f ->
-            val cx = x0 + f * plotW
-            val costVal = minCost + f * (maxCost - minCost)
+        val costTicks = listOf(minCost, (minCost + maxCost) / 2.0, maxCost)
+        costTicks.forEachIndexed { i, v ->
+            val cx = x0 + fxOf(v) * plotW
             drawLine(axis, Offset(cx, y0 + plotH), Offset(cx, y0 + plotH + 5f), strokeWidth = 1.5f)
-            tickPaint.textAlign = when (f) {
-                0f -> android.graphics.Paint.Align.LEFT
-                1f -> android.graphics.Paint.Align.RIGHT
+            tickPaint.textAlign = when (i) {
+                0 -> android.graphics.Paint.Align.LEFT
+                costTicks.lastIndex -> android.graphics.Paint.Align.RIGHT
                 else -> android.graphics.Paint.Align.CENTER
             }
-            nc.drawText(formatCents(costVal / 100.0), cx, y0 + plotH + 24f, tickPaint)
+            nc.drawText(formatCents(v / 100.0), cx, y0 + plotH + 24f, tickPaint)
         }
 
         // --- Y-axis numeric ticks (ranking score) at bottom / mid / top ---
         tickPaint.textAlign = android.graphics.Paint.Align.RIGHT
-        listOf(0f, 0.5f, 1f).forEach { f ->
-            val cy = y0 + (1f - f) * plotH
-            val qVal = minQ + f * (maxQ - minQ)
+        listOf(minQ, (minQ + maxQ) / 2.0, maxQ).forEach { v ->
+            val cy = y0 + (1f - fyOf(v)) * plotH
             drawLine(axis, Offset(x0 - 5f, cy), Offset(x0, cy), strokeWidth = 1.5f)
-            nc.drawText(formatScore(qVal), x0 - 10f, cy + 7f, tickPaint)
+            nc.drawText(formatScore(v), x0 - 10f, cy + 7f, tickPaint)
         }
 
         // --- axis names: X centered under its ticks, Y vertical on the left ---
