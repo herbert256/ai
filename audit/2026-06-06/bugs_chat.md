@@ -501,7 +501,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The needle is pre-lowercased *and* matched with `ignoreCase = true`, which double-handles casing and can subtly interact (lowercased needle vs locale-aware case-insensitive compare).
 **Root cause:** Redundant case handling.
 **Proposed fix:** Drop the `lowercase` (rely on `ignoreCase`) or drop `ignoreCase` (rely on the pre-lowercased needle against a lowercased haystack).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — quick search now trims the query and relies on `contains(..., ignoreCase = true)` for casing
 
 ---
 
