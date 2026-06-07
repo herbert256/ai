@@ -164,7 +164,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Forcing UTF-8 is correct for SSE, but a provider that genuinely returns a different charset on a chunked-JSON (non-SSE) stream that lands here would be mis-decoded.
 **Root cause:** Charset is hardcoded; the isStreaming branch also catches `Transfer-Encoding: chunked` JSON.
 **Proposed fix:** Honour an explicit non-UTF-8 `Content-Type` charset for the chunked-JSON case; keep the UTF-8 default only when the server omits it.
-**Status:** Open (low likelihood)
+**Status:** Fixed (2026-06-07) — SSE still forces UTF-8, while non-SSE chunked responses now honor an explicit response charset with UTF-8 fallback
 
 ### Bug 22 — Severity: LOW — Category: usage merge correctness
 **Location:** ApiStreaming.kt:223-233 (`mergeUsage`)
