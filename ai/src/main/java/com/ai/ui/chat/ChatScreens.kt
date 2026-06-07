@@ -614,8 +614,13 @@ fun ChatSessionScreen(
             } catch (e: Exception) {
                 error = e.message ?: "Streaming error"
                 if (sb.isNotEmpty()) {
-                    messages = messages + ChatMessage(role = "assistant", content = "$sb\n\n[Stream interrupted: ${e.message}]")
+                    val partialContent = sb.toString()
+                    messages = messages + ChatMessage(role = "assistant", content = "$partialContent\n\n[Stream interrupted: ${e.message}]")
                     saveSession(messages)
+                    val outputTokens = AppViewModel.estimateTokens(partialContent)
+                    totalInputTokens += inputTokens
+                    totalOutputTokens += outputTokens
+                    onRecordStatistics(inputTokens, outputTokens)
                 }
             } finally {
                 isStreaming = false; streamingContentState.value = ""

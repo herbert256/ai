@@ -106,7 +106,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** When a stream errors after partial output, the partial assistant text is saved with `[Stream interrupted]`, but its output tokens are never added to `totalOutputTokens` / `onRecordStatistics`, so the partial (billed) output is invisible in cost/usage.
 **Root cause:** The token accounting (`totalOutputTokens += …; onRecordStatistics(…)`) lives only in the success path before the catch.
 **Proposed fix:** Count the partial `sb` content in the error branch too.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — interrupted streams now estimate tokens from the partial assistant text and record the same input/output usage as successful turns
 
 ### Bug 14 — Severity: LOW — Category: race / double send
 **Location:** ChatScreens.kt:620-661, 917-921 (`trySend` / Send button)
