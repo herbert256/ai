@@ -515,7 +515,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** On a META detail screen, the language icon picker doesn't update when a translation is added or deleted while the screen is open — newly-translated languages don't appear and deleted ones linger.
 **Root cause:** `translatesState`'s `produceState` keys only on `result.reportId`, omitting `SecondaryDataVersion.version`. The sibling `resultFresh` (line 116) *does* subscribe to `secDataVersion`, so the body content refreshes but the language tab set goes stale.
 **Proposed fix:** Add `SecondaryDataVersion.version` to the `translatesState` key list.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — translatesState now keys on SecondaryDataVersion.version (single shared subscription)
 
 ### Bug 63 — Severity: LOW — Category: stale trace / report (missing version keys)
 **Location:** SecondaryDetail.kt:82-88 (`traceFilenameState` keyed on `result.id`), 106-108 (`parentReportState` keyed on `result.reportId`)
