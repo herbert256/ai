@@ -282,7 +282,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Each language row reads its stored-prompt count from disk on the main thread during list composition; with several languages this re-reads on every recomposition.
 **Root cause:** Per-row synchronous disk read in the LazyColumn item.
 **Proposed fix:** Precompute counts once off-thread (a map keyed on the refresh tick).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — prompt translation counts are now precomputed once in `produceState` on `Dispatchers.IO` and reused by rows.
 
 ---
 
