@@ -52,9 +52,12 @@ fun ManualModelOverrideEntryScreen(
             // duplicate mode hands back a fresh id, so id mismatch
             // = insert, id match = update.
             val isUpdate = existing != null && saved.id == existing.id
-            val updated = if (isUpdate) list.map { if (it.id == saved.id) saved else it }
-                          else list + saved
-            onSave(aiSettings.withModelTypeOverrides(updated))
+            val replaced = if (isUpdate) list.map { if (it.id == saved.id) saved else it }
+                           else list + saved
+            val deduped = replaced.filter {
+                it.id == saved.id || it.providerId != saved.providerId || it.modelId != saved.modelId
+            }
+            onSave(aiSettings.withModelTypeOverrides(deduped))
             onBack()
         }
     )

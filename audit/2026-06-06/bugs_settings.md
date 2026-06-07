@@ -213,7 +213,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** There are two divergent editors for `ModelTypeOverride` (one auto-saves via CrudFormScaffold, one uses an explicit Save). Neither dedups on `(providerId, modelId)`: editing an override to point at a (provider, model) that already has its own override, or saving a duplicate, yields two overrides for the same key. Resolution (`modelTypeOverrides.firstOrNull { providerId==.. && modelId==.. }`) then silently picks the first.
 **Root cause:** Overrides are keyed by UUID `id`; uniqueness on `(provider, model)` is never enforced on save.
 **Proposed fix:** On save, prune/replace any existing override for the same `(providerId, modelId)`; ideally collapse the two editors into one.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — both model-type override save paths now keep the saved row and prune any other row with the same provider/model key.
 
 ---
 
