@@ -273,7 +273,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Each "Export all" writes a new `ai_chats_backup_<ts>.zip` into `cacheDir/chat_backup` and never deletes prior exports; repeated exports accumulate cache files.
 **Root cause:** No cleanup of the output directory before/after writing.
 **Proposed fix:** Clear `chat_backup/` (or delete old zips) before writing the new archive.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — chat export now clears old files from the dedicated `chat_backup` cache directory before writing the new zip
 
 ### Bug 36 — Severity: LOW — Category: state loss
 **Location:** ChatManageScreen.kt:48 (`var daysText by remember { mutableStateOf("30") }`)
