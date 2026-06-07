@@ -405,11 +405,13 @@ fun DualChatSessionScreen(
     var chatJob by remember { mutableStateOf<Job?>(null) }
     var extraChatsText by rememberSaveable { mutableStateOf("10") }
 
-    // Cost tracking
-    var model1InputTokens by remember { mutableIntStateOf(0) }
-    var model1OutputTokens by remember { mutableIntStateOf(0) }
-    var model2InputTokens by remember { mutableIntStateOf(0) }
-    var model2OutputTokens by remember { mutableIntStateOf(0) }
+    // Cost tracking — rememberSaveable so the counters survive a recomposition
+    // that restores `messages` from the Saver while the run continues; plain
+    // remember reset them to 0, desyncing the displayed cost (audit chat#24).
+    var model1InputTokens by rememberSaveable { mutableIntStateOf(0) }
+    var model1OutputTokens by rememberSaveable { mutableIntStateOf(0) }
+    var model2InputTokens by rememberSaveable { mutableIntStateOf(0) }
+    var model2OutputTokens by rememberSaveable { mutableIntStateOf(0) }
     // Recompute pricing whenever PricingCache fully primes (its
     // preloadCompleted flag flips). Without that, an unkeyed
     // remember{} latched DEFAULT_PRICING on first composition during
@@ -422,9 +424,12 @@ fun DualChatSessionScreen(
     val pricing2 = remember(config.model2Provider, config.model2Name, pricingTick) {
         PricingCache.getPricing(context, config.model2Provider, config.model2Name)
     }
-    val model1Cost by remember { derivedStateOf { (model1InputTokens * pricing1.promptPrice + model1OutputTokens * pricing1.completionPrice) * 100 } }
-    val model2Cost by remember { derivedStateOf { (model2InputTokens * pricing2.promptPrice + model2OutputTokens * pricing2.completionPrice) * 100 } }
-    val totalCost by remember { derivedStateOf { model1Cost + model2Cost } }
+    // Key the derivedStateOf on the pricing objects — an unkeyed remember{}
+    // captured the FIRST (cold) pricing and never re-priced after PricingCache
+    // primed, freezing the cost rows (audit chat#26).
+    val model1Cost by remember(pricing1) { derivedStateOf { (model1InputTokens * pricing1.promptPrice + model1OutputTokens * pricing1.completionPrice) * 100 } }
+    val model2Cost by remember(pricing2) { derivedStateOf { (model2InputTokens * pricing2.promptPrice + model2OutputTokens * pricing2.completionPrice) * 100 } }
+    val totalCost by remember(pricing1, pricing2) { derivedStateOf { model1Cost + model2Cost } }
 
     fun buildMessagesForModel(modelIndex: Int): List<ChatMessage> {
         val result = mutableListOf<ChatMessage>()

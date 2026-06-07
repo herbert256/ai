@@ -34,7 +34,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Opening the "Report - Get info" overlay (or any overlay that flips `paused`) and returning to the result list snaps the result LazyColumn back to the top, discarding the user's scroll position on a long report.
 **Root cause:** The auto-scroll-to-top effect keys on `paused` in addition to `currentReportId`/`newRowTrigger`. When an overlay sets `paused=true` and then clears it, the effect re-runs `resultListState.scrollToItem(0)`. The comment only describes report-open and new-row appends as the intended triggers; `paused` is an unintended re-anchor trigger.
 **Proposed fix:** Drop `paused` from the effect key (it is only used to *suppress* the scroll inside the body via `if (paused) return`); gate the body on `paused` but don't re-key on it.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - dropped 'paused' from the scroll-to-top LaunchedEffect key (it now only gates the body), so closing a paused overlay no longer re-anchors the list
 
 ### Bug 5 — Severity: LOW — Category: cost double-count window
 **Location:** GenerationPhase.kt:561-577 (`liveTranslation` fold), 594-595 (`totalCost`)
@@ -66,7 +66,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** On the 🐜 Translation-workers screen during an active run, model rows visibly jump/reorder every time an item completes, because rows are ordered by `done` count descending. Tap targets move under the user's finger.
 **Root cause:** The sort key `done` (then `total`, then model name) changes continuously while the run progresses. The sibling L1 *types* list explicitly sorts by `total` (stable across status flips) precisely to avoid this; the workers list does not.
 **Proposed fix:** Sort modelRows by `total` desc then model name (stable while statuses flip), matching the L1 types list; reserve `done`-based ordering for finished runs only.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - TranslationWorkers modelRows now sort by total desc then model name (stable while statuses flip), matching the L1 types list
 
 ### Bug 9 — Severity: LOW — Category: inconsistent cost format across the drill-in
 **Location:** TranslationL1.kt:151 (`formatCents(run.totalCostDollars, decimals = 2)} ¢`) vs TranslationL2.kt:117 (`formatCents(cost)` no ¢, decimals=4) vs TranslationL3.kt:227 (`formatCents(item.costDollars)} ¢`)

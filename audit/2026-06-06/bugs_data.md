@@ -440,7 +440,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `ReportAgent.provider`/`model`/`agentId`/`agentName` and `Report.title`/`prompt`/`id` are non-null `String`. If any is absent in a stored file (corruption, partial write that slipped past atomic, or a future field rename), Gson leaves it `null`; `normalizeReport` only re-asserts collection defaults (ReportStorage.kt:464-496), so the null core String NPEs at the first non-collection access far from the loader.
 **Root cause:** Same systemic Gson-Unsafe issue as Bug 1, applied to the report graph's core identity fields.
 **Proposed fix:** Validate core non-null fields in `normalizeReport` and reject (return null) a report missing them, instead of letting a null-bearing object escape.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - normalizeReport rejects (returns null) a report with a null id, defaults null title/prompt, and extends the agent coercion to agentId/agentName
 
 ## File: ai/src/main/java/com/ai/data/SecondaryResult.kt
 

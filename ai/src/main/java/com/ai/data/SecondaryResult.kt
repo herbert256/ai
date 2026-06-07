@@ -237,6 +237,51 @@ object SecondaryResultStorage {
         return true
     }
 
+    /** Re-point a secondary row at a NEW provider/model (and optionally new
+     *  param presets / system prompt) and overwrite its result fields with a
+     *  freshly-run candidate. Unlike [updateContent], this also rewrites the
+     *  row's identity (providerId / model / agentName) and its cost / token /
+     *  duration / trace, so the row reflects the new model. Powers the
+     *  "Switch model / agent" Change-result action. Returns the saved row, or
+     *  null when the row is gone. */
+    fun updateModelSelection(
+        context: Context,
+        reportId: String,
+        resultId: String,
+        providerId: String,
+        model: String,
+        agentName: String,
+        content: String?,
+        tokenUsage: TokenUsage?,
+        inputCost: Double?,
+        outputCost: Double?,
+        durationMs: Long?,
+        traceFile: String?,
+        parameterPresetIds: List<String>?,
+        systemPromptId: String?,
+        changeValue: String?
+    ): SecondaryResult? {
+        val existing = get(context, reportId, resultId) ?: return null
+        val updated = existing.copy(
+            providerId = providerId,
+            model = model,
+            agentName = agentName,
+            content = content,
+            tokenUsage = tokenUsage,
+            inputCost = inputCost,
+            outputCost = outputCost,
+            durationMs = durationMs,
+            traceFile = traceFile,
+            secondaryParameterPresetIds = parameterPresetIds,
+            secondarySystemPromptId = systemPromptId,
+            responseChangeSource = RESPONSE_CHANGE_SOURCE_MODEL_SWITCH,
+            responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
+        )
+        save(context, updated)
+        AuditLog.append(reportId, "Switched a result to $providerId / $model")
+        return updated
+    }
+
     /** True when a row for [resultId] exists on disk under [reportId].
      *  Used by long-running fan-out / meta coroutines to drop their
      *  final save when the user deleted the placeholder mid-flight.

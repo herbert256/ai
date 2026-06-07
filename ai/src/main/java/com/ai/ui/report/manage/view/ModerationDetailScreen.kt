@@ -27,6 +27,7 @@ import com.ai.data.barTitle
 import com.ai.data.notesFor
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.viewmodel.ModelSwitchState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -56,6 +57,8 @@ internal fun ModerationDetailScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val aiSettings = com.ai.ui.shared.LocalAiSettings.current
+    val modelSwitch = com.ai.ui.shared.LocalSecondaryModelSwitch.current
     val providerService = AppService.findById(result.providerId)
     val provider = providerService?.id ?: result.providerId
     // "second-moderation" → "moderation"; a renamed prompt passes through.
@@ -135,6 +138,59 @@ internal fun ModerationDetailScreen(
         UserNoteEditorOverlay(result.reportId, "SECONDARY", result.id, noteEdit!!) { noteEdit = null }
         return
     }
+
+    // ✏️ → "Change result": Reload (re-run in place) or Switch model / agent.
+    var showChangeActions by remember { mutableStateOf(false) }
+    var showModelSwitchPick by remember { mutableStateOf(false) }
+    val switchStates by (modelSwitch?.states ?: emptyModelSwitchStatesFlow).collectAsState()
+    val switchState = switchStates[ModelSwitchState.key(result.reportId, result.id)]
+    if (modelSwitch != null && showChangeActions) {
+        ResponseChangeActionsScreen(
+            title = "Change result",
+            subject = com.ai.ui.shared.modelLabel(provider, result.model, separator = " / "),
+            actions = listOf(
+                ResponseChangeAction(
+                    icon = com.ai.data.MetadataIconsHolder.current.reload,
+                    title = "Reload",
+                    description = "Regenerate this result with its saved model and settings.",
+                    onClick = { showChangeActions = false; modelSwitch.reloadSecondary(context, result.reportId, result.id) }
+                ),
+                ResponseChangeAction(
+                    icon = com.ai.data.MetadataIconsHolder.current.reportModelIcon,
+                    title = "Switch model / agent",
+                    description = "Re-run this result against another model or agent, then keep or discard it.",
+                    onClick = { showChangeActions = false; showModelSwitchPick = true }
+                )
+            ),
+            onBack = { showChangeActions = false }
+        )
+        return
+    }
+    if (modelSwitch != null && showModelSwitchPick) {
+        SecondaryModelSwitchPickScreen(
+            aiSettings = aiSettings,
+            rowParamsIds = result.secondaryParameterPresetIds.orEmpty(),
+            rowSystemPromptId = result.secondarySystemPromptId,
+            onPicked = { sel -> showModelSwitchPick = false; modelSwitch.startModelSwitch(context, result.reportId, result.id, sel) },
+            onBack = { showModelSwitchPick = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (modelSwitch != null && switchState != null) {
+        SecondaryModelSwitchPreviewScreen(
+            state = switchState,
+            onUse = { modelSwitch.applyModelSwitch(context, result.reportId, result.id) },
+            onDiscard = { modelSwitch.clear(result.reportId, result.id) },
+            onTrace = onNavigateToTraceFile,
+            onBack = { modelSwitch.clear(result.reportId, result.id) }
+        ) { content ->
+            val rows = parseModerationRows(content)
+            if (rows == null) ContentWithThinkSections(analysis = content)
+            else ModerationTable(rows = rows, agentLabels = agentLabels, onRowClick = {})
+        }
+        return
+    }
     val noteDataVersion by ReportDataVersion.version.collectAsState()
     val secondaryNotes by produceState(emptyList<UserNote>(), result.reportId, result.id, noteDataVersion) {
         value = withContext(Dispatchers.IO) {
@@ -160,6 +216,7 @@ internal fun ModerationDetailScreen(
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             subject = reportTitle,
             onBackClick = onBack,
+            onEdit = if (modelSwitch != null) { { showChangeActions = true } } else null,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },
             onOpenView = onOpenViewJump,

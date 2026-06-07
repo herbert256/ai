@@ -254,6 +254,10 @@ internal fun MetaDetailScreen(
     var showWebSearchReplay by remember { mutableStateOf(false) }
     var showPromptEditReplay by remember { mutableStateOf(false) }
     var showAgentChat by remember { mutableStateOf(false) }
+    var showModelSwitchPick by remember { mutableStateOf(false) }
+    val modelSwitch = com.ai.ui.shared.LocalSecondaryModelSwitch.current
+    val modelSwitchStates by (modelSwitch?.states ?: emptyModelSwitchStatesFlow).collectAsState()
+    val modelSwitchState = modelSwitchStates[com.ai.viewmodel.ModelSwitchState.key(result.reportId, result.id)]
     val metaModelLabel = com.ai.ui.shared.modelLabel(provider, result.model, separator = " / ")
     val resolvedMetaPrompt by produceState<String?>(initialValue = null, result.reportId, result.id, secDataVersion) {
         value = metaEditManager?.resolveMetaPrompt(context, result.reportId, result.id)
@@ -323,10 +327,43 @@ internal fun MetaDetailScreen(
                         showResponseChangeActions = false
                         showWebSearchReplay = true
                     }
+                ),
+                ResponseChangeAction(
+                    icon = com.ai.data.MetadataIconsHolder.current.reportModelIcon,
+                    title = "Switch model / agent",
+                    description = "Re-run this result against another model or agent, then keep or discard it.",
+                    enabled = modelSwitch != null,
+                    onClick = {
+                        showResponseChangeActions = false
+                        showModelSwitchPick = true
+                    }
                 )
             ),
             onBack = { showResponseChangeActions = false }
         )
+        return
+    }
+    if (showModelSwitchPick && modelSwitch != null) {
+        SecondaryModelSwitchPickScreen(
+            aiSettings = aiSettings,
+            rowParamsIds = result.secondaryParameterPresetIds.orEmpty(),
+            rowSystemPromptId = result.secondarySystemPromptId,
+            onPicked = { sel -> showModelSwitchPick = false; modelSwitch.startModelSwitch(context, result.reportId, result.id, sel) },
+            onBack = { showModelSwitchPick = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (modelSwitch != null && modelSwitchState != null) {
+        SecondaryModelSwitchPreviewScreen(
+            state = modelSwitchState,
+            onUse = { modelSwitch.applyModelSwitch(context, result.reportId, result.id) },
+            onDiscard = { modelSwitch.clear(result.reportId, result.id) },
+            onTrace = onNavigateToTraceFile,
+            onBack = { modelSwitch.clear(result.reportId, result.id) }
+        ) { content ->
+            ContentWithThinkSections(analysis = content)
+        }
         return
     }
     if (showPromptEditReplay && metaEditManager != null) {

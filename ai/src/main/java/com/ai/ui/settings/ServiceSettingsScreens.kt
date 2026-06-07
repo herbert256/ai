@@ -417,7 +417,11 @@ fun ProviderModelSettingsScreen(
                     if (onTestSpecificModel != null && models.isNotEmpty()) {
                         OutlinedButton(
                             onClick = {
-                                val targets = models.toList()
+                                // Skip models the user excluded from testing (e.g.
+                                // auto-excluded for costing >5¢) — matches the
+                                // Housekeeping "Test all models" flow, which the
+                                // per-provider button ignored (audit settings#5).
+                                val targets = models.filterNot { aiSettings.isTestExcluded(service.id, it) }
                                 testStatuses = targets.associateWith { ModelTestStatus.Running }
                                 testInProgress = true
                                 scope.launch {
@@ -843,15 +847,25 @@ fun ProviderSettingsScreen(
     // parametersIds). The default model is part of the catalog now —
     // its writeback runs in the Definition LaunchedEffect above via
     // ProviderRegistry.update.
-    LaunchedEffect(apiKey, selectedParametersIds, selectedSystemPromptId) {
+    // Debounce + dispose-flush so pasting a long key doesn't rewrite the whole
+    // Settings blob once per character (audit settings#4) — mirrors
+    // ExternalServicesScreen. The shared fn keeps the debounced save and the
+    // dispose flush in step.
+    fun saveProviderEdits() {
         val current = aiSettings.getProvider(service)
         val updated = current.copy(
             apiKey = apiKey,
             parametersIds = selectedParametersIds,
             systemPromptId = selectedSystemPromptId
         )
-        if (updated == current) return@LaunchedEffect
-        onSave(aiSettings.withProvider(service, updated))
+        if (updated != current) onSave(aiSettings.withProvider(service, updated))
+    }
+    LaunchedEffect(apiKey, selectedParametersIds, selectedSystemPromptId) {
+        kotlinx.coroutines.delay(400)
+        saveProviderEdits()
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { saveProviderEdits() }
     }
 
     if (showParamsDialog) {

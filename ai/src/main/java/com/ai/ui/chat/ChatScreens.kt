@@ -489,11 +489,12 @@ fun ChatSessionScreen(
                 changed = true
             }
         }
-        // Persist immediately so a leave/return cycle picks up the new
-        // system prompt — the previous flow mutated `messages` without
-        // calling saveSession, so navigating away and re-entering
-        // reverted to whatever was last saved.
-        if (changed) saveSession(messages)
+        // Persist the system-prompt merge only once the session has a real user
+        // turn. Otherwise, entering a configure-on-the-fly chat that carries a
+        // system prompt and leaving without sending wrote a system-message-only
+        // "Empty chat" to history (audit chat#10). The in-memory merge still
+        // applies; actuallySend saves it together with the first user message.
+        if (changed && messages.any { it.role == "user" }) saveSession(messages)
     }
 
     LaunchedEffect(Unit) {

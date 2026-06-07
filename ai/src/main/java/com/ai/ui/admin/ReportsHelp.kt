@@ -524,8 +524,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Dedicated detail screen for a rerank result — the 1..N best-first ranking of the report's answers. Errors render as a red Error block; blank content shows '(no content)'."),
             HelpCard("Ranking table", "Parses the structured JSON ([{id, rank, score, reason}, ...]) the rerank flow produces (chat-prompt path or the native rerank API) and renders a sorted Rank / Model / Score / Reason table, resolving each bracketed [N] to its real provider / model. Falls back to raw markdown when the model deviated from the schema."),
-            HelpCard("Title bar", "👁 opens the View Rerank screen, ℹ️ jumps to Model Info for this row's (provider, model), 🐞 opens the captured trace when tracing was on, 🗑 deletes the rerank, and Copy / Share export the raw ranking JSON. ✍️ adds a note."),
-            HelpCard("Re-running", "Not wired here — re-run a rerank by deleting it and re-firing from the report's 🆕 Create launcher.")
+            HelpCard("Title bar", "✏️ opens 'Change result', 👁 opens the View Rerank screen, ℹ️ jumps to Model Info for this row's (provider, model), 🐞 opens the captured trace when tracing was on, 🗑 deletes the rerank, and Copy / Share export the raw ranking JSON. ✍️ adds a note."),
+            HelpCard("Change result — ✏️", "🔄 Reload re-runs in place with the saved model. 'Switch model / agent' re-runs the ranking against a different saved agent or provider+model — it previews the new ranking so you can Use (replace this row) or Discard it.")
         )
     ),
     "moderation_detail" to HelpContent(
@@ -534,15 +534,16 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Dedicated detail screen for a moderation result — the per-response policy classification of the report's answers. Errors render as a red Error block; blank content shows '(no content)'."),
             HelpCard("Classification table", "Parses the structured JSON ([{id, flagged, categories, scores}, ...]) the moderation flow produces (chat-prompt path or the native moderation API) into a table with 🚩 / ✓ flags, fired categories and the top scores, resolving each bracketed [N] to its real provider / model. Falls back to raw markdown when the model deviated from the schema."),
             HelpCard("Per-response detail", "Tap a row to drill into that response's full classification — every category (fired or not) with its score, plus the exact text that was moderated."),
-            HelpCard("Title bar", "👁 opens the View Moderation screen, ℹ️ jumps to Model Info for this row's (provider, model), 🐞 opens the captured trace when tracing was on, 🗑 deletes the moderation, and Copy / Share export the raw classification JSON. ✍️ adds a note."),
-            HelpCard("Re-running", "Not wired here — re-run a moderation by deleting it and re-firing from the report's 🆕 Create launcher.")
+            HelpCard("Title bar", "✏️ opens 'Change result', 👁 opens the View Moderation screen, ℹ️ jumps to Model Info for this row's (provider, model), 🐞 opens the captured trace when tracing was on, 🗑 deletes the moderation, and Copy / Share export the raw classification JSON. ✍️ adds a note."),
+            HelpCard("Change result — ✏️", "🔄 Reload re-runs in place with the saved model. 'Switch model / agent' re-runs the classification against a different saved agent or provider+model — it previews the new result so you can Use (replace this row) or Discard it.")
         )
     ),
     "meta_detail" to HelpContent(
         title = "Help - Meta result — detail",
         cards = listOf(
             HelpCard("Overview", "Dedicated detail screen for a meta result that isn't a fan-out pair: a plain meta (Compare / Critique / Summarize / Synthesize / …) or a fan-in combined report. Renders the full content via ContentWithThinkSections; errors show a red Error block, blank content shows '(no content)'. Fan-out pairs / rerank / moderation rows still use the shared Secondary-detail screen."),
-            HelpCard("Title bar — ✏️", "Opens 'Change result' — a list of ways to re-do this meta result: 🔄 Reload, ✏️ Edit prompt, 🗣️ Chat, 🌡️ Temperature sweep, 🧠 Reasoning Effort, 🧭 Web search. Each writes the chosen output back to this same row."),
+            HelpCard("Title bar — ✏️", "Opens 'Change result' — a list of ways to re-do this meta result: 🔄 Reload, ✏️ Edit prompt, 🗣️ Chat, 🌡️ Temperature sweep, 🧠 Reasoning Effort, 🧭 Web search, and 🤖 Switch model / agent. Each writes the chosen output back to this same row."),
+            HelpCard("Switch model / agent", "Re-runs this result against a different saved agent (which brings its own model + parameter presets + system prompt) or a raw provider+model. The new output is previewed first so you can Use (replace this row, re-pointing it at the new model) or Discard it. Works on plain meta, fan-in, rerank and moderation."),
             HelpCard("Reload", "Re-runs in place with the row's saved prompt, model, parameters and language, replacing content, cost and tokens. A plain meta rebuilds from the report's answers (honouring its scope); a fan-in rebuilds from the current fan-out matrix (joining any still-running fan-out first)."),
             HelpCard("Edit prompt", "Edits the resolved meta prompt for one replay (optionally changing parameter presets and system prompt), runs it, and applies the chosen output."),
             HelpCard("Chat", "Opens a refine chat seeded with the report prompt + this result; applying a reply rewrites the content and tags it 'Changed by Chat'."),
@@ -550,6 +551,15 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar — 💬", "Continues this analysis in the Chat section. Refining the result in place lives under ✏️ → Chat now."),
             HelpCard("Title bar — ℹ️ / 🐞 / 🗑 / 📋 / 📤 / ✍️ / 👁", "Model Info for this row's model; trace (when tracing is on and a match exists); delete (multi-language rows get the Active-language-only / All-languages popup); copy / share the shown content; add a note; jump to the matching View screen."),
             HelpCard("Languages", "When this meta has translations, the icon row swaps the shown content / trace / copy / share onto the picked language. The ↔ translation-compare opens when a per-language overlay is active.")
+        )
+    ),
+    "model_switch" to HelpContent(
+        title = "Help - Switch model / agent",
+        cards = listOf(
+            HelpCard("What it does", "Re-runs a secondary result (Meta / Fan-in / Rerank / Moderation) against a DIFFERENT model — keeping the same inputs (the report's answers, scope and language), only swapping who produces the result."),
+            HelpCard("Agent or model", "Choose an agent to bring its own provider + model + parameter presets + system prompt; or choose a provider & model directly (which keeps this result's existing presets)."),
+            HelpCard("Preview then apply", "The new run is shown as a preview with its cost, time and 🐞 trace. Use commits it onto this row (re-pointing the row at the new model and tagging a 'Model switch' badge); Discard throws it away and leaves the original untouched. The replaced run's spend is preserved in the report total either way."),
+            HelpCard("Native rerank / moderation", "Picking a rerank- or moderation-capable model runs that result through the dedicated rerank / moderation API; a chat model runs the chat path. An incompatible pick surfaces the provider's error in the preview.")
         )
     ),
     "secondary_fan_out_l1" to HelpContent(

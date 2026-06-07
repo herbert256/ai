@@ -51,14 +51,14 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Every keystroke (and every pasted character) in the provider API-key field triggers a full `onSave(aiSettings.withProvider(...))`, which serializes the entire Settings blob to SharedPreferences. Pasting a 100-char key writes the whole config ~100 times in rapid succession.
 **Root cause:** `LaunchedEffect(apiKey, selectedParametersIds, selectedSystemPromptId)` has no debounce. The sibling `ExternalServicesScreen` (SetupScreens.kt:716-734) was explicitly fixed with a 400 ms debounce + dispose-flush for exactly this reason; this screen never got the same fix.
 **Proposed fix:** Debounce the key write (e.g. `delay(400)` keyed on `apiKey`, flush on dispose), mirroring `ExternalServicesScreen`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - provider apiKey/params auto-save now debounced 400ms + flushed on dispose (shared saveProviderEdits), mirroring ExternalServicesScreen
 
 ### Bug 5 — Severity: MEDIUM — Category: unexpected spend / no confirmation
 **Location:** ServiceSettingsScreens.kt:417-457 (`ProviderModelSettingsScreen` "Test all models")
 **Symptom:** The per-provider "Test all models" button fires a live API probe against *every* model in the list (5-wide) with no confirmation dialog, no cost guard, and without consulting the test-excluded list. On a provider with hundreds of models this is a large surprise spend; models previously auto-excluded for costing >5¢ are tested again here.
 **Root cause:** `val targets = models.toList()` tests the full list directly; unlike the Housekeeping "Test all models" flow there's no exclusion filter or confirm.
 **Proposed fix:** Filter out `aiSettings.testExcludedModels` (and/or add a confirm with the call count) before launching the probes.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - per-provider 'Test all models' now filters out aiSettings test-excluded models (matching the Housekeeping flow) before probing
 
 ### Bug 6 — Severity: LOW — Category: state/UI mismatch
 **Location:** ServiceSettingsScreens.kt:938-968 (`ProviderSettingsScreen` activation Switch)

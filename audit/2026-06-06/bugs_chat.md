@@ -85,7 +85,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** On first composition the effect inserts the system `ChatMessage` (`changed = true`) and calls `saveSession(messages)`, persisting a session that has no user turn yet.
 **Reproduction:** Pick provider/model, set a system prompt preset, open the chat session, press back without sending → an empty session is now in Chat History.
 **Proposed fix:** Don't persist until the first user message is sent; keep the system-message merge in memory and only save inside `actuallySend`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - the system-prompt LaunchedEffect only persists once messages contains a user turn; the in-memory merge still applies and actuallySend saves it with the first message
 
 ### Bug 11 — Severity: MEDIUM — Category: race / lost update
 **Location:** ChatScreens.kt:704-712 (pin toggle → `ChatHistoryManager.setSessionPinned`) with ChatHistoryManager.kt:131-134
@@ -188,7 +188,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** If the dual-chat screen survives a recomposition where `messages` is restored from the Saver but the run continues (e.g. "Chat more"), the cost row resets to `0.0000c` while the conversation is intact — the displayed cost no longer matches the messages.
 **Root cause:** The four token counters are `remember { 0 }` (not `rememberSaveable`), unlike `messages`/`currentInteraction`/`targetInteractions` which are saveable.
 **Proposed fix:** Make the token counters `rememberSaveable`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - the four dual-chat token counters are now rememberSaveable, so they survive a recomposition that restores messages mid-run
 
 ### Bug 25 — Severity: MEDIUM — Category: race / concurrent loops
 **Location:** DualChatScreen.kt:438-497, 567-578, 587-596 (`startChatLoop` / Stop / "Chat more")
@@ -202,7 +202,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Same cold-pricing defect as Bug 8 — the cost rows are frozen at the pricing captured on first composition and never re-price when `PricingCache` primes.
 **Root cause:** Unkeyed `remember { derivedStateOf { … } }` closes over the first `pricing1`/`pricing2` values; `derivedStateOf` only re-evaluates on token changes, re-reading the stale pricing objects.
 **Proposed fix:** `remember(pricing1) { … }` / `remember(pricing2) { … }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - cost derivedStateOf now keyed on pricing1/pricing2 (and totalCost on both), so it re-prices when PricingCache primes
 
 ### Bug 27 — Severity: LOW — Category: missing persistence
 **Location:** DualChatScreen.kt:360-631 (whole session)

@@ -359,7 +359,8 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalCompareEngine provides reportViewModel.compareEngine,
         com.ai.ui.shared.LocalCompareOpenState provides openCompareReportId,
         com.ai.ui.shared.LocalPendingBatchOpenController provides pendingBatchOpenController,
-        com.ai.ui.shared.LocalMetaEditManager provides reportViewModel.metaEditManager
+        com.ai.ui.shared.LocalMetaEditManager provides reportViewModel.metaEditManager,
+        com.ai.ui.shared.LocalSecondaryModelSwitch provides reportViewModel.secondaryModelSwitch
     ) {
     // Regenerate-batch overlay — layered here (inside the provider) so it
     // sees the report-context locals (ids/switch/neighbor nav, icon

@@ -70,6 +70,7 @@ class MetaEditManager internal constructor(
         const val REASONING_KIND = "meta/reasoning"
         const val WEB_SEARCH_KIND = "meta/web-search"
         const val PROMPT_EDIT_KIND = "meta/prompt-edit"
+        const val MODEL_SWITCH_KIND = "meta/model-switch"
         const val WEB_SEARCH_SUFFIX = "Give the most actual information, do a websearch for this."
     }
 
@@ -122,7 +123,7 @@ class MetaEditManager internal constructor(
         val aiSettings: Settings
     )
 
-    private data class MetaVariationCallResult(
+    internal data class MetaVariationCallResult(
         val response: AnalysisResponse,
         val cost: Double?,
         val durationMs: Long,
@@ -135,14 +136,27 @@ class MetaEditManager internal constructor(
      *  reports) rows resolve against the fan-out matrix via the shared
      *  SecondaryRunManager.buildFanInResolution so a sweep / prompt-edit
      *  replays the SAME call the row was produced by. */
-    private suspend fun buildMetaReplayTask(context: Context, reportId: String, resultId: String): MetaReplayTask {
+    /** When [overrideProvider] is non-null the task is rebuilt against a
+     *  DIFFERENT provider/model (+ that selection's param presets / system
+     *  prompt) — the "Switch model / agent" flow — instead of the row's own.
+     *  The prompt resolution (scope / language / fan-in matrix) still comes
+     *  from the row, so only the model changes. */
+    private suspend fun buildMetaReplayTask(
+        context: Context, reportId: String, resultId: String,
+        overrideProvider: AppService? = null, overrideModel: String? = null,
+        overrideParamsIds: List<String>? = null, overrideSystemPromptId: String? = null
+    ): MetaReplayTask {
         val row = SecondaryResultStorage.get(context, reportId, resultId) ?: error("This result no longer exists")
         val aiSettings = appViewModel.uiState.value.aiSettings
         val promptId = row.metaPromptId ?: error("This result has no meta prompt")
         val metaPrompt = aiSettings.getInternalPromptById(promptId)
             ?: row.metaPromptName?.let { aiSettings.getInternalPromptByName(it) }
             ?: error("Meta prompt no longer exists")
-        val provider = AppService.findById(row.providerId) ?: error("Provider ${row.providerId} is not registered")
+        val provider = overrideProvider ?: AppService.findById(row.providerId)
+            ?: error("Provider ${row.providerId} is not registered")
+        val model = overrideModel ?: row.model
+        val paramsIds = if (overrideProvider != null) (overrideParamsIds ?: emptyList()) else row.secondaryParameterPresetIds.orEmpty()
+        val systemPromptId = if (overrideProvider != null) overrideSystemPromptId else row.secondarySystemPromptId
         val report = ReportStorage.getReport(context, reportId) ?: error("Report not found")
         val resolvedPrompt = if (row.fanInOf != null) {
             reportViewModel.secondary.buildFanInResolution(context, reportId, metaPrompt, report, row.targetLanguage)
@@ -180,14 +194,14 @@ class MetaEditManager internal constructor(
         }
         val agent = Agent(
             id = "meta:${row.id}", name = row.agentName,
-            provider = provider, model = row.model, apiKey = aiSettings.getApiKey(provider)
+            provider = provider, model = model, apiKey = aiSettings.getApiKey(provider)
         )
         val params = resolveSecondaryParams(
             appViewModel.uiState.value.generalSettings, aiSettings,
-            row.secondaryParameterPresetIds.orEmpty(), row.secondarySystemPromptId, metaPrompt
+            paramsIds, systemPromptId, metaPrompt
         )
         return MetaReplayTask(
-            reportId = reportId, resultId = resultId, provider = provider, model = row.model,
+            reportId = reportId, resultId = resultId, provider = provider, model = model,
             agent = agent, prompt = resolvedPrompt, resolvedParams = params,
             baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent), aiSettings = aiSettings
         )
@@ -254,6 +268,18 @@ class MetaEditManager internal constructor(
     fun regenerateMeta(context: Context, reportId: String, resultId: String): Job? {
         val row = SecondaryResultStorage.get(context, reportId, resultId) ?: return null
         return reportViewModel.secondary.resumeStaleMetaPlaceholder(context, reportId, row)
+    }
+
+    /** Run the meta / fan-in / rerank-chat call against a switched
+     *  provider/model (+ that selection's presets) and return the in-memory
+     *  candidate — used by [SecondaryModelSwitchManager] for the preview. The
+     *  candidate is NOT written to the row until the user applies it. */
+    internal suspend fun runModelSwitchMeta(
+        context: Context, reportId: String, resultId: String,
+        provider: AppService, model: String, paramsIds: List<String>, systemPromptId: String?
+    ): MetaVariationCallResult {
+        val task = buildMetaReplayTask(context, reportId, resultId, provider, model, paramsIds, systemPromptId)
+        return runMetaVariationCall(context, task, MODEL_SWITCH_KIND)
     }
 
     // ----- Temperature sweep -----
