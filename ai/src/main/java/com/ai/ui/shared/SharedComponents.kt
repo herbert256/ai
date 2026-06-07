@@ -1454,9 +1454,32 @@ fun TitleBar(
         onHelp = helpTopic?.let { { navigateHelp(it) } }
     )
     if (state != null && publishBottomBar) {
-        SideEffect { state.value = captured }
-        DisposableEffect(Unit) {
-            onDispose { if (state.value === captured) state.value = null }
+        // Bottom-bar publish is RESUME-anchored so the ACTIVE destination always
+        // wins. The old identity-on-`captured` guard let a leaving screen
+        // (e.g. Manage) keep republishing during its exit transition and then
+        // null the bar on dispose, while the entering hub's TitleBar — skipped
+        // on recomposition because its params are stable — never re-published,
+        // so the Reports-hub bar vanished after deleting a report. Fix:
+        //   - publish only while RESUMED, so a screen animating out can't
+        //     override the bar;
+        //   - re-publish on ON_RESUME, so the entering destination re-asserts
+        //     its bar after the transition settles even if its TitleBar didn't
+        //     recompose;
+        //   - clear on dispose only when we still own the current value.
+        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+        val capturedRef = androidx.compose.runtime.rememberUpdatedState(captured)
+        val resumed = { lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) }
+        SideEffect { if (resumed()) state.value = capturedRef.value }
+        DisposableEffect(lifecycleOwner) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) state.value = capturedRef.value
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            if (resumed()) state.value = capturedRef.value
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                if (state.value === capturedRef.value) state.value = null
+            }
         }
     }
     val reportIconTap = LocalNavigateToCurrentReport.current
