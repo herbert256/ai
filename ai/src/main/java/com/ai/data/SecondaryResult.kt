@@ -312,6 +312,12 @@ object SecondaryResultStorage {
                 outputCost = outputCost,
                 durationMs = durationMs,
                 traceFile = traceFile,
+                // The switched-in model produced this result, so any error from
+                // the replaced run is gone — otherwise the detail screen's error
+                // branch would keep hiding the new content (e.g. switching a
+                // failed OpenAI moderation to a working Mistral one).
+                errorMessage = null,
+                httpStatusCode = null,
                 secondaryParameterPresetIds = parameterPresetIds,
                 secondarySystemPromptId = systemPromptId,
                 responseChangeSource = RESPONSE_CHANGE_SOURCE_MODEL_SWITCH,

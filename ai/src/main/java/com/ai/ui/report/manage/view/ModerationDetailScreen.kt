@@ -59,8 +59,6 @@ internal fun ModerationDetailScreen(
     val context = LocalContext.current
     val aiSettings = com.ai.ui.shared.LocalAiSettings.current
     val modelSwitch = com.ai.ui.shared.LocalSecondaryModelSwitch.current
-    val providerService = AppService.findById(result.providerId)
-    val provider = providerService?.id ?: result.providerId
     // "second-moderation" → "moderation"; a renamed prompt passes through.
     val title = result.metaPromptName?.takeIf { it.isNotBlank() }
         ?.let { com.ai.data.secondaryPromptDisplayName(it) }
@@ -89,7 +87,14 @@ internal fun ModerationDetailScreen(
     val resultFresh by produceState<SecondaryResult?>(null, result.id, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, result.reportId, result.id) }
     }
-    val displayContent = resultFresh?.content ?: result.content
+    // Render everything a model switch can change from the fresh on-disk row, so
+    // the switch (new model, cleared error, new content) reflects without a
+    // remount — otherwise the stale error/model from the list mount would keep
+    // hiding the replaced result.
+    val eff = resultFresh ?: result
+    val providerService = AppService.findById(eff.providerId)
+    val provider = providerService?.id ?: eff.providerId
+    val displayContent = eff.content
 
     // id → "provider / model" and id → response-body maps (success-ordered,
     // 1-based) — the table resolves each [N] to a real model name, and the
@@ -126,7 +131,7 @@ internal fun ModerationDetailScreen(
             row = activeModRow,
             agentLabel = agentLabels[activeModRow.id] ?: "[${activeModRow.id}]",
             agentResponse = agentResponses[activeModRow.id].orEmpty(),
-            moderationModelLabel = com.ai.ui.shared.modelLabel(provider, result.model, separator = " / "),
+            moderationModelLabel = com.ai.ui.shared.modelLabel(provider, eff.model, separator = " / "),
             onBack = { openModerationRow = null }
         )
         return
@@ -147,7 +152,7 @@ internal fun ModerationDetailScreen(
     if (modelSwitch != null && showChangeActions) {
         ResponseChangeActionsScreen(
             title = "Change result",
-            subject = com.ai.ui.shared.modelLabel(provider, result.model, separator = " / "),
+            subject = com.ai.ui.shared.modelLabel(provider, eff.model, separator = " / "),
             actions = listOf(
                 ResponseChangeAction(
                     icon = com.ai.data.MetadataIconsHolder.current.reload,
@@ -220,7 +225,7 @@ internal fun ModerationDetailScreen(
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },
             onOpenView = onOpenViewJump,
-            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
+            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, eff.model) } } else null,
             onCopy = displayContent?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "moderation result") }
             },
@@ -237,7 +242,7 @@ internal fun ModerationDetailScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(com.ai.ui.shared.shortModelName(result.model), fontSize = 13.sp, color = AppColors.InfoAccent,
+            Text(com.ai.ui.shared.shortModelName(eff.model), fontSize = 13.sp, color = AppColors.InfoAccent,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
         }
@@ -245,9 +250,9 @@ internal fun ModerationDetailScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             when {
-                result.errorMessage != null -> {
+                eff.errorMessage != null -> {
                     Text("Error", fontSize = 14.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
-                    Text(result.errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
+                    Text(eff.errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
                 }
                 displayContent.isNullOrBlank() -> {
                     Text("(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
@@ -273,7 +278,7 @@ internal fun ModerationDetailScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this ${title.lowercase()}?") },
-            text = { Text(com.ai.ui.shared.modelLabel(provider, result.model)) },
+            text = { Text(com.ai.ui.shared.modelLabel(provider, eff.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
                     Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)

@@ -217,10 +217,13 @@ internal fun RerankDetailScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            // Read the error from the fresh row so a model switch (which clears it)
+            // stops hiding the replaced result.
+            val freshError = (resultFresh ?: result).errorMessage
             when {
-                result.errorMessage != null -> {
+                freshError != null -> {
                     Text("Error", fontSize = 14.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
-                    Text(result.errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
+                    Text(freshError, fontSize = 13.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
                 }
                 displayContent.isNullOrBlank() -> {
                     Text("(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
