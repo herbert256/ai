@@ -332,7 +332,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Three near-identical lookup ladders (`getPricing`, `getPricingWithoutOverride`, `lookupPricing`) must be kept byte-for-byte in sync; `getPricingWithoutOverride` intentionally omits the OVERRIDE step. A future tier insertion that updates only one or two of the three reintroduces the picker-vs-billed disagreement the comments warn about.
 **Root cause:** Duplicated precedence logic across three functions.
 **Proposed fix:** Factor the tier ladder into one private function parameterised by "include override?".
-**Status:** Open
+**Status:** Fixed — backup now logs unreadable/skipped files, aggregates `skippedFiles` in `BackupSummary`, and Backup/Restore surfaces a warning when a backup is partial.
 
 ### Bug 44 — Severity: LOW — Category: `-latest` alias resolution
 **Location:** PricingCache.kt:478-512 (`findLatestAliasKey`)
