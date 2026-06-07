@@ -1,6 +1,8 @@
 package com.ai.data
 
 import android.content.Context
+import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonToken
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,10 +23,13 @@ object ChatHistoryManager {
     private val _historyVersion = MutableStateFlow(0L)
     val historyVersion: StateFlow<Long> = _historyVersion.asStateFlow()
     @Volatile private var cachedSessions: List<ChatSession>? = null
+    @Volatile private var cachedHeaders: List<ChatSessionHeader>? = null
 
-    fun init(context: Context) = lock.withLock {
-        if (historyDir != null) return
-        historyDir = File(context.filesDir, HISTORY_DIR).also { if (!it.exists()) it.mkdirs() }
+    fun init(context: Context) {
+        lock.withLock {
+            if (historyDir != null) return
+            historyDir = File(context.filesDir, HISTORY_DIR).also { if (!it.exists()) it.mkdirs() }
+        }
     }
 
     fun saveSession(session: ChatSession): Boolean {
@@ -56,6 +61,7 @@ object ChatHistoryManager {
                 if (ok) {
                     AppLog.d("ChatHistory", "save ${session.id} msgs=${session.messages.size} bytes=${json.length}")
                     cachedSessions = null
+                    cachedHeaders = null
                     notifyHistoryChanged()
                 }
                 ok
@@ -100,6 +106,20 @@ object ChatHistoryManager {
         }
     }
 
+    fun getSessionHeaders(): List<ChatSessionHeader> {
+        cachedHeaders?.let { return it }
+        val dir = historyDir ?: return emptyList()
+        if (!dir.exists()) return emptyList()
+        return lock.withLock {
+            cachedHeaders?.let { return it }
+            val headers = dir.listFiles { f -> f.extension == "json" }?.mapNotNull(::readSessionHeader)
+                ?.sortedByDescending { it.updatedAt }
+                ?: emptyList()
+            cachedHeaders = headers
+            headers
+        }
+    }
+
     fun deleteSession(sessionId: String): Boolean {
         val dir = historyDir ?: return false
         if (!isSafeSessionFile(dir, sessionId)) {
@@ -114,7 +134,10 @@ object ChatHistoryManager {
             // don't deadlock if their callback re-enters this object.
             val deleted = lock.withLock {
                 val ok = File(dir, "$sessionId.json").delete()
-                if (ok) cachedSessions = null
+                if (ok) {
+                    cachedSessions = null
+                    cachedHeaders = null
+                }
                 ok
             }
             if (deleted) {
@@ -144,6 +167,7 @@ object ChatHistoryManager {
                 val ok = file.writeTextAtomic(json)
                 if (ok) {
                     cachedSessions = null
+                    cachedHeaders = null
                     notifyHistoryChanged()
                 }
                 ok
@@ -161,6 +185,7 @@ object ChatHistoryManager {
             var count = 0
             dir.listFiles { f -> f.extension == "json" }?.forEach { if (it.delete()) count++ }
             cachedSessions = null
+            cachedHeaders = null
             if (count > 0) notifyHistoryChanged()
             count
         }
@@ -189,10 +214,96 @@ object ChatHistoryManager {
     }
 
     suspend fun getAllSessionsAsync() = withContext(Dispatchers.IO) { getAllSessions() }
+    suspend fun getSessionHeadersAsync() = withContext(Dispatchers.IO) { getSessionHeaders() }
     suspend fun getSessionCountAsync() = withContext(Dispatchers.IO) { getSessionCount() }
 
     // Monotonic counter, not wall-clock (Bug 26): two mutations in the same
     // millisecond would set _historyVersion to an equal value and StateFlow
     // drops equal emissions, so a collector keyed on it could miss a refresh.
     private fun notifyHistoryChanged() { _historyVersion.update { it + 1 } }
+
+    private fun readSessionHeader(file: File): ChatSessionHeader? = try {
+        file.bufferedReader().use { reader ->
+            JsonReader(reader).use { json ->
+                var id = file.nameWithoutExtension
+                var title = ""
+                var pinned = false
+                var updatedAt = file.lastModified()
+                var preview: String? = null
+                var lastVisibleRole: String? = null
+                json.beginObject()
+                while (json.hasNext()) {
+                    when (json.nextName()) {
+                        "id" -> id = json.nextStringOrNull() ?: id
+                        "title" -> title = json.nextStringOrNull().orEmpty()
+                        "pinned" -> pinned = json.nextBooleanOrDefault(false)
+                        "updatedAt" -> updatedAt = json.nextLongOrDefault(updatedAt)
+                        "messages" -> {
+                            json.beginArray()
+                            while (json.hasNext()) {
+                                val message = json.readMessageHeader()
+                                val role = message.first
+                                val content = message.second
+                                if (role != null && role != "system") lastVisibleRole = role
+                                if (role == "user" && preview == null) preview = content.orEmpty().take(50)
+                            }
+                            json.endArray()
+                        }
+                        else -> json.skipValue()
+                    }
+                }
+                json.endObject()
+                ChatSessionHeader(
+                    id = id,
+                    title = title,
+                    preview = preview ?: "Empty chat",
+                    pinned = pinned,
+                    updatedAt = updatedAt,
+                    lastVisibleRole = lastVisibleRole
+                )
+            }
+        }
+    } catch (e: Exception) {
+        AppLog.e("ChatHistory", "Failed to parse header: ${e.message}")
+        null
+    }
+
+    private fun JsonReader.readMessageHeader(): Pair<String?, String?> {
+        var role: String? = null
+        var content: String? = null
+        beginObject()
+        while (hasNext()) {
+            when (nextName()) {
+                "role" -> role = nextStringOrNull()
+                "content" -> content = nextStringOrNull()
+                else -> skipValue()
+            }
+        }
+        endObject()
+        return role to content
+    }
+
+    private fun JsonReader.nextStringOrNull(): String? =
+        if (peek() == JsonToken.NULL) {
+            nextNull()
+            null
+        } else {
+            nextString()
+        }
+
+    private fun JsonReader.nextBooleanOrDefault(default: Boolean): Boolean =
+        if (peek() == JsonToken.NULL) {
+            nextNull()
+            default
+        } else {
+            nextBoolean()
+        }
+
+    private fun JsonReader.nextLongOrDefault(default: Long): Long =
+        if (peek() == JsonToken.NULL) {
+            nextNull()
+            default
+        } else {
+            nextLong()
+        }
 }

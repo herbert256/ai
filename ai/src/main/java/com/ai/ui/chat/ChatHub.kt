@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ChatHistoryManager
+import com.ai.data.ChatSessionHeader
 import com.ai.data.MetadataDefaults
 import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
@@ -61,8 +62,8 @@ fun ChatsHubScreen(
         }
     }
     val historyVersion by ChatHistoryManager.historyVersion.collectAsState()
-    val allSessionsForHub by produceState<List<com.ai.data.ChatSession>>(initialValue = emptyList(), historyVersion) {
-        value = ChatHistoryManager.getAllSessionsAsync().sortedByDescending { it.updatedAt }
+    val allSessionsForHub by produceState<List<ChatSessionHeader>>(initialValue = emptyList(), historyVersion) {
+        value = ChatHistoryManager.getSessionHeadersAsync()
     }
     val hasChatHistory = allSessionsForHub.isNotEmpty()
     val pinnedSessions = allSessionsForHub.filter { it.pinned }
@@ -73,8 +74,7 @@ fun ChatsHubScreen(
     // before the stream started, the cancellation re-throws before the
     // assistant message is appended.
     val unfinishedSessions = allSessionsForHub.filter { s ->
-        val lastUserVisible = s.messages.lastOrNull { it.role != "system" }
-        lastUserVisible?.role == "user"
+        s.lastVisibleRole == "user"
     }
     var photoError by remember { mutableStateOf<String?>(null) }
     val launchCamera = com.ai.ui.shared.rememberCameraCaptureLauncher(
@@ -146,7 +146,7 @@ fun ChatsHubScreen(
  *  sections. Each row shows the first user message preview, provider /
  *  model, and updated timestamp; tap resumes that session. */
 @Composable
-private fun ChatListCard(title: String, icon: String?, sessions: List<com.ai.data.ChatSession>, onResume: (String) -> Unit) {
+private fun ChatListCard(title: String, icon: String?, sessions: List<ChatSessionHeader>, onResume: (String) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)

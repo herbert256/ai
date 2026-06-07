@@ -248,7 +248,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The hub loads and parses **every** chat session JSON into memory on each `historyVersion` change, then iterates all of them to compute pinned / recent / unfinished. With a large history this is a heavy disk + parse pass just to render three short lists.
 **Root cause:** `getAllSessionsAsync()` returns full `ChatSession` objects (including image blobs) for the whole history; the hub only needs lightweight headers.
 **Proposed fix:** Add a lightweight session-header projection (id, title, preview, pinned, updatedAt, lastRole) to `ChatHistoryManager`.
-**Status:** Open
+**Status:** Fixed in `ChatHistoryManager.kt` / `ChatHub.kt` by adding a streaming `ChatSessionHeader` projection and using it for pinned/recent/unfinished hub sections.
 
 ### Bug 33 — Severity: LOW — Category: redundant I/O
 **Location:** ChatHub.kt:64-69 (`hasChatHistory` + `allSessionsForHub`)
