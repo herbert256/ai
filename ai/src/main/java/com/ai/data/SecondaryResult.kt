@@ -390,22 +390,35 @@ object SecondaryResultStorage {
             catch (_: Exception) { return incoming }
         val priorIn = existing.inputCost ?: 0.0
         val priorOut = existing.outputCost ?: 0.0
-        val priorInTokens = existing.tokenUsage?.inputTokens ?: 0
-        val priorOutTokens = existing.tokenUsage?.outputTokens ?: 0
-        if (priorIn == 0.0 && priorOut == 0.0 && priorInTokens == 0 && priorOutTokens == 0) {
+        val priorUsage = existing.tokenUsage
+        if (priorIn == 0.0 && priorOut == 0.0 &&
+            (priorUsage == null || (priorUsage.totalTokens == 0 && priorUsage.apiCost == null))) {
             return incoming
         }
         val newIn = incoming.inputCost ?: 0.0
         val newOut = incoming.outputCost ?: 0.0
-        val newInTokens = incoming.tokenUsage?.inputTokens ?: 0
-        val newOutTokens = incoming.tokenUsage?.outputTokens ?: 0
+        val newUsage = incoming.tokenUsage
         return incoming.copy(
             inputCost = priorIn + newIn,
             outputCost = priorOut + newOut,
-            tokenUsage = TokenUsage(
-                inputTokens = priorInTokens + newInTokens,
-                outputTokens = priorOutTokens + newOutTokens
-            )
+            tokenUsage = mergeTokenUsage(priorUsage, newUsage)
+        )
+    }
+
+    private fun mergeTokenUsage(prior: TokenUsage?, incoming: TokenUsage?): TokenUsage? {
+        if (prior == null && incoming == null) return null
+        val apiCost = if (prior?.apiCost != null || incoming?.apiCost != null) {
+            (prior?.apiCost ?: 0.0) + (incoming?.apiCost ?: 0.0)
+        } else {
+            null
+        }
+        return TokenUsage(
+            inputTokens = (prior?.inputTokens ?: 0) + (incoming?.inputTokens ?: 0),
+            outputTokens = (prior?.outputTokens ?: 0) + (incoming?.outputTokens ?: 0),
+            apiCost = apiCost,
+            cachedInputTokens = (prior?.cachedInputTokens ?: 0) + (incoming?.cachedInputTokens ?: 0),
+            cacheCreationTokens = (prior?.cacheCreationTokens ?: 0) + (incoming?.cacheCreationTokens ?: 0),
+            reasoningTokens = (prior?.reasoningTokens ?: 0) + (incoming?.reasoningTokens ?: 0)
         )
     }
 

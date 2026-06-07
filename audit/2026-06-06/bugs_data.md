@@ -457,7 +457,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** On a Regenerate re-dispatch, the merged `TokenUsage` is rebuilt as `TokenUsage(inputTokens, outputTokens)` only — `cachedInputTokens`, `cacheCreationTokens`, and `reasoningTokens` are dropped, so the displayed token breakdown for an accumulated secondary loses its cache/reasoning components.
 **Root cause:** The merge constructs a 2-field TokenUsage instead of summing all buckets.
 **Proposed fix:** Sum all `TokenUsage` buckets when merging prior + new.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — secondary regenerate cost merging now sums every TokenUsage bucket, including cached, cache-creation, reasoning, and apiCost values
 
 ### Bug 60 — Severity: LOW — Category: list cache mtime granularity
 **Location:** SecondaryResult.kt:34-35, 159-180 (`CachedEntry` mtime+length check)
