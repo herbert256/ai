@@ -403,7 +403,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Moderation top-scores and the per-category detail scores render with commas on a comma-decimal device.
 **Root cause:** Default-locale `format`.
 **Proposed fix:** Pin `Locale.US`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Moderation table top scores and detail scores now format with `Locale.US`
 
 ## File: ai/src/main/java/com/ai/ui/helpers/ThinkSectionContent.kt
 
