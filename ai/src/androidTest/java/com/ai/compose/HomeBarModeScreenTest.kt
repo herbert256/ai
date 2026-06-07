@@ -75,8 +75,10 @@ class HomeBarModeScreenTest {
                 FirstLaunchScreen(
                     onImportApiKeys = {},
                     onAiSetup = {},
+                    onExampleReports = {},
                     onHousekeeping = {},
                     onSettings = {},
+                    onMainHelp = {},
                     onAbout = {}
                 )
             }
@@ -85,8 +87,10 @@ class HomeBarModeScreenTest {
         rule.onNodeWithText("First launch").assertIsDisplayed()
         rule.onNodeWithText("Import API keys").assertIsDisplayed()
         rule.onNodeWithText("AI Setup").assertIsDisplayed()
+        rule.onNodeWithText("Example reports").assertIsDisplayed()
         rule.onNodeWithText("Housekeeping").assertIsDisplayed()
         rule.onNodeWithText("Settings").assertIsDisplayed()
+        rule.onNodeWithText("Help").assertIsDisplayed()
         rule.onNodeWithText("About").assertIsDisplayed()
     }
 }
