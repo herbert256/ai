@@ -395,7 +395,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Several disk-backed pricing-cache reads run synchronously inside `remember(provider, modelName)` on the main thread during composition; on a cold cache these can hitch the screen open.
 **Root cause:** They are in `remember` blocks, not `produceState`/IO (unlike the OR/HF/usage lookups which were moved off-thread).
 **Proposed fix:** Move the raw-entry / breakdown reads into `produceState(...) { withContext(IO) { … } }`.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — model-info manage/view screens now load manual pricing, raw catalog entries, and tier breakdowns through `produceState` on `Dispatchers.IO` instead of synchronous `remember` reads.
 
 ### Bug 51 — Severity: LOW — Category: cosmetic
 **Location:** ModelScreens.kt:1408-1416 (`colorizeJson` bareword matching)

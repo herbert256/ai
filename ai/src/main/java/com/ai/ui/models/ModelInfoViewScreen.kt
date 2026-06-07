@@ -329,23 +329,38 @@ fun ModelInfoViewScreen(
         )
 
         // Pre-compute every per-source raw JSON string + the typed-
-        // source data so the Sources card can render the seven
-        // buttons immediately.
+        // source data off the main thread so the Sources card can
+        // render without doing disk-backed catalog reads in composition.
         val gson = remember { createAppGson(prettyPrint = true) }
-        val liteLLMRaw = remember(provider, modelName) {
-            PricingCache.getLiteLLMRawEntry(context, provider, modelName)
+        val liteLLMRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getLiteLLMRawEntry(context, provider, modelName)
+            }
         }
-        val modelsDevRaw = remember(provider, modelName) {
-            PricingCache.getModelsDevRawEntry(context, provider, modelName)
+        val modelsDevRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getModelsDevRawEntry(context, provider, modelName)
+            }
         }
-        val heliconeRaw = remember(provider, modelName) {
-            PricingCache.getHeliconeRawEntry(context, provider, modelName)
+        val heliconeRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getHeliconeRawEntry(context, provider, modelName)
+            }
         }
-        val llmPricesRaw = remember(provider, modelName) {
-            PricingCache.getLLMPricesRawEntry(context, provider, modelName)
+        val llmPricesRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getLLMPricesRawEntry(context, provider, modelName)
+            }
         }
-        val aaRaw = remember(provider, modelName) {
-            PricingCache.getArtificialAnalysisRawEntry(context, provider, modelName)
+        val aaRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getArtificialAnalysisRawEntry(context, provider, modelName)
+            }
+        }
+        val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getTierBreakdown(context, provider, modelName)
+            }
         }
 
         // Workers — agents / flocks / swarms matching this model.
@@ -394,7 +409,7 @@ fun ModelInfoViewScreen(
             }
 
             // 4) Costs — per-tier rows; NO Add manual cost override.
-            item { CostsCard(provider = provider, modelName = modelName) }
+            item { CostsCard(tierBreakdown = tierBreakdown) }
 
             // (Provider card removed — provider name in HeroCard is
             // the clickable entry point to the View Provider screen.)
@@ -713,22 +728,20 @@ private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean
 }
 
 @Composable
-private fun CostsCard(provider: AppService, modelName: String) {
-    val context = LocalContext.current
-    val breakdown = remember(provider, modelName) {
-        PricingCache.getTierBreakdown(context, provider, modelName)
-    }
+private fun CostsCard(tierBreakdown: PricingCache.TierBreakdown?) {
     val rows = listOfNotNull(
-        breakdown.litellm?.let { "LiteLLM" to it },
-        breakdown.modelsDev?.let { "models.dev" to it },
-        breakdown.helicone?.let { "Helicone" to it },
-        breakdown.llmPrices?.let { "llm-prices.com" to it },
-        breakdown.artificialAnalysis?.let { "Artificial Analysis" to it },
-        breakdown.openrouter?.let { "OpenRouter" to it },
-        breakdown.override?.let { "Override" to it }
+        tierBreakdown?.litellm?.let { "LiteLLM" to it },
+        tierBreakdown?.modelsDev?.let { "models.dev" to it },
+        tierBreakdown?.helicone?.let { "Helicone" to it },
+        tierBreakdown?.llmPrices?.let { "llm-prices.com" to it },
+        tierBreakdown?.artificialAnalysis?.let { "Artificial Analysis" to it },
+        tierBreakdown?.openrouter?.let { "OpenRouter" to it },
+        tierBreakdown?.override?.let { "Override" to it }
     )
     SectionCard(title = "Costs (per million tokens)") {
-        if (rows.isEmpty()) {
+        if (tierBreakdown == null) {
+            Text("Loading cost sources…", fontSize = 12.sp, color = AppColors.TextTertiary)
+        } else if (rows.isEmpty()) {
             Text(
                 "No catalog entry — lookup falls back to the built-in default.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
