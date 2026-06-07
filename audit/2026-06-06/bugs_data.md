@@ -513,7 +513,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The backup zip stores `MAIN_PREFS` (which holds API keys) and `Agent.apiKey` (SettingsModels.kt:111) verbatim in plaintext; anyone with the zip has every key.
 **Root cause:** Keys must restore, so they're included unencrypted (by design) — but there's no warning or optional encryption.
 **Proposed fix:** Offer an optional passphrase-encrypted backup, or at minimum warn the user the zip contains plaintext keys.
-**Status:** Open (design tradeoff; flag for awareness)
+**Status:** Fixed (2026-06-07) — Backup & Restore shows a prominent plaintext-key warning before creating a backup zip.
 
 ### Bug 67 — Severity: LOW — Category: manifest version parse strictness
 **Location:** BackupManager.kt:422-445 (`readManifestVersion`)
