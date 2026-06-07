@@ -126,21 +126,33 @@ fun LocalSearchScreen(
 
 private data class LocalSearchHit(val reportId: String, val title: String, val timestamp: String, val epoch: Long, val score: Int, val icon: String?)
 
+/** Per-token matcher. ASCII tokens use `\b` word boundaries so a short token
+ *  ("in") doesn't match inside unrelated words ("rain", "window"). Tokens with
+ *  any non-ASCII letter (café, schöne, CJK, Cyrillic…) fall back to plain
+ *  substring matching — Java/Kotlin `\b` is ASCII-only and never matches around
+ *  a non-ASCII letter, so the boundary form would silently score 0 (audit
+ *  chat#55). */
+internal fun localSearchTokenRegex(token: String): Regex {
+    val asciiWord = token.isNotEmpty() && token.all { it in 'a'..'z' || it in '0'..'9' || it == '_' }
+    return if (asciiWord) Regex("\\b" + Regex.escape(token) + "\\b")
+    else Regex(Regex.escape(token))
+}
+
+/** Sum of every token's match count in [haystack] (caller lowercases both). */
+internal fun localSearchScore(haystack: String, tokens: List<String>): Int =
+    tokens.sumOf { localSearchTokenRegex(it).findAll(haystack).count() }
+
 private fun runLocalSearch(context: android.content.Context, query: String): List<LocalSearchHit> {
     val tokens = query.lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotBlank() }
     if (tokens.isEmpty()) return emptyList()
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
     val reports: List<Report> = ReportStorage.getAllReports(context)
-    // Word-boundary token matching so short tokens (e.g. "in") don't match
-    // inside unrelated words ("rain", "window") and inflate the score.
-    val tokenRegexes = tokens.map { Regex("\\b" + Regex.escape(it) + "\\b") }
     return reports.mapNotNull { r ->
         val sb = StringBuilder()
         sb.append(r.title).append('\n').append(r.prompt).append('\n')
         for (a in r.agents) a.responseBody?.takeIf { it.isNotBlank() }?.let { sb.append(it).append('\n') }
         val haystack = sb.toString().lowercase(Locale.ROOT)
-        var score = 0
-        for (re in tokenRegexes) score += re.findAll(haystack).count()
+        val score = localSearchScore(haystack, tokens)
         if (score == 0) null
         else LocalSearchHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), r.timestamp, score, r.icon)
     }.sortedWith(compareByDescending<LocalSearchHit> { it.score }.thenByDescending { it.epoch }).take(25)

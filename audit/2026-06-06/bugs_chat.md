@@ -440,7 +440,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** Java/Kotlin `\b` is defined against ASCII `\w` (`[A-Za-z0-9_]`) by default. For a token like `café`, the trailing `\b` sits between `é` (non-word) and the next char and never matches; for CJK tokens neither boundary matches. The regex is compiled without `UNICODE_CHARACTER_CLASS`.
 **Reproduction:** On the nl-NL device, search a report containing "café" for `café` → no results.
 **Proposed fix:** Use Unicode-aware boundaries (`Pattern.UNICODE_CHARACTER_CLASS` / `(?U)`), or fall back to substring matching for tokens with non-ASCII letters.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - localSearchTokenRegex uses \b only for ASCII tokens; non-ASCII tokens (café/CJK/Cyrillic) fall back to substring matching
 
 ---
 
