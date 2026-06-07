@@ -224,7 +224,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** After a long catalog fetch, the capability recompute saves `aiSettings.recomputeAllCapabilities()` where `aiSettings` is the snapshot captured at composition. Any unrelated settings change committed during the fetch window is rolled back by this save.
 **Root cause:** The lambda closes over the composition-time `aiSettings` rather than re-reading the latest.
 **Proposed fix:** Re-read the current settings inside the save, or fold the recompute into the VM with the live snapshot.
-**Status:** Open
+**Status:** Fixed — the LiteLLM and models.dev refresh callbacks now recompute capabilities from `rememberUpdatedState(aiSettings)` after the long fetch completes, avoiding saves based on the composition-time settings snapshot.
 
 ### Bug 24 — Severity: LOW — Category: non-cancelable modal / state loss
 **Location:** RefreshScreen.kt:62-73,92-98,146-317 (per-tier result vars + `showXDialog`, all plain `remember`)

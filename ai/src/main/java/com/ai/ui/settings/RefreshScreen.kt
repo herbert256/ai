@@ -53,6 +53,7 @@ fun RefreshScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val latestAiSettings by rememberUpdatedState(aiSettings)
 
     var progressTitle by remember { mutableStateOf("") }
     var progressText by remember { mutableStateOf("") }
@@ -335,14 +336,14 @@ fun RefreshScreen(
         litellmResult = n
         // Catalog answers may have shifted — refresh the precomputed
         // vision / web-search sets so list renders pick up the new state.
-        if (n != null) onSave(aiSettings.recomputeAllCapabilities())
+        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
         if (showDialogAtEnd) showLiteLLMDialog = true
     }
     val runModelsDev: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading models.dev/api.json"
         val n = PricingCache.fetchModelsDevOnline(context)
         modelsDevResult = n
-        if (n != null) onSave(aiSettings.recomputeAllCapabilities())
+        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
         if (showDialogAtEnd) showModelsDevDialog = true
     }
     val runHelicone: suspend (Boolean) -> Unit = { showDialogAtEnd ->
