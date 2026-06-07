@@ -376,7 +376,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** With "One language" selected, tapping "Export all (zip)" produces a zip containing only that single language, despite the Language card's copy describing the all-languages layout ("one top-level directory per language").
 **Root cause:** "Export all" forwards the same `exportLanguage` the single "Export" button uses; when `ONE_LANGUAGE` is selected `exportLanguage` is `Single(name)`, so `bulkExportAndShare` falls into its flat single-language layout.
 **Proposed fix:** Either force `ExportLanguage.All` for the Export-all button, or update the help text to state Export-all honours the One-language selection.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Export all (zip) now always requests `ExportLanguage.All`, while single export still honors the selected scope
 
 ## File: ai/src/main/java/com/ai/ui/helpers/PricingFormat.kt
 
