@@ -141,7 +141,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Error responses call `response.errorBody()?.string()` (Retrofit) which is fine, but the success branches read `response.body()` once; for a body that fails mid-parse there is no explicit close. Retrofit closes for typed bodies, but the mixed raw/typed code paths are inconsistent.
 **Root cause:** Mixed Retrofit-typed and manual body handling across the dispatch functions.
 **Proposed fix:** Audit each branch ensures the ResponseBody is consumed/closed; standardise on Retrofit-typed responses where possible.
-**Status:** Open (unconfirmed)
+**Status:** Fixed (2026-06-07) — audited the listed branches: they use Retrofit typed bodies on success and consume `errorBody().string()` on error; no extra raw ResponseBody lifetime remains in those paths.
 
 ### Bug 19 — Severity: LOW — Category: default max_tokens
 **Location:** ApiDispatch.kt:24-25 (`defaultMaxTokens`)
