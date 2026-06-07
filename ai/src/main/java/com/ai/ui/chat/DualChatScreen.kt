@@ -405,11 +405,13 @@ fun DualChatSessionScreen(
     var chatJob by remember { mutableStateOf<Job?>(null) }
     var extraChatsText by rememberSaveable { mutableStateOf("10") }
 
-    // Cost tracking
-    var model1InputTokens by remember { mutableIntStateOf(0) }
-    var model1OutputTokens by remember { mutableIntStateOf(0) }
-    var model2InputTokens by remember { mutableIntStateOf(0) }
-    var model2OutputTokens by remember { mutableIntStateOf(0) }
+    // Cost tracking — rememberSaveable so the counters survive a recomposition
+    // that restores `messages` from the Saver while the run continues; plain
+    // remember reset them to 0, desyncing the displayed cost (audit chat#24).
+    var model1InputTokens by rememberSaveable { mutableIntStateOf(0) }
+    var model1OutputTokens by rememberSaveable { mutableIntStateOf(0) }
+    var model2InputTokens by rememberSaveable { mutableIntStateOf(0) }
+    var model2OutputTokens by rememberSaveable { mutableIntStateOf(0) }
     // Recompute pricing whenever PricingCache fully primes (its
     // preloadCompleted flag flips). Without that, an unkeyed
     // remember{} latched DEFAULT_PRICING on first composition during

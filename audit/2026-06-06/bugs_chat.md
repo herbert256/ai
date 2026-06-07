@@ -188,7 +188,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** If the dual-chat screen survives a recomposition where `messages` is restored from the Saver but the run continues (e.g. "Chat more"), the cost row resets to `0.0000c` while the conversation is intact — the displayed cost no longer matches the messages.
 **Root cause:** The four token counters are `remember { 0 }` (not `rememberSaveable`), unlike `messages`/`currentInteraction`/`targetInteractions` which are saveable.
 **Proposed fix:** Make the token counters `rememberSaveable`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - the four dual-chat token counters are now rememberSaveable, so they survive a recomposition that restores messages mid-run
 
 ### Bug 25 — Severity: MEDIUM — Category: race / concurrent loops
 **Location:** DualChatScreen.kt:438-497, 567-578, 587-596 (`startChatLoop` / Stop / "Chat more")
