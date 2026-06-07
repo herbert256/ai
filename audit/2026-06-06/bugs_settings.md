@@ -543,4 +543,4 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Per-item restart/delete in the detail overlay always `viewing = null` (closes the overlay) rather than reloading the remaining items, so a user fixing items one at a time is bounced back to the batch list after each action instead of staying on the (now-shorter) item list.
 **Root cause:** The detail handlers close the overlay instead of re-running `loadItems`.
 **Proposed fix:** Re-load the item list and stay on the detail screen when items remain.
-**Status:** Open
+**Status:** Fixed in `BrokenWorkScreen.kt` by keeping the detail overlay open during actions and reloading its item list after the busy state clears, closing only when no rows remain.
