@@ -163,6 +163,9 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val agent = report.agents.find { it.agentId == agentId } ?: return@withLock false
+            val duplicateSuccessForTrace = status == ReportStatus.SUCCESS &&
+                traceFile != null &&
+                agent.traceFile == traceFile
             agent.reportStatus = status
             agent.httpStatus = httpStatus
             if (requestHeaders != null) agent.requestHeaders = requestHeaders
@@ -200,22 +203,25 @@ object ReportStorage {
             // new) instead of just the latest call's expenditure.
             // For fresh runs the prior is null/0 so additive ≡
             // overwrite — no change in behaviour. Error paths
-            // pass cost=null and so don't touch the counters.
-            if (tokenUsage != null) {
+            // pass cost=null and so don't touch the counters. A
+            // duplicate SUCCESS for the same trace is idempotent so
+            // retry/fallback bookkeeping cannot double-count a single
+            // API attempt.
+            if (tokenUsage != null && !duplicateSuccessForTrace) {
                 agent.tokenUsage = TokenUsage(
                     inputTokens = (agent.tokenUsage?.inputTokens ?: 0) + tokenUsage.inputTokens,
                     outputTokens = (agent.tokenUsage?.outputTokens ?: 0) + tokenUsage.outputTokens
                 )
             }
-            if (cost != null) {
+            if (cost != null && !duplicateSuccessForTrace) {
                 agent.cost = (agent.cost ?: 0.0) + cost
             }
-            if (inputCost != null) agent.inputCost = (agent.inputCost ?: 0.0) + inputCost
-            if (outputCost != null) agent.outputCost = (agent.outputCost ?: 0.0) + outputCost
+            if (inputCost != null && !duplicateSuccessForTrace) agent.inputCost = (agent.inputCost ?: 0.0) + inputCost
+            if (outputCost != null && !duplicateSuccessForTrace) agent.outputCost = (agent.outputCost ?: 0.0) + outputCost
             // Recompute the report total whenever any cost field changed,
             // not only on the primary-cost path (Bug 28): an icon-cost bump
             // arriving with cost=null would otherwise leave totalCost stale.
-            if (cost != null || inputCost != null || outputCost != null) {
+            if (!duplicateSuccessForTrace && (cost != null || inputCost != null || outputCost != null)) {
                 report.totalCost = computeReportTotalCost(report)
             }
             if (durationMs != null) agent.durationMs = durationMs
@@ -227,7 +233,7 @@ object ReportStorage {
             // Functional line for the model call (success only — an errored
             // call already has its central technical line and per spec gets
             // no functional line).
-            if (status == ReportStatus.SUCCESS) {
+            if (status == ReportStatus.SUCCESS && !duplicateSuccessForTrace) {
                 AuditLog.append(reportId, "Response received for report model ${agent.provider}/${agent.model}")
             }
             true

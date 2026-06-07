@@ -410,7 +410,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Cost and token counts are *added* onto the existing values on every status update. If a single dispatch results in two `markAgentSuccess` calls for the same agent (e.g. a retry path that both the streaming collector and a fallback non-streaming path report), the agent's cost is double-counted.
 **Root cause:** Additive accumulation with no per-attempt idempotency key; correctness relies on exactly-once success reporting per dispatch.
 **Proposed fix:** Key cost additions by an attempt/trace id and dedupe, or have the dispatcher reset-then-add per attempt.
-**Status:** Open (unconfirmed; depends on exactly-once success reporting)
+**Status:** Fixed (2026-06-07) — primary SUCCESS cost/token additions are now idempotent for the same trace file, preserving additive regenerate costs across distinct traces while deduping duplicate success bookkeeping for one API attempt
 
 ### Bug 54 — Severity: LOW — Category: serialized cross-report writes
 **Location:** ReportStorage.kt:44, all mutators (`lock`)
