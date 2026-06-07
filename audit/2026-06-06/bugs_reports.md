@@ -11,7 +11,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The Get-info job list re-reads the whole report from disk and rebuilds every row on any unrelated `Settings` re-emit while the screen is open.
 **Root cause:** `produceState` keys on the entire `settings: Settings` object identity, plus `runningInfoJobs`, `iconGenEnabled`, etc. `buildInfoJobs` only reads `settings.internalPrompts` (icon/title/language prompt resolution); keying on the whole Settings makes every settings churn re-trigger the IO read of the report.
 **Proposed fix:** Key the `produceState` on `settings.internalPrompts` instead of `settings` (the only slice `buildInfoJobs` consumes).
-**Status:** Fixed (2026-06-07) — fenced code blocks are now extracted to placeholders before inline markdown conversion and restored afterward
+**Status:** Open
 
 ### Bug 2 — Severity: LOW — Category: misleading status classifier
 **Location:** GetInfo.kt:246-254 (`titleStateFor`), 270-276 (model-title row)
@@ -337,7 +337,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** `**bold**`, `*em*`, and `#`/`##`/`###` headings *inside* a fenced code block get converted to `<strong>`/`<em>`/`<h*>` in the HTML export, mangling code samples.
 **Root cause:** The code-fence regex wraps fences in `<pre><code>…</code></pre>` first (line 1325), but the subsequent inline/heading `replace` passes operate on the whole string, including the text already inside `<pre>`.
 **Proposed fix:** Extract fenced code blocks into placeholders (as is done for tables) before the inline passes, and re-insert them after.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — fenced code blocks are now extracted to placeholders before inline markdown conversion and restored afterward
 
 ### Bug 42 — Severity: LOW — Category: back-translation dropped from Original tab
 **Location:** ReportExport.kt:489-500 (`originalSecondary = nonTranslateSecondary.filter { it.targetLanguage == null }`), 534-541
@@ -360,7 +360,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A table cell containing an escaped pipe (`\|`) is split into extra columns, then truncated back to the header width (line 45-49), silently losing the cell content after the escaped pipe.
 **Root cause:** `split("|")` doesn't honour `\|` escapes that GFM allows inside cells.
 **Proposed fix:** Split on unescaped pipes only (e.g. a regex with a negative-lookbehind for `\`) and unescape `\|` → `|` afterward.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — table rows now split only on unescaped pipes and unescape `\|` inside cells
 
 ### Bug 45 — Severity: LOW — Category: pipe-less GFM tables not detected
 **Location:** MarkdownTables.kt:31 (`isHeader = line.trimStart().startsWith("|") && ...`)

@@ -76,7 +76,30 @@ private fun splitTableRow(line: String): List<String> {
     var s = line.trim()
     if (s.startsWith("|")) s = s.substring(1)
     if (s.endsWith("|")) s = s.substring(0, s.length - 1)
-    return s.split("|").map { it.trim() }
+    val cells = mutableListOf<String>()
+    val current = StringBuilder()
+    var escaping = false
+    for (ch in s) {
+        when {
+            escaping && ch == '|' -> {
+                current.append('|')
+                escaping = false
+            }
+            escaping -> {
+                current.append('\\').append(ch)
+                escaping = false
+            }
+            ch == '\\' -> escaping = true
+            ch == '|' -> {
+                cells.add(current.toString().trim())
+                current.clear()
+            }
+            else -> current.append(ch)
+        }
+    }
+    if (escaping) current.append('\\')
+    cells.add(current.toString().trim())
+    return cells
 }
 
 private fun parseAlignments(separator: String): List<TableAlign> = splitTableRow(separator).map { spec ->
