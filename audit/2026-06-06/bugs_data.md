@@ -88,7 +88,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The captured `backoffPermitYielder` lambda and `benchSignal` AtomicBoolean are propagated onto the worker and restored in `finally`. If the same originating coroutine submits two concurrent OkHttp calls that both run on pooled worker threads, both share the *same* `benchSignal` AtomicBoolean reference; a 429 on either sets it `true`, and the batch loop can't tell which item should be requeued.
 **Root cause:** A single per-attempt signal object is shared by reference across sibling calls that originate under the same context element.
 **Proposed fix:** Confirm `runThrottledBatch` installs a fresh `benchSignal` per *item* (not per batch); if a coroutine can launch >1 OkHttp call under one signal, scope the signal per dispatched call.
-**Status:** Open (unconfirmed — depends on runThrottledBatch granularity)
+**Status:** Fixed (2026-06-07) — confirmed `runThrottledBatch` allocates a fresh `AtomicBoolean` inside each bench item attempt and installs it only around that item body; no shared batch-level signal exists.
 
 ## File: ai/src/main/java/com/ai/data/ApiClient.kt
 
