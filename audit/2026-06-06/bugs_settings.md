@@ -455,7 +455,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** `isUrl` requires the entire trimmed text to be a single whitespace-free token starting with http(s)://. A shared URL with any surrounding text, a trailing label, or a markdown link (`[x](https://…)`) is not recognized, so the "Add to Knowledge as URL" affordance is hidden for many real share payloads (browsers often append the page title to EXTRA_TEXT).
 **Root cause:** Whole-string match with a no-internal-whitespace rule.
 **Proposed fix:** Extract the first http(s) token from the text rather than requiring the entire payload to be the URL.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — SharedContent now extracts the first embedded http(s) URL and the Knowledge handoff queues that URL instead of the whole shared text.
 
 ---
 

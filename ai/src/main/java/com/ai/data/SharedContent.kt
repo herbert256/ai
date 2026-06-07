@@ -28,12 +28,16 @@ data class SharedContent(
 ) {
     val isEmpty: Boolean get() = text.isNullOrBlank() && uris.isEmpty()
 
-    /** True when [text] looks like a URL — single non-whitespace
-     *  token starting with http(s)://. Used by the chooser to
+    /** First http(s) URL embedded in [text], accepting browser shares
+     *  that include a page title or markdown link instead of a bare URL. */
+    val firstUrl: String? get() =
+        text?.let { URL_REGEX.find(it)?.value?.trimEnd('.', ',', ';', ':', '!', '?') }
+
+    /** True when [text] contains an http(s) URL. Used by the chooser to
      *  surface "Add to Knowledge as URL" only when applicable. */
-    val isUrl: Boolean get() {
-        val t = text?.trim() ?: return false
-        if (t.contains("\\s".toRegex())) return false
-        return t.startsWith("http://", ignoreCase = true) || t.startsWith("https://", ignoreCase = true)
+    val isUrl: Boolean get() = firstUrl != null
+
+    companion object {
+        private val URL_REGEX = Regex("""https?://[^\s)\]>}"]+""", RegexOption.IGNORE_CASE)
     }
 }

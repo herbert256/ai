@@ -239,7 +239,7 @@ fun AppNavHost(
                 // dropped the URL silently. Knowledge consumes the
                 // queue and branches on content:// vs http:// per
                 // entry, so the merged list is fine.
-                val urlText = if (sharedContent.isUrl) sharedContent.text?.trim().orEmpty() else ""
+                val urlText = sharedContent.firstUrl.orEmpty()
                 val queue = sharedContent.uris + listOfNotNull(urlText.takeIf { it.isNotBlank() })
                 appViewModel.updateUiState { it.copy(pendingKnowledgeUris = queue) }
                 navController.navigate(NavRoutes.AI_KNOWLEDGE) {
@@ -837,7 +837,7 @@ internal suspend fun continueMetaInChat(
     // report agent whose provider still resolves.
     val rowProvider = AppService.findById(row.providerId)
     val (provider, model) = if (rowProvider != null && !row.model.isNullOrBlank()) {
-        rowProvider to row.model!!
+        rowProvider to row.model
     } else {
         val fallback = report.agents.firstOrNull {
             AppService.findById(it.provider) != null && !it.responseBody.isNullOrBlank()

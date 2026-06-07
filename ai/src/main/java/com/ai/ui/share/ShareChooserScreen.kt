@@ -54,7 +54,8 @@ fun ShareChooserScreen(
                     Text(it, fontSize = 13.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                 }
                 if (hasText) {
-                    Text(shared.text!!.take(300) + if (shared.text.length > 300) "…" else "",
+                    val text = shared.text.orEmpty()
+                    Text(text.take(300) + if (text.length > 300) "…" else "",
                         fontSize = 12.sp, color = AppColors.TextSecondary)
                 }
                 if (hasUris) {
