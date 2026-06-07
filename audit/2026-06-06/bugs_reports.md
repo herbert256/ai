@@ -212,7 +212,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Same as Bug 25 for fan-in: a per-row icon override shows on the Fan-in tile but not on the FanInViewScreen header.
 **Root cause:** The fan-in tile uses `rowIcon ?: cachedEmoji` (Main.kt:1092) but FanInViewScreen uses `cachedIcon ?: rowIcon` — inverted.
 **Proposed fix:** Flip to `rowIcon ?: cachedIcon` in FanInViewScreen.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - FanInViewScreen header now resolves rowIcon ?: cachedIcon, matching the Fan-in tile
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Fan.kt
 

@@ -124,7 +124,10 @@ fun FanInViewScreen(
         com.ai.data.InternalPromptIconCache.getByName(it)
     }?.takeIf { it.isNotBlank() }
     val rowIcon = result?.icon?.takeIf { it.isNotBlank() }
-    val headerIcon = cachedIcon ?: rowIcon ?: com.ai.data.MetadataIconsHolder.current.fanInKnot
+    // Per-row pick wins over the shared cache — matches the Fan-in tile's
+    // `rowIcon ?: cachedEmoji` precedence (audit reports#26); the header had it
+    // inverted.
+    val headerIcon = rowIcon ?: cachedIcon ?: com.ai.data.MetadataIconsHolder.current.fanInKnot
     // Model name that did the fan-in synthesis — shown next to
     // the icon. Provider name dropped per the user's spec.
     val modelLabel = result?.model?.let { shortModelName(it) }.orEmpty()
