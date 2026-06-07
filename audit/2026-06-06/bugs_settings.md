@@ -411,7 +411,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** After clearing / trimming, the screen reloads `AppLog.getLogFiles()` synchronously on the main thread inside the dialog button handler (the initial load uses `Dispatchers.IO`).
 **Root cause:** The post-action reload isn't dispatched off-thread.
 **Proposed fix:** Reload via the existing `refreshTick` / `produceState` path instead of a synchronous call.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — clear/trim now run file work on `Dispatchers.IO` and refresh the list via the existing async loader tick.
 
 ---
 

@@ -50,6 +50,7 @@ fun AppLogListScreen(
     // Re-fetched on every screen-resume (covers the back-pop from
     // the detail view after a delete).
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
+    var actionRefreshTick by remember { mutableStateOf(0) }
     var files by remember { mutableStateOf<List<AppLogFileInfo>>(emptyList()) }
     // Pulled into Compose state alongside the file list so the
     // empty-state branch can distinguish "writer broken" from
@@ -57,7 +58,7 @@ fun AppLogListScreen(
     // granularity here; sub-second updates aren't useful.
     var writerError by remember { mutableStateOf<String?>(null) }
     var droppedLines by remember { mutableStateOf(0L) }
-    LaunchedEffect(refreshTick) {
+    LaunchedEffect(refreshTick, actionRefreshTick) {
         files = withContext(Dispatchers.IO) { AppLog.getLogFiles() }
         writerError = AppLog.lastWriterError
         droppedLines = AppLog.droppedLineCount
@@ -182,10 +183,13 @@ fun AppLogListScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmClearAll = false
-                    val n = AppLog.clearLogs()
-                    AppLog.i("Housekeeping", "Cleared $n log file(s)")
-                    files = AppLog.getLogFiles()
-                    Toast.makeText(context, "Deleted $n log file(s)", Toast.LENGTH_SHORT).show()
+                    scope.launch {
+                        val n = withContext(Dispatchers.IO) {
+                            AppLog.clearLogs().also { AppLog.i("Housekeeping", "Cleared $it log file(s)") }
+                        }
+                        actionRefreshTick++
+                        Toast.makeText(context, "Deleted $n log file(s)", Toast.LENGTH_SHORT).show()
+                    }
                 }) { Text("Clear", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
@@ -205,10 +209,15 @@ fun AppLogListScreen(
                 TextButton(onClick = {
                     confirmTrim = false
                     val cutoff = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
-                    val n = AppLog.deleteLogsOlderThan(cutoff)
-                    AppLog.i("Housekeeping", "Deleted $n log file(s) older than 7 days")
-                    files = AppLog.getLogFiles()
-                    Toast.makeText(context, "Deleted $n log file(s)", Toast.LENGTH_SHORT).show()
+                    scope.launch {
+                        val n = withContext(Dispatchers.IO) {
+                            AppLog.deleteLogsOlderThan(cutoff).also {
+                                AppLog.i("Housekeeping", "Deleted $it log file(s) older than 7 days")
+                            }
+                        }
+                        actionRefreshTick++
+                        Toast.makeText(context, "Deleted $n log file(s)", Toast.LENGTH_SHORT).show()
+                    }
                 }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
