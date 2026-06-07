@@ -209,7 +209,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Dual-chat conversations are never written to `ChatHistoryManager`; they cannot be resumed, searched, or reviewed after leaving, and their cost vanishes from the screen on exit.
 **Root cause:** The session lives only in screen state (Saver) — no `saveSession` equivalent.
 **Proposed fix:** Persist completed dual-chat runs (even as a read-only history entry) if review is desired.
-**Status:** Open
+**Status:** Fixed — Chat History now collects `ApiTracer.traceVersion` and builds the set of visible session ids with traces once per page on `Dispatchers.IO`; each row gates its trace icon with a local set lookup.
 
 ### Bug 28 — Severity: LOW — Category: trace mis-association
 **Location:** DualChatScreen.kt:655-661 (`DualMessageBubble` trace lookup)
