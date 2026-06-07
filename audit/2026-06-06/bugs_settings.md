@@ -293,7 +293,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** If a flock's `agentIds` contains an id not present in `aiSettings.agents` (e.g. imported from a Workers bundle whose agents weren't imported), that id is counted in `selectedAgentIds.size` but never appears in `availableAgents`, so the count can read "N selected of M" with N > M, and the dangling id is persisted on save (`selectedAgentIds.toList()`).
 **Root cause:** `availableAgents` only includes agents present in settings (active or selected); a fully-absent id is invisible but still counted and saved. (Normal in-app agent deletion auto-prunes flocks, so this is an import-path edge.)
 **Proposed fix:** Drop ids not resolvable to a real agent before counting/saving, or surface them as a removable "(missing)" row.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Flock edit state now filters selected ids through known agents before counting, validation, and save payloads.
 
 ---
 

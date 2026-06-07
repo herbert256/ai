@@ -36,11 +36,15 @@ fun FlockEditScreen(
 
     var resetTick by remember { mutableStateOf(0) }
     var name by remember(resetTick) { mutableStateOf(flock?.name ?: "") }
+    val knownAgentIds = remember(aiSettings.agents) { aiSettings.agents.mapTo(LinkedHashSet()) { it.id } }
     // LinkedHashSet so membership keeps insertion order (parity with the
     // Swarm path's ordered member list) — a plain Set yielded arbitrary
     // save order.
-    var selectedAgentIds by remember(resetTick) {
-        mutableStateOf<Set<String>>(LinkedHashSet(flock?.agentIds ?: emptyList()))
+    var selectedAgentIds by remember(resetTick, knownAgentIds) {
+        mutableStateOf<Set<String>>(LinkedHashSet(flock?.agentIds.orEmpty().filter { it in knownAgentIds }))
+    }
+    val selectedKnownAgentIds = remember(selectedAgentIds, knownAgentIds) {
+        LinkedHashSet(selectedAgentIds.filter { it in knownAgentIds })
     }
     var searchQuery by remember { mutableStateOf("") }
     var selectedParamsIds by remember(resetTick) { mutableStateOf(flock?.paramsIds ?: emptyList()) }
@@ -66,15 +70,15 @@ fun FlockEditScreen(
     // Show active agents PLUS any already-selected agent whose provider
     // later went inactive — otherwise a hidden member is silently kept on
     // save and the "N selected of M" count can exceed M (Bug 3).
-    val availableAgents = remember(aiSettings.agents, selectedAgentIds) {
-        aiSettings.agents.filter { aiSettings.isProviderActive(it.provider) || it.id in selectedAgentIds }
+    val availableAgents = remember(aiSettings.agents, selectedKnownAgentIds) {
+        aiSettings.agents.filter { aiSettings.isProviderActive(it.provider) || it.id in selectedKnownAgentIds }
     }
     val filteredAgents = remember(searchQuery, availableAgents) {
         if (searchQuery.isBlank()) availableAgents
         else availableAgents.filter { it.name.contains(searchQuery, ignoreCase = true) || it.provider.id.contains(searchQuery, ignoreCase = true) }
     }
-    val sortedAgents = remember(filteredAgents, selectedAgentIds) {
-        filteredAgents.sortedWith(compareByDescending<Agent> { it.id in selectedAgentIds }.thenBy { it.name.lowercase() })
+    val sortedAgents = remember(filteredAgents, selectedKnownAgentIds) {
+        filteredAgents.sortedWith(compareByDescending<Agent> { it.id in selectedKnownAgentIds }.thenBy { it.name.lowercase() })
     }
 
     if (showParamsDialog) {
@@ -111,9 +115,9 @@ fun FlockEditScreen(
         if (isAddMode) {
             OutlinedButton(
                 onClick = {
-                    onSave(Flock(java.util.UUID.randomUUID().toString(), name.trim(), selectedAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId)); onBack()
+                    onSave(Flock(java.util.UUID.randomUUID().toString(), name.trim(), selectedKnownAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId)); onBack()
                 },
-                enabled = nameError == null && selectedAgentIds.isNotEmpty(),
+                enabled = nameError == null && selectedKnownAgentIds.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
             ) { Text("Create", maxLines = 1, softWrap = false) }
@@ -121,8 +125,8 @@ fun FlockEditScreen(
         } else {
             // Edit: no Save button — auto-persist while editing and on leave.
             com.ai.ui.shared.AutoSaveOnChange(
-                current = if (nameError == null && selectedAgentIds.isNotEmpty())
-                    Flock(flock!!.id, name.trim(), selectedAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId) else null,
+                current = if (nameError == null && selectedKnownAgentIds.isNotEmpty())
+                    Flock(flock!!.id, name.trim(), selectedKnownAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId) else null,
                 onSave = onSave
             )
         }
@@ -141,7 +145,7 @@ fun FlockEditScreen(
             placeholder = { Text("Search agents...") }, modifier = Modifier.fillMaxWidth(),
             singleLine = true, colors = AppColors.outlinedFieldColors()
         )
-        Text("${selectedAgentIds.size} selected of ${availableAgents.size}", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
+        Text("${selectedKnownAgentIds.size} selected of ${availableAgents.size}", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
 
         Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
