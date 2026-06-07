@@ -309,7 +309,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `importMerge` does `cooldownMap.putAll(incoming)` — imported cooldowns unconditionally overwrite an existing-but-longer local bench for the same key, potentially un-benching a model earlier than the device's own observation.
 **Root cause:** putAll lets the incoming value win even when the local value is later.
 **Proposed fix:** Merge by `max(existing, incoming)` per key.
-**Status:** Open
+**Status:** Fixed in `ModelCooldownStore.kt` by merging imported cooldowns per key and keeping the later expiry.
 
 ## File: ai/src/main/java/com/ai/data/PricingCache.kt
 

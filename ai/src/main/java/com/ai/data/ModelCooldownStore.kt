@@ -180,7 +180,15 @@ object ModelCooldownStore {
      *  filenames are device-local and aren't carried in the bundle. */
     fun importMerge(incoming: Map<String, Long>) {
         if (incoming.isEmpty()) return
-        cooldownMap.putAll(incoming)
+        var changed = false
+        incoming.forEach { (key, importedUntil) ->
+            val localUntil = cooldownMap[key]
+            if (localUntil == null || importedUntil > localUntil) {
+                cooldownMap[key] = importedUntil
+                changed = true
+            }
+        }
+        if (!changed) return
         persist()
         publish()
     }
