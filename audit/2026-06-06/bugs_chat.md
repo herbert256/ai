@@ -363,7 +363,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** During multi-file share-ingest, the in-loop `refreshTick++` reloads `kb` via `produceState`, but the loop keeps using the captured `loaded` snapshot, so the "N sources" header can lag the actual ingest until the loop finishes.
 **Root cause:** `loaded` is captured once at loop start; `refreshTick` reload only affects the displayed `kb`, not the working copy.
 **Proposed fix:** Acceptable, but consider refreshing the header from the result list rather than re-reading the KB mid-loop.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — the KB detail screen now keeps a displayed source list seeded from disk and updates it from each successful index/re-index/delete result, so the header and source rows advance immediately during share auto-ingest while the disk reload reconciles in the background.
 
 ---
 
