@@ -298,7 +298,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** When case-folding changes string length (ß→ss, some Greek/Turkic forms), the highlighted preview window is offset from the actual match (no crash — indices are coerced).
 **Root cause:** Match offset is computed on the lower-cased copy but the slice is taken from the original; the comment acknowledges this.
 **Proposed fix:** Compute the window on the original string via a case-insensitive `indexOf`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — preview offsets now come from `message.content.indexOf(query, ignoreCase = true)` on the original string
 
 ### Bug 39 — Severity: LOW — Category: performance
 **Location:** ChatHistory.kt:148-185 (`searchInChats`)
