@@ -173,7 +173,11 @@ fun MetaViewScreen(
     val rowIcon = row?.icon?.takeIf { it.isNotBlank() }
     val cachedIcon = metaPromptName?.let { InternalPromptIconCache.getByName(it) }
         ?.takeIf { it.isNotBlank() }
-    val displayedEmoji = cachedIcon ?: rowIcon ?: com.ai.data.MetadataIconsHolder.current.reportModelIcon
+    // Per-row pick wins over the shared cache — matches the View tile's
+    // `rowIcon ?: cachedEmoji` precedence (audit reports#25); the detail header
+    // had it inverted, so a Find-alternative-icon override showed on the tile
+    // but not here.
+    val displayedEmoji = rowIcon ?: cachedIcon ?: com.ai.data.MetadataIconsHolder.current.reportModelIcon
     val modelLabel = row?.model?.let { shortModelName(it) }.orEmpty()
 
     val metaFilter: ViewSwipeFilter? = metaPromptName?.let { ViewSwipeFilter.HasMeta(metaPromptName = it) }

@@ -203,7 +203,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A META row with a per-row icon override set via Find-alternative-icons (`pickMetaRowIcon`) shows its custom glyph on the View *tile* but a *different* (shared-cache) glyph on the MetaViewScreen detail header.
 **Root cause:** The View tile resolves `rowIcon ?: cachedEmoji` (Main.kt:993 — per-row pick wins, by design, per its comment), but MetaViewScreen resolves `cachedIcon ?: rowIcon` (shared cache wins) — inverted precedence. It also uses `getByName(name)` while the tile uses `get(name, title)`.
 **Proposed fix:** Make MetaViewScreen use `rowIcon ?: cachedIcon` (and the same `get(name, title)` lookup) so the per-row override wins in both places.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - MetaViewScreen header now resolves rowIcon ?: cachedIcon (per-row pick wins), matching the View tile
 
 ## File: ai/src/main/java/com/ai/ui/report/view/FanIn.kt
 
