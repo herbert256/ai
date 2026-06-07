@@ -458,7 +458,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Only `ApiFormat.OPENAI_COMPATIBLE` providers expose embedding models for semantic search; embedding-capable Google (Gemini) and Anthropic-format providers are excluded even if a model is marked EMBEDDING.
 **Root cause:** `if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE) return@flatMap emptyList()`.
 **Proposed fix:** Document the MVP limit clearly, or route the non-OpenAI formats through their embedding endpoints.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — semantic search now offers embedding-typed models from OpenAI-compatible and Google-format providers, matching the dispatch paths supported by `AnalysisRepository.embedWithStatus`; the empty-state copy was updated accordingly.
 
 ### Bug 58 — Severity: LOW — Category: state loss
 **Location:** SemanticSearchScreen.kt:74-78 (`query`, `results` via plain `remember`)
