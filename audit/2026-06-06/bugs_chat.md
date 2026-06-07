@@ -574,7 +574,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** Inconsistent placement of the notify relative to the lock between save and delete.
 **Root mitigation:** StateFlow resumes collectors on their own dispatchers, so no synchronous re-entry happens today — hence LOW/unconfirmed.
 **Proposed fix:** Move `notifyHistoryChanged()` outside the `withLock` in `saveSession` for consistency.
-**Status:** Open
+**Status:** Fixed in `ChatHistoryManager.kt` by deferring the save-session history notification until after the lock is released.
 
 ### Bug 71 — Severity: LOW — Category: cache coherence (unconfirmed)
 **Location:** ChatHistoryManager.kt:88-101 (`getAllSessions` cache) + 30-66 (`saveSession`)

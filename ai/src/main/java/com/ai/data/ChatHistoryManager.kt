@@ -42,7 +42,8 @@ object ChatHistoryManager {
             AppLog.e("ChatHistory", "Refusing to save session with suspect id ${session.id}")
             return false
         }
-        return lock.withLock {
+        var notifyChanged = false
+        val saved = lock.withLock {
             if (!dir.exists()) dir.mkdirs()
             try {
                 val target = File(dir, "${session.id}.json")
@@ -62,13 +63,15 @@ object ChatHistoryManager {
                     AppLog.d("ChatHistory", "save ${session.id} msgs=${session.messages.size} bytes=${json.length}")
                     cachedSessions = null
                     cachedHeaders = null
-                    notifyHistoryChanged()
+                    notifyChanged = true
                 }
                 ok
             } catch (e: Exception) {
                 AppLog.e("ChatHistory", "Failed to save: ${e.message}"); false
             }
         }
+        if (notifyChanged) notifyHistoryChanged()
+        return saved
     }
 
     fun loadSession(sessionId: String): ChatSession? {
