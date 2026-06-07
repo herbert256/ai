@@ -78,7 +78,7 @@ data class SecondaryResult(
     /** Companion to [targetLanguage] — native rendering for the picker
      *  ("Nederlands", "Deutsch"). Null on non-translate rows. */
     val targetLanguageNative: String? = null,
-    /** UUID shared by every TRANSLATE row produced by a single Translate
+    /** Nonblank UUID shared by every TRANSLATE row produced by a single Translate
      *  invocation, so the result page can render one aggregate "run"
      *  row per click and let the user drill into the individual API
      *  calls. Null on non-translate rows and on legacy rows saved

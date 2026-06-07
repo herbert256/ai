@@ -141,7 +141,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Two distinct legacy translation runs to the *same* language (both with null `translationRunId`) collapse into one drill-in / one View Translate screen, merging their rows.
 **Root cause:** The legacy fallback `"lang:${targetLanguage}"` is per-language, not per-run, so it cannot separate two runs to the same language.
 **Proposed fix:** Accept that legacy rows can't be split, but document it; for new rows the `translationRunId` already disambiguates — ensure all new TRANSLATE rows always carry a non-null runId so this fallback is never hit going forward.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — new TRANSLATE rows are documented as nonblank-run-id rows and blank ids now fall back to the legacy language grouping path
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Translate.kt
 
