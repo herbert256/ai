@@ -155,7 +155,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** A visible error / moderation banner disappears on rotation.
 **Root cause:** These transient flags use plain `remember`; rotation resets them. Mostly benign but the user loses the displayed failure reason.
 **Proposed fix:** `rememberSaveable` for `error`/`moderationError`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — visible chat and moderation error strings now use `rememberSaveable` so banners survive recreation
 
 ### Bug 21 — Severity: LOW — Category: per-turn flag persistence
 **Location:** ChatScreens.kt:788-843 (Web search / 🧠 reasoning chips)

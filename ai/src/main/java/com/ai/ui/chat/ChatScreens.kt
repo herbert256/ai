@@ -315,7 +315,7 @@ fun ChatSessionScreen(
     // consumed the saved state takes over; the seed only applies on the
     // very first composition.
     var userInput by rememberSaveable { mutableStateOf(if (starterConsumed) "" else (starter ?: "")) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     var isStreaming by remember { mutableStateOf(false) }
     val streamingContentState = remember { mutableStateOf("") }
     // Accumulate per-turn token counts rather than a baked-in cost sum so the
@@ -377,7 +377,7 @@ fun ChatSessionScreen(
     var pendingFlagged by rememberSaveable(stateSaver = FlaggedStateSaver) {
         mutableStateOf<FlaggedState?>(null)
     }
-    var moderationError by remember { mutableStateOf<String?>(null) }
+    var moderationError by rememberSaveable { mutableStateOf<String?>(null) }
     var isModerating by remember { mutableStateOf(false) }
     var sendInFlight by rememberSaveable { mutableStateOf(false) }
 
