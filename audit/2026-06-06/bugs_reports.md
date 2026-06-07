@@ -157,7 +157,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The read-more/collapse expansion map is `remember`ed without a key on `currentReportId`, so after a title-bar swipe to a different report the previous report's expansion entries persist in the map.
 **Root cause:** `remember { }` survives the in-place report swap (the composable isn't remounted). Entries are keyed by `row.id` so there is no visible mismatch, but the map accumulates stale entries across every swiped-through report.
 **Proposed fix:** `remember(currentReportId) { TranslateExpansionMap() }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — expansion state now keys on `currentReportId` so swiping reports clears stale row entries
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Main.kt
 
