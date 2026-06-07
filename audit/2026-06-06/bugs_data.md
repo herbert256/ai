@@ -18,7 +18,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** For a provider that ships `cost_in_usd_ticks` on a scale other than 1e10 and has no `costTicksDivisor` configured, the cost is computed with the hardcoded `10_000_000_000.0` fallback (lines 910-912) and is silently wrong.
 **Root cause:** The `else` fallback assumes every unknown provider uses the xAI tick scale. There is no signal that the divisor was inferred vs configured.
 **Proposed fix:** Only apply the 1e10 fallback for providers actually known to use it (gate on `provider == xAI`); otherwise return `null` so the layered pricing path computes cost from tokens.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the hardcoded 1e10 tick fallback is now gated to provider id `xAI`; other providers without `costTicksDivisor` return null and use token-based pricing fallback
 
 ### Bug 3 — Severity: LOW — Category: token accounting
 **Location:** ApiModels.kt:855-868 (`OpenAiUsage.toTokenUsage`)

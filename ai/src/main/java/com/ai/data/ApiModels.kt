@@ -896,6 +896,8 @@ fun GeminiUsageMetadata.toTokenUsage(): TokenUsage {
 // returned an explicit cost)
 // ============================================================================
 
+private const val XAI_COST_TICKS_DIVISOR = 10_000_000_000.0
+
 fun extractApiCost(usage: OpenAiUsage?, provider: AppService? = null): Double? {
     if (usage == null) return null
     // Trust usage.cost whenever the response actually populated it. OpenRouter
@@ -907,8 +909,8 @@ fun extractApiCost(usage: OpenAiUsage?, provider: AppService? = null): Double? {
     provider?.costTicksDivisor?.let { divisor ->
         usage.cost_in_usd_ticks?.let { return it / divisor }
     }
-    if (provider?.costTicksDivisor == null) {
-        usage.cost_in_usd_ticks?.let { return it / 10_000_000_000.0 }
+    if (provider?.id == "xAI") {
+        usage.cost_in_usd_ticks?.let { return it / XAI_COST_TICKS_DIVISOR }
     }
     return null
 }
