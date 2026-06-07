@@ -221,7 +221,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** An initiator with a single responder still gets a wrapping pager; "No more responders" never appears and the user can "swipe" the lone responder onto itself indefinitely.
 **Root cause:** `coerceAtLeast(2)` forces `rememberWrapPager`'s `wrap = realCount > 1` branch on even for one responder. `wrapTo(1)` always returns 0 so the body is correct, but the wrap behaviour (and the edge overlay) is wrong for the 1-item case.
 **Proposed fix:** Pass `responders.size` (not coerced) — `rememberWrapPager` already re-reads the live count via `wrapTo`, so the coerce isn't needed to prevent overflow.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — responder pager now receives the actual responder count so single-responder runs do not wrap
 
 ### Bug 28 — Severity: LOW — Category: non-lazy composition of all bodies (perf)
 **Location:** Fan.kt:548-560 (✋ all-responders `Column(verticalScroll).forEach { FanOutResponderCard(...) }`)

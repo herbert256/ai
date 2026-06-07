@@ -219,10 +219,7 @@ fun FanOutViewScreen(
         activeInitiatorId?.let { pairsByInitiator[it] }.orEmpty()
     }
 
-    // coerceAtLeast(2) forces the wrapping span on even though responders
-    // is re-counted per initiator — so a later initiator with more
-    // responders than the first never overflows the pager.
-    val responderPagerState = rememberWrapPager(responders.size.coerceAtLeast(2), 0)
+    val responderPagerState = rememberWrapPager(responders.size, 0)
     // Track the active responder by (provider, model) — survives
     // initiator swipes so the bottom pager lands on the same
     // responder model in the new initiator's list. Falls back to
