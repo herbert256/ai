@@ -265,7 +265,8 @@ fun CachesHubScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val stats by produceState(initialValue = emptyMap<String, CacheStats>(), registry) {
+    val resumeTick = com.ai.ui.shared.resumeRefreshTick()
+    val stats by produceState(initialValue = emptyMap<String, CacheStats>(), registry, resumeTick) {
         value = withContext(Dispatchers.IO) { registry.associate { it.id to it.stats(context) } }
     }
 

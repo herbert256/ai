@@ -311,7 +311,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** After deleting entries inside `CacheEntriesScreen` and returning to the hub, the per-cache count/size on the hub is stale — it only recomputes when `registry` changes (which it never does).
 **Root cause:** Stats `produceState` is keyed only on the stable `registry`; no resume-refresh tick.
 **Proposed fix:** Key the stats `produceState` on a `resumeRefreshTick()` so it recomputes on return.
-**Status:** Open
+**Status:** Fixed in `CachesScreen.kt` by keying hub cache stats on `resumeRefreshTick()` as well as the registry.
 
 ### Bug 33 — Severity: LOW — Category: refresh feedback / fire-and-forget
 **Location:** CachesScreen.kt:198-207 (`onRefresh` for "Artificial Analysis"/"OpenRouter") + 378-387 (`CacheEntryRow` wrapper)
