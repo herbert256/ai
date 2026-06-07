@@ -1827,6 +1827,12 @@ internal fun AiLogoButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: Dp = 52.dp,
+    /** Layout box WIDTH. Defaults to [size] (square). The glyph is a portrait
+     *  62×96, so a square box letterboxes it with ~7dp of transparent margin on
+     *  each side; callers that want it tight (e.g. the Home icon bar) pass a
+     *  narrower width matching the rendered glyph so there's less space
+     *  before/after it. */
+    width: Dp = size,
     contentDescription: String = "Home",
     /** Horizontally flip the glyph so the right-edge logo is a mirror
      *  image of the left-edge one. */
@@ -1836,7 +1842,7 @@ internal fun AiLogoButton(
     Image(
         painter = painterResource(R.drawable.brand_glyph),
         contentDescription = contentDescription,
-        modifier = modifier.size(size)
+        modifier = modifier.size(width = width, height = size)
             .then(if (mirrored) Modifier.graphicsLayer(scaleX = -1f) else Modifier)
             .clickable(
                 interactionSource = interactionSource,
@@ -2057,8 +2063,10 @@ fun HomeIconBar(
     // only in the bottom bar, exactly like Home Screen mode; 📊 Statistics took
     // its old slot. 📋 copy likewise stays only in the bottom bar.
     val slots: List<@Composable () -> Unit> = buildList {
-        // Leading logo: slightly bigger (40), nudged up (y 0) and left (x -4).
-        add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(x = (-4).dp, y = 0.dp), size = 40.dp, contentDescription = "About") }
+        // Leading logo: height 40, nudged up (y 0) and left (x -4). Box WIDTH
+        // 30 (not 40) hugs the portrait glyph so there's little space
+        // before/after it instead of ~7dp of letterbox margin each side.
+        add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(x = (-4).dp, y = 0.dp), size = 40.dp, width = 30.dp, contentDescription = "About") }
         add { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) }
         add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) }
