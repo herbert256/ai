@@ -446,7 +446,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The progress bar reaches 100% counting artifacts that were dropped: a PDF whose render produced no output is deleted (`dropIfEmpty`) yet its `bump()` still fires, and the trace-bundle leg bumps even when `traceZipBytes` is null (no traces). The "done/total" overstates what's actually in the zip.
 **Root cause:** `bump()` is called unconditionally per leg regardless of whether the artifact made it into the bundle.
 **Proposed fix:** Bump only on a successfully produced artifact, and compute `total` from the artifacts actually emitted (or label the bar as "steps", not "files").
-**Status:** Open
+**Status:** Fixed (2026-06-07) — bulk export progress now bumps only emitted PDF/trace artifacts and shrinks the denominator for skipped optional outputs
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/view/ContentDisplay.kt
 
