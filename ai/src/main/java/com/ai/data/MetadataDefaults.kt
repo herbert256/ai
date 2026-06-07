@@ -61,6 +61,7 @@ object MetadataDefaults {
     const val ATTACH = "📎"
     const val VALIDATE_PROMPT = "🚩"
     const val REPORT_MODELS = "♻️"
+    const val TRANSLATOR_RANK = "🏅"
     // Report-level actions.
     const val COPY = "📋"
     const val PIN = "📌"
@@ -269,6 +270,7 @@ data class MetadataIcons(
     val attach: String = MetadataDefaults.ATTACH,
     val validatePrompt: String = MetadataDefaults.VALIDATE_PROMPT,
     val reportModels: String = MetadataDefaults.REPORT_MODELS,
+    val translatorRank: String = MetadataDefaults.TRANSLATOR_RANK,
     // Bottom-bar: report-level actions.
     val copy: String = MetadataDefaults.COPY,
     val pin: String = MetadataDefaults.PIN,
@@ -428,6 +430,7 @@ data class MetadataIcons(
         SecondaryKind.TOURNAMENT -> tournament
         SecondaryKind.JUDGES -> judges
         SecondaryKind.COMPARE -> compare
+        SecondaryKind.TRANSRANK -> translatorRank
     }
 
     fun forFactoryGlyph(factoryGlyph: String): String =
@@ -505,6 +508,7 @@ data class MetadataIcons(
             attach = f(attach, MetadataDefaults.ATTACH),
             validatePrompt = f(validatePrompt, MetadataDefaults.VALIDATE_PROMPT),
             reportModels = f(reportModels, MetadataDefaults.REPORT_MODELS),
+            translatorRank = f(translatorRank, MetadataDefaults.TRANSLATOR_RANK),
             copy = f(copy, MetadataDefaults.COPY),
             pin = f(pin, MetadataDefaults.PIN),
             toggleLabels = f(toggleLabels, MetadataDefaults.TOGGLE_LABELS),

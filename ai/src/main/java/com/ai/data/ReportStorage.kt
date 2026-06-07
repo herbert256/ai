@@ -1786,6 +1786,7 @@ object ReportStorage {
                     SecondaryKind.TOURNAMENT -> "after/tournament"
                     SecondaryKind.JUDGES -> "after/judges"
                     SecondaryKind.COMPARE -> "meta/compare"
+                    SecondaryKind.TRANSRANK -> "transrank/rank"
                 }
                 val altCost = altBySecondaryCost[secondary.id] ?: (0.0 to 0.0)
                 val altTokens = altBySecondaryTokens[secondary.id] ?: (0 to 0)
@@ -2057,6 +2058,7 @@ object ReportStorage {
                 SecondaryKind.TOURNAMENT -> "after/tournament"
                 SecondaryKind.JUDGES -> "after/judges"
                 SecondaryKind.COMPARE -> "meta/compare"
+                SecondaryKind.TRANSRANK -> "transrank/rank"
             }
             addIfTraceWasNotParsed(
                 traceFile = s.traceFile,

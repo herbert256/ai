@@ -1,0 +1,16 @@
+{
+  "name": "translate-rank",
+  "title": "Rank the translators",
+  "reference": false,
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "workers"
+    }
+  ],
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

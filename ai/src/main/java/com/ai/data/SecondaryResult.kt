@@ -1009,7 +1009,7 @@ object SecondaryResultStorage {
     /** Counts persisted across all kinds for a report. Used by the Report
      *  result screen for the Translate / legacy buckets. The redesigned
      *  Meta card uses [countByMetaName] instead. */
-    data class Counts(val rerank: Int, val meta: Int, val moderation: Int, val translate: Int, val tournament: Int = 0, val judges: Int = 0, val compare: Int = 0)
+    data class Counts(val rerank: Int, val meta: Int, val moderation: Int, val translate: Int, val tournament: Int = 0, val judges: Int = 0, val compare: Int = 0, val transrank: Int = 0)
     fun countForReport(context: Context, reportId: String): Counts {
         // Delegate to listForReport so we share its fingerprint cache —
         // the previous implementation re-parsed every JSON file on
@@ -1018,7 +1018,7 @@ object SecondaryResultStorage {
         // 500 ms while batching, so the redundant parses scaled with
         // (file count × poll rate) for no benefit.
         val rows = listForReport(context, reportId)
-        var rerank = 0; var meta = 0; var moderation = 0; var translate = 0; var tournament = 0; var judges = 0; var compare = 0
+        var rerank = 0; var meta = 0; var moderation = 0; var translate = 0; var tournament = 0; var judges = 0; var compare = 0; var transrank = 0
         for (r in rows) {
             when (r.kind) {
                 SecondaryKind.RERANK -> rerank++
@@ -1033,9 +1033,11 @@ object SecondaryResultStorage {
                 // Compare cells collapse into the single CompareManageRow
                 // drill-in; count them flat for parity with the other kinds.
                 SecondaryKind.COMPARE -> compare++
+                // Translator-rank: count only the aggregate ranking row (per language).
+                SecondaryKind.TRANSRANK -> if (r.tournamentRole == TRANSRANK_ROLE_AGGREGATE) transrank++
             }
         }
-        return Counts(rerank, meta, moderation, translate, tournament, judges, compare)
+        return Counts(rerank, meta, moderation, translate, tournament, judges, compare, transrank)
     }
 
     /** Group non-translate Meta results on a report by the user-given
@@ -1070,6 +1072,7 @@ fun legacyKindDisplayName(kind: SecondaryKind): String = when (kind) {
     SecondaryKind.TOURNAMENT -> "Tournament"
     SecondaryKind.JUDGES -> "Judge the judges"
     SecondaryKind.COMPARE -> "Compare"
+    SecondaryKind.TRANSRANK -> "Rank the translators"
 }
 
 /** Display label for a secondary's prompt name. The built-in rerank /

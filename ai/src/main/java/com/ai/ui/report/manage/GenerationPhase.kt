@@ -958,6 +958,7 @@ internal fun ColumnScope.GenerationPhase(
                             SecondaryKind.TOURNAMENT -> "tournament"
                             SecondaryKind.JUDGES -> "judges"
                             SecondaryKind.COMPARE -> "compare"
+                            SecondaryKind.TRANSRANK -> "transrank"
                         }
                     }
                     RowTypeCell(typeLabel)

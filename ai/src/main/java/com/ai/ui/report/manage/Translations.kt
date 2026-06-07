@@ -54,6 +54,8 @@ internal fun ReportTranslationsScreen(
      *  ones with a green progress bar. */
     activeRuns: List<com.ai.viewmodel.TranslationRunState>,
     onOpenRun: (String) -> Unit,
+    /** 🏅 Rank the translators for this language run: (runId, languageName, languageNative). */
+    onRankTranslators: (String, String, String) -> Unit,
     onOpenOriginal: () -> Unit,
     onNewTranslation: () -> Unit,
     onBack: () -> Unit
@@ -111,6 +113,7 @@ internal fun ReportTranslationsScreen(
                             fontSize = 12.sp, color = AppColors.TextSecondary,
                             modifier = Modifier.padding(start = 8.dp, end = 4.dp)
                         )
+                        MedalIcon { onRankTranslators(run.runId, run.targetLanguageName, run.targetLanguageNative) }
                     },
                     onClick = { onOpenRun(run.runId) }
                 )
@@ -127,11 +130,34 @@ internal fun ReportTranslationsScreen(
                 TranslationLanguageRow(
                     icon = emoji,
                     label = label,
+                    trailing = {
+                        MedalIcon {
+                            onRankTranslators(
+                                run.runId,
+                                run.targetLanguage ?: "",
+                                run.targetLanguageNative ?: run.targetLanguage ?: ""
+                            )
+                        }
+                    },
                     onClick = { onOpenRun(run.runId) }
                 )
             }
         }
     }
+}
+
+/** 🏅 trailing icon — its own clickable so a tap ranks the translators without
+ *  also opening the translation detail (the inner clickable consumes the tap). */
+@Composable
+private fun MedalIcon(onClick: () -> Unit) {
+    Text(
+        com.ai.data.MetadataIconsHolder.current.translatorRank,
+        fontSize = 18.sp,
+        modifier = Modifier
+            .padding(start = 4.dp, end = 4.dp)
+            .clickable { onClick() }
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+    )
 }
 
 /**

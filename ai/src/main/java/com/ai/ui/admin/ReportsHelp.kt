@@ -1,6 +1,16 @@
 package com.ai.ui.admin
 
 internal val reportsHelp: Map<String, HelpContent> = mapOf(
+    "translator_rank" to HelpContent(
+        title = "Help - Rank the translators",
+        cards = listOf(
+            HelpCard("What this is", "Reached from the 🏅 on a translation row. It ranks the MODELS that produced this language's translation by how good their translations are — judged by the OTHER models. It reuses the existing translation (no re-translation)."),
+            HelpCard("How it scores", "Every long-form translated answer (model responses + fan-out / meta responses; titles and the prompt are skipped) is scored 0–100 by each model in the panel EXCEPT the model that produced it. The panel is the `translate-rank` worker swarm (the report's own models when ♻️ is on). Each translator's average score becomes its rank."),
+            HelpCard("Reading it", "The leaderboard lists each translator model with how many of its items were scored and its average score (best first). Tap a row to see that model's items and each judge's score + motivation."),
+            HelpCard("A fairness note", "The translation pool spreads items across models, so each model is judged on the items IT happened to translate — not the same passage head-to-head. Item difficulty can therefore skew the average. It's most meaningful when a translation was produced by several models."),
+            HelpCard("Cost", "Each score is a normal API call, counted in the report's cost table under the 'transrank' group. A language with many answers × many judges can be a lot of calls — the launch asks to confirm first.")
+        )
+    ),
     "value_view" to HelpContent(
         title = "Help - Value view",
         cards = listOf(
@@ -179,7 +189,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Translations",
         cards = listOf(
             HelpCard("What you see", "A plain list of the language versions of this report: the Original language first, then one row per existing translation. No progress, counts or cost — just the language. Reached from the 🌐 icon on Manage report once at least one translation exists (with none, 🌐 starts a new translation directly)."),
-            HelpCard("How it works", "Tap the Original row to return to the report. Tap a translation row to open that run's detail (its per-call list). The only bottom-bar icon is 🆕 — it starts a new translation (pick a target language, then the model(s)) and drops you on the new run.")
+            HelpCard("How it works", "Tap the Original row to return to the report. Tap a translation row to open that run's detail (its per-call list). The only bottom-bar icon is 🆕 — it starts a new translation (pick a target language, then the model(s)) and drops you on the new run."),
+            HelpCard("🏅 Rank the translators", "Each translation row carries a 🏅. Tap it to rank the models that produced that translation: every translated answer is scored 0–100 by the other models, and the translators are ranked by average. Most useful when several models shared the translation.")
         )
     ),
     // Per-screen icon legend reached from the ❔ bottom-bar glyph on

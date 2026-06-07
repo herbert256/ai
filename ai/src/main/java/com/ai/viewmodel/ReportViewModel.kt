@@ -310,6 +310,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  the worker engine. Sibling of [tournamentEngine]; see [CompareEngine]. */
     val compareEngine: CompareEngine = CompareEngine(appViewModel, this)
 
+    /** Runtime owner for the "Rank the translators" batch (🏅 on a Translations
+     *  row) — scores each translated item with the other models and ranks the
+     *  translator models by average score. See [TranslatorRankEngine]. */
+    val translatorRankEngine: TranslatorRankEngine = TranslatorRankEngine(appViewModel, this)
+
     /** The "Change response"-style edit flows (regenerate / prompt-edit / chat /
      *  temperature / reasoning / web-search) for a plain META secondary result,
      *  surfaced by the dedicated Meta detail screen. See [MetaEditManager]. */

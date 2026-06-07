@@ -931,6 +931,7 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData, secondaryFo
                 SecondaryKind.TOURNAMENT -> "tournament"
                 SecondaryKind.JUDGES -> "judges"
                 SecondaryKind.COMPARE -> "compare"
+                SecondaryKind.TRANSRANK -> "transrank"
             }
         }
         Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,

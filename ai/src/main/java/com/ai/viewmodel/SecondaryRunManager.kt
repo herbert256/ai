@@ -1632,6 +1632,7 @@ class SecondaryRunManager(
                 SecondaryKind.TOURNAMENT -> "Tournament match"
                 SecondaryKind.JUDGES -> "Judge match"
                 SecondaryKind.COMPARE -> "Compare cell"
+                SecondaryKind.TRANSRANK -> "Translator-rank score"
                 SecondaryKind.META -> "Meta '${metaPrompt.name}'"
             }
             AuditLog.append(reportId, "$what result produced by ${provider.id}/$model")
@@ -1647,6 +1648,7 @@ class SecondaryRunManager(
                     SecondaryKind.TOURNAMENT -> "tournament"
                     SecondaryKind.JUDGES -> "judges"
                     SecondaryKind.COMPARE -> "compare"
+                    SecondaryKind.TRANSRANK -> "transrank"
                 }
             )
         }

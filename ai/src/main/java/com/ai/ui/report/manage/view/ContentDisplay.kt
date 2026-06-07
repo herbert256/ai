@@ -956,6 +956,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             SecondaryKind.TOURNAMENT -> "after/tournament"
             SecondaryKind.JUDGES -> "after/judges"
             SecondaryKind.COMPARE -> "meta/compare"
+            SecondaryKind.TRANSRANK -> "transrank/rank"
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, inTokens, outTokens, inCents, outCents, s.traceFile)
     }

@@ -295,6 +295,11 @@ fun ReportsScreenNav(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
     val openCompareId = openCompareReportId.value
+    // Translator-rank (🏅): the value is the run key "$reportId|$translationRunId".
+    val openTransRankKey = rememberSaveable(
+        stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
+    ) { mutableStateOf<String?>(null) }
+    val openTransRankId = openTransRankKey.value
     // Broken-work "Continue" one-shot: the request + the per-family engine
     // dispatch. Resolved here (where the engines live) and handed to
     // ConsumePendingBatchOpen inside ReportsScreen via the controller Local.
@@ -358,6 +363,8 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalJudgeEvalOpenState provides openJudgeEvalReportId,
         com.ai.ui.shared.LocalCompareEngine provides reportViewModel.compareEngine,
         com.ai.ui.shared.LocalCompareOpenState provides openCompareReportId,
+        com.ai.ui.shared.LocalTranslatorRankEngine provides reportViewModel.translatorRankEngine,
+        com.ai.ui.shared.LocalTransRankOpenState provides openTransRankKey,
         com.ai.ui.shared.LocalPendingBatchOpenController provides pendingBatchOpenController,
         com.ai.ui.shared.LocalMetaEditManager provides reportViewModel.metaEditManager,
         com.ai.ui.shared.LocalSecondaryModelSwitch provides reportViewModel.secondaryModelSwitch
@@ -388,6 +395,14 @@ fun ReportsScreenNav(
             reportId = openJudgeEvalId,
             engine = reportViewModel.judgeEvalEngine,
             onClose = { openJudgeEvalReportId.value = null }
+        )
+        return@CompositionLocalProvider
+    }
+    if (openTransRankId != null) {
+        TranslatorRankOverlay(
+            runKey = openTransRankId,
+            engine = reportViewModel.translatorRankEngine,
+            onClose = { openTransRankKey.value = null }
         )
         return@CompositionLocalProvider
     }

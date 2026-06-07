@@ -725,6 +725,14 @@ val LocalCompareEngine = compositionLocalOf<com.ai.viewmodel.CompareEngine?> { n
 val LocalCompareOpenState =
     compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
 
+/** [LocalCompareEngine] analog for the "Rank the translators" drill-in (🏅). */
+val LocalTranslatorRankEngine = compositionLocalOf<com.ai.viewmodel.TranslatorRankEngine?> { null }
+
+/** Shared "Translator-rank L1 is open" state slot — the value is the run key
+ *  "$reportId|$sourceTranslationRunId" (the ranking is per language). */
+val LocalTransRankOpenState =
+    compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
+
 /** Carries the Broken-work "Continue" one-shot from ReportsScreenNav (which
  *  owns the engines + the [com.ai.viewmodel.AppViewModel.pendingBatchOpen]
  *  flow) down to [com.ai.ui.report.manage.ConsumePendingBatchOpen], which runs

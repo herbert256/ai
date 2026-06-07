@@ -1,0 +1,11 @@
+Below is an 'Original text' in @LANGUAGE_FROM@ and a 'Translated text' in @LANGUAGE_TO@. Judge how well the translation conveys the original — accuracy, fluency, and tone.
+
+Reply with EXACTLY two lines, nothing else:
+Line 1: a single number from 0 to 100 (the quality score) and nothing else.
+Line 2: one short sentence motivating the score.
+
+----- Original text -----
+@ORIGINAL@
+
+----- Translated text -----
+@TRANSLATION@
