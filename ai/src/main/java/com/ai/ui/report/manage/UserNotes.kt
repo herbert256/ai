@@ -150,7 +150,7 @@ internal fun ViewUserNotes(reportId: String, targetKind: String, targetId: Strin
     val dv by ReportDataVersion.version.collectAsState()
     val notes by produceState(emptyList<UserNote>(), reportId, targetKind, targetId, dv) {
         value = withContext(Dispatchers.IO) {
-            ReportStorage.getReport(context, reportId)?.notesFor(targetKind, targetId) ?: emptyList()
+            ReportStorage.getUserNotesForTarget(context, reportId, targetKind, targetId)
         }
     }
     if (notes.isEmpty()) return

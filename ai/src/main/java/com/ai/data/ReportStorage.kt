@@ -371,6 +371,18 @@ object ReportStorage {
     }
 
     fun getReport(context: Context, reportId: String): Report? { init(context); return lock.withLock { loadReport(reportId) } }
+    /** Stream just the top-level userNotes array for read-only note strips.
+     *  This avoids constructing and normalizing the full Report object on
+     *  every View screen after a ReportDataVersion bump. */
+    fun getUserNotesForTarget(
+        context: Context,
+        reportId: String,
+        targetKind: String,
+        targetId: String
+    ): List<UserNote> {
+        init(context)
+        return lock.withLock { loadUserNotesForTarget(reportId, targetKind, targetId) }
+    }
     /** Cheap last-modified timestamp of the report's on-disk JSON (0 when
      *  absent). Lets a read-only cache (the View subsystem) detect edits
      *  without re-parsing the file. */
@@ -451,6 +463,52 @@ object ReportStorage {
         if (!file.exists()) return null
         return try { gson.fromJson(file.readText(), Report::class.java)?.let(::normalizeReport) } catch (e: Exception) {
             AppLog.e("ReportStorage", "Failed to load report $reportId: ${e.message}"); null
+        }
+    }
+
+    private fun loadUserNotesForTarget(
+        reportId: String,
+        targetKind: String,
+        targetId: String
+    ): List<UserNote> {
+        if (!isSafeFlatId(reportId)) {
+            AppLog.w("ReportStorage", "Rejected reportId with path traversal markers: $reportId")
+            return emptyList()
+        }
+        val dir = reportsDir ?: return emptyList()
+        val file = File(dir, "$reportId.json")
+        if (!file.exists()) return emptyList()
+        return try {
+            file.bufferedReader().use { buffered ->
+                com.google.gson.stream.JsonReader(buffered).use { reader ->
+                    val matches = mutableListOf<UserNote>()
+                    reader.beginObject()
+                    while (reader.hasNext()) {
+                        when (reader.nextName()) {
+                            "userNotes" -> {
+                                if (reader.peek() == com.google.gson.stream.JsonToken.NULL) {
+                                    reader.nextNull()
+                                } else {
+                                    reader.beginArray()
+                                    while (reader.hasNext()) {
+                                        val note: UserNote? = gson.fromJson(reader, UserNote::class.java)
+                                        if (note != null && note.targetKind == targetKind && note.targetId == targetId) {
+                                            matches += note
+                                        }
+                                    }
+                                    reader.endArray()
+                                }
+                            }
+                            else -> reader.skipValue()
+                        }
+                    }
+                    reader.endObject()
+                    matches.sortedByDescending { it.createdAt }
+                }
+            }
+        } catch (e: Exception) {
+            AppLog.e("ReportStorage", "Failed to load notes for report $reportId: ${e.message}")
+            emptyList()
         }
     }
 

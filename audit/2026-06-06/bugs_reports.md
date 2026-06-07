@@ -482,7 +482,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The four batch overlays use positional early returns with no shared back-stack. If two open-state slots are ever non-null simultaneously (e.g. a Regenerate batch is enqueued while a Tournament overlay is already open), the earlier-positioned overlay shadows the later one, and the user's back press peels the wrong layer — the documented recurring overlay anti-pattern.
 **Root cause:** Independent open-state vars with positional `return` precedence rather than a single LIFO dispatcher; nothing prevents two from being set at once.
 **Proposed fix:** Route the four overlays through one ordered back-stack (push/pop one per back press) or guard so opening one clears the others.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — read-only View note strips now use a streaming notes-only ReportStorage accessor instead of loading the full report
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/UserNotes.kt
 
