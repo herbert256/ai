@@ -217,7 +217,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The per-process random-seeded sequence avoids cross-restart collisions, but `incrementAndGet().toString(36)` can wrap past `Long.MAX` only theoretically; more practically, two processes (unlikely on Android but possible with a restarted process reading the same dir) could pick overlapping random ranges and collide on `host_ts_seq.json`, overwriting a prior trace.
 **Root cause:** In-memory sequence + random offset is collision-*unlikely*, not collision-*free*.
 **Proposed fix:** Append a short UUID segment (the atomic writer already uses one for staging) to fully eliminate collisions.
-**Status:** Open (very low likelihood)
+**Status:** Fixed in `ApiTracer.kt` by appending an 8-character UUID segment to generated trace filenames.
 
 ### Bug 29 — Severity: LOW — Category: unbounded growth
 **Location:** ApiTracer.kt (trace dir) + BackupManager inclusion

@@ -13,6 +13,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
@@ -139,13 +140,14 @@ object ApiTracer {
         val resolvedFilename = filename ?: run {
             val ts = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
             val seq = fileSequence.incrementAndGet().toString(36)
+            val unique = UUID.randomUUID().toString().take(8)
             // Sanitise hostname so a `host:port` style host (some
             // configurations pass a port through) doesn't produce a
             // filename with `:` — Android's filesystem rejects that
             // and the trace silently fails to land. Replace any
             // non-alphanumeric / dot / dash with `_`.
             val safeHost = trace.hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
-            "${safeHost}_${ts}_${seq}.json"
+            "${safeHost}_${ts}_${seq}_${unique}.json"
         }
         val normalizedTrace = trace.copy(category = normalizeApiCallCategory(trace.category))
         val isUpdate = filename != null
