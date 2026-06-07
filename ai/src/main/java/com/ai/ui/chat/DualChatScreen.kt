@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -263,9 +265,12 @@ fun DualChatSetupScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
                 OutlinedTextField(
-                    value = interactionCount, onValueChange = { interactionCount = it },
+                    value = interactionCount,
+                    onValueChange = { interactionCount = it.filter(Char::isDigit) },
                     label = { Text("Rounds") }, modifier = Modifier.width(80.dp),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = AppColors.outlinedFieldColors()
                 )
             }
 
@@ -593,9 +598,12 @@ fun DualChatSessionScreen(
         } else if (isStopped) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
-                    value = extraChatsText, onValueChange = { extraChatsText = it },
+                    value = extraChatsText,
+                    onValueChange = { extraChatsText = it.filter(Char::isDigit) },
                     modifier = Modifier.width(120.dp), singleLine = true,
-                    label = { Text("Extra chats") }, colors = AppColors.outlinedFieldColors()
+                    label = { Text("Extra chats") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = AppColors.outlinedFieldColors()
                 )
                 val extraCount = (extraChatsText.toIntOrNull() ?: 0).coerceAtMost(MAX_DUAL_ROUNDS)
                 OutlinedButton(

@@ -223,7 +223,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The Rounds / Extra-chats fields accept arbitrary text (no numeric keyboard, no digit filter); a non-numeric value silently disables the button with no feedback.
 **Root cause:** Plain `OutlinedTextField` with `toIntOrNull()` parsing; no `keyboardType = Number` or digit filtering (unlike `ChatManageScreen.daysText`).
 **Proposed fix:** Add a numeric keyboard + digit filter.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Rounds and Extra-chats now use a numeric keyboard and digit-only input filtering
 
 ### Bug 30 — Severity: LOW — Category: bundle size limit (unconfirmed)
 **Location:** DualChatScreen.kt:87-119 (`DualMessagesSaver`)
