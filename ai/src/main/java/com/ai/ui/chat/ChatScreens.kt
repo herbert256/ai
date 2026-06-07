@@ -173,6 +173,9 @@ private data class FlaggedState(
     val traceFilename: String?
 )
 
+private fun chatMessageListKey(message: ChatMessage, index: Int): String =
+    message.id ?: "legacy_${message.role}_${message.timestamp}_${message.content.hashCode()}_$index"
+
 /** Saver that lets the flagged-dialog state survive a navigation
  *  round-trip (e.g. tapping the 🐞 trace icon and pressing back).
  *  Encodes the fired-categories list directly — scores aren't shown
@@ -519,6 +522,39 @@ fun ChatSessionScreen(
     // Auto-scroll — parent only reads messages.size and isStreaming (booleans); chunk updates
     // are observed via snapshotFlow so the parent doesn't recompose per chunk.
     val displayMessages = remember(messages) { messages.filter { it.role != "system" } }
+    val traceVersion by com.ai.data.ApiTracer.traceVersion.collectAsState()
+    val traceFilenameByMessageKey by produceState<Map<String, String>>(
+        initialValue = emptyMap(),
+        displayMessages,
+        model,
+        currentSessionId,
+        traceVersion
+    ) {
+        value = if (model.isBlank()) {
+            emptyMap()
+        } else {
+            withContext(Dispatchers.IO) {
+                val all = com.ai.data.ApiTracer.getTraceFiles().filter { it.model == model }
+                val scoped = all.filter { it.reportId == currentSessionId }
+                val legacy = all.filter { it.reportId == null }
+                val candidates = scoped.ifEmpty { legacy }
+                if (candidates.isEmpty()) {
+                    emptyMap()
+                } else {
+                    displayMessages.mapIndexedNotNull { index, msg ->
+                        if (msg.role == "user") {
+                            null
+                        } else {
+                            val filename = candidates
+                                .minByOrNull { kotlin.math.abs(it.timestamp - msg.timestamp) }
+                                ?.filename
+                            filename?.let { chatMessageListKey(msg, index) to it }
+                        }
+                    }.toMap()
+                }
+            }
+        }
+    }
     val bottomItemCount = displayMessages.size + (if (isStreaming) 1 else 0)
     LaunchedEffect(bottomItemCount) {
         if (bottomItemCount > 0) listState.animateScrollToItem(bottomItemCount - 1)
@@ -790,13 +826,15 @@ fun ChatSessionScreen(
                         // sessions saved before that field fall back to a
                         // composite plus index so duplicate old rows cannot
                         // collide and crash LazyColumn.
-                        key = {
-                            val msg = displayMessages[it]
-                            msg.id ?: "legacy_${msg.role}_${msg.timestamp}_${msg.content.hashCode()}_$it"
-                        }
+                        key = { chatMessageListKey(displayMessages[it], it) }
                     ) { idx ->
                         val msg = displayMessages[idx]
-                        ChatMessageBubble(msg, userName, model, onNavigateToTraceFile, currentSessionId)
+                        ChatMessageBubble(
+                            message = msg,
+                            userName = userName,
+                            traceFilename = traceFilenameByMessageKey[chatMessageListKey(msg, idx)],
+                            onNavigateToTraceFile = onNavigateToTraceFile
+                        )
                     }
                     if (isStreaming) {
                         item(key = "streaming") {
@@ -1045,27 +1083,10 @@ fun ChatSessionScreen(
 private fun ChatMessageBubble(
     message: ChatMessage,
     userName: String = "You",
-    model: String = "",
+    traceFilename: String? = null,
     onNavigateToTraceFile: (String) -> Unit = {},
-    sessionId: String = ""
 ) {
     val isUser = message.role == "user"
-    // For assistant messages, look up the trace file recorded by the
-    // OkHttp interceptor for this session's model. Match heuristic:
-    // traces are now tagged with this session's id (reportId slot), so
-    // filter on it + model, then pick the closest timestamp to the
-    // message — this keeps the match within the session instead of
-    // pulling in another session's trace for the same model. Falls back
-    // to untagged (reportId == null) traces from before this fix.
-    val traceFilenameState = if (isUser || model.isBlank()) null
-        else produceState<String?>(initialValue = null, message.timestamp, model, sessionId) {
-            value = withContext(Dispatchers.IO) {
-                val all = com.ai.data.ApiTracer.getTraceFiles().filter { it.model == model }
-                val scoped = all.filter { it.reportId == sessionId }
-                val candidates = scoped.ifEmpty { all.filter { it.reportId == null } }
-                candidates.minByOrNull { kotlin.math.abs(it.timestamp - message.timestamp) }?.filename
-            }
-        }
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
@@ -1088,7 +1109,6 @@ private fun ChatMessageBubble(
                 // suppressed wholesale when API tracing is off in
                 // Settings — old recordings stay on disk but the icons
                 // disappear.
-                val traceFilename = traceFilenameState?.value
                 if (ApiTracer.ladybugLinksEnabled && traceFilename != null) {
                     Text(
                         com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,

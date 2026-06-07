@@ -169,7 +169,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Every assistant bubble independently calls `ApiTracer.getTraceFiles()` (which can parse the whole trace dir on cold cache) to gate its 🐞. A long conversation does N full trace-dir scans.
 **Root cause:** The trace lookup is per-bubble, keyed on `(timestamp, model, sessionId)`, with no shared/batched load.
 **Proposed fix:** Load the session's traces once at the screen level and pass a map down.
-**Status:** Open
+**Status:** Fixed — chat sessions now collect `ApiTracer.traceVersion` once and build a single message-key-to-trace-filename map at screen level on `Dispatchers.IO`; each bubble receives its precomputed filename instead of running its own `ApiTracer.getTraceFiles()` scan.
 
 ---
 
