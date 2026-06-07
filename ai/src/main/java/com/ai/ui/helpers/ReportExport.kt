@@ -31,6 +31,9 @@ internal data class HtmlReportData(
      *  per-language headings. Null / blank → caller falls back to the
      *  English name text. */
     val sourceLanguageIcon: String? = null,
+    /** [com.ai.data.Report.languageName] — used as the Original alias
+     *  when folding back-translation META rows into the Original view. */
+    val sourceLanguageName: String? = null,
     /** Sum of API spend the user dropped from this report via Delete
      *  actions. Surfaces as a dedicated row above the Total in every
      *  cost table on the result page + the export. Carried straight
@@ -452,6 +455,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         traces = traces,
         reportIcon = report.icon,
         sourceLanguageIcon = report.languageIcon,
+        sourceLanguageName = report.languageName,
         costsFromDeletedItems = report.costsFromDeletedItems,
         iconProviderDisplay = iconProvider?.id ?: "",
         iconModel = iconModel,
@@ -487,11 +491,13 @@ internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
     }
 
     val nonTranslateSecondary = base.secondary.filter { it.kind != SecondaryKind.TRANSLATE }
-    // Original view shows only secondaries with no language tag (the
-    // canonical originals); per-language META rows
-    // tagged with a targetLanguage live exclusively in their own
-    // language view.
-    val originalSecondary = nonTranslateSecondary.filter { it.targetLanguage == null }
+    // Original view shows canonical originals plus rows tagged with the
+    // report's own detected language (back-translations into Original).
+    val originalAlias = base.sourceLanguageName?.takeIf { it.isNotBlank() }
+    val originalSecondary = nonTranslateSecondary.filter {
+        it.targetLanguage == null ||
+            (originalAlias != null && it.targetLanguage.equals(originalAlias, ignoreCase = true))
+    }
     val original = HtmlLanguageView(
         key = "original",
         displayName = "Original",
@@ -1281,15 +1287,16 @@ private fun renderModerationContent(content: String, contextId: String, agentsBy
     return sb.toString()
 }
 
-/** Replace bracketed `[N]` references in already-rendered HTML with
+/** Replace citation-like `[N]` references in already-rendered HTML with
  *  `<a href='#result-N'>[N]</a>` anchors. Operates post-conversion
- *  so the markdown pass's HTML-escape doesn't shred the inserted
- *  tags. `[` / `]` are inert in HTML and survive both the markdown
- *  rules and the escape unchanged. */
+ *  so the markdown pass's HTML-escape doesn't shred the inserted tags.
+ *  The context word requirement avoids turning arbitrary bracketed
+ *  numbers, list markers, or quoted text into result-card links. */
 private fun linkifyAnchorRefs(html: String, maxAnchor: Int): String =
-    Regex("""\[(\d+)\]""").replace(html) { m ->
-        val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
-        if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else m.value
+    Regex("""(?i)\b((?:as|from|result|response|answer|model|agent|row|option|candidate|reference|ref|according to|and|or)\s+)\[(\d+)\]""")
+        .replace(html) { m ->
+            val id = m.groupValues[2].toIntOrNull() ?: return@replace m.value
+            if (id in 1..maxAnchor) "${m.groupValues[1]}<a href='#result-$id'>[$id]</a>" else m.value
     }
 
 internal fun processThinkSections(text: String, agentId: String): String {

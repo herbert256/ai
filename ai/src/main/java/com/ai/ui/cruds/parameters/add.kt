@@ -6,8 +6,9 @@ import com.ai.model.Settings
 
 @Composable
 internal fun ParametersAdd(
+    prefill: Parameters? = null,
     aiSettings: Settings,
     onSaved: (Parameters) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
-) = ParametersEditForm(null, aiSettings, onSaved, onBack, onNavigateHome)
+) = ParametersEditForm(prefill, aiSettings, onSaved, onBack, onNavigateHome, forceAdd = true)

@@ -86,14 +86,19 @@ internal suspend fun bulkExportAndShare(
     // the pre-refactor flat `docs/` + `html/` + `json/` layout instead
     // of pointlessly wrapping the single Original view in `original/`.
     val perLanguageDirs = (language == ExportLanguage.All && viewsToRender.size > 1)
-    // 9 artifacts per language (2 HTML + 2 DOCX + 2 ODT + 2 PDF +
-    // 1 zipped HTML) plus a single trace bundle.
-    val total = viewsToRender.size * 9 + 1
+    // Maximum: 9 artifacts per language (2 HTML + 2 DOCX + 2 ODT +
+    // 2 PDF + 1 zipped HTML) plus a single trace bundle. Optional
+    // missing PDFs/traces shrink the denominator as they are skipped.
+    var total = viewsToRender.size * 9 + 1
     var done = 0
     suspend fun bump() {
         done++
         // Hop to Main so the AlertDialog's slot recomposes immediately;
         // posting from IO works but races with frame timing.
+        withContext(Dispatchers.Main) { onProgress(done, total) }
+    }
+    suspend fun skipExpectedArtifact() {
+        total = (total - 1).coerceAtLeast(done)
         withContext(Dispatchers.Main) { onProgress(done, total) }
     }
     withContext(Dispatchers.Main) { onProgress(done, total) }
@@ -132,11 +137,12 @@ internal suspend fun bulkExportAndShare(
             // Drop a PDF that failed to render (missing / zero-byte) so the
             // master zip omits it instead of shipping a corrupt file while
             // progress reports success.
-            fun dropIfEmpty(f: File) {
-                if (!f.exists() || f.length() == 0L) {
+            fun keepIfNonEmpty(f: File): Boolean {
+                return if (!f.exists() || f.length() == 0L) {
                     com.ai.data.AppLog.w("BulkExport", "PDF render produced no output: ${f.name}")
                     f.delete()
-                }
+                    false
+                } else true
             }
             // PDF Short — no TOC page. WebView lives on Main, so hop.
             run {
@@ -145,9 +151,8 @@ internal suspend fun bulkExportAndShare(
                 withContext(Dispatchers.Main) {
                     renderHtmlToPdfFile(context, staticHtml, pdfShort, withTocPage = false, timeoutMs = 120_000L)
                 }
-                dropIfEmpty(pdfShort)
+                if (keepIfNonEmpty(pdfShort)) bump() else skipExpectedArtifact()
             }
-            bump()
             // PDF Complete — JS-injected TOC page with computed page numbers
             run {
                 val pdfComplete = File(langDir, "${stem}_complete.pdf")
@@ -155,9 +160,8 @@ internal suspend fun bulkExportAndShare(
                 withContext(Dispatchers.Main) {
                     renderHtmlToPdfFile(context, staticHtml, pdfComplete, withTocPage = true, timeoutMs = 120_000L)
                 }
-                dropIfEmpty(pdfComplete)
+                if (keepIfNonEmpty(pdfComplete)) bump() else skipExpectedArtifact()
             }
-            bump()
             // Per-language Zipped HTML — filter buildLanguageViews to
             // this single language inside the sub-zip too.
             val zhLang: ExportLanguage = if (lv.key == LangTab.ORIGINAL_KEY) ExportLanguage.Original
@@ -167,7 +171,8 @@ internal suspend fun bulkExportAndShare(
 
         // JSON traces zip — language-agnostic, one copy at the root.
         // Null when the report has no captured traces.
-        val traceZipBytes = buildJsonTraceZipBytes(context, report); bump()
+        val traceZipBytes = buildJsonTraceZipBytes(context, report)
+        if (traceZipBytes != null) bump() else skipExpectedArtifact()
 
         val outDir = File(context.cacheDir, "exports").also { it.mkdirs() }
         val masterZip = File(outDir, "ai_report_${safeTitle}_all${language.fileTag()}_$ts.zip")

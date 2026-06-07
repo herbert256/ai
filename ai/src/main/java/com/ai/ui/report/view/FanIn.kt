@@ -148,14 +148,15 @@ fun FanInViewScreen(
     // The pager is created while `languages` is still just [""] (the fan-in
     // translations load async) and rememberWrapPager doesn't re-seek when the
     // list grows — so a requested non-Original launch language never landed
-    // (it opened on Original). Re-centre once per result, after the languages
-    // arrive; manual swipes after that stand.
-    var centeredFor by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(languages, currentResultId) {
-        if (languages.size > 1 && centeredFor != currentResultId) {
+    // (it opened on Original). Re-centre once per result + requested
+    // language, after the languages arrive; manual swipes after that stand.
+    var centeredFor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    LaunchedEffect(languages, currentResultId, language) {
+        val centerKey = currentResultId to (language ?: "")
+        if (languages.size > 1 && centeredFor != centerKey) {
             val target = languages.indexOf(language ?: "").coerceAtLeast(0)
             pagerState.scrollToPage(wrapCenterPage(languages.size, target))
-            centeredFor = currentResultId
+            centeredFor = centerKey
         }
     }
     val activeLanguage = if (languages.isEmpty()) ""

@@ -8,13 +8,12 @@ import androidx.compose.runtime.setValue
 import com.ai.model.Parameters
 import com.ai.model.Settings
 import com.ai.ui.cruds.framework.CrudListPage
-import java.util.UUID
 
 private sealed interface Mode {
     data object List : Mode
     data class View(val item: Parameters) : Mode
     data class Edit(val item: Parameters) : Mode
-    data object Add : Mode
+    data class Add(val prefill: Parameters?) : Mode
 }
 
 private fun setCount(p: Parameters): Int = listOfNotNull(
@@ -48,14 +47,14 @@ fun ParametersCrud(
             line = { "${it.name} · ${setCount(it)} set" },
             itemKey = { it.id },
             onView = { mode = Mode.View(it) },
-            onAdd = { mode = Mode.Add },
+            onAdd = { mode = Mode.Add(null) },
             onBack = onBack,
             emptyMessage = "No parameter presets configured"
         )
         is Mode.View -> ParametersView(
             item = m.item,
             onEdit = { mode = Mode.Edit(m.item) },
-            onCopy = { mode = Mode.Edit(m.item.copy(id = UUID.randomUUID().toString(), name = "${m.item.name}-copy")) },
+            onCopy = { mode = Mode.Add(m.item.copy(name = "${m.item.name}-copy")) },
             onDelete = { onSave(aiSettings.removeParameters(m.item.id)); toList() },
             onBack = toList
         )
@@ -64,7 +63,8 @@ fun ParametersCrud(
             onSaved = { saved -> upsert(saved) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
-        Mode.Add -> ParametersAdd(
+        is Mode.Add -> ParametersAdd(
+            prefill = m.prefill,
             aiSettings = aiSettings,
             onSaved = { saved -> upsert(saved) },
             onBack = toList, onNavigateHome = onNavigateHome

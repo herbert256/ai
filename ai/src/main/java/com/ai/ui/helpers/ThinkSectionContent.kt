@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -175,8 +176,28 @@ private fun ThinkSection(content: String) {
 // ===== HTML Conversion =====
 
 internal fun convertMarkdownToSimpleHtml(markdown: String): String {
+    fun escapeHtml(value: String): String = value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+
+    val codeBlocks = mutableListOf<String>()
+    val inlineCodes = mutableListOf<String>()
+
     var html = markdown.replace("\r\n", "\n").replace(Regex("\n{3,}"), "\n\n")
-    html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    html = Regex("```(.*?)```", RegexOption.DOT_MATCHES_ALL).replace(html) { match ->
+        val body = match.groupValues[1].trim('\n', '\r')
+        val code = body.substringAfter('\n', body)
+        val index = codeBlocks.size
+        codeBlocks += "<pre><code>${escapeHtml(code)}</code></pre>"
+        "\u0001MDCODE$index\u0001"
+    }
+    html = Regex("`([^`]+)`").replace(html) { match ->
+        val index = inlineCodes.size
+        inlineCodes += "<code>${escapeHtml(match.groupValues[1])}</code>"
+        "\u0001MDINLINE$index\u0001"
+    }
+    html = escapeHtml(html)
         .replace(Regex("^### (.+)$", RegexOption.MULTILINE), "<h3>$1</h3>")
         .replace(Regex("^## (.+)$", RegexOption.MULTILINE), "<h2>$1</h2>")
         .replace(Regex("^# (.+)$", RegexOption.MULTILINE), "<h1>$1</h1>")
@@ -187,6 +208,12 @@ internal fun convertMarkdownToSimpleHtml(markdown: String): String {
         .replace(Regex("^\\d+\\. (.+)$", RegexOption.MULTILINE), "<li>$1</li>")
         .replace("\n\n", "</p><p>").replace("\n", "<br>")
     html = html.replace(Regex("(<li>.*?</li>)+")) { "<ul>${it.value}</ul>" }
+    codeBlocks.forEachIndexed { index, code ->
+        html = html.replace("\u0001MDCODE$index\u0001", code)
+    }
+    inlineCodes.forEachIndexed { index, code ->
+        html = html.replace("\u0001MDINLINE$index\u0001", code)
+    }
     if (html.isNotBlank()) html = "<p>$html</p>"
     return html
 }
@@ -198,21 +225,29 @@ private fun HtmlContentDisplay(htmlContent: String) {
 }
 
 private fun parseHtmlToAnnotatedString(html: String): androidx.compose.ui.text.AnnotatedString {
-    val cleanHtml = html.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-        .replace("&quot;", "\"").replace("&#39;", "'")
+    fun decodeHtmlEntitiesOnce(value: String): String = value
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+
+    val cleanHtml = html
         .replace("<p>", "").replace("</p>", "\n\n").replace("<br>", "\n")
         .replace("<ul>", "\n").replace("</ul>", "\n")
         .replace("<li>", "  \u2022 ").replace("</li>", "\n")
         .replace(Regex("\n{3,}"), "\n\n").trim()
 
     return buildAnnotatedString {
-        val tagPattern = Regex("<(/?)(h[123]|strong|em)>")
+        val tagPattern = Regex("<(/?)(h[123]|strong|em|code|pre)>")
         var lastEnd = 0
         val matches = tagPattern.findAll(cleanHtml).toList()
         val styleStack = mutableListOf<Pair<String, Int>>()
 
         for (match in matches) {
-            if (match.range.first > lastEnd) append(cleanHtml.substring(lastEnd, match.range.first))
+            if (match.range.first > lastEnd) {
+                append(decodeHtmlEntitiesOnce(cleanHtml.substring(lastEnd, match.range.first)))
+            }
             val isClosing = match.groupValues[1] == "/"
             val tagName = match.groupValues[2]
             if (!isClosing) {
@@ -227,6 +262,7 @@ private fun parseHtmlToAnnotatedString(html: String): androidx.compose.ui.text.A
                         "h3" -> SpanStyle(fontWeight = FontWeight.Bold, fontSize = 17.sp, color = AppColors.InfoAccent)
                         "strong" -> SpanStyle(fontWeight = FontWeight.Bold)
                         "em" -> SpanStyle(fontStyle = FontStyle.Italic, color = AppColors.TextSecondary)
+                        "code", "pre" -> SpanStyle(fontFamily = FontFamily.Monospace, color = AppColors.TextSecondary)
                         else -> null
                     }
                     style?.let { addStyle(it, startPos, length) }
@@ -234,6 +270,6 @@ private fun parseHtmlToAnnotatedString(html: String): androidx.compose.ui.text.A
             }
             lastEnd = match.range.last + 1
         }
-        if (lastEnd < cleanHtml.length) append(cleanHtml.substring(lastEnd))
+        if (lastEnd < cleanHtml.length) append(decodeHtmlEntitiesOnce(cleanHtml.substring(lastEnd)))
     }
 }

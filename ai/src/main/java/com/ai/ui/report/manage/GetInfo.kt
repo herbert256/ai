@@ -32,7 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Status of one metadata-generation job on the "Report - Get info" screen. */
-enum class InfoJobState { CLOCK, RUNNING, FAILED, DONE }
+enum class InfoJobState { CLOCK, RUNNING, FAILED, EMPTY, DONE }
 
 /** One row on the Info screen: a metadata job for the report (report-level
  *  icon/language/title) or per-model (model-icon/model-title). */
@@ -94,7 +94,7 @@ fun buildInfoJobs(
     perModelIcon: Boolean,
     perModelTitle: Boolean,
     icons: com.ai.data.MetadataIcons = com.ai.data.MetadataIcons(),
-    // Keys ("<reportId>|icon" / "|language" / "|title") of report-level jobs
+    // Keys ("<reportId>|icon" / "|language" / "|language-icon" / "|title") of report-level jobs
     // whose call is ACTIVELY in flight. A report-level job with no result and
     // no error shows the clock (queued) unless its key is here — then the
     // animated hourglass (really running). Empty = the aggregate caller
@@ -149,7 +149,7 @@ fun buildInfoJobs(
             !report.languageIconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.languageIcon.isNullOrBlank() -> InfoJobState.DONE
             report.languageName.isNullOrBlank() -> InfoJobState.CLOCK
-            "${report.id}|language" in running -> InfoJobState.RUNNING
+            "${report.id}|language-icon" in running -> InfoJobState.RUNNING
             else -> InfoJobState.CLOCK
         }
         val langIconLabel = report.languageIconErrorMessage?.takeIf { it.isNotBlank() }
@@ -248,8 +248,8 @@ fun buildInfoJobs(
             !a.modelTitleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !a.modelTitle.isNullOrBlank() -> InfoJobState.DONE
             // Call concluded but yielded no title and no error → terminal,
-            // don't spin forever.
-            a.modelTitleAttempted() -> InfoJobState.DONE
+            // but not a success.
+            a.modelTitleAttempted() -> InfoJobState.EMPTY
             else -> InfoJobState.RUNNING
         }
 
@@ -267,8 +267,9 @@ fun buildInfoJobs(
         report.agents.forEach { a ->
             val modelName = "${a.provider} · ${shortModelName(a.model)}"
             val titleState = titleStateFor(a)
+            val label = if (titleState == InfoJobState.EMPTY) "$modelName · no title" else modelName
             jobs += InfoJob(
-                "model-title", modelName, titleState,
+                "model-title", label, titleState,
                 a.modelTitleInputCost + a.modelTitleOutputCost, a.agentId,
                 // Show the model's found icon when there is one, else 🏷️.
                 doneIcon = a.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.label,
@@ -322,6 +323,7 @@ internal fun InfoStatusCell(state: InfoJobState, doneIcon: String? = null) {
             AnimatedHourglass(fontSize = 16.sp)
         }
         InfoJobState.FAILED -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
+        InfoJobState.EMPTY -> Text("⊘", fontSize = 16.sp, color = AppColors.TextDisabled, modifier = Modifier.width(24.dp))
         // Show the generated icon for this job once done; ✅ when none.
         InfoJobState.DONE -> Text(doneIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp, modifier = Modifier.width(24.dp))
     }
@@ -363,7 +365,7 @@ fun ReportGetInfoScreen(
         iconRefreshTick,
         metadataIcons,
         runningInfoJobs,
-        settings,
+        settings.internalPrompts,
         iconGenEnabled,
         reportLanguageOn,
         titleModeAi,
@@ -413,7 +415,11 @@ fun ReportGetInfoScreen(
                         modifier = Modifier.width(96.dp).padding(start = 8.dp, end = 6.dp)
                     )
                     Column(modifier = Modifier.weight(1f)) {
-                        val color = if (job.state == InfoJobState.FAILED) AppColors.DangerAccent else AppColors.TextPrimary
+                        val color = when (job.state) {
+                            InfoJobState.FAILED -> AppColors.DangerAccent
+                            InfoJobState.EMPTY -> AppColors.TextDisabled
+                            else -> AppColors.TextPrimary
+                        }
                         Text(job.label, fontSize = 13.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (job.cost > 0.0) {

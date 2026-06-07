@@ -86,7 +86,7 @@ internal fun UserNoteCard(
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {}
 ) {
-    var expanded by remember(note.id) { mutableStateOf(false) }
+    var expanded by rememberSaveable(note.id) { mutableStateOf(false) }
     val headline = note.title?.takeIf { it.isNotBlank() } ?: note.text
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
@@ -150,7 +150,7 @@ internal fun ViewUserNotes(reportId: String, targetKind: String, targetId: Strin
     val dv by ReportDataVersion.version.collectAsState()
     val notes by produceState(emptyList<UserNote>(), reportId, targetKind, targetId, dv) {
         value = withContext(Dispatchers.IO) {
-            ReportStorage.getReport(context, reportId)?.notesFor(targetKind, targetId) ?: emptyList()
+            ReportStorage.getUserNotesForTarget(context, reportId, targetKind, targetId)
         }
     }
     if (notes.isEmpty()) return

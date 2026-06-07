@@ -40,7 +40,11 @@ fun AlternativeTranslationsScreen(
             if (ordered.isEmpty()) {
                 Text("Nothing here yet. Pick models on the previous screen.", fontSize = 12.sp, color = AppColors.TextTertiary)
             } else {
-                ordered.forEach { c -> TranslationCandidateRow(c, onPick) }
+                ordered.forEachIndexed { index, c ->
+                    key("${c.provider.id}|${c.model}|$index") {
+                        TranslationCandidateRow(c, onPick)
+                    }
+                }
             }
         }
 

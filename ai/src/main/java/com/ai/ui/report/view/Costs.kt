@@ -46,11 +46,11 @@ import com.ai.data.Report
 import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.formatCentsValue
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Locale
 
 /**
  * Content-focused "View" variant of the report cost breakdown. Reached
@@ -373,14 +373,6 @@ private fun CostsModeChip(
         )
     }
 }
-
-/** Cents-as-a-value formatter — the row-level cost halves are stored
- *  in cents (Double), so this just rounds and appends the cent
- *  character. Mirrors the [com.ai.ui.shared.formatUsd] shape used
- *  elsewhere; lives here because no other screen uses the cent
- *  display today. */
-private fun formatCentsValue(cents: Double, decimals: Int = 4): String =
-    String.format(Locale.US, "%.${decimals}f ¢", cents)
 
 /** Roll-up label for one cost bucket on the Costs view screen. */
 private data class BucketTotal(val key: String, val cents: Double, val calls: Int)

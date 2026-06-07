@@ -19,6 +19,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -34,13 +35,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
+import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.ReportViewModel
@@ -131,7 +133,12 @@ internal fun TranslationL3Screen(
     // items also carry it on item.sourceText — fall back to that so
     // an in-flight run needs no disk read.
     val empty = TranslationSourceInfo(null, null, null, null)
-    val source by produceState(initialValue = empty, reportId, item.id, item.kind, item.target) {
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val source by produceState(
+        initialValue = empty,
+        reportId, item.id, item.kind, item.target, reportDataVersion, secondaryDataVersion
+    ) {
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, reportId)
             when (item.kind) {
@@ -180,21 +187,10 @@ internal fun TranslationL3Screen(
     val translationLabel = item.model?.takeIf { it.isNotBlank() } ?: "Translation"
     val translationProviderService = item.providerId?.let { AppService.findById(it) }
 
-    // Trace for this translation call. Prefer the exact trace filename
-    // the item captured at call time ([TranslationItem.traceFile]) so a
-    // model that translated several items in one run links each item to
-    // its own call. Fall back to the most-recent Translation-tagged trace
-    // for the model only for legacy rows reconstructed from disk that
-    // carry no traceFile.
-    val traceFilename by produceState<String?>(initialValue = null, reportId, item.id, item.model, item.traceFile) {
-        item.traceFile?.takeIf { it.isNotBlank() }?.let { value = it; return@produceState }
-        value = withContext(Dispatchers.IO) {
-            val m = item.model ?: return@withContext null
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == reportId && it.model == m && it.category?.startsWith("translate") == true }
-                .maxByOrNull { it.timestamp }?.filename
-        }
-    }
+    // Trace for this translation call. Only show exact trace filenames
+    // captured at call time; legacy rows without traceFile cannot be matched
+    // safely when one model translated multiple items.
+    val traceFilename = item.traceFile?.takeIf { it.isNotBlank() }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val traceEnabled = ApiTracer.ladybugLinksEnabled && traceFilename != null
@@ -224,7 +220,7 @@ internal fun TranslationL3Screen(
         )
         if (item.costDollars > 0.0) {
             Text(
-                "Cost: ${formatCents(item.costDollars)} ¢",
+                "Cost: ${formatTranslationCost(item.costDollars)}",
                 fontSize = 12.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(vertical = 4.dp)
             )

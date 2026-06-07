@@ -11,21 +11,21 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The Get-info job list re-reads the whole report from disk and rebuilds every row on any unrelated `Settings` re-emit while the screen is open.
 **Root cause:** `produceState` keys on the entire `settings: Settings` object identity, plus `runningInfoJobs`, `iconGenEnabled`, etc. `buildInfoJobs` only reads `settings.internalPrompts` (icon/title/language prompt resolution); keying on the whole Settings makes every settings churn re-trigger the IO read of the report.
 **Proposed fix:** Key the `produceState` on `settings.internalPrompts` instead of `settings` (the only slice `buildInfoJobs` consumes).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Get-info job rows now key on `settings.internalPrompts` instead of the full Settings object
 
 ### Bug 2 — Severity: LOW — Category: misleading status classifier
 **Location:** GetInfo.kt:246-254 (`titleStateFor`), 270-276 (model-title row)
 **Symptom:** A per-model title call that concluded with no title and no error message renders as a green ✅ "done" row (doneIcon = the model's icon, label = the model name), implying a title was produced when none was.
 **Root cause:** `titleStateFor` returns `InfoJobState.DONE` when `a.modelTitleAttempted()` is true even though `a.modelTitle` is blank and `modelTitleErrorMessage` is null. The "attempted but empty" terminal state is collapsed into DONE with no visual distinction from a real success.
 **Proposed fix:** Add a distinct terminal "empty" presentation (e.g. a dimmed ⃠ / "no title" label) for the `modelTitleAttempted() && modelTitle.isNullOrBlank()` case, separate from a genuine DONE.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — attempted-but-empty model-title jobs now render as a dim empty terminal state with a no-title label
 
 ### Bug 3 — Severity: LOW — Category: shared running-key ambiguity
 **Location:** GetInfo.kt:135,152 (`"${report.id}|language" in running`)
 **Symptom:** Both the `language` (detection) row and the `language-icon` row test the same `"<id>|language"` membership for their RUNNING state, so once the detection name is set, a still-in-flight detection call keeps the icon row showing "Generating…/Running" even though the icon call may not have started.
 **Root cause:** There is one running-key per language flow (`|language`) but two rows; the icon row distinguishes itself only by the `report.languageName.isNullOrBlank()` CLOCK guard, after which it falls through to the shared key.
 **Proposed fix:** Emit a distinct running key for the icon stage (e.g. `"<id>|language-icon"`) so the two rows reflect their own call's liveness.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — language detection and language-icon generation now use separate running keys
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/GenerationPhase.kt
 
@@ -41,14 +41,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** During the brief window after a translation run's rows persist but before a `TranslationRunSummary` for that runId exists, the run's cost is counted both in `liveTranslationCost` and in `secondaryTotals` (computed from the just-persisted rows), briefly inflating the bottom-bar total.
 **Root cause:** The live fold excludes runs whose runId is in `translationRunSummaries`, but `secondaryTotals` is computed upstream from disk independently. If the summaries list lags the secondary totals (different recompute cadence), the exclusion set is empty for that runId while secondaryTotals already includes it.
 **Proposed fix:** Exclude any runId that already has a persisted TRANSLATE row in `secondaryTotals` from the live fold (track persisted runIds from the same source the totals use), not just runIds that have a summary object.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — live translation totals now exclude run ids already present in persisted TRANSLATE rows
 
 ### Bug 6 — Severity: LOW — Category: coarse remember key
 **Location:** GenerationPhase.kt:655 (`displayRows = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings)`)
 **Symptom:** The agent display-row list rebuilds on any `Settings` re-emit, even when only an unrelated setting changed.
 **Root cause:** Keys on the whole `aiSettings` object; the builder only needs `getAgentById`/`getEffectiveModelForAgent` (agent definitions). A new `Settings` instance on any edit invalidates the memo.
 **Proposed fix:** Key on `aiSettings.agents` (the slice the builder reads) rather than the whole Settings.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — display rows now remember against `aiSettings.agents` instead of the full settings object
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/TranslationRun.kt
 
@@ -57,7 +57,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A finished run (liveRun null) whose `loadPersisted()` returns null shows "Loading…" forever with no retry and no error.
 **Root cause:** `produceState` runs `loadPersisted()` once per key change; `run = liveRun ?: persisted` stays null when both are null, and the only escape is the `return@CompositionLocalProvider` "Loading…" placeholder. `buildPersistedTranslationRunState` returns null when no TRANSLATE rows match the runId (e.g. all rows deleted out-of-band, or a synthetic legacy runId that no longer groups anything), leaving the screen permanently on "Loading…".
 **Proposed fix:** Distinguish "still loading" from "loaded null" (e.g. a nullable wrapper / sentinel) and render an explicit "This translation run no longer exists" + back affordance when the load resolved to null.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — persisted translation loads now distinguish loading from loaded-null and show a missing-run message with Back
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/TranslationL1.kt
 
@@ -73,7 +73,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The same run's cost is rendered with 2 decimals + "¢" on L1, 4 decimals + no unit on the L2 header, and 4 decimals + "¢" on L3 — three different presentations within one feature.
 **Root cause:** Each level calls `formatCents` with different `decimals` and a hand-appended (or omitted) "¢" suffix; no shared cost-cell helper.
 **Proposed fix:** Introduce one shared cost-cell formatter (fixed decimals + unit) and use it in L1/L2/L3.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — L1/L2/L3 translation cost cells now share one cents formatter with a consistent unit suffix
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/TranslationL2.kt
 
@@ -98,14 +98,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** For a persisted (legacy, reconstructed-from-disk) run where items carry no `traceFile`, every item the same model translated links to the *same* most-recent translate-tagged trace, so the 🐞 trace icon opens the wrong call for all but the latest item.
 **Root cause:** The fallback picks `ApiTracer.getTraceFiles().filter { model && category startsWith "translate" }.maxByOrNull { timestamp }` — a single shared result for the whole model, with no per-item disambiguation.
 **Proposed fix:** Match the trace by timestamp proximity to the item (closest-timestamp tiebreak, as `SecondaryResultDetailScreen` does), or hide the trace icon for legacy rows lacking `traceFile`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Translation L3 now shows trace links only for exact stored trace filenames and hides unsafe legacy fallbacks
 
 ### Bug 13 — Severity: LOW — Category: stale content (missing version key)
 **Location:** TranslationL3.kt:134 (`source` produceState keyed on `reportId, item.id, item.kind, item.target`)
 **Symptom:** The source pane (report prompt / agent response / META source) is resolved from disk once and won't refresh if the underlying report or META row changes while the L3 screen stays open.
 **Root cause:** The `produceState` keys omit `ReportDataVersion` / `SecondaryDataVersion`, unlike the view-side screens which subscribe to both.
 **Proposed fix:** Add `ReportDataVersion.version`/`SecondaryDataVersion.version` to the key list.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Translation L3 source resolution now keys on report and secondary data versions
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/Translations.kt
 
@@ -114,7 +114,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Two summaries with a blank/identical `runId` (legacy translation runs that predate `translationRunId`) collide on the LazyColumn key, dropping one row.
 **Root cause:** The key uses only `runId`; legacy rows can share an empty runId.
 **Proposed fix:** Use a composite key (e.g. `runId.ifBlank { targetLanguage }` plus an index) so legacy summaries stay distinct.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — finished translation summaries now use indexed composite keys with a legacy language fallback
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/FindAlternativeTitles.kt
 
@@ -123,7 +123,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** `tappable` is computed but never referenced; the clickable modifier re-derives the same condition inline (line 63).
 **Root cause:** Leftover local from an earlier refactor.
 **Proposed fix:** Delete the unused `tappable` val.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — removed the unused `tappable` local
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/FindAlternativeTranslations.kt
 
@@ -132,7 +132,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Candidates are rendered in a `Column.forEach` with no stable key; two candidates sharing the same `(provider, model)` (e.g. a model selected twice, or the same model re-run) reuse composition slots by position, so a Running→Done transition can flash the wrong row's body/cost.
 **Root cause:** Positional composition without keys for a list whose elements aren't guaranteed unique by `(provider,model)`.
 **Proposed fix:** Use a stable per-candidate id (candidate's own id, or `(provider,model,index)`) and a `key(...)` block around each row.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — alternative translation rows now use keyed composition by provider/model/index
 
 ## File: ai/src/main/java/com/ai/ui/helpers/TranslationGrouping.kt
 
@@ -141,7 +141,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Two distinct legacy translation runs to the *same* language (both with null `translationRunId`) collapse into one drill-in / one View Translate screen, merging their rows.
 **Root cause:** The legacy fallback `"lang:${targetLanguage}"` is per-language, not per-run, so it cannot separate two runs to the same language.
 **Proposed fix:** Accept that legacy rows can't be split, but document it; for new rows the `translationRunId` already disambiguates — ensure all new TRANSLATE rows always carry a non-null runId so this fallback is never hit going forward.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — new TRANSLATE rows are documented as nonblank-run-id rows and blank ids now fall back to the legacy language grouping path
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Translate.kt
 
@@ -221,14 +221,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** An initiator with a single responder still gets a wrapping pager; "No more responders" never appears and the user can "swipe" the lone responder onto itself indefinitely.
 **Root cause:** `coerceAtLeast(2)` forces `rememberWrapPager`'s `wrap = realCount > 1` branch on even for one responder. `wrapTo(1)` always returns 0 so the body is correct, but the wrap behaviour (and the edge overlay) is wrong for the 1-item case.
 **Proposed fix:** Pass `responders.size` (not coerced) — `rememberWrapPager` already re-reads the live count via `wrapTo`, so the coerce isn't needed to prevent overflow.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — responder pager now receives the actual responder count so single-responder runs do not wrap
 
 ### Bug 28 — Severity: LOW — Category: non-lazy composition of all bodies (perf)
 **Location:** Fan.kt:548-560 (✋ all-responders `Column(verticalScroll).forEach { FanOutResponderCard(...) }`)
 **Symptom:** Switching to ✋ "all" mode on a fan-out with many responders composes every responder card (each running the full markdown/think pipeline via `ContentWithThinkSections` when expanded) at once, with no lazy windowing — jank / memory spike on large runs.
 **Root cause:** A plain scrolling `Column` rather than a `LazyColumn`; all children compose eagerly.
 **Proposed fix:** Use a `LazyColumn` (keyed by `pair.id`) for the ✋ list so off-screen responder cards aren't composed.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — all-responders mode now uses a LazyColumn keyed by responder row id
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Costs.kt
 
@@ -237,7 +237,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The same report cost is shown to a different number of decimals on the Costs view (4), the Answer Matrix (2–4 by magnitude), and the Report-info screen (2), so a user comparing them sees mismatched figures.
 **Root cause:** Three private `formatCentsValue`/`formatCents` call sites with divergent decimal rules and no shared policy.
 **Proposed fix:** Centralise a single cents formatter with one decimal policy and use it across the three screens.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Costs, Answer Matrix, and Report Info now share the same cents-native formatter
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Moderation.kt
 
@@ -246,14 +246,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** On a comma-decimal locale (the user's nl-NL device) moderation category chips render scores with a comma ("violence 0,30") while the rest of the app uses period decimals.
 **Root cause:** `"%.2f".format(score)` uses the default locale; the codebase otherwise pins numeric formatting to `Locale.US` (see `UiFormatting.kt`).
 **Proposed fix:** Use `String.format(Locale.US, "%.2f", score)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — moderation category chips now format scores with `Locale.US`
 
 ### Bug 31 — Severity: LOW — Category: index-based agent mapping mismatch
 **Location:** Moderation.kt:104-114 (`labels`/`responses` mapped by `idx+1`), 232/246/251 (`agentLabels[r.id]`, `agentResponses[r.id]`)
 **Symptom:** Moderation pages map each parsed row's `id` (1-based) to the n-th SUCCESS agent's model/response. If the report's successful-agent set changed since the moderation ran (an agent removed/added/regenerated), the chips and response card pair with the wrong model, or fall to "(unknown)".
 **Root cause:** The row→agent association is purely positional (re-derived from the *current* agent list each load), not stored against a stable agentId in the moderation result.
 **Proposed fix:** Persist the moderated agentId per moderation row, or render a clear "agent set changed" notice when the row count and current success-agent count disagree.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Moderation view now warns when parsed rows no longer match the current successful-agent count
 
 ## File: ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt
 
@@ -269,7 +269,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** When the Answer Matrix is viewed in a non-Original language, the Stance / Confidence / Risk columns become meaningless (every row reads "Neutral" / "Medium" / "None explicit").
 **Root cause:** `displayBody` is the *translated* agent response when a language is active (line 332), but `recommendationRegex`/`riskRegex`/`confidence*Regex`/`refusalRegex` are English-only word lists that don't match other languages.
 **Proposed fix:** Run the signal extraction on the Original (English) body even when displaying a translation, or hide the heuristic columns when a non-Original language is selected.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Answer Matrix heuristics now extract from the original response body even when translated labels are shown
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Prompt.kt
 
@@ -278,7 +278,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** After an in-place title-bar swipe to another report, the prompt pager keeps its previous page index; the new report's prompt can open on a language page it doesn't have (the title bar shows that language while the body silently falls back to `report.prompt`).
 **Root cause:** Unlike Meta/FanIn (which run a `LaunchedEffect(languages, currentResultId)` re-centre), Prompt has no re-seek after `currentReportId` changes; `rememberWrapPager`'s `initialIndex` only applies at creation.
 **Proposed fix:** Add a `LaunchedEffect(currentReportId, languages)` that re-centres to the requested/Original page when the report changes.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Prompt view now re-centres its language pager when the report or requested language changes
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Icons.kt
 
@@ -287,7 +287,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The child-overlay selection state isn't reset when the screen swaps reports in place; stale agent/pair ids from the previous report survive the swipe.
 **Root cause:** The overlay vars use `rememberSaveable { }` without keying on `currentReportId`. Today the outer swipe is only active while no overlay is open, so it's not user-visible, but the state is logically wrong after a swap.
 **Proposed fix:** Key the overlay-state `rememberSaveable(currentReportId)` so a report swap clears them.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Icons child-overlay state is now keyed by `currentReportId`
 
 ## File: ai/src/main/java/com/ai/ui/report/view/ValueView.kt
 
@@ -303,7 +303,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** When some rerank rows carry a numeric `score` and others only a `rank`, the Pareto-dominance and best-value computation compares score-scaled qualities against rank-scaled ones — incomparable units, so dominance/best-value can be wrong.
 **Root cause:** The fallback derives a synthetic quality `(n - rank + 1)` on a different scale from real model scores, then both feed the same `>=`/dominance comparison.
 **Proposed fix:** Use one consistent quality basis for all points (all-rank or all-score); if mixing is unavoidable, normalise to a common 0–1 scale before comparing.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Value view now derives all point quality values from one ordered rank scale before Pareto comparison
 
 ## File: ai/src/main/java/com/ai/ui/report/view/FanPair.kt
 
@@ -312,7 +312,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A collapsed pair bubble's preview can cut through a `<think>…</think>` tag, a ``` ``` ``` code fence, or an `MDTBL<n>` table placeholder mid-token, producing broken markdown in the preview (unclosed think section / half a table placeholder shown as text).
 **Root cause:** A hard character cut at 360 with no line-boundary awareness. The sibling Translate.kt `SidePanel` explicitly cuts on a newline boundary to avoid exactly this; FanPair does not.
 **Proposed fix:** Reuse the line-boundary cut logic from `Translate.kt:329-338` (break on the last `\n` inside the preview window).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — FanPair collapsed previews now prefer a newline boundary before adding the ellipsis
 
 ## File: ai/src/main/java/com/ai/ui/report/info/ReportInfoScreen.kt
 
@@ -321,7 +321,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** "Total cost" includes spend from deleted items while "API calls", "Tokens", and "Models used" count only current rows, so the displayed total is larger than the sum of the per-call figures the screen also shows — confusing.
 **Root cause:** `totalCents = totalInC + totalOutC + deletedCents`, but the other roll-ups read only `costData.rows` (current items).
 **Proposed fix:** Either surface the deleted-items contribution as its own labelled line (as the cost tables do) or exclude it from the headline so the numbers reconcile.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Report Info now shows deleted-item cost as its own totals row when nonzero
 
 ## File: ai/src/main/java/com/ai/ui/helpers/ReportExport.kt
 
@@ -344,14 +344,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A META row generated as a back-translation into the report's own detected language (tagged with `targetLanguage == reportLanguageName`) is excluded from the Original tab of the export and never folded back, unlike the in-app View which folds `reportLanguageName` into Original.
 **Root cause:** The export's Original filter is strictly `targetLanguage == null`; it has no `reportLanguageName` fold equivalent to the in-app `buildLangTabs(originalAlias=...)`.
 **Proposed fix:** Treat `targetLanguage == reportLanguageName` rows as Original in `buildLanguageViews` (fold them into the Original view) to match the in-app behaviour.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — HTML export now carries the report language name and folds matching secondary rows into Original
 
 ### Bug 43 — Severity: LOW — Category: false-positive anchor linkify
 **Location:** ReportExport.kt:1289-1293 (`linkifyAnchorRefs`)
 **Symptom:** Any `[N]` in META/rerank prose where `N` happens to fall in `1..maxAnchor` becomes a hyperlink to a result card, even when it's not a citation (e.g. a list marker or a quoted "[2]").
 **Root cause:** The regex blindly linkifies every `[digits]` in range; there's no context check that the bracket is actually a result reference.
 **Proposed fix:** Tighten the match (e.g. require the model's documented citation form), or accept it as best-effort and document the limitation.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — export anchor linkification now requires citation-like context before `[N]`
 
 ## File: ai/src/main/java/com/ai/ui/helpers/MarkdownTables.kt
 
@@ -403,7 +403,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Moderation top-scores and the per-category detail scores render with commas on a comma-decimal device.
 **Root cause:** Default-locale `format`.
 **Proposed fix:** Pin `Locale.US`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Moderation table top scores and detail scores now format with `Locale.US`
 
 ## File: ai/src/main/java/com/ai/ui/helpers/ThinkSectionContent.kt
 
@@ -412,14 +412,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The in-app content renderer doesn't handle inline code (`` `x` ``) or fenced code blocks at all, so report bodies show literal backticks in-app while the HTML export (`convertMarkdownToHtmlForExport`) renders them as `<code>`/`<pre>`. Same content reads differently in-app vs exported.
 **Root cause:** `convertMarkdownToSimpleHtml` omits the code-fence / inline-code passes that the export converter has.
 **Proposed fix:** Add inline-code / code-fence handling to the in-app converter (or render code spans monospace in `parseHtmlToAnnotatedString`).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — in-app report markdown now extracts fenced and inline code before formatting and renders code spans monospace
 
 ### Bug 51 — Severity: LOW — Category: double-unescape of user-typed entities
 **Location:** ThinkSectionContent.kt:201-206 (`parseHtmlToAnnotatedString` un-escapes `&amp;`/`&lt;`/`&gt;` before parsing)
 **Symptom:** Report text that *literally* contains an HTML entity the user typed (e.g. `&lt;`) is escaped once by `convertMarkdownToSimpleHtml` (`&` → `&amp;` → `&amp;lt;`) and then unescaped here back to `&lt;` and finally to `<`, so a typed `&lt;` is shown as `<`.
 **Root cause:** The annotated-string pass reverses the escaping the simple-HTML pass applied, but applies a second `&lt;→<` step that also catches literal entities the user authored.
 **Proposed fix:** Carry the already-escaped HTML through without re-unescaping, or do a single faithful unescape pass.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — report HTML entities are now decoded once while appending text, so literal user-authored entities stay visible
 
 ## File: ai/src/main/java/com/ai/ui/helpers/WordOdtExport.kt
 
@@ -446,7 +446,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The progress bar reaches 100% counting artifacts that were dropped: a PDF whose render produced no output is deleted (`dropIfEmpty`) yet its `bump()` still fires, and the trace-bundle leg bumps even when `traceZipBytes` is null (no traces). The "done/total" overstates what's actually in the zip.
 **Root cause:** `bump()` is called unconditionally per leg regardless of whether the artifact made it into the bundle.
 **Proposed fix:** Bump only on a successfully produced artifact, and compute `total` from the artifacts actually emitted (or label the bar as "steps", not "files").
-**Status:** Open
+**Status:** Fixed (2026-06-07) — bulk export progress now bumps only emitted PDF/trace artifacts and shrinks the denominator for skipped optional outputs
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/view/ContentDisplay.kt
 
@@ -455,7 +455,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The "costs from deleted items" line in the in-app Manage cost tables renders with a comma on a comma-decimal device, while the surrounding cells (via `formatCents`, `Locale.US`) use a period.
 **Root cause:** Default-locale `"+%.2f ¢".format(...)`.
 **Proposed fix:** Use `String.format(Locale.US, "+%.2f ¢", deletedCents)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — deleted-cost rows in the manage cost tables now use `String.format(Locale.US, ...)`
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/Tournament.kt
 
@@ -464,7 +464,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The per-match confidence percentage uses default-locale formatting (irrelevant for `%.0f` integers, but the pattern is locale-fragile and inconsistent with the codebase convention).
 **Root cause:** Default-locale `"%.0f".format(...)`.
 **Proposed fix:** Pin `Locale.US` (harmless now, prevents regression if decimals are ever added).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — tournament confidence percentage formatting now pins `Locale.US`
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/JudgeEval.kt
 
@@ -473,7 +473,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The judge-cell confidence renders with a comma on a comma-decimal device.
 **Root cause:** Default-locale `"%.2f".format(...)`.
 **Proposed fix:** Pin `Locale.US`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — judge-eval confidence cells now format with `Locale.US`
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/Nav.kt
 
@@ -499,14 +499,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Every View screen mounts `ViewUserNotes`, which re-reads and re-parses the entire report from disk on each `ReportDataVersion` bump just to fetch the notes for one target.
 **Root cause:** `ReportStorage.getReport(...)` (full file + Gson parse) is invoked per target per version bump; there's no narrower notes accessor.
 **Proposed fix:** Add a lightweight notes-only read (or cache the parsed report) so each view-screen note strip doesn't reparse the whole report on every change.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — read-only View note strips now use a streaming notes-only ReportStorage accessor instead of loading the full report
 
 ### Bug 61 — Severity: LOW — Category: collapse state lost on config change
 **Location:** UserNotes.kt:89 (`var expanded by remember(note.id) { mutableStateOf(false) }`)
 **Symptom:** An expanded note card collapses on rotation / process death because its expanded flag isn't saved.
 **Root cause:** `remember` (not `rememberSaveable`).
 **Proposed fix:** Use `rememberSaveable(note.id)` for the expanded flag.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — note-card expanded state now uses `rememberSaveable(note.id)`
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/view/SecondaryDetail.kt
 
@@ -522,7 +522,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The 🐞 trace link and the title-bar report icon/language don't refresh if a trace is captured/purged or the report metadata changes while the detail screen stays open.
 **Root cause:** Neither `produceState` keys on `ApiTracer`/`ReportDataVersion`.
 **Proposed fix:** Key `parentReportState` on `ReportDataVersion.version`; refresh the trace lookup on a trace-data signal (or accept it as load-once and document it).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — secondary detail now refreshes parent report metadata on `ReportDataVersion` and trace links on `ApiTracer.traceVersion`
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Main.kt (additional)
 
@@ -531,7 +531,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Two Meta tiles for legacy aggregate items (no `sourceRow`) that share a `metaPromptName` produce the same IdentifiedTile id `meta:<label>:<label>`, so the persisted tile-order map can't tell them apart and one can be lost from the saved order.
 **Root cause:** The id falls back to `item.label` when `sourceRow` is null, which isn't unique across two items of the same label.
 **Proposed fix:** Include an index or a secondary discriminator in the fallback id so legacy aggregate tiles stay distinct.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — legacy aggregate Meta tile ids now use an indexed fallback when no source row id exists
 
 ## File: ai/src/main/java/com/ai/ui/report/view/FanIn.kt (additional)
 
@@ -540,4 +540,4 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** If the parent re-opens the same fan-in row (same `currentResultId`) with a *different* requested `language`, the pager doesn't re-centre because `centeredFor` already equals `currentResultId` — the requested launch language is ignored on the second open.
 **Root cause:** The one-shot guard keys on `currentResultId` only; a new `language` value for the same result doesn't reset `centeredFor`.
 **Proposed fix:** Include `language` in the guard (e.g. `centeredFor != (currentResultId to language)`), matching the intent of "open on the requested language".
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Fan-in view now re-centres once per result and requested language, not just per result id

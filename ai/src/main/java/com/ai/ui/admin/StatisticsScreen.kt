@@ -42,10 +42,13 @@ internal fun buildProviderCostGroups(context: Context, stats: Map<String, UsageS
                 StatWithCost(stat, ic, oc, ic + oc, stat.pricingSource ?: "")
             } else {
                 val pricing = PricingCache.getPricing(context, stat.provider, stat.model)
-                val ic = if (stat.searchUnits > 0) stat.searchUnits * pricing.perQueryPrice
-                         else stat.inputTokens * pricing.promptPrice
-                val oc = if (stat.searchUnits > 0) 0.0
-                         else stat.outputTokens * pricing.completionPrice
+                val searchCost = if (stat.searchUnits > 0 && pricing.perQueryPrice > 0.0) {
+                    stat.searchUnits * pricing.perQueryPrice
+                } else {
+                    0.0
+                }
+                val ic = stat.inputTokens * pricing.promptPrice + searchCost
+                val oc = stat.outputTokens * pricing.completionPrice
                 StatWithCost(stat, ic, oc, ic + oc, pricing.source)
             }
         }.sortedByDescending { it.totalCost }

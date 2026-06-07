@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.TranslationStatus
@@ -114,7 +113,7 @@ internal fun TranslationL2Screen(
             )
             if (cost > 0.0) {
                 Text(
-                    formatCents(cost), fontSize = 11.sp,
+                    formatTranslationCost(cost), fontSize = 11.sp,
                     color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
                 )
             }
@@ -170,7 +169,7 @@ internal fun TranslationL2Screen(
                             modifier = Modifier.weight(1f).padding(end = 10.dp)
                         )
                         Text(
-                            if (item.costDollars > 0.0) formatCents(item.costDollars) else "",
+                            if (item.costDollars > 0.0) formatTranslationCost(item.costDollars) else "",
                             fontSize = cellSize, color = cellColor,
                             maxLines = 1, softWrap = false
                         )

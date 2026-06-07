@@ -117,11 +117,11 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
     // Internal overlay state: tapping an icon mounts ReportsViewScreen
     // or FanOutPairViewScreen as a child of this screen so Android
     // back returns here (LIFO BackHandler stack).
-    var openedReportsAgentId by rememberSaveable { mutableStateOf<String?>(null) }
-    var openedPairMeta by rememberSaveable { mutableStateOf<String?>(null) }
-    var openedPairSource by rememberSaveable { mutableStateOf<String?>(null) }
-    var openedPairAnswererProvider by rememberSaveable { mutableStateOf<String?>(null) }
-    var openedPairAnswererModel by rememberSaveable { mutableStateOf<String?>(null) }
+    var openedReportsAgentId by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
+    var openedPairMeta by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
+    var openedPairSource by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
+    var openedPairAnswererProvider by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
+    var openedPairAnswererModel by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
 
     if (openedReportsAgentId != null) {
         ReportsViewScreen(

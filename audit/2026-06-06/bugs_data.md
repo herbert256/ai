@@ -32,7 +32,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `content` is declared `Any` (non-null). A persisted/replayed Claude message with a null content would deserialize to `null` in a non-null field (same class of issue as Bug 1) and NPE when re-serialized for a regenerate.
 **Root cause:** `Any` (vs `Any?`) participates in the Unsafe-allocator null trap and is not coercible.
 **Proposed fix:** Declare `content: Any?` and null-guard at the build sites, or never persist `ClaudeMessage` (it is a wire type — confirm it is never written to disk).
-**Status:** Open (unconfirmed)
+**Status:** Fixed (2026-06-07) — `ClaudeMessage.content` is now nullable to tolerate null replay/deserialization payloads
 
 ### Bug 5 — Severity: LOW — Category: trace redaction completeness
 **Location:** ApiModels.kt (wire request types e.g. `OpenAiRequest`, `GeminiRequest`)
@@ -55,7 +55,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A failed write logs to `AppLog.e` and returns `false`, but the partial-staging tmp cleanup `tmp.delete()` is itself wrapped in a swallow; on a full disk the orphan `<name>.<uuid>.tmp` files can accumulate in `filesDir` and are themselves backed up.
 **Root cause:** No sweep of orphan `*.tmp` staging files; UUID names make them un-deduplicated.
 **Proposed fix:** Periodically prune `*.<uuid>.tmp` older than N minutes, or use a single-attempt temp with a deterministic-but-per-thread name cleaned in a finally.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — atomic writes now prune stale sibling temp files and warn when temp cleanup fails
 
 ## File: ai/src/main/java/com/ai/data/AppService.kt
 
@@ -164,7 +164,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Forcing UTF-8 is correct for SSE, but a provider that genuinely returns a different charset on a chunked-JSON (non-SSE) stream that lands here would be mis-decoded.
 **Root cause:** Charset is hardcoded; the isStreaming branch also catches `Transfer-Encoding: chunked` JSON.
 **Proposed fix:** Honour an explicit non-UTF-8 `Content-Type` charset for the chunked-JSON case; keep the UTF-8 default only when the server omits it.
-**Status:** Open (low likelihood)
+**Status:** Fixed (2026-06-07) — SSE still forces UTF-8, while non-SSE chunked responses now honor an explicit response charset with UTF-8 fallback
 
 ### Bug 22 — Severity: LOW — Category: usage merge correctness
 **Location:** ApiStreaming.kt:223-233 (`mergeUsage`)
@@ -394,7 +394,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The chars/sec rate in the debug log uses the default locale; on the user's nl-NL device it renders `1,5` instead of `1.5`. Cosmetic (log only) but inconsistent with the repo's Locale.US discipline.
 **Root cause:** `String.format` default locale.
 **Proposed fix:** Use `String.format(Locale.US, "%.1f", rate)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — local LLM chars/sec debug log now formats with `Locale.US`
 
 ## File: ai/src/main/java/com/ai/data/ReportStorage.kt
 

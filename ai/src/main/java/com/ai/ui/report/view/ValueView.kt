@@ -94,7 +94,7 @@ private fun RankSource.key(): String = when (this) {
 }
 
 /** One model on the cost/quality plane. [costCents] = USD×100,
- *  [quality] = the ranking score (raw, model-scaled). */
+ *  [quality] = one consistent rank-derived quality scale. */
 private data class ValuePoint(
     val provider: String,
     val modelShort: String,
@@ -110,15 +110,22 @@ private data class ValuePoint(
  *  numbering the Rerank flow and the Tournament view both use). */
 private fun buildValuePoints(report: Report, rows: List<RerankRow>): List<ValuePoint> {
     val rowsById = rows.associateBy { it.id }
+    val orderedRows = rows.sortedWith(
+        compareBy<RerankRow> { it.rank ?: Int.MAX_VALUE }
+            .thenByDescending { it.score ?: Double.NEGATIVE_INFINITY }
+            .thenBy { it.id }
+    )
+    val qualityById = orderedRows
+        .mapIndexed { index, row -> row.id to (orderedRows.size - index).toDouble() }
+        .toMap()
     val success = report.agents.filter {
         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
     }
-    val n = success.size
     // (agent, quality, costCents) for agents that have a ranking entry.
     data class Raw(val agentId: String, val provider: String, val modelShort: String, val quality: Double, val costCents: Double)
     val raw = success.mapIndexedNotNull { idx, a ->
         val row = rowsById[idx + 1] ?: return@mapIndexedNotNull null
-        val quality = row.score ?: row.rank?.let { (n - it + 1).toDouble() } ?: return@mapIndexedNotNull null
+        val quality = qualityById[row.id] ?: return@mapIndexedNotNull null
         val costUsd = a.cost ?: ((a.inputCost ?: 0.0) + (a.outputCost ?: 0.0))
         Raw(a.agentId, AppService.findById(a.provider)?.id ?: a.provider, shortModelName(a.model), quality, costUsd * 100.0)
     }

@@ -2,6 +2,8 @@ package com.ai.data
 
 import java.io.File
 
+private const val ATOMIC_TMP_MAX_AGE_MS = 30L * 60L * 1000L
+
 /**
  * Atomically writes [content] to [this] file via a temp file + rename.
  * A crash or power loss between [writeText] and [renameTo] leaves the
@@ -31,6 +33,7 @@ fun File.writeTextAtomic(content: String): Boolean {
         // sub-directory throws FileNotFoundException on the FOS open
         // and writeTextAtomic returned false with nothing on disk.
         if (parent != null && !parent.exists()) parent.mkdirs()
+        pruneOldAtomicTempSiblings(parent)
         // Write the bytes AND fsync the file descriptor before the
         // atomic move. ext4 with delayed allocation can hold the
         // tmp file's data in the page cache past the rename — a power
@@ -66,7 +69,29 @@ fun File.writeTextAtomic(content: String): Boolean {
         true
     } catch (e: Exception) {
         AppLog.e("AtomicFileWrite", "Failed to write $absolutePath: ${e.message}")
-        try { if (tmp.exists()) tmp.delete() } catch (_: Exception) {}
+        try {
+            if (tmp.exists() && !tmp.delete()) {
+                AppLog.w("AtomicFileWrite", "Failed to delete temp file ${tmp.absolutePath}")
+            }
+        } catch (cleanupError: Exception) {
+            AppLog.w("AtomicFileWrite", "Failed to delete temp file ${tmp.absolutePath}: ${cleanupError.message}")
+        }
         false
+    }
+}
+
+private fun File.pruneOldAtomicTempSiblings(parent: File?) {
+    parent ?: return
+    val cutoff = System.currentTimeMillis() - ATOMIC_TMP_MAX_AGE_MS
+    parent.listFiles { f ->
+        f.isFile && f.name.startsWith("$name.") && f.name.endsWith(".tmp") && f.lastModified() < cutoff
+    }?.forEach { stale ->
+        try {
+            if (!stale.delete()) {
+                AppLog.w("AtomicFileWrite", "Failed to prune stale temp file ${stale.absolutePath}")
+            }
+        } catch (e: Exception) {
+            AppLog.w("AtomicFileWrite", "Failed to prune stale temp file ${stale.absolutePath}: ${e.message}")
+        }
     }
 }

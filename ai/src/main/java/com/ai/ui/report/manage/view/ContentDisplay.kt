@@ -32,6 +32,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 private val conclusionTagRegex = Regex("<conclusion>.*?</conclusion>", RegexOption.DOT_MATCHES_ALL)
 private val motivationTagRegex = Regex("<motivation>.*?</motivation>", RegexOption.DOT_MATCHES_ALL)
@@ -1336,7 +1337,7 @@ private fun <T> CostRowSection(
                     val middleSum = columnWeights.drop(1).dropLast(1).sum()
                     if (middleSum > 0f) Spacer(modifier = Modifier.weight(middleSum))
                     Text(
-                        "+%.2f ¢".format(deletedCents),
+                        String.format(Locale.US, "+%.2f ¢", deletedCents),
                         fontSize = 11.sp, color = AppColors.WarningAccent,
                         fontFamily = FontFamily.Monospace,
                         textAlign = androidx.compose.ui.text.style.TextAlign.End,
@@ -1450,7 +1451,7 @@ private fun CostTypeGroupedSection(
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("deleted", fontSize = 11.sp, color = AppColors.WarningAccent, fontStyle = FontStyle.Italic, modifier = Modifier.weight(weights[0]))
                 Spacer(modifier = Modifier.weight(weights[1] + weights[2]))
-                Text("+%.2f ¢".format(deletedCents), fontSize = 11.sp, color = AppColors.WarningAccent, fontFamily = FontFamily.Monospace,
+                Text(String.format(Locale.US, "+%.2f ¢", deletedCents), fontSize = 11.sp, color = AppColors.WarningAccent, fontFamily = FontFamily.Monospace,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(weights[3]))
             }
         }

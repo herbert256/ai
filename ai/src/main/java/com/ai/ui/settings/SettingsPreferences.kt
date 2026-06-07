@@ -296,8 +296,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 loadJsonList("${key}_manual_models") ?: emptyList()
             val storedTypes: Map<String, String> = prefs.getString("${key}_model_types", null)?.let {
                 try {
-                    @Suppress("UNCHECKED_CAST")
-                    gson.fromJson(it, Map::class.java) as? Map<String, String>
+                    gson.fromJson<Map<String, String>>(it, TypeTokens.mapStringStringType)
                 } catch (_: Exception) { null }
             } ?: emptyMap()
             val types = models.associateWith { id -> storedTypes[id] ?: com.ai.data.ModelType.infer(id) }
@@ -343,8 +342,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadJsonStringSet(key: String): Set<String> {
         val json = prefs.getString(key, null) ?: return emptySet()
         return try {
-            @Suppress("UNCHECKED_CAST")
-            (gson.fromJson(json, List::class.java) as? List<String>)?.toSet() ?: emptySet()
+            gson.fromJson<List<String>>(json, TypeTokens.listStringType)?.toSet() ?: emptySet()
         } catch (_: Exception) { emptySet() }
     }
 
@@ -643,7 +641,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val outputTokens = usage.outputTokens
         com.ai.data.ApiUsageRates.record(provider, model, inputTokens, outputTokens)
         val normalizedKind = normalizeUsageKind(kind)
-        val category = normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)
+        val category = if (normalizedKind == "report") {
+            normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)
+        } else {
+            normalizedKind
+        }
         val costs = computeUsageCostSnapshot(provider, model, usage, searchUnits)
         val stats = ensureUsageStatsCache()
         val key = "${provider.id}::$model::$category"

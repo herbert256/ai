@@ -40,7 +40,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** For legacy usage rows that predate persisted call-time cost, a row that has *both* token counts and search units is mis-costed: it charges only `searchUnits * perQueryPrice` and reports `outputCost = 0`, ignoring the token spend entirely.
 **Root cause:** The fallback branch is `if (searchUnits > 0) searchUnits*perQueryPrice else tokens*price` — an either/or, not additive. New rows (carrying persisted cost) are unaffected; only legacy rows recomputed on the fly.
 **Proposed fix:** Sum token cost + search cost like `PricingCache.computeUsageCostSnapshot` does at write time.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — legacy usage cost fallback now adds token input/output cost plus per-query search cost instead of choosing one branch.
 
 ---
 
@@ -137,21 +137,21 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Per-provider model-type maps are parsed via `gson.fromJson(it, Map::class.java) as? Map<String, String>` — an unchecked cast that defers a `ClassCastException` to first use if any value isn't a String.
 **Root cause:** This path was never migrated to a concrete `TypeToken<Map<String,String>>`, unlike `defaultTypePaths` (lines 62-71) which the comment there says was fixed for exactly this reason.
 **Proposed fix:** Use `TypeTokens.mapStringStringType` here too.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — provider model-type maps now deserialize through `TypeTokens.mapStringStringType`
 
 ### Bug 15 — Severity: LOW — Category: deferred ClassCastException
 **Location:** SettingsPreferences.kt:334-340 (`loadJsonStringSet`)
 **Symptom:** `gson.fromJson(json, List::class.java) as? List<String>` — numeric/boolean entries deserialize to `Double`/`Boolean` and the unchecked cast defers a CCE to iteration time.
 **Root cause:** Untyped `List::class.java` parse + unchecked cast.
 **Proposed fix:** Parse with `TypeTokens.listStringType`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — JSON string-set prefs now deserialize through `TypeTokens.listStringType`
 
 ### Bug 16 — Severity: LOW — Category: cost attribution
 **Location:** SettingsPreferences.kt:636-640 (`updateUsageStats`)
 **Symptom:** The `kind` argument passed by callers is overridden whenever `ApiTracer.currentCategory` is set: `category = normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)`. A call site that passes an explicit `kind` but runs inside a tracer-category block has its category silently replaced (cross-references the chat-audit cost-attribution bug).
 **Root cause:** `ApiTracer.currentCategory` takes precedence over the explicit `kind`.
 **Proposed fix:** Prefer the explicit non-default `kind` when provided, falling back to the tracer category only for the default.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — updateUsageStats now preserves explicit non-default kinds and only uses ApiTracer.currentCategory for the default report kind.
 
 ### Bug 17 — Severity: LOW — Category: redundant disk IO
 **Location:** SettingsPreferences.kt:419-424 (`savePromptToHistory`)
@@ -180,7 +180,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The paging position of every CRUD list resets to page 1 on rotation / process recreation. (Deliberately not keyed on `items.size`, but it's a plain `remember`.)
 **Root cause:** `remember`, not `rememberSaveable`.
 **Proposed fix:** `rememberSaveable` for `page` (it's coerced against `totalPages` already).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — CRUD list page index now uses `rememberSaveable`
 
 ---
 
@@ -191,7 +191,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Duplicating a Parameters preset opens it in **Edit** mode (title reads "Edit Parameters") with a fresh id, and — because edit auto-saves on dispose — the copy is committed even if the user immediately backs out without changing anything. Other CRUDs route copy through an Add screen with an explicit Create button.
 **Root cause:** Copy reuses `Mode.Edit` instead of an Add flow.
 **Proposed fix:** Route the copy through `Mode.Add`/an add screen for parity, or gate the duplicate commit on an explicit action.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Parameters copy now opens Add mode with prefilled values and only persists through the Create button.
 
 ---
 
@@ -202,7 +202,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The inline ✕ "clear target" affordance allocates a new `MutableInteractionSource()` inside a non-`@Composable` Modifier extension, so a fresh instance is created on every recomposition of the form.
 **Root cause:** `MutableInteractionSource()` is created unremembered.
 **Proposed fix:** Use `Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null)` from a composable, or the no-arg `clickable` overload.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the clear-target affordance now remembers its MutableInteractionSource in composable scope and the unremembered modifier helper was removed.
 
 ---
 
@@ -213,7 +213,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** There are two divergent editors for `ModelTypeOverride` (one auto-saves via CrudFormScaffold, one uses an explicit Save). Neither dedups on `(providerId, modelId)`: editing an override to point at a (provider, model) that already has its own override, or saving a duplicate, yields two overrides for the same key. Resolution (`modelTypeOverrides.firstOrNull { providerId==.. && modelId==.. }`) then silently picks the first.
 **Root cause:** Overrides are keyed by UUID `id`; uniqueness on `(provider, model)` is never enforced on save.
 **Proposed fix:** On save, prune/replace any existing override for the same `(providerId, modelId)`; ideally collapse the two editors into one.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — both model-type override save paths now keep the saved row and prune any other row with the same provider/model key.
 
 ---
 

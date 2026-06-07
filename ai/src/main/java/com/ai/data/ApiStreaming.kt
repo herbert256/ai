@@ -55,15 +55,20 @@ internal fun parseSseStream(
     extractUsage: ((eventType: String?, data: String) -> Pair<TokenUsage?, String?>?)? = null,
     onUsage: ((TokenUsage, String?) -> Unit)? = null
 ): Flow<String> = flow {
-    // Always decode as UTF-8 — body.charStream() consults the
-    // Content-Type charset, but provider servers often omit it on
-    // SSE streams and OkHttp falls back to ISO-8859-1, mangling
-    // multi-byte characters (anything non-ASCII in the response
-    // text) in the parsed event payload.
+    // SSE is defined as UTF-8 and provider servers often omit charset, so
+    // keep forcing UTF-8 there. Some chunked JSON responses also pass through
+    // this reader; for those, honor an explicit non-UTF-8 Content-Type charset
+    // and fall back to UTF-8 when the server omits it.
     AppLog.d("SSE", "stream open")
     val parseStartMs = System.currentTimeMillis()
     var chunkCount = 0
-    val reader = java.io.InputStreamReader(body.byteStream(), Charsets.UTF_8).buffered()
+    val contentType = body.contentType()
+    val charset = if (contentType?.type == "text" && contentType.subtype == "event-stream") {
+        Charsets.UTF_8
+    } else {
+        contentType?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
+    }
+    val reader = java.io.InputStreamReader(body.byteStream(), charset).buffered()
     try {
         // Per the W3C SSE spec, an event is delimited by a blank line.
         // Multiple `data:` lines inside one event must be concatenated

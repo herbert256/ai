@@ -54,6 +54,7 @@ import com.ai.ui.report.manage.view.extractTagContent
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.formatCompactNumber
+import com.ai.ui.shared.formatCentsValue
 import com.ai.ui.shared.shortModelName
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -333,13 +334,10 @@ private fun buildAnswerMatrixRows(
     return agents.mapIndexed { index, agent ->
         val ordinal = index + 1
         val rank = rankRows[ordinal]
-        val displayBody = translationByTarget["AGENT:${agent.agentId}"]
-            ?.takeIf { it.isNotBlank() }
-            ?: agent.responseBody.orEmpty()
         val title = translationByTarget["AGENT_TITLE:${agent.agentId}"]
             ?.takeIf { it.isNotBlank() }
             ?: agent.modelTitle?.takeIf { it.isNotBlank() }
-        val extraction = extractMatrixSignals(displayBody)
+        val extraction = extractMatrixSignals(agent.responseBody.orEmpty())
         val provider = AppService.findById(agent.provider)?.id ?: agent.provider
         val costUsd = agent.cost ?: ((agent.inputCost ?: 0.0) + (agent.outputCost ?: 0.0))
         AnswerMatrixRow(
@@ -452,14 +450,6 @@ internal fun compactText(text: String, maxChars: Int): String {
     if (oneLine.length <= maxChars) return oneLine
     return oneLine.take((maxChars - 3).coerceAtLeast(0)).trimEnd() + "..."
 }
-
-internal fun formatCentsValue(cents: Double): String =
-    when {
-        cents <= 0.0 -> "-"
-        cents >= 10.0 -> String.format(Locale.US, "%.2f ¢", cents)
-        cents >= 1.0 -> String.format(Locale.US, "%.3f ¢", cents)
-        else -> String.format(Locale.US, "%.4f ¢", cents)
-    }
 
 internal fun formatDuration(ms: Long?): String {
     val value = ms ?: return "-"

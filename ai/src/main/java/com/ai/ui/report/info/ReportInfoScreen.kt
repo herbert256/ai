@@ -37,7 +37,7 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.report.manage.view.rememberReportCostData
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.formatCentsValue
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -100,6 +100,7 @@ fun ReportInfoScreen(
 
         // Total cost from the shared aggregator → matches Report - costs.
         val costData = rememberReportCostData(r)
+        val deletedCents = costData?.deletedCents ?: 0.0
         val totalCents = costData?.let { it.totalInC + it.totalOutC + it.deletedCents } ?: 0.0
         val apiCalls = costData?.rows?.size ?: 0
         val modelCount = costData?.byModel?.size ?: 0
@@ -146,7 +147,10 @@ fun ReportInfoScreen(
             Section("Totals")
             InfoRow("API calls", apiCalls.toString())
             InfoRow("Total API time", formatDuration(totalDurationMs))
-            InfoRow("Total cost", formatCents(totalCents, 2))
+            InfoRow("Total cost", formatCentsValue(totalCents))
+            if (deletedCents > 0.0) {
+                InfoRow("Deleted-item cost", formatCentsValue(deletedCents))
+            }
             InfoRow("Models used", modelCount.toString())
             InfoRow("Tokens", "$inTokens in · $outTokens out")
 
@@ -282,7 +286,7 @@ private fun ReportInfoCostTable(
                 first = row.label,
                 calls = row.calls.toString(),
                 duration = formatDuration(row.durationMs),
-                costs = formatCents(row.cents, 2),
+                costs = formatCentsValue(row.cents),
                 onFirstClick = if (onModelClick != null && row.provider != null && row.model != null) {
                     { onModelClick(row) }
                 } else null

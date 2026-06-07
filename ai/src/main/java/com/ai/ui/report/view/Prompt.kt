@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapCenterPage
 import com.ai.ui.report.view.helpers.wrapTo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -129,6 +131,15 @@ fun PromptViewScreen(
     // Wrapping language pager — swipe past the first / last wraps around
     // (the user wants every View swipe to cycle forever, both ways).
     val pagerState = rememberWrapPager(languages.size, initialIndex)
+    var centeredFor by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentReportId, languages, initialLanguage) {
+        val key = "$currentReportId|${initialLanguage.orEmpty()}"
+        if (centeredFor != key) {
+            val target = languages.indexOf(initialLanguage ?: "").coerceAtLeast(0)
+            pagerState.scrollToPage(wrapCenterPage(languages.size, target))
+            centeredFor = key
+        }
+    }
     val currentLanguage = if (languages.isEmpty()) ""
         else languages[pagerState.currentPage.wrapTo(languages.size)]
 

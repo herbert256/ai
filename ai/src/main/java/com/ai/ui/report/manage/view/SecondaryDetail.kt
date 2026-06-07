@@ -73,13 +73,15 @@ internal fun SecondaryResultDetailScreen(
         ?: com.ai.data.legacyKindDisplayName(result.kind)
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmLangChoice by remember { mutableStateOf(false) }
+    val traceDataVersion by ApiTracer.traceVersion.collectAsState()
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
 
     // Find the trace file for this meta call: same report, same model,
     // and timestamp closest to the result. Multiple meta runs of the
     // same model on the same report would otherwise alias — the
     // closest-timestamp tiebreak picks the right one. May be null when
     // tracing was off at the time of the call.
-    val traceFilenameState = produceState<String?>(initialValue = null, result.id) {
+    val traceFilenameState = produceState<String?>(initialValue = null, result.id, traceDataVersion) {
         value = withContext(Dispatchers.IO) {
             ApiTracer.getTraceFiles()
                 .filter { it.reportId == result.reportId && it.model == result.model }
@@ -107,7 +109,7 @@ internal fun SecondaryResultDetailScreen(
     // Pull the parent report — needed both for the title bar icon
     // below and so we can read languageName here to fold any
     // back-translation rows into the Original tab.
-    val parentReportState = produceState<com.ai.data.Report?>(initialValue = null, result.reportId) {
+    val parentReportState = produceState<com.ai.data.Report?>(initialValue = null, result.reportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, result.reportId) }
     }
     val parentReport = parentReportState.value
@@ -301,8 +303,7 @@ internal fun SecondaryResultDetailScreen(
         UserNoteEditorOverlay(result.reportId, "SECONDARY", result.id, noteEdit!!) { noteEdit = null }
         return
     }
-    val noteDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryNotes by produceState(emptyList<UserNote>(), result.reportId, result.id, noteDataVersion) {
+    val secondaryNotes by produceState(emptyList<UserNote>(), result.reportId, result.id, reportDataVersion) {
         value = withContext(Dispatchers.IO) {
             ReportStorage.getReport(context, result.reportId)?.notesFor("SECONDARY", result.id) ?: emptyList()
         }
@@ -515,4 +516,3 @@ internal fun SecondaryResultDetailScreen(
         )
     }
 }
-

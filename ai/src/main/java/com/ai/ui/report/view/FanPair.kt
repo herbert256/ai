@@ -236,7 +236,10 @@ private fun PairBubble(
     val isLong = body.length > collapseThreshold
     var isExpanded by remember(body) { mutableStateOf(!isLong) }
     val shown = if (isLong && !isExpanded) {
-        body.take(previewChars).trimEnd() + "…"
+        val window = body.take(previewChars)
+        val lastBreak = window.lastIndexOf('\n')
+        val cut = if (lastBreak >= previewChars / 2) window.substring(0, lastBreak) else window
+        cut.trimEnd() + "…"
     } else body
 
     Column(

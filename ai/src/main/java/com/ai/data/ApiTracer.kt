@@ -18,6 +18,10 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlinx.coroutines.asContextElement
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -37,6 +41,8 @@ object ApiTracer {
     // vanishingly unlikely while keeping the base-36 suffix short.
     private val fileSequence = AtomicLong(java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 1_000_000))
     @Volatile var isTracingEnabled: Boolean = false
+    private val _traceVersion = MutableStateFlow(0L)
+    val traceVersion: StateFlow<Long> = _traceVersion.asStateFlow()
 
     /** User toggle (Settings → Logging → API Tracing → "Show Ladybug icons",
      *  default true). When false the 🐞 trace hot-links are hidden everywhere
@@ -96,6 +102,10 @@ object ApiTracer {
      *  file. Mutations (save / clear / deleteOlderThan) keep it in sync
      *  so subsequent reads stay O(1). All access goes through [lock]. */
     @Volatile private var cachedTraceFiles: List<TraceFileInfo>? = null
+
+    private fun bumpTraceVersion() {
+        _traceVersion.update { it + 1 }
+    }
 
     fun init(context: Context) = lock.withLock {
         traceDir = File(context.filesDir, TRACE_DIR).also { if (!it.exists()) it.mkdirs() }
@@ -188,6 +198,7 @@ object ApiTracer {
                 AppLog.e("ApiTracer", "Cache update failed for $resolvedFilename — invalidating cache: ${e.message}")
                 cachedTraceFiles = null
             }
+            bumpTraceVersion()
             return resolvedFilename
         }
     }
@@ -329,6 +340,7 @@ object ApiTracer {
     fun clearTraces() = lock.withLock {
         traceDir?.listFiles()?.forEach { if (it.extension == "json") it.delete() }
         cachedTraceFiles = emptyList()
+        bumpTraceVersion()
     }
 
     /** Delete one trace file by filename. Returns true on success, false
@@ -342,6 +354,7 @@ object ApiTracer {
         if (ok) cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename == filename }
         }
+        if (ok) bumpTraceVersion()
         ok
     }
 
@@ -364,6 +377,7 @@ object ApiTracer {
         cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename in deletedNames }
         }
+        if (count > 0) bumpTraceVersion()
         count
     }
 
@@ -386,6 +400,7 @@ object ApiTracer {
         cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename in deletedNames }
         }
+        if (count > 0) bumpTraceVersion()
         count
     }
 

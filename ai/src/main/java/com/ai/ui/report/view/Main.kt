@@ -985,7 +985,7 @@ internal fun ViewAiReportScreen(
     // active language is shown by the View screen's top picker
     // strip; no per-tile language badge needed.
     val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, loadedReport, reportLanguageName, onMissingPromptIcon, onBack) {
-        everyItems["meta"].orEmpty().map { item ->
+        everyItems["meta"].orEmpty().mapIndexed { index, item ->
             val prompt = item.prompt
             // Per-row icon override wins over the shared per-(name,title)
             // cache entry. The row's `icon` is set by the Find-alternative-
@@ -1006,9 +1006,10 @@ internal fun ViewAiReportScreen(
             val promptEmoji = rowIcon ?: cachedEmoji
             val metaEnabled = item.availableLanguages?.contains(currentLang) ?: true
             // sourceRows is now single-element per META item — its id
-            // disambiguates two tiles that share a metaPromptName so
-            // the persisted tile-order map stays unique.
-            val rowId = sourceRow?.id ?: item.label
+            // disambiguates two tiles that share a metaPromptName. Legacy
+            // aggregate items can still lack a row, so include the item index
+            // in that fallback instead of reusing the non-unique label.
+            val rowId = sourceRow?.id ?: "legacy:$index"
             // Meta tile click routes through the dedicated content-only
             // MetaViewScreen instead of the legacy management-heavy
             // SecondaryResultDetailScreen — sourceRow.id when present

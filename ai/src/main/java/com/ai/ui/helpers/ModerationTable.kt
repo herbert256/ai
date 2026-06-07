@@ -28,6 +28,7 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
+import java.util.Locale
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
@@ -139,7 +140,7 @@ internal fun ModerationTable(
                     r.flagged && r.topScores.isNotEmpty() -> "${r.topScores.first().first} (by score)"
                     else -> "—"
                 }
-                val scoresText = r.topScores.joinToString(", ") { (k, v) -> "$k=${"%.3f".format(v)}" }
+                val scoresText = r.topScores.joinToString(", ") { (k, v) -> "$k=${String.format(Locale.US, "%.3f", v)}" }
                 Row(modifier = Modifier.clickable { onRowClick(r) }.padding(vertical = 6.dp)) {
                     Text(if (r.flagged) com.ai.data.MetadataIconsHolder.current.validatePrompt else com.ai.data.MetadataIconsHolder.current.checkMark, fontSize = 13.sp,
                         color = if (r.flagged) AppColors.DangerAccent else AppColors.SuccessAccent,
@@ -250,7 +251,7 @@ internal fun ModerationCallDetailScreen(
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            score?.let { "%.4f".format(it) } ?: "—",
+                            score?.let { String.format(Locale.US, "%.4f", it) } ?: "—",
                             fontSize = 12.sp,
                             color = if (fired) AppColors.DangerAccent else AppColors.TextTertiary,
                             fontFamily = FontFamily.Monospace,

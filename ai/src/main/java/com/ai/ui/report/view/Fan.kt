@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -219,10 +221,7 @@ fun FanOutViewScreen(
         activeInitiatorId?.let { pairsByInitiator[it] }.orEmpty()
     }
 
-    // coerceAtLeast(2) forces the wrapping span on even though responders
-    // is re-counted per initiator — so a later initiator with more
-    // responders than the first never overflows the pager.
-    val responderPagerState = rememberWrapPager(responders.size.coerceAtLeast(2), 0)
+    val responderPagerState = rememberWrapPager(responders.size, 0)
     // Track the active responder by (provider, model) — survives
     // initiator swipes so the bottom pager lands on the same
     // responder model in the new initiator's list. Falls back to
@@ -547,16 +546,17 @@ fun FanOutViewScreen(
                 } else {
                     // ✋ — every responder to the active initiator as a
                     // default-collapsed card (mirrors Model reports' ✋).
-                    Column(
+                    LazyColumn(
                         modifier = Modifier.fillMaxWidth()
-                            .heightIn(max = respCap)
-                            .verticalScroll(rememberScrollState()),
+                            .heightIn(max = respCap),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        responders.forEach { pair ->
+                        items(responders, key = { it.id }) { pair ->
                             FanOutResponderCard(pair = pair, body = responderBody(pair), overrideTitle = responderTitle(pair))
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        item(key = "all-responders-bottom-space") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     }
                 }
             }
