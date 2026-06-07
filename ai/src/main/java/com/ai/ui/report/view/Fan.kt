@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -544,16 +546,17 @@ fun FanOutViewScreen(
                 } else {
                     // ✋ — every responder to the active initiator as a
                     // default-collapsed card (mirrors Model reports' ✋).
-                    Column(
+                    LazyColumn(
                         modifier = Modifier.fillMaxWidth()
-                            .heightIn(max = respCap)
-                            .verticalScroll(rememberScrollState()),
+                            .heightIn(max = respCap),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        responders.forEach { pair ->
+                        items(responders, key = { it.id }) { pair ->
                             FanOutResponderCard(pair = pair, body = responderBody(pair), overrideTitle = responderTitle(pair))
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        item(key = "all-responders-bottom-space") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     }
                 }
             }

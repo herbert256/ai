@@ -228,7 +228,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Switching to ✋ "all" mode on a fan-out with many responders composes every responder card (each running the full markdown/think pipeline via `ContentWithThinkSections` when expanded) at once, with no lazy windowing — jank / memory spike on large runs.
 **Root cause:** A plain scrolling `Column` rather than a `LazyColumn`; all children compose eagerly.
 **Proposed fix:** Use a `LazyColumn` (keyed by `pair.id`) for the ✋ list so off-screen responder cards aren't composed.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — all-responders mode now uses a LazyColumn keyed by responder row id
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Costs.kt
 
