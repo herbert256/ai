@@ -263,7 +263,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Unlike `RateLimitRetryInterceptor` (which clears `ApiTracer.lastTraceFilename` before `chain.proceed`), `OverloadedRetryInterceptor` does not, so a 529 short-bench has no defined trace-filename reset; the bench may reference a stale `lastTraceFilename` from a previous call on the pooled thread.
 **Root cause:** Missing the `ApiTracer.lastTraceFilename.set(null)` reset that the 429 sibling performs.
 **Proposed fix:** Mirror the 429 interceptor's reset at the top of `intercept`. (529 path doesn't pass a trace file to markShortBench today, but should for consistency.)
-**Status:** Open
+**Status:** Fixed in `OverloadedRetry.kt` by clearing `ApiTracer.lastTraceFilename` before the 529 interceptor proceeds the request.
 
 ## File: ai/src/main/java/com/ai/data/ProviderThrottling.kt
 

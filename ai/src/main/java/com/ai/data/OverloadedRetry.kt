@@ -28,6 +28,9 @@ import kotlinx.coroutines.launch
 class OverloadedRetryInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
+        // Match RateLimitRetryInterceptor: clear any stale trace filename
+        // on this pooled thread before TracingInterceptor can fill it.
+        ApiTracer.lastTraceFilename.set(null)
         val response = chain.proceed(request)
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 529) return response
@@ -90,4 +93,3 @@ class OverloadedRetryInterceptor : Interceptor {
         return current
     }
 }
-
