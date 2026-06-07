@@ -40,10 +40,14 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.ai.data.AppService
@@ -62,7 +66,6 @@ import com.ai.ui.helpers.RerankRow
 import com.ai.ui.helpers.parseRerankRows
 import com.ai.ui.report.view.helpers.ViewReportCache
 import com.ai.ui.report.view.helpers.ViewTitleBar
-import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.shortModelName
@@ -209,20 +212,21 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     }
     val best = remember(points) { points.firstOrNull { it.bestValue } }
 
-    // Tap the chart → truly full-screen, chrome-less, zoomable graph.
-    // Early return (same overlay pattern as the View hub); its own
-    // BackHandler composes after the screen-level one, so back closes the
-    // full graph first, then the Value view.
-    var showFullGraph by rememberSaveable(reportId) { mutableStateOf(false) }
-    if (showFullGraph) {
-        ValueGraphFullScreen(points) { showFullGraph = false }
-        return
-    }
-
     val subject = when (val s = selected) {
         is RankSource.Rerank -> loaded.rerankModel?.let { "ranked by $it" }
         is RankSource.Tournament -> "Tournament · ${s.label}"
         null -> null
+    }
+    // Axis names for the chart. X = cost; Y = the active ranking.
+    val rankingName = selected?.label ?: "Ranking"
+
+    // Tap the chart → truly full-screen, chrome-less, zoomable graph,
+    // rendered in its OWN Dialog window so it covers the app's title and
+    // bottom icon bars (an early-return overlay would still sit inside
+    // them). See [ValueGraphFullScreen].
+    var showFullGraph by rememberSaveable(reportId) { mutableStateOf(false) }
+    if (showFullGraph && points.isNotEmpty()) {
+        ValueGraphFullScreen(points, "Cost", rankingName) { showFullGraph = false }
     }
 
     Column(
@@ -268,7 +272,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
             )
             ValueScatter(
-                points,
+                points, xAxisTitle = "Cost", yAxisTitle = rankingName,
                 modifier = Modifier.fillMaxWidth().height(240.dp).padding(bottom = 12.dp),
                 onTap = { showFullGraph = true }
             )
@@ -310,20 +314,33 @@ private fun SourceChip(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ValueScatter(points: List<ValuePoint>, modifier: Modifier, onTap: () -> Unit) {
+private fun ValueScatter(
+    points: List<ValuePoint>,
+    xAxisTitle: String,
+    yAxisTitle: String,
+    modifier: Modifier,
+    onTap: () -> Unit
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         shape = RoundedCornerShape(12.dp),
         modifier = modifier.clickable { onTap() }
     ) {
-        ValueScatterCanvas(points, Modifier.fillMaxSize().padding(12.dp))
+        ValueScatterCanvas(points, xAxisTitle, yAxisTitle, Modifier.fillMaxSize().padding(12.dp))
     }
 }
 
 /** Bare scatter drawing — no Card chrome — so the full-screen view can
- *  render it edge-to-edge under a zoom/pan [graphicsLayer]. */
+ *  render it edge-to-edge under a zoom/pan [graphicsLayer]. Both axes
+ *  carry numeric tick values; the axis name sits centered under the X
+ *  axis and, for the ranking, as vertical text down the left edge. */
 @Composable
-private fun ValueScatterCanvas(points: List<ValuePoint>, modifier: Modifier) {
+private fun ValueScatterCanvas(
+    points: List<ValuePoint>,
+    xAxisTitle: String,
+    yAxisTitle: String,
+    modifier: Modifier
+) {
     if (points.isEmpty()) return
     val axis = AppColors.TextTertiary
     val frontier = AppColors.InfoAccent
@@ -331,8 +348,11 @@ private fun ValueScatterCanvas(points: List<ValuePoint>, modifier: Modifier) {
     val domC = AppColors.TextDim
     val regC = AppColors.WarningAccent
     val labelArgb = AppColors.TextSecondary.toArgb()
+    val tickArgb = axis.toArgb()
+    val titleArgb = AppColors.TextSecondary.toArgb()
     Canvas(modifier = modifier) {
-        val padL = 8f; val padR = 48f; val padT = 16f; val padB = 28f
+        // Left/bottom padding leave room for the tick values + axis names.
+        val padL = 100f; val padR = 48f; val padT = 16f; val padB = 52f
         val plotW = (size.width - padL - padR).coerceAtLeast(1f)
         val plotH = (size.height - padT - padB).coerceAtLeast(1f)
         val x0 = padL; val y0 = padT
@@ -365,8 +385,10 @@ private fun ValueScatterCanvas(points: List<ValuePoint>, modifier: Modifier) {
             drawPath(path, frontier, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f))
         }
 
-        // points + labels
-        val paint = android.graphics.Paint().apply {
+        val nc = drawContext.canvas.nativeCanvas
+
+        // points + model-name labels
+        val labelPaint = android.graphics.Paint().apply {
             color = labelArgb; textSize = 22f; isAntiAlias = true
         }
         points.forEach { p ->
@@ -379,60 +401,98 @@ private fun ValueScatterCanvas(points: List<ValuePoint>, modifier: Modifier) {
                 p.dominated -> drawCircle(domC, radius = 7f, center = o)
                 else -> drawCircle(regC, radius = 9f, center = o)
             }
-            drawContext.canvas.nativeCanvas.drawText(
-                p.modelShort.take(14), o.x + 14f, o.y + 8f, paint
-            )
+            nc.drawText(p.modelShort.take(14), o.x + 14f, o.y + 8f, labelPaint)
         }
-        // axis labels: cheap → pricey
-        val small = android.graphics.Paint().apply { color = axis.toArgb(); textSize = 20f; isAntiAlias = true }
-        drawContext.canvas.nativeCanvas.drawText("cheap", x0, y0 + plotH + 22f, small)
-        val pricey = "pricey"
-        val w = small.measureText(pricey)
-        drawContext.canvas.nativeCanvas.drawText(pricey, x0 + plotW - w, y0 + plotH + 22f, small)
+
+        // --- X-axis numeric ticks (cost) at left / mid / right ---
+        val tickPaint = android.graphics.Paint().apply {
+            color = tickArgb; textSize = 20f; isAntiAlias = true
+        }
+        listOf(0f, 0.5f, 1f).forEach { f ->
+            val cx = x0 + f * plotW
+            val costVal = minCost + f * (maxCost - minCost)
+            drawLine(axis, Offset(cx, y0 + plotH), Offset(cx, y0 + plotH + 5f), strokeWidth = 1.5f)
+            tickPaint.textAlign = when (f) {
+                0f -> android.graphics.Paint.Align.LEFT
+                1f -> android.graphics.Paint.Align.RIGHT
+                else -> android.graphics.Paint.Align.CENTER
+            }
+            nc.drawText(formatCents(costVal / 100.0), cx, y0 + plotH + 24f, tickPaint)
+        }
+
+        // --- Y-axis numeric ticks (ranking score) at bottom / mid / top ---
+        tickPaint.textAlign = android.graphics.Paint.Align.RIGHT
+        listOf(0f, 0.5f, 1f).forEach { f ->
+            val cy = y0 + (1f - f) * plotH
+            val qVal = minQ + f * (maxQ - minQ)
+            drawLine(axis, Offset(x0 - 5f, cy), Offset(x0, cy), strokeWidth = 1.5f)
+            nc.drawText(formatScore(qVal), x0 - 10f, cy + 7f, tickPaint)
+        }
+
+        // --- axis names: X centered under its ticks, Y vertical on the left ---
+        val titlePaint = android.graphics.Paint().apply {
+            color = titleArgb; textSize = 24f; isAntiAlias = true
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        nc.drawText(xAxisTitle, x0 + plotW / 2f, y0 + plotH + 47f, titlePaint)
+        val yTitleX = 20f
+        val yTitleY = y0 + plotH / 2f
+        nc.save()
+        nc.rotate(-90f, yTitleX, yTitleY)
+        nc.drawText(yAxisTitle, yTitleX, yTitleY, titlePaint)
+        nc.restore()
     }
 }
 
 /** Truly full-screen, chrome-less graph reached by tapping the chart.
- *  No title bar, no list — the whole screen is the scatter, pinch-zoomed
- *  and panned. While open the Android status bar is hidden too; on exit
- *  it's restored unless the user keeps the app in full-screen. */
+ *  Rendered in its own Dialog window so it covers the app's title bar and
+ *  bottom icon bar (a plain overlay sits inside them). The Android system
+ *  bars are hidden for the lifetime of the dialog and restored
+ *  automatically when it's dismissed. The whole window is the scatter,
+ *  pinch-zoomed and panned. */
 @Composable
-private fun ValueGraphFullScreen(points: List<ValuePoint>, onBack: () -> Unit) {
-    BackHandler { onBack() }
-    val context = LocalContext.current
-    val activity = context as? android.app.Activity
-    DisposableEffect(activity) {
-        val window = activity?.window
-        val controller = window?.let { WindowInsetsControllerCompat(it, it.decorView) }
-        controller?.let {
-            it.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            it.hide(WindowInsetsCompat.Type.statusBars())
-        }
-        onDispose {
-            val keepHidden = try {
-                val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                SettingsPreferences(prefs, context.filesDir).loadGeneralSettings().fullScreen
-            } catch (_: Exception) { true }
-            if (!keepHidden) controller?.show(WindowInsetsCompat.Type.statusBars())
-        }
-    }
-    var scale by remember { mutableStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    Box(
-        modifier = Modifier.fillMaxSize()
-            .background(AppColors.AppBackground)
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 8f)
-                    offset += pan
+private fun ValueGraphFullScreen(
+    points: List<ValuePoint>,
+    xAxisTitle: String,
+    yAxisTitle: String,
+    onBack: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onBack,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        // Hide the system bars on the DIALOG's own window so the graph is
+        // edge-to-edge; dismissing the dialog restores the activity's bars.
+        val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+        DisposableEffect(dialogWindow) {
+            dialogWindow?.let { w ->
+                WindowInsetsControllerCompat(w, w.decorView).apply {
+                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    hide(WindowInsetsCompat.Type.systemBars())
                 }
             }
-    ) {
-        if (points.isEmpty()) {
-            Text("No data", color = AppColors.TextSecondary, modifier = Modifier.align(Alignment.Center))
-        } else {
+            onDispose { }
+        }
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset.Zero) }
+        Box(
+            modifier = Modifier.fillMaxSize()
+                .background(AppColors.AppBackground)
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 8f)
+                        offset += pan
+                    }
+                }
+        ) {
             ValueScatterCanvas(
-                points,
+                points, xAxisTitle, yAxisTitle,
                 Modifier.fillMaxSize().padding(12.dp).graphicsLayer(
                     scaleX = scale, scaleY = scale,
                     translationX = offset.x, translationY = offset.y
