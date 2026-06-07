@@ -532,7 +532,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Back from the Default-meta-items CRUD always lands on `SETTINGS_AUTOSTART`, on the assumption it was reached from Autostart. If it's ever reached from another entry point (the SetupScreens comment notes it "moved"), back goes to the wrong screen.
 **Root cause:** Hard-coded parent in `goBack` rather than tracking the actual caller.
 **Proposed fix:** Verify it's only reachable from Autostart, or track the entry point.
-**Status:** Open
+**Status:** Fixed in `SettingsScreen.kt` by remembering the Default-meta-items caller and routing Back to that stored parent instead of hard-coding Autostart.
 
 ---
 
