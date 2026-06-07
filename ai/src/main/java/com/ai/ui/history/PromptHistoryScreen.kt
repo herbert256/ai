@@ -38,14 +38,14 @@ fun PromptHistoryScreen(
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
     val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
+    val refreshTick = resumeRefreshTick()
     // Load off the main thread — a long prompt-history JSON parse blocked the
     // first frame when done synchronously in the state initializer.
     var loaded by remember { mutableStateOf<List<PromptHistoryEntry>?>(null) }
-    LaunchedEffect(Unit) {
-        if (loaded == null) loaded = withContext(Dispatchers.IO) { settingsPrefs.loadPromptHistory() }
+    LaunchedEffect(refreshTick) {
+        loaded = withContext(Dispatchers.IO) { settingsPrefs.loadPromptHistory() }
     }
-    var overrideEntries by remember { mutableStateOf<List<PromptHistoryEntry>?>(null) }
-    val allEntries = overrideEntries ?: loaded ?: emptyList()
+    val allEntries = loaded ?: emptyList()
     var searchText by rememberSaveable { mutableStateOf("") }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
@@ -71,7 +71,7 @@ fun PromptHistoryScreen(
         Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(helpTopic = "prompt_history", title = "Prompt History", subject = "Reuse a prompt you sent before", onBackClick = onNavigateBack,
                 onClear = if (allEntries.isNotEmpty()) ({
-                    overrideEntries = emptyList(); currentPage = 0
+                    loaded = emptyList(); currentPage = 0
                     scope.launch(Dispatchers.IO) { settingsPrefs.clearPromptHistory() }
                 }) else null)
 

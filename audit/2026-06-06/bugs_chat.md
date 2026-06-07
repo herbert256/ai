@@ -537,7 +537,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** After "Clear" sets `overrideEntries = emptyList()`, the screen is permanently pinned to the override; if prompt history is repopulated elsewhere while the screen is open, it won't reflect new entries (the override masks `loaded`).
 **Root cause:** The `overrideEntries` override is sticky with no invalidation.
 **Proposed fix:** Reset `overrideEntries` to null on resume/refresh, or reload `loaded` after a clear.
-**Status:** Open
+**Status:** Fixed in `PromptHistoryScreen.kt` by reloading on resume/refresh, clearing overrides after reload, and updating `loaded` directly on Clear.
 
 ### Bug 67 — Severity: LOW — Category: state loss
 **Location:** PromptHistoryScreen.kt:43-46 (`loaded` plain `remember` + `LaunchedEffect(Unit)`)
