@@ -272,7 +272,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A timestamp is added to the per-minute window (line 222) before the concurrency semaphore is acquired (line 241). If the concurrency acquire blocks for a long time, the window slot is "spent" for that minute even though the call hasn't gone out, slightly over-throttling.
 **Root cause:** Documented as the safe direction (over-throttle), but it means the effective rate can dip below the configured cap under concurrency pressure.
 **Proposed fix:** Acceptable; if exactness is wanted, add the window timestamp only once both gates are passed.
-**Status:** Open
+**Status:** Fixed — blocking host acquire now takes the concurrency semaphore first, then records the per-minute window timestamp after that gate has passed; interrupted rate waits release the semaphore before propagating.
 
 ### Bug 36 — Severity: LOW — Category: cap change vs in-flight
 **Location:** ProviderThrottling.kt:339-342 (`resetForNewLimits`)
