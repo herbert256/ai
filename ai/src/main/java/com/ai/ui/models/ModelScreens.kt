@@ -1328,8 +1328,6 @@ private fun ModelRawInfoScreen(
             }
         )
         if (provider != null) {
-        }
-        if (provider != null) {
             calledUrl?.let { url ->
                 Text(
                     url,

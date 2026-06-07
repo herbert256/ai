@@ -374,7 +374,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** An empty `if` block that does nothing.
 **Root cause:** Leftover from a refactor; the body was moved into the second `if (provider != null)` immediately below.
 **Proposed fix:** Delete the empty block.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — removed the empty provider-null check block
 
 ### Bug 48 — Severity: LOW — Category: race / duplicate fetch
 **Location:** ModelScreens.kt:137-159 (`ModelInfoCache`)
