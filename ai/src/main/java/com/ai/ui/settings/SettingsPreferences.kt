@@ -342,8 +342,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadJsonStringSet(key: String): Set<String> {
         val json = prefs.getString(key, null) ?: return emptySet()
         return try {
-            @Suppress("UNCHECKED_CAST")
-            (gson.fromJson(json, List::class.java) as? List<String>)?.toSet() ?: emptySet()
+            gson.fromJson<List<String>>(json, TypeTokens.listStringType)?.toSet() ?: emptySet()
         } catch (_: Exception) { emptySet() }
     }
 

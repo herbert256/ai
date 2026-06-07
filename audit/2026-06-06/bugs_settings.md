@@ -119,7 +119,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Every JSON import branch reads the picked file with `readFromUri` synchronously on the main thread inside the SAF result callback. The comment claims "tiny sync JSON reads", but the All / runtime-All / reports bundles can be large and block the UI.
 **Root cause:** Only the zip flows use `Dispatchers.IO`; the JSON branches do not.
 **Proposed fix:** Read + parse the larger bundle imports off the main thread.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — JSON string-set prefs now deserialize through `TypeTokens.listStringType`
 
 ### Bug 13 — Severity: LOW — Category: silent overwrite on re-import
 **Location:** ImportExportScreen.kt:626-636 (`applyParameters`), 673-683 (`applySystemPrompts`), and the other `apply*` upsert helpers
