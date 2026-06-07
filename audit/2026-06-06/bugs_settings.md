@@ -180,7 +180,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The paging position of every CRUD list resets to page 1 on rotation / process recreation. (Deliberately not keyed on `items.size`, but it's a plain `remember`.)
 **Root cause:** `remember`, not `rememberSaveable`.
 **Proposed fix:** `rememberSaveable` for `page` (it's coerced against `totalPages` already).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — CRUD list page index now uses `rememberSaveable`
 
 ---
 

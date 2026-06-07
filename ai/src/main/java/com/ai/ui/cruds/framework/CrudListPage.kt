@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,7 +63,7 @@ fun <T> CrudListPage(
     // Don't key on items.size — that reset the page to 0 on every
     // add/delete, bouncing the user back to page 1. safePage already
     // coerces against the live totalPages, so out-of-range is handled.
-    var page by remember { mutableStateOf(0) }
+    var page by rememberSaveable { mutableStateOf(0) }
 
     Column(
         modifier = Modifier
