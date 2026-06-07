@@ -520,7 +520,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `(manifest["version"] as? Number)?.toInt()` returns -1 (→ reject) if a valid backup ever wrote `version` as a JSON string; a tolerant producer/consumer mismatch would refuse a real backup.
 **Root cause:** Strict Number cast; no string fallback.
 **Proposed fix:** Accept a numeric string for `version` too.
-**Status:** Open (low likelihood; producer writes an Int)
+**Status:** Fixed in `BackupManager.kt` by accepting numeric string manifest versions in addition to JSON numbers.
 
 ## File: ai/src/main/java/com/ai/data/Knowledge.kt
 

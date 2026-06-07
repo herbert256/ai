@@ -436,7 +436,11 @@ object BackupManager {
                         val bytes = zip.readBytes()
                         @Suppress("UNCHECKED_CAST")
                         val manifest = gson.fromJson(bytes.toString(Charsets.UTF_8), Map::class.java) as Map<String, Any?>
-                        return (manifest["version"] as? Number)?.toInt() ?: -1
+                        return when (val version = manifest["version"]) {
+                            is Number -> version.toInt()
+                            is String -> version.trim().toIntOrNull() ?: -1
+                            else -> -1
+                        }
                     }
                 } finally {
                     // Always closeEntry — ZipInputStream.nextEntry behavior
