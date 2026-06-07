@@ -39,7 +39,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Request bodies serialized for traces can embed large base64 image payloads (vision); the trace request body is captured in full (no cap on the request side — see TracingInterceptor Bug 24) and rolls into the backup zip.
 **Root cause:** Image content blocks live inside the request body; there is no size cap on the captured request body.
 **Proposed fix:** Cap/elide base64 `image_url` / `inline_data` payloads in the trace request body the way response bodies are capped.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — `updateChatMessages`, `updateContent`, and the same-shaped model-switch update now use a single locked `updateResult` read-modify-write, so concurrent cost/icon bumps are preserved
 
 ## File: ai/src/main/java/com/ai/data/AtomicFileWrite.kt
 

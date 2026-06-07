@@ -201,13 +201,52 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Compound read-modify-write under one lock acquisition. Use this
+     *  instead of get()+save() for field-scoped edits so concurrent cost/icon
+     *  bumps cannot be overwritten by a stale full-row snapshot. */
+    private fun updateResult(
+        context: Context,
+        reportId: String,
+        resultId: String,
+        mutator: (SecondaryResult) -> SecondaryResult
+    ): SecondaryResult? {
+        init(context)
+        if (!ReportStorage.reportExists(context, reportId)) return null
+        if (resultId.isBlank() || resultId.contains('/') || resultId.contains('\\')
+                || resultId == "." || resultId == "..") {
+            AppLog.e("SecondaryResultStorage", "Refusing to update result with suspect id $resultId")
+            return null
+        }
+        val updated = lock.withLock {
+            if (!ReportStorage.reportExists(context, reportId)) return@withLock null
+            val dir = resolveReportDirForRead(reportId) ?: return@withLock null
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return@withLock null
+            if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
+                AppLog.e("SecondaryResultStorage", "Refusing to update result that escapes report dir: $resultId")
+                return@withLock null
+            }
+            val current = try {
+                gson.fromJson(target.readText(), SecondaryResult::class.java)
+            } catch (_: Exception) {
+                return@withLock null
+            }
+            val next = mutator(current)
+            target.writeTextAtomic(gson.toJson(next))
+            listCache[reportId]?.remove(target.name)
+            next
+        } ?: return null
+        SecondaryDataVersion.bump()
+        return updated
+    }
+
     /** Replace a fan-out pair's in-report refine-chat conversation
      *  ([SecondaryResult.chatMessages]). Returns false when the row is
      *  gone. Leaves [content] untouched — see [updateContent] for Apply. */
     fun updateChatMessages(context: Context, reportId: String, resultId: String, messages: List<ChatMessage>): Boolean {
-        val existing = get(context, reportId, resultId) ?: return false
-        save(context, existing.copy(chatMessages = messages))
-        return true
+        return updateResult(context, reportId, resultId) { existing ->
+            existing.copy(chatMessages = messages)
+        } != null
     }
 
     /** Overwrite a fan-out pair's [SecondaryResult.content] with a chosen
@@ -221,12 +260,13 @@ object SecondaryResultStorage {
         changeSource: String? = null,
         changeValue: String? = null
     ): Boolean {
-        val existing = get(context, reportId, resultId) ?: return false
-        save(context, existing.copy(
-            content = content,
-            responseChangeSource = changeSource?.takeIf { it.isNotBlank() },
-            responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
-        ))
+        val updated = updateResult(context, reportId, resultId) { existing ->
+            existing.copy(
+                content = content,
+                responseChangeSource = changeSource?.takeIf { it.isNotBlank() },
+                responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
+            )
+        } ?: return false
         AuditLog.append(reportId, buildString {
             append("Selected a new response for a result")
             changeSource?.takeIf { it.isNotBlank() }?.let { src ->
@@ -234,7 +274,7 @@ object SecondaryResultStorage {
                 changeValue?.takeIf { it.isNotBlank() }?.let { append(" with value $it") }
             }
         })
-        return true
+        return updated.id == resultId
     }
 
     /** Re-point a secondary row at a NEW provider/model (and optionally new
@@ -261,23 +301,23 @@ object SecondaryResultStorage {
         systemPromptId: String?,
         changeValue: String?
     ): SecondaryResult? {
-        val existing = get(context, reportId, resultId) ?: return null
-        val updated = existing.copy(
-            providerId = providerId,
-            model = model,
-            agentName = agentName,
-            content = content,
-            tokenUsage = tokenUsage,
-            inputCost = inputCost,
-            outputCost = outputCost,
-            durationMs = durationMs,
-            traceFile = traceFile,
-            secondaryParameterPresetIds = parameterPresetIds,
-            secondarySystemPromptId = systemPromptId,
-            responseChangeSource = RESPONSE_CHANGE_SOURCE_MODEL_SWITCH,
-            responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
-        )
-        save(context, updated)
+        val updated = updateResult(context, reportId, resultId) { existing ->
+            existing.copy(
+                providerId = providerId,
+                model = model,
+                agentName = agentName,
+                content = content,
+                tokenUsage = tokenUsage,
+                inputCost = inputCost,
+                outputCost = outputCost,
+                durationMs = durationMs,
+                traceFile = traceFile,
+                secondaryParameterPresetIds = parameterPresetIds,
+                secondarySystemPromptId = systemPromptId,
+                responseChangeSource = RESPONSE_CHANGE_SOURCE_MODEL_SWITCH,
+                responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
+            )
+        } ?: return null
         AuditLog.append(reportId, "Switched a result to $providerId / $model")
         return updated
     }
