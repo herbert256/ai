@@ -119,7 +119,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Every JSON import branch reads the picked file with `readFromUri` synchronously on the main thread inside the SAF result callback. The comment claims "tiny sync JSON reads", but the All / runtime-All / reports bundles can be large and block the UI.
 **Root cause:** Only the zip flows use `Dispatchers.IO`; the JSON branches do not.
 **Proposed fix:** Read + parse the larger bundle imports off the main thread.
-**Status:** Open
+**Status:** Fixed — runtime report/chat/all imports and the full config bundle now use a shared coroutine helper that reads and parses the picked JSON object on `Dispatchers.IO`, then resumes on main for the existing save/toast flow.
 
 ### Bug 13 — Severity: LOW — Category: silent overwrite on re-import
 **Location:** ImportExportScreen.kt:626-636 (`applyParameters`), 673-683 (`applySystemPrompts`), and the other `apply*` upsert helpers
