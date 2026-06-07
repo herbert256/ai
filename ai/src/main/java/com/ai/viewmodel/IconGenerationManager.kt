@@ -47,16 +47,14 @@ sealed class AltPromptFlow {
 
 internal fun metaCacheVariantForInternalPrompt(prompt: InternalPrompt?, aiSettings: Settings): String {
     if (prompt == null) return ""
-    fun promptParams(name: String): String =
-        name.takeIf { it.isNotBlank() && it != "*NONE" }
-            ?.let { aiSettings.getParametersByName(it) }
+    fun promptParams(ref: String): String =
+        ref.takeIf { it.isNotBlank() && it != "*NONE" }
+            ?.let { aiSettings.getParametersByIdOrName(it) }
             ?.let { "${it.id}:${it}" }
             .orEmpty()
-    fun promptSystem(name: String): String =
-        name.takeIf { it.isNotBlank() && it != "*NONE" }
-            ?.let { promptName ->
-                aiSettings.systemPrompts.find { it.name.equals(promptName, ignoreCase = true) }
-            }
+    fun promptSystem(ref: String): String =
+        ref.takeIf { it.isNotBlank() && it != "*NONE" }
+            ?.let { aiSettings.getSystemPromptByIdOrName(it) }
             ?.let { "${it.id}:${it.prompt}" }
             .orEmpty()
     fun agentParams(agent: Agent): String =

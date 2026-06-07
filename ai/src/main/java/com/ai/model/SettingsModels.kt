@@ -242,11 +242,12 @@ data class InternalPrompt(
      *  and take precedence over [agent]. Null/blank → use [agent]. */
     val provider: String? = null,
     val model: String? = null,
-    /** Optional per-prompt Parameters preset NAME / System-prompt NAME
-     *  (the labels shown in AI Setup). "*NONE" = not set. When set, they
-     *  are used for THIS prompt's API call, overriding the
-     *  agent/flock/swarm/provider/app-wide levels — unless a runtime
-     *  🌡️/🎭 pick was made on the model-selection screen. */
+    /** Optional per-prompt Parameters preset / System-prompt reference.
+     *  New saves store stable ids; legacy rows may still carry names.
+     *  "*NONE" = not set. When set, they are used for THIS prompt's
+     *  API call, overriding the agent/flock/swarm/provider/app-wide
+     *  levels — unless a runtime 🌡️/🎭 pick was made on the
+     *  model-selection screen. */
     val parameters: String = "*NONE",
     val systemPrompt: String = "*NONE",
     /** Only used by the "workers" category: an ordered fallback chain
@@ -785,6 +786,12 @@ data class Settings(
     fun getExamplePromptById(id: String) = examplePrompts.find { it.id == id }
     fun getParametersById(id: String) = parameters.find { it.id == id }
     fun getParametersByName(name: String) = parameters.find { it.name.equals(name, ignoreCase = true) }
+    fun getParametersByIdOrName(ref: String?) = ref
+        ?.takeIf { it.isNotBlank() && it != "*NONE" }
+        ?.let { value -> getParametersById(value) ?: getParametersByName(value) }
+    fun getSystemPromptByIdOrName(ref: String?) = ref
+        ?.takeIf { it.isNotBlank() && it != "*NONE" }
+        ?.let { value -> getSystemPromptById(value) ?: systemPrompts.firstOrNull { it.name.equals(value, ignoreCase = true) } }
 
     // ----- Blocked models -----
     /** `"providerId:model"` → reason, for O(1) picker lookups. */

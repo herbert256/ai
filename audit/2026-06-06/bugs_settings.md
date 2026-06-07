@@ -499,7 +499,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** An internal prompt stores its Parameters / System-prompt selection by **name** (`*NONE` sentinel), not id. Renaming the referenced Parameters/System-prompt preset silently unlinks it (the name no longer resolves), and two presets with the same name are ambiguous.
 **Root cause:** Persisting a human-editable name as the foreign key instead of the stable id.
 **Proposed fix:** Store the preset id (resolve to name for display), or re-point on rename.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — internal-prompt edits now persist stable Parameters/System-prompt ids, while `Settings` exposes id-or-legacy-name resolvers used by the editor, runtime secondary-parameter resolution, and prompt cache variants for backward compatibility.
 
 ---
 
