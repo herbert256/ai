@@ -58,6 +58,9 @@ fun CostsMaintenanceScreen(
     fun readFromUri(uri: android.net.Uri): String? {
         return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
     }
+    fun parsePerMillion(raw: String): Double? =
+        raw.trim().replace(',', '.').toDoubleOrNull()?.div(1_000_000)
+
     fun buildLayeredCsv(filterCovered: Boolean): Pair<String, Int> {
         fun fmt(p: Double?): String = p?.let { "%.4f".format(java.util.Locale.US, it * 1_000_000) } ?: ""
         val header = "provider,model,new_input_per_million,new_output_per_million," +
@@ -132,8 +135,8 @@ fun CostsMaintenanceScreen(
                     if (rawIn.isEmpty() && rawOut.isEmpty()) return@forEach
                     val provider = AppService.findById(parts[0].trim())
                     val model = parts[1].trim()
-                    var inp = rawIn.toDoubleOrNull()?.div(1_000_000)
-                    var outp = rawOut.toDoubleOrNull()?.div(1_000_000)
+                    var inp = parsePerMillion(rawIn)
+                    var outp = parsePerMillion(rawOut)
                     // Single-column edit (only one of input/output filled): keep the
                     // other side at whatever the lookup currently returns so a
                     // one-column correction doesn't get silently skipped.

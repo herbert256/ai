@@ -90,7 +90,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** A layered-cost CSV edited in a comma-decimal spreadsheet (values like `0,5`) imports as null and the row is silently skipped. (Export uses `"%.4f".format(Locale.US,…)`, so app-produced files round-trip, but user-edited ones may not.)
 **Root cause:** `.toDoubleOrNull()` is dot-only and not normalized.
 **Proposed fix:** Normalize comma→dot before parsing the price columns.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — layered cost import normalizes comma decimals before parsing per-million prices
 
 ---
 
