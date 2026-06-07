@@ -67,14 +67,17 @@ private data class DualMessage(
     val content: String,
     val providerName: String,
     val modelName: String,
-    /** Wall clock at the moment this turn finished — used to pick the
-     *  closest trace tagged with (sessionId, modelName) so the per-bubble
-     *  🐞 doesn't alias when the same model speaks several times. */
+    /** Wall clock at the moment this turn finished; retained for display
+     *  and for older saved-state fallbacks. */
     val timestamp: Long = System.currentTimeMillis(),
     /** Stable identity for LazyColumn keys — positional-index keys
      *  re-keyed every trailing item as the loop appends one message at a
      *  time, defeating stable keys and restarting per-bubble trace lookups. */
-    val id: String = java.util.UUID.randomUUID().toString()
+    val id: String = java.util.UUID.randomUUID().toString(),
+    /** Exact trace filename captured from the API call that produced
+     *  this turn. Null when tracing was off or the call predated this
+     *  field. */
+    val traceFilename: String? = null
 )
 
 /** Saver that lets the dual-chat conversation survive a rotation /
@@ -85,7 +88,8 @@ private data class DualMessage(
  *  improvement. */
 /** Number of flat entries each [DualMessage] serializes to. Keep in sync
  *  with the save/restore field list below. */
-private const val DUAL_MSG_STRIDE = 6
+private const val DUAL_MSG_STRIDE = 7
+private const val LEGACY_DUAL_MSG_STRIDE = 6
 
 private val DualMessagesSaver = androidx.compose.runtime.saveable.Saver<List<DualMessage>, java.util.ArrayList<Any?>>(
     save = { list ->
@@ -97,25 +101,28 @@ private val DualMessagesSaver = androidx.compose.runtime.saveable.Saver<List<Dua
                 add(m.modelName)
                 add(m.timestamp)
                 add(m.id)
+                add(m.traceFilename)
             }
         }
     },
     restore = { flat ->
         val out = mutableListOf<DualMessage>()
         var i = 0
+        val stride = if (flat.size % DUAL_MSG_STRIDE == 0) DUAL_MSG_STRIDE else LEGACY_DUAL_MSG_STRIDE
         // `i + stride <= size` keeps the final complete record (it used to be
         // `i + 4 < size`, a hand-written stride that silently dropped the tail
         // if the field count changed).
-        while (i + DUAL_MSG_STRIDE <= flat.size) {
+        while (i + stride <= flat.size) {
             out += DualMessage(
                 modelIndex = flat[i] as Int,
                 content = flat[i + 1] as String,
                 providerName = flat[i + 2] as String,
                 modelName = flat[i + 3] as String,
                 timestamp = flat[i + 4] as Long,
-                id = flat[i + 5] as String
+                id = flat[i + 5] as String,
+                traceFilename = if (stride == DUAL_MSG_STRIDE) flat[i + 6] as? String else null
             )
-            i += DUAL_MSG_STRIDE
+            i += stride
         }
         out
     }
@@ -472,13 +479,16 @@ fun DualChatSessionScreen(
                     // other screens (a normal chat started after navigating away
                     // before this loop's finally ran) get tagged with the
                     // dual-chat sessionId/category.
+                    val traceSink1 = java.util.concurrent.atomic.AtomicReference<String?>()
                     val response1 = com.ai.data.withTracerTags(reportId = sessionId, category = "Dual chat") {
-                        chatViewModel.sendDualChatMessage(config.model1Provider, apiKey1, config.model1Name, m1Messages, config.model1Params)
+                        com.ai.data.withTraceFilenameSink(traceSink1) {
+                            chatViewModel.sendDualChatMessage(config.model1Provider, apiKey1, config.model1Name, m1Messages, config.model1Params)
+                        }
                     }
                     val inTokens1 = m1Messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outTokens1 = AppViewModel.estimateTokens(response1)
                     model1InputTokens += inTokens1; model1OutputTokens += outTokens1
-                    appendMessage(DualMessage(1, response1, config.model1Provider.id, config.model1Name))
+                    appendMessage(DualMessage(1, response1, config.model1Provider.id, config.model1Name, traceFilename = traceSink1.get()))
 
                     // Model 2's turn
                     thinkingModel = 2
@@ -488,13 +498,16 @@ fun DualChatSessionScreen(
                         m2Messages.add(ChatMessage(role = "user", content = config.secondPrompt.replace("%answer%", last.content)))
                     }
                     val apiKey2 = aiSettings.getApiKey(config.model2Provider)
+                    val traceSink2 = java.util.concurrent.atomic.AtomicReference<String?>()
                     val response2 = com.ai.data.withTracerTags(reportId = sessionId, category = "Dual chat") {
-                        chatViewModel.sendDualChatMessage(config.model2Provider, apiKey2, config.model2Name, m2Messages, config.model2Params)
+                        com.ai.data.withTraceFilenameSink(traceSink2) {
+                            chatViewModel.sendDualChatMessage(config.model2Provider, apiKey2, config.model2Name, m2Messages, config.model2Params)
+                        }
                     }
                     val inTokens2 = m2Messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outTokens2 = AppViewModel.estimateTokens(response2)
                     model2InputTokens += inTokens2; model2OutputTokens += outTokens2
-                    appendMessage(DualMessage(2, response2, config.model2Provider.id, config.model2Name))
+                    appendMessage(DualMessage(2, response2, config.model2Provider.id, config.model2Name, traceFilename = traceSink2.get()))
 
                     currentInteraction++
                 }
@@ -552,7 +565,7 @@ fun DualChatSessionScreen(
         // Messages
         LazyColumn(state = listState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(messages.size, key = { messages[it].id }) { index ->
-                DualMessageBubble(messages[index], sessionId, onNavigateToTraceFile)
+                DualMessageBubble(messages[index], onNavigateToTraceFile)
             }
             if (thinkingModel != null) {
                 item(key = "thinking") {
@@ -663,24 +676,11 @@ private fun CostLabel(name: String, costCents: Double, color: Color) {
 @Composable
 private fun DualMessageBubble(
     msg: DualMessage,
-    sessionId: String,
     onNavigateToTraceFile: (String) -> Unit
 ) {
     val isModel1 = msg.modelIndex == 1
     val color = if (isModel1) AppColors.InfoAccent else AppColors.SuccessAccent
     val align = if (isModel1) Alignment.CenterStart else Alignment.CenterEnd
-
-    // Closest-timestamp trace lookup, mirroring the single-chat
-    // bubble's behaviour. Keyed on the message timestamp so each turn
-    // ends up with its own filename — the same model speaking again
-    // gets a different trace.
-    val traceFilename by produceState<String?>(initialValue = null, sessionId, msg.modelName, msg.timestamp) {
-        value = withContext(Dispatchers.IO) {
-            com.ai.data.ApiTracer.getTraceFiles()
-                .filter { it.reportId == sessionId && it.model == msg.modelName }
-                .minByOrNull { kotlin.math.abs(it.timestamp - msg.timestamp) }?.filename
-        }
-    }
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = align) {
         Card(
@@ -697,7 +697,7 @@ private fun DualMessageBubble(
                         modifier = Modifier.weight(1f)
                             .modelInfoClickable(msgProviderService, msg.modelName)
                     )
-                    val tf = traceFilename
+                    val tf = msg.traceFilename
                     if (com.ai.data.ApiTracer.ladybugLinksEnabled && tf != null) {
                         Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
                             modifier = Modifier

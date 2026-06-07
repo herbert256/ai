@@ -216,7 +216,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** When Model 1 and Model 2 are the *same* (provider, model), each bubble's 🐞 can resolve to the other turn's trace.
 **Root cause:** The lookup filters by `reportId == sessionId && model == msg.modelName` then picks the closest timestamp; with identical model names the only discriminator is timestamp, which aliases when both turns are close.
 **Proposed fix:** Tag each turn's trace with the modelIndex (or a per-turn id) and filter on it.
-**Status:** Open
+**Status:** Fixed — each dual-chat model call now installs a `withTraceFilenameSink` and stores the exact resulting trace filename on the appended `DualMessage`, so identical provider/model turns no longer rely on timestamp proximity.
 
 ### Bug 29 — Severity: LOW — Category: input validation
 **Location:** DualChatScreen.kt:264-268, 581-585 (`interactionCount` / `extraChatsText` text fields)
@@ -230,7 +230,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** A long, content-heavy dual chat can exceed the ~1 MB `TransactionTooLargeException`/Bundle ceiling on saved-instance-state, losing the conversation on recreation.
 **Root cause:** The whole conversation is flattened into the saved-state Bundle (acknowledged in the doc comment). Combined with Bug 23 (config lost anyway), the Saver rarely helps.
 **Proposed fix:** Back the conversation with a temp file / disk store rather than the Bundle.
-**Status:** Open
+**Status:** Fixed — `DualMessageBubble` now receives the trace filename from the saved message instead of running a per-bubble `ApiTracer.getTraceFiles()` lookup.
 
 ### Bug 31 — Severity: LOW — Category: persistence timing
 **Location:** DualChatScreen.kt:168-189 (`savePrefs` + `DisposableEffect(Unit){ onDispose { savePrefs() } }`)
