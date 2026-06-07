@@ -616,7 +616,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** On a 30-min phase timeout, the job is paused on `rowIds.first()` — an arbitrary set-iteration-order row, not necessarily the row that actually stalled — so the detail screen highlights the wrong row and the auto-resume watches the wrong row's error state.
 **Root cause:** `rowIds.first()` on a `Set` has undefined order and no relation to which row stalled.
 **Proposed fix:** Pause on the first row still in RUNNING state (the actual stalled one), not an arbitrary set element.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — phase timeout now pauses on the first persisted RUNNING task for that phase, with the old row set only as a fallback.
 
 ## File: ai/src/main/java/com/ai/data/ApiUsageRates.kt
 
