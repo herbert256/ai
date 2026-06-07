@@ -45,6 +45,52 @@ sealed class AltPromptFlow {
     data class TranslationText(val isTitleKind: Boolean, val targetLanguageName: String, val sourceText: String) : AltPromptFlow()
 }
 
+internal fun metaCacheVariantForInternalPrompt(prompt: InternalPrompt?, aiSettings: Settings): String {
+    if (prompt == null) return ""
+    fun promptParams(name: String): String =
+        name.takeIf { it.isNotBlank() && it != "*NONE" }
+            ?.let { aiSettings.getParametersByName(it) }
+            ?.let { "${it.id}:${it}" }
+            .orEmpty()
+    fun promptSystem(name: String): String =
+        name.takeIf { it.isNotBlank() && it != "*NONE" }
+            ?.let { promptName ->
+                aiSettings.systemPrompts.find { it.name.equals(promptName, ignoreCase = true) }
+            }
+            ?.let { "${it.id}:${it.prompt}" }
+            .orEmpty()
+    fun agentParams(agent: Agent): String =
+        agent.paramsIds.mapNotNull { aiSettings.getParametersById(it) }
+            .joinToString("|") { "${it.id}:${it}" }
+    fun agentSystem(agent: Agent): String =
+        agent.systemPromptId
+            ?.let { id -> aiSettings.getSystemPromptById(id)?.let { "${it.id}:${it.prompt}" } }
+            .orEmpty()
+    val workers = prompt.workers
+        .flatMap { worker -> aiSettings.expandWorker(worker).ifEmpty { listOf(worker) } }
+        .joinToString("||") { worker ->
+            val agent = aiSettings.resolveWorker(worker)
+            listOf(
+                worker.agent, worker.provider, worker.model, worker.flock, worker.swarm,
+                agent?.id.orEmpty(),
+                agent?.provider?.id.orEmpty(),
+                agent?.let { aiSettings.getEffectiveModelForAgent(it) }.orEmpty(),
+                agent?.let(::agentParams).orEmpty(),
+                agent?.let(::agentSystem).orEmpty()
+            ).joinToString("|")
+        }
+    return listOf(
+        prompt.id,
+        prompt.name,
+        prompt.text,
+        prompt.parameters,
+        promptParams(prompt.parameters),
+        prompt.systemPrompt,
+        promptSystem(prompt.systemPrompt),
+        workers
+    ).joinToString("\u001f")
+}
+
 /** The resolved alt prompt for a flow: the underlying prompt id (for
  *  persistence), the fully marker-replaced text shown in the editor, and
  *  the ordered marker→value substitutions that produced it (so a saved
@@ -449,7 +495,8 @@ class IconGenerationManager(
         // Same prompt text → same title; serve from the 7-day meta cache.
         // Keyed per trace-category so the short and long titles don't
         // collide on the same input text.
-        com.ai.data.MetaCache.get(traceCategory, promptText)?.let { cached ->
+        val cacheVariant = metaCacheVariantForInternalPrompt(prompt, aiSettings)
+        com.ai.data.MetaCache.get(traceCategory, promptText, cacheVariant)?.let { cached ->
             return TitleGenResult(
                 title = cached.take(cap),
                 inputTokens = 0, outputTokens = 0,
@@ -478,7 +525,7 @@ class IconGenerationManager(
             .lineSequence().map { cleanTitleLine(it) }.firstOrNull { it.isNotBlank() }
             .orEmpty().take(cap)
         if (title.isBlank()) return null
-        com.ai.data.MetaCache.put(traceCategory, promptText, title)
+        com.ai.data.MetaCache.put(traceCategory, promptText, title, cacheVariant)
         val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
             it.copy(model = aiSettings.getEffectiveModelForAgent(it))
         }
@@ -947,7 +994,8 @@ class IconGenerationManager(
             if (detectedName != null) {
                 // Same language → same emoji; serve from the 7-day meta
                 // cache when present and skip the LLM call entirely.
-                val cachedIcon = com.ai.data.MetaCache.get("language-icon", detectedName)
+                val iconCacheVariant = metaCacheVariantForInternalPrompt(effIconPrompt, aiSettings)
+                val cachedIcon = com.ai.data.MetaCache.get("language-icon", detectedName, iconCacheVariant)
                 val iconRunnable = effIconPrompt != null &&
                     effIconPrompt.workers.any { aiSettings.resolveWorker(it) != null }
                 if (cachedIcon != null) {
@@ -978,7 +1026,7 @@ class IconGenerationManager(
                                 // on Success, so this fallback is belt-and-braces.
                                 val emoji = extractFirstEmoji(analysis.orEmpty()) ?: MetadataIconsHolder.current.languageIcon
                                 // Cache the real parsed emoji for this language (7-day).
-                                com.ai.data.MetaCache.put("language-icon", detectedName, emoji)
+                                com.ai.data.MetaCache.put("language-icon", detectedName, emoji, iconCacheVariant)
                                 val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
                                     it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                                 }

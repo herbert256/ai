@@ -593,7 +593,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** PromptCache keys on `(prompt, agentId)` and MetaCache on `(category, input)` but neither includes the resolved generation parameters (temperature, reasoning effort, system prompt). A user who changes parameters and re-asks gets the *cached* response computed under the old parameters — stale result, no recompute, within the 48h/7-day TTL.
 **Root cause:** Cache key omits parameter/system-prompt state that affects the output.
 **Proposed fix:** Fold the resolved params + system prompt into the cache key.
-**Status:** Open
+**Status:** Fixed — prompt/meta cache keys now support an explicit generation variant; model-intro keys include the default generation variant, and worker-backed title/language meta cache keys include the internal prompt body plus resolved worker, parameter, and system-prompt state.
 
 ## File: ai/src/main/java/com/ai/viewmodel/RegenerateBatchEngine.kt
 

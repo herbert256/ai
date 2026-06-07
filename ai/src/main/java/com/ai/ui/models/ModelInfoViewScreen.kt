@@ -253,7 +253,7 @@ fun ModelInfoViewScreen(
             .replace("@AGENT@", "${provider.id} / $modelName")
     }
     val introCacheKey = remember(introResolvedPrompt, provider, modelName) {
-        PromptCache.keyFor(introResolvedPrompt, "${provider.id}:$modelName")
+        PromptCache.keyFor(introResolvedPrompt, "${provider.id}:$modelName", variant = "params=default|systemPrompt=")
     }
     val canRequestIntro = pageApiKey.isNotBlank() && introTemplate.isNotBlank()
     val requestIntroduction: () -> Unit = req@{
