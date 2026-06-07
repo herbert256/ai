@@ -20,10 +20,13 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * lets balance-gating providers (OpenRouter) pre-authorise the model's
  * entire output window against the account balance, which 402s expensive
  * models that would answer a normal request fine. Per-model rule first
- * (the provider's maxTokensDefaults table), then a sane fixed fallback.
+ * (the provider's maxTokensDefaults table), then the known output-token
+ * limit from models.dev when available, then a conservative fixed fallback.
  */
 internal fun defaultMaxTokens(service: AppService, model: String): Int =
-    service.maxTokensDefaults.resolveMaxTokens(model) ?: 4_096
+    service.maxTokensDefaults.resolveMaxTokens(model)
+        ?: PricingCache.modelsDevMaxOutputTokens(service, model)?.takeIf { it > 0 }
+        ?: 4_096
 
 /**
  * Hard coroutine-level ceiling for ONE outbound provider call. OkHttp's

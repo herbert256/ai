@@ -148,7 +148,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** When a provider has no `maxTokensDefaults` rule, every call without an explicit `maxTokens` is capped at 4096 output tokens, silently truncating long answers from models with much larger output windows (the user never set a cap; they just get cut off at 4096).
 **Root cause:** A fixed 4096 fallback chosen to avoid OpenRouter balance-gating, applied uniformly.
 **Proposed fix:** Derive the fallback from the model's known output-token limit (already fetched into capabilities) instead of a flat 4096, or only apply the floor for balance-gating providers.
-**Status:** Open
+**Status:** Fixed — default max-token selection now keeps provider-specific rules first, then uses the known models.dev output-token limit when present, before falling back to the conservative 4096 cap.
 
 ## File: ai/src/main/java/com/ai/data/ApiStreaming.kt
 
