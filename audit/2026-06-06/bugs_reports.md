@@ -25,7 +25,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Both the `language` (detection) row and the `language-icon` row test the same `"<id>|language"` membership for their RUNNING state, so once the detection name is set, a still-in-flight detection call keeps the icon row showing "Generating…/Running" even though the icon call may not have started.
 **Root cause:** There is one running-key per language flow (`|language`) but two rows; the icon row distinguishes itself only by the `report.languageName.isNullOrBlank()` CLOCK guard, after which it falls through to the shared key.
 **Proposed fix:** Emit a distinct running key for the icon stage (e.g. `"<id>|language-icon"`) so the two rows reflect their own call's liveness.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — language detection and language-icon generation now use separate running keys
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/GenerationPhase.kt
 

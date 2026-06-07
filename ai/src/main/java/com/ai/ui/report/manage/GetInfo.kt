@@ -94,7 +94,7 @@ fun buildInfoJobs(
     perModelIcon: Boolean,
     perModelTitle: Boolean,
     icons: com.ai.data.MetadataIcons = com.ai.data.MetadataIcons(),
-    // Keys ("<reportId>|icon" / "|language" / "|title") of report-level jobs
+    // Keys ("<reportId>|icon" / "|language" / "|language-icon" / "|title") of report-level jobs
     // whose call is ACTIVELY in flight. A report-level job with no result and
     // no error shows the clock (queued) unless its key is here — then the
     // animated hourglass (really running). Empty = the aggregate caller
@@ -149,7 +149,7 @@ fun buildInfoJobs(
             !report.languageIconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.languageIcon.isNullOrBlank() -> InfoJobState.DONE
             report.languageName.isNullOrBlank() -> InfoJobState.CLOCK
-            "${report.id}|language" in running -> InfoJobState.RUNNING
+            "${report.id}|language-icon" in running -> InfoJobState.RUNNING
             else -> InfoJobState.CLOCK
         }
         val langIconLabel = report.languageIconErrorMessage?.takeIf { it.isNotBlank() }
