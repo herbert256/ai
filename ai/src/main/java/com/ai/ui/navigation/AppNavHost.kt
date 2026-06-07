@@ -515,29 +515,23 @@ fun AppNavHost(
         )
     }
     } // end Column
-        // Full-screen lock overlay — greys + blocks every bar and the content,
-        // swallows back, and (once Refresh all finishes) offers only Restart.
-        if (restartLockActive) {
-            RestartLockOverlay(
-                refreshState = restartLockRefreshState,
-                onRestart = { com.ai.ui.shared.restartApp(restartLockContext) }
-            )
+        // Once the forced Refresh-all finishes, the full-screen lock takes over:
+        // greys + blocks every bar and the content, swallows back, and offers
+        // only Restart. Until it finishes the user sees the normal Refresh-all
+        // screen (navigated to on import), not this overlay.
+        if (restartLockActive && restartLockRefreshState?.isFinished == true) {
+            RestartLockOverlay(onRestart = { com.ai.ui.shared.restartApp(restartLockContext) })
         }
     } // end Box
     } // end CompositionLocalProvider
 }
 
-/** Non-dismissible "finishing setup" lock shown after a first-launch API-key
- *  import that brought in a provider key. Dims + blocks the whole app (bars
- *  included), disables back, shows Refresh-all progress, and once it finishes
+/** Non-dismissible lock shown after the forced first-launch Refresh-all
+ *  FINISHES. Dims + blocks the whole app (bars included), disables back, and
  *  offers the single working action: Restart application. */
 @Composable
-private fun RestartLockOverlay(
-    refreshState: com.ai.viewmodel.RefreshAllState?,
-    onRestart: () -> Unit
-) {
+private fun RestartLockOverlay(onRestart: () -> Unit) {
     androidx.activity.compose.BackHandler(enabled = true) { /* locked — swallow back */ }
-    val done = refreshState?.isFinished == true
     androidx.compose.foundation.layout.Box(
         modifier = Modifier
             .fillMaxSize()
@@ -555,32 +549,23 @@ private fun RestartLockOverlay(
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
         ) {
             androidx.compose.material3.Text(
-                if (done) "Setup complete" else "Setting up your providers…",
+                "Setup complete",
                 color = com.ai.ui.shared.AppColors.TextPrimary,
                 fontSize = 18.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
             )
-            if (!done) {
-                androidx.compose.material3.CircularProgressIndicator(color = com.ai.ui.shared.AppColors.InfoAccent)
+            androidx.compose.material3.Text(
+                "Restart the app to finish applying your API keys.",
+                color = com.ai.ui.shared.AppColors.TextSecondary, fontSize = 13.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            androidx.compose.material3.OutlinedButton(
+                onClick = onRestart,
+                colors = com.ai.ui.shared.AppColors.outlinedButtonColors()
+            ) {
                 androidx.compose.material3.Text(
-                    "Refreshing all providers, model lists and agents. Please wait — this can take a minute.",
-                    color = com.ai.ui.shared.AppColors.TextSecondary, fontSize = 13.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    "Restart application", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    maxLines = 1, softWrap = false
                 )
-            } else {
-                androidx.compose.material3.Text(
-                    "Restart the app to finish applying your API keys.",
-                    color = com.ai.ui.shared.AppColors.TextSecondary, fontSize = 13.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-                androidx.compose.material3.OutlinedButton(
-                    onClick = onRestart,
-                    colors = com.ai.ui.shared.AppColors.outlinedButtonColors()
-                ) {
-                    androidx.compose.material3.Text(
-                        "Restart application", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                        maxLines = 1, softWrap = false
-                    )
-                }
             }
         }
     }

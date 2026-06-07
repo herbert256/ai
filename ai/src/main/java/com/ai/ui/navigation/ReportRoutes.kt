@@ -213,9 +213,12 @@ internal fun NavGraphBuilder.reportRoutes(
                     if (updatedGs != current.generalSettings) appViewModel.updateGeneralSettings(updatedGs)
                     appViewModel.updateSettings(result.settings)
                     if (result.settings.hasAnyApiKey()) {
-                        // ≥1 provider key → forced Refresh all, then lock to Restart.
+                        // ≥1 provider key → forced Refresh all on the EXISTING
+                        // Refresh-all screen; the restart lock takes over once it
+                        // finishes (only Restart works then).
                         appViewModel.startRefreshAll()
                         appViewModel.engageRestartLock()
+                        navController.navigate(NavRoutes.AI_REFRESH)
                     } else {
                         val msg = if (result.imported > 0) "${result.imported} key(s) imported, but no AI-provider key found" else "No usable keys found in the file"
                         android.widget.Toast.makeText(firstLaunchContext, msg, android.widget.Toast.LENGTH_LONG).show()
