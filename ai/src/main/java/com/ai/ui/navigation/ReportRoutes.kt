@@ -159,11 +159,38 @@ internal fun NavGraphBuilder.reportRoutes(
         }
 
         composable(NavRoutes.AI_FIRST_LAUNCH) {
+            // Never sit on First launch once any provider has an API key — e.g.
+            // the user imported keys from here and pressed back. Re-checked on
+            // each ON_RESUME so it fires when First launch returns to the
+            // foreground (not while the user is still on the import screen),
+            // then routes to the Reports hub and drops First launch off the stack.
+            val firstLaunchOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            val firstLaunchScope = rememberCoroutineScope()
+            androidx.compose.runtime.DisposableEffect(firstLaunchOwner) {
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                        firstLaunchScope.launch {
+                            val hasKeys = appViewModel.uiState.value.aiSettings.hasAnyApiKey() ||
+                                withContext(Dispatchers.IO) { appViewModel.settingsPrefs.loadSettings().hasAnyApiKey() }
+                            if (hasKeys) {
+                                navController.navigate(NavRoutes.AI_REPORTS_HUB) {
+                                    popUpTo(NavRoutes.AI_FIRST_LAUNCH) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                    }
+                }
+                firstLaunchOwner.lifecycle.addObserver(observer)
+                onDispose { firstLaunchOwner.lifecycle.removeObserver(observer) }
+            }
             FirstLaunchScreen(
                 onImportApiKeys = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
                 onAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
+                onExampleReports = { navController.navigate(NavRoutes.AI_EXAMPLES) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS) },
+                onMainHelp = { navController.navigate(NavRoutes.HELP) },
                 onAbout = { navController.navigate(NavRoutes.ABOUT) }
             )
         }

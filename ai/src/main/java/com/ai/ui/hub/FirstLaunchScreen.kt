@@ -18,8 +18,10 @@ import com.ai.ui.shared.TitleBar
 fun FirstLaunchScreen(
     onImportApiKeys: () -> Unit,
     onAiSetup: () -> Unit,
+    onExampleReports: () -> Unit,
     onHousekeeping: () -> Unit,
     onSettings: () -> Unit,
+    onMainHelp: () -> Unit,
     onAbout: () -> Unit
 ) {
     Column(
@@ -29,6 +31,8 @@ fun FirstLaunchScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Extra breathing room below the home icon bar before the title.
+        Spacer(modifier = Modifier.height(40.dp))
         TitleBar(
             helpTopic = "first_launch",
             title = "First launch",
@@ -38,8 +42,10 @@ fun FirstLaunchScreen(
         Spacer(modifier = Modifier.height(4.dp))
         HubCard(icon = MetadataDefaults.KEY, title = "Import API keys", onClick = onImportApiKeys)
         HubCard(icon = MetadataDefaults.AGENT, title = "AI Setup", onClick = onAiSetup)
+        HubCard(icon = MetadataDefaults.REPORT_ICON, title = "Example reports", onClick = onExampleReports)
         HubCard(icon = MetadataDefaults.HOUSEKEEPING, title = "Housekeeping", onClick = onHousekeeping)
         HubCard(icon = MetadataDefaults.SETTINGS, title = "Settings", onClick = onSettings)
+        HubCard(icon = MetadataDefaults.HELP, title = "Help", onClick = onMainHelp)
         HubCard(icon = MetadataDefaults.INFO, title = "About", onClick = onAbout)
     }
 }
