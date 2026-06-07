@@ -278,7 +278,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** After an in-place title-bar swipe to another report, the prompt pager keeps its previous page index; the new report's prompt can open on a language page it doesn't have (the title bar shows that language while the body silently falls back to `report.prompt`).
 **Root cause:** Unlike Meta/FanIn (which run a `LaunchedEffect(languages, currentResultId)` re-centre), Prompt has no re-seek after `currentReportId` changes; `rememberWrapPager`'s `initialIndex` only applies at creation.
 **Proposed fix:** Add a `LaunchedEffect(currentReportId, languages)` that re-centres to the requested/Original page when the report changes.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Prompt view now re-centres its language pager when the report or requested language changes
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Icons.kt
 
