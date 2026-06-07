@@ -8,7 +8,7 @@
       "provider": "*N/A",
       "model": "*N/A",
       "flock": "*N/A",
-      "swarm": "Rerank"
+      "swarm": "workers"
     }
   ],
   "parameters": "*NONE",
