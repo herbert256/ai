@@ -129,8 +129,29 @@ object ChatHistoryManager {
      *  as their own section on the AI Chat hub. Doesn't bump
      *  updatedAt — pinning is metadata, not activity. */
     fun setSessionPinned(sessionId: String, pinned: Boolean): Boolean {
-        val current = loadSession(sessionId) ?: return false
-        return saveSession(current.copy(pinned = pinned))
+        val dir = historyDir ?: run { AppLog.w("ChatHistory", "Not initialized"); return false }
+        if (!isSafeSessionFile(dir, sessionId)) {
+            AppLog.e("ChatHistory", "Refusing to pin session with unsafe id: $sessionId")
+            return false
+        }
+        return lock.withLock {
+            val file = File(dir, "$sessionId.json")
+            if (!file.exists()) return@withLock false
+            try {
+                val current = file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) }
+                    ?: return@withLock false
+                val json = gson.toJson(current.copy(pinned = pinned))
+                val ok = file.writeTextAtomic(json)
+                if (ok) {
+                    cachedSessions = null
+                    notifyHistoryChanged()
+                }
+                ok
+            } catch (e: Exception) {
+                AppLog.e("ChatHistory", "Failed to pin session: ${e.message}")
+                false
+            }
+        }
     }
 
     fun deleteAllSessions(): Int {

@@ -92,7 +92,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Toggling 📌 while a stream is completing can drop the just-arrived assistant turn from disk.
 **Root cause:** `setSessionPinned` does a non-atomic load→copy(pinned)→save against the same session id. If the streaming completion's `saveSession(messages)` lands between the load and the save, the pin's save rewrites the older message list (without the new assistant turn) back over it. The screen also already persists `pinned` in its own `saveSession`, making the separate call both redundant and racy.
 **Proposed fix:** Don't call `setSessionPinned` separately; just flip the local `pinned` var and let the next `saveSession(messages)` carry it, or make the pin update a copy-from-current-state operation under the manager lock.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — setSessionPinned now performs the read-copy-write under one ChatHistoryManager lock, so it cannot save a stale loaded message list over a concurrent session save
 
 ### Bug 12 — Severity: LOW — Category: cost display
 **Location:** ChatScreens.kt:315-316, 405-409, 677-679 (`totalInputTokens`/`totalOutputTokens` + title-bar cost)
