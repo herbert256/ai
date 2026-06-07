@@ -269,7 +269,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** When the Answer Matrix is viewed in a non-Original language, the Stance / Confidence / Risk columns become meaningless (every row reads "Neutral" / "Medium" / "None explicit").
 **Root cause:** `displayBody` is the *translated* agent response when a language is active (line 332), but `recommendationRegex`/`riskRegex`/`confidence*Regex`/`refusalRegex` are English-only word lists that don't match other languages.
 **Proposed fix:** Run the signal extraction on the Original (English) body even when displaying a translation, or hide the heuristic columns when a non-Original language is selected.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Answer Matrix heuristics now extract from the original response body even when translated labels are shown
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Prompt.kt
 

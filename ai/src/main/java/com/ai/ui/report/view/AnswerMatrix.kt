@@ -334,13 +334,10 @@ private fun buildAnswerMatrixRows(
     return agents.mapIndexed { index, agent ->
         val ordinal = index + 1
         val rank = rankRows[ordinal]
-        val displayBody = translationByTarget["AGENT:${agent.agentId}"]
-            ?.takeIf { it.isNotBlank() }
-            ?: agent.responseBody.orEmpty()
         val title = translationByTarget["AGENT_TITLE:${agent.agentId}"]
             ?.takeIf { it.isNotBlank() }
             ?: agent.modelTitle?.takeIf { it.isNotBlank() }
-        val extraction = extractMatrixSignals(displayBody)
+        val extraction = extractMatrixSignals(agent.responseBody.orEmpty())
         val provider = AppService.findById(agent.provider)?.id ?: agent.provider
         val costUsd = agent.cost ?: ((agent.inputCost ?: 0.0) + (agent.outputCost ?: 0.0))
         AnswerMatrixRow(
