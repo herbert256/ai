@@ -321,7 +321,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** "Total cost" includes spend from deleted items while "API calls", "Tokens", and "Models used" count only current rows, so the displayed total is larger than the sum of the per-call figures the screen also shows — confusing.
 **Root cause:** `totalCents = totalInC + totalOutC + deletedCents`, but the other roll-ups read only `costData.rows` (current items).
 **Proposed fix:** Either surface the deleted-items contribution as its own labelled line (as the cost tables do) or exclude it from the headline so the numbers reconcile.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Report Info now shows deleted-item cost as its own totals row when nonzero
 
 ## File: ai/src/main/java/com/ai/ui/helpers/ReportExport.kt
 

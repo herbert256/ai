@@ -100,6 +100,7 @@ fun ReportInfoScreen(
 
         // Total cost from the shared aggregator → matches Report - costs.
         val costData = rememberReportCostData(r)
+        val deletedCents = costData?.deletedCents ?: 0.0
         val totalCents = costData?.let { it.totalInC + it.totalOutC + it.deletedCents } ?: 0.0
         val apiCalls = costData?.rows?.size ?: 0
         val modelCount = costData?.byModel?.size ?: 0
@@ -147,6 +148,9 @@ fun ReportInfoScreen(
             InfoRow("API calls", apiCalls.toString())
             InfoRow("Total API time", formatDuration(totalDurationMs))
             InfoRow("Total cost", formatCentsValue(totalCents))
+            if (deletedCents > 0.0) {
+                InfoRow("Deleted-item cost", formatCentsValue(deletedCents))
+            }
             InfoRow("Models used", modelCount.toString())
             InfoRow("Tokens", "$inTokens in · $outTokens out")
 
