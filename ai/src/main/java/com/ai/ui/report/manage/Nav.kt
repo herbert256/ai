@@ -51,6 +51,21 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private fun exclusiveBatchOverlayState(
+    delegate: MutableState<String?>,
+    clearSiblings: () -> Unit
+): MutableState<String?> = object : MutableState<String?> {
+    override var value: String?
+        get() = delegate.value
+        set(newValue) {
+            if (newValue != null) clearSiblings()
+            delegate.value = newValue
+        }
+
+    override fun component1(): String? = value
+    override fun component2(): (String?) -> Unit = { newValue -> value = newValue }
+}
+
 @Composable
 fun ReportsScreenNav(
     viewModel: AppViewModel,
@@ -300,6 +315,61 @@ fun ReportsScreenNav(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
     val openTransRankId = openTransRankKey.value
+    val exclusiveRegenerateBatchReportId = remember(
+        openRegenerateBatchReportId, openTournamentReportId, openJudgeEvalReportId,
+        openCompareReportId, openTransRankKey
+    ) {
+        exclusiveBatchOverlayState(openRegenerateBatchReportId) {
+            openTournamentReportId.value = null
+            openJudgeEvalReportId.value = null
+            openCompareReportId.value = null
+            openTransRankKey.value = null
+        }
+    }
+    val exclusiveTournamentReportId = remember(
+        openRegenerateBatchReportId, openTournamentReportId, openJudgeEvalReportId,
+        openCompareReportId, openTransRankKey
+    ) {
+        exclusiveBatchOverlayState(openTournamentReportId) {
+            openRegenerateBatchReportId.value = null
+            openJudgeEvalReportId.value = null
+            openCompareReportId.value = null
+            openTransRankKey.value = null
+        }
+    }
+    val exclusiveJudgeEvalReportId = remember(
+        openRegenerateBatchReportId, openTournamentReportId, openJudgeEvalReportId,
+        openCompareReportId, openTransRankKey
+    ) {
+        exclusiveBatchOverlayState(openJudgeEvalReportId) {
+            openRegenerateBatchReportId.value = null
+            openTournamentReportId.value = null
+            openCompareReportId.value = null
+            openTransRankKey.value = null
+        }
+    }
+    val exclusiveCompareReportId = remember(
+        openRegenerateBatchReportId, openTournamentReportId, openJudgeEvalReportId,
+        openCompareReportId, openTransRankKey
+    ) {
+        exclusiveBatchOverlayState(openCompareReportId) {
+            openRegenerateBatchReportId.value = null
+            openTournamentReportId.value = null
+            openJudgeEvalReportId.value = null
+            openTransRankKey.value = null
+        }
+    }
+    val exclusiveTransRankKey = remember(
+        openRegenerateBatchReportId, openTournamentReportId, openJudgeEvalReportId,
+        openCompareReportId, openTransRankKey
+    ) {
+        exclusiveBatchOverlayState(openTransRankKey) {
+            openRegenerateBatchReportId.value = null
+            openTournamentReportId.value = null
+            openJudgeEvalReportId.value = null
+            openCompareReportId.value = null
+        }
+    }
     // Broken-work "Continue" one-shot: the request + the per-family engine
     // dispatch. Resolved here (where the engines live) and handed to
     // ConsumePendingBatchOpen inside ReportsScreen via the controller Local.
@@ -356,15 +426,15 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalPendingViewOverManage provides pendingViewOverManage,
         com.ai.ui.shared.LocalMainViewResetTick provides mainViewResetTick,
         com.ai.ui.shared.LocalRegenerateBatchEngine provides reportViewModel.regenerateBatchEngine,
-        com.ai.ui.shared.LocalRegenerateBatchOpenState provides openRegenerateBatchReportId,
+        com.ai.ui.shared.LocalRegenerateBatchOpenState provides exclusiveRegenerateBatchReportId,
         com.ai.ui.shared.LocalTournamentEngine provides reportViewModel.tournamentEngine,
-        com.ai.ui.shared.LocalTournamentOpenState provides openTournamentReportId,
+        com.ai.ui.shared.LocalTournamentOpenState provides exclusiveTournamentReportId,
         com.ai.ui.shared.LocalJudgeEvalEngine provides reportViewModel.judgeEvalEngine,
-        com.ai.ui.shared.LocalJudgeEvalOpenState provides openJudgeEvalReportId,
+        com.ai.ui.shared.LocalJudgeEvalOpenState provides exclusiveJudgeEvalReportId,
         com.ai.ui.shared.LocalCompareEngine provides reportViewModel.compareEngine,
-        com.ai.ui.shared.LocalCompareOpenState provides openCompareReportId,
+        com.ai.ui.shared.LocalCompareOpenState provides exclusiveCompareReportId,
         com.ai.ui.shared.LocalTranslatorRankEngine provides reportViewModel.translatorRankEngine,
-        com.ai.ui.shared.LocalTransRankOpenState provides openTransRankKey,
+        com.ai.ui.shared.LocalTransRankOpenState provides exclusiveTransRankKey,
         com.ai.ui.shared.LocalPendingBatchOpenController provides pendingBatchOpenController,
         com.ai.ui.shared.LocalMetaEditManager provides reportViewModel.metaEditManager,
         com.ai.ui.shared.LocalSecondaryModelSwitch provides reportViewModel.secondaryModelSwitch
