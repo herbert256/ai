@@ -157,7 +157,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A stream that delivers *some* content then drops the TCP connection without a terminator is treated as a clean, complete answer — the user gets a silently-truncated response with no error and no retry.
 **Root cause:** The truncation guard only throws when `sawAnyData && chunkCount == 0`. Once any content chunk is emitted, a mid-stream socket close is indistinguishable from a clean close for the many providers that send no `[DONE]`.
 **Proposed fix:** When a `finish_reason`/terminator was expected but absent AND the upstream advertised `Content-Length`/`finish`, surface a "possibly truncated" signal the caller can flag; or treat a non-terminated stream from a known-terminator provider as an error.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — parseSseStream now supports requireTerminator and enables it for known-final-event Anthropic, Gemini, and Responses API streaming paths while keeping tolerant OpenAI-compatible Chat Completions EOF behavior
 
 ### Bug 21 — Severity: LOW — Category: charset assumption
 **Location:** ApiStreaming.kt:65 (`InputStreamReader(body.byteStream(), Charsets.UTF_8)`)

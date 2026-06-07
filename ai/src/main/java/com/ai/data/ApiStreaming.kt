@@ -47,6 +47,7 @@ internal fun parseSseStream(
     body: ResponseBody,
     extractContent: (eventType: String?, data: String) -> String?,
     isFinalChunk: (eventType: String?, data: String) -> Boolean = { _, _ -> false },
+    requireTerminator: Boolean = false,
     // Optional usage side-channel for the streaming-report path. When set,
     // every event is also offered to [extractUsage]; any TokenUsage it
     // returns is handed to [onUsage] (which merges across events). Chat
@@ -141,12 +142,13 @@ internal fun parseSseStream(
         // Flush a trailing event that ended via TCP close (no blank line).
         dispatch()
         // Many OpenAI-compatible clones (vLLM/Ollama-compat, some proxies)
-        // end a stream by simply closing the socket after the last delta,
-        // with no `data: [DONE]` / `message_stop` / `response.completed`
-        // terminator. Treat a clean EOF as valid as long as at least one
-        // content chunk was emitted — only flag truncation when data arrived
-        // but produced no content at all (Bug 2).
-        if (!sawTerminator && sawAnyData && chunkCount == 0) {
+        // end a Chat Completions stream by simply closing the socket after the
+        // last delta, with no `data: [DONE]` terminator. Keep that tolerant
+        // default, but require a final event for formats that have one
+        // (Anthropic message_stop, OpenAI Responses response.completed, Gemini
+        // finishReason). Otherwise a mid-answer socket drop after some content
+        // would look like a clean, complete answer.
+        if (!sawTerminator && sawAnyData && (requireTerminator || chunkCount == 0)) {
             throw java.io.IOException("SSE stream ended without terminator — response likely truncated")
         }
     } finally {
@@ -338,7 +340,11 @@ private fun AnalysisRepository.streamOpenAi(
         val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) } }
         if (response.isSuccessful) {
             response.body()?.let { body ->
-                parseSseStream(body, ::extractResponsesApiContent).collect { emit(it) }
+                parseSseStream(
+                    body,
+                    ::extractResponsesApiContent,
+                    requireTerminator = true
+                ).collect { emit(it) }
             } ?: throw Exception("Empty response body")
         } else {
             // Drain + close the error body so OkHttp doesn't hold a
@@ -408,7 +414,11 @@ private fun AnalysisRepository.streamAnthropic(
     val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.createMessageStream(apiKey, request = request) } }
     if (response.isSuccessful) {
         response.body()?.let { body ->
-            parseSseStream(body, ::extractClaudeContent).collect { emit(it) }
+            parseSseStream(
+                body,
+                ::extractClaudeContent,
+                requireTerminator = true
+            ).collect { emit(it) }
         } ?: throw Exception("Empty response body")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -442,7 +452,12 @@ private fun AnalysisRepository.streamGemini(
     val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.streamGenerateContent(model, apiKey, request = request) } }
     if (response.isSuccessful) {
         response.body()?.let { body ->
-            parseSseStream(body, ::extractGeminiContent, ::isGeminiFinalChunk).collect { emit(it) }
+            parseSseStream(
+                body,
+                ::extractGeminiContent,
+                ::isGeminiFinalChunk,
+                requireTerminator = true
+            ).collect { emit(it) }
         } ?: throw Exception("Empty response body")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }

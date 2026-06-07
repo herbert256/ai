@@ -1189,6 +1189,7 @@ private suspend fun AnalysisRepository.collectStreamResponse(
     extractContent: (String?, String) -> String?,
     extractUsage: (String?, String) -> Pair<TokenUsage?, String?>?,
     isFinalChunk: (String?, String) -> Boolean = { _, _ -> false },
+    requireTerminator: Boolean = false,
     onDelta: (String) -> Unit
 ): AnalysisResponse {
     val headers = formatHeaders(response.headers())
@@ -1202,7 +1203,13 @@ private suspend fun AnalysisRepository.collectStreamResponse(
     val sb = StringBuilder()
     var usage: TokenUsage? = null
     var rawUsage: String? = null
-    parseSseStream(body, extractContent, isFinalChunk, extractUsage) { u, raw ->
+    parseSseStream(
+        body = body,
+        extractContent = extractContent,
+        isFinalChunk = isFinalChunk,
+        requireTerminator = requireTerminator,
+        extractUsage = extractUsage
+    ) { u, raw ->
         usage = mergeUsage(usage, u); if (!raw.isNullOrBlank()) rawUsage = raw
     }.collect { chunk -> sb.append(chunk); onDelta(chunk) }
     val text = sb.toString().takeIf { it.isNotBlank() }
@@ -1257,7 +1264,14 @@ private suspend fun AnalysisRepository.streamResponsesApiReport(
         reasoning = reasoningField(service, model, params?.reasoningEffort)
     )
     val response = api.responsesStream(responsesUrl, "Bearer $apiKey", request)
-    return collectStreamResponse(service, response, ::extractResponsesApiContent, extractResponsesApiUsage, onDelta = onDelta)
+    return collectStreamResponse(
+        service,
+        response,
+        ::extractResponsesApiContent,
+        extractResponsesApiUsage,
+        requireTerminator = true,
+        onDelta = onDelta
+    )
 }
 
 private suspend fun AnalysisRepository.streamAnthropicReport(
@@ -1281,7 +1295,14 @@ private suspend fun AnalysisRepository.streamAnthropicReport(
         output_config = bundle.outputConfig
     )
     val response = api.createMessageStream(apiKey, request = request)
-    return collectStreamResponse(service, response, ::extractClaudeContent, extractClaudeUsage, onDelta = onDelta)
+    return collectStreamResponse(
+        service,
+        response,
+        ::extractClaudeContent,
+        extractClaudeUsage,
+        requireTerminator = true,
+        onDelta = onDelta
+    )
 }
 
 private suspend fun AnalysisRepository.streamGeminiReport(
@@ -1306,7 +1327,15 @@ private suspend fun AnalysisRepository.streamGeminiReport(
     )
     val api = ApiFactory.createGeminiApi(service.baseUrl)
     val response = api.streamGenerateContent(model, apiKey, request = request)
-    return collectStreamResponse(service, response, ::extractGeminiContent, extractGeminiUsage, ::isGeminiFinalChunk, onDelta)
+    return collectStreamResponse(
+        service,
+        response,
+        ::extractGeminiContent,
+        extractGeminiUsage,
+        ::isGeminiFinalChunk,
+        requireTerminator = true,
+        onDelta = onDelta
+    )
 }
 
 private fun buildMessages(
