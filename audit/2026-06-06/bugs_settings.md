@@ -202,7 +202,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The inline ✕ "clear target" affordance allocates a new `MutableInteractionSource()` inside a non-`@Composable` Modifier extension, so a fresh instance is created on every recomposition of the form.
 **Root cause:** `MutableInteractionSource()` is created unremembered.
 **Proposed fix:** Use `Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null)` from a composable, or the no-arg `clickable` overload.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the clear-target affordance now remembers its MutableInteractionSource in composable scope and the unremembered modifier helper was removed.
 
 ---
 

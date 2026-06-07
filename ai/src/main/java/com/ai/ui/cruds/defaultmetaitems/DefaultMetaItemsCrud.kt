@@ -203,8 +203,20 @@ private fun DefaultMetaItemForm(
                 modifier = Modifier.weight(1f), fontSize = 13.sp,
                 color = if (hasModel) AppColors.TextPrimary else AppColors.TextTertiary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (hasModel) Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary,
-                modifier = Modifier.clickableNoRipple { providerName = ""; modelName = "" })
+            if (hasModel) {
+                val clearInteractionSource = remember { MutableInteractionSource() }
+                Text(
+                    com.ai.data.MetadataIconsHolder.current.closeMark,
+                    color = AppColors.TextTertiary,
+                    modifier = Modifier.clickable(
+                        interactionSource = clearInteractionSource,
+                        indication = null
+                    ) {
+                        providerName = ""
+                        modelName = ""
+                    }
+                )
+            }
         }
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -238,10 +250,3 @@ private fun DefaultMetaItemForm(
         )
     }
 }
-
-/** Tap handler with no ripple, for the inline ✕ clear affordance. */
-private fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier =
-    this.clickable(
-        interactionSource = MutableInteractionSource(),
-        indication = null
-    ) { onClick() }
