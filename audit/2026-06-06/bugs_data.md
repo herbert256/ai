@@ -424,7 +424,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A report file that throws during parse (e.g. the Bug-1 null-String NPE happens *inside* `normalizeReport`/Gson) is `mapNotNull`-dropped with an error log; the report vanishes from History with no user-visible signal.
 **Root cause:** Per-file catch drops the whole report silently.
 **Proposed fix:** Surface a "N reports failed to load" banner so corruption isn't invisible.
-**Status:** Open
+**Status:** Fixed — report total recomputation now uses the complete API-cost ledger when available, with the old structured-field sum retained only as a legacy fallback before ledger reconciliation.
 
 ### Bug 56 — Severity: LOW — Category: cost recompute scope
 **Location:** ReportStorage.kt:122-150 (`computeReportTotalCost`)

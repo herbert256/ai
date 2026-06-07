@@ -120,14 +120,15 @@ object ReportStorage {
         return report
     }
 
-    /** Full cost of the report's OWN generation: primary agent calls + per-agent
-     *  icon + per-agent model-title + the report-level icon / title / language-
-     *  detect / language-icon metadata calls. (Secondary results — Rerank / Meta
-     *  / Translate — live in separate rows; the Manage screen sums those on top
-     *  of this.) Previously the recompute used only `agents.cost + agent icons`,
-     *  so the stored total under-counted every report-level metadata call.
-     *  `costsFromDeletedItems` is tracked separately and intentionally excluded. */
+    /** Full cost of the report's own generation. Current reports use the
+     *  append-only API-cost ledger as the source of truth so new call
+     *  categories cannot be silently omitted from a hard-coded allow-list.
+     *  Legacy/unreconciled reports fall back to the structured fields until
+     *  [reconcileApiCallCostLedger] rebuilds their ledger. */
     private fun computeReportTotalCost(report: Report): Double =
+        if (isApiCallCostLedgerCurrent(report)) ledgerTotalCost(report) else legacyReportTotalCost(report)
+
+    private fun legacyReportTotalCost(report: Report): Double =
         report.agents.mapNotNull { it.cost }.sum() +
             report.agents.sumOf { it.iconInputCost + it.iconOutputCost } +
             report.agents.sumOf { it.modelTitleInputCost + it.modelTitleOutputCost } +
