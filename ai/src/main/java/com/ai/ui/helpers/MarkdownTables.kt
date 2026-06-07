@@ -28,7 +28,7 @@ internal fun parseGfmTables(markdown: String): Pair<String, List<MarkdownTable>>
     var i = 0
     while (i < lines.size) {
         val line = lines[i]
-        val isHeader = line.trimStart().startsWith("|") && line.indexOf('|', startIndex = line.indexOf('|') + 1) > 0
+        val isHeader = isTableRowCandidate(line)
         val hasSeparator = i + 1 < lines.size && SEPARATOR_REGEX.matches(lines[i + 1])
         if (isHeader && hasSeparator) {
             val headers = splitTableRow(line)
@@ -36,7 +36,7 @@ internal fun parseGfmTables(markdown: String): Pair<String, List<MarkdownTable>>
             val padded = alignments + List(maxOf(0, headers.size - alignments.size)) { TableAlign.LEFT }
             i += 2
             val bodyRows = mutableListOf<List<String>>()
-            while (i < lines.size && lines[i].trimStart().startsWith("|")) {
+            while (i < lines.size && isTableRowCandidate(lines[i])) {
                 // Normalise every body row to the header width: pad short
                 // rows with empty cells (so the <tr> isn't ragged) and
                 // truncate over-long rows. Keeps both the in-app table and
@@ -72,10 +72,13 @@ internal fun parseGfmTables(markdown: String): Pair<String, List<MarkdownTable>>
     return out.toString() to tables
 }
 
+private fun isTableRowCandidate(line: String): Boolean =
+    line.isNotBlank() && splitTableRow(line).size > 1
+
 private fun splitTableRow(line: String): List<String> {
     var s = line.trim()
     if (s.startsWith("|")) s = s.substring(1)
-    if (s.endsWith("|")) s = s.substring(0, s.length - 1)
+    if (s.endsWith("|") && !isEscapedPipeAt(s, s.lastIndex)) s = s.substring(0, s.length - 1)
     val cells = mutableListOf<String>()
     val current = StringBuilder()
     var escaping = false
@@ -100,6 +103,16 @@ private fun splitTableRow(line: String): List<String> {
     if (escaping) current.append('\\')
     cells.add(current.toString().trim())
     return cells
+}
+
+private fun isEscapedPipeAt(s: String, index: Int): Boolean {
+    var backslashes = 0
+    var i = index - 1
+    while (i >= 0 && s[i] == '\\') {
+        backslashes++
+        i--
+    }
+    return backslashes % 2 == 1
 }
 
 private fun parseAlignments(separator: String): List<TableAlign> = splitTableRow(separator).map { spec ->

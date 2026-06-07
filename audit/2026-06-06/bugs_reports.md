@@ -367,7 +367,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** A valid GFM table whose header row omits the leading/trailing pipe isn't recognised, so it renders as raw text (both in-app and in every export).
 **Root cause:** Detection requires the header line to start with `|`; GFM permits tables without outer pipes.
 **Proposed fix:** Relax the detector to also accept a header line that contains an inner `|` and is followed by a separator row, even without a leading pipe.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — table detection now accepts rows with unescaped inner pipes, so GFM tables without outer pipes are parsed
 
 ## File: ai/src/main/java/com/ai/ui/helpers/ReportExportScreen.kt
 
