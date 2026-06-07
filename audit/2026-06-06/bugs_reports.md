@@ -105,7 +105,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The source pane (report prompt / agent response / META source) is resolved from disk once and won't refresh if the underlying report or META row changes while the L3 screen stays open.
 **Root cause:** The `produceState` keys omit `ReportDataVersion` / `SecondaryDataVersion`, unlike the view-side screens which subscribe to both.
 **Proposed fix:** Add `ReportDataVersion.version`/`SecondaryDataVersion.version` to the key list.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Translation L3 source resolution now keys on report and secondary data versions
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/Translations.kt
 

@@ -19,6 +19,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -34,8 +35,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
+import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
@@ -130,7 +133,12 @@ internal fun TranslationL3Screen(
     // items also carry it on item.sourceText — fall back to that so
     // an in-flight run needs no disk read.
     val empty = TranslationSourceInfo(null, null, null, null)
-    val source by produceState(initialValue = empty, reportId, item.id, item.kind, item.target) {
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val source by produceState(
+        initialValue = empty,
+        reportId, item.id, item.kind, item.target, reportDataVersion, secondaryDataVersion
+    ) {
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, reportId)
             when (item.kind) {
