@@ -129,52 +129,9 @@ fun CompareSelectMetaScreen(
     }
 }
 
-/** Page 2 — pick one of the `meta_compare` prompts; Run launches the grid. */
-@Composable
-fun CompareSelectPromptScreen(
-    prompts: List<InternalPrompt>,
-    onRun: (String) -> Unit,
-    onBack: () -> Unit,
-    onNavigateHome: () -> Unit
-) {
-    BackHandler { onBack() }
-    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(
-            helpTopic = "compare_select_prompt",
-            title = "Compare with meta",
-            subject = "Pick a comparison prompt",
-            reportIcon = com.ai.data.MetadataIconsHolder.current.compare,
-            onBackClick = onBack
-        )
-        if (prompts.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(
-                    "No comparison prompts. Add one under AI Setup → Prompt management → Compare prompts.",
-                    color = AppColors.TextSecondary, fontSize = 14.sp
-                )
-            }
-        } else {
-            LazyColumn(Modifier.weight(1f)) {
-                items(prompts.sortedBy { it.name.lowercase() }, key = { it.id }) { p ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { onRun(p.id) }.padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(com.ai.data.MetadataIconsHolder.current.compare, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(p.name, color = AppColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                            if (p.title.isNotBlank()) {
-                                Text(p.title, color = AppColors.TextTertiary, fontSize = 12.sp,
-                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
-                }
-            }
-        }
-    }
-}
+// Compare no longer asks for a comparison prompt — it always runs the
+// meta-compare prompt with the same NAME as the picked meta item (resolved in
+// Run.kt). The former CompareSelectPromptScreen (page 2) was removed.
 
 // ===================================================================
 // Manage row — appears only once a compare run exists for the report.

@@ -1,5 +1,5 @@
 {
-  "name": "equivalent",
+  "name": "summarize",
   "title": "Score how closely an answer matches a meta result (0-100).",
   "reference": false,
   "workers": [

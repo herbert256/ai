@@ -146,14 +146,20 @@ internal fun ReportRunScreen(
     // against and at least one successful answer.
     val compareEngine = com.ai.ui.shared.LocalCompareEngine.current
     val compareOpenState = com.ai.ui.shared.LocalCompareOpenState.current
+    // Compare runs the meta-compare prompt with the SAME NAME as the meta item,
+    // so only show meta items that actually have a matching meta-compare prompt;
+    // the rest can't be compared.
+    val metaCompareNames = aiSettings.internalPrompts
+        .filter { it.category == "meta_compare" }
+        .mapTo(HashSet()) { it.name.lowercase() }
     val compareMetaItems = secondaryRuns.filter {
         it.kind == com.ai.data.SecondaryKind.META &&
             it.fanInOf == null && it.fanOutSourceAgentId == null &&
-            !it.content.isNullOrBlank()
+            !it.content.isNullOrBlank() &&
+            it.metaPromptName?.lowercase() in metaCompareNames
     }
     val compareEnabled = compareMetaItems.isNotEmpty() && tournamentResponseCount >= 1
     var compareStep by rememberSaveable { mutableStateOf(0) }
-    var compareSelectedMeta by remember { mutableStateOf<String?>(null) }
     // Armed by the 🏆 / 🚦 bottom-bar icons when no rerank / moderation exists
     // yet: the icon opens the picker, and once the run's placeholder row lands
     // in secondaryRuns the LaunchedEffect below jumps to its detail screen.
@@ -205,36 +211,32 @@ internal fun ReportRunScreen(
         )
         return
     }
-    // "Compare with meta" selection flow — full-screen overlays layered over
-    // the still-remembered hub state (early return preserves the values
-    // declared above). Page 1 picks the meta items, page 2 the prompt; Run
-    // launches the engine and lands on the L1 grid.
+    // "Compare with meta" selection flow — a single full-screen overlay layered
+    // over the still-remembered hub state (early return preserves the values
+    // declared above). Pick a meta item → Compare runs the same-named
+    // meta-compare prompt and lands on the L1 grid (no prompt picker).
     if (compareStep == 1 && currentReportId != null) {
         CompareSelectMetaScreen(
             metaItems = compareMetaItems,
             aiSettings = aiSettings,
-            onPick = { id -> compareSelectedMeta = id; compareStep = 2 },
-            onBack = { compareStep = 0 },
-            onNavigateHome = onDismiss
-        )
-        return
-    }
-    if (compareStep == 2 && currentReportId != null) {
-        CompareSelectPromptScreen(
-            prompts = aiSettings.internalPrompts.filter { it.category == "meta_compare" },
-            onRun = { promptId ->
+            onPick = { id ->
                 val rid = currentReportId
-                compareSelectedMeta?.let { metaId ->
-                    // Build stage: block behind "Preparing…" while the cell
-                    // grid is created, then open the L1 once done.
+                // No prompt picker — Compare always uses the meta-compare prompt
+                // with the SAME NAME as the picked meta item. compareMetaItems
+                // only lists items that have one, so this resolves.
+                val comparePrompt = compareMetaItems.firstOrNull { it.id == id }?.metaPromptName?.let { name ->
+                    aiSettings.internalPrompts.firstOrNull { it.category == "meta_compare" && it.name.equals(name, ignoreCase = true) }
+                }
+                if (rid != null && comparePrompt != null) {
+                    // Build stage: block behind "Preparing…" while the cell grid
+                    // is created, then open the L1 once done.
                     val key = java.util.UUID.randomUUID().toString()
                     onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
-                    compareEngine?.startRun(context, rid, listOf(metaId), promptId, key)
+                    compareEngine?.startRun(context, rid, listOf(id), comparePrompt.id, key)
                 }
                 compareStep = 0
-                compareSelectedMeta = null
             },
-            onBack = { compareStep = 1 },
+            onBack = { compareStep = 0 },
             onNavigateHome = onDismiss
         )
         return

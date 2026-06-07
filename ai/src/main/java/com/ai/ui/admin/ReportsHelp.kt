@@ -103,7 +103,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Meta",
         cards = listOf(
             HelpCard("What you see", "A full-screen launcher (the 🔗 icon on Manage report) for adding a Meta-style secondary result: Meta and Compare with meta — each a big icon with a one-line explanation."),
-            HelpCard("The options", "Meta runs a Compare / Critique / Synthesize prompt over the answers. Compare with meta scores each answer's similarity to a meta result. Tapping a row opens that kind's prompt / meta picker."),
+            HelpCard("The options", "Meta runs a Compare / Critique / Synthesize prompt over the answers. Compare with meta scores each answer's similarity to a meta result. Tapping Meta opens its prompt picker; tapping Compare with meta opens a meta-item picker (then runs the meta-compare prompt of the same name)."),
             HelpCard("Moved to the bottom bar", "Rerank (🏆), Moderation (🚦), Translate (🌐), Fan out (🔱) and the head-to-head tools (🥊) now each have their own icon on the Manage report bottom bar. Rerank / Moderation jump straight to an existing result if there is one, else open the model picker.")
         )
     ),
@@ -289,21 +289,14 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Compare with meta",
         cards = listOf(
             HelpCard("What it is", "Compare with meta scores how closely each report answer matches a meta result you already have on the report — a Compare / Summarize / Synthesize prose — as a percentage 0–100. It reads as 'alignment to the synthesized view': which models land closest to the consensus."),
-            HelpCard("Pick meta items", "Tick one or more meta results to score the answers against. Every successful answer is scored against every ticked item (a grid of answers × meta items). The scoring is done by the WORKER engine (your 'tournament' swarm), so there's no model to pick."),
-            HelpCard("Which meta to pick", "Similarity reads best against a Summarize / Synthesize meta — those are answers in the same genre. A Compare meta is an analysis of agreements/disagreements, so scoring an answer against it is fuzzier. Next moves on to pick the comparison prompt.")
-        )
-    ),
-    "compare_select_prompt" to HelpContent(
-        title = "Help - Compare prompt",
-        cards = listOf(
-            HelpCard("What you see", "Every prompt in the meta_compare category. Tap one to launch the run — it scores each answer against each chosen meta item and opens the results grid. The bundled 'equivalent' prompt asks the worker for a single 0–100 percentage plus a one-line reason."),
-            HelpCard("Editing prompts", "Add or edit comparison prompts under AI Setup → Prompt management → Compare prompts. A comparison prompt uses @RESPONSE@ for the answer and @META_RESPONSE@ for the meta result, and should ask for a parseable 'percentage: <0-100>' line.")
+            HelpCard("Pick a meta item", "Tap a meta result to score the answers against. Only meta results that have a meta-compare prompt of the SAME NAME are listed — the rest can't be compared and are hidden. Every successful answer is then scored against the picked item by the WORKER engine (your 'tournament' swarm), so there's no model to pick."),
+            HelpCard("No prompt to pick", "Compare runs the meta-compare prompt with the same name as the meta item you tapped (e.g. a 'summarize' meta → the 'summarize' meta-compare prompt), so it starts immediately — there's no comparison-prompt picker. Edit those prompts under AI Setup → Prompt management → Compare prompts (use @RESPONSE@ for the answer, @META_RESPONSE@ for the meta result, and ask for a parseable 'percentage: <0-100>' line).")
         )
     ),
     "compare_l1" to HelpContent(
         title = "Help - Compare with meta",
         cards = listOf(
-            HelpCard("What it is", "The results grid for a Compare-with-meta run: each report answer scored 0–100 for how closely it matches the chosen meta result, judged by the worker engine. Start one from the report's 🆕 Create launcher → Compare with meta: pick one meta result, then one comparison prompt."),
+            HelpCard("What it is", "The results grid for a Compare-with-meta run: each report answer scored 0–100 for how closely it matches the chosen meta result, judged by the worker engine. Start one from the report's 🆕 Create launcher → Compare with meta, then pick one meta result (it runs the same-named meta-compare prompt automatically)."),
             HelpCard("Statistics + list", "The counters show Total / Done / Error / Run / Wait / Queue / Costs (Wait = parked on a provider rate-limit cap). Cells are worker-judged, so a rate-limited judge is skipped and another picked — no Bench column is used, and terminal failures count as Error. Below them each report answer is listed with its score against the meta result. Tap an answer to drill into its cell, then the cell for the full detail."),
             HelpCard("Actions", "🔄 redoes the whole comparison from scratch, 🗑 deletes the run, 'Restart failed' re-scores any errored cells.")
         )
