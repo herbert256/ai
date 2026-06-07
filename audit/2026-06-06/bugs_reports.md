@@ -11,7 +11,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The Get-info job list re-reads the whole report from disk and rebuilds every row on any unrelated `Settings` re-emit while the screen is open.
 **Root cause:** `produceState` keys on the entire `settings: Settings` object identity, plus `runningInfoJobs`, `iconGenEnabled`, etc. `buildInfoJobs` only reads `settings.internalPrompts` (icon/title/language prompt resolution); keying on the whole Settings makes every settings churn re-trigger the IO read of the report.
 **Proposed fix:** Key the `produceState` on `settings.internalPrompts` instead of `settings` (the only slice `buildInfoJobs` consumes).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — fenced code blocks are now extracted to placeholders before inline markdown conversion and restored afterward
 
 ### Bug 2 — Severity: LOW — Category: misleading status classifier
 **Location:** GetInfo.kt:246-254 (`titleStateFor`), 270-276 (model-title row)

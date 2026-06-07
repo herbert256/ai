@@ -1314,15 +1314,22 @@ internal fun processThinkSections(text: String, agentId: String): String {
 }
 
 internal fun convertMarkdownToHtmlForExport(markdown: String): String {
+    val codeBlocks = mutableListOf<String>()
+    val withoutCodeBlocks = Regex("```(.*?)```", RegexOption.DOT_MATCHES_ALL).replace(markdown) { match ->
+        val fenced = match.groupValues[1]
+        val body = fenced.substringAfter('\n', fenced).trim('\r', '\n')
+        val idx = codeBlocks.size
+        codeBlocks += "<pre><code>${esc(body)}</code></pre>"
+        "\u0001MDCODE$idx\u0001"
+    }
     // Pull GFM tables out first so the placeholder survives the
     // inline/heading/list regex passes below — re-inserted as real
     // <table> HTML at the end. Tables can't be expressed via the
     // inline regex chain since they're multi-line and the \n→<br>
     // step would shred them.
-    val (preProcessed, tables) = parseGfmTables(markdown)
+    val (preProcessed, tables) = parseGfmTables(withoutCodeBlocks)
     var html = preProcessed.replace("\r\n", "\n").replace(Regex("\n{3,}"), "\n\n")
     html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        .replace(Regex("```(.*?)```", RegexOption.DOT_MATCHES_ALL), "<pre><code>$1</code></pre>")
         .replace(Regex("`([^`]+)`"), "<code>$1</code>")
         .replace(Regex("^### (.+)$", RegexOption.MULTILINE), "<h4>$1</h4>")
         .replace(Regex("^## (.+)$", RegexOption.MULTILINE), "<h3>$1</h3>")
@@ -1353,6 +1360,12 @@ internal fun convertMarkdownToHtmlForExport(markdown: String): String {
             val idx = m.groupValues[1].toIntOrNull()
             if (idx == null || idx !in tables.indices) m.value
             else buildExportTableHtml(tables[idx])
+        }
+    }
+    if (codeBlocks.isNotEmpty()) {
+        html = html.replace(Regex("(?:<p>\\s*)?(?:<br>\\s*)*\u0001MDCODE(\\d+)\u0001(?:\\s*<br>)*(?:\\s*</p>)?")) { m ->
+            val idx = m.groupValues[1].toIntOrNull()
+            if (idx == null || idx !in codeBlocks.indices) m.value else codeBlocks[idx]
         }
     }
     return html
