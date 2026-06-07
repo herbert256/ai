@@ -264,7 +264,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Tapping an API-call audit line opens the trace whose timestamp is nearest within a 30 s window. Two API calls in the same report within 30 s of each other can resolve a line to the wrong trace.
 **Root cause:** Timestamp-nearest matching with a coarse 30 s window and no per-call id linkage.
 **Proposed fix:** Persist a call id / trace filename on the audit line so the link is exact.
-**Status:** Fixed — the share chooser now enables New Chat for shared image URIs, and the share-to-chat route decodes the first image on `Dispatchers.IO` and stages it through the existing chat starter-image fields before navigating to the chat provider picker.
+**Status:** Open
 
 ---
 
@@ -422,7 +422,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** In edit mode (no Save button), if a required field is temporarily invalid (e.g. the user clears the name to retype it, or a duplicate name), `current` is null so auto-save is suppressed. Edits made to *other* fields (model, API key, params) while the name is blank are not persisted, and are lost if the user leaves the screen before fixing the name.
 **Root cause:** `current` collapses to null on any validation failure, gating the whole save rather than just the invalid field.
 **Proposed fix:** Persist the last valid snapshot of the other fields, or warn on leave when there are unsaved edits behind a validation error.
-**Status:** Open
+**Status:** Fixed — the share chooser now enables New Chat for shared image URIs, and the share-to-chat route decodes the first image on `Dispatchers.IO` and stages it through the existing chat starter-image fields before navigating to the chat provider picker.
 
 ---
 
@@ -433,7 +433,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The "New Chat" destination is `enabled = hasText` only. Sharing a file-only payload (e.g. an image with no EXTRA_TEXT) cannot be routed to Chat, even though chat supports image attachments; the user is forced to use New Report.
 **Root cause:** Enablement keyed on `hasText`, ignoring `hasUris`.
 **Proposed fix:** Allow Chat for image attachments (enable on `hasText || hasUris-with-image`), staging the file as the first turn's attachment.
-**Status:** Open
+**Status:** Fixed — the share chooser now enables New Chat for shared image URIs, and the share-to-chat route decodes the first image on `Dispatchers.IO` and stages it through the existing chat starter-image fields before navigating to the chat provider picker.
 
 ---
 

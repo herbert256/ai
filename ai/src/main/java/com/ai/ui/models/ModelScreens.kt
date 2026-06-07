@@ -30,6 +30,8 @@ import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -139,23 +141,29 @@ private object ModelInfoCache {
     @Volatile private var apiKey: String? = null
     @Volatile private var openRouterModels: List<OpenRouterModelInfo>? = null
     @Volatile private var fetchedAt: Long = 0L
+    private val lock = Mutex()
     // Refresh at most once per 6h within a process: keying solely on apiKey
     // meant a stale catalog was served for the whole process lifetime.
     private const val TTL_MS = 6L * 60 * 60 * 1000
 
+    private fun cachedFor(apiKey: String): List<OpenRouterModelInfo>? {
+        val fresh = System.currentTimeMillis() - fetchedAt < TTL_MS
+        return if (this.apiKey == apiKey && fresh) openRouterModels else null
+    }
+
     suspend fun getOpenRouterModels(apiKey: String): List<OpenRouterModelInfo> {
         if (apiKey.isBlank()) return emptyList()
-        val fresh = System.currentTimeMillis() - fetchedAt < TTL_MS
-        if (this.apiKey == apiKey && fresh) {
-            openRouterModels?.let { return it }
+        cachedFor(apiKey)?.let { return it }
+        return lock.withLock {
+            cachedFor(apiKey)?.let { return@withLock it }
+            val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
+            val response = com.ai.data.withTraceCategory("info/provider") { api.listModelsDetailed("Bearer $apiKey") }
+            val models = if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
+            this.apiKey = apiKey
+            openRouterModels = models
+            fetchedAt = System.currentTimeMillis()
+            models
         }
-        val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
-        val response = com.ai.data.withTraceCategory("info/provider") { api.listModelsDetailed("Bearer $apiKey") }
-        val models = if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
-        this.apiKey = apiKey
-        openRouterModels = models
-        fetchedAt = System.currentTimeMillis()
-        return models
     }
 }
 

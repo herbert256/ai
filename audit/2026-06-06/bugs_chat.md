@@ -305,7 +305,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Every search re-lowercases the entire content of every message of every session (`message.content.lowercase(...)` in the inner loop) for each query.
 **Root cause:** No precomputed lower-cased index; full re-scan per query.
 **Proposed fix:** Acceptable for small histories; for large ones, cache lower-cased haystacks or short-circuit on title/preview first.
-**Status:** Open
+**Status:** Fixed in live code — `searchInChats` now uses `message.content.indexOf(query, ignoreCase = true)` on the IO dispatcher, so it no longer allocates a lower-cased copy of every message for each query.
 
 ### Bug 40 — Severity: LOW — Category: state loss
 **Location:** ChatHistory.kt:196 (`var searchResults by remember`)
@@ -342,7 +342,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Progress updates are fire-and-forget `scope.launch(Main)` from inside `withContext(IO)`; if the ingest is cancelled, in-flight progress launches can still run and write `status` (the search screens deliberately avoid this by hopping on the same coroutine).
 **Root cause:** Each `onProgress` spawns a detached Main coroutine instead of `withContext(Dispatchers.Main)`.
 **Proposed fix:** Use `withContext(Dispatchers.Main)` for progress writes (lifecycle-bound), matching `SemanticSearchScreen`.
-**Status:** Open
+**Status:** Fixed — `KnowledgeService.IndexProgress` is now suspend, Knowledge screen progress callbacks use `withContext(Dispatchers.Main)` instead of detached `scope.launch(Main)`, and New Report's shared-KB auto-attach progress is likewise emitted on Main from the indexing coroutine.
 
 ### Bug 44 — Severity: LOW — Category: type detection
 **Location:** KnowledgeScreens.kt:521-550 (`pickTypeForUri`)
@@ -381,7 +381,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Two concurrent Model-Info opens with the same key can both miss the cache and fire duplicate OpenRouter `/models` fetches.
 **Root cause:** The `@Volatile`-fielded object has no mutex/in-flight dedup around the network call.
 **Proposed fix:** Guard the fetch with a `Mutex`/in-flight `Deferred`.
-**Status:** Open
+**Status:** Fixed — `ModelInfoCache` now guards OpenRouter model fetches with a coroutine `Mutex` and rechecks the TTL cache inside the lock, so concurrent same-key opens share the first completed fetch.
 
 ### Bug 49 — Severity: LOW — Category: trace conflation
 **Location:** ModelScreens.kt:233-251 (`traceCount` host match)
@@ -609,7 +609,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Like Bug 22, every dual-chat bubble independently scans the whole trace dir to gate its 🐞.
 **Root cause:** Per-bubble trace lookup with no shared/batched load.
 **Proposed fix:** Load the session's traces once and pass down a map.
-**Status:** Open
+**Status:** Fixed — `DualMessageBubble` now reads the exact trace filename stored on `DualMessage` instead of running a per-bubble `ApiTracer.getTraceFiles()` lookup.
 
 ### Bug 76 — Severity: LOW — Category: cost accuracy (unconfirmed)
 **Location:** ChatScreens.kt:537-539 (`toolOverhead` added to estimated input tokens)
