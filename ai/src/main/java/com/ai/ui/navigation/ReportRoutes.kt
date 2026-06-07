@@ -184,8 +184,46 @@ internal fun NavGraphBuilder.reportRoutes(
                 firstLaunchOwner.lifecycle.addObserver(observer)
                 onDispose { firstLaunchOwner.lifecycle.removeObserver(observer) }
             }
+            // "Import API keys" opens the file picker DIRECTLY (no import/export
+            // screen). On a file with ≥1 provider key: apply, force Refresh all,
+            // and engage the restart lock (only Restart works until the app
+            // restarts). Info-provider-only / empty files just toast.
+            val firstLaunchContext = androidx.compose.ui.platform.LocalContext.current
+            val importKeysLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri == null) return@rememberLauncherForActivityResult
+                firstLaunchScope.launch {
+                    val json = withContext(Dispatchers.IO) {
+                        runCatching { firstLaunchContext.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } }.getOrNull()
+                    }
+                    if (json.isNullOrBlank()) {
+                        android.widget.Toast.makeText(firstLaunchContext, "File is empty or unreadable", android.widget.Toast.LENGTH_SHORT).show(); return@launch
+                    }
+                    val current = appViewModel.uiState.value
+                    val result = com.ai.ui.settings.applyApiKeysJson(json, current.aiSettings)
+                    if (result == null) {
+                        android.widget.Toast.makeText(firstLaunchContext, "Expected a JSON object like {\"OpenAI\": \"sk-...\"}", android.widget.Toast.LENGTH_LONG).show(); return@launch
+                    }
+                    val updatedGs = current.generalSettings.copy(
+                        huggingFaceApiKey = result.huggingFaceApiKey ?: current.generalSettings.huggingFaceApiKey,
+                        openRouterApiKey = result.openRouterApiKey ?: current.generalSettings.openRouterApiKey,
+                        artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: current.generalSettings.artificialAnalysisApiKey
+                    )
+                    if (updatedGs != current.generalSettings) appViewModel.updateGeneralSettings(updatedGs)
+                    appViewModel.updateSettings(result.settings)
+                    if (result.settings.hasAnyApiKey()) {
+                        // ≥1 provider key → forced Refresh all, then lock to Restart.
+                        appViewModel.startRefreshAll()
+                        appViewModel.engageRestartLock()
+                    } else {
+                        val msg = if (result.imported > 0) "${result.imported} key(s) imported, but no AI-provider key found" else "No usable keys found in the file"
+                        android.widget.Toast.makeText(firstLaunchContext, msg, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
             FirstLaunchScreen(
-                onImportApiKeys = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
+                onImportApiKeys = { importKeysLauncher.launch(arrayOf("application/json", "text/*")) },
                 onAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 onExampleReports = { navController.navigate(NavRoutes.AI_EXAMPLES) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },

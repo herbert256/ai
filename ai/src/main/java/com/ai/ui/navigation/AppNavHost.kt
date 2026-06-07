@@ -1,7 +1,12 @@
 package com.ai.ui.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -286,6 +291,11 @@ fun AppNavHost(
         if (topic.isNullOrBlank()) navController.navigate(NavRoutes.HELP)
         else navController.navigate(NavRoutes.helpForTopic(topic))
     }
+    // Post-first-launch-import "Refresh all, then Restart" lock — covers the
+    // whole UI (incl. the bars) when engaged.
+    val restartLockActive by appViewModel.restartLockActive.collectAsState()
+    val restartLockRefreshState by appViewModel.refreshAllState.collectAsState()
+    val restartLockContext = LocalContext.current
     val homeBarEnabled = rootUiStateForLayout.generalSettings.appHomeMode == AppHomeMode.HOME_BAR
     val navigateHomeBarRoute: (String) -> Unit = { route ->
         navController.navigate(route) {
@@ -454,6 +464,7 @@ fun AppNavHost(
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp,
         com.ai.ui.shared.LocalNavigateToRoute provides { route -> navController.navigate(route) }
     ) {
+    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize()) {
     if (homeBarEnabled) {
         com.ai.ui.shared.HomeIconBar(
@@ -504,7 +515,75 @@ fun AppNavHost(
         )
     }
     } // end Column
+        // Full-screen lock overlay — greys + blocks every bar and the content,
+        // swallows back, and (once Refresh all finishes) offers only Restart.
+        if (restartLockActive) {
+            RestartLockOverlay(
+                refreshState = restartLockRefreshState,
+                onRestart = { com.ai.ui.shared.restartApp(restartLockContext) }
+            )
+        }
+    } // end Box
     } // end CompositionLocalProvider
+}
+
+/** Non-dismissible "finishing setup" lock shown after a first-launch API-key
+ *  import that brought in a provider key. Dims + blocks the whole app (bars
+ *  included), disables back, shows Refresh-all progress, and once it finishes
+ *  offers the single working action: Restart application. */
+@Composable
+private fun RestartLockOverlay(
+    refreshState: com.ai.viewmodel.RefreshAllState?,
+    onRestart: () -> Unit
+) {
+    androidx.activity.compose.BackHandler(enabled = true) { /* locked — swallow back */ }
+    val done = refreshState?.isFinished == true
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.78f))
+            // Consume every tap so nothing underneath (bars/content) is tappable.
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { },
+        contentAlignment = androidx.compose.ui.Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier.padding(32.dp),
+            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+        ) {
+            androidx.compose.material3.Text(
+                if (done) "Setup complete" else "Setting up your providers…",
+                color = com.ai.ui.shared.AppColors.TextPrimary,
+                fontSize = 18.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+            )
+            if (!done) {
+                androidx.compose.material3.CircularProgressIndicator(color = com.ai.ui.shared.AppColors.InfoAccent)
+                androidx.compose.material3.Text(
+                    "Refreshing all providers, model lists and agents. Please wait — this can take a minute.",
+                    color = com.ai.ui.shared.AppColors.TextSecondary, fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            } else {
+                androidx.compose.material3.Text(
+                    "Restart the app to finish applying your API keys.",
+                    color = com.ai.ui.shared.AppColors.TextSecondary, fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                androidx.compose.material3.OutlinedButton(
+                    onClick = onRestart,
+                    colors = com.ai.ui.shared.AppColors.outlinedButtonColors()
+                ) {
+                    androidx.compose.material3.Text(
+                        "Restart application", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        maxLines = 1, softWrap = false
+                    )
+                }
+            }
+        }
+    }
 }
 
 // ===== Navigation Wrappers =====

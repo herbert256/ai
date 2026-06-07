@@ -382,6 +382,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _refreshAllState = MutableStateFlow<RefreshAllState?>(null)
     val refreshAllState: StateFlow<RefreshAllState?> = _refreshAllState.asStateFlow()
 
+    /** When true, the whole app is covered by a non-dismissible "Refresh all,
+     *  then Restart" lock — engaged after a first-launch API-key import that
+     *  brought in at least one provider key. Only the Restart button is
+     *  interactive; every bar is greyed and back is swallowed (see AppNavHost).
+     *  Cleared only by the app restart itself. */
+    private val _restartLockActive = MutableStateFlow(false)
+    val restartLockActive: StateFlow<Boolean> = _restartLockActive.asStateFlow()
+    fun engageRestartLock() { _restartLockActive.value = true }
+
     init {
         // The logging master switch defaults OFF, so until the bootstrap
         // below loads the persisted GeneralSettings, record nothing — a
