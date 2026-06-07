@@ -73,8 +73,11 @@ fun LocalSemanticSearchScreen(
     // Latest "Local semantic search" trace — drives the 🐞 next to the
     // status text after a search completes. Refreshed each time
     // running flips back to false.
-    val latestTrace by produceState<String?>(initialValue = null, running) {
-        if (running) return@produceState
+    val latestTrace by produceState<String?>(initialValue = null, running, searchStartedAt) {
+        if (running || searchStartedAt <= 0L) {
+            value = null
+            return@produceState
+        }
         val startedAt = searchStartedAt
         value = withContext(Dispatchers.IO) {
             com.ai.data.ApiTracer.getTraceFiles()

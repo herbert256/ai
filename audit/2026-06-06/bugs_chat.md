@@ -476,7 +476,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Before the first search (`searchStartedAt == 0L`), the `produceState` runs with `running=false` and would pick the newest "Local semantic search" trace with `timestamp >= 0` — i.e. the most recent trace from a *previous* run could surface as the title-bar 🐞 even though no search has happened this session.
 **Root cause:** `latestTrace` is computed on entry (running starts false) using `searchStartedAt = 0`, so the timestamp guard is a no-op on the first pass.
 **Proposed fix:** Gate the lookup on "a search has completed this session" (e.g. `searchStartedAt > 0`).
-**Status:** Open
+**Status:** Fixed in `LocalSemanticSearchScreen.kt` by requiring a nonzero current-session search timestamp before resolving a trace.
 
 ### Bug 60 — Severity: LOW — Category: ranking logic
 **Location:** LocalSemanticSearchScreen.kt:246-249 (`.take(10).filter{ it.score > 0.0 }`)
