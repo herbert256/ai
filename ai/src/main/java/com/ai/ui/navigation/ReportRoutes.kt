@@ -162,8 +162,10 @@ internal fun NavGraphBuilder.reportRoutes(
             FirstLaunchScreen(
                 onImportApiKeys = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
                 onAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
+                onExampleReports = { navController.navigate(NavRoutes.AI_EXAMPLES) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS) },
+                onMainHelp = { navController.navigate(NavRoutes.HELP) },
                 onAbout = { navController.navigate(NavRoutes.ABOUT) }
             )
         }

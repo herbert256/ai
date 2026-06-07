@@ -63,7 +63,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - First launch",
         cards = listOf(
             HelpCard("Overview", "Shown only in Home bar mode when no reports exist yet. It replaces the classic Home hub with the setup shortcuts needed to make the first real report possible."),
-            HelpCard("Cards", "Import API keys opens the import/export screen for key import. AI Setup opens providers, models, workers, prompts and parameters. Housekeeping opens backup, import/export, trim, update, test and reset tools. Settings and About open their normal hubs.")
+            HelpCard("Cards", "Import API keys opens the import/export screen with the API keys card pre-opened. AI Setup opens providers, models, workers, prompts and parameters. Example reports opens the bundled ready-made reports so you can browse a real, fully-populated report before configuring a provider. Housekeeping opens backup, import/export, trim, update, test and reset tools. Settings and About open their normal hubs, and Help opens the main help home.")
         )
     ),
     "settings_autostart" to HelpContent(
