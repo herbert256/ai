@@ -66,7 +66,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** On the 🐜 Translation-workers screen during an active run, model rows visibly jump/reorder every time an item completes, because rows are ordered by `done` count descending. Tap targets move under the user's finger.
 **Root cause:** The sort key `done` (then `total`, then model name) changes continuously while the run progresses. The sibling L1 *types* list explicitly sorts by `total` (stable across status flips) precisely to avoid this; the workers list does not.
 **Proposed fix:** Sort modelRows by `total` desc then model name (stable while statuses flip), matching the L1 types list; reserve `done`-based ordering for finished runs only.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - TranslationWorkers modelRows now sort by total desc then model name (stable while statuses flip), matching the L1 types list
 
 ### Bug 9 — Severity: LOW — Category: inconsistent cost format across the drill-in
 **Location:** TranslationL1.kt:151 (`formatCents(run.totalCostDollars, decimals = 2)} ¢`) vs TranslationL2.kt:117 (`formatCents(cost)` no ¢, decimals=4) vs TranslationL3.kt:227 (`formatCents(item.costDollars)} ¢`)

@@ -254,9 +254,12 @@ internal fun TranslationWorkersScreen(
                 rows += TranslationModelRow(modelKey = key, total = 0, done = 0, err = 0, running = 0, cost = 0.0)
             }
         }
+        // Sort by total (stable while statuses flip), then model name — NOT by
+        // `done`, which changes continuously during a live run and made rows
+        // jump/reorder under the user's finger (audit reports#8). Matches the L1
+        // types list's stable ordering.
         rows.sortedWith(
-            compareByDescending<TranslationModelRow> { it.done }
-                .thenByDescending { it.total }
+            compareByDescending<TranslationModelRow> { it.total }
                 .thenBy { it.modelKey.substringAfter('|').lowercase() }
         )
     }
