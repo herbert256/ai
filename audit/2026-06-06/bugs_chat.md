@@ -85,7 +85,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Root cause:** On first composition the effect inserts the system `ChatMessage` (`changed = true`) and calls `saveSession(messages)`, persisting a session that has no user turn yet.
 **Reproduction:** Pick provider/model, set a system prompt preset, open the chat session, press back without sending → an empty session is now in Chat History.
 **Proposed fix:** Don't persist until the first user message is sent; keep the system-message merge in memory and only save inside `actuallySend`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - the system-prompt LaunchedEffect only persists once messages contains a user turn; the in-memory merge still applies and actuallySend saves it with the first message
 
 ### Bug 11 — Severity: MEDIUM — Category: race / lost update
 **Location:** ChatScreens.kt:704-712 (pin toggle → `ChatHistoryManager.setSessionPinned`) with ChatHistoryManager.kt:131-134
