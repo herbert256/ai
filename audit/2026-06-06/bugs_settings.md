@@ -158,7 +158,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Each prompt save re-reads the entire history file from disk (`loadPromptHistory()`), mutates, and rewrites — O(n) disk read on every saved prompt.
 **Root cause:** No in-memory cache for prompt history (unlike usage stats which got a ConcurrentHashMap cache).
 **Proposed fix:** Cache the list in memory, or accept it (history is capped at 100).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — prompt history now uses a lock-protected in-memory cache for load/save/clear, so saving a prompt no longer re-reads the JSON file.
 
 ---
 

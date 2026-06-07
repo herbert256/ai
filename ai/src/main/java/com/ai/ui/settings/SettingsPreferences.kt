@@ -418,30 +418,51 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ===== Prompt History =====
 
     fun loadPromptHistory(): List<PromptHistoryEntry> {
+        promptHistoryCache?.let { return it }
+        return synchronized(promptHistoryLock) {
+            promptHistoryCache?.let { return@synchronized it }
+            readPromptHistoryFromDisk().also { promptHistoryCache = it }
+        }
+    }
+
+    private fun readPromptHistoryFromDisk(): List<PromptHistoryEntry> {
         val file = filesDir?.let { File(it, FILE_PROMPT_HISTORY) } ?: return emptyList()
         if (!file.exists()) return emptyList()
         return try { gson.fromJson(file.readText(), TypeTokens.listPromptHistoryType) ?: emptyList() } catch (_: Exception) { emptyList() }
     }
 
     fun savePromptToHistory(title: String, prompt: String) {
-        val history = loadPromptHistory().toMutableList()
-        history.indexOfFirst { it.title == title && it.prompt == prompt }.let { if (it >= 0) history.removeAt(it) }
-        history.add(0, PromptHistoryEntry(System.currentTimeMillis(), title, prompt))
-        savePromptHistoryList(history.take(MAX_PROMPT_HISTORY))
+        synchronized(promptHistoryLock) {
+            val history = (promptHistoryCache ?: readPromptHistoryFromDisk().also { promptHistoryCache = it }).toMutableList()
+            history.indexOfFirst { it.title == title && it.prompt == prompt }.let { if (it >= 0) history.removeAt(it) }
+            history.add(0, PromptHistoryEntry(System.currentTimeMillis(), title, prompt))
+            savePromptHistoryListLocked(history.take(MAX_PROMPT_HISTORY))
+        }
     }
 
     fun savePromptHistoryList(entries: List<PromptHistoryEntry>) {
+        synchronized(promptHistoryLock) {
+            savePromptHistoryListLocked(entries)
+        }
+    }
+
+    private fun savePromptHistoryListLocked(entries: List<PromptHistoryEntry>) {
         val file = filesDir?.let { File(it, FILE_PROMPT_HISTORY) } ?: return
-        file.writeTextAtomic(gson.toJson(entries))
+        val snapshot = entries.take(MAX_PROMPT_HISTORY)
+        file.writeTextAtomic(gson.toJson(snapshot))
+        promptHistoryCache = snapshot
     }
 
     /** Wipe the prompt-history file and return how many entries it
      *  held before the wipe. Callers that don't need the count can
      *  ignore the return value (Kotlin's standard discard rule). */
     fun clearPromptHistory(): Int {
-        val n = loadPromptHistory().size
-        filesDir?.let { File(it, FILE_PROMPT_HISTORY) }?.let { if (it.exists()) it.delete() }
-        return n
+        return synchronized(promptHistoryLock) {
+            val n = (promptHistoryCache ?: readPromptHistoryFromDisk().also { promptHistoryCache = it }).size
+            filesDir?.let { File(it, FILE_PROMPT_HISTORY) }?.let { if (it.exists()) it.delete() }
+            promptHistoryCache = emptyList()
+            n
+        }
     }
 
     fun clearLastReportPrompt() { prefs.edit { remove(KEY_LAST_AI_REPORT_TITLE); remove(KEY_LAST_AI_REPORT_PROMPT) } }
@@ -1020,6 +1041,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         @Volatile private var usageCategoryStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats>? = null
         @Volatile private var usageReportStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>? = null
         @Volatile private var lastUsageStatsFlush: Long = 0L
+        private val promptHistoryLock = Any()
+        @Volatile private var promptHistoryCache: List<PromptHistoryEntry>? = null
         private const val USAGE_STATS_FLUSH_MS = 2_000L
         const val PREFS_NAME = "eval_prefs"
 
