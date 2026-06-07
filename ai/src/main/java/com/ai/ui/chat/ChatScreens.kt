@@ -616,6 +616,11 @@ fun ChatSessionScreen(
                         onTitleResolved = { newTitle ->
                             sessionTitle = newTitle
                             saveSession(messages)
+                        },
+                        onUsageResolved = { inputTokens, outputTokens ->
+                            totalInputTokens += inputTokens
+                            totalOutputTokens += outputTokens
+                            onRecordStatistics(inputTokens, outputTokens)
                         }
                     )
                 }
@@ -1214,7 +1219,8 @@ private fun kickOffChatTitleGeneration(
     aiSettings: Settings,
     userPrompt: String,
     assistantResponse: String,
-    onTitleResolved: (String) -> Unit
+    onTitleResolved: (String) -> Unit,
+    onUsageResolved: suspend (Int, Int) -> Unit
 ) {
     val prompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "internal" && it.name.equals("chat-title", ignoreCase = true)
@@ -1235,6 +1241,15 @@ private fun kickOffChatTitleGeneration(
                     agent, "", resolved, AgentParameters(),
                     null, context, baseUrl
                 )
+                if (response.error == null) {
+                    response.tokenUsage?.let { usage ->
+                        val inputTokens = usage.inputTokens + usage.cachedInputTokens + usage.cacheCreationTokens
+                        val outputTokens = usage.outputTokens + usage.reasoningTokens
+                        if (inputTokens > 0 || outputTokens > 0) {
+                            withContext(Dispatchers.Main) { onUsageResolved(inputTokens, outputTokens) }
+                        }
+                    }
+                }
                 val raw = response.analysis?.trim().orEmpty()
                 if (response.error != null || raw.isEmpty()) return@runCatching
                 // Strip surrounding quotes / trailing period that some

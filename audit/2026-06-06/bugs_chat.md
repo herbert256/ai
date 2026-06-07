@@ -141,7 +141,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Generating the AI chat title makes a real paid call (DeepSeek by default) after the first reply, but that cost is never added to the chat session's cost banner and is filed under the title agent's own bucket — invisible from the chat's perspective.
 **Root cause:** The title call is a separate `analyzeWithAgent`; the chat screen doesn't fold its cost into `totalInputTokens`/`totalOutputTokens`.
 **Proposed fix:** Surface the title call's usage as part of the session cost, or document that titling has its own cost line.
-**Status:** Open
+**Status:** Fixed — the background `chat_title` call now reports returned usage back to the chat screen; fresh/cache-created/cache-read input buckets are folded into the input total, output/reasoning buckets into the output total, and the same usage is recorded through `onRecordStatistics`.
 
 ### Bug 19 — Severity: LOW — Category: trace mis-association (unconfirmed)
 **Location:** ChatScreens.kt:646-651 (flagged-input trace lookup)
