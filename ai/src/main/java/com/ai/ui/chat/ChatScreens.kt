@@ -266,9 +266,8 @@ fun ChatSessionScreen(
      *  values can be cleared from UiState. */
     onConsumeStarter: () -> Unit = {},
     /** Master experimental-features gate. When false the Knowledge
-     *  attach chip is hidden — KBs already attached to this session
-     *  still get sent at API time, so an existing chat that relied
-     *  on a KB keeps working invisibly. */
+     *  attach chip is hidden unless this session already has a KB
+     *  attached, so existing RAG context remains visible/removable. */
     experimentalFeatures: Boolean = false
 ) {
     // Outer BackHandler: only active when no overlay (moderation
@@ -729,7 +728,7 @@ fun ChatSessionScreen(
             // dialog over saved KBs. Shown only when at least one
             // KB exists. Per-turn injection happens in
             // ChatViewModel.{sendChatMessageStream,sendLocalLlmStream}.
-            if (experimentalFeatures && availableKbs.isNotEmpty()) {
+            if ((experimentalFeatures && availableKbs.isNotEmpty()) || attachedKnowledgeBaseIds.isNotEmpty()) {
                 val kbLabel = if (attachedKnowledgeBaseIds.isEmpty()) "${mi.library} Knowledge"
                     else "${mi.library} ${attachedKnowledgeBaseIds.size}"
                 Text(kbLabel, fontSize = 11.sp,

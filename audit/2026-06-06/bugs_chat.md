@@ -595,7 +595,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** When the master Experimental toggle is off, an already-attached KB still injects RAG context at send time, but the chip is hidden — the user can neither see nor remove the attachment.
 **Root cause:** Visibility gated on `experimentalFeatures` while the dispatch path is not (documented as intentional).
 **Proposed fix:** Either always show the chip when a KB is already attached, or strip attachments when experimental is off.
-**Status:** Open
+**Status:** Fixed in `ChatScreens.kt` by showing the Knowledge chip whenever a session already has attached KB ids, even if Experimental is off.
 
 ### Bug 74 — Severity: LOW — Category: state loss
 **Location:** ChatScreens.kt:63-73 (ChatParametersScreen free-text fields)
