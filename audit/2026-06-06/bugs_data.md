@@ -295,7 +295,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `shortBenchMap` is never pruned of expired entries; across a long session with many transient 429/529s it grows unboundedly, and `_shortBenches` snapshots (published to the dashboard) include long-expired entries forever.
 **Root cause:** No expiry sweep for the short-bench tier (unlike `cooldownMap`'s `pruneExpired`).
 **Proposed fix:** Drop expired keys on `markShortBench`/`isShortBenched`, or run a periodic prune.
-**Status:** Open
+**Status:** Fixed in `ModelCooldownStore.kt` by pruning expired short benches on reads/writes and publishing cleaned short-bench snapshots.
 
 ### Bug 39 — Severity: LOW — Category: SharedPreferences write on network thread
 **Location:** ModelCooldownStore.kt:119-130, 214-221 (`markUnavailable` → `persist`)

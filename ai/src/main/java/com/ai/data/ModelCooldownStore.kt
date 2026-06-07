@@ -75,10 +75,13 @@ object ModelCooldownStore {
     /** Park (provider, model) until [availableAtMs] for the type-A batch
      *  429/529 backoff. Called from the retry interceptors. */
     fun markShortBench(providerId: String, model: String, availableAtMs: Long) {
+        val now = System.currentTimeMillis()
+        pruneExpiredShortBenches(now)
+        if (availableAtMs <= now) return
         val k = key(providerId, model)
         shortBenchMap[k] = availableAtMs
-        _shortBenches.value = shortBenchMap.toMap()
-        AppLog.d("ModelCooldown", "$providerId/$model short-benched ${availableAtMs - System.currentTimeMillis()}ms")
+        publishShortBenches()
+        AppLog.d("ModelCooldown", "$providerId/$model short-benched ${availableAtMs - now}ms")
     }
 
     /** True when the pair is short-benched and the bench hasn't expired.
@@ -86,11 +89,17 @@ object ModelCooldownStore {
      *  can poll it freely. */
     fun isShortBenched(providerId: String, model: String): Boolean {
         val until = shortBenchMap[key(providerId, model)] ?: return false
-        return until > System.currentTimeMillis()
+        val active = until > System.currentTimeMillis()
+        if (!active) pruneExpiredShortBenches()
+        return active
     }
 
-    fun shortBenchUntil(providerId: String, model: String): Long? =
-        shortBenchMap[key(providerId, model)]?.takeIf { it > System.currentTimeMillis() }
+    fun shortBenchUntil(providerId: String, model: String): Long? {
+        val until = shortBenchMap[key(providerId, model)] ?: return null
+        if (until > System.currentTimeMillis()) return until
+        pruneExpiredShortBenches()
+        return null
+    }
 
     @Volatile private var appContext: Context? = null
 
@@ -230,5 +239,17 @@ object ModelCooldownStore {
 
     private fun publish() {
         _cooldowns.value = cooldownMap.toMap()
+    }
+
+    private fun pruneExpiredShortBenches(now: Long = System.currentTimeMillis()) {
+        val expired = shortBenchMap.filterValues { it <= now }.keys
+        if (expired.isNotEmpty()) {
+            expired.forEach { shortBenchMap.remove(it) }
+            publishShortBenches()
+        }
+    }
+
+    private fun publishShortBenches() {
+        _shortBenches.value = shortBenchMap.toMap()
     }
 }
