@@ -90,7 +90,7 @@ fun ExamplePromptPickerScreen(
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            entry.text.lineSequence().firstOrNull().orEmpty().take(120),
+                            examplePromptPreview(entry.text, search),
                             fontSize = 11.sp, color = AppColors.TextTertiary,
                             maxLines = 2, overflow = TextOverflow.Ellipsis
                         )
@@ -99,5 +99,25 @@ fun ExamplePromptPickerScreen(
                 }
             }
         }
+    }
+}
+
+private fun examplePromptPreview(text: String, search: String): String {
+    val compact = text
+        .lineSequence()
+        .joinToString(" ") { it.trim() }
+        .replace(Regex("\\s+"), " ")
+        .trim()
+    if (compact.isBlank()) return ""
+    val query = search.trim()
+    if (query.isBlank()) return compact.take(120)
+    val matchIndex = compact.indexOf(query, ignoreCase = true)
+    if (matchIndex < 0) return compact.take(120)
+    val start = (matchIndex - 60).coerceAtLeast(0)
+    val end = (matchIndex + query.length + 60).coerceAtMost(compact.length)
+    return buildString {
+        if (start > 0) append("... ")
+        append(compact.substring(start, end).trim())
+        if (end < compact.length) append(" ...")
     }
 }

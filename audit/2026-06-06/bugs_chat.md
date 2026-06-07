@@ -562,7 +562,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Search matches title + full text but the row preview only shows the first line of text; a match deep in a multi-line prompt shows a row whose preview doesn't contain the query (minor confusion).
 **Root cause:** Preview is `text.lineSequence().firstOrNull()` while search scans the whole text.
 **Proposed fix:** Show a match-centered snippet (as ChatSearch does).
-**Status:** Open
+**Status:** Fixed in `ExamplePromptPickerScreen.kt` by rendering a compact match-centered preview snippet when search text matches deep in the prompt body.
 
 ---
 
