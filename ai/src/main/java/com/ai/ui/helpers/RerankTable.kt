@@ -36,6 +36,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 internal data class RerankRow(val id: Int, val rank: Int?, val score: Double?, val reason: String?)
 
@@ -43,7 +44,7 @@ internal data class RerankRow(val id: Int, val rank: Int?, val score: Double?, v
  *  (integer-scale models) but with up to 3 decimals for fractional ones. */
 internal fun formatRerankScore(score: Double): String =
     if (score == score.toLong().toDouble()) score.toLong().toString()
-    else "%.3f".format(score).trimEnd('0').trimEnd('.')
+    else String.format(Locale.US, "%.3f", score).trimEnd('0').trimEnd('.')
 
 /** Parse the rerank flow's structured JSON output. Both the chat-prompt
  *  path and the dedicated rerank-API path emit the same
@@ -120,7 +121,7 @@ internal fun RerankTable(
                         modifier = Modifier.width(220.dp).padding(start = 8.dp),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        r.score?.let { s -> scoreDecimals?.let { "%.${it}f".format(s) } ?: formatRerankScore(s) } ?: "",
+                        r.score?.let { s -> scoreDecimals?.let { String.format(Locale.US, "%.${it}f", s) } ?: formatRerankScore(s) } ?: "",
                         fontSize = 12.sp, color = AppColors.SuccessAccent,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)

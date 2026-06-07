@@ -394,7 +394,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** Fractional rerank scores (and the Tournament Davidson scores via `scoreDecimals`) render with commas on a comma-decimal device.
 **Root cause:** Default-locale `format`.
 **Proposed fix:** Use `String.format(Locale.US, ...)` in `formatRerankScore` and the `scoreDecimals` branch.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — rerank and fixed-decimal tournament score formatting now use `Locale.US`
 
 ## File: ai/src/main/java/com/ai/ui/helpers/ModerationTable.kt
 
