@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -164,7 +165,7 @@ fun NewKnowledgeBaseScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var name by remember { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf("") }
     // Re-list local models on ON_RESUME so one installed in Housekeeping shows
     // up on return (was an unkeyed remember that stayed stale).
     val resumeTick = com.ai.ui.shared.resumeRefreshTick()
@@ -176,11 +177,18 @@ fun NewKnowledgeBaseScreen(
         val remote = remoteEmbedders.map { (svc, m) -> Triple(svc.id, m, "${svc.id} · $m") }
         local + remote
     }
-    var selected by remember { mutableStateOf(options.firstOrNull()) }
+    fun optionKey(opt: Triple<String, String, String>) = opt.first + "\u001F" + opt.second
+    var selectedKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val selected = remember(options, selectedKey) {
+        options.firstOrNull { optionKey(it) == selectedKey } ?: options.firstOrNull()
+    }
     // Revalidate the selection when the option set changes so a stale pick
     // (e.g. the model was removed) falls back to a valid one.
-    LaunchedEffect(options) {
-        if (selected == null || selected !in options) selected = options.firstOrNull()
+    LaunchedEffect(options, selectedKey) {
+        if (selected == null) selectedKey = null
+        else if (selectedKey == null || options.none { optionKey(it) == selectedKey }) {
+            selectedKey = optionKey(selected)
+        }
     }
     var pickerOpen by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
@@ -232,7 +240,7 @@ fun NewKnowledgeBaseScreen(
                                     com.ai.ui.shared.ModelAdvisoryCaptions(state)
                                 }
                             },
-                            onClick = { selected = opt; pickerOpen = false }
+                            onClick = { selectedKey = optionKey(opt); pickerOpen = false }
                         )
                     }
                 }

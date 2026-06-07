@@ -356,7 +356,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Rotating the New-KB screen clears the typed name and resets the embedder pick.
 **Root cause:** Plain `remember`; only `resumeTick`-keyed lists are reactive.
 **Proposed fix:** `rememberSaveable` for `name`; persist the selected option key.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the New-KB name and provider/model selection key now use saveable state
 
 ### Bug 46 — Severity: LOW — Category: reactivity
 **Location:** KnowledgeScreens.kt:297-343 (auto-ingest `LaunchedEffect(kb?.id, pendingUris)` + `refreshTick++` inside the loop)
