@@ -129,11 +129,12 @@ private fun runQuickSearch(context: android.content.Context, word: String): List
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
     val reports: List<Report> = ReportStorage.getAllReports(context)
     return reports.mapNotNull { r ->
+        val matchesTitle = r.title.contains(needle, ignoreCase = true)
         val matchesPrompt = r.prompt.contains(needle, ignoreCase = true)
         val matchesAnyResponse = r.agents.any { a ->
             a.responseBody?.contains(needle, ignoreCase = true) == true
         }
-        if (!matchesPrompt && !matchesAnyResponse) null
+        if (!matchesTitle && !matchesPrompt && !matchesAnyResponse) null
         else QuickHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), r.timestamp, r.icon)
     }.sortedByDescending { it.epoch }
 }

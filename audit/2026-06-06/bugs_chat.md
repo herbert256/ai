@@ -494,7 +494,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Quick search matches `Report.prompt` and agent response bodies but **not** the report title; a word that appears only in the (displayed) title returns no hit, which is confusing since the result row shows the title.
 **Root cause:** `matchesPrompt`/`matchesAnyResponse` never test `r.title` (the other two search screens include it).
 **Proposed fix:** Add `r.title.contains(needle, ignoreCase = true)` to the predicate.
-**Status:** Open
+**Status:** Fixed in `QuickLocalSearchScreen.kt` by including report titles in the quick-search match predicate.
 
 ### Bug 62 — Severity: LOW — Category: redundant work
 **Location:** QuickLocalSearchScreen.kt:127, 132-135 (`needle = word.lowercase(ROOT)` then `contains(needle, ignoreCase = true)`)
