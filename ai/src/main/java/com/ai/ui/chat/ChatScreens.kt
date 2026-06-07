@@ -60,17 +60,17 @@ fun ChatParametersScreen(
 ) {
     BackHandler { onNavigateBack() }
 
-    var systemPrompt by remember { mutableStateOf("") }
+    var systemPrompt by rememberSaveable { mutableStateOf("") }
     var selectedSystemPromptId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedParametersIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
-    var temperature by remember { mutableStateOf("") }
-    var maxTokens by remember { mutableStateOf("") }
-    var topP by remember { mutableStateOf("") }
-    var topK by remember { mutableStateOf("") }
-    var frequencyPenalty by remember { mutableStateOf("") }
-    var presencePenalty by remember { mutableStateOf("") }
-    var returnCitations by remember { mutableStateOf(true) }
-    var searchRecency by remember { mutableStateOf("") }
+    var temperature by rememberSaveable { mutableStateOf("") }
+    var maxTokens by rememberSaveable { mutableStateOf("") }
+    var topP by rememberSaveable { mutableStateOf("") }
+    var topK by rememberSaveable { mutableStateOf("") }
+    var frequencyPenalty by rememberSaveable { mutableStateOf("") }
+    var presencePenalty by rememberSaveable { mutableStateOf("") }
+    var returnCitations by rememberSaveable { mutableStateOf(true) }
+    var searchRecency by rememberSaveable { mutableStateOf("") }
     var showParamsDialog by rememberSaveable { mutableStateOf(false) }
     var showSystemPromptDialog by rememberSaveable { mutableStateOf(false) }
 

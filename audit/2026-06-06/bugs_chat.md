@@ -602,7 +602,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Rotation wipes every typed parameter on the Chat Parameters setup screen (system prompt, temperature, max tokens, top P, top K, frequency/presence penalty, search recency) — only the preset-id selections and dialog flags are saveable.
 **Root cause:** These fields use plain `remember` (only `selectedSystemPromptId`/`selectedParametersIds`/dialog flags are `rememberSaveable`).
 **Proposed fix:** `rememberSaveable` the free-text fields.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Chat Parameters setup fields now use `rememberSaveable`, including the citation toggle
 
 ### Bug 75 — Severity: LOW — Category: performance
 **Location:** DualChatScreen.kt:655-661 (`DualMessageBubble` per-bubble `produceState` over `ApiTracer.getTraceFiles()`)
