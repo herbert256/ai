@@ -94,7 +94,8 @@ private fun RankSource.key(): String = when (this) {
 }
 
 /** One model on the cost/quality plane. [costCents] = USD×100,
- *  [quality] = one consistent rank-derived quality scale. */
+ *  [quality] = the ranking's REAL score (raw, model/method-scaled — NOT
+ *  normalised to a rank position). */
 private data class ValuePoint(
     val provider: String,
     val modelShort: String,
@@ -107,25 +108,20 @@ private data class ValuePoint(
 /** Pair each SUCCESS agent with its ranking score + cost, then mark the
  *  Pareto-dominated points and the single best-value one. [rows] is the
  *  rerank-shaped ranking (`id` = 1-based SUCCESS position, the same
- *  numbering the Rerank flow and the Tournament view both use). */
+ *  numbering the Rerank flow and the Tournament view both use). Quality is
+ *  the ranking's own score as-is; only when a row carries no score do we
+ *  fall back to a rank-derived value. */
 private fun buildValuePoints(report: Report, rows: List<RerankRow>): List<ValuePoint> {
     val rowsById = rows.associateBy { it.id }
-    val orderedRows = rows.sortedWith(
-        compareBy<RerankRow> { it.rank ?: Int.MAX_VALUE }
-            .thenByDescending { it.score ?: Double.NEGATIVE_INFINITY }
-            .thenBy { it.id }
-    )
-    val qualityById = orderedRows
-        .mapIndexed { index, row -> row.id to (orderedRows.size - index).toDouble() }
-        .toMap()
     val success = report.agents.filter {
         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
     }
+    val n = success.size
     // (agent, quality, costCents) for agents that have a ranking entry.
     data class Raw(val agentId: String, val provider: String, val modelShort: String, val quality: Double, val costCents: Double)
     val raw = success.mapIndexedNotNull { idx, a ->
         val row = rowsById[idx + 1] ?: return@mapIndexedNotNull null
-        val quality = qualityById[row.id] ?: return@mapIndexedNotNull null
+        val quality = row.score ?: row.rank?.let { (n - it + 1).toDouble() } ?: return@mapIndexedNotNull null
         val costUsd = a.cost ?: ((a.inputCost ?: 0.0) + (a.outputCost ?: 0.0))
         Raw(a.agentId, AppService.findById(a.provider)?.id ?: a.provider, shortModelName(a.model), quality, costUsd * 100.0)
     }
@@ -532,5 +528,7 @@ private fun ValueRow(p: ValuePoint) {
     }
 }
 
+/** Real ranking score, max 1 decimal — whole numbers (e.g. Elo 1500) drop
+ *  the decimal, fractional ones round to one place. */
 private fun formatScore(q: Double): String =
-    if (q == q.toLong().toDouble()) q.toLong().toString() else String.format(java.util.Locale.US, "%.2f", q)
+    if (q == q.toLong().toDouble()) q.toLong().toString() else String.format(java.util.Locale.US, "%.1f", q)
