@@ -262,7 +262,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The summary "Cost" total is computed by parsing each row's already-*formatted* cost string back into a Double, so it sums display-rounded values (the `>=10` branch shows only 2 decimals) — the headline total drifts from the true sum, and the code is the exact `String.format(...).toDouble()` anti-pattern flagged for comma-decimal locales.
 **Root cause:** `AnswerMatrixRow.cost` is stored as a formatted String (`formatCentsValue(costUsd*100)`); the total re-parses it instead of summing the raw cents. It is *currently* crash-safe only because `formatCentsValue` pins `Locale.US`; if that helper's locale ever changes, `toDoubleOrNull` (locale-independent, expects '.') would silently return null and zero the total on nl-NL.
 **Proposed fix:** Carry the raw cents (Double) on `AnswerMatrixRow` and sum that; format only for display.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — AnswerMatrixRow carries numeric costCents; the summary total sums that instead of re-parsing the rounded display string
 
 ### Bug 33 — Severity: LOW — Category: heuristic misfires on translated text
 **Location:** AnswerMatrix.kt:338 (`extractMatrixSignals(displayBody)`), 373-421, 474-497 (English-only regexes)

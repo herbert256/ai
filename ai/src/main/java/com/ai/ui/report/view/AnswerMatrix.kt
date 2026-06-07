@@ -76,6 +76,10 @@ private data class AnswerMatrixRow(
     val recommendation: String,
     val risks: String,
     val cost: String,
+    /** Numeric cost in cents — the precise value behind [cost]'s display
+     *  string. The summary total sums THIS, not a re-parse of [cost] (which
+     *  was rounded to 2-4 decimals and locale-fragile). */
+    val costCents: Double,
     val latency: String,
     val tokens: String
 )
@@ -114,9 +118,9 @@ internal fun AnswerMatrixViewScreen(
             ?: emptyList()
     }
     val totalCost = remember(matrixRows) {
-        matrixRows
-            .mapNotNull { it.cost.removeSuffix(" ¢").toDoubleOrNull() }
-            .sum()
+        // Sum the precise numeric cents, NOT a re-parse of the rounded/locale-
+        // fragile display string (audit reports#32).
+        matrixRows.sumOf { it.costCents }
     }
 
     Column(
@@ -350,6 +354,7 @@ private fun buildAnswerMatrixRows(
             recommendation = extraction.recommendation,
             risks = extraction.risks,
             cost = if (costUsd > 0.0) formatCentsValue(costUsd * 100.0) else "-",
+            costCents = if (costUsd > 0.0) costUsd * 100.0 else 0.0,
             latency = formatDuration(agent.durationMs),
             tokens = agent.tokenUsage?.totalTokens?.takeIf { it > 0 }
                 ?.let { formatCompactNumber(it.toLong()) }
@@ -427,28 +432,28 @@ private fun rankText(row: AnswerMatrixRow): String {
     return "$rank$score"
 }
 
-private fun firstUsefulSentence(text: String): String? =
+internal fun firstUsefulSentence(text: String): String? =
     splitSentences(cleanResponseText(text)).firstOrNull { it.isNotBlank() }
 
-private fun cleanResponseText(text: String): String =
+internal fun cleanResponseText(text: String): String =
     text
         .replace(Regex("<think>.*?</think>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), " ")
         .replace(Regex("</?(conclusion|motivation)>", RegexOption.IGNORE_CASE), " ")
         .replace(Regex("\\s+"), " ")
         .trim()
 
-private fun splitSentences(text: String): List<String> =
+internal fun splitSentences(text: String): List<String> =
     text.split(Regex("(?<=[.!?])\\s+"))
         .map { it.trim().trim('-', '*', ' ') }
         .filter { it.isNotBlank() }
 
-private fun compactText(text: String, maxChars: Int): String {
+internal fun compactText(text: String, maxChars: Int): String {
     val oneLine = text.replace(Regex("\\s+"), " ").trim()
     if (oneLine.length <= maxChars) return oneLine
     return oneLine.take((maxChars - 3).coerceAtLeast(0)).trimEnd() + "..."
 }
 
-private fun formatCentsValue(cents: Double): String =
+internal fun formatCentsValue(cents: Double): String =
     when {
         cents <= 0.0 -> "-"
         cents >= 10.0 -> String.format(Locale.US, "%.2f ¢", cents)
@@ -456,7 +461,7 @@ private fun formatCentsValue(cents: Double): String =
         else -> String.format(Locale.US, "%.4f ¢", cents)
     }
 
-private fun formatDuration(ms: Long?): String {
+internal fun formatDuration(ms: Long?): String {
     val value = ms ?: return "-"
     if (value <= 0L) return "-"
     if (value < 1000L) return "${value} ms"
