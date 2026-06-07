@@ -417,7 +417,11 @@ fun ProviderModelSettingsScreen(
                     if (onTestSpecificModel != null && models.isNotEmpty()) {
                         OutlinedButton(
                             onClick = {
-                                val targets = models.toList()
+                                // Skip models the user excluded from testing (e.g.
+                                // auto-excluded for costing >5¢) — matches the
+                                // Housekeeping "Test all models" flow, which the
+                                // per-provider button ignored (audit settings#5).
+                                val targets = models.filterNot { aiSettings.isTestExcluded(service.id, it) }
                                 testStatuses = targets.associateWith { ModelTestStatus.Running }
                                 testInProgress = true
                                 scope.launch {
