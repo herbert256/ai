@@ -480,7 +480,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A session whose provider id was removed/renamed throws in `AppServiceAdapter` (Bug 8) and is `mapNotNull`-dropped; the dropped session is then cached in `cachedSessions`, so even after the provider is restored the session stays hidden until the cache is invalidated.
 **Root cause:** The failure is cached as "not present" with no re-attempt.
 **Proposed fix:** Don't cache a list built while any file failed to parse, or invalidate on provider-registry changes.
-**Status:** Open
+**Status:** Fixed in `ChatHistoryManager.kt` by skipping session/header cache population whenever any chat file fails to parse.
 
 ## File: ai/src/main/java/com/ai/data/ModelListCache.kt
 

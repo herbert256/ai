@@ -100,11 +100,16 @@ object ChatHistoryManager {
         if (!dir.exists()) return emptyList()
         return lock.withLock {
             cachedSessions?.let { return it }
+            var hadParseFailure = false
             val sessions = dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
                 try { file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) } }
-                catch (e: Exception) { AppLog.e("ChatHistory", "Failed to parse: ${e.message}"); null }
+                catch (e: Exception) {
+                    hadParseFailure = true
+                    AppLog.e("ChatHistory", "Failed to parse: ${e.message}")
+                    null
+                }
             }?.sortedByDescending { it.updatedAt } ?: emptyList()
-            cachedSessions = sessions
+            if (!hadParseFailure) cachedSessions = sessions
             sessions
         }
     }
@@ -115,10 +120,16 @@ object ChatHistoryManager {
         if (!dir.exists()) return emptyList()
         return lock.withLock {
             cachedHeaders?.let { return it }
-            val headers = dir.listFiles { f -> f.extension == "json" }?.mapNotNull(::readSessionHeader)
+            var hadParseFailure = false
+            val headers = dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
+                readSessionHeader(file) ?: run {
+                    hadParseFailure = true
+                    null
+                }
+            }
                 ?.sortedByDescending { it.updatedAt }
                 ?: emptyList()
-            cachedHeaders = headers
+            if (!hadParseFailure) cachedHeaders = headers
             headers
         }
     }
