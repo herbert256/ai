@@ -155,11 +155,12 @@ object BackupManager {
      * Stream a complete backup zip into [out]. The caller (Housekeeping)
      * provides [out] from a SAF-picked Uri.
      */
-    fun backup(context: Context, out: OutputStream) {
+    fun backup(context: Context, out: OutputStream): BackupSummary {
         AppLog.i("Backup", "→ backup start")
         val t0 = System.currentTimeMillis()
         var filesWritten = 0
         var cacheWritten = 0
+        var filesSkipped = 0
         ZipOutputStream(out).use { zip ->
             // Manifest
             val manifest = mapOf(
@@ -183,8 +184,10 @@ object BackupManager {
             // the top level (local model bundles).
             val filesRoot = context.filesDir
             if (filesRoot.exists()) {
-                filesWritten = addDirectoryRecursive(zip, filesRoot, "files")
-                AppLog.d("Backup", "filesDir mirrored — $filesWritten entries")
+                val summary = addDirectoryRecursive(zip, filesRoot, "files")
+                filesWritten = summary.written
+                filesSkipped += summary.skipped
+                AppLog.d("Backup", "filesDir mirrored — $filesWritten entries, skipped=${summary.skipped}")
             }
 
             // Mirror cacheDir as well (exports, shared-trace handoffs,
@@ -193,11 +196,17 @@ object BackupManager {
             // are skipped — see the constant's doc comment.
             val cacheRoot = context.cacheDir
             if (cacheRoot.exists()) {
-                cacheWritten = addDirectoryRecursive(zip, cacheRoot, "cache")
-                AppLog.d("Backup", "cacheDir mirrored — $cacheWritten entries")
+                val summary = addDirectoryRecursive(zip, cacheRoot, "cache")
+                cacheWritten = summary.written
+                filesSkipped += summary.skipped
+                AppLog.d("Backup", "cacheDir mirrored — $cacheWritten entries, skipped=${summary.skipped}")
             }
         }
-        AppLog.i("Backup", "← backup done in ${System.currentTimeMillis() - t0}ms (filesDir=$filesWritten cacheDir=$cacheWritten)")
+        if (filesSkipped > 0) {
+            AppLog.w("Backup", "Backup skipped $filesSkipped unreadable file(s); see earlier warnings for paths")
+        }
+        AppLog.i("Backup", "← backup done in ${System.currentTimeMillis() - t0}ms (filesDir=$filesWritten cacheDir=$cacheWritten skipped=$filesSkipped)")
+        return BackupSummary(filesDirEntries = filesWritten, cacheDirEntries = cacheWritten, skippedFiles = filesSkipped)
     }
 
     /**
@@ -488,6 +497,12 @@ object BackupManager {
         val dataFiles: Int
     )
 
+    data class BackupSummary(
+        val filesDirEntries: Int,
+        val cacheDirEntries: Int,
+        val skippedFiles: Int
+    )
+
     // ===== SharedPreferences ↔ JSON =====
 
     private fun serializePrefs(context: Context, name: String): ByteArray {
@@ -542,9 +557,16 @@ object BackupManager {
         closeEntry()
     }
 
-    private fun addDirectoryRecursive(zip: ZipOutputStream, dir: File, prefix: String): Int {
+    private data class DirectoryBackupSummary(val written: Int = 0, val skipped: Int = 0)
+
+    private fun addDirectoryRecursive(zip: ZipOutputStream, dir: File, prefix: String): DirectoryBackupSummary {
         var written = 0
-        val children = dir.listFiles() ?: return 0
+        var skipped = 0
+        val children = dir.listFiles()
+        if (children == null) {
+            AppLog.w("Backup", "Skipping unreadable directory during backup: ${dir.absolutePath}")
+            return DirectoryBackupSummary(skipped = 1)
+        }
         // Resolve [dir]'s canonical path ONCE per recursion level so the
         // symlink check below can compare apples-to-apples. The previous
         // implementation compared `child.canonicalPath != child.absolutePath`
@@ -579,20 +601,25 @@ object BackupManager {
                 }
             } catch (_: java.io.IOException) {
                 // canonicalPath can throw on a dangling symlink — also skip.
+                AppLog.w("Backup", "Skipping path that cannot be resolved during backup: ${child.absolutePath}")
+                skipped++
                 continue
             }
             val entryName = "$prefix/${child.name}"
             if (child.isDirectory) {
-                written += addDirectoryRecursive(zip, child, entryName)
+                val summary = addDirectoryRecursive(zip, child, entryName)
+                written += summary.written
+                skipped += summary.skipped
             } else {
                 try {
                     zip.write(entryName, child.readBytes())
                     written++
-                } catch (_: Exception) {
-                    // Skip files we can't read (locked, permission denied, etc.)
+                } catch (e: Exception) {
+                    skipped++
+                    AppLog.w("Backup", "Skipping unreadable file during backup: ${child.absolutePath}", e)
                 }
             }
         }
-        return written
+        return DirectoryBackupSummary(written = written, skipped = skipped)
     }
 }
