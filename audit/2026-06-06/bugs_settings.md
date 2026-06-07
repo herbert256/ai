@@ -65,7 +65,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Flipping the "Provider inactive" switch OFF (activate) sets `isInactive = false` immediately, then runs fetch+test asynchronously. If activation fails the provider state is set to `"error"` but the switch stays in the active position — the toggle and the actual provider state disagree until the screen is recomposed from settings.
 **Root cause:** `isInactive` is local UI state set optimistically before the async result; it is never reverted on the failure branch.
 **Proposed fix:** Revert `isInactive = true` (or re-derive from `getProviderState`) when the activation fetch/test fails.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — activation fetch/test failures now restore the local inactive switch before setting provider state to error
 
 ---
 
@@ -83,14 +83,14 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** CSV import reads the file and runs `PricingCache.getPricing` + `PricingCache.setManualPricing` per row synchronously on the main thread; a large file janks the UI.
 **Root cause:** No `withContext(Dispatchers.IO)` around the read/parse/write loop.
 **Proposed fix:** Move the parse + per-row writes off the main thread.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — layered CSV import now reads, parses, looks up, and writes overrides inside `Dispatchers.IO`
 
 ### Bug 9 — Severity: LOW — Category: locale / comma-decimal
 **Location:** CostsMaintenanceScreen.kt:122-123 (`rawIn.toDoubleOrNull()` / `rawOut.toDoubleOrNull()`)
 **Symptom:** A layered-cost CSV edited in a comma-decimal spreadsheet (values like `0,5`) imports as null and the row is silently skipped. (Export uses `"%.4f".format(Locale.US,…)`, so app-produced files round-trip, but user-edited ones may not.)
 **Root cause:** `.toDoubleOrNull()` is dot-only and not normalized.
 **Proposed fix:** Normalize comma→dot before parsing the price columns.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — layered cost import normalizes comma decimals before parsing per-million prices
 
 ---
 
@@ -304,7 +304,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Integer division truncates sizes: a 0.9 MB cache shows "0 MB", 1.9 MB shows "1 MB". Sub-KB shows raw bytes, so the rounding is inconsistent across the screen.
 **Root cause:** `bytes / (1024*1024)` integer math with no decimal.
 **Proposed fix:** Format with one decimal (`%.1f`, Locale.US) like UpdateFromCloudScreen does.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — cache sizes now use one-decimal `Locale.US` KB/MB formatting
 
 ### Bug 32 — Severity: LOW — Category: stale UI
 **Location:** CachesScreen.kt:267-269 (`CachesHubScreen` `produceState(..., registry)`)
@@ -336,7 +336,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Removing a Local LLM does `File(...).delete()` but ignores the boolean result and always reports `"Removed $name"`. If the `.task` is locked / in use, the file survives but the user is told it was removed (the list re-read at line 317 may still show it). The sibling LiteRT screen (lines 142-153) was explicitly fixed to check `delete()` and report "Could not remove … (file in use?)".
 **Root cause:** Return value of `delete()` discarded; success message unconditional.
 **Proposed fix:** Branch on `delete()` like the LiteRT screen does.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Local LLM removal now checks `delete()` and reports a failure when the file survives
 
 ---
 
@@ -347,14 +347,14 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** A new provider id only has spaces stripped (`normalized = name.trim().replace(" ", "")`). Characters like `/`, `:`, `.` are accepted, but the id is used as a SharedPreferences key prefix (`<id>_api_key`, `<id>_manual_models`, …) and in `provider:model` composite keys. A `/` or `:` in the id can collide with or corrupt key parsing.
 **Root cause:** Only spaces are sanitized; the reserved `Local` id is rejected but punctuation isn't.
 **Proposed fix:** Restrict the id to `[A-Za-z0-9._-]` (or similar) like the model-file sanitizers do.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — add-provider IDs are now limited to letters, numbers, dot, dash, and underscore after spaces are stripped
 
 ### Bug 37 — Severity: LOW — Category: stale prop / external change
 **Location:** SetupScreens.kt:707-709 (`ExternalServicesScreen` `hfKey`/`orKey`/`aaKey` `remember`)
 **Symptom:** The three key fields are `remember { mutableStateOf(prop) }` without keying on the incoming prop. If the key changes elsewhere while the screen is open (e.g. an All-bundle import on another screen, or a reset), the field keeps showing the stale value.
 **Root cause:** `remember` not keyed on the prop (and no re-sync effect).
 **Proposed fix:** Key the remember on the incoming value, or add a sync `LaunchedEffect`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — external-service key fields are now remembered with their incoming prop as the key
 
 ### Bug 38 — Severity: LOW — Category: count mismatch / unreachable category
 **Location:** SetupScreens.kt:361-365 (`PromptsSetupScreen.internalTotal`) and 399-414 (`InternalPromptsHubScreen`)
@@ -393,7 +393,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The developer test request builds `temperature` via `prefs.getString(...).toFloatOrNull()`; on a comma-decimal locale a `0,7` temperature entered on the API Test screen is dropped.
 **Root cause:** Dot-only `toFloatOrNull`.
 **Proposed fix:** Normalize comma→dot (dev-screen, low impact).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — developer test temperature now normalizes comma decimals before parsing
 
 ---
 
@@ -404,7 +404,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Same integer-truncation issue as CachesScreen — `b / (1024*1024)` shows e.g. a 1.8 MB log as "1 MB".
 **Root cause:** Integer division, no decimal.
 **Proposed fix:** Use `%.1f` (Locale.US).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — app log sizes now use one-decimal `Locale.US` KB/MB formatting
 
 ### Bug 44 — Severity: LOW — Category: main-thread work
 **Location:** AppLogScreen.kt:184-187 (`confirmClearAll`) and 207-209 (`confirmTrim`)

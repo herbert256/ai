@@ -280,7 +280,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Rotation resets the "older than (days)" field back to 30.
 **Root cause:** Plain `remember`.
 **Proposed fix:** `rememberSaveable`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the days field now uses `rememberSaveable`, so rotation preserves the typed value
 
 ---
 
@@ -298,7 +298,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** When case-folding changes string length (ß→ss, some Greek/Turkic forms), the highlighted preview window is offset from the actual match (no crash — indices are coerced).
 **Root cause:** Match offset is computed on the lower-cased copy but the slice is taken from the original; the comment acknowledges this.
 **Proposed fix:** Compute the window on the original string via a case-insensitive `indexOf`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — preview offsets now come from `message.content.indexOf(query, ignoreCase = true)` on the original string
 
 ### Bug 39 — Severity: LOW — Category: performance
 **Location:** ChatHistory.kt:148-185 (`searchInChats`)
@@ -312,7 +312,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Search results are dropped on rotation; the screen briefly shows "No matches" until the `LaunchedEffect(historyVersion, hasSearched)` re-runs the search.
 **Root cause:** `searchResults` is plain `remember` while `searchQuery`/`hasSearched` are saveable, so the trio is inconsistent across recreation.
 **Proposed fix:** Re-run search deterministically on restore, or persist a lightweight result set.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — restored searches now initialize `isSearching` from the saved query/trigger so results reload without a no-matches flash
 
 ---
 
@@ -335,7 +335,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Creating a KB runs the manifest mkdir + JSON write on the main thread in the button's onClick.
 **Root cause:** `KnowledgeStore.createKnowledgeBase(...)` is called directly (not in `withContext(Dispatchers.IO)`), unlike every other store mutation in this file.
 **Proposed fix:** Wrap the create in `scope.launch(Dispatchers.IO) { … }` then navigate on completion.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — KB creation now runs in a coroutine with the manifest write on `Dispatchers.IO`, guarded against duplicate taps
 
 ### Bug 43 — Severity: LOW — Category: coroutine lifecycle
 **Location:** KnowledgeScreens.kt:311-313, 327-329, 353-354, 463-465 (progress callbacks `scope.launch(Dispatchers.Main) { status = … }`)
@@ -349,14 +349,14 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Any unknown/binary file (e.g. a `.zip`, image, or proprietary doc) falls through to `KnowledgeSourceType.TEXT` and is "indexed" as garbage text rather than rejected.
 **Root cause:** The final `else` returns `TEXT` for everything, including non-text MIME types.
 **Proposed fix:** Return null/refuse for clearly-binary MIME types and surface "unsupported source type".
-**Status:** Open
+**Status:** Fixed (2026-06-07) — unsupported/unknown and common binary MIME types now return null, and ingest shows an unsupported-source status instead of indexing as text
 
 ### Bug 45 — Severity: LOW — Category: state loss
 **Location:** KnowledgeScreens.kt:166, 178 (`name`, `selected` via plain `remember`)
 **Symptom:** Rotating the New-KB screen clears the typed name and resets the embedder pick.
 **Root cause:** Plain `remember`; only `resumeTick`-keyed lists are reactive.
 **Proposed fix:** `rememberSaveable` for `name`; persist the selected option key.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the New-KB name and provider/model selection key now use saveable state
 
 ### Bug 46 — Severity: LOW — Category: reactivity
 **Location:** KnowledgeScreens.kt:297-343 (auto-ingest `LaunchedEffect(kb?.id, pendingUris)` + `refreshTick++` inside the loop)
@@ -374,7 +374,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** An empty `if` block that does nothing.
 **Root cause:** Leftover from a refactor; the body was moved into the second `if (provider != null)` immediately below.
 **Proposed fix:** Delete the empty block.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — removed the empty provider-null check block
 
 ### Bug 48 — Severity: LOW — Category: race / duplicate fetch
 **Location:** ModelScreens.kt:137-159 (`ModelInfoCache`)
@@ -388,7 +388,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** For a non-LOCAL provider whose `baseUrl` host can't be parsed (null), the count falls back to model-name-only matching, conflating same-named models across providers — the exact bug the host match was added to prevent.
 **Root cause:** `providerHost == null || tf.hostname.equals(providerHost)` — a null host disables the host filter entirely.
 **Proposed fix:** When the host can't be derived for a non-LOCAL provider, count nothing (or log) rather than matching by model name alone.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — non-local providers with an unparseable host now report zero trace matches instead of model-name-only matches
 
 ### Bug 50 — Severity: LOW — Category: main-thread I/O
 **Location:** ModelScreens.kt:489-491, 666-685, 815-817 (`getManualPricing`, `getLiteLLMRawEntry`, `getTierBreakdown`, etc. in `remember`)
@@ -451,7 +451,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The result list can contain fewer than 10 hits even when more than 10 reports have positive similarity, because the `> 0.0` filter is applied *after* `take(10)` — any zero/negative scores in the top 10 are dropped without being backfilled from rank 11+.
 **Root cause:** Filter ordered after the take.
 **Proposed fix:** `.filter { it.score > 0.0 }.take(10)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — positive-score filtering now happens before the top-10 truncation
 
 ### Bug 57 — Severity: LOW — Category: provider coverage
 **Location:** SemanticSearchScreen.kt:204-212 (`supportedEmbeddingChoices`)
@@ -483,7 +483,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Same post-`take` filter ordering as Bug 56 — can return fewer than 10 results when zero-score items occupy top ranks.
 **Root cause:** Filter after take.
 **Proposed fix:** `.filter { it.score > 0.0 }.take(10)`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — local semantic search now filters positive scores before taking the top 10
 
 ---
 
@@ -501,7 +501,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The needle is pre-lowercased *and* matched with `ignoreCase = true`, which double-handles casing and can subtly interact (lowercased needle vs locale-aware case-insensitive compare).
 **Root cause:** Redundant case handling.
 **Proposed fix:** Drop the `lowercase` (rely on `ignoreCase`) or drop `ignoreCase` (rely on the pre-lowercased needle against a lowercased haystack).
-**Status:** Open
+**Status:** Fixed (2026-06-07) — quick search now trims the query and relies on `contains(..., ignoreCase = true)` for casing
 
 ---
 

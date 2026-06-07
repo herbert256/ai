@@ -148,22 +148,11 @@ private data class ChatSearchResult(
 private suspend fun searchInChats(query: String): List<ChatSearchResult> = withContext(Dispatchers.IO) {
     val results = mutableListOf<ChatSearchResult>()
     val sessions = ChatHistoryManager.getAllSessions()
-    // Locale.ROOT for stable case-folding: on Turkish locale,
-    // `i.lowercase()` produces a dotless ı that doesn't match a
-    // dotted-i in the haystack, breaking search across the locale
-    // boundary.
-    val lowerQuery = query.lowercase(java.util.Locale.ROOT)
 
     for (session in sessions) {
         for (message in session.messages) {
-            val lowerContent = message.content.lowercase(java.util.Locale.ROOT)
-            if (lowerContent.contains(lowerQuery)) {
-                // Offsets are computed on the case-folded copy but the preview
-                // is sliced from the original; for most text these align, but
-                // case-folding can change length (ß → "ss", some Greek/Turkic
-                // forms), so coerce every index against the ORIGINAL length to
-                // avoid StringIndexOutOfBoundsException / mid-grapheme slices.
-                val matchIndex = lowerContent.indexOf(lowerQuery).coerceIn(0, message.content.length)
+            val matchIndex = message.content.indexOf(query, ignoreCase = true)
+            if (matchIndex >= 0) {
                 val start = (matchIndex - 40).coerceIn(0, message.content.length)
                 val end = (matchIndex + query.length + 40).coerceIn(start, message.content.length)
                 val preview = (if (start > 0) "..." else "") +
@@ -195,7 +184,9 @@ fun ChatSearchScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ChatSearchResult>>(emptyList()) }
     var hasSearched by rememberSaveable { mutableStateOf(false) }
-    var isSearching by remember { mutableStateOf(false) }
+    var isSearching by remember(hasSearched, searchQuery) {
+        mutableStateOf(hasSearched && searchQuery.isNotBlank())
+    }
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()) }
     val focusRequester = remember { FocusRequester() }
     val historyVersion by ChatHistoryManager.historyVersion.collectAsState()

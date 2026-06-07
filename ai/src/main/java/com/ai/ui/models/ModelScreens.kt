@@ -243,9 +243,9 @@ fun ModelInfoScreen(
             // match exists to prevent.
             val providerHost = if (provider.id == "LOCAL") "local"
                 else runCatching { java.net.URI(provider.baseUrl).host?.lowercase() }.getOrNull()
+            if (providerHost == null) return@withContext 0
             ApiTracer.getTraceFiles().count { tf ->
-                tf.model == modelName &&
-                    (providerHost == null || tf.hostname.equals(providerHost, ignoreCase = true))
+                tf.model == modelName && tf.hostname.equals(providerHost, ignoreCase = true)
             }
         }
     }
@@ -1327,8 +1327,6 @@ private fun ModelRawInfoScreen(
                 { com.ai.ui.shared.shareText(context, body, "Model info — ${provider?.displayName ?: title}") }
             }
         )
-        if (provider != null) {
-        }
         if (provider != null) {
             calledUrl?.let { url ->
                 Text(

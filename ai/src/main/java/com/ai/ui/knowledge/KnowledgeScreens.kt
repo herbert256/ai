@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -162,8 +163,9 @@ fun NewKnowledgeBaseScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
-    var name by remember { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf("") }
     // Re-list local models on ON_RESUME so one installed in Housekeeping shows
     // up on return (was an unkeyed remember that stayed stale).
     val resumeTick = com.ai.ui.shared.resumeRefreshTick()
@@ -175,13 +177,21 @@ fun NewKnowledgeBaseScreen(
         val remote = remoteEmbedders.map { (svc, m) -> Triple(svc.id, m, "${svc.id} · $m") }
         local + remote
     }
-    var selected by remember { mutableStateOf(options.firstOrNull()) }
+    fun optionKey(opt: Triple<String, String, String>) = opt.first + "\u001F" + opt.second
+    var selectedKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val selected = remember(options, selectedKey) {
+        options.firstOrNull { optionKey(it) == selectedKey } ?: options.firstOrNull()
+    }
     // Revalidate the selection when the option set changes so a stale pick
     // (e.g. the model was removed) falls back to a valid one.
-    LaunchedEffect(options) {
-        if (selected == null || selected !in options) selected = options.firstOrNull()
+    LaunchedEffect(options, selectedKey) {
+        if (selected == null) selectedKey = null
+        else if (selectedKey == null || options.none { optionKey(it) == selectedKey }) {
+            selectedKey = optionKey(selected)
+        }
     }
     var pickerOpen by remember { mutableStateOf(false) }
+    var creating by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "knowledge_new", title = "New knowledge base", subject = "Name a base to add documents to", onBackClick = onBack)
@@ -230,7 +240,7 @@ fun NewKnowledgeBaseScreen(
                                     com.ai.ui.shared.ModelAdvisoryCaptions(state)
                                 }
                             },
-                            onClick = { selected = opt; pickerOpen = false }
+                            onClick = { selectedKey = optionKey(opt); pickerOpen = false }
                         )
                     }
                 }
@@ -242,10 +252,20 @@ fun NewKnowledgeBaseScreen(
         Button(
             onClick = {
                 val (providerId, model, _) = selected ?: return@Button
-                val kb = KnowledgeStore.createKnowledgeBase(context, name.ifBlank { "Knowledge base" }, providerId, model)
-                onCreated(kb.id)
+                if (creating) return@Button
+                creating = true
+                scope.launch {
+                    try {
+                        val kb = withContext(Dispatchers.IO) {
+                            KnowledgeStore.createKnowledgeBase(context, name.ifBlank { "Knowledge base" }, providerId, model)
+                        }
+                        onCreated(kb.id)
+                    } finally {
+                        creating = false
+                    }
+                }
             },
-            enabled = selected != null,
+            enabled = selected != null && !creating,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Create", maxLines = 1, softWrap = false) }
@@ -319,10 +339,14 @@ fun KnowledgeDetailScreen(
                     )
                 } else {
                     val uri = runCatching { Uri.parse(trimmed) }.getOrNull() ?: continue
-                    val type = pickTypeForUri(context, uri)
                     // Append the batch index so two share-target files arriving
                     // in the same millisecond don't collide on the fallback name.
                     val displayName = displayNameForUri(context, uri) ?: "shared_${System.currentTimeMillis()}_$uriIdx"
+                    val type = pickTypeForUri(context, uri)
+                    if (type == null) {
+                        status = "Unsupported source type: $displayName"
+                        continue
+                    }
                     status = "Reading $displayName…"
                     val result = withContext(Dispatchers.IO) {
                         KnowledgeService.indexFile(context, repository, aiSettings, loaded.id, type, uri, displayName) { msg, _, _ ->
@@ -344,8 +368,12 @@ fun KnowledgeDetailScreen(
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val type = pickTypeForUri(context, uri)
         val displayName = displayNameForUri(context, uri) ?: "source_${System.currentTimeMillis()}"
+        val type = pickTypeForUri(context, uri)
+        if (type == null) {
+            status = "Unsupported source type: $displayName"
+            return@rememberLauncherForActivityResult
+        }
         scope.launch {
             working = true
             status = "Reading ${displayName}…"
@@ -517,8 +545,10 @@ fun KnowledgeDetailScreen(
  *  first (the SAF picker usually exposes a real filename); falls
  *  back to the URI's MIME type for share-target / document-provider
  *  URIs that hand us an opaque content:// without a useful name.
- *  Plain text is the last-resort default. */
-internal fun pickTypeForUri(context: android.content.Context, uri: Uri): KnowledgeSourceType {
+ *  Plain text is accepted only for text MIME types or explicit text
+ *  extensions; binary/unknown files are rejected so they don't get indexed as
+ *  garbage text. */
+internal fun pickTypeForUri(context: android.content.Context, uri: Uri): KnowledgeSourceType? {
     val name = displayNameForUri(context, uri).orEmpty().lowercase()
     val byExtension = when {
         name.endsWith(".pdf") -> KnowledgeSourceType.PDF
@@ -544,10 +574,28 @@ internal fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowled
         "text/tab-separated-values" -> KnowledgeSourceType.CSV
         else -> when {
             mime?.startsWith("text/") == true -> KnowledgeSourceType.TEXT
-            else -> KnowledgeSourceType.TEXT
+            isBinaryMime(mime) || mime == null -> null
+            else -> null
         }
     }
 }
+
+private fun isBinaryMime(mime: String?): Boolean =
+    mime != null && (
+        mime.startsWith("image/") ||
+            mime.startsWith("audio/") ||
+            mime.startsWith("video/") ||
+            mime.startsWith("font/") ||
+            mime == "application/octet-stream" ||
+            mime == "application/zip" ||
+            mime == "application/x-zip-compressed" ||
+            mime == "application/gzip" ||
+            mime == "application/x-tar" ||
+            mime == "application/x-7z-compressed" ||
+            mime == "application/vnd.rar" ||
+            mime == "application/x-msdownload" ||
+            mime == "application/vnd.android.package-archive"
+        )
 
 internal fun displayNameForUri(context: android.content.Context, uri: Uri): String? {
     return runCatching {

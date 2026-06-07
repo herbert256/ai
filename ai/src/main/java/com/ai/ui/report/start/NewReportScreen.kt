@@ -571,8 +571,11 @@ private suspend fun ingestSharedKb(
             }
         } else {
             val u = android.net.Uri.parse(trimmed)
-            val type = pickTypeForUri(context, u)
             val displayName = displayNameForUri(context, u) ?: "shared_${System.currentTimeMillis()}"
+            val type = pickTypeForUri(context, u) ?: run {
+                onProgress("Skipping unsupported source: $displayName")
+                return@forEachIndexed
+            }
             KnowledgeService.indexFile(context, repository, aiSettings, kb.id, type, u, displayName) { msg, _, _ ->
                 onProgress("(${idx + 1}/${uris.size}) $displayName: $msg")
             }

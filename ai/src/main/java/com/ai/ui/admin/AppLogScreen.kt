@@ -33,6 +33,7 @@ import com.ai.ui.shared.shareText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 // ===== App Log list =====
 
@@ -300,8 +301,8 @@ private fun AppLogListItem(info: AppLogFileInfo, onClick: () -> Unit) {
 
 private fun formatBytes(b: Long): String = when {
     b < 1024 -> "$b B"
-    b < 1024 * 1024 -> "${b / 1024} KB"
-    else -> "${b / (1024 * 1024)} MB"
+    b < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", b.toDouble() / 1024.0)
+    else -> String.format(Locale.US, "%.1f MB", b.toDouble() / (1024.0 * 1024.0))
 }
 
 // ===== App Log detail =====

@@ -246,7 +246,7 @@ private suspend fun runLocalEmbedSearch(
     cached.map { c ->
         LocalSemanticHit(c.reportId, c.title, c.timestamp,
             EmbeddingsStore.cosine(queryVec, c.vec), iconById[c.reportId])
-    }.sortedByDescending { it.score }.take(10).filter { it.score > 0.0 }
+    }.sortedByDescending { it.score }.filter { it.score > 0.0 }.take(10)
 }
 
 private data class EmbedCandidate(val reportId: String, val repText: String, val title: String, val timestamp: String)

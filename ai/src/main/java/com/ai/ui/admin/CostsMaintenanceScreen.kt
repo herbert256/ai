@@ -58,6 +58,9 @@ fun CostsMaintenanceScreen(
     fun readFromUri(uri: android.net.Uri): String? {
         return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
     }
+    fun parsePerMillion(raw: String): Double? =
+        raw.trim().replace(',', '.').toDoubleOrNull()?.div(1_000_000)
+
     fun buildLayeredCsv(filterCovered: Boolean): Pair<String, Int> {
         fun fmt(p: Double?): String = p?.let { "%.4f".format(java.util.Locale.US, it * 1_000_000) } ?: ""
         val header = "provider,model,new_input_per_million,new_output_per_million," +
@@ -118,34 +121,46 @@ fun CostsMaintenanceScreen(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val csv = readFromUri(uri)
-        if (csv.isNullOrBlank()) {
-            Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult
-        }
-        var imported = 0; var skipped = 0
-        csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
-            val parts = parseCsvRow(line)
-            if (parts.size < 4) return@forEach
-            val rawIn = parts[2].trim()
-            val rawOut = parts[3].trim()
-            if (rawIn.isEmpty() && rawOut.isEmpty()) return@forEach
-            val provider = AppService.findById(parts[0].trim())
-            val model = parts[1].trim()
-            var inp = rawIn.toDoubleOrNull()?.div(1_000_000)
-            var outp = rawOut.toDoubleOrNull()?.div(1_000_000)
-            // Single-column edit (only one of input/output filled): keep the
-            // other side at whatever the lookup currently returns so a
-            // one-column correction doesn't get silently skipped.
-            if (provider != null && model.isNotBlank() && (inp != null || outp != null)) {
-                if (inp == null || outp == null) {
-                    val current = PricingCache.getPricing(context, provider, model)
-                    if (inp == null) inp = current.promptPrice
-                    if (outp == null) outp = current.completionPrice
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                val csv = readFromUri(uri)
+                if (csv.isNullOrBlank()) return@withContext null
+                var imported = 0
+                var skipped = 0
+                csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
+                    val parts = parseCsvRow(line)
+                    if (parts.size < 4) return@forEach
+                    val rawIn = parts[2].trim()
+                    val rawOut = parts[3].trim()
+                    if (rawIn.isEmpty() && rawOut.isEmpty()) return@forEach
+                    val provider = AppService.findById(parts[0].trim())
+                    val model = parts[1].trim()
+                    var inp = parsePerMillion(rawIn)
+                    var outp = parsePerMillion(rawOut)
+                    // Single-column edit (only one of input/output filled): keep the
+                    // other side at whatever the lookup currently returns so a
+                    // one-column correction doesn't get silently skipped.
+                    if (provider != null && model.isNotBlank() && (inp != null || outp != null)) {
+                        if (inp == null || outp == null) {
+                            val current = PricingCache.getPricing(context, provider, model)
+                            if (inp == null) inp = current.promptPrice
+                            if (outp == null) outp = current.completionPrice
+                        }
+                        PricingCache.setManualPricing(context, provider, model, inp!!, outp!!)
+                        imported++
+                    } else {
+                        skipped++
+                    }
                 }
-                PricingCache.setManualPricing(context, provider, model, inp!!, outp!!); imported++
-            } else skipped++
+                imported to skipped
+            }
+            if (result == null) {
+                Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show()
+            } else {
+                val (imported, skipped) = result
+                Toast.makeText(context, "Imported $imported overrides" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
+            }
         }
-        Toast.makeText(context, "Imported $imported overrides" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {

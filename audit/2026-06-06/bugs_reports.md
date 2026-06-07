@@ -82,14 +82,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** In TYPES mode (grouping by trace/cost type) an empty group still reads "No items for this model".
 **Root cause:** The empty-state string is hardcoded for the MODELS dimension; it is not branched on `isModels`.
 **Proposed fix:** Use `if (isModels) "No items for this model" else "No items for this type"`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the L2 empty state now says model or type based on the active grouping
 
 ### Bug 11 — Severity: LOW — Category: cosmetic inconsistency
 **Location:** TranslationL2.kt:168-172 (per-row cost cell)
 **Symptom:** Each L2 row always renders a cost cell via `formatCents(item.costDollars)` even when the cost is 0.0, while the header (line 115) and the L1 rows gate the cost on `cost > 0.0`. A queued/pending item shows "0.0000".
 **Root cause:** The row's third column is unconditional, unlike every sibling cost cell which hides zero.
 **Proposed fix:** Gate the row cost on `item.costDollars > 0.0` (or render an em-dash) for consistency.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — L2 row cost cells now render blank when the item cost is zero
 
 ## File: ai/src/main/java/com/ai/ui/report/manage/TranslationL3.kt
 
@@ -150,14 +150,14 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** The translate-pair list uses index-based identity; when the row set changes (a new translation lands, or a report swap repopulates), Compose reuses item state by position rather than by `SecondaryResult.id`.
 **Root cause:** No `key = { it.id }` on the `items` call. The `expanded` map is keyed by `row.id` so the user-visible collapse state survives, but recomposition/animation efficiency and any future per-row remember would mis-associate.
 **Proposed fix:** Add `key = { it.id }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — Translate view rows now use `SecondaryResult.id` as their LazyColumn key
 
 ### Bug 19 — Severity: LOW — Category: state leak across report swipe
 **Location:** Translate.kt:120 (`val expanded = remember { TranslateExpansionMap() }`)
 **Symptom:** The read-more/collapse expansion map is `remember`ed without a key on `currentReportId`, so after a title-bar swipe to a different report the previous report's expansion entries persist in the map.
 **Root cause:** `remember { }` survives the in-place report swap (the composable isn't remounted). Entries are keyed by `row.id` so there is no visible mismatch, but the map accumulates stale entries across every swiped-through report.
 **Proposed fix:** `remember(currentReportId) { TranslateExpansionMap() }`.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — expansion state now keys on `currentReportId` so swiping reports clears stale row entries
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Main.kt
 
@@ -194,7 +194,7 @@ numbered continuously. Every location was read from the live code (2026-06-06).
 **Symptom:** `sortedTiles` recomputes on every recomposition.
 **Root cause:** `combinedTiles` is built with `+` list concatenation outside `remember`, so a new list instance is created each pass; `remember(combinedTiles, savedOrder)` then sees a new key every time and re-sorts.
 **Proposed fix:** Wrap `combinedTiles` in `remember(docTiles, metaTiles, fanOutTiles, fanInTiles, computedTiles)`, or key `sortedTiles` on the stable component lists rather than the concatenated instance.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — combined tile concatenation is now remembered from the stable component lists before sorting
 
 ## File: ai/src/main/java/com/ai/ui/report/view/Meta.kt
 

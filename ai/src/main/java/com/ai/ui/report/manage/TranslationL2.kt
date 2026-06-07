@@ -122,7 +122,11 @@ internal fun TranslationL2Screen(
 
         if (rows.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("No items for this model", color = AppColors.TextSecondary, fontSize = 14.sp)
+                Text(
+                    if (isModels) "No items for this model" else "No items for this type",
+                    color = AppColors.TextSecondary,
+                    fontSize = 14.sp
+                )
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
@@ -166,7 +170,7 @@ internal fun TranslationL2Screen(
                             modifier = Modifier.weight(1f).padding(end = 10.dp)
                         )
                         Text(
-                            formatCents(item.costDollars),
+                            if (item.costDollars > 0.0) formatCents(item.costDollars) else "",
                             fontSize = cellSize, color = cellColor,
                             maxLines = 1, softWrap = false
                         )

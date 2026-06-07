@@ -259,7 +259,7 @@ private suspend fun runEmbeddingSearch(
     return cached.map { c ->
         SearchHit(c.reportId, c.title, c.timestamp,
             EmbeddingsStore.cosine(queryVec, c.vec), iconById[c.reportId])
-    }.sortedByDescending { it.score }.take(10).filter { it.score > 0.0 }
+    }.sortedByDescending { it.score }.filter { it.score > 0.0 }.take(10)
 }
 
 private data class CloudEmbedCandidate(val reportId: String, val repText: String, val title: String, val timestamp: String)

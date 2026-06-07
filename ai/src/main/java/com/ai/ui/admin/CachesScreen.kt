@@ -41,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 
 /**
  * Housekeeping → Caches. A hub over every on-disk cache the app keeps
@@ -476,7 +477,7 @@ private fun dirSize(context: Context, name: String): Long =
     File(context.filesDir, name).listFiles()?.sumOf { it.length() } ?: 0L
 
 private fun formatBytes(bytes: Long): String = when {
-    bytes >= 1024L * 1024 -> "${bytes / (1024L * 1024)} MB"
-    bytes >= 1024L -> "${bytes / 1024L} KB"
+    bytes >= 1024L * 1024 -> String.format(Locale.US, "%.1f MB", bytes.toDouble() / (1024.0 * 1024.0))
+    bytes >= 1024L -> String.format(Locale.US, "%.1f KB", bytes.toDouble() / 1024.0)
     else -> "$bytes B"
 }

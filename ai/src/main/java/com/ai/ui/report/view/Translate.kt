@@ -117,7 +117,7 @@ fun TranslateViewScreen(
         ?: rows.firstOrNull()?.targetLanguage
         ?: "(language)"
 
-    val expanded = remember { TranslateExpansionMap() }
+    val expanded = remember(currentReportId) { TranslateExpansionMap() }
 
     val onSwipePrevAction: () -> Boolean = {
         val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Translate)
@@ -206,7 +206,7 @@ fun TranslateViewScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
         ) {
-            items(rows) { row ->
+            items(rows, key = { it.id }) { row ->
                 TranslatePair(
                     row = row,
                     report = report,

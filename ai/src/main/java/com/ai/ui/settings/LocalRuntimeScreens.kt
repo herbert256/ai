@@ -313,9 +313,10 @@ fun LocalLlmsScreen(
                         )
                         TextButton(onClick = {
                             LocalLlm.release(name)
-                            File(LocalLlm.localLlmsDir(context), "$name.task").delete()
+                            val target = File(LocalLlm.localLlmsDir(context), "$name.task")
+                            val deleted = target.delete()
                             installed = LocalLlm.installedTaskFiles(context)
-                            status = "Removed $name"
+                            status = if (deleted) "Removed $name" else "Could not remove $name (file in use?)"
                         }) { Text("Remove", color = AppColors.DangerAccent, fontSize = 12.sp) }
                     }
                 }

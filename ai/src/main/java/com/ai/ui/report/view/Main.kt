@@ -1305,8 +1305,10 @@ internal fun ViewAiReportScreen(
             // with their count badge. Each carries a stable
             // identifier so the persisted tile order survives
             // per-report variability.
-            val combinedTiles = docTiles + metaTiles + fanOutTiles + fanInTiles +
-                computedTiles.map { IdentifiedTile("computed:${it.key}", it.tile) }
+            val combinedTiles = remember(docTiles, metaTiles, fanOutTiles, fanInTiles, computedTiles) {
+                docTiles + metaTiles + fanOutTiles + fanInTiles +
+                    computedTiles.map { IdentifiedTile("computed:${it.key}", it.tile) }
+            }
             val sortedTiles = remember(combinedTiles, savedOrder) {
                 val rankOf = savedOrder.withIndex().associate { it.value to it.index }
                 combinedTiles.sortedBy { rankOf[it.id] ?: Int.MAX_VALUE }
