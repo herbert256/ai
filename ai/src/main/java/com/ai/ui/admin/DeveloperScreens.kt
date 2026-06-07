@@ -347,7 +347,10 @@ fun EditApiRequestScreen(
             scope.launch {
                 isLoading = true
                 try {
-                    val traceCountBefore = ApiTracer.getTraceCount()
+                    val startedAt = System.currentTimeMillis()
+                    val expectedHost = runCatching {
+                        java.net.URI(apiUrl).host?.lowercase()
+                    }.getOrNull()
                     val wasEnabled = ApiTracer.isTracingEnabled
                     try {
                         ApiTracer.isTracingEnabled = true
@@ -359,7 +362,11 @@ fun EditApiRequestScreen(
                         ApiTracer.isTracingEnabled = wasEnabled
                     }
                     val traces = ApiTracer.getTraceFiles()
-                    val newTrace = if (ApiTracer.getTraceCount() > traceCountBefore) traces.firstOrNull()?.filename else null
+                    val newTrace = traces.firstOrNull { info ->
+                        info.timestamp >= startedAt &&
+                            (expectedHost == null || info.hostname.equals(expectedHost, ignoreCase = true)) &&
+                            (info.model.isNullOrBlank() || info.model == model)
+                    }?.filename
 
                     if (newTrace != null) {
                         onNavigateToTraceDetail(newTrace)

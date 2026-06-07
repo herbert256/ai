@@ -386,7 +386,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** After submitting the hand-crafted request, the screen identifies "this call's" trace as `getTraceFiles().firstOrNull()` whenever the count increased. A concurrent flow whose trace lands in the same window would be opened instead.
 **Root cause:** Newest-trace heuristic with no run/host correlation (the Agent test path, by contrast, filters by host and start time).
 **Proposed fix:** Correlate by a captured start timestamp + host like the Agent/Provider test flows.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — developer raw-request submit now captures start time and expected host, then opens the newest matching trace instead of the global newest trace.
 
 ### Bug 42 — Severity: LOW — Category: locale / comma-decimal
 **Location:** DeveloperScreens.kt:287 (`EditApiRequestScreen` temperature parse)
