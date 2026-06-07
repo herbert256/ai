@@ -279,7 +279,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Clearing the `sems`/`windows` maps while calls hold permits on the old (now-unreferenced) semaphores means the host can briefly run at up to old-cap + new-cap concurrency.
 **Root cause:** Documented; semaphore swap doesn't drain in-flight holders.
 **Proposed fix:** Acceptable for a user-driven setting tweak; note only.
-**Status:** Open
+**Status:** Closed — note-only item; `resetForNewLimits` already documents that in-flight calls release old semaphores correctly and that a brief old-cap plus new-cap overlap is acceptable for user-driven setting changes.
 
 ### Bug 37 — Severity: LOW — Category: interrupt handling
 **Location:** ProviderThrottling.kt:231-234, 109-121 (`Thread.sleep` in rate gate / `backoffSleep`)
