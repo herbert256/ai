@@ -407,9 +407,10 @@ data class GeneralSettings(
     val experimentalFeaturesEnabled: Boolean = false,
     /** Live Dashboard layout, persisted (and so backed up via eval_prefs):
      *  the card ids the user pinned (shown on the dashboard, open) and their
-     *  custom card order. Defaults to the three at-a-glance cards pinned;
+     *  custom card order. Default fresh-install pin set (applied by the
+     *  loader only when the key was never written — see SettingsPreferences);
      *  empty order = default order. Edited behind the ✏️ on the dashboard. */
-    val pinnedDashboardCards: Set<String> = setOf("live", "spend", "http"),
+    val pinnedDashboardCards: Set<String> = setOf("live", "spend", "http", "times", "slow", "throttle"),
     val dashboardCardOrder: List<String> = emptyList()
 ) {
     /** Effective gates — the grand-master [metadataEnabled] ANDed with
