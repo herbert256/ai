@@ -336,6 +336,7 @@ object AppLog {
     /** Replace common secret-bearing patterns in [text] with a redacted
      *  form. Catches the same shapes [TracingInterceptor] guards
      *  against — Bearer tokens, raw `sk-*` / `xai-*` / `gsk_*` keys,
+     *  long key-like values next to `apiKey`/`token`/`secret`, and
      *  Google `key=<...>` query params. */
     private fun redactSecret(text: String): String {
         if (text.isBlank()) return text
@@ -344,6 +345,8 @@ object AppLog {
         out = out.replace(BEARER_REGEX) { m -> "${m.groupValues[1]} [REDACTED]" }
         // OpenAI / xAI / Groq style raw keys leaking into messages
         out = out.replace(RAW_KEY_REGEX) { m -> "${m.groupValues[1]}[REDACTED]" }
+        // Provider keys without fixed prefixes, when logged next to a key-like field name
+        out = out.replace(CONTEXT_SECRET_REGEX) { m -> "${m.groupValues[1]}[REDACTED]" }
         // Google "?key=…" query params
         out = out.replace(GOOGLE_KEY_REGEX) { _ -> "key=[REDACTED]" }
         return out
@@ -351,5 +354,8 @@ object AppLog {
 
     private val BEARER_REGEX = Regex("""(?i)(Bearer|Basic)\s+[A-Za-z0-9._\-+/=]+""")
     private val RAW_KEY_REGEX = Regex("""(sk-|xai-|gsk_|key-)[A-Za-z0-9_\-]{16,}""")
+    private val CONTEXT_SECRET_REGEX = Regex(
+        """(?i)\b((?:api[_-]?key|key|token|secret|password|client[_-]?secret)\s*[:=]\s*["']?)[A-Za-z0-9._\-+/=]{24,}"""
+    )
     private val GOOGLE_KEY_REGEX = Regex("""key=[A-Za-z0-9_\-]{16,}""")
 }

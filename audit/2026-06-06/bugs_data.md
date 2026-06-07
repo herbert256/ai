@@ -568,7 +568,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Raw-key redaction only matches the prefixes `sk-`/`xai-`/`gsk_`/`key-`. Provider keys without those prefixes (Mistral 32-hex, Cohere, Together, DeepSeek, custom providers) embedded in an audit/log message are *not* redacted. Bearer headers are caught, but a key logged outside an `Authorization` header is not.
 **Root cause:** Prefix allow-list rather than entropy/context-based detection.
 **Proposed fix:** Add the known key formats for the wired providers, or redact any token longer than N chars adjacent to a `key`-like context.
-**Status:** Open
+**Status:** Fixed in `AuditLog.kt` and `AppLog.kt` by adding a context-based secret redaction pass for long values next to key/token/secret/password field names.
 
 ### Bug 74 — Severity: LOW — Category: unbounded audit growth
 **Location:** AuditLog.kt:185-202 (retention)

@@ -232,11 +232,15 @@ object AuditLog {
         var out = text
         out = out.replace(BEARER_REGEX) { m -> "${m.groupValues[1]} [REDACTED]" }
         out = out.replace(RAW_KEY_REGEX) { m -> "${m.groupValues[1]}[REDACTED]" }
+        out = out.replace(CONTEXT_SECRET_REGEX) { m -> "${m.groupValues[1]}[REDACTED]" }
         out = out.replace(GOOGLE_KEY_REGEX) { _ -> "key=[REDACTED]" }
         return out
     }
 
     private val BEARER_REGEX = Regex("""(?i)(Bearer|Basic)\s+[A-Za-z0-9._\-+/=]+""")
     private val RAW_KEY_REGEX = Regex("""(sk-|xai-|gsk_|key-)[A-Za-z0-9_\-]{16,}""")
+    private val CONTEXT_SECRET_REGEX = Regex(
+        """(?i)\b((?:api[_-]?key|key|token|secret|password|client[_-]?secret)\s*[:=]\s*["']?)[A-Za-z0-9._\-+/=]{24,}"""
+    )
     private val GOOGLE_KEY_REGEX = Regex("""key=[A-Za-z0-9_\-]{16,}""")
 }
