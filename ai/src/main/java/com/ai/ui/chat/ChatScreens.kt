@@ -379,6 +379,7 @@ fun ChatSessionScreen(
     }
     var moderationError by remember { mutableStateOf<String?>(null) }
     var isModerating by remember { mutableStateOf(false) }
+    var sendInFlight by rememberSaveable { mutableStateOf(false) }
 
     // Conditional outer BackHandler — disabled while the moderation
     // picker overlay or the flagged-input dialog is up so back-press
@@ -618,6 +619,7 @@ fun ChatSessionScreen(
                 }
             } finally {
                 isStreaming = false; streamingContentState.value = ""
+                sendInFlight = false
             }
         }
     }
@@ -630,6 +632,8 @@ fun ChatSessionScreen(
     // and the message is sent anyway (fail-open) so a temporary network
     // blip doesn't block conversation.
     fun trySend(input: String) {
+        if (sendInFlight) return
+        sendInFlight = true
         val mod = moderationModel
         val img = attachedImage
         // Reset any leftover moderation error from a previous turn —
@@ -640,6 +644,7 @@ fun ChatSessionScreen(
         if (mod == null) { actuallySend(input, img); return }
         scope.launch {
             isModerating = true
+            var handedOffToSend = false
             try {
                 com.ai.data.withTraceCategory("Chat validate input") {
                     val (modProvider, modModelId) = mod
@@ -653,6 +658,7 @@ fun ChatSessionScreen(
                     val r = results?.firstOrNull()
                     if (apiResult.errorMessage != null || r == null) {
                         moderationError = apiResult.errorMessage ?: "No moderation result"
+                        handedOffToSend = true
                         actuallySend(input, img)
                     } else if (r.flagged) {
                         val traceFilename = withContext(Dispatchers.IO) {
@@ -663,11 +669,15 @@ fun ChatSessionScreen(
                         }
                         pendingFlagged = FlaggedState(input, r, img, traceFilename)
                     } else {
+                        handedOffToSend = true
                         actuallySend(input, img)
                     }
                 }
             } finally {
                 isModerating = false
+                if (!handedOffToSend && pendingFlagged == null) {
+                    sendInFlight = false
+                }
             }
         }
     }
@@ -927,8 +937,8 @@ fun ChatSessionScreen(
                 maxLines = 4, colors = AppColors.outlinedFieldColors()
             )
             OutlinedButton(
-                onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating) trySend(userInput.trim()) },
-                enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating,
+                onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating && !sendInFlight) trySend(userInput.trim()) },
+                enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating && !sendInFlight,
                 colors = AppColors.outlinedButtonColors()
             ) { Text("Send", maxLines = 1, softWrap = false) }
         }
@@ -955,7 +965,10 @@ fun ChatSessionScreen(
     val flagged = pendingFlagged
     if (flagged != null) {
         AlertDialog(
-            onDismissRequest = { pendingFlagged = null },
+            onDismissRequest = {
+                pendingFlagged = null
+                sendInFlight = false
+            },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Input flagged by moderation", modifier = Modifier.weight(1f))
@@ -998,7 +1011,10 @@ fun ChatSessionScreen(
                 }) { Text("Proceed anyway", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingFlagged = null }) {
+                TextButton(onClick = {
+                    pendingFlagged = null
+                    sendInFlight = false
+                }) {
                     Text("Cancel", maxLines = 1, softWrap = false)
                 }
             }

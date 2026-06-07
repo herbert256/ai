@@ -113,7 +113,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** A very fast double-tap on Send can fire two sends (or two moderation calls) for one input.
 **Root cause:** The button's `enabled`/onClick guards on `isStreaming`/`isModerating`, but both flags are set inside the launched coroutine (`scope.launch { isStreaming = true … }`), which is dispatched, not run synchronously. Between `trySend` returning and the coroutine running, a second tap still sees the old (false) flags.
 **Proposed fix:** Set a synchronous in-flight guard (`if (sending) return; sending = true`) on the main thread before launching.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — `trySend` now sets a synchronous saveable `sendInFlight` guard before moderation/streaming launch and clears it only after streaming finishes or flagged input is dismissed
 
 ### Bug 15 — Severity: LOW — Category: performance
 **Location:** ChatScreens.kt:1101-1130 (`AnimatedTextLines`)
