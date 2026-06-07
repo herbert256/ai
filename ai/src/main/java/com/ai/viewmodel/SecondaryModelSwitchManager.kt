@@ -186,8 +186,10 @@ class SecondaryModelSwitchManager internal constructor(
             lookupLanguageTranslations(report, SecondaryResultStorage.listForReport(context, reportId), lang)?.bodiesByAgentId
         }
         val responses = report.agents
-            .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-            .map { translatedBodies?.get(it.agentId) ?: it.responseBody!! }
+            .mapNotNull {
+                if (it.reportStatus != ReportStatus.SUCCESS) return@mapNotNull null
+                translatedBodies?.get(it.agentId) ?: it.responseBody?.takeIf(String::isNotBlank)
+            }
         val (_, r) = callModerationApi(provider, apiKey, model, responses)
         if (r.errorMessage != null || r.content.isNullOrBlank()) {
             return ModelSwitchResult.Error(r.errorMessage ?: "No response body", r.httpStatusCode, r.durationMs, traceSink.get())
@@ -207,8 +209,10 @@ class SecondaryModelSwitchManager internal constructor(
         }
         val query = langCtx?.prompt?.takeIf { it.isNotBlank() } ?: report.prompt
         val docs = report.agents
-            .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-            .map { langCtx?.bodiesByAgentId?.get(it.agentId) ?: it.responseBody!! }
+            .mapNotNull {
+                if (it.reportStatus != ReportStatus.SUCCESS) return@mapNotNull null
+                langCtx?.bodiesByAgentId?.get(it.agentId) ?: it.responseBody?.takeIf(String::isNotBlank)
+            }
         val r = callRerankApi(provider, apiKey, model, query, docs)
         if (r.errorMessage != null || r.content.isNullOrBlank()) {
             return ModelSwitchResult.Error(r.errorMessage ?: "No response body", r.httpStatusCode, r.durationMs, traceSink.get())

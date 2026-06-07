@@ -634,7 +634,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** These `!!` are currently safe because each is preceded by a `filter { !it.X.isNullOrBlank() }`, but the guard and the assertion are textually separated (the filter is on one collection, the `!!` on the mapped element), so a future refactor that changes the filter predicate or reorders the map would turn these into NPEs at run time.
 **Root cause:** Invariant enforced by a distant filter rather than a local non-null binding.
 **Proposed fix:** Bind the non-null value inside the `mapNotNull`/`filter` (`val body = it.responseBody ?: return@mapNotNull null`) so the non-null is local and the `!!` disappears.
-**Status:** Open
+**Status:** Fixed in `SecondaryRunManager.kt`, `SecondaryModelSwitchManager.kt`, and `TranslationRunManager.kt` by replacing distant filter-plus-`!!` invariants with local non-null bindings.
 
 ## File: ai/src/main/java/com/ai/model/SettingsModels.kt
 

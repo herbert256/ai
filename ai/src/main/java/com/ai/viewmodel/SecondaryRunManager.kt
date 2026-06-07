@@ -150,8 +150,10 @@ class SecondaryRunManager(
                 withTracerTags(reportId = reportId, category = "after/rerank") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     val responses = report.agents
-                        .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                        .map { it.responseBody!! }
+                        .mapNotNull {
+                            val body = it.responseBody?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+                            if (it.reportStatus == ReportStatus.SUCCESS) body else null
+                        }
                     if (responses.isEmpty()) return@withTracerTags
                     val agentName = "Local / ${shortModelName(modelName)}"
                     val placeholder = SecondaryResultStorage.create(context, reportId, SecondaryKind.RERANK, "LOCAL", modelName, agentName)
@@ -1473,8 +1475,11 @@ class SecondaryRunManager(
                 lookupLanguageTranslations(report, secondaries, lang)?.bodiesByAgentId
             }
             val responses = report.agents
-                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                .map { agent -> translatedBodies?.get(agent.agentId) ?: agent.responseBody!! }
+                .mapNotNull { agent ->
+                    if (agent.reportStatus != ReportStatus.SUCCESS) return@mapNotNull null
+                    translatedBodies?.get(agent.agentId)
+                        ?: agent.responseBody?.takeIf(String::isNotBlank)
+                }
             val (_, r) = com.ai.data.callModerationApi(provider, apiKey, model, responses)
             // Persist Mistral's reported token usage + per-token cost
             // so the result row shows cents like the other meta runs.
@@ -1523,8 +1528,11 @@ class SecondaryRunManager(
             }
             val query = rerankLangCtx?.prompt?.takeIf { it.isNotBlank() } ?: report.prompt
             val docs = report.agents
-                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                .map { agent -> rerankLangCtx?.bodiesByAgentId?.get(agent.agentId) ?: agent.responseBody!! }
+                .mapNotNull { agent ->
+                    if (agent.reportStatus != ReportStatus.SUCCESS) return@mapNotNull null
+                    rerankLangCtx?.bodiesByAgentId?.get(agent.agentId)
+                        ?: agent.responseBody?.takeIf(String::isNotBlank)
+                }
             val r = com.ai.data.callRerankApi(provider, apiKey, model, query, docs)
             // Per-query pricing: cost = billedSearchUnits × perQueryPrice.
             // Stored on inputCost so the report cost table renders
