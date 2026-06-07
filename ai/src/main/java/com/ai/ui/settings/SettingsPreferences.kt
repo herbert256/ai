@@ -955,7 +955,20 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         return try {
             val raw = gson.fromJson<Any>(json, type)
             if (transform != null) transform(raw) else (raw as? List<T>) ?: emptyList()
-        } catch (_: Exception) { emptyList() }
+        } catch (_: Exception) {
+            // A single malformed element shouldn't drop the WHOLE list (e.g. all
+            // agents/swarms/prompts vanish). Re-parse the array element by
+            // element, keeping the good ones (audit data#82). Only for the plain
+            // List<T> path — the transform path handles its own shape.
+            if (transform != null) return emptyList()
+            val elemType = (type as? java.lang.reflect.ParameterizedType)
+                ?.actualTypeArguments?.firstOrNull() ?: return emptyList()
+            runCatching {
+                com.google.gson.JsonParser.parseString(json).asJsonArray.mapNotNull { el ->
+                    runCatching { gson.fromJson<T>(el, elemType) }.getOrNull()
+                }
+            }.getOrDefault(emptyList())
+        }
     }
 
     private fun loadMap(key: String): Map<String, String> {

@@ -643,7 +643,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `Agent.provider: AppService` (non-null) + `Agent.apiKey: String` (non-null). A persisted Agent whose provider id was removed throws in `AppServiceAdapter` (Bug 8) and, depending on the load path, either drops the agent silently or fails the whole settings blob; a settings blob missing `apiKey`/`name` deserializes them to null (Bug 1) and NPEs at use.
 **Root cause:** Settings sub-objects embed `AppService` and non-null Strings subject to the same Unsafe-allocator + adapter-throw issues as chat sessions.
 **Proposed fix:** Load agent/flock/swarm lists with per-item try (drop the bad one, keep the rest) and resolve unknown providers to a disabled placeholder rather than throwing.
-**Status:** Open (verify the settings loader's per-item resilience)
+**Status:** Fixed (2026-06-07) - provider-removal half resolved by data#8 (synthetic AppService, no throw); loadList now recovers element-by-element so one malformed agent/flock/swarm/prompt no longer drops the whole list
 
 ### Bug 83 — Severity: LOW — Category: secret in settings blob
 **Location:** SettingsModels.kt:111 (`Agent.apiKey: String`)
