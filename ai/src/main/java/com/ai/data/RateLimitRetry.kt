@@ -363,7 +363,7 @@ private fun cohereTrialQuotaExhausted(peekedBody: String?): Boolean = runCatchin
  *  type/code first (e.g. OpenAI's `insufficient_quota`), then a
  *  phrase fallback — all billing-specific wording that never
  *  appears in a plain "slow down" 429. */
-private fun creditOrSpendingLimitExhausted(peekedBody: String?): Boolean = runCatching {
+internal fun creditOrSpendingLimitExhausted(peekedBody: String?): Boolean = runCatching {
     val body = peekedBody ?: return false
     val typeOrCode = runCatching {
         val obj = com.google.gson.JsonParser.parseString(body).asJsonObject
@@ -375,10 +375,15 @@ private fun creditOrSpendingLimitExhausted(peekedBody: String?): Boolean = runCa
         ).joinToString(" ")
     }.getOrDefault("")
     if (typeOrCode.contains("insufficient_quota", ignoreCase = true)) return@runCatching true
+    // Unambiguous billing wording only. Dropped "billing details" and
+    // "exceeded your current quota" (audit data#30): both also appear in plain
+    // RATE-limit 429 bodies, so they caused a 6h bench for a 429 a quick retry
+    // would have cleared. OpenAI's real billing 429 is already caught above via
+    // the structured insufficient_quota type/code.
     val needles = listOf(
         "spending limit", "all available credits", "purchase more credits",
         "insufficient credits", "insufficient balance", "credit balance is too low",
-        "out of credits", "billing details", "exceeded your current quota"
+        "out of credits"
     )
     needles.any { body.contains(it, ignoreCase = true) }
 }.getOrDefault(false)

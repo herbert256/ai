@@ -233,7 +233,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A transient rate-limit 429 whose body happens to contain a phrase like `"billing details"` or `"exceeded your current quota"` (some providers use "quota" wording for *rate* limits) is mis-classified as out-of-credits and the model is benched for 6 hours, taking it out of every picker even though a quick retry would have cleared it.
 **Root cause:** Substring phrase matching on the error body (line 378-383) overlaps with rate-limit wording; `"exceeded your current quota"` in particular is OpenAI's `insufficient_quota` message but is also used loosely elsewhere.
 **Proposed fix:** Prefer the structured `type`/`code` check only (`insufficient_quota`); drop the loose phrase fallback or require it to co-occur with an explicit billing error type.
-**Status:** Open
+**Status:** Fixed (2026-06-07) - dropped the loose 'billing details' / 'exceeded your current quota' needles (overlap rate-limit wording); structured insufficient_quota + unambiguous billing phrases only
 
 ### Bug 31 — Severity: LOW — Category: model resolution on bench
 **Location:** RateLimitRetry.kt:292-304 (`modelForRequest`)
