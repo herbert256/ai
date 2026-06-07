@@ -242,7 +242,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The confirmation dialog computes report/chat/trace counts by enumerating all reports, chat sessions, and trace files synchronously on the UI thread (acknowledged in the comment). For a device with many reports/traces this janks when the dialog opens.
 **Root cause:** Counts read disk in composition rather than on `Dispatchers.IO`.
 **Proposed fix:** Compute the counts in a `LaunchedEffect`/`produceState` off the main thread.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — the trim confirmation now computes report/chat/trace counts in `produceState` on `Dispatchers.IO` and enables Trim after the snapshot loads.
 
 ---
 
