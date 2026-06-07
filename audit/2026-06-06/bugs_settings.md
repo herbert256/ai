@@ -21,7 +21,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Root cause:** `buildParams` parses every float field with `temperature.toFloatOrNull()` / `topP.toFloatOrNull()` etc. `Float.parseFloat` is locale-independent and only accepts `.`; `"0,7".toFloatOrNull()` returns null. No comma→dot normalization. The preset is auto-saved (edit) / Created (add) with the field cleared.
 **Reproduction:** On nl-NL, edit a Parameters preset → Temperature `0,7` → the preset persists with temperature = null; the model call uses no temperature.
 **Proposed fix:** Normalize `,`→`.` before `toFloatOrNull`/`toIntOrNull`, or parse via the device-locale `NumberFormat`. Apply to all numeric fields here.
-**Status:** Open
+**Status:** Fixed (2026-06-07) — float fields normalize comma→dot before toFloatOrNull (decimalToFloat)
 
 ---
 

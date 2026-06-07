@@ -69,10 +69,14 @@ fun ParametersEditScreen(
         )
         // Preserve stopSequences from the existing preset (no editor UI yet,
         // but the data model carries them — saving null dropped imported lists).
+        // Normalize comma→dot before parsing: the Decimal keyboard surfaces a
+        // comma key on comma-decimal locales (nl-NL), and toFloatOrNull is
+        // dot-only, so "0,7" would silently parse to null and drop the value.
+        fun String.decimalToFloat(): Float? = replace(',', '.').toFloatOrNull()
         fun buildParams(id: String) = Parameters(
-            id, name.trim(), temperature.toFloatOrNull(), maxTokens.toIntOrNull(),
-            topP.toFloatOrNull(), topK.toIntOrNull(), frequencyPenalty.toFloatOrNull(),
-            presencePenalty.toFloatOrNull(), systemPrompt.takeIf { it.isNotBlank() },
+            id, name.trim(), temperature.decimalToFloat(), maxTokens.toIntOrNull(),
+            topP.decimalToFloat(), topK.toIntOrNull(), frequencyPenalty.decimalToFloat(),
+            presencePenalty.decimalToFloat(), systemPrompt.takeIf { it.isNotBlank() },
             params?.stopSequences,
             seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
             searchRecency.takeIf { it.isNotBlank() },
