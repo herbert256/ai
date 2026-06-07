@@ -243,9 +243,9 @@ private suspend fun runLocalEmbedSearch(
         }
     }
 
-    cached.map { c ->
-        LocalSemanticHit(c.reportId, c.title, c.timestamp,
-            EmbeddingsStore.cosine(queryVec, c.vec), iconById[c.reportId])
+    cached.mapNotNull { c ->
+        val score = EmbeddingsStore.cosine(queryVec, c.vec)
+        if (score.isNaN()) null else LocalSemanticHit(c.reportId, c.title, c.timestamp, score, iconById[c.reportId])
     }.sortedByDescending { it.score }.filter { it.score > 0.0 }.take(10)
 }
 

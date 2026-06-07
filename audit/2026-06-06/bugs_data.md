@@ -348,7 +348,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `cosine` returns 0.0 on a dim mismatch (with a warn log). A caller comparing a remote (List<Double>) cache vector against a re-embedded vector of a different dimension gets "no similarity" rather than an error — RAG retrieval silently returns nothing when the embedder changed but stale vectors remain on disk.
 **Root cause:** Dim mismatch maps to 0.0, indistinguishable from "genuinely orthogonal".
 **Proposed fix:** Already mitigated for KnowledgeService (it skips mismatched chunks with a warn). For any other consumer, return a sentinel/throw so the swap is surfaced, not silently zeroed.
-**Status:** Open
+**Status:** Fixed in `EmbeddingsStore.kt` by returning `NaN` for `List<Double>` dimension mismatches and updating semantic-search/local-rerank callers to skip or report invalid scores.
 
 ### Bug 46 — Severity: LOW — Category: cache read robustness
 **Location:** EmbeddingsStore.kt:49-53 (`get`)

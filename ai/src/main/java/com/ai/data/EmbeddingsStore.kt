@@ -106,15 +106,15 @@ object EmbeddingsStore {
         try { File(dir(context), "$key.json").delete() } catch (_: Exception) { false }
 
     /** Cosine similarity. Returns 0.0 when either vector is empty.
-     *  Logs a warning + returns 0.0 on a dim mismatch — the previous
-     *  silent-zero path made a "wrong embedder" mistake look like
-     *  "no relevant hits" with no breadcrumb anywhere. */
+     *  Logs a warning + returns NaN on a dim mismatch so callers can
+     *  distinguish "wrong embedder / stale vector" from a genuinely
+     *  orthogonal score. */
     fun cosine(a: List<Double>, b: List<Double>): Double {
         if (a.isEmpty() || b.isEmpty()) return 0.0
         if (a.size != b.size) {
             AppLog.w("EmbeddingsStore",
                 "cosine: dim mismatch a=${a.size} b=${b.size} — embedder swapped without re-embed?")
-            return 0.0
+            return Double.NaN
         }
         var dot = 0.0
         var normA = 0.0

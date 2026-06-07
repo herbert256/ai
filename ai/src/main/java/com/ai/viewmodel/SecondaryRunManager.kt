@@ -172,10 +172,18 @@ class SecondaryRunManager(
 
                     // Cosine score per doc, descending. Scores rescaled
                     // 0-100 to match the chat-model rerank output.
-                    val scored = docVecs.mapIndexed { idx, vec ->
+                    val scored = docVecs.mapIndexedNotNull { idx, vec ->
                         val sim = com.ai.data.EmbeddingsStore.cosine(queryVec, vec)
+                        if (sim.isNaN()) return@mapIndexedNotNull null
                         Triple(idx + 1, sim, ((sim.coerceIn(-1.0, 1.0) + 1.0) * 50.0).toInt().coerceIn(0, 100))
                     }.sortedByDescending { it.second }
+                    if (scored.isEmpty()) {
+                        SecondaryResultStorage.save(context, placeholder.copy(
+                            errorMessage = "Local embedder returned mismatched vector dimensions.",
+                            durationMs = durationMs
+                        ))
+                        return@withTracerTags
+                    }
 
                     val arr = com.google.gson.JsonArray()
                     scored.forEachIndexed { rank, (originalId, sim, score) ->
@@ -244,7 +252,7 @@ class SecondaryRunManager(
                     val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
                     val (questionForPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, sourceLanguage, includeIds = null)
                     val langCtx = lookupLanguageTranslations(report, allSecondaries, sourceLanguage)
-                    val titleForPrompt = langCtx?.title ?: (report.title ?: "")
+                    val titleForPrompt = langCtx?.title ?: report.title
                     val resolvedPrompt = resolveSecondaryPrompt(
                         rerankPrompt.text, question = questionForPrompt, results = resultsBlock,
                         count = successfulCount, title = titleForPrompt
@@ -1315,7 +1323,7 @@ class SecondaryRunManager(
                 // QUESTION + RESULTS but an English title — the model
                 // tends to mirror the title's language in its reply.
                 val seedTitle = lookupLanguageTranslations(report, allSecondaries, seedLang.first)?.title
-                    ?: (report.title ?: "")
+                    ?: report.title
                 // Use the report-language translation of this meta prompt
                 // when one is bundled (English / unknown keeps the editable
                 // text); the body is otherwise identical.
