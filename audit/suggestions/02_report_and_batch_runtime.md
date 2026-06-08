@@ -87,6 +87,13 @@ behavior cannot drift apart.
 
 ## R03 - Extract a reusable "variation replay" engine
 
+> **Status (2026-06-08): ◑ partial** — extracted `ReplayTrack<S>` (the shared
+> state-flow + job-map plumbing each replay mode hand-rolled) + tests, and
+> migrated `MetaEditManager` onto it (1 of 3 sites). `ReportViewModel` and
+> `FanOutEngine` still hold their own temperature / reasoning / web-search /
+> prompt-edit maps. A full per-site dispatch runner (the `ReplayTarget` idea
+> below) is not built — only the plumbing is shared so far. (`e73b35fd8`)
+
 Priority: P1
 
 Evidence:

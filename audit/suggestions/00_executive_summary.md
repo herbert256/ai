@@ -59,6 +59,7 @@ the "Top recommendations" table above uses an older, inconsistent labelling
 | A03 | move `SettingsPreferences` below UI (→ `com.ai.data.preferences`) | ✅ | `61375de7` |
 | D01 | split settings persistence by domain | ◑ facade move done; first sub-store `PromptHistoryStore` extracted; `GeneralSettingsStore` / `UsageStatsStore` still to split | `61375de7`, `b2ecf1c0` |
 | D11 | extract `UsageStatsStore`/recorder | ☐ deferred — 3 interlinked caches under one lock + cost-ledger reconcile coupling; needs a data-verified pass | — |
+| R03 | reusable variation-replay engine | ◑ extracted `ReplayTrack<S>` (shared state-flow + job-map plumbing) + tests, migrated `MetaEditManager` (1 of 3 sites); `ReportViewModel` / `FanOutEngine` still hand-roll theirs; full dispatch runner not built | `e73b35fd8` |
 | R10 / T05 | `ReportExecutionPlan` + planner + tests | ✅ | `c5ee76e2` |
 | U05 | execution-plan preview before expensive runs | ✅ read-only summary on the select-models screen (no blocking dialog → no back-stack risk) | `0ea6535c` |
 | R01 / T02 | `BatchEngine` lifecycle base + tests | ✅ base + tests done, and all 5 `BatchEngine` subclasses (the grid-of-judged-cells engines) migrated: Compare / Tournament / Judges / TransRank / FanOut. NOTE: other batch/run flows (Translation, Fan Meta, Regenerate, Model-test, icon/replay sweeps) keep their own job maps — different shape, outside R01; see R03 (replay runner) / R12 (job center). | `5ef0a8d3`, `ef60fb4e`, `ea9e0ba2`, `270321ff`, `dd775eae3` |
