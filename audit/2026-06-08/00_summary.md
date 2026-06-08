@@ -6,10 +6,8 @@ Worktree audited: `/Users/herbert/ai-codex`
 
 Branch observed: `codex`
 
-Status: static audit complete, 64 findings — 62 fixed, 2 open
-(per-finding status in each `bugs_*.md`). The 2 still open are report
-findings 5 (TransRank sampling determinism) and 14 (full-graph gesture
-conflict).
+Status: static audit complete, 64 findings — all 64 fixed
+(per-finding status + fixing commit in each `bugs_*.md`).
 
 ## Highest-Risk Themes
 

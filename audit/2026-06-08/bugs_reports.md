@@ -103,7 +103,7 @@ retry the run. The judged item set can change.
 translator key, and prompt/run id, or persist the sampled translation row ids
 when placeholders are created.
 
-**Status:** Open
+**Status:** Fixed — c139fc63 (seed the per-translator sampling so re-runs are reproducible)
 
 ### Bug 6 - Severity: Medium - Category: TransRank confirmation
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/TranslatorRank.kt:127-129`, `ai/src/main/java/com/ai/ui/report/manage/Run.kt:837-852`, `ai/src/main/java/com/ai/ui/report/manage/Main.kt:1407-1416`
@@ -270,7 +270,7 @@ start/end of a gesture. A tap cycle can fire unexpectedly.
 **Proposed fix:** Use one gesture detector that differentiates tap versus
 transform, or disable tap cycling once movement/zoom exceeds a threshold.
 
-**Status:** Open
+**Status:** Fixed — c139fc63 (single awaitEachGesture: tap-cycle only when the gesture didn't pan/zoom)
 
 ### Bug 15 - Severity: High - Category: Compare persistence
 **Location:** `ai/src/main/java/com/ai/viewmodel/CompareEngine.kt:94-108` (`hydrate`)

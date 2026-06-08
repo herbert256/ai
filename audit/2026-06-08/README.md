@@ -23,11 +23,11 @@ symptom, root cause, reproduction path, proposed fix, and a status field.
 
 | File | Findings | Status |
 |---|---:|---|
-| `bugs_reports.md` | 28 | 26 fixed, 2 open |
+| `bugs_reports.md` | 28 | 28 fixed |
 | `bugs_data.md` | 16 | 16 fixed |
 | `bugs_chat.md` | 10 | 10 fixed |
 | `bugs_settings.md` | 10 | 10 fixed |
-| **Total** | **64** | **62 fixed, 2 open** |
+| **Total** | **64** | **64 fixed** |
 
 ## Severity Counts
 
