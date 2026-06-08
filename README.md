@@ -102,7 +102,7 @@ adb install -r ai/build/outputs/apk/debug/ai-debug.apk
 
 ## Documentation
 
-Full documentation lives in **[doc/](doc/)** — 34 reference docs, all
+Full documentation lives in **[doc/](doc/)** — 33 reference docs, all
 verified against the current source. The complete set (see
 [doc/README.md](doc/README.md) for the suggested reading order):
 
@@ -139,7 +139,7 @@ verified against the current source. The complete set (see
 | [doc/help.md](doc/help.md) | The in-app Help system: live icon overlay vs help page, per-screen topics, per-provider pages |
 | [doc/applog.md](doc/applog.md) | In-app file logger: levels, rotation, redaction, viewer |
 | [doc/log-details.md](doc/log-details.md) | Reference: every `AppLog` call site, grouped by severity |
-| [doc/reports_section_analysis.md](doc/reports_section_analysis.md) | Code-level analysis of the Reports section — capabilities, gaps, and recommendations (analysis artefact, not a live spec) |
+| [audit/reports_section_analysis.md](audit/reports_section_analysis.md) | Code-level analysis of the Reports section — capabilities, gaps, and recommendations (analysis artefact under `audit/`, not a live spec) |
 | [doc/TODO.md](doc/TODO.md) | Future-work backlog discussed but not scheduled |
 
 ## Privacy & Security

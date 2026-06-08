@@ -145,10 +145,11 @@ and a manual override layer into one resolved view per
   and `trace/` trees.
 
 ### Analysis & backlog
-- **[reports_section_analysis.md](reports_section_analysis.md)** —
+- **[audit/reports_section_analysis.md](../audit/reports_section_analysis.md)** —
   In-depth code-level review of the Reports section: current
   capabilities, product / technical gaps, and feature
-  recommendations. An analysis artefact, not a live spec.
+  recommendations. An analysis artefact (now kept under `audit/`,
+  alongside the dated review snapshots), not a live spec.
 - **[TODO.md](TODO.md)** — Future work discussed but not scheduled.
   Currently: a foreground-Service plan so AI Report API calls can
   truly survive process kill (today's `viewModelScope` setup
