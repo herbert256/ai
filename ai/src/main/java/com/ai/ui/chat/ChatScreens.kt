@@ -762,6 +762,15 @@ fun ChatSessionScreen(
                         actuallySend(input, img)
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A THROWN moderation/trace error (vs a returned errorMessage)
+                // must still fail-open — send the message rather than silently
+                // dropping it via finally. See audit chat bug 7.
+                moderationError = e.message ?: "Moderation failed"
+                handedOffToSend = true
+                actuallySend(input, img)
             } finally {
                 isModerating = false
                 if (!handedOffToSend && pendingFlagged == null) {
