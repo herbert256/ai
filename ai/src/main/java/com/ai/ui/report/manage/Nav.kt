@@ -395,6 +395,8 @@ fun ReportsScreenNav(
                     reportViewModel.compareEngine.continueBrokenBatch(context, p.reportId, buildKey)
                 com.ai.viewmodel.BatchFamilyKind.TRANSLATION ->
                     reportViewModel.translation.continueBrokenTranslation(context, p.reportId, p.key, buildKey)
+                com.ai.viewmodel.BatchFamilyKind.TRANSRANK ->
+                    reportViewModel.translatorRankEngine.continueBrokenBatch(context, p.key, buildKey)
                 else -> null
             }
         },
@@ -956,6 +958,7 @@ internal fun ConsumePendingBatchOpen(
     val tournamentOpen = com.ai.ui.shared.LocalTournamentOpenState.current
     val judgeOpen = com.ai.ui.shared.LocalJudgeEvalOpenState.current
     val compareOpen = com.ai.ui.shared.LocalCompareOpenState.current
+    val transRankOpen = com.ai.ui.shared.LocalTransRankOpenState.current
     val pending = controller.pending
     LaunchedEffect(pending, currentReportId) {
         val p = pending ?: return@LaunchedEffect
@@ -965,6 +968,7 @@ internal fun ConsumePendingBatchOpen(
             com.ai.viewmodel.BatchFamilyKind.TOURNAMENT -> ({ tournamentOpen?.value = p.reportId })
             com.ai.viewmodel.BatchFamilyKind.JUDGES -> ({ judgeOpen?.value = p.reportId })
             com.ai.viewmodel.BatchFamilyKind.COMPARE -> ({ compareOpen?.value = p.reportId })
+            com.ai.viewmodel.BatchFamilyKind.TRANSRANK -> ({ transRankOpen?.value = p.key })
             com.ai.viewmodel.BatchFamilyKind.FAN_OUT -> ({
                 st.listLockedLanguage.value = null
                 st.listKind.value = com.ai.data.SecondaryKind.META

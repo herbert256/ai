@@ -118,6 +118,20 @@ private suspend fun recoverBrokenBatch(
                 else rvm.compareEngine.removeUnfinishedCells(context, rid).join()
             }
         }
+        BatchFamilyKind.TRANSRANK -> {
+            // batch.key is the per-language run key ("$reportId|$sourceRunId").
+            rvm.translatorRankEngine.hydrate(context, rid)
+            if (rowIds != null) {
+                if (restart) rvm.translatorRankEngine.restartCellsByIds(context, batch.key, rowIds).join()
+                else rvm.translatorRankEngine.removeCellsByIds(context, batch.key, rowIds).join()
+            } else if (restart) {
+                if (errors) rvm.translatorRankEngine.restartFailedCells(context, batch.key).join()
+                else rvm.translatorRankEngine.resumeStaleRunsForReport(context, rid).join()
+            } else {
+                if (errors) rvm.translatorRankEngine.removeFailedCells(context, batch.key).join()
+                else rvm.translatorRankEngine.removeUnfinishedCells(context, batch.key).join()
+            }
+        }
         BatchFamilyKind.TRANSLATION -> {
             if (rowIds != null) {
                 if (restart) rvm.translation.restartTranslationRowsByIds(context, rid, batch.key, rowIds).join()

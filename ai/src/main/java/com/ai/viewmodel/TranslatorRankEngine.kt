@@ -20,6 +20,7 @@ import com.ai.data.TransRankCellStatus
 import com.ai.data.TransRankRunKey
 import com.ai.data.TransRankRunState
 import com.ai.data.aggregateTranslatorRanks
+import com.ai.data.fullCost
 import com.ai.data.parseScoreAndReason
 import com.ai.data.toTransRankCellState
 import com.ai.data.toTransRankJson
@@ -548,40 +549,142 @@ class TranslatorRankEngine internal constructor(
     fun restartFailedCells(context: Context, key: TransRankRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[key] ?: return@launch
-            // A synthetic (prompt-unavailable) run carries blank prompt text —
-            // it can't be re-run. See audit bug 4.
-            if (run.prompt.text.isBlank()) return@launch
-            val report = ReportStorage.getReport(context, run.reportId) ?: return@launch
-            val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
-            // Recover each judge's ORIGINAL worker (parameter presets, system
-            // prompt, flock/swarm/agent refs) from the run's prompt rather than a
-            // minimal provider/model-only Worker, so the retry replays the same
-            // call shape as the first run. Fall back to the minimal worker only
-            // when the judge is no longer resolvable in the swarm. See audit bug 2.
-            val aiSettings = appViewModel.uiState.value.aiSettings
-            val judgesByKey = resolveJudges(aiSettings, run.prompt).associateBy { it.key }
-            val failed = run.cells.values.filter { it.status == TransRankCellStatus.ERROR }
-            val resets = failed.mapNotNull { c ->
-                val sc = items[c.translationRowId] ?: return@mapNotNull null
-                val cleared = SecondaryResultStorage.get(context, run.reportId, c.id)?.copy(
-                    content = null, errorMessage = null, inputCost = null, outputCost = null,
-                    tokenUsage = null, durationMs = null, timestamp = System.currentTimeMillis()
-                ) ?: return@mapNotNull null
-                SecondaryResultStorage.save(context, cleared)
-                transitionCell(key, c.key) {
-                    it.copy(status = TransRankCellStatus.PENDING, content = null, score = null, reason = null,
-                        errorMessage = null, inputCost = null, outputCost = null, durationMs = null, tokenUsage = null)
+            redispatchCells(context, key, run.cells.values.filter { it.status == TransRankCellStatus.ERROR })
+        }
+
+    /** Broken-work per-row restart: re-judge exactly the picked cell rows. */
+    fun restartCellsByIds(context: Context, key: TransRankRunKey, rowIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[key] ?: return@launch
+            redispatchCells(context, key, run.cells.values.filter { it.id in rowIds })
+        }
+
+    /** Broken-work "Continue": stop this run's in-flight cells (keeping the run
+     *  + its finished cells), then re-queue every broken cell (stranded PENDING
+     *  + errored) in one batch, driving the build-stage popup off [buildKey]. */
+    fun continueBrokenBatch(context: Context, key: TransRankRunKey, buildKey: String?): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                stopInFlightKeepingState(key)
+                hydrate(context, key.substringBefore("|"))
+                val run = _runs.value[key] ?: return@launch
+                redispatchCells(
+                    context, key,
+                    run.cells.values.filter {
+                        it.status == TransRankCellStatus.PENDING || it.status == TransRankCellStatus.ERROR
+                    },
+                    buildKey
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                buildKey?.let { appViewModel.clearBuild(it) }
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("TransRank", "continue broken batch failed key=$key: ${e.javaClass.simpleName}: ${e.message}")
+            } finally {
+                buildKey?.let {
+                    if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
                 }
-                val judge = judgesByKey["${c.judgeProviderId}/${c.judgeModel}"]
-                    ?: Judge(Worker(provider = c.judgeProviderId, model = c.judgeModel), c.judgeProviderId, c.judgeModel)
-                PendingCell(judge, sc, cleared)
             }
-            if (resets.isEmpty()) return@launch
-            withTracerTags(reportId = run.reportId, category = "transrank/rank") {
-                dispatchCells(context, key, run.prompt, resets)
+        }
+
+    /** Cancel this run's outer Job + every per-cell coroutine and JOIN them (so
+     *  no in-flight write lands after we re-queue) WITHOUT deleting rows or
+     *  dropping the run — keep-state counterpart used by [continueBrokenBatch]. */
+    private suspend fun stopInFlightKeepingState(key: TransRankRunKey) {
+        runJobs[key]?.cancelAndJoin()
+        _runs.value[key]?.cells?.values?.forEach { cellJobs[it.id]?.cancelAndJoin() }
+    }
+
+    /** Re-judge [victims]: clear each row back to a PENDING placeholder
+     *  (recovering its judge's ORIGINAL worker from the run's prompt — parameter
+     *  presets / system prompt / flock-swarm refs — so the retry replays the
+     *  same call shape, falling back to a minimal provider/model Worker only when
+     *  the judge is no longer in the swarm; audit bug 2), then dispatch them.
+     *  Shared by restart-failed / restart-by-id / continue. A synthetic
+     *  (prompt-unavailable, blank-text) run can't be re-run; audit bug 4. */
+    private suspend fun redispatchCells(
+        context: Context, key: TransRankRunKey,
+        victims: Collection<TransRankCellState>, buildKey: String? = null
+    ) {
+        val run = _runs.value[key] ?: return
+        if (run.prompt.text.isBlank()) { buildKey?.let { appViewModel.clearBuild(it) }; return }
+        val report = ReportStorage.getReport(context, run.reportId) ?: return
+        val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val judgesByKey = resolveJudges(aiSettings, run.prompt).associateBy { it.key }
+        if (buildKey != null) appViewModel.beginBuild(buildKey, victims.size, "Re-queuing translator ranking")
+        var built = 0
+        val resets = victims.mapNotNull { c ->
+            val sc = items[c.translationRowId] ?: return@mapNotNull null
+            val cleared = SecondaryResultStorage.get(context, run.reportId, c.id)?.copy(
+                content = null, errorMessage = null, inputCost = null, outputCost = null,
+                tokenUsage = null, durationMs = null, timestamp = System.currentTimeMillis()
+            ) ?: return@mapNotNull null
+            SecondaryResultStorage.save(context, cleared)
+            transitionCell(key, c.key) {
+                it.copy(status = TransRankCellStatus.PENDING, content = null, score = null, reason = null,
+                    errorMessage = null, inputCost = null, outputCost = null, durationMs = null, tokenUsage = null)
+            }
+            if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
+            val judge = judgesByKey["${c.judgeProviderId}/${c.judgeModel}"]
+                ?: Judge(Worker(provider = c.judgeProviderId, model = c.judgeModel), c.judgeProviderId, c.judgeModel)
+            PendingCell(judge, sc, cleared)
+        }
+        if (buildKey != null) appViewModel.finishBuild(buildKey)
+        if (resets.isEmpty()) return
+        withTracerTags(reportId = run.reportId, category = "transrank/rank", runId = run.runId) {
+            dispatchCells(context, key, run.prompt, resets)
+        }
+        recomputeAndPersistAggregate(context, key)
+    }
+
+    /** Broken-work "delete errored": drop every errored cell without re-firing. */
+    fun removeFailedCells(context: Context, key: TransRankRunKey): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            removeCellsMatching(context, key) { it.status == TransRankCellStatus.ERROR }
+        }
+
+    /** Broken-work "delete unfinished": drop every stranded PENDING cell. */
+    fun removeUnfinishedCells(context: Context, key: TransRankRunKey): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            removeCellsMatching(context, key) { it.status == TransRankCellStatus.PENDING }
+        }
+
+    /** Broken-work per-row delete. */
+    fun removeCellsByIds(context: Context, key: TransRankRunKey, rowIds: Set<String>): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            removeCellsMatching(context, key) { it.id in rowIds }
+        }
+
+    /** Delete the cells matching [predicate]: cancel their jobs, drop the rows,
+     *  roll the spend into deleted-items, and either recompute the aggregate or
+     *  drop the whole run when nothing is left. */
+    private suspend fun removeCellsMatching(
+        context: Context, key: TransRankRunKey, predicate: (TransRankCellState) -> Boolean
+    ) {
+        val run = _runs.value[key] ?: return
+        val victims = run.cells.values.filter(predicate)
+        if (victims.isEmpty()) return
+        val reportId = run.reportId
+        victims.forEach { cellJobs[it.id]?.cancelAndJoin() }
+        val costDelta = victims.sumOf {
+            SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+        }
+        victims.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+        val remaining = run.cells - victims.map { it.key }.toSet()
+        if (remaining.isEmpty()) {
+            run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
+            dropRun(key)
+        } else {
+            _runs.update { runs ->
+                val cur = runs[key] ?: return@update runs
+                runs + (key to cur.copy(cells = remaining))
             }
             recomputeAndPersistAggregate(context, key)
         }
+        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+        ReportStorage.bumpReportTimestamp(context, reportId)
+    }
 
     fun deleteRun(context: Context, key: TransRankRunKey): Job {
         // Stop the UI updating FIRST: cancel the build/dispatch job and drop the

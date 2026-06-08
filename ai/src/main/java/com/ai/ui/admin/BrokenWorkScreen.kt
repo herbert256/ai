@@ -43,13 +43,14 @@ fun brokenWorkActionKey(batch: BrokenBatch, mode: BrokenItemMode, itemIds: Set<S
     if (itemIds.isEmpty()) brokenWorkActionPrefix(batch, mode)
     else "${brokenWorkActionPrefix(batch, mode)}|items:${itemIds.sorted().joinToString(",")}"
 
-/** The 6 batch families whose Broken-work card shows a single card-level
+/** The 7 batch families whose Broken-work card shows a single card-level
  *  "Continue" — re-queue the whole batch (both unfinished + errored), then
  *  open that batch's own screen — instead of the per-line ↻ restart icons.
  *  The other families (Regenerate / Responses / Other) keep per-line restart. */
 val CONTINUE_FAMILIES = setOf(
     BatchFamilyKind.FAN_OUT, BatchFamilyKind.FAN_META, BatchFamilyKind.TOURNAMENT,
     BatchFamilyKind.JUDGES, BatchFamilyKind.COMPARE, BatchFamilyKind.TRANSLATION,
+    BatchFamilyKind.TRANSRANK,
 )
 
 /** Full-screen list of batches that carry work needing attention —

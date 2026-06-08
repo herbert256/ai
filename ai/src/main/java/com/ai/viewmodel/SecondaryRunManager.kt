@@ -674,6 +674,7 @@ class SecondaryRunManager(
             activeTournamentRunKeys = rvm.tournamentEngine.activeRunKeys(),
             activeJudgeRunKeys = rvm.judgeEvalEngine.activeRunKeys(),
             activeCompareRunKeys = rvm.compareEngine.activeRunKeys(),
+            activeTransRankRunKeys = rvm.translatorRankEngine.activeRunKeys(),
             activeFanMetaRunKeys = activeFanMetaRunKeys,
             runningFanMetaRowIds = appViewModel.runningFanMetaPairs.value,
             activeTranslationRunIds = activeTranslationRunIds,

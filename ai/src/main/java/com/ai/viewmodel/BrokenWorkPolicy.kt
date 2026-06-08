@@ -14,6 +14,7 @@ data class BrokenWorkLiveState(
     val activeTournamentRunKeys: Set<String> = emptySet(),
     val activeJudgeRunKeys: Set<String> = emptySet(),
     val activeCompareRunKeys: Set<String> = emptySet(),
+    val activeTransRankRunKeys: Set<String> = emptySet(),
     val activeFanMetaRunKeys: Set<String> = emptySet(),
     val runningFanMetaRowIds: Set<String> = emptySet(),
     val activeTranslationRunIds: Set<String> = emptySet(),
@@ -170,6 +171,22 @@ object BrokenWorkPolicy {
                         errored(row),
                         row.errorMessage
                     )
+                // Rank-the-translators cell rows. One batch per LANGUAGE, keyed
+                // like the engine's run key ("$reportId|$sourceTranslationRunId")
+                // so it lines up with activeTransRankRunKeys and the per-run
+                // engine actions. (The AGGREGATE row, role "AGGREGATE", is skipped.)
+                row.kind == SecondaryKind.TRANSRANK && row.tournamentRole == "MATCH" -> {
+                    val runId = row.translationRunId ?: return@forEach
+                    val runKey = "$reportId|$runId"
+                    tally(
+                        BatchFamilyKind.TRANSRANK,
+                        runKey,
+                        "Rank the translators · ${row.targetLanguage?.takeIf { it.isNotBlank() } ?: "?"}",
+                        interrupted(row, live, activeRun = runKey in live.activeTransRankRunKeys),
+                        errored(row),
+                        row.errorMessage
+                    )
+                }
                 row.kind == SecondaryKind.TRANSLATE && row.translationRunId != null -> {
                     val runId = row.translationRunId
                     tally(
@@ -231,6 +248,9 @@ object BrokenWorkPolicy {
                 BatchFamilyKind.TOURNAMENT -> row.kind == SecondaryKind.TOURNAMENT && row.tournamentRole == "MATCH"
                 BatchFamilyKind.JUDGES -> row.kind == SecondaryKind.JUDGES && row.tournamentRole == "MATCH"
                 BatchFamilyKind.COMPARE -> row.kind == SecondaryKind.COMPARE
+                BatchFamilyKind.TRANSRANK ->
+                    row.kind == SecondaryKind.TRANSRANK && row.tournamentRole == "MATCH" &&
+                        "${batch.reportId}|${row.translationRunId}" == batch.key
                 BatchFamilyKind.TRANSLATION -> row.kind == SecondaryKind.TRANSLATE && row.translationRunId == batch.key
                 BatchFamilyKind.OTHER ->
                     row.fanOutSourceAgentId == null &&
@@ -250,6 +270,7 @@ object BrokenWorkPolicy {
                 BatchFamilyKind.TOURNAMENT -> batch.reportId in live.activeTournamentRunKeys
                 BatchFamilyKind.JUDGES -> batch.reportId in live.activeJudgeRunKeys
                 BatchFamilyKind.COMPARE -> batch.reportId in live.activeCompareRunKeys
+                BatchFamilyKind.TRANSRANK -> batch.key in live.activeTransRankRunKeys
                 BatchFamilyKind.TRANSLATION -> batch.key in live.activeTranslationRunIds
                 BatchFamilyKind.FAN_META -> batch.key in live.activeFanMetaRunKeys
                 BatchFamilyKind.OTHER,

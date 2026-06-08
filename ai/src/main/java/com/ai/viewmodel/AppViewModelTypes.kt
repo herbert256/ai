@@ -38,6 +38,7 @@ enum class BatchFamilyKind(val label: String) {
     JUDGES("Judges"),
     COMPARE("Compare"),
     TRANSLATION("Translation"),
+    TRANSRANK("Rank the translators"),
     REGENERATE("Regenerate"),
     /** Primary report agents (model responses) that errored or were stranded
      *  PENDING/RUNNING by a process kill — not a secondary batch. One entry
