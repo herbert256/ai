@@ -42,10 +42,6 @@
       "provider": "DeepInfra"
     },
     {
-      "model": "accounts/fireworks/models/kimi-k2p6",
-      "provider": "Fireworks"
-    },
-    {
       "model": "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
       "provider": "Together"
     },
