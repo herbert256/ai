@@ -6,6 +6,8 @@
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Cerebras",
+  "maxCallsPerProviderPerMinute": 30,
+  "maxConcurrentCallsPerProvider": 2,
   "modelListFormat": "object",
   "seedFieldName": "seed",
   "supportsCitations": false,
