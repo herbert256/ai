@@ -463,9 +463,22 @@ class TranslatorRankEngine internal constructor(
         // hasn't published the run — still removes every row (no orphan row).
         val reportId = key.substringBefore("|")
         val sourceRunId = key.substringAfter("|")
+        // Narrow the disk sweep to THIS run's id when it's known (the normal,
+        // run-is-published case) so deleting one ranking attempt can't take out
+        // a sibling/older attempt for the same source translation run / language.
+        // Only when the run was never published (mid-build cancel, run == null)
+        // do we fall back to the broad per-source-run sweep — there is only the
+        // one in-flight run then, and the broad pass still clears its
+        // just-written aggregate orphan. The cost delta is summed from this same
+        // narrowed victim set, so the report total is adjusted by exactly what
+        // was deleted.
+        val victimRunId = run?.runId
         return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSRANK)
-                .filter { it.translationRunId == sourceRunId }
+                .filter {
+                    it.translationRunId == sourceRunId &&
+                        (victimRunId == null || it.tournamentJudgeRunId == victimRunId)
+                }
             if (rows.isEmpty()) return@launch
             val costDelta = rows.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
             rows.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
