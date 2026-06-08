@@ -760,10 +760,21 @@ private fun ValueScatterCanvas(
         val canvasW = size.width; val canvasH = size.height
         val os = points.map { px(it) }
         val rs = points.map { dotRadius(it) }
-        // Full-screen graph: trim cosmetic -latest / date suffixes too (shortModelName2).
-        val names = points.map {
-            val nm = if (fullScreen) shortModelName2(it.modelShort) else it.modelShort
-            if (fullModelNames) nm else nm.take(14)
+        // Full-screen graph: trim -latest / date suffixes (shortModelName2), and
+        // also drop -preview / -exp channel tags — but only where that stays
+        // unique among the plotted points. ~7 catalog pairs (e.g. gemini-2.5-pro
+        // vs …-pro-preview) would otherwise collide onto one label, so when both
+        // a preview and its GA twin are on the chart each keeps its tag.
+        val names = if (!fullScreen) {
+            points.map { if (fullModelNames) it.modelShort else it.modelShort.take(14) }
+        } else {
+            val safe = points.map { shortModelName2(it.modelShort) }
+            val agg = safe.map { it.removeSuffix("-preview").removeSuffix("-exp") }
+            val aggCount = agg.groupingBy { it }.eachCount()
+            safe.indices.map { i ->
+                val nm = if (aggCount[agg[i]] == 1) agg[i] else safe[i]
+                if (fullModelNames) nm else nm.take(14)
+            }
         }
         val ws = names.map { labelPaint.measureText(it) }
         val placed = ArrayList<android.graphics.RectF>()
