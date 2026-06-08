@@ -267,6 +267,14 @@ exclusive batch-overlay state so only one batch overlay shows at a time.
   path still skips TRANSRANK rows (each carries a non-null `translationRunId`
   and a null `metaPromptId`), so the engine owns recovery — the user can
   still force a retry of errored cells from L1's 🔄.
+- **Broken-work screen.** Errored or kill-stranded cells also surface on the
+  ⚠️ Broken-work screen as a `BatchFamilyKind.TRANSRANK` card — one per
+  language, keyed `"$reportId|$sourceTranslationRunId"` (the engine run key) so
+  the live build isn't falsely flagged (`activeTransRankRunKeys`). The card's
+  Continue / restart / delete (whole-batch and per-row) route to
+  `continueBrokenBatch` / `restartFailedCells` / `restartCellsByIds` /
+  `removeFailedCells` / `removeUnfinishedCells` / `removeCellsByIds`. See
+  [secondary-results.md](secondary-results.md).
 - **Delete run** (`deleteRun`) is synchronous-on-the-flow: it cancels the
   build/dispatch + cell jobs and drops the run from `_runs` immediately
   (so the live screen and Manage row stop rendering at once and avoid a
