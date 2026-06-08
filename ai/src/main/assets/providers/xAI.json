@@ -12,6 +12,7 @@
   "modelFilter": "grok",
   "modelListFormat": "object",
   "openRouterName": "x-ai",
+  "promptTokensIncludeCachedTokens": false,
   "reasoningEffortAcceptPatterns": [
     {
       "prefix": "grok-3"

@@ -583,6 +583,7 @@ per-provider table.
 | seedFieldName | `String` | default `"seed"`, Mistral uses `"random_seed"` |
 | supportsCitations, supportsSearchRecency, extractApiCost | `Boolean` | |
 | costTicksDivisor | `Double?` | xAI returns ticks; divisor is 1e10 |
+| promptTokensIncludeCachedTokens | `Boolean` | for OpenAI-compatible usage normalization; false means flattened `cached_tokens` is separate from fresh `prompt_tokens` |
 | modelListFormat | `String` | `"object"` or `"array"` |
 | modelFilter | `String?` | regex |
 | litellmPrefix | `String?` | composite-key prefix for the LiteLLM tier |

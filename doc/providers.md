@@ -90,7 +90,7 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `modelFilter=gpt\|o1\|o3\|o4`, `defaultModelSource=API`, `mergeHardcodedModels=true`, `builtInEndpoints` (Chat Completions + Responses API), `responsesApiPatterns`/`reasoningModelPatterns`/`webSearchModelPatterns` for `gpt-5`/`o1`/`o3`/`o4`(/`gpt-4.1`), `maxCallsPerProviderPerMinute=120`, `maxConcurrentCallsPerProvider=10` |
 | **Anthropic** | `https://api.anthropic.com/` | `https://console.anthropic.com/settings/keys` | `claude-haiku-4-5-20251001` | `apiFormat=ANTHROPIC`, `typePaths.chat=v1/messages`, `openRouterName=anthropic`, `modelFilter=claude`, 8 hardcoded models, `defaultModelSource=API`, `reasoningModelPatterns`/`webSearchModelPatterns`/`adaptiveThinkingPatterns` (opus-4-7), `maxTokensDefaults` (opus-4=32000, sonnet/haiku-4 & claude-3.5=8192), `maxRetriesOn529=5`, `retryBackoffMs529=5000` |
 | **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.0-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `modelListFormat=array`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API`, `maxCallsPerProviderPerMinute=60` |
-| **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `litellmPrefix=xai`, `modelFilter=grok`, `defaultModelSource=API`, `externalReasoningSignalUntrusted=true`, `reasoningModelPatterns`/`reasoningEffortAcceptPatterns` for grok-3/4 |
+| **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `promptTokensIncludeCachedTokens=false`, `litellmPrefix=xai`, `modelFilter=grok`, `defaultModelSource=API`, `externalReasoningSignalUntrusted=true`, `reasoningModelPatterns`/`reasoningEffortAcceptPatterns` for grok-3/4 |
 | **Groq** | `https://api.groq.com/openai/` | `https://console.groq.com/keys` | `llama-3.3-70b-versatile` | `litellmPrefix=groq`, `defaultModelSource=API` |
 | **DeepSeek** | `https://api.deepseek.com/` | `https://platform.deepseek.com/api_keys` | `deepseek-chat` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=deepseek`, `litellmPrefix=deepseek`, `modelFilter=deepseek`, `defaultModelSource=API`, `mergeHardcodedModels=true`, **2 hardcoded models** (`deepseek-chat`, `deepseek-reasoner`) merged with `/models` because the live list is sometimes missing, `builtInEndpoints` (Chat Completions + Beta/FIM). DeepSeek is the pinned agent for the bundled `internal/chat-title` prompt — cheap, fast, reliable |
 | **Mistral** | `https://api.mistral.ai/` | `https://console.mistral.ai/api-keys/` | `mistral-small-latest` | `seedFieldName=random_seed`, `openRouterName=mistralai`, `modelFilter=mistral\|open-mistral\|codestral\|pixtral`, `defaultModelSource=API`, `nativeModerationUrl=https://api.mistral.ai/v1/moderations`, `builtInEndpoints` (Chat Completions + Codestral), `maxCallsPerProviderPerMinute=30`, `maxConcurrentCallsPerProvider=3` |
@@ -167,6 +167,10 @@ A few non-default fields warrant explanation:
 - **`costTicksDivisor`**: provider returns cost in ticks rather than
   dollars (xAI uses `1e10`). The provider-config edit screen refuses
   non-positive values.
+- **`promptTokensIncludeCachedTokens`**: whether OpenAI-compatible
+  `prompt_tokens` already includes cache reads. Defaults to `true`;
+  xAI sets `false` because it reports cache reads in flattened
+  `cached_tokens` while leaving `prompt_tokens` as the fresh bucket.
 - **`modelListFormat`**: `"object"` (default — wrapped in
   `{ "data": [...] }`) vs `"array"` (Together's bare top-level array;
   Google also returns an array).

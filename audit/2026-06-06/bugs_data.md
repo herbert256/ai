@@ -25,7 +25,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** For an OpenAI-compatible provider that reports `prompt_tokens` already *excluding* cached tokens but also flattens `cached_tokens` (the comment at line 194 says "some xAI / others flatten this"), `fresh = total - cached` under-counts the fresh input bucket, mis-splitting billed input vs cached input.
 **Root cause:** The subtraction `(total - cached)` assumes `prompt_tokens` always *includes* the cached portion, which is true for OpenAI/DeepSeek but not guaranteed for every provider that flattens `cached_tokens`.
 **Proposed fix:** Make the cached-inclusive assumption per-provider (it already differs for Anthropic), or clamp/validate `cached <= total` against the provider's known shape.
-**Status:** Open (unconfirmed — depends on each provider's exact wire shape)
+**Status:** Fixed (2026-06-08) — provider definitions now carry `promptTokensIncludeCachedTokens` (default true); bundled xAI sets it false, OpenAI-compatible usage normalization preserves xAI `prompt_tokens` as the fresh bucket while still recording `cached_tokens`, and the Responses streaming extractor now passes the provider into the same normalizer.
 
 ### Bug 4 — Severity: LOW — Category: deserialization robustness
 **Location:** ApiModels.kt:286 (`ClaudeMessage(role, content: Any)`)

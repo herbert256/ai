@@ -1356,7 +1356,7 @@ private suspend fun AnalysisRepository.streamResponsesApiReport(
         service,
         response,
         ::extractResponsesApiContent,
-        extractResponsesApiUsage,
+        extractResponsesApiUsage(service),
         requireTerminator = true,
         usageMergeMode = StreamingUsageMergeMode.LastComplete,
         onDelta = onDelta

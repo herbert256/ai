@@ -15,6 +15,7 @@ class ProviderDefinitionTest {
         assertThat(service.modelsPath).isEqualTo("v1/models")
         assertThat(service.modelListFormat).isEqualTo("object")
         assertThat(service.seedFieldName).isEqualTo("seed")
+        assertThat(service.promptTokensIncludeCachedTokens).isTrue()
     }
 
     @Test fun explicit_fields_override_defaults() {
@@ -34,5 +35,14 @@ class ProviderDefinitionTest {
             apiFormat = "NOT_A_REAL_FORMAT"
         )
         assertThat(def.toAppService().apiFormat).isEqualTo(ApiFormat.OPENAI_COMPATIBLE)
+    }
+
+    @Test fun provider_definition_can_declare_flattened_cached_tokens() {
+        val def = ProviderDefinition(
+            id = "X", baseUrl = "https://x/", defaultModel = "m",
+            promptTokensIncludeCachedTokens = false
+        )
+
+        assertThat(def.toAppService().promptTokensIncludeCachedTokens).isFalse()
     }
 }

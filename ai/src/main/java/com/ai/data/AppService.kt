@@ -38,6 +38,11 @@ class AppService(
     val supportsSearchRecency: Boolean = false,
     val extractApiCost: Boolean = false,
     val costTicksDivisor: Double? = null,
+    /** True when OpenAI-compatible prompt token totals include cached
+     *  reads. Most providers follow OpenAI/DeepSeek here; xAI reports
+     *  cached reads in a separate flattened field while leaving
+     *  prompt_tokens as the fresh prompt bucket. */
+    val promptTokensIncludeCachedTokens: Boolean = true,
     val modelListFormat: String = "object",
     val modelFilter: String? = null,
     val litellmPrefix: String? = null,
@@ -152,6 +157,7 @@ class AppService(
         supportsSearchRecency: Boolean = this.supportsSearchRecency,
         extractApiCost: Boolean = this.extractApiCost,
         costTicksDivisor: Double? = this.costTicksDivisor,
+        promptTokensIncludeCachedTokens: Boolean = this.promptTokensIncludeCachedTokens,
         modelListFormat: String = this.modelListFormat,
         modelFilter: String? = this.modelFilter,
         litellmPrefix: String? = this.litellmPrefix,
@@ -189,6 +195,7 @@ class AppService(
         supportsSearchRecency = supportsSearchRecency,
         extractApiCost = extractApiCost,
         costTicksDivisor = costTicksDivisor,
+        promptTokensIncludeCachedTokens = promptTokensIncludeCachedTokens,
         modelListFormat = modelListFormat, modelFilter = modelFilter,
         litellmPrefix = litellmPrefix, hardcodedModels = hardcodedModels,
         defaultModelSource = defaultModelSource,
