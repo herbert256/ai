@@ -2746,7 +2746,12 @@ class IconGenerationManager(
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
                 val aiSettings = appViewModel.uiState.value.aiSettings
-                if (fanMetaPrompt == null || fanMetaPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+                // ♻️ Models-as-workers: swap the fan-meta swarm for this report's
+                // own answer models, like every other secondary path does.
+                val report = ReportStorage.getReport(context, reportId)
+                val effFanMetaPrompt = if (report?.useReportModelsAsWorkers == true && fanMetaPrompt != null)
+                    fanMetaPrompt.copy(workers = reportModelWorkers(report)) else fanMetaPrompt
+                if (effFanMetaPrompt == null || effFanMetaPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                     AppLog.w("FanMeta", "fan/meta not configured — skipping")
                     buildKey?.let { appViewModel.finishBuild(it) }
                     return@launch
@@ -2793,7 +2798,7 @@ class IconGenerationManager(
                         if (!SecondaryResultStorage.exists(context, reportId, pair.id)) return@runThrottledBatch
                         appViewModel.updateRunningFanMetaPairs { it + pair.id }
                         try {
-                            runFanMetaForPair(context, reportId, pair, fanMetaPrompt, aiSettings, fanRunId)
+                            runFanMetaForPair(context, reportId, pair, effFanMetaPrompt, aiSettings, fanRunId)
                         } finally {
                             appViewModel.updateRunningFanMetaPairs { it - pair.id }
                             // acquireOrWait clears its own wait notification, but
