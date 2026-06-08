@@ -444,6 +444,7 @@ fun AppNavHost(
         com.ai.ui.shared.LocalRefreshBrokenWork provides {
             appViewModel.viewModelScope.launch { reportViewModel.secondary.refreshBrokenBatches(sweepContext) }
         },
+        com.ai.ui.shared.LocalGeneralSettings provides rootUiStateForLayout.generalSettings,
         com.ai.ui.shared.LocalTopBarLeftIcon provides sectionTopIcon,
         com.ai.ui.report.view.helpers.LocalViewBottomBar provides viewBottomBarState,
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,

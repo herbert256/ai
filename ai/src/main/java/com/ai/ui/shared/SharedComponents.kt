@@ -359,6 +359,12 @@ val LocalBrokenWork = compositionLocalOf<BrokenWorkBadge?> { null }
  *  instead of waiting for the 30-second background sweep. */
 val LocalRefreshBrokenWork = compositionLocalOf<(() -> Unit)?> { null }
 
+/** The app's GeneralSettings, provided by AppNavHost. Read by view-layer
+ *  screens that need general prefs without threading them — e.g. the Value
+ *  view's "Combined" ranking, which weights each ranking by
+ *  GeneralSettings.rankingWeights. */
+val LocalGeneralSettings = compositionLocalOf<com.ai.viewmodel.GeneralSettings?> { null }
+
 /** Provided by AppNavHost so an AI-report screen's top-left 📝 icon can
  *  jump to the AI Reports hub. Used by the report-section screens (New
  *  report, All reports, Search, …) whose top-left glyph is the report

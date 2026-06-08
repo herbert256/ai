@@ -68,6 +68,7 @@ import com.ai.data.decodeTournamentMatrix
 import com.ai.data.judgesConsensusWinMatrix
 import com.ai.data.rankFor
 import com.ai.data.toJudgeCellState
+import com.ai.viewmodel.rankingWeight
 import com.ai.data.toTransRankCellState
 import com.ai.ui.helpers.RerankRow
 import com.ai.ui.helpers.parseRerankRows
@@ -92,6 +93,10 @@ import kotlinx.coroutines.withContext
 
 /** Which ranking feeds the quality axis. */
 private sealed class RankSource(val label: String) {
+    /** A single 0–1000 score per model, a weighted blend of every available
+     *  ranking (Rerank / Judges / Translations / each Tournament method) using
+     *  the weights from Settings → Ranking weights. First in the list. */
+    object Combined : RankSource("Combined")
     object Rerank : RankSource("Rerank")
     /** Judge-the-judges: answers ranked by the panel's CONSENSUS verdict
      *  per match (Copeland over the consensus win matrix). One source, like
@@ -101,15 +106,21 @@ private sealed class RankSource(val label: String) {
      *  translator (matched onto the report's answer models). One per language;
      *  the chip shows the language name. Sits right after Rerank. */
     data class TransRank(val runId: String, val language: String) : RankSource(language)
+    /** The Tournament "Total" — quality is the inverse of each model's AVERAGE
+     *  position across every method (the Tournament Total grid's ordering).
+     *  Sits just before the individual Tournament methods. */
+    object TournamentTotal : RankSource("Tournament")
     data class Tournament(val method: TournamentMethod) :
         RankSource(method.name.lowercase().replaceFirstChar { it.uppercase() })
 }
 
 /** Stable key for [rememberSaveable] selection + chip-selected matching. */
 private fun RankSource.key(): String = when (this) {
+    is RankSource.Combined -> "combined"
     is RankSource.Rerank -> "rerank"
     is RankSource.Judges -> "judges"
     is RankSource.TransRank -> "transrank:$runId"
+    is RankSource.TournamentTotal -> "tournament:total"
     is RankSource.Tournament -> "tournament:${method.name}"
 }
 
@@ -174,6 +185,79 @@ private fun buildValuePoints(
     return raw.map { p ->
         val dominated = raw.any { o -> o.agentId != p.agentId && o.quality >= p.quality && o.costCents <= p.costCents && (o.quality > p.quality || o.costCents < p.costCents) }
         ValuePoint(p.provider, p.modelShort, p.costCents, p.quality, dominated, p.agentId == bestId)
+    }
+}
+
+/** Tournament "Total" → one RerankRow per model whose quality is the inverse of
+ *  its AVERAGE position across every tournament method (lower mean position =
+ *  better), matching the Tournament Total grid's ordering. */
+private fun tournamentTotalRows(matrix: WinMatrix): List<RerankRow> {
+    val methods = TournamentMethod.values()
+    val rankByMethod = methods.associateWith { m -> rankFor(m, matrix).associate { it.id to it.rank } }
+    val n = matrix.n
+    return matrix.ids.map { id ->
+        val ranks = methods.mapNotNull { rankByMethod[it]?.get(id) }
+        val avg = if (ranks.isEmpty()) n.toDouble() else ranks.average()
+        RerankRow(id, null, n - avg + 1.0, null)
+    }
+}
+
+/** The "Combined" ranking: for every available + non-zero-weighted ranking
+ *  (Rerank / Judges / Translations / each Tournament method), min-max-normalise
+ *  its per-model scores to 0–1, then weight-average per model and scale to
+ *  0–1000. Ids are 1-based SUCCESS positions. Empty when nothing is weighted. */
+private fun buildCombinedRows(
+    report: Report,
+    rerankRows: List<RerankRow>,
+    judgesMatrix: WinMatrix?,
+    transRankRuns: List<TransRankSource>,
+    tournamentMatrix: WinMatrix?,
+    weightOf: (String) -> Int
+): List<RerankRow> {
+    val success = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+    val n = success.size
+    if (n == 0) return emptyList()
+    // (weight, per-id raw score) for each contributing ranking.
+    val rankings = mutableListOf<Pair<Int, Map<Int, Double>>>()
+    weightOf("rerank").takeIf { it > 0 }?.let { w ->
+        val sc = rerankRows.mapNotNull { r -> (r.score ?: r.rank?.let { (n - it + 1).toDouble() })?.let { r.id to it } }.toMap()
+        if (sc.isNotEmpty()) rankings.add(w to sc)
+    }
+    weightOf("judges").takeIf { it > 0 }?.let { w ->
+        judgesMatrix?.let { m ->
+            rankFor(TournamentMethod.COPELAND, m).associate { it.id to it.score }
+                .takeIf { it.isNotEmpty() }?.let { rankings.add(w to it) }
+        }
+    }
+    weightOf("translations").takeIf { it > 0 }?.let { w ->
+        if (transRankRuns.isNotEmpty()) {
+            val sc = HashMap<Int, Double>()
+            success.forEachIndexed { idx, a ->
+                val key = vvModelKey(a.provider, a.model)
+                val vs = transRankRuns.mapNotNull { it.scoreByModelKey[key] }
+                if (vs.isNotEmpty()) sc[idx + 1] = vs.average()
+            }
+            if (sc.isNotEmpty()) rankings.add(w to sc)
+        }
+    }
+    tournamentMatrix?.let { m ->
+        TournamentMethod.values().forEach { method ->
+            val w = weightOf(method.name)
+            if (w > 0) {
+                val sc = rankFor(method, m).associate { it.id to it.score }
+                if (sc.isNotEmpty()) rankings.add(w to sc)
+            }
+        }
+    }
+    if (rankings.isEmpty()) return emptyList()
+    val normed = rankings.map { (w, scores) ->
+        val mn = scores.values.minOrNull() ?: 0.0; val mx = scores.values.maxOrNull() ?: 0.0
+        w to scores.mapValues { (_, v) -> if (mx > mn) (v - mn) / (mx - mn) else 0.5 }
+    }
+    return (1..n).mapNotNull { id ->
+        var num = 0.0; var den = 0.0
+        normed.forEach { (w, norm) -> norm[id]?.let { num += w * it; den += w } }
+        if (den > 0) RerankRow(id, null, (num / den) * 1000.0, null) else null
     }
 }
 
@@ -310,10 +394,28 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     }
     val loaded = loadedState.value
 
-    // Available ranking sources: Rerank (if present) + every Tournament
-    // method (if a decodable aggregate matrix is present).
-    val sources = remember(loaded) {
+    // Ranking weights (Settings → Ranking weights) for the "Combined" source.
+    val generalSettings = com.ai.ui.shared.LocalGeneralSettings.current
+    val weightOf: (String) -> Int = { k ->
+        generalSettings?.rankingWeight(k) ?: (com.ai.viewmodel.RANKING_WEIGHT_DEFAULTS[k] ?: 0)
+    }
+    // The Tournament "Total" rows + the weighted "Combined" rows, recomputed when
+    // the loaded data or the weights change.
+    val tournamentTotalRowList = remember(loaded) {
+        loaded.tournamentMatrix?.let { tournamentTotalRows(it) } ?: emptyList()
+    }
+    val combinedRows = remember(loaded, generalSettings) {
+        loaded.report?.let {
+            buildCombinedRows(it, loaded.rerankRows, loaded.judgesMatrix, loaded.transRankRuns, loaded.tournamentMatrix, weightOf)
+        } ?: emptyList()
+    }
+
+    // Available ranking sources: Combined (if any weighted ranking exists) first,
+    // then Rerank, the translator runs, Judges, the Tournament Total, and every
+    // individual Tournament method.
+    val sources = remember(loaded, combinedRows) {
         buildList {
+            if (combinedRows.isNotEmpty()) add(RankSource.Combined)
             if (loaded.rerankRows.isNotEmpty()) add(RankSource.Rerank)
             // Every "Rank the translators" run sits right after Rerank, labelled
             // with its language.
@@ -321,6 +423,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             // Judges sits after those, before the Tournament methods.
             if (loaded.judgesMatrix != null) add(RankSource.Judges)
             if (loaded.tournamentMatrix != null) {
+                add(RankSource.TournamentTotal)   // before the first method
                 TournamentMethod.values().forEach { add(RankSource.Tournament(it)) }
             }
         }
@@ -337,9 +440,11 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             ?: sources.firstOrNull()
     }
 
-    val points = remember(loaded, selected) {
+    val points = remember(loaded, selected, combinedRows, tournamentTotalRowList) {
         val report = loaded.report ?: return@remember emptyList<ValuePoint>()
         val rows = when (val s = selected) {
+            is RankSource.Combined -> combinedRows
+            is RankSource.TournamentTotal -> tournamentTotalRowList
             is RankSource.Rerank -> loaded.rerankRows
             is RankSource.Judges -> loaded.judgesMatrix?.let { m ->
                 // Copeland (win-rate) over the consensus matrix — the robust,
@@ -367,9 +472,11 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     val best = remember(points) { points.firstOrNull { it.bestValue } }
 
     val subject = when (val s = selected) {
+        is RankSource.Combined -> "Combined · weighted 0–1000"
         is RankSource.Rerank -> loaded.rerankModel?.let { "ranked by $it" }
         is RankSource.Judges -> "Judge the judges · consensus"
         is RankSource.TransRank -> "Rank the translators · ${s.language}"
+        is RankSource.TournamentTotal -> "Tournament · total of all methods"
         is RankSource.Tournament -> "Tournament · ${s.label}"
         null -> null
     }
