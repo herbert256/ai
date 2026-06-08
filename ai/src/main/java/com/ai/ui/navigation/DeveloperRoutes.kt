@@ -841,6 +841,39 @@ internal fun NavGraphBuilder.developerRoutes(
                         }
                     }
                 },
+                // Card tap → the item's own screen (view-only PendingBatchOpen,
+                // no re-queue). OTHER carries the errored secondary's result id so
+                // its detail opens; FAN_OUT/FAN_META carry the metaPromptName the
+                // fan-out list filters by; the rest open their batch screen.
+                onOpenItem = { batch ->
+                    com.ai.data.LastReportTracker.record(batch.reportId, view = false)
+                    brokenWorkScope.launch {
+                        val key: String
+                        val fanOutName: String?
+                        when (batch.kind) {
+                            BatchFamilyKind.OTHER -> {
+                                key = withContext(Dispatchers.IO) {
+                                    matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.ERRORS).firstOrNull()?.id
+                                } ?: batch.key
+                                fanOutName = null
+                            }
+                            BatchFamilyKind.FAN_OUT, BatchFamilyKind.FAN_META -> {
+                                key = batch.key
+                                fanOutName = withContext(Dispatchers.IO) {
+                                    (matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.ERRORS) +
+                                        matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.UNFINISHED))
+                                        .firstNotNullOfOrNull { it.metaPromptName?.takeIf { n -> n.isNotBlank() } }
+                                }
+                            }
+                            else -> { key = batch.key; fanOutName = null }
+                        }
+                        reportViewModel.restoreCompletedReport(brokenWorkContext, batch.reportId)
+                        appViewModel.requestBatchOpen(
+                            PendingBatchOpen(batch.reportId, batch.kind, key, fanOutName, viewOnly = true)
+                        )
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
                 onRestart = { batch, mode ->
                     launchBrokenWorkAction(batch, mode, restart = true)
                 },
