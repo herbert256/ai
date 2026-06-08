@@ -29,12 +29,11 @@ import com.ai.ui.shared.TitleBar
  * Uniform CRUD add/edit form scaffold: TitleBar + the scrollable form
  * [content]. Both add.kt (isAdd=true) and edit.kt (isAdd=false) delegate here.
  *
- * Adding keeps an explicit "Create" button (enabled when [current] is non-null,
- * i.e. the form is valid); on tap it persists via [onSave] then navigates back.
- * Editing has NO button — it auto-persists [current] (via [AutoSaveOnChange])
- * while the user types and once more when they leave the screen by any means
- * (Android back, or a top-/bottom-bar icon or title). [current] is the built
- * entity, or `null` when the form is invalid (a null [current] never saves).
+ * Both add and edit show one top button — "Create" (add) / "Save" (edit) —
+ * enabled when [current] is non-null (the form is valid); on tap it persists via
+ * [onSave] then navigates back. Leaving by Back instead routes through
+ * [rememberConfirmedBack], which confirms "Discard changes?" when the form was
+ * edited. [current] is the built entity, or `null` when invalid (Save disabled).
  */
 @Composable
 fun CrudFormScaffold(
@@ -57,8 +56,10 @@ fun CrudFormScaffold(
     deleteName: String? = null,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
-    BackHandler { onBack() }
     var confirmDelete by remember { mutableStateOf(false) }
+    // Back confirms "Discard changes?" when the form was edited; Save bypasses it.
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+    BackHandler { back() }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -66,21 +67,18 @@ fun CrudFormScaffold(
             .padding(16.dp)
     ) {
         TitleBar(
-            helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack, onClear = onReset,
+            helpTopic = helpTopic, title = title, subject = subject, onBackClick = back, onClear = onReset,
             onCopyReport = if (isAdd) null else onCopy,
             onDelete = if (isAdd || onDelete == null) null else ({ confirmDelete = true })
         )
-        if (isAdd) {
-            OutlinedButton(
-                onClick = { onSave(); onBack() },
-                enabled = current != null,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Create", maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(12.dp))
-        } else {
-            com.ai.ui.shared.AutoSaveOnChange(current = current, onSave = { onSave() })
-        }
+        // Save (edit) / Create (add) — both persist then close.
+        OutlinedButton(
+            onClick = { onSave(); onBack() },
+            enabled = current != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text(if (isAdd) "Create" else "Save", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             content()
         }

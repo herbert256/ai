@@ -30,7 +30,6 @@ fun FlockEditScreen(
     /** 🗑 delete this flock (Setup → Workers → Flocks edit). Null hides it. */
     onDelete: (() -> Unit)? = null
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
     val isEditing = flock != null
 
@@ -94,6 +93,12 @@ fun FlockEditScreen(
         return
     }
 
+    val flockId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null && selectedKnownAgentIds.isNotEmpty())
+        Flock(if (isAddMode) flockId else flock!!.id, name.trim(), selectedKnownAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId) else null
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+    BackHandler { back() }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -101,7 +106,7 @@ fun FlockEditScreen(
             helpTopic = "flock_edit",
             title = if (isAddMode) "Add Flock" else "Edit Flock",
             subject = name,
-            onBackClick = onBack,
+            onBackClick = back,
             onOpenView = if (!isAddMode) onOpenView else null,
             // 👯 duplicate into a new flock (copy-on-edit flow), 🗑 delete it —
             // both hidden once the screen flips into copy/add mode.
@@ -112,24 +117,13 @@ fun FlockEditScreen(
             onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))
-        if (isAddMode) {
-            OutlinedButton(
-                onClick = {
-                    onSave(Flock(java.util.UUID.randomUUID().toString(), name.trim(), selectedKnownAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId)); onBack()
-                },
-                enabled = nameError == null && selectedKnownAgentIds.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Create", maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-            // Edit: no Save button — auto-persist while editing and on leave.
-            com.ai.ui.shared.AutoSaveOnChange(
-                current = if (nameError == null && selectedKnownAgentIds.isNotEmpty())
-                    Flock(flock!!.id, name.trim(), selectedKnownAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId) else null,
-                onSave = onSave
-            )
-        }
+        OutlinedButton(
+            onClick = { onSave(current!!); onBack() },
+            enabled = current != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = name, onValueChange = { name = it },

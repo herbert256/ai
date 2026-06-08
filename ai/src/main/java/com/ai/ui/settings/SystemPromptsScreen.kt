@@ -21,7 +21,6 @@ fun SystemPromptEditScreen(
     /** 🗑 delete this system prompt (Prompt management → System prompts edit). */
     onDelete: (() -> Unit)? = null
 ) {
-    BackHandler { onBack() }
     val isEditing = systemPrompt != null
     var resetTick by remember { mutableStateOf(0) }
 
@@ -43,6 +42,12 @@ fun SystemPromptEditScreen(
         else -> null
     }
 
+    val promptId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null && prompt.isNotBlank())
+        SystemPrompt(if (isAddMode) promptId else systemPrompt!!.id, name.trim(), prompt) else null
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+    BackHandler { back() }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -50,31 +55,20 @@ fun SystemPromptEditScreen(
             helpTopic = "system_prompt_edit",
             title = if (isAddMode) "Add System Prompt" else "Edit System Prompt",
             subject = name,
-            onBackClick = onBack,
+            onBackClick = back,
             // 👯 duplicate into a new prompt, 🗑 delete — both hidden in add/copy mode.
             onCopyReport = dup.copyTrigger,
             onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
-        if (isAddMode) {
-            OutlinedButton(
-                onClick = {
-                    onSave(SystemPrompt(java.util.UUID.randomUUID().toString(), name.trim(), prompt)); onBack()
-                },
-                enabled = nameError == null && prompt.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Create", maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-            // Edit: no Save button — auto-persist while editing and on leave.
-            com.ai.ui.shared.AutoSaveOnChange(
-                current = if (nameError == null && prompt.isNotBlank())
-                    SystemPrompt(systemPrompt!!.id, name.trim(), prompt) else null,
-                onSave = onSave
-            )
-        }
+        OutlinedButton(
+            onClick = { onSave(current!!); onBack() },
+            enabled = current != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(

@@ -1,57 +1,49 @@
 package com.ai.ui.shared
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 
 /**
- * Drop-in replacement for a CRUD edit screen's "Save" button: persists
- * [current] automatically while editing instead of on an explicit tap.
+ * Back guard for a CRUD edit screen: returns a "back" lambda that confirms
+ * before discarding unsaved edits. The explicit Save button persists + closes;
+ * leaving by Back instead routes through this so typed-but-unsaved edits aren't
+ * silently lost.
  *
- * Renders nothing — it's purely the two effects:
- *  - a [debounceMs]-debounced auto-save that fires [onSave] [debounceMs]
- *    after the user stops changing the form, and
- *  - a final flush in `onDispose`, so the latest state is written when the
- *    user leaves the screen by ANY means — Android back, or tapping a
- *    top-/bottom-bar icon or the title (all of which dispose this composable).
+ * Remembers the FIRST [current] seen as the baseline. When the returned lambda
+ * is invoked while `current != baseline` (the form was edited) it shows a
+ * "Discard changes?" dialog — Discard → [onBack], Keep editing → stay. When the
+ * form is unchanged it calls [onBack] directly (no dialog).
  *
- * [current] is the built entity, or `null` when the form is invalid (a null
- * [current] never saves, so half-filled / invalid edits aren't persisted).
- * The baseline is the first [current] seen, so an unedited form never writes,
- * and an entity is never written twice in a row with identical content.
- *
- * Intended for EDIT mode only; adding a new entity keeps an explicit Create
- * button (the caller renders the button when adding and this when editing).
+ * [current] is the built entity, or `null` when the form is invalid — the same
+ * value the Save button persists, so dirty-detection and validity share one
+ * source of truth.
  */
 @Composable
-fun <T : Any> AutoSaveOnChange(
-    current: T?,
-    onSave: (T) -> Unit,
-    debounceMs: Long = 350
-) {
-    val onSaveRef = rememberUpdatedState(onSave)
-    val currentRef = rememberUpdatedState(current)
-    // Baseline = the first emitted value, so opening and leaving an unedited
-    // form writes nothing; updated to each value actually persisted.
-    var lastSaved by remember { mutableStateOf(current) }
-
-    LaunchedEffect(current) {
-        val c = current
-        if (c != null && c != lastSaved) {
-            kotlinx.coroutines.delay(debounceMs)
-            onSaveRef.value(c)
-            lastSaved = c
-        }
+fun rememberConfirmedBack(current: Any?, onBack: () -> Unit): () -> Unit {
+    val baseline = remember { current }
+    var confirm by remember { mutableStateOf(false) }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text("Discard changes?") },
+            text = { Text("Your edits haven't been saved. Discard them?") },
+            confirmButton = {
+                TextButton(onClick = { confirm = false; onBack() }) {
+                    Text("Discard", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirm = false }) {
+                    Text("Keep editing", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
-    DisposableEffect(Unit) {
-        onDispose {
-            val c = currentRef.value
-            if (c != null && c != lastSaved) onSaveRef.value(c)
-        }
-    }
+    return { if (current != baseline) confirm = true else onBack() }
 }

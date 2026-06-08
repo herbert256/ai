@@ -20,7 +20,6 @@ fun ExamplePromptEditScreen(
     /** 🗑 delete this example prompt (Prompt management → Example prompts edit). */
     onDelete: (() -> Unit)? = null
 ) {
-    BackHandler { onBack() }
     val isEditing = examplePrompt != null
     var resetTick by remember { mutableStateOf(0) }
 
@@ -35,6 +34,12 @@ fun ExamplePromptEditScreen(
 
     val titleError = if (title.isBlank()) "Title is required" else null
 
+    val exampleId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (titleError == null)
+        ExamplePrompt(id = if (isAddMode) exampleId else examplePrompt!!.id, title = title.trim(), text = text) else null
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+    BackHandler { back() }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -42,31 +47,20 @@ fun ExamplePromptEditScreen(
             helpTopic = "example_prompt_edit",
             title = if (isAddMode) "Add example prompt" else "Edit example prompt",
             subject = title,
-            onBackClick = onBack,
+            onBackClick = back,
             // 👯 duplicate into a new prompt, 🗑 delete — both hidden in add/copy mode.
             onCopyReport = dup.copyTrigger,
             onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
-        if (isAddMode) {
-            OutlinedButton(
-                onClick = {
-                    onSave(ExamplePrompt(id = java.util.UUID.randomUUID().toString(), title = title.trim(), text = text)); onBack()
-                },
-                enabled = titleError == null,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Create", maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-            // Edit: no Save button — auto-persist while editing and on leave.
-            com.ai.ui.shared.AutoSaveOnChange(
-                current = if (titleError == null)
-                    ExamplePrompt(id = examplePrompt!!.id, title = title.trim(), text = text) else null,
-                onSave = onSave
-            )
-        }
+        OutlinedButton(
+            onClick = { onSave(current!!); onBack() },
+            enabled = current != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(

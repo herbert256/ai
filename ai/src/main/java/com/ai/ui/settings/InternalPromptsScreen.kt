@@ -122,7 +122,6 @@ fun InternalPromptEditScreen(
     /** 🗑 delete this prompt (non-fixed categories only). Null hides it. */
     onDelete: (() -> Unit)? = null
 ) {
-    BackHandler { onBack() }
     val isEditing = internalPrompt != null
     val isFanCategory = fixedCategory in FAN_CATEGORIES
     // Other Internal prompts (chat-title / model-info / model-intro
@@ -242,6 +241,25 @@ fun InternalPromptEditScreen(
 
     var agentMenuOpen by remember { mutableStateOf(false) }
 
+    // Provider+Model mode wins when both are set; otherwise the prompt is bound
+    // to the agent (provider/model cleared) — mutually exclusive on disk.
+    val pmActive = useProviderModel && providerId.isNotBlank() && model.isNotBlank()
+    fun buildPrompt(id: String) = InternalPrompt(
+        id = id, name = name.trim(), reference = reference, category = category,
+        agent = if (isWorkers) AGENT_SELECT else if (pmActive) AGENT_SELECT else agent,
+        text = text, title = title.trim(),
+        provider = if (!isWorkers && pmActive) providerId else null,
+        model = if (!isWorkers && pmActive) model else null,
+        parameters = selectedParametersRef,
+        systemPrompt = selectedSystemPromptRef,
+        workers = if (isWorkers) workers else emptyList(),
+        modelSelection = if (showModelSelectionSwitch) selectedModelSelection else com.ai.model.MODEL_SELECTION_CONFIGURED
+    )
+    val promptId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null) buildPrompt(if (isAddMode) promptId else internalPrompt!!.id) else null
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+    BackHandler { back() }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -250,7 +268,7 @@ fun InternalPromptEditScreen(
             helpTopic = "internal_prompt_edit",
             title = if (isAddMode) "Add $singular" else "Edit $singular",
             subject = name,
-            onBackClick = onBack,
+            onBackClick = back,
             // 👯 duplicate + 🗑 delete — only for non-fixed categories, and
             // hidden once the screen flips into copy/add mode.
             onCopyReport = if (isFixedList) null else dup.copyTrigger,
@@ -260,39 +278,16 @@ fun InternalPromptEditScreen(
             onSystemPrompt = { showSysPromptDialog = true },
             onTrace = onTrace
         )
-        // Save / Create CTA hoisted to the top — these forms can be
-        // long (especially with the prompt-text editor) so a bottom
-        // button gets scrolled out of view.
-        // Provider+Model mode wins when both are set; otherwise the prompt is
-        // bound to the agent (provider/model cleared) — mutually exclusive on disk.
-        val pmActive = useProviderModel && providerId.isNotBlank() && model.isNotBlank()
-        fun buildPrompt(id: String) = InternalPrompt(
-            id = id, name = name.trim(), reference = reference, category = category,
-            agent = if (isWorkers) AGENT_SELECT else if (pmActive) AGENT_SELECT else agent,
-            text = text, title = title.trim(),
-            provider = if (!isWorkers && pmActive) providerId else null,
-            model = if (!isWorkers && pmActive) model else null,
-            parameters = selectedParametersRef,
-            systemPrompt = selectedSystemPromptRef,
-            workers = if (isWorkers) workers else emptyList(),
-            modelSelection = if (showModelSelectionSwitch) selectedModelSelection else com.ai.model.MODEL_SELECTION_CONFIGURED
-        )
+        // Save / Create CTA hoisted to the top — these forms can be long
+        // (especially the prompt-text editor) so a bottom button scrolls away.
         Spacer(modifier = Modifier.height(8.dp))
-        if (isAddMode) {
-            OutlinedButton(
-                onClick = { onSave(buildPrompt(java.util.UUID.randomUUID().toString())); onBack() },
-                enabled = nameError == null,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Create", maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-            // Edit: no Save button — auto-persist while editing and on leave.
-            com.ai.ui.shared.AutoSaveOnChange(
-                current = if (nameError == null) buildPrompt(internalPrompt!!.id) else null,
-                onSave = onSave
-            )
-        }
+        OutlinedButton(
+            onClick = { onSave(current!!); onBack() },
+            enabled = current != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Name + Title belong together: both are display fields on
