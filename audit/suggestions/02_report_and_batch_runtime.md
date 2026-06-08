@@ -2,7 +2,17 @@
 
 ## R01 - Expand `BatchEngine` into a complete lifecycle base
 
-> **Status (2026-06-08): ✅ done** — base lifecycle primitives + tests added, and ALL 5 engines migrated onto them: Compare / Tournament / Judges / TransRank / FanOut. (`5ef0a8d3`, `ef60fb4e`, `ea9e0ba2`, `270321ff`, `dd775eae3`)
+> **Status (2026-06-08): ✅ done** — base lifecycle primitives + tests added, and
+> all 5 `BatchEngine` subclasses migrated onto them: Compare / Tournament /
+> Judges / TransRank / FanOut (the grid-of-judged-cells engines).
+> (`5ef0a8d3`, `ef60fb4e`, `ea9e0ba2`, `270321ff`, `dd775eae3`)
+> Scope note: other batch/run flows keep their own `Job` maps and are NOT
+> `BatchEngine` subclasses — they don't share the run-state-of-cells shape:
+> Translation (`TranslationRunManager`), Fan Meta / Regenerate / icon-title
+> fan-outs (`ReportViewModel`, `IconGenerationManager`), the replay/temperature/
+> reasoning/web-search sweeps (covered separately by R03), Model-test
+> (`ModelTestEngine`), single-secondary runs (`SecondaryRunManager`). Folding
+> those in is out of R01's scope (and partly R03 / R12 territory).
 
 Priority: P0
 

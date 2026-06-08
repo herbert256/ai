@@ -11,8 +11,10 @@ change easier.
 > `GeneralSettingsStore`/`UsageStatsStore` still to split). Phase 3 **landed**
 > (`ReportExecutionPlan` + tests + a read-only preview on the select-models
 > screen). Phase 4 **landed** (`BatchEngine` lifecycle primitives + tests; all 5
-> engines migrated — Compare / Tournament / Judges / TransRank / FanOut — so R01
-> is complete). Also done: `ApiDispatch.kt` split by concern (P01, 1864→963 LOC),
+> `BatchEngine` subclasses — Compare / Tournament / Judges / TransRank / FanOut,
+> the grid-of-cells engines — migrated, so R01 is complete. Other batch/run flows
+> — Translation, Fan Meta, Regenerate, Model-test, replay sweeps — keep their own
+> job maps by shape and are out of R01's scope; see R03 / R12). Also done: `ApiDispatch.kt` split by concern (P01, 1864→963 LOC),
 > de-risked by the golden+streaming tests; `ReportStorage` cost-ledger /
 > corrupted-JSON instrumented tests (T06), run-verified. See the status table in
 > `00_executive_summary.md` for the per-recommendation breakdown and commits.
