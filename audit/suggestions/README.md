@@ -57,6 +57,27 @@ Priority is an implementation-order signal, not a severity label:
 - `06_testing_and_quality.md`: test strategy and missing coverage.
 - `07_incremental_roadmap.md`: a staged implementation plan.
 
+## Implementation status (2026-06-08)
+
+A first implementation pass landed the audit's actionable, de-risked core. Each
+recommendation that was acted on now carries an inline `> **Status …**` marker
+(✅ done · ◑ partial · ☐ deferred) under its heading in the detail files, and
+`00_executive_summary.md` has the summary table with commit refs.
+
+Shipped: all the tests the audit asked for (parity, throttle/permit, dispatch
+golden + streaming SSE, batch lifecycle, execution-plan), plus `ApiDispatch.kt`
+split (P01), `SettingsPreferences` moved below UI (A03) + first sub-store
+extracted (D01), `ReportExecutionPlan` + preview (R10/U05), and 4 of 5 batch
+engines migrated onto the shared base (R01). +~50 unit tests; suite 405/0.
+
+Everything **without** a Status marker is open **by design** — large
+opportunistic file splits (A01/A06/U01/R05, the 2k–3k-LOC files), product
+features (job center / presets / lineage — U06–U10, R12), or deliberately
+skipped/low-value for a single-user app (D12 migration registry, D04 scoped
+ticks, T12 perf, R02's deadlock-nuance unify). The remaining "finish for
+consistency" items are `FanOutEngine` (last R01 engine) and the
+`GeneralSettingsStore` / `UsageStatsStore` splits (D01/D11).
+
 ## Overall conclusion
 
 The app has broad feature depth and a lot of hard-won operational safeguards in

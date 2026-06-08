@@ -2,6 +2,8 @@
 
 ## R01 - Expand `BatchEngine` into a complete lifecycle base
 
+> **Status (2026-06-08): ◑ partial** — base lifecycle primitives + tests added; 4 of 5 engines migrated (Compare / Tournament / Judges / TransRank). Only `FanOutEngine` remains. (`5ef0a8d3`, `ef60fb4e`, `ea9e0ba2`, `270321ff`)
+
 Priority: P0
 
 Evidence:
@@ -299,6 +301,8 @@ Expected benefit:
 Report view, export, rerun, delete, and future graph/lineage UI become simpler.
 
 ## R10 - Add a report execution plan object
+
+> **Status (2026-06-08): ✅ done** — `ReportExecutionPlan` + pure builder + tests (`c5ee76e2`); consumed by the U05 preview.
 
 Priority: P1
 
