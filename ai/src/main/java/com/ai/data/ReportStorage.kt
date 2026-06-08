@@ -398,8 +398,13 @@ object ReportStorage {
      *  without re-parsing the file. */
     fun reportLastModified(context: Context, reportId: String): Long {
         init(context)
+        // Same flat-id + canonical-containment guard the delete/save paths use,
+        // so a suspect id can't probe outside the reports dir. See audit bug 26.
+        if (!isSafeFlatId(reportId)) return 0L
         val dir = reportsDir ?: return 0L
-        return File(dir, "$reportId.json").lastModified()
+        val target = File(dir, "$reportId.json")
+        if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) return 0L
+        return target.lastModified()
     }
     fun getAllReports(context: Context): List<Report> { init(context); return lock.withLock { loadAllReports().sortedByDescending { it.timestamp } } }
     fun getLastLoadFailures(context: Context): List<ReportLoadFailure> {

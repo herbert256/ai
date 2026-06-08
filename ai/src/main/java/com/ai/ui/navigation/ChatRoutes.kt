@@ -1,8 +1,11 @@
 package com.ai.ui.navigation
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
@@ -222,8 +225,15 @@ internal fun NavGraphBuilder.chatRoutes(
         composable(NavRoutes.AI_CHAT_CONTINUE) { entry ->
             val sessionId = entry.arguments?.getString("sessionId") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
-            val session = remember(sessionId) { ChatHistoryManager.loadSession(sessionId) }
-            if (session != null) {
+            // Off-main: parse the session JSON on IO so opening a large saved
+            // session doesn't block route composition. See audit chat bug 8.
+            val sessionLoad = produceState<Pair<Boolean, ChatSession?>>(false to null, sessionId) {
+                value = true to withContext(Dispatchers.IO) { ChatHistoryManager.loadSession(sessionId) }
+            }
+            val (sessionLoaded, session) = sessionLoad.value
+            if (!sessionLoaded) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            } else if (session != null) {
                 val apiKey = uiState.aiSettings.getApiKey(session.provider)
                 val sessionContext = LocalContext.current
                 val isLocalSession = session.provider.id == AppService.LOCAL.id

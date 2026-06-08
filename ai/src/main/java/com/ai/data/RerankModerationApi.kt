@@ -271,8 +271,11 @@ fun extractTopRankedIds(rerankContent: String?, count: Int): List<Int>? {
     val entries = arr.mapNotNull { el ->
         if (!el.isJsonObject) return@mapNotNull null
         val obj = el.asJsonObject
-        val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
-        val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt
+        // .asInt throws on a non-numeric primitive (e.g. "id":"x"), which would
+        // escape the top-level catch; the contract is to return null on any
+        // non-deserializable payload, so swallow per-entry. See audit data bug 1.
+        val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asInt }.getOrNull() } ?: return@mapNotNull null
+        val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asInt }.getOrNull() }
         Entry(id, rank)
     }
     if (entries.isEmpty()) return null

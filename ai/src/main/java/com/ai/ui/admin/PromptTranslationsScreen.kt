@@ -53,8 +53,14 @@ fun PromptTranslationsScreen(
 
     var refreshTick by remember { mutableStateOf(0) }
     // Languages present (baseline + bundled + generated), recomputed on tick.
-    val languages = remember(refreshTick) { InternalPromptSeed.listLanguages(context) }
-    val storedSet = remember(refreshTick) { PromptTranslationStore.storedLanguages(context).toSet() }
+    // Off-main: language listing scans generated-translation files. See audit
+    // settings bug 10.
+    val languages by produceState(emptyList(), refreshTick) {
+        value = withContext(Dispatchers.IO) { InternalPromptSeed.listLanguages(context) }
+    }
+    val storedSet by produceState(emptySet(), refreshTick) {
+        value = withContext(Dispatchers.IO) { PromptTranslationStore.storedLanguages(context).toSet() }
+    }
 
     var busyMessage by remember { mutableStateOf<String?>(null) }
     // The language currently being translated + its (done, total) progress,
@@ -234,10 +240,13 @@ fun PromptTranslationsScreen(
             text = { Text("Remove the generated $lang translation of every internal prompt? Bundled translations and the English baseline are untouched.") },
             confirmButton = {
                 TextButton(onClick = {
-                    val n = PromptTranslationStore.deleteLanguage(context, lang)
                     confirmDelete = null
-                    refreshTick++
-                    Toast.makeText(context, "Deleted $n $lang prompts", Toast.LENGTH_SHORT).show()
+                    // Recursive file delete off-main. See audit settings bug 10.
+                    scope.launch {
+                        val n = withContext(Dispatchers.IO) { PromptTranslationStore.deleteLanguage(context, lang) }
+                        refreshTick++
+                        Toast.makeText(context, "Deleted $n $lang prompts", Toast.LENGTH_SHORT).show()
+                    }
                 }) { Text("Delete", color = AppColors.DangerAccent) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } }

@@ -263,8 +263,12 @@ internal fun TranslationRunScreen(
     // screen, so they (and their confirm dialogs) are owned here at the
     // router and rendered regardless of which sub-screen is active.
     val scope = rememberCoroutineScope()
-    var confirmReload by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
+    // Saveable so the confirm dialogs survive a config change. `deleting` stays
+    // plain remember on purpose: its coroutine is tied to this composition and
+    // is cancelled on recreation, so a restored true would strand the spinner.
+    // See audit bug 25.
+    var confirmReload by rememberSaveable(run.runId) { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable(run.runId) { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
     val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->

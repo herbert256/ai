@@ -63,7 +63,13 @@ object LocalLlm {
         if (LlmRuntime.isInstalled(context)) installedTaskFiles(context) else emptyList()
 
     fun llmFile(context: Context, modelName: String): File? {
-        val f = File(localLlmsDir(context), "$modelName.task")
+        // A persisted/restored Local model name must not escape local_llms.
+        // See audit data bug 11.
+        if (modelName.isBlank() || modelName == "." || modelName == ".." ||
+            modelName.contains('/') || modelName.contains('\\')) return null
+        val dir = localLlmsDir(context)
+        val f = File(dir, "$modelName.task")
+        if (!f.canonicalPath.startsWith(dir.canonicalPath + File.separator)) return null
         return if (f.exists()) f else null
     }
 

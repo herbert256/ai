@@ -89,18 +89,21 @@ internal fun AgentChatScreen(
     val bridge = LocalAgentChat.current
     val scope = rememberCoroutineScope()
 
-    val messages = remember { mutableStateListOf<ChatMessage>().apply { addAll(initialMessages) } }
-    var params by remember { mutableStateOf(initialParams) }
+    // Keyed on the chat target so opening a different agent/row in the same
+    // composition resets the conversation + streaming state instead of inheriting
+    // the previous target's. See audit bug 20.
+    val messages = remember(agentIdForKey) { mutableStateListOf<ChatMessage>().apply { addAll(initialMessages) } }
+    var params by remember(agentIdForKey) { mutableStateOf(initialParams) }
     var selectedSystemPromptId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedParamsIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     var showSystemPromptPicker by rememberSaveable { mutableStateOf(false) }
     var showParamsPicker by rememberSaveable { mutableStateOf(false) }
 
     var userInput by rememberSaveable { mutableStateOf("") }
-    var isStreaming by remember { mutableStateOf(false) }
-    var streamingText by remember { mutableStateOf("") }
-    var streamJob by remember { mutableStateOf<Job?>(null) }
-    var appliedTick by remember { mutableStateOf(0) }
+    var isStreaming by remember(agentIdForKey) { mutableStateOf(false) }
+    var streamingText by remember(agentIdForKey) { mutableStateOf("") }
+    var streamJob by remember(agentIdForKey) { mutableStateOf<Job?>(null) }
+    var appliedTick by remember(agentIdForKey) { mutableStateOf(0) }
 
     // ----- 🎭 system prompt picker -----
     if (showSystemPromptPicker) {
@@ -170,8 +173,15 @@ internal fun AgentChatScreen(
                         bridge.estimateTokens(reply)
                     )
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Navigation / scope cancellation isn't a model failure — rethrow
+                // so no spurious failure bubble is appended. See audit bug 18.
+                throw e
             } catch (_: Exception) {
                 messages.add(ChatMessage(role = "assistant", content = "${com.ai.data.MetadataIconsHolder.current.statusWarning} The model call failed. Try again."))
+                // Persist the failure bubble too (the success path does), so it
+                // survives reopening the chat. See audit bug 19.
+                withContext(Dispatchers.IO) { onSaveMessages(messages.toList()) }
             } finally {
                 isStreaming = false; streamingText = ""; streamJob = null
             }

@@ -104,8 +104,17 @@ class CompareEngine internal constructor(
         }
         // One compare run per report — pick the newest run group.
         val (runId, group) = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }!!
+        // Keep the run visible even if the compare prompt was deleted/renamed
+        // since it ran: fall back to a synthetic prompt from the row metadata
+        // (blank text) so the cells hydrate read-only. Rerun/resume no-op on a
+        // synthetic (blank-text) prompt. See audit bug 15.
         val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
-            ?: comparePromptById(aiSettings, null) ?: run { _runs.update { it - reportId }; return }
+            ?: comparePromptById(aiSettings, null)
+            ?: InternalPrompt(
+                id = group.first().metaPromptId ?: "",
+                name = group.first().metaPromptName?.takeIf { it.isNotBlank() } ?: "(prompt unavailable)",
+                category = COMPARE_CATEGORY
+            )
         val currentCells = _runs.value[reportId]?.cells
         val cells = group.mapNotNull { it.toCompareCellState() }
             .associateBy { it.key }
@@ -495,6 +504,9 @@ class CompareEngine internal constructor(
         val run = _runs.value[reportId] ?: return
         val report = ReportStorage.getReport(context, reportId) ?: return
         val prompt = run.comparePrompt
+        // A synthetic (prompt-unavailable) run carries blank prompt text and
+        // can't be re-run. See audit bug 15.
+        if (prompt.text.isBlank()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
         val resets = mutableListOf<PendingCell>()
         var clearedCostDelta = 0.0
         // Build stage: resetting each broken cell to a PENDING placeholder is
@@ -579,6 +591,7 @@ class CompareEngine internal constructor(
             try {
                 val run = _runs.value[reportId] ?: return@launch
                 val prompt = run.comparePrompt
+                if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't resume
                 val report = ReportStorage.getReport(context, reportId) ?: return@launch
                 val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.COMPARE)
                     .filter {

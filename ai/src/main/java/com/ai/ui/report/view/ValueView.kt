@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -43,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -279,9 +281,14 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null
             }
             val answererKeys = fanOutPairs.map { modelKey(it.providerId, it.model) }.toSet()
-            val successKeys = successAgents.map { modelKey(it.provider, it.model) }.toSet()
+            val successKeyList = successAgents.map { modelKey(it.provider, it.model) }
+            val successKeys = successKeyList.toSet()
+            // Skip the fold-in when two success agents share a provider/model key:
+            // they collapse to one key, so the per-key fan-out total would be
+            // double-assigned to both agents. See audit bug 11.
+            val noDuplicateModels = successKeyList.size == successKeys.size
             val fanOutCostByAgentId: Map<String, Double> =
-                if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && answererKeys == successKeys) {
+                if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && noDuplicateModels && answererKeys == successKeys) {
                     val costByKey = fanOutPairs
                         .groupBy { modelKey(it.providerId, it.model) }
                         .mapValues { (_, list) -> list.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } }
@@ -702,18 +709,21 @@ private fun ValueRow(p: ValuePoint) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("${p.provider} · ${p.modelShort}", color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("${p.provider} · ${p.modelShort}", color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     "${formatCents(p.costCents / 100.0)}   ·   score ${formatScore(p.quality)}",
-                    color = AppColors.TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace
+                    color = AppColors.TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
+            Spacer(Modifier.width(8.dp))
             val (badge, color) = when {
                 p.bestValue -> "${com.ai.data.MetadataIconsHolder.current.gem} Best value" to AppColors.SuccessAccent
                 !p.dominated -> "Pareto" to AppColors.InfoAccent
                 else -> "dominated" to AppColors.TextDim
             }
-            Text(badge, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(badge, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }

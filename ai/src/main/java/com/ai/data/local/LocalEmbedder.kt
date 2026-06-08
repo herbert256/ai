@@ -95,6 +95,9 @@ object LocalEmbedder {
         onProgress: (Long, Long) -> Unit
     ): Boolean {
         val started = System.currentTimeMillis()
+        // Clean up stale .part files here (an explicit download path) rather than
+        // on every availableModels() query. See audit data bug 15.
+        sweepStalePartials(context)
         val target = File(localModelsDir(context), "${spec.name}.tflite")
         val tmp = File(target.parentFile, "${target.name}.part")
         return try {
@@ -184,7 +187,8 @@ object LocalEmbedder {
     /** Names of every .tflite file in [localModelsDir] (without
      *  extension). Drives the Local Semantic Search picker. */
     fun availableModels(context: Context): List<String> {
-        sweepStalePartials(context)
+        // No filesystem mutation here — a query must not delete files. The stale
+        // .part sweep runs on the download path instead. See audit data bug 15.
         return localModelsDir(context).listFiles { f -> f.extension.equals("tflite", ignoreCase = true) }
             ?.map { it.nameWithoutExtension }
             ?.sorted()
@@ -194,7 +198,13 @@ object LocalEmbedder {
     /** Resolve [modelName] (no extension) to its file path. Returns
      *  null when the file isn't present in [localModelsDir]. */
     fun modelFile(context: Context, modelName: String): File? {
-        val f = File(localModelsDir(context), "$modelName.tflite")
+        // A persisted/restored embedder model name must not escape local_models.
+        // See audit data bug 12.
+        if (modelName.isBlank() || modelName == "." || modelName == ".." ||
+            modelName.contains('/') || modelName.contains('\\')) return null
+        val dir = localModelsDir(context)
+        val f = File(dir, "$modelName.tflite")
+        if (!f.canonicalPath.startsWith(dir.canonicalPath + File.separator)) return null
         return if (f.exists()) f else null
     }
 

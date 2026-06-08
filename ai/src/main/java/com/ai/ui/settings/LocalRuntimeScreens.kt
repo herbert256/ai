@@ -51,16 +51,19 @@ fun LocalLiteRtModelsScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var installed by remember { mutableStateOf(LocalEmbedder.availableModels(context)) }
+    var installed by remember { mutableStateOf(emptyList<String>()) }
     var status by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
+    // Initial list load off-main — listFiles in a plain remember{} blocked first
+    // paint. See audit settings bug 1.
+    LaunchedEffect(Unit) { installed = withContext(Dispatchers.IO) { LocalEmbedder.availableModels(context) } }
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             val name = withContext(Dispatchers.IO) { importTfliteModel(context, uri) }
             if (name != null) {
-                installed = LocalEmbedder.availableModels(context)
+                installed = withContext(Dispatchers.IO) { LocalEmbedder.availableModels(context) }
                 status = "Imported $name"
             } else status = "Could not import model"
         }
@@ -102,7 +105,7 @@ fun LocalLiteRtModelsScreen(
                                 }
                                 working = false
                                 if (ok) {
-                                    installed = LocalEmbedder.availableModels(context)
+                                    installed = withContext(Dispatchers.IO) { LocalEmbedder.availableModels(context) }
                                     status = "Installed ${spec.displayName}"
                                 } else status = "Download failed."
                             }
@@ -140,16 +143,20 @@ fun LocalLiteRtModelsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         TextButton(onClick = {
-                            LocalEmbedder.release(name)
-                            val target = File(LocalEmbedder.localModelsDir(context), "$name.tflite")
-                            val deleted = target.delete()
-                            installed = LocalEmbedder.availableModels(context)
-                            // delete() returns false on filesystem-busy
-                            // (mid-ingest read in progress) or permission
-                            // failure. The previous code reported success
-                            // either way, leaving the file on disk and
-                            // misleading the user about the state.
-                            status = if (deleted) "Removed $name" else "Could not remove $name (file in use?)"
+                            // Delete + rescan off-main. See audit settings bug 4.
+                            scope.launch {
+                                val deleted = withContext(Dispatchers.IO) {
+                                    LocalEmbedder.release(name)
+                                    File(LocalEmbedder.localModelsDir(context), "$name.tflite").delete()
+                                }
+                                installed = withContext(Dispatchers.IO) { LocalEmbedder.availableModels(context) }
+                                // delete() returns false on filesystem-busy
+                                // (mid-ingest read in progress) or permission
+                                // failure. The previous code reported success
+                                // either way, leaving the file on disk and
+                                // misleading the user about the state.
+                                status = if (deleted) "Removed $name" else "Could not remove $name (file in use?)"
+                            }
                         }) { Text("Remove", color = AppColors.DangerAccent, fontSize = 12.sp) }
                     }
                 }
@@ -179,10 +186,15 @@ fun LocalLlmsScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var installed by remember { mutableStateOf(LocalLlm.installedTaskFiles(context)) }
-    var runtimeInstalled by remember { mutableStateOf(LlmRuntime.isInstalled(context)) }
+    var installed by remember { mutableStateOf(emptyList<String>()) }
+    var runtimeInstalled by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
+    // Initial installed-list + runtime check off-main. See audit settings bug 2.
+    LaunchedEffect(Unit) {
+        installed = withContext(Dispatchers.IO) { LocalLlm.installedTaskFiles(context) }
+        runtimeInstalled = withContext(Dispatchers.IO) { LlmRuntime.isInstalled(context) }
+    }
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -192,7 +204,7 @@ fun LocalLlmsScreen(
             val name = withContext(Dispatchers.IO) { importTaskModel(context, uri) }
             working = false
             if (name != null) {
-                installed = LocalLlm.installedTaskFiles(context)
+                installed = withContext(Dispatchers.IO) { LocalLlm.installedTaskFiles(context) }
                 status = "Imported $name"
             } else status = "Could not import model"
         }
@@ -232,8 +244,13 @@ fun LocalLlmsScreen(
                         }
                         working = false
                         if (ok) {
-                            LlmRuntime.ensureLoaded(context)
-                            runtimeInstalled = LlmRuntime.isInstalled(context)
+                            // ensureLoaded does System.load of the ~26MB native
+                            // runtime — keep it off the main thread. See audit
+                            // settings bug 5.
+                            runtimeInstalled = withContext(Dispatchers.IO) {
+                                LlmRuntime.ensureLoaded(context)
+                                LlmRuntime.isInstalled(context)
+                            }
                             status = "Runtime installed"
                         } else status = "Runtime download failed."
                     }
@@ -312,11 +329,15 @@ fun LocalLlmsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         TextButton(onClick = {
-                            LocalLlm.release(name)
-                            val target = File(LocalLlm.localLlmsDir(context), "$name.task")
-                            val deleted = target.delete()
-                            installed = LocalLlm.installedTaskFiles(context)
-                            status = if (deleted) "Removed $name" else "Could not remove $name (file in use?)"
+                            // Delete + rescan off-main. See audit settings bug 4.
+                            scope.launch {
+                                val deleted = withContext(Dispatchers.IO) {
+                                    LocalLlm.release(name)
+                                    File(LocalLlm.localLlmsDir(context), "$name.task").delete()
+                                }
+                                installed = withContext(Dispatchers.IO) { LocalLlm.installedTaskFiles(context) }
+                                status = if (deleted) "Removed $name" else "Could not remove $name (file in use?)"
+                            }
                         }) { Text("Remove", color = AppColors.DangerAccent, fontSize = 12.sp) }
                     }
                 }

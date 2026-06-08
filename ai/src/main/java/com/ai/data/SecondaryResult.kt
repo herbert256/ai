@@ -234,7 +234,27 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return@withLock null
             val file = File(dir, "$resultId.json")
             if (!file.exists()) return@withLock null
-            try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
+            // Reuse the same fingerprint-validated parse cache listForReport
+            // populates, so repeated get() calls on heavy screens don't reparse
+            // unchanged JSON. Same (mtime, length, crc) validation → no staleness.
+            // See audit data bug 14.
+            val name = file.name
+            val mtime = file.lastModified()
+            val length = file.length()
+            val contentHash = file.crc32OrNull()
+            val cacheForReport = listCache.getOrPut(reportId) { HashMap(16) }
+            val cached = cacheForReport[name]
+            if (cached != null && contentHash != null &&
+                cached.mtime == mtime && cached.length == length && cached.contentHash == contentHash) {
+                return@withLock cached.parsed
+            }
+            val parsed = try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
+            if (parsed != null && contentHash != null) {
+                cacheForReport[name] = CachedEntry(mtime, length, contentHash, parsed)
+            } else if (parsed == null) {
+                cacheForReport.remove(name)
+            }
+            parsed
         }
     }
 
@@ -895,7 +915,12 @@ object SecondaryResultStorage {
         providerId: String, model: String, content: String,
         inputTokens: Int, outputTokens: Int,
         inputCost: Double, outputCost: Double, durationMs: Long,
-        traceFile: String? = null
+        traceFile: String? = null,
+        /** Full usage to persist when the caller has it (TransRank passes the
+         *  whole [TokenUsage] so cached / cache-creation / reasoning tokens and
+         *  the API-reported cost survive). When null, the row keeps the legacy
+         *  input/output-only shape built from [inputTokens] / [outputTokens]. */
+        tokenUsage: TokenUsage? = null
     ) {
         init(context)
         lock.withLock {
@@ -910,7 +935,7 @@ object SecondaryResultStorage {
                 agentName = "$providerId / $model",
                 content = content,
                 errorMessage = null,
-                tokenUsage = TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens),
+                tokenUsage = tokenUsage ?: TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens),
                 inputCost = inputCost,
                 outputCost = outputCost,
                 durationMs = durationMs,
