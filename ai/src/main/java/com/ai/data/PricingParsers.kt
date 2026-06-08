@@ -4,6 +4,15 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 
+/** Safe numeric reads: `.asDouble` / `.asInt` THROW on a non-numeric
+ *  primitive (e.g. `"input":"free"`), and an external catalog row carrying
+ *  one would otherwise abort the whole provider's parse. These return null
+ *  for anything that isn't a JSON number, so the bad row is skipped instead. */
+private fun JsonElement?.numOrNull(): Double? =
+    this?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.runCatching { asDouble }?.getOrNull()
+private fun JsonElement?.intOrNull(): Int? =
+    this?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.runCatching { asInt }?.getOrNull()
+
 /** Pure JSON-to-Map parsers for every external pricing tier the
  *  [PricingCache] consults. Each function takes the raw response
  *  body as a String and returns the parsed pricing + (optional)
@@ -136,11 +145,11 @@ internal fun parseModelsDevJson(json: String): Pair<Map<String, PricingCache.Mod
             val costEl = m.get("cost")
             if (costEl != null && costEl.isJsonObject) {
                 val cost = costEl.asJsonObject
-                val ic = cost.get("input")?.takeIf { it.isJsonPrimitive }?.asDouble
-                val oc = cost.get("output")?.takeIf { it.isJsonPrimitive }?.asDouble
+                val ic = cost.get("input").numOrNull()
+                val oc = cost.get("output").numOrNull()
                 if (ic != null && oc != null) {
-                    val cr = cost.get("cache_read")?.takeIf { it.isJsonPrimitive }?.asDouble
-                    val cw = cost.get("cache_write")?.takeIf { it.isJsonPrimitive }?.asDouble
+                    val cr = cost.get("cache_read").numOrNull()
+                    val cw = cost.get("cache_write").numOrNull()
                     pricing[composite] = PricingCache.ModelPricing(
                         modelId = modelKey,
                         promptPrice = ic / 1_000_000.0,
@@ -161,8 +170,8 @@ internal fun parseModelsDevJson(json: String): Pair<Map<String, PricingCache.Mod
             val visionFromModalities = modalitiesIn?.any { it.equals("image", ignoreCase = true) }
             val supportsVision = attachment ?: visionFromModalities
             val limit = m.get("limit")?.takeIf { it.isJsonObject }?.asJsonObject
-            val ctx = limit?.get("context")?.takeIf { it.isJsonPrimitive }?.asInt
-            val out = limit?.get("output")?.takeIf { it.isJsonPrimitive }?.asInt
+            val ctx = limit?.get("context").intOrNull()
+            val out = limit?.get("output").intOrNull()
             if (supportsVision != null || toolCall != null || reasoning != null || ctx != null || out != null) {
                 meta[composite] = PricingCache.ModelsDevMeta(supportsVision, toolCall, reasoning, ctx, out)
             }
@@ -188,10 +197,10 @@ internal fun parseHeliconeJson(json: String): Pair<Map<String, PricingCache.Mode
         val provider = obj.get("provider")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
         val modelStr = obj.get("model")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
         val op = obj.get("operator")?.takeIf { it.isJsonPrimitive }?.asString ?: "equals"
-        val ic = obj.get("input_cost_per_1m")?.takeIf { it.isJsonPrimitive }?.asDouble ?: continue
-        val oc = obj.get("output_cost_per_1m")?.takeIf { it.isJsonPrimitive }?.asDouble ?: continue
-        val cr = obj.get("prompt_cache_read_per_1m")?.takeIf { it.isJsonPrimitive }?.asDouble
-        val cw = obj.get("prompt_cache_write_per_1m")?.takeIf { it.isJsonPrimitive }?.asDouble
+        val ic = obj.get("input_cost_per_1m").numOrNull() ?: continue
+        val oc = obj.get("output_cost_per_1m").numOrNull() ?: continue
+        val cr = obj.get("prompt_cache_read_per_1m").numOrNull()
+        val cw = obj.get("prompt_cache_write_per_1m").numOrNull()
         val pricing = PricingCache.ModelPricing(
             modelId = modelStr,
             promptPrice = ic / 1_000_000.0,
@@ -228,9 +237,9 @@ internal fun parseLLMPricesVendorJson(vendor: String, json: String): Map<String,
         val current = history.firstOrNull { e ->
             e.isJsonObject && (e.asJsonObject.get("to_date")?.isJsonNull ?: true)
         }?.asJsonObject ?: history.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject ?: continue
-        val ic = current.get("input")?.takeIf { it.isJsonPrimitive }?.asDouble ?: continue
-        val oc = current.get("output")?.takeIf { it.isJsonPrimitive }?.asDouble ?: continue
-        val cached = current.get("input_cached")?.takeIf { it.isJsonPrimitive }?.asDouble
+        val ic = current.get("input").numOrNull() ?: continue
+        val oc = current.get("output").numOrNull() ?: continue
+        val cached = current.get("input_cached").numOrNull()
         out["$vendor/$id"] = PricingCache.ModelPricing(
             modelId = id,
             promptPrice = ic / 1_000_000.0,
@@ -267,8 +276,8 @@ internal fun parseArtificialAnalysisJson(json: String): Pair<Map<String, Pricing
         val composite = if (!creatorSlug.isNullOrBlank()) "${creatorSlug.lowercase()}/$slug" else slug
 
         val priceObj = m.get("pricing")?.takeIf { it.isJsonObject }?.asJsonObject
-        val ic = priceObj?.get("price_1m_input_tokens")?.takeIf { it.isJsonPrimitive }?.asDouble
-        val oc = priceObj?.get("price_1m_output_tokens")?.takeIf { it.isJsonPrimitive }?.asDouble
+        val ic = priceObj?.get("price_1m_input_tokens").numOrNull()
+        val oc = priceObj?.get("price_1m_output_tokens").numOrNull()
         if (ic != null && oc != null) {
             pricing[composite] = PricingCache.ModelPricing(
                 modelId = slug,
@@ -279,9 +288,9 @@ internal fun parseArtificialAnalysisJson(json: String): Pair<Map<String, Pricing
         }
 
         val evals = m.get("evaluations")?.takeIf { it.isJsonObject }?.asJsonObject
-        val intelligenceIndex = evals?.get("artificial_analysis_intelligence_index")?.takeIf { it.isJsonPrimitive }?.asDouble
-        val outputSpeed = m.get("median_output_tokens_per_second")?.takeIf { it.isJsonPrimitive }?.asDouble
-        val firstChunk = m.get("median_time_to_first_token_seconds")?.takeIf { it.isJsonPrimitive }?.asDouble
+        val intelligenceIndex = evals?.get("artificial_analysis_intelligence_index").numOrNull()
+        val outputSpeed = m.get("median_output_tokens_per_second").numOrNull()
+        val firstChunk = m.get("median_time_to_first_token_seconds").numOrNull()
         if (intelligenceIndex != null || outputSpeed != null || firstChunk != null || creatorName != null) {
             meta[composite] = PricingCache.ArtificialAnalysisMeta(intelligenceIndex, outputSpeed, firstChunk, creatorName)
         }

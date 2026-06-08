@@ -184,7 +184,7 @@ object NavRoutes {
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun aiAppLogDetail(filename: String, search: String = "") =
-        "ai_applog_detail/$filename?search=${encode(search)}"
+        "ai_applog_detail/${encode(filename)}?search=${encode(search)}"
     fun aiAuditDetail(reportId: String) = "ai_audit_detail/$reportId"
     fun traceListForReport(reportId: String) = "trace_list/$reportId"
     fun traceListForReportCategory(reportId: String, category: String) =

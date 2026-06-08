@@ -228,8 +228,17 @@ object SecondaryResultStorage {
         null
     }
 
+    /** Reject a result id that could escape the report dir (separators, `.`,
+     *  `..`, blank). Result ids are internal UUIDs today; this hardens the
+     *  direct read/exists/delete helpers for any future caller that builds the
+     *  id from a route arg or import — the write path already validates. */
+    private fun isSafeResultId(resultId: String): Boolean =
+        resultId.isNotBlank() && !resultId.contains('/') && !resultId.contains('\\') &&
+            resultId != "." && resultId != ".."
+
     fun get(context: Context, reportId: String, resultId: String): SecondaryResult? {
         init(context)
+        if (!isSafeResultId(resultId)) return null
         return lock.withLock {
             val dir = resolveReportDirForRead(reportId) ?: return@withLock null
             val file = File(dir, "$resultId.json")
@@ -269,8 +278,7 @@ object SecondaryResultStorage {
     ): SecondaryResult? {
         init(context)
         if (!ReportStorage.reportExists(context, reportId)) return null
-        if (resultId.isBlank() || resultId.contains('/') || resultId.contains('\\')
-                || resultId == "." || resultId == "..") {
+        if (!isSafeResultId(resultId)) {
             AppLog.e("SecondaryResultStorage", "Refusing to update result with suspect id $resultId")
             return null
         }
@@ -391,6 +399,7 @@ object SecondaryResultStorage {
      *  Cheap on-disk check inside the same lock save / delete use. */
     fun exists(context: Context, reportId: String, resultId: String): Boolean {
         init(context)
+        if (!isSafeResultId(resultId)) return false
         return lock.withLock {
             val dir = resolveReportDirForRead(reportId) ?: return@withLock false
             File(dir, "$resultId.json").exists()
@@ -1045,6 +1054,7 @@ object SecondaryResultStorage {
 
     fun delete(context: Context, reportId: String, resultId: String) {
         init(context)
+        if (!isSafeResultId(resultId)) return
         lock.withLock {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")

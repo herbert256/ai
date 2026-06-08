@@ -135,8 +135,15 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
 
     val metaBytes = entries["meta.json"]
         ?: error("Missing meta.json — not a valid AI Report bundle")
-    val meta = JsonParser.parseString(String(metaBytes, Charsets.UTF_8)).asJsonObject
-    val version = meta.get("exportVersion")?.asInt ?: 0
+    // A non-object root (`.asJsonObject`) or a non-numeric exportVersion
+    // (`.asInt`) would otherwise throw a generic Gson exception past the
+    // controlled `error()` import path below.
+    val metaRoot = runCatching { JsonParser.parseString(String(metaBytes, Charsets.UTF_8)) }.getOrNull()
+    if (metaRoot == null || !metaRoot.isJsonObject) {
+        error("Malformed meta.json — not a valid AI Report bundle")
+    }
+    val meta = metaRoot.asJsonObject
+    val version = meta.get("exportVersion")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt ?: 0
     if (version !in 1..EXPORT_VERSION) {
         error("Unsupported export version: $version (this install accepts 1..$EXPORT_VERSION)")
     }

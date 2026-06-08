@@ -83,7 +83,9 @@ object AppLog {
     // Debounce so a burst of WARN/ERROR lines (e.g. fan-out icon retries
     // spraying dozens in a second) doesn't queue a wall of toasts the
     // user can't dismiss.
-    @Volatile private var lastToastMs: Long = 0L
+    // Per (level, tag) so a benign WARN burst can't muffle a later ERROR
+    // (or an unrelated tag's warning) — they coalesce on their own keys.
+    private val lastToastMsByKey = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private const val TOAST_MIN_INTERVAL_MS: Long = 1500L
 
     /** Last exception message seen by [appendLine]'s catch block, or
@@ -164,8 +166,9 @@ object AppLog {
     private fun maybeShowToast(level: LogLevel, tag: String, msg: String) {
         val ctx = appContext ?: return
         val now = System.currentTimeMillis()
-        if (now - lastToastMs < TOAST_MIN_INTERVAL_MS) return
-        lastToastMs = now
+        val key = "${level.name}|$tag"
+        if (now - (lastToastMsByKey[key] ?: 0L) < TOAST_MIN_INTERVAL_MS) return
+        lastToastMsByKey[key] = now
         val safe = redactSecret(msg).take(140)
         val text = "${level.name} $tag: $safe"
         mainHandler.post {
@@ -197,7 +200,16 @@ object AppLog {
         list
     }
 
+    /** True only for our own `applog_<yyyyMMdd>.log` filenames — guards
+     *  read/delete against a path-escaping or foreign filename arriving from
+     *  a route argument or any caller that didn't pick it from [getLogFiles]. */
+    private fun isOwnLogFilename(name: String): Boolean =
+        name.startsWith(FILE_PREFIX) && name.endsWith(FILE_SUFFIX) &&
+            !name.contains('/') && !name.contains('\\') &&
+            name.removePrefix(FILE_PREFIX).removeSuffix(FILE_SUFFIX).matches(Regex("\\d{8}"))
+
     fun readLogFile(filename: String): String? = lock.withLock {
+        if (!isOwnLogFilename(filename)) return null
         val dir = logDir ?: return null
         val file = File(dir, filename)
         if (!file.exists()) return null
@@ -205,6 +217,7 @@ object AppLog {
     }
 
     fun deleteLog(filename: String): Boolean = lock.withLock {
+        if (!isOwnLogFilename(filename)) return false
         val dir = logDir ?: return false
         val file = File(dir, filename)
         if (!file.exists()) return false
