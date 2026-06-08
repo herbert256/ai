@@ -48,9 +48,14 @@ class EmbeddingsCosineTest {
             .isWithin(1e-9).of(1.0)
     }
 
-    @Test fun list_overload_empty_and_mismatch_return_zero() {
+    @Test fun list_overload_empty_returns_zero_mismatch_returns_nan() {
+        // Empty → 0.0. Dimension mismatch → NaN by design: the List-overload
+        // callers (SemanticSearchScreen, LocalSemanticSearchScreen,
+        // SecondaryRunManager) check isNaN() to SKIP chunks embedded with a
+        // swapped embedder. (The FloatArray hot-path overload instead returns
+        // 0.0 because KnowledgeService pre-filters by dimension.)
         assertThat(EmbeddingsStore.cosine(emptyList(), listOf(1.0))).isEqualTo(0.0)
-        assertThat(EmbeddingsStore.cosine(listOf(1.0, 2.0), listOf(1.0))).isEqualTo(0.0)
+        assertThat(EmbeddingsStore.cosine(listOf(1.0, 2.0), listOf(1.0)).isNaN()).isTrue()
     }
 
     @Test fun known_angle_half() {

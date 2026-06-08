@@ -7,10 +7,19 @@ import com.ai.data.ProviderRegistry
 import com.ai.model.ProviderConfig
 import com.ai.model.Settings
 import com.google.common.truth.Truth.assertThat
+import org.junit.After
 import org.junit.Test
 
 class SemanticSearchChoicesTest {
-    @Test fun supportedEmbeddingChoices_keeps_only_openai_compatible_embedding_models() {
+    // ProviderRegistry is a process-global singleton; remove the test providers
+    // we register so they don't leak into later tests (e.g. GsonNullSafetyTest,
+    // which reads the registry-derived Settings.providers default).
+    @After fun removeTestProviders() {
+        ProviderRegistry.remove("UNIT_SEARCH_OPENAI")
+        ProviderRegistry.remove("UNIT_SEARCH_GOOGLE")
+    }
+
+    @Test fun supportedEmbeddingChoices_keeps_openai_compatible_and_google_embedding_models() {
         val openAiCompatible = AppService(
             id = "UNIT_SEARCH_OPENAI",
             baseUrl = "https://openai-compatible.example.com/",
@@ -48,7 +57,13 @@ class SemanticSearchChoicesTest {
             )
         )
 
+        // Both OpenAI-compatible AND Google embedding models are supported; the
+        // CHAT-typed model is excluded. (Google embedding support was added to
+        // supportedEmbeddingChoices; the chat model stays filtered out.)
         assertThat(supportedEmbeddingChoices(settings))
-            .containsExactly(openAiCompatible to "text-embedding-3-small")
+            .containsExactly(
+                openAiCompatible to "text-embedding-3-small",
+                google to "gemini-embedding-001",
+            )
     }
 }
