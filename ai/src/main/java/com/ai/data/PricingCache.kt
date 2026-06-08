@@ -1510,7 +1510,10 @@ object PricingCache {
                     // catches the parse exception and falls back to an
                     // empty map, so every report would send every parameter
                     // regardless of model support until the next refresh.
-                    java.io.File(context.filesDir, "model_pricing.json").writeTextAtomic(gson.toJson(pricingEntries))
+                    // model_pricing.json is intentionally NOT written — nothing
+                    // reads it back (pricing resolves through the layered
+                    // getPricing tiers). pricingEntries is kept only to report
+                    // the priced-model count in the return value.
                     java.io.File(context.filesDir, "model_supported_parameters.json").writeTextAtomic(gson.toJson(parametersEntries))
                     clearSupportedParametersCache()
                     Pair(pricingEntries.size, parametersEntries.size)
@@ -1614,7 +1617,9 @@ object PricingCache {
         tierBlobs.forEach { key ->
             try { blobFile(context, key).delete() } catch (_: Exception) {}
         }
-        // OpenRouter model-specs files (written by fetchAndSaveModelSpecifications).
+        // OpenRouter model-specs files. model_pricing.json is a legacy file
+        // (no longer written; nothing ever read it) — deleted here to clean it
+        // off older installs. model_supported_parameters.json is still live.
         try { java.io.File(context.filesDir, "model_pricing.json").delete() } catch (_: Exception) {}
         try { java.io.File(context.filesDir, "model_supported_parameters.json").delete() } catch (_: Exception) {}
 

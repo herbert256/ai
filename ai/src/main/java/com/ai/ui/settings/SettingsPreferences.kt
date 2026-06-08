@@ -153,6 +153,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             typeABenchEnabled = prefs.getBoolean(KEY_TYPE_A_BENCH_ENABLED, true),
             typeABenchSeconds = prefs.getInt(KEY_TYPE_A_BENCH_SECONDS, 10),
             typeABenchMaxAttempts = prefs.getInt(KEY_TYPE_A_BENCH_MAX_ATTEMPTS, 5),
+            showLadybugIcons = prefs.getBoolean(KEY_SHOW_LADYBUG_ICONS, true),
+            rankingWeights = prefs.getString(KEY_RANKING_WEIGHTS, null)?.let {
+                try { gson.fromJson<Map<String, Int>>(it, TypeTokens.mapStringIntType) } catch (_: Exception) { null }
+            }.orEmpty(),
             logLevel = prefs.getString(KEY_LOG_LEVEL, null)?.let {
                 try { com.ai.data.LogLevel.valueOf(it) } catch (_: Exception) { null }
             } ?: com.ai.data.LogLevel.WARN
@@ -226,6 +230,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_TYPE_A_BENCH_ENABLED, settings.typeABenchEnabled)
             putInt(KEY_TYPE_A_BENCH_SECONDS, settings.typeABenchSeconds)
             putInt(KEY_TYPE_A_BENCH_MAX_ATTEMPTS, settings.typeABenchMaxAttempts)
+            putBoolean(KEY_SHOW_LADYBUG_ICONS, settings.showLadybugIcons)
+            putString(KEY_RANKING_WEIGHTS, if (settings.rankingWeights.isEmpty()) null else gson.toJson(settings.rankingWeights))
             putString(KEY_LOG_LEVEL, settings.logLevel.name)
         }
         com.ai.data.AppLog.d(
@@ -1119,6 +1125,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_TYPE_A_BENCH_SECONDS = "type_a_bench_seconds"
         private const val KEY_TYPE_A_BENCH_MAX_ATTEMPTS = "type_a_bench_max_attempts"
         private const val KEY_LOG_LEVEL = "log_level"
+        private const val KEY_SHOW_LADYBUG_ICONS = "show_ladybug_icons"
+        private const val KEY_RANKING_WEIGHTS = "ranking_weights"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"

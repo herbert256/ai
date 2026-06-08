@@ -806,13 +806,6 @@ data class Settings(
     fun upsertBlockedModel(bm: BlockedModel) = copy(
         blockedModels = blockedModels.filterNot { it.key == bm.key } + bm
     )
-    /** Fold a "Test all models" run into the list: drop every entry the
-     *  run actually tested (so passes un-block), then append the run's
-     *  failures (so fails block / refresh their reason). Untested
-     *  entries are left untouched. */
-    fun syncBlockedModelsFromTestRun(failures: List<BlockedModel>, testedKeys: Set<String>) = copy(
-        blockedModels = blockedModels.filterNot { it.key in testedKeys } + failures
-    )
 
     // ----- Test-excluded models -----
     /** `"providerId:model"` set, for the O(1) skip-filter in
@@ -827,15 +820,6 @@ data class Settings(
     fun upsertTestExcluded(e: TestExcludedModel) = copy(
         testExcludedModels = testExcludedModels.filterNot { it.key == e.key } + e
     )
-    /** Append entries from a test-run sweep, skipping anything whose
-     *  key is already present — no clobber, no duplicates. */
-    fun addTestExclusionsFromTestRun(extras: List<TestExcludedModel>): Settings {
-        if (extras.isEmpty()) return this
-        val existing = testExcludedKeys
-        val novel = extras.filterNot { it.key in existing }
-        if (novel.isEmpty()) return this
-        return copy(testExcludedModels = testExcludedModels + novel)
-    }
 
     // ----- Inaccessible models -----
     /** `"providerId:model"` set, for the O(1) skip-filter in the test

@@ -322,7 +322,7 @@ fun KnowledgeDetailScreen(
     LaunchedEffect(kb?.id, pendingUris) {
         val loaded = kb ?: return@LaunchedEffect
         if (pendingUris.isEmpty()) return@LaunchedEffect
-        val batchKey = pendingUris.joinToString(" ")
+        val batchKey = pendingUris.joinToString("\u0000")
         if (batchKey == ingestedBatchKey) return@LaunchedEffect
         ingestedBatchKey = batchKey
         working = true

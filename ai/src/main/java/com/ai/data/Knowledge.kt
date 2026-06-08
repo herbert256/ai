@@ -342,7 +342,7 @@ object KnowledgeStore {
 
     private fun isSafeKbId(kbId: String): Boolean =
         kbId.isNotBlank() && kbId != "." && kbId != ".." &&
-            !kbId.contains('/') && !kbId.contains('\\') && !kbId.contains(' ')
+            !kbId.contains('/') && !kbId.contains('\\') && !kbId.contains('\u0000')
 
     private fun isSafeSourceId(sourceId: String): Boolean =
         sourceId.isNotBlank() && sourceId != "." && sourceId != ".." &&
