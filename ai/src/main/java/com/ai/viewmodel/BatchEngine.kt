@@ -153,4 +153,9 @@ abstract class BatchEngine<RunKey, ItemKey, ItemState : BatchItem<ItemKey>, RunS
 
     /** Run keys whose registered run coroutine is still active. */
     protected fun activeRunJobKeys(): Set<RunKey> = runJobs.filterValues { it.isActive }.keys.toSet()
+
+    /** Every currently-registered run key (active or not) — for engines whose
+     *  run key is composite and which cancel/join a whole report's runs by key
+     *  prefix (e.g. FanOut's `"reportId|metaPromptId"`). */
+    protected fun runJobKeys(): Set<RunKey> = runJobs.keys.toSet()
 }

@@ -91,7 +91,7 @@ private const val FAN_OUT_WEB_SEARCH_PROMPT_SUFFIX =
  * per-pair Job bookkeeping.
  *
  * Co-existence rules during the transition window:
- * - The engine maintains its own `pairJobs` and `runJobs` maps,
+ * - The engine uses the shared BatchEngine job registries,
  *   independent of the existing [ReportViewModel] maps (which
  *   stay alive until Phase E deletes them).
  * - The engine hydrates from disk on demand via [hydrate]; the
@@ -117,26 +117,18 @@ class FanOutEngine internal constructor(
     private val _promptEditReplayStates = MutableStateFlow<Map<String, PromptEditReplayState>>(emptyMap())
     val promptEditReplayStates: StateFlow<Map<String, PromptEditReplayState>> = _promptEditReplayStates.asStateFlow()
 
-    /** Per-pair coroutines, keyed by [PairState.id] (= on-disk
-     *  SecondaryResult id). Registered before the coroutine starts
-     *  via [CoroutineStart.LAZY] so concurrent deletes can always
-     *  find the Job to cancel. */
-    private val pairJobs = ConcurrentHashMap<String, Job>()
+    // Pair (item) coroutines, the top-level run Job per FanOutRunKey, and the
+    // resume-scan dedup now live in the shared BatchEngine base (registerItemJob
+    // / registerRunJob / beginResumeScan + itemJobOf / runJobOf / runJobKeys /
+    // activeRunJobKeys / hasItemJob). FanOut keys runs by "reportId|metaPromptId",
+    // so the per-report prefix cancel/join uses runJobKeys().filter { … }.
+    //
+    // The four replay/sweep job maps below are FanOut-specific (no base
+    // equivalent) and stay here.
     private val temperatureSweepJobs = ConcurrentHashMap<String, Job>()
     private val reasoningEffortSweepJobs = ConcurrentHashMap<String, Job>()
     private val webSearchReplayJobs = ConcurrentHashMap<String, Job>()
     private val promptEditReplayJobs = ConcurrentHashMap<String, Job>()
-
-    /** Top-level batch Job per [FanOutRunKey]. Used by
-     *  [rerunComplete] / [deleteRun] to cancelAndJoin a whole
-     *  batch atomically. */
-    private val runJobs = ConcurrentHashMap<FanOutRunKey, Job>()
-
-    /** Per-run dedup for resume scans — same role as the old
-     *  `staleResumeScans` set but scoped to this engine's
-     *  lifecycle. Key released only after the dispatched rerun
-     *  Job actually completes. */
-    private val resumeScans = ConcurrentHashMap.newKeySet<FanOutRunKey>()
 
     // -----------------------------------------------------------------
     // Hydration — disk → StateFlow
@@ -1035,8 +1027,8 @@ class FanOutEngine internal constructor(
      *  [FanOutRunState] with all pairs PENDING (so the UI's stats read
      *  the full expected work immediately), then runs each pair through
      *  the shared throttled batch + [runOnePair]. The per-pair coroutine
-     *  Job lands in [pairJobs] (cancel/delete target it) and the outer
-     *  batch Job in [runJobs] (rerunComplete / deleteRun join it).
+     *  Job lands in the shared item-job registry (cancel/delete target it) and the outer
+     *  batch Job in the shared run-job registry (rerunComplete / deleteRun join it).
      *  Dedupes against an already-running launch for the same
      *  (report, prompt) so a UI double-tap can't double the pairs. */
     fun startRun(
@@ -1057,7 +1049,7 @@ class FanOutEngine internal constructor(
         buildKey: String? = null
     ): Job? {
         val rk = runKey(reportId, metaPrompt.id)
-        runJobs[rk]?.let { if (it.isActive) return it }
+        runJobOf(rk)?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
@@ -1150,8 +1142,7 @@ class FanOutEngine internal constructor(
                         onThrottled = { item -> appViewModel.updateThrottledFanOutPairs { it + item.placeholder.id } },
                         onCleared = { item -> appViewModel.updateThrottledFanOutPairs { it - item.placeholder.id } },
                         register = { item, d ->
-                            pairJobs[item.placeholder.id] = d
-                            d.invokeOnCompletion { pairJobs.remove(item.placeholder.id, d) }
+                            registerItemJob(item.placeholder.id, d)
                         },
                         // Type-A fixed-model batch: a 429/529 short-benches the
                         // answerer model and re-queues the pair (and parks its
@@ -1194,8 +1185,7 @@ class FanOutEngine internal constructor(
                 }
             }
         }
-        runJobs[rk] = job
-        job.invokeOnCompletion { runJobs.remove(rk, job) }
+        registerRunJob(rk, job)
         return job
     }
 
@@ -1213,7 +1203,7 @@ class FanOutEngine internal constructor(
                     it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
                         it.fanInOf == null && it.content.isNullOrBlank() &&
                         it.errorMessage == null && it.durationMs == null &&
-                        !pairJobs.containsKey(it.id)
+                        !hasItemJob(it.id)
                 }
             val rk = runKey(reportId, metaPromptId)
             BatchResume.finalizeLeftover(leftover) { row ->
@@ -1247,11 +1237,11 @@ class FanOutEngine internal constructor(
      *  write that lands after the row is gone. */
     fun cancelAllForReport(reportId: String) {
         val prefix = "$reportId|"
-        runJobs.filterKeys { it.startsWith(prefix) }.values.forEach { it.cancel() }
+        runJobKeys().filter { it.startsWith(prefix) }.forEach { runJobOf(it)?.cancel() }
         _runs.value.filterKeys { it.startsWith(prefix) }
             .values.flatMap { it.pairs.values.map { p -> p.id } }
             .forEach {
-                pairJobs[it]?.cancel()
+                itemJobOf(it)?.cancel()
                 temperatureSweepJobs[TemperatureSweepState.key(reportId, it)]?.cancel()
                 reasoningEffortSweepJobs[ReasoningEffortSweepState.key(reportId, it)]?.cancel()
                 webSearchReplayJobs[WebSearchReplayState.key(reportId, it)]?.cancel()
@@ -1277,7 +1267,7 @@ class FanOutEngine internal constructor(
      *  in-flight subset. */
     suspend fun joinActiveRunsForReport(reportId: String) {
         val prefix = "$reportId|"
-        runJobs.filterKeys { it.startsWith(prefix) }.values.forEach { it.join() }
+        runJobKeys().filter { it.startsWith(prefix) }.forEach { runJobOf(it)?.join() }
     }
 
     // -----------------------------------------------------------------
@@ -1601,8 +1591,8 @@ class FanOutEngine internal constructor(
      *  or dropping the run from the flow — the keep-state counterpart of
      *  [cancelAllForReport], used by [continueBrokenBatch]. */
     private suspend fun stopInFlightKeepingState(runKey: FanOutRunKey) {
-        runJobs[runKey]?.cancelAndJoin()
-        _runs.value[runKey]?.pairs?.values?.forEach { pairJobs[it.id]?.cancelAndJoin() }
+        runJobOf(runKey)?.cancelAndJoin()
+        _runs.value[runKey]?.pairs?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
     }
 
     fun removePairsByIds(context: Context, runKey: FanOutRunKey, pairIds: Set<String>): Job =
@@ -1610,7 +1600,7 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             val victims = run.pairs.values.filter { it.id in pairIds }
             if (victims.isEmpty()) return@launch
-            victims.forEach { pairJobs[it.id]?.cancelAndJoin() }
+            victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = victims.sumOf {
                 SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
             }
@@ -1674,7 +1664,7 @@ class FanOutEngine internal constructor(
      *  canonical global → fan-out → per-host order + permitPreAcquired
      *  as a fresh run). Each pair's on-disk row is cleared to PENDING
      *  first (so saveIfStillPresent doesn't keep the old content) and
-     *  its flow status reset; the per-pair Jobs land in [pairJobs] so
+     *  its flow status reset; the per-pair Jobs land in the shared item-job registry so
      *  cancel/delete can target them. Drives the restart-failed +
      *  single-pair rerun + app-kill resume paths. */
     private suspend fun rerunPairsBlocking(
@@ -1743,8 +1733,7 @@ class FanOutEngine internal constructor(
                 hostOf = { AppService.findById(it.pair.providerId)?.let { s -> providerHost(s) } },
                 subCap = ApiCallCaps.fanOut,
                 register = { r, d ->
-                    pairJobs[r.pair.id] = d
-                    d.invokeOnCompletion { pairJobs.remove(r.pair.id, d) }
+                    registerItemJob(r.pair.id, d)
                 }
             ) { r ->
                 runOnePair(
@@ -1768,7 +1757,7 @@ class FanOutEngine internal constructor(
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
             val pair = run.pairs[pairKey] ?: return@launch
-            pairJobs[pair.id]?.cancelAndJoin()
+            itemJobOf(pair.id)?.cancelAndJoin()
             SecondaryResultStorage.delete(context, run.reportId, pair.id)
             ReportStorage.removeFanOutIconCalls(context, run.reportId, setOf(pair.id))
             dropPair(runKey, pairKey)
@@ -1788,8 +1777,8 @@ class FanOutEngine internal constructor(
     fun rerunComplete(context: Context, runKey: FanOutRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
-            runJobs[runKey]?.cancelAndJoin()
-            run.pairs.values.forEach { pair -> pairJobs[pair.id]?.cancelAndJoin() }
+            runJobOf(runKey)?.cancelAndJoin()
+            run.pairs.values.forEach { pair -> itemJobOf(pair.id)?.cancelAndJoin() }
             // totalCost (not just in/out) so the deleted pairs' Fan-Meta
             // icon + title spend rolls into the tally too — summing only
             // inputCost + outputCost dropped it.
@@ -1814,8 +1803,8 @@ class FanOutEngine internal constructor(
     fun deleteRun(context: Context, runKey: FanOutRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
-            runJobs[runKey]?.cancelAndJoin()
-            run.pairs.values.forEach { pair -> pairJobs[pair.id]?.cancelAndJoin() }
+            runJobOf(runKey)?.cancelAndJoin()
+            run.pairs.values.forEach { pair -> itemJobOf(pair.id)?.cancelAndJoin() }
             // Roll the whole run's spend into the report's Deleted-items
             // tally before the disk deletes — pair totalCost (in/out +
             // Fan-Meta icon + title) plus each combined fan-in row. Without
@@ -1894,7 +1883,7 @@ class FanOutEngine internal constructor(
         if (victims.isEmpty()) return@launch
         // Cancel the per-pair coroutines first so no zombie write lands
         // after the delete.
-        victims.forEach { pairJobs[it.id]?.cancelAndJoin() }
+        victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
         val costDelta = victims.sumOf { it.totalCost }
         victims.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
         ReportStorage.removeFanOutIconCalls(context, run.reportId, victims.map { it.id }.toSet())
@@ -1916,18 +1905,18 @@ class FanOutEngine internal constructor(
      *  that's legitimately mid-flight isn't mistaken for an interrupted
      *  placeholder. Empty after a process kill — exactly when every blank
      *  pair really is stale. */
-    fun inFlightRowIds(): Set<String> = pairJobs.keys.toSet()
+    fun inFlightRowIds(): Set<String> = itemJobIds()
 
     /** Top-level Fan Out runs currently alive in this process. Covers rows
      *  created during the build stage before their per-pair Job is registered. */
     fun activeRunKeys(): Set<FanOutRunKey> =
-        runJobs.filterValues { it.isActive }.keys.toSet()
+        activeRunJobKeys()
 
     /** Resume every stale fan-out pair (a blank placeholder on disk with
      *  no live per-pair Job) across every run on this report — the
      *  app-kill recovery path. Called by the report-open + 30 s
      *  background orchestrators. Idempotent per (runKey) via
-     *  [resumeScans]. Bounds re-dispatch via [BatchResume] (a pair that
+     *  the shared resume-scan dedup. Bounds re-dispatch via [BatchResume] (a pair that
      *  can never complete is terminalized after MAX_ATTEMPTS instead of
      *  re-billed every cycle), and terminalizes rows the flow can't
      *  locate (prompt deleted / answerer agent gone) so they stop
@@ -1943,7 +1932,7 @@ class FanOutEngine internal constructor(
                 .filter {
                     it.fanOutSourceAgentId != null && it.fanInOf == null &&
                         it.content.isNullOrBlank() && it.errorMessage == null &&
-                        it.durationMs == null && !pairJobs.containsKey(it.id)
+                        it.durationMs == null && !hasItemJob(it.id)
                 }
             if (diskStale.isEmpty()) return@launch
             val diskById = diskStale.associateBy { it.id }
@@ -1960,9 +1949,9 @@ class FanOutEngine internal constructor(
                 }
             }
             for ((rk, pairKeys) in dispatchable) {
-                if (!resumeScans.add(rk)) continue
+                if (!beginResumeScan(rk)) continue
                 val run = runsForReport[rk]
-                if (run == null) { resumeScans.remove(rk); continue }
+                if (run == null) { endResumeScan(rk); continue }
                 val rows = pairKeys.mapNotNull { pk -> run.pairs[pk]?.id?.let { diskById[it] } }
                 // Explicit user Regenerate → wipe any retry counts the 30s
                 // sweep ran up, so these pairs get a fresh budget instead of
@@ -1980,7 +1969,7 @@ class FanOutEngine internal constructor(
                     }
                 }
                 val retryKeys = retryRows.mapNotNull { row -> run.pairs.values.firstOrNull { it.id == row.id }?.key }
-                if (retryKeys.isEmpty()) { resumeScans.remove(rk); continue }
+                if (retryKeys.isEmpty()) { endResumeScan(rk); continue }
                 appViewModel.viewModelScope.launch(Dispatchers.IO) {
                     try {
                         rerunPairsBlocking(context, rk, retryKeys)
@@ -1989,7 +1978,7 @@ class FanOutEngine internal constructor(
                     } catch (e: Exception) {
                         AppLog.w("FanOut", "rerun pairs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
                     } finally {
-                        resumeScans.remove(rk)
+                        endResumeScan(rk)
                     }
                 }
             }
