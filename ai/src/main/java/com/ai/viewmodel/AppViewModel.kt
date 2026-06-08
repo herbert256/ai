@@ -969,6 +969,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return bundled.size
     }
 
+    /** Drop every Swarm and Flock and replace both lists with a fresh
+     *  load of the whole `assets/workers/` tree (`swarms/` + `flocks/`).
+     *  Unlike the every-start delta-merge (which only appends bundled
+     *  pools whose name is new), this is a full replace — so an edited
+     *  bundled pool like the "workers" swarm actually re-seeds. Each
+     *  loaded swarm gets a fresh id; flock members are re-resolved by
+     *  name against the current agent set. Returns the total rows loaded
+     *  (swarms + flocks); 0 leaves both lists untouched. */
+    fun resetWorkersFromAssets(): Int {
+        val ctx = getApplication<Application>()
+        val current = _uiState.value.aiSettings
+        val swarms = com.ai.data.SwarmSeed.loadFromAssets(ctx)
+        val flocks = com.ai.data.FlockSeed.loadFromAssets(ctx, current.agents)
+        if (swarms.isEmpty() && flocks.isEmpty()) return 0
+        updateSettings(current.copy(swarms = swarms, flocks = flocks))
+        return swarms.size + flocks.size
+    }
+
     // ===== Housekeeping primitives =====
     //
     // Each Housekeeping → Reset card button (Clear Usage Statistics,

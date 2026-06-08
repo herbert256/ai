@@ -20,6 +20,38 @@
     {
       "model": "deepseek-v4-flash",
       "provider": "DeepSeek"
+    },
+    {
+      "model": "gemini-2.0-flash",
+      "provider": "Google"
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "provider": "Anthropic"
+    },
+    {
+      "model": "grok-4.20-0309-non-reasoning",
+      "provider": "xAI"
+    },
+    {
+      "model": "command-r-08-2024",
+      "provider": "Cohere"
+    },
+    {
+      "model": "google/gemma-3-12b-it",
+      "provider": "DeepInfra"
+    },
+    {
+      "model": "Qwen3-32B",
+      "provider": "SambaNova"
+    },
+    {
+      "model": "meta-llama/Llama-4-Scout-17B-16E-Instruct-FP8-Lora",
+      "provider": "Together"
+    },
+    {
+      "model": "Qwen/Qwen3-14B",
+      "provider": "SiliconFlow"
     }
   ],
   "name": "workers",

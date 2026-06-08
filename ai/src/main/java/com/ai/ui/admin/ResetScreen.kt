@@ -199,6 +199,7 @@ fun ResetAssetsScreen(
     onResetExamplePromptsFromAsset: () -> Int,
     onResetSystemPromptsFromAsset: () -> Int,
     onResetDefaultMetaItemsFromAsset: () -> Int,
+    onResetWorkersFromAsset: () -> Int,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -220,6 +221,7 @@ fun ResetAssetsScreen(
                             AssetReset.EXAMPLES -> onResetExamplePromptsFromAsset()
                             AssetReset.SYSTEM_PROMPTS -> onResetSystemPromptsFromAsset()
                             AssetReset.DEFAULT_META -> onResetDefaultMetaItemsFromAsset()
+                            AssetReset.WORKERS -> onResetWorkersFromAsset()
                         }
                         pending = null
                         val msg = when {
@@ -269,6 +271,11 @@ fun ResetAssetsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
             ) { Text("back to assets/meta.json", maxLines = 1, softWrap = false) }
+            OutlinedButton(
+                onClick = { pending = AssetReset.WORKERS },
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("back to assets/workers/", maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -414,5 +421,9 @@ private enum class AssetReset(val assetPath: String, val itemNoun: String, val d
     DEFAULT_META(
         "assets/meta.json", "default meta items",
         "Drops every Default meta item (including any you authored) and reloads the bundled assets/meta.json fresh."
+    ),
+    WORKERS(
+        "assets/workers/", "swarms & flocks",
+        "Drops every Swarm and Flock currently configured (including any you authored and the default agents flock) and reloads the whole bundled assets/workers/ tree — swarms/ + flocks/. Flock members are re-matched to your agents by name. Agents, providers, and prompts are untouched; regenerate the default agents flock via Housekeeping → Refresh if you need it back."
     )
 }

@@ -717,10 +717,11 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "reset_assets" to HelpContent(
         title = "Help - assets/*.json",
         cards = listOf(
-            HelpCard("Overview", "Three per-file restore buttons — providers / prompts / examples. Each drops every entry in the matching list and reloads it from the bundled JSON asset. Scoped: a providers restore doesn't touch prompts and vice versa."),
+            HelpCard("Overview", "Per-asset restore buttons — providers / internal-prompts / examples / system-prompts / meta.json / workers. Each drops every entry in the matching list and reloads it from the bundled JSON asset. Scoped: a providers restore doesn't touch prompts and vice versa."),
             HelpCard("back to assets/providers/", "Drops every provider definition currently in the registry (including any hand-edited fields) and reloads assets/providers/ verbatim. Per-provider API keys, model lists, and agents live outside the registry and survive."),
             HelpCard("back to assets/internal-prompts/", "Drops every Internal prompt (including any you customized) and reloads the bundled assets/internal-prompts/ tree (one folder per category, a .json + .txt pair per prompt). Categories (meta / fan_out / fan_in / icons / info / intra / internal) all reset together."),
             HelpCard("back to assets/prompts/examples/", "Drops every Example prompt (including any you authored) and reloads assets/prompts/examples/. Doesn't touch Internal or System prompts."),
+            HelpCard("back to assets/workers/", "Drops every Swarm and Flock (including any you authored and the default agents flock) and reloads the whole bundled assets/workers/ tree — swarms/ (Level 1-3 + the default 'workers' pool) and flocks/. Flock members are re-matched to your agents by name. Unlike the silent every-start merge, this is a full replace, so an edited bundled pool actually re-seeds. Agents/providers/prompts untouched; regenerate the default agents flock via Housekeeping → Refresh."),
             HelpCard("When to use", "Quick rollback when an edit went wrong, or when you've forked the bundle and want to see what the bundled values currently look like compared to your custom set."),
             HelpCard("Pitfalls", "User-authored entries in the targeted list are wiped. Use Backup first if you have hand-built prompts you want back. Bundled-asset failures (missing file, parse error) leave the targeted list empty — the Toast reports failure."),
         )
