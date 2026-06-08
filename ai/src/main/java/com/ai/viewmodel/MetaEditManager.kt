@@ -26,15 +26,11 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asContextElement
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -51,19 +47,17 @@ class MetaEditManager internal constructor(
     private val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel
 ) {
-    private val _temperatureSweepStates = MutableStateFlow<Map<String, TemperatureSweepState>>(emptyMap())
-    val temperatureSweepStates: StateFlow<Map<String, TemperatureSweepState>> = _temperatureSweepStates.asStateFlow()
-    private val _reasoningEffortSweepStates = MutableStateFlow<Map<String, ReasoningEffortSweepState>>(emptyMap())
-    val reasoningEffortSweepStates: StateFlow<Map<String, ReasoningEffortSweepState>> = _reasoningEffortSweepStates.asStateFlow()
-    private val _webSearchReplayStates = MutableStateFlow<Map<String, WebSearchReplayState>>(emptyMap())
-    val webSearchReplayStates: StateFlow<Map<String, WebSearchReplayState>> = _webSearchReplayStates.asStateFlow()
-    private val _promptEditReplayStates = MutableStateFlow<Map<String, PromptEditReplayState>>(emptyMap())
-    val promptEditReplayStates: StateFlow<Map<String, PromptEditReplayState>> = _promptEditReplayStates.asStateFlow()
+    // Replay state-flow + per-key job plumbing is shared via ReplayTrack
+    // (audit R03); the public *States flows delegate to each track.
+    private val temperatureTrack = ReplayTrack<TemperatureSweepState>()
+    private val reasoningEffortTrack = ReplayTrack<ReasoningEffortSweepState>()
+    private val webSearchReplayTrack = ReplayTrack<WebSearchReplayState>()
+    private val promptEditReplayTrack = ReplayTrack<PromptEditReplayState>()
 
-    private val temperatureSweepJobs = ConcurrentHashMap<String, Job>()
-    private val reasoningEffortSweepJobs = ConcurrentHashMap<String, Job>()
-    private val webSearchReplayJobs = ConcurrentHashMap<String, Job>()
-    private val promptEditReplayJobs = ConcurrentHashMap<String, Job>()
+    val temperatureSweepStates: StateFlow<Map<String, TemperatureSweepState>> get() = temperatureTrack.states
+    val reasoningEffortSweepStates: StateFlow<Map<String, ReasoningEffortSweepState>> get() = reasoningEffortTrack.states
+    val webSearchReplayStates: StateFlow<Map<String, WebSearchReplayState>> get() = webSearchReplayTrack.states
+    val promptEditReplayStates: StateFlow<Map<String, PromptEditReplayState>> get() = promptEditReplayTrack.states
 
     private companion object {
         const val TEMPERATURE_KIND = "meta/temperature"
@@ -74,41 +68,29 @@ class MetaEditManager internal constructor(
         const val WEB_SEARCH_SUFFIX = "Give the most actual information, do a websearch for this."
     }
 
-    // ----- state helpers (mirror FanOutEngine) -----
-    private fun updateTemperatureSweepState(key: String, transform: (TemperatureSweepState) -> TemperatureSweepState) {
-        _temperatureSweepStates.update { it[key]?.let { s -> it + (key to transform(s)) } ?: it }
-    }
+    // ----- state helpers (delegate to the shared ReplayTrack) -----
+    private fun updateTemperatureSweepState(key: String, transform: (TemperatureSweepState) -> TemperatureSweepState) =
+        temperatureTrack.update(key, transform)
     private fun setTemperatureSweepCandidate(key: String, index: Int, candidate: TemperatureSweepCandidate) {
         updateTemperatureSweepState(key) { s -> s.copy(candidates = s.candidates.mapIndexed { i, old -> if (i == index) candidate else old }) }
     }
-    fun clearTemperatureSweep(reportId: String, resultId: String) {
-        val key = TemperatureSweepState.key(reportId, resultId)
-        temperatureSweepJobs.remove(key)?.cancel(); _temperatureSweepStates.update { it - key }
-    }
-    private fun updateReasoningEffortSweepState(key: String, transform: (ReasoningEffortSweepState) -> ReasoningEffortSweepState) {
-        _reasoningEffortSweepStates.update { it[key]?.let { s -> it + (key to transform(s)) } ?: it }
-    }
+    fun clearTemperatureSweep(reportId: String, resultId: String) =
+        temperatureTrack.cancel(TemperatureSweepState.key(reportId, resultId))
+    private fun updateReasoningEffortSweepState(key: String, transform: (ReasoningEffortSweepState) -> ReasoningEffortSweepState) =
+        reasoningEffortTrack.update(key, transform)
     private fun setReasoningEffortCandidate(key: String, index: Int, candidate: ReasoningEffortCandidate) {
         updateReasoningEffortSweepState(key) { s -> s.copy(candidates = s.candidates.mapIndexed { i, old -> if (i == index) candidate else old }) }
     }
-    fun clearReasoningEffortSweep(reportId: String, resultId: String) {
-        val key = ReasoningEffortSweepState.key(reportId, resultId)
-        reasoningEffortSweepJobs.remove(key)?.cancel(); _reasoningEffortSweepStates.update { it - key }
-    }
-    private fun updateWebSearchReplayState(key: String, transform: (WebSearchReplayState) -> WebSearchReplayState) {
-        _webSearchReplayStates.update { it[key]?.let { s -> it + (key to transform(s)) } ?: it }
-    }
-    fun clearWebSearchReplay(reportId: String, resultId: String) {
-        val key = WebSearchReplayState.key(reportId, resultId)
-        webSearchReplayJobs.remove(key)?.cancel(); _webSearchReplayStates.update { it - key }
-    }
-    private fun updatePromptEditReplayState(key: String, transform: (PromptEditReplayState) -> PromptEditReplayState) {
-        _promptEditReplayStates.update { it[key]?.let { s -> it + (key to transform(s)) } ?: it }
-    }
-    fun clearPromptEditReplay(reportId: String, resultId: String) {
-        val key = PromptEditReplayState.key(reportId, resultId)
-        promptEditReplayJobs.remove(key)?.cancel(); _promptEditReplayStates.update { it - key }
-    }
+    fun clearReasoningEffortSweep(reportId: String, resultId: String) =
+        reasoningEffortTrack.cancel(ReasoningEffortSweepState.key(reportId, resultId))
+    private fun updateWebSearchReplayState(key: String, transform: (WebSearchReplayState) -> WebSearchReplayState) =
+        webSearchReplayTrack.update(key, transform)
+    fun clearWebSearchReplay(reportId: String, resultId: String) =
+        webSearchReplayTrack.cancel(WebSearchReplayState.key(reportId, resultId))
+    private fun updatePromptEditReplayState(key: String, transform: (PromptEditReplayState) -> PromptEditReplayState) =
+        promptEditReplayTrack.update(key, transform)
+    fun clearPromptEditReplay(reportId: String, resultId: String) =
+        promptEditReplayTrack.cancel(PromptEditReplayState.key(reportId, resultId))
 
     // ----- the call -----
     private data class MetaReplayTask(
@@ -286,10 +268,8 @@ class MetaEditManager internal constructor(
     fun startTemperatureSweep(context: Context, reportId: String, resultId: String, temperatures: List<Float>): Job {
         val key = TemperatureSweepState.key(reportId, resultId)
         val temps = temperatures.take(3)
-        temperatureSweepJobs.remove(key)?.cancel()
-        _temperatureSweepStates.update {
-            it + (key to TemperatureSweepState(reportId, resultId, temps.map { t -> TemperatureSweepCandidate.Pending(t) }, isRunning = true))
-        }
+        temperatureTrack.cancelJob(key)
+        temperatureTrack.set(key, TemperatureSweepState(reportId, resultId, temps.map { t -> TemperatureSweepCandidate.Pending(t) }, isRunning = true))
         val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {
                 val task = buildMetaReplayTask(context, reportId, resultId)
@@ -329,27 +309,24 @@ class MetaEditManager internal constructor(
                 updateTemperatureSweepState(key) { it.copy(isRunning = false, unavailableMessage = (e.message ?: "Temperature sweep failed").take(2000)) }
             }
         }
-        temperatureSweepJobs[key] = job
-        job.invokeOnCompletion { temperatureSweepJobs.remove(key, job) }
+        temperatureTrack.registerJob(key, job)
         return job
     }
 
     fun applyTemperatureCandidate(context: Context, reportId: String, resultId: String, candidateIndex: Int) {
         val key = TemperatureSweepState.key(reportId, resultId)
-        val c = _temperatureSweepStates.value[key]?.candidates?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
+        val c = temperatureTrack.get(key)?.candidates?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             applyMetaContent(context, reportId, resultId, c.response, RESPONSE_CHANGE_SOURCE_TEMPERATURE, formatSweepTemperature(c.temperature))
-            _temperatureSweepStates.update { it - key }
+            temperatureTrack.drop(key)
         }
     }
 
     // ----- Reasoning-effort sweep -----
     fun startReasoningEffortSweep(context: Context, reportId: String, resultId: String, efforts: List<String?>): Job {
         val key = ReasoningEffortSweepState.key(reportId, resultId)
-        reasoningEffortSweepJobs.remove(key)?.cancel()
-        _reasoningEffortSweepStates.update {
-            it + (key to ReasoningEffortSweepState(reportId, resultId, efforts.map { e -> ReasoningEffortCandidate.Pending(e) }, isRunning = true))
-        }
+        reasoningEffortTrack.cancelJob(key)
+        reasoningEffortTrack.set(key, ReasoningEffortSweepState(reportId, resultId, efforts.map { e -> ReasoningEffortCandidate.Pending(e) }, isRunning = true))
         val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {
                 val task = buildMetaReplayTask(context, reportId, resultId)
@@ -384,25 +361,24 @@ class MetaEditManager internal constructor(
                 updateReasoningEffortSweepState(key) { it.copy(isRunning = false, unavailableMessage = (e.message ?: "Reasoning effort sweep failed").take(2000)) }
             }
         }
-        reasoningEffortSweepJobs[key] = job
-        job.invokeOnCompletion { reasoningEffortSweepJobs.remove(key, job) }
+        reasoningEffortTrack.registerJob(key, job)
         return job
     }
 
     fun applyReasoningEffortCandidate(context: Context, reportId: String, resultId: String, candidateIndex: Int) {
         val key = ReasoningEffortSweepState.key(reportId, resultId)
-        val c = _reasoningEffortSweepStates.value[key]?.candidates?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
+        val c = reasoningEffortTrack.get(key)?.candidates?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             applyMetaContent(context, reportId, resultId, c.response, RESPONSE_CHANGE_SOURCE_REASONING_EFFORT, formatSweepReasoningEffort(c.effort))
-            _reasoningEffortSweepStates.update { it - key }
+            reasoningEffortTrack.drop(key)
         }
     }
 
     // ----- Web-search replay -----
     fun startWebSearchReplay(context: Context, reportId: String, resultId: String): Job {
         val key = WebSearchReplayState.key(reportId, resultId)
-        webSearchReplayJobs.remove(key)?.cancel()
-        _webSearchReplayStates.update { it + (key to WebSearchReplayState(reportId, resultId, WebSearchReplayResult.Running, isRunning = true)) }
+        webSearchReplayTrack.cancelJob(key)
+        webSearchReplayTrack.set(key, WebSearchReplayState(reportId, resultId, WebSearchReplayResult.Running, isRunning = true))
         val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {
                 val task = buildMetaReplayTask(context, reportId, resultId)
@@ -427,17 +403,16 @@ class MetaEditManager internal constructor(
                 updateWebSearchReplayState(key) { it.copy(isRunning = false, result = WebSearchReplayResult.Error(msg, null, null, null), unavailableMessage = msg) }
             }
         }
-        webSearchReplayJobs[key] = job
-        job.invokeOnCompletion { webSearchReplayJobs.remove(key, job) }
+        webSearchReplayTrack.registerJob(key, job)
         return job
     }
 
     fun applyWebSearchReplay(context: Context, reportId: String, resultId: String) {
         val key = WebSearchReplayState.key(reportId, resultId)
-        val result = _webSearchReplayStates.value[key]?.result as? WebSearchReplayResult.Success ?: return
+        val result = webSearchReplayTrack.get(key)?.result as? WebSearchReplayResult.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             applyMetaContent(context, reportId, resultId, result.response, RESPONSE_CHANGE_SOURCE_WEB_SEARCH)
-            _webSearchReplayStates.update { it - key }
+            webSearchReplayTrack.drop(key)
         }
     }
 
@@ -445,8 +420,8 @@ class MetaEditManager internal constructor(
     fun startPromptEditReplay(context: Context, reportId: String, resultId: String, prompt: String, parameterPresetIds: List<String>, systemPromptId: String?): Job {
         val key = PromptEditReplayState.key(reportId, resultId)
         val editedPrompt = prompt.trim()
-        promptEditReplayJobs.remove(key)?.cancel()
-        _promptEditReplayStates.update { it + (key to PromptEditReplayState(reportId, resultId, PromptEditReplayResult.Running, isRunning = true)) }
+        promptEditReplayTrack.cancelJob(key)
+        promptEditReplayTrack.set(key, PromptEditReplayState(reportId, resultId, PromptEditReplayResult.Running, isRunning = true))
         val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {
                 if (editedPrompt.isBlank()) {
@@ -478,17 +453,16 @@ class MetaEditManager internal constructor(
                 updatePromptEditReplayState(key) { it.copy(isRunning = false, result = PromptEditReplayResult.Error(msg, null, null, null), unavailableMessage = msg) }
             }
         }
-        promptEditReplayJobs[key] = job
-        job.invokeOnCompletion { promptEditReplayJobs.remove(key, job) }
+        promptEditReplayTrack.registerJob(key, job)
         return job
     }
 
     fun applyPromptEditReplay(context: Context, reportId: String, resultId: String) {
         val key = PromptEditReplayState.key(reportId, resultId)
-        val result = _promptEditReplayStates.value[key]?.result as? PromptEditReplayResult.Success ?: return
+        val result = promptEditReplayTrack.get(key)?.result as? PromptEditReplayResult.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             applyMetaContent(context, reportId, resultId, result.response, RESPONSE_CHANGE_SOURCE_EDIT)
-            _promptEditReplayStates.update { it - key }
+            promptEditReplayTrack.drop(key)
         }
     }
 
@@ -498,12 +472,9 @@ class MetaEditManager internal constructor(
 
     fun cancelAllForReport(reportId: String) {
         val prefix = "$reportId|"
-        listOf(temperatureSweepJobs, reasoningEffortSweepJobs, webSearchReplayJobs, promptEditReplayJobs).forEach { jobs ->
-            jobs.keys.filter { it.startsWith(prefix) }.forEach { jobs.remove(it)?.cancel() }
-        }
-        _temperatureSweepStates.update { it.filterKeys { k -> !k.startsWith(prefix) } }
-        _reasoningEffortSweepStates.update { it.filterKeys { k -> !k.startsWith(prefix) } }
-        _webSearchReplayStates.update { it.filterKeys { k -> !k.startsWith(prefix) } }
-        _promptEditReplayStates.update { it.filterKeys { k -> !k.startsWith(prefix) } }
+        temperatureTrack.cancelByPrefix(prefix)
+        reasoningEffortTrack.cancelByPrefix(prefix)
+        webSearchReplayTrack.cancelByPrefix(prefix)
+        promptEditReplayTrack.cancelByPrefix(prefix)
     }
 }
