@@ -289,12 +289,29 @@ fun ChatSessionScreen(
     // across recreation, else rotation orphans the prior save under the old id.
     val currentSessionId = rememberSaveable { sessionId ?: java.util.UUID.randomUUID().toString() }
 
-    // Seed from disk keyed on the (saveable) session id, NOT a plain remember of
-    // initialMessages — otherwise recreation resets the UI to the stale snapshot
-    // and the next saveSession overwrites the on-disk session with that truncated
-    // set. Re-reading the session on recreation recovers the turns saved so far.
+    // Load the persisted session ONCE, off the main thread. Parsing an
+    // image-heavy session's multi-MB JSON in a plain remember{} blocked first
+    // composition, and it used to be parsed twice (messages here + metadata
+    // below). Everything below now seeds from this single object; a short spinner
+    // shows until the IO load resolves. See audit chat bugs 1 + 2.
+    val sessionLoad = produceState<Pair<Boolean, ChatSession?>>(false to null, currentSessionId) {
+        val loaded = withContext(Dispatchers.IO) { ChatHistoryManager.loadSession(currentSessionId) }
+        value = true to loaded
+    }
+    val (sessionLoaded, persistedSession) = sessionLoad.value
+    if (!sessionLoaded) {
+        Box(Modifier.fillMaxSize().background(AppColors.AppBackground), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = AppColors.PrimaryAccent)
+        }
+        return
+    }
+
+    // Seed from the loaded session keyed on the (saveable) session id, NOT a
+    // plain remember of initialMessages — otherwise recreation resets the UI to
+    // the stale snapshot and the next saveSession overwrites the on-disk session
+    // with that truncated set. Re-reading on recreation recovers turns saved so far.
     val initialMessagesForSession = remember(currentSessionId) {
-        ChatHistoryManager.loadSession(currentSessionId)?.messages ?: initialMessages
+        persistedSession?.messages ?: initialMessages
     }
     var messages by remember(currentSessionId) { mutableStateOf(initialMessagesForSession) }
     // Pre-fill the input box with text staged by the share-target
@@ -436,11 +453,7 @@ fun ChatSessionScreen(
         else -> "%.2fc".format(Locale.US, totalCost)
     }
 
-    // Load the persisted session record ONCE on entry rather than calling
-    // loadSession three separate times (pinned / KB ids / title) during
-    // composition — for an image-heavy session that was three multi-MB
-    // JSON parses on the main thread per recomposition.
-    val persistedSession = remember(currentSessionId) { ChatHistoryManager.loadSession(currentSessionId) }
+    // persistedSession is loaded once, off-main, at the top of this composable.
     // Read the persisted pinned flag once on entry so subsequent saves
     // preserve it. Toggled below by the 📌 pill next to the model line.
     var pinned by remember(currentSessionId) {
