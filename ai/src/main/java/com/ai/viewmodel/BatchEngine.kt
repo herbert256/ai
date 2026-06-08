@@ -2,10 +2,12 @@ package com.ai.viewmodel
 
 import com.ai.data.BatchItem
 import com.ai.data.BatchRun
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.concurrent.ConcurrentHashMap
 
 /** Shared base for the four batch engines — Fan Out, Tournament, Judges,
  *  Compare. Owns the per-report run-state [StateFlow] and the identical
@@ -62,5 +64,74 @@ abstract class BatchEngine<RunKey, ItemKey, ItemState : BatchItem<ItemKey>, RunS
     /** Remove an entire run from the flow. */
     protected fun dropRun(runKey: RunKey) {
         _runs.update { it - runKey }
+    }
+
+    // ===== Shared job lifecycle (audit R01) =====
+    //
+    // Every concrete engine historically kept its own `runJobs` /
+    // `cellJobs|pairJobs` / `resumeScans` maps plus the same cancel-by-run /
+    // cancel-by-item / resume-dedupe logic. These registries promote that into
+    // the base so each engine gets identical cancellation and resume semantics
+    // (important for report deletion, screen reopen, process-death recovery,
+    // and "restart failed"). Additive — an engine opts in by calling these
+    // instead of rolling its own maps; nothing here runs until adopted.
+
+    private val runJobs = ConcurrentHashMap<RunKey, Job>()
+    /** Item jobs keyed by [BatchItem.id] (stable across map-key reshuffles). */
+    private val itemJobs = ConcurrentHashMap<String, Job>()
+    private val resumeScans = ConcurrentHashMap.newKeySet<RunKey>()
+
+    /** Record a run's coroutine, superseding (cancelling) any prior job for the
+     *  same [runKey]; self-cleans from the registry on completion. */
+    protected fun registerRunJob(runKey: RunKey, job: Job) {
+        runJobs.put(runKey, job)?.cancel()
+        job.invokeOnCompletion { runJobs.remove(runKey, job) }
+    }
+
+    /** Record one item's coroutine by its [BatchItem.id], superseding any prior
+     *  job for the same id; self-cleans on completion. */
+    protected fun registerItemJob(itemId: String, job: Job) {
+        itemJobs.put(itemId, job)?.cancel()
+        job.invokeOnCompletion { itemJobs.remove(itemId, job) }
+    }
+
+    /** True while [runKey]'s registered run coroutine is still active. */
+    protected fun isRunActive(runKey: RunKey): Boolean = runJobs[runKey]?.isActive == true
+
+    /** Cancel a run's coroutine and the coroutines of the given [itemIds]
+     *  (the run's [BatchItem.id]s). Safe to call with a stale id set. */
+    protected fun cancelRun(runKey: RunKey, itemIds: Collection<String> = emptyList()) {
+        runJobs.remove(runKey)?.cancel()
+        itemIds.forEach { itemJobs.remove(it)?.cancel() }
+    }
+
+    /** Cancel a single item's coroutine by its [BatchItem.id]. */
+    protected fun cancelItem(itemId: String) {
+        itemJobs.remove(itemId)?.cancel()
+    }
+
+    /** Cancel every registered run and item coroutine and clear resume state. */
+    protected fun cancelAll() {
+        runJobs.values.forEach { it.cancel() }
+        runJobs.clear()
+        itemJobs.values.forEach { it.cancel() }
+        itemJobs.clear()
+        resumeScans.clear()
+    }
+
+    /** Claim the resume-scan slot for [runKey]: true if this caller may scan
+     *  (must pair with [endResumeScan]); false if a scan is already in flight —
+     *  dedupes the 30s background sweep racing a screen-reopen relaunch. */
+    protected fun beginResumeScan(runKey: RunKey): Boolean = resumeScans.add(runKey)
+
+    /** Release the resume-scan slot claimed by [beginResumeScan]. */
+    protected fun endResumeScan(runKey: RunKey) {
+        resumeScans.remove(runKey)
+    }
+
+    /** A loaded run with at least one item still pending or running. */
+    protected fun hasUnfinishedItems(runKey: RunKey): Boolean {
+        val run = _runs.value[runKey] ?: return false
+        return run.runningCount + run.queuedCount > 0
     }
 }
