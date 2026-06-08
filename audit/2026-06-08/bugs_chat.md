@@ -15,7 +15,7 @@ paint.
 **Proposed fix:** Load the session with `produceState` or view-model state
 on `Dispatchers.IO`, with a lightweight loading state.
 
-**Status:** Open
+**Status:** Fixed — 22d9438d (load the session once, off the main thread (chat bugs 1, 2))
 
 ### Bug 2 - Severity: Medium - Category: Duplicate main-thread session load
 **Location:** `ai/src/main/java/com/ai/ui/chat/ChatScreens.kt:439-457` (`persistedSession`)
@@ -33,7 +33,7 @@ call into `ChatHistoryManager.loadSession`.
 **Proposed fix:** Load one session object off-main and derive messages,
 pinned state, knowledge-base ids, and title from that single object.
 
-**Status:** Open
+**Status:** Fixed — 22d9438d (load the session once, off the main thread (chat bugs 1, 2))
 
 ### Bug 3 - Severity: Medium - Category: Main-thread knowledge-base list
 **Location:** `ai/src/main/java/com/ai/ui/chat/ChatScreens.kt:455-457` (`availableKbs`)
@@ -49,7 +49,7 @@ knowledge-base chip path. The file scan is not dispatched to IO.
 **Proposed fix:** Load knowledge-base metadata with `produceState` on
 `Dispatchers.IO` and show an empty/loading picker until it completes.
 
-**Status:** Open
+**Status:** Fixed — 65a716c7 (load knowledge-base list off the main thread)
 
 ### Bug 4 - Severity: Medium - Category: Per-turn option persistence
 **Location:** `ai/src/main/java/com/ai/ui/chat/ChatScreens.kt:342-350` (`useWebSearch`, `reasoningEffort`)
@@ -68,7 +68,7 @@ parameters.
 **Proposed fix:** Use `rememberSaveable(currentSessionId)` for these
 per-turn UI states.
 
-**Status:** Open
+**Status:** Fixed — b96e191d (persist web-search / reasoning toggles across rotation)
 
 ### Bug 5 - Severity: Low - Category: Moderation picker state
 **Location:** `ai/src/main/java/com/ai/ui/chat/ChatScreens.kt:374-378` (`moderationModel`, `showModerationPicker`)
@@ -85,7 +85,7 @@ sending another chat message.
 **Proposed fix:** Store provider id/model id in `rememberSaveable` and
 re-resolve the provider on restore.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (moderation model/picker saveable)
 
 ### Bug 6 - Severity: Medium - Category: Reasoning capability refresh
 **Location:** `ai/src/main/java/com/ai/ui/chat/ChatScreens.kt:365-373` (`supportsReasoning`)
@@ -104,7 +104,7 @@ with a reasoning model that is not covered by the string heuristics.
 **Proposed fix:** Key `supportsReasoning` by the pricing/cache refresh tick
 or expose a capability state flow from `PricingCache`.
 
-**Status:** Open
+**Status:** Fixed — 382bcb2a (re-evaluate reasoning-capability when pricing cache primes)
 
 ### Bug 7 - Severity: Medium - Category: Moderation coroutine error handling
 **Location:** `ai/src/main/java/com/ai/ui/chat/ChatScreens.kt:719-747` (`trySend`)
@@ -124,7 +124,7 @@ does not call `actuallySend`.
 **Proposed fix:** Add a non-cancellation catch that sets `moderationError`,
 sets `handedOffToSend = true`, and calls `actuallySend(input, img)`.
 
-**Status:** Open
+**Status:** Fixed — 647a7e7e (fail-open on a thrown moderation error)
 
 ### Bug 8 - Severity: Medium - Category: Chat route main-thread load
 **Location:** `ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt:222-230`
@@ -141,7 +141,7 @@ parses the full JSON synchronously.
 **Proposed fix:** Move session loading to IO-backed state and pass a loading
 state or session id into the screen.
 
-**Status:** Open
+**Status:** Fixed — 4fa1ff52 (load session off-main in the continue route)
 
 ### Bug 9 - Severity: Medium - Category: Dual chat route state
 **Location:** `ai/src/main/java/com/ai/ui/chat/DualChatScreen.kt:405-408`
@@ -159,7 +159,7 @@ process while on the session route.
 **Proposed fix:** Persist the config in the navigation route arguments or a
 saved session store, then restore it by id.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (persist DualChatConfig via a Saver (survives process death))
 
 ### Bug 10 - Severity: Medium - Category: Dual chat setup state
 **Location:** `ai/src/main/java/com/ai/ui/chat/DualChatScreen.kt:163-180`
@@ -177,5 +177,5 @@ then rotate immediately.
 **Proposed fix:** Use `rememberSaveable` for all setup selections and keep
 the delayed preference save as a persistence side effect.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (dual-chat setup selections saveable)
 

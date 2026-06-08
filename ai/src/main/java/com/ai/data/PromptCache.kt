@@ -41,6 +41,12 @@ object PromptCache {
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 
+    /** Cache keys are 64-char SHA-256 hex from [keyFor]; reject anything else
+     *  so the raw-key read/write helpers below can't touch a path outside the
+     *  cache dir if a caller ever passes an unhashed string. */
+    private fun isKey(key: String): Boolean =
+        key.length == 64 && key.all { it in '0'..'9' || it in 'a'..'f' }
+
     /** Cached response paired with the wall-clock timestamp at which
      *  it was written. Returned by [getRaw] so callers that want a
      *  custom TTL (e.g. the View Model-Info screen, which uses a
@@ -53,6 +59,7 @@ object PromptCache {
      *  deletes stale entries). Callers handle the age check
      *  themselves. */
     fun getRaw(key: String): TimestampedResponse? = lock.withLock {
+        if (!isKey(key)) return@withLock null
         val file = File(cacheDir ?: return@withLock null, "$key.json")
         if (!file.exists()) return@withLock null
         try {
@@ -65,6 +72,7 @@ object PromptCache {
     }
 
     fun get(key: String): String? = lock.withLock {
+        if (!isKey(key)) return@withLock null
         val file = File(cacheDir ?: return@withLock null, "$key.json")
         if (!file.exists()) return@withLock null
         try {
@@ -83,6 +91,7 @@ object PromptCache {
     }
 
     fun put(key: String, response: String) = lock.withLock {
+        if (!isKey(key)) return@withLock
         val dir = cacheDir ?: return@withLock
         if (!dir.exists()) dir.mkdirs()
         val payload = createAppGson().toJson(mapOf(

@@ -6,7 +6,7 @@ Fresh static audit of the current `codex` worktree, using
 This audit focuses on current, still-open risk in the report section and
 the data/UI flows that feed it. It is intentionally written as an issue
 inventory rather than a patch plan: every entry has a concrete location,
-symptom, root cause, reproduction path, proposed fix, and `Open` status.
+symptom, root cause, reproduction path, proposed fix, and a status field.
 
 ## Scope
 
@@ -23,11 +23,11 @@ symptom, root cause, reproduction path, proposed fix, and `Open` status.
 
 | File | Findings | Status |
 |---|---:|---|
-| `bugs_reports.md` | 28 | Open |
-| `bugs_data.md` | 16 | Open |
-| `bugs_chat.md` | 10 | Open |
-| `bugs_settings.md` | 10 | Open |
-| **Total** | **64** | **Open** |
+| `bugs_reports.md` | 28 | 26 fixed, 2 open |
+| `bugs_data.md` | 16 | 16 fixed |
+| `bugs_chat.md` | 10 | 10 fixed |
+| `bugs_settings.md` | 10 | 10 fixed |
+| **Total** | **64** | **62 fixed, 2 open** |
 
 ## Severity Counts
 

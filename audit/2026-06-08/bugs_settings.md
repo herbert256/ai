@@ -16,7 +16,7 @@ then open Settings -> Local LiteRT models.
 `Dispatchers.IO` and keep stale-partial sweeping in a background cleanup
 path.
 
-**Status:** Open
+**Status:** Fixed — 73f6077d (load + refresh LiteRT embedder models off-main (settings bugs 1, 4))
 
 ### Bug 2 - Severity: Medium - Category: Local LLM first paint
 **Location:** `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:179-184`
@@ -33,7 +33,7 @@ checking installed models and runtime state.
 **Proposed fix:** Load installed model/runtime state on `Dispatchers.IO`
 and render a loading/empty state until complete.
 
-**Status:** Open
+**Status:** Fixed — c9c69a95 (load + refresh Local LLM list off-main (settings bugs 2, 4))
 
 ### Bug 3 - Severity: Medium - Category: Setup hub counts
 **Location:** `ai/src/main/java/com/ai/ui/settings/SetupScreens.kt:147-153`, `ai/src/main/java/com/ai/ui/settings/SetupScreens.kt:469-472`
@@ -50,7 +50,7 @@ files installed.
 **Proposed fix:** Compute counts in IO-backed state shared with the local
 runtime screens.
 
-**Status:** Open
+**Status:** Fixed — 0e3f4772 (count local models off-main in the setup hubs)
 
 ### Bug 4 - Severity: Medium - Category: Local runtime refresh work
 **Location:** `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:63-64`, `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:105-106`, `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:145-147`, `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:195-196`, `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:317-319`
@@ -68,7 +68,7 @@ present.
 **Proposed fix:** Perform delete and installed-list refresh on
 `Dispatchers.IO`, then publish the result to Compose state.
 
-**Status:** Open
+**Status:** Fixed — 73f6077d (off-main LiteRT + Local LLM list refresh (settings bugs 1, 4 / 2, 4))
 
 ### Bug 5 - Severity: Medium - Category: LLM runtime load on main
 **Location:** `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:233-237`
@@ -86,7 +86,7 @@ loading is slow.
 **Proposed fix:** Keep `ensureLoaded` on `Dispatchers.IO`, then update
 `runtimeInstalled` on the main thread.
 
-**Status:** Open
+**Status:** Fixed — 0bef26a4 (load LLM runtime native lib off the main thread)
 
 ### Bug 6 - Severity: Medium - Category: LiteRT import validation
 **Location:** `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:340-369` (`importTfliteModel`)
@@ -105,7 +105,7 @@ embedding.
 **Proposed fix:** Validate by attempting to create/release a `TextEmbedder`
 off-main, or mark unvalidated models separately with a clear error state.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (validate an imported .tflite loads as a MediaPipe embedder)
 
 ### Bug 7 - Severity: Medium - Category: Local LLM import validation
 **Location:** `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:388-465` (`importTaskModel`)
@@ -123,7 +123,7 @@ file". It can appear as an installed LLM.
 and optionally attempt a metadata/header validation before publishing the
 model to the installed list.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (reject unknown file types instead of copying as .task)
 
 ### Bug 8 - Severity: High - Category: Import UI blocking
 **Location:** `ai/src/main/java/com/ai/ui/settings/ImportExportScreen.kt:1246-1249`
@@ -141,7 +141,7 @@ callback reads the entire stream synchronously before parsing.
 **Proposed fix:** Route the keys import through `launchJsonObjectImport` or
 wrap `readFromUri` in `withContext(Dispatchers.IO)`.
 
-**Status:** Open
+**Status:** Fixed — 7154198a (read API-keys import off the main thread)
 
 ### Bug 9 - Severity: Medium - Category: App log route filename trust
 **Location:** `ai/src/main/java/com/ai/ui/admin/AppLogScreen.kt:438-466`, `ai/src/main/java/com/ai/ui/admin/AppLogScreen.kt:645-654`, `ai/src/main/java/com/ai/ui/navigation/NavRoutes.kt:181-183`
@@ -159,7 +159,7 @@ crafted filename segment.
 **Proposed fix:** Encode filename route segments, validate against
 `AppLog.getLogFiles()` before read/delete, and harden the data helpers.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (encode the app-log-detail route filename segment)
 
 ### Bug 10 - Severity: Medium - Category: Prompt translations main-thread IO
 **Location:** `ai/src/main/java/com/ai/ui/admin/PromptTranslationsScreen.kt:54-58`, `ai/src/main/java/com/ai/ui/admin/PromptTranslationsScreen.kt:230-239`
@@ -178,5 +178,5 @@ translations, then delete a language with many prompt files.
 **Proposed fix:** Load language lists and perform delete/count operations on
 `Dispatchers.IO`, then update Compose state from the result.
 
-**Status:** Open
+**Status:** Fixed — c075e3f9 (load + delete prompt translations off-main)
 

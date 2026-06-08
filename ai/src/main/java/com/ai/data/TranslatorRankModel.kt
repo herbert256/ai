@@ -137,8 +137,20 @@ fun parseScoreAndReason(content: String?): Pair<Int?, String?>? {
     runCatching {
         val obj = JsonParser.parseString(cleaned).asJsonObject
         if (obj.has("score")) {
-            val s = obj.get("score")?.asString?.toDoubleOrNull()?.toInt()?.coerceIn(0, 100)
-            val r = obj.get("reason")?.asString?.takeIf { it.isNotBlank() }
+            // Type-check before reading: a structured score (`{"value":82}`)
+            // or array would make `.asString` throw, dropping us into the
+            // plaintext parser, which could misread a number out of the
+            // reason. Once we're in a valid JSON object we commit to it —
+            // a structured score just yields a missing score, never a guess.
+            val scoreEl = obj.get("score")
+            val s = when {
+                scoreEl != null && scoreEl.isJsonPrimitive && scoreEl.asJsonPrimitive.isNumber ->
+                    scoreEl.asInt.coerceIn(0, 100)
+                scoreEl != null && scoreEl.isJsonPrimitive ->
+                    scoreEl.asString.toDoubleOrNull()?.toInt()?.coerceIn(0, 100)
+                else -> null
+            }
+            val r = obj.get("reason")?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() }
             return s to r
         }
     }

@@ -133,7 +133,7 @@ private data class TransRankSource(
 
 /** Provider-alias-resolved model key, matching the fan-out fold-in. */
 private fun vvModelKey(provider: String, model: String): String =
-    "${(AppService.findById(provider)?.id ?: provider).lowercase()}|$model"
+    "${(AppService.findById(provider)?.id ?: provider).lowercase()}|${model.trim().lowercase()}"
 
 /** One model on the cost/quality plane. [costCents] = USD×100,
  *  [quality] = the ranking's REAL score (raw, model/method-scaled — NOT
@@ -168,17 +168,26 @@ private fun buildValuePoints(
     }
     val n = success.size
     // (agent, quality, costCents) for agents that have a ranking entry.
-    data class Raw(val agentId: String, val provider: String, val modelShort: String, val quality: Double, val costCents: Double)
+    data class Raw(val agentId: String, val provider: String, val modelShort: String, val quality: Double, val costCents: Double, val costKnown: Boolean)
     val raw = success.mapIndexedNotNull { idx, a ->
         val row = rowsById[idx + 1] ?: return@mapIndexedNotNull null
         val quality = row.score ?: row.rank?.let { (n - it + 1).toDouble() } ?: return@mapIndexedNotNull null
+        // `knownBase` is null ONLY when the agent reports no price at all —
+        // distinct from a real $0 (free / local) model, which keeps a known
+        // cost of 0 and stays eligible for best value.
+        val knownBase = a.cost ?: a.inputCost ?: a.outputCost
+        val fanOut = fanOutCostByAgentId[a.agentId] ?: 0.0
         val baseCostUsd = a.cost ?: ((a.inputCost ?: 0.0) + (a.outputCost ?: 0.0))
-        val costUsd = baseCostUsd + (fanOutCostByAgentId[a.agentId] ?: 0.0)
-        Raw(a.agentId, AppService.findById(a.provider)?.id ?: a.provider, shortModelName(a.model), quality, costUsd * 100.0)
+        val costUsd = baseCostUsd + fanOut
+        Raw(a.agentId, AppService.findById(a.provider)?.id ?: a.provider, shortModelName(a.model), quality, costUsd * 100.0, knownBase != null || fanOut > 0.0)
     }
     if (raw.isEmpty()) return emptyList()
     val eps = 1e-6
+    // Best value = quality-per-cost; an UNKNOWN-cost model would score
+    // quality/eps ≈ ∞ and steal the badge, so only priced models (costKnown)
+    // are eligible. Unknown-cost points still plot (at cost 0).
     val bestId = raw
+        .filter { it.costKnown }
         .filterNot { p -> raw.any { o -> o.agentId != p.agentId && o.quality >= p.quality && o.costCents <= p.costCents && (o.quality > p.quality || o.costCents < p.costCents) } }
         .maxByOrNull { it.quality / maxOf(it.costCents, eps) }
         ?.agentId
@@ -360,7 +369,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
             } ?: emptyList()
             fun modelKey(provider: String, model: String): String =
-                "${(AppService.findById(provider)?.id ?: provider).lowercase()}|$model"
+                "${(AppService.findById(provider)?.id ?: provider).lowercase()}|${model.trim().lowercase()}"
             val fanOutPairs = rows.filter {
                 it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null
             }
@@ -817,7 +826,14 @@ private fun ValueGraphFullScreen(
                     hide(WindowInsetsCompat.Type.systemBars())
                 }
             }
-            onDispose { }
+            onDispose {
+                // Restore the bars on dismiss in case this dialog shared the
+                // activity's window — don't rely on the window being torn down.
+                dialogWindow?.let { w ->
+                    WindowInsetsControllerCompat(w, w.decorView)
+                        .show(WindowInsetsCompat.Type.systemBars())
+                }
+            }
         }
         val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
             android.content.res.Configuration.ORIENTATION_LANDSCAPE

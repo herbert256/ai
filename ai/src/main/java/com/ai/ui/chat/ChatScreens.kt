@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -398,8 +399,16 @@ fun ChatSessionScreen(
     // Per-session moderation: when set, every user input is run through
     // the chosen moderation model before being sent to the chat model.
     // null = disabled. Picker overlay below sets it.
-    var moderationModel by remember { mutableStateOf<Pair<AppService, String>?>(null) }
-    var showModerationPicker by remember { mutableStateOf(false) }
+    // Saveable across rotation: store the provider id + model name (AppService
+    // itself isn't bundle-storable) and re-resolve the provider on restore.
+    val moderationSaver = remember {
+        Saver<Pair<AppService, String>?, ArrayList<String>>(
+            save = { p -> if (p == null) arrayListOf() else arrayListOf(p.first.id, p.second) },
+            restore = { l -> if (l.size < 2) null else AppService.findById(l[0])?.let { it to l[1] } }
+        )
+    }
+    var moderationModel by rememberSaveable(stateSaver = moderationSaver) { mutableStateOf<Pair<AppService, String>?>(null) }
+    var showModerationPicker by rememberSaveable { mutableStateOf(false) }
     // Result of the pre-send moderation call: when non-null and flagged,
     // the proceed/cancel dialog renders. The pending input + image are
     // captured so Proceed can fire the actual send without re-typing.

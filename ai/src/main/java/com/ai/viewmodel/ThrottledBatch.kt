@@ -246,9 +246,27 @@ internal class PermitHold(
         if (synchronized(lock) { done }) return
         // Re-acquire OUTSIDE the lock (these block on capacity / the
         // per-minute window) so a concurrent dispose() isn't delayed.
-        while (!subCap.tryAcquire()) Thread.sleep(20)
-        while (!global.tryAcquire()) Thread.sleep(20)
-        val newHostReleaser = com.ai.data.ProviderThrottle.acquire(host)
+        // Track each permit as we take it: an interrupt landing mid-way
+        // (the Thread.sleep below, or a blocking host acquire) would
+        // otherwise leak whatever we'd already taken — `held` is still
+        // false here, so dispose() releases nothing.
+        var gotSub = false
+        var gotGlobal = false
+        var gotHost: com.ai.data.ProviderThrottle.Releaser? = null
+        try {
+            while (!subCap.tryAcquire()) Thread.sleep(20)
+            gotSub = true
+            while (!global.tryAcquire()) Thread.sleep(20)
+            gotGlobal = true
+            gotHost = com.ai.data.ProviderThrottle.acquire(host)
+        } catch (t: Throwable) {
+            gotHost?.release()
+            if (gotGlobal) global.release()
+            if (gotSub) subCap.release()
+            if (t is InterruptedException) Thread.currentThread().interrupt()
+            throw t
+        }
+        val newHostReleaser = gotHost
         synchronized(lock) {
             if (done) {
                 // Disposed while we were re-acquiring: undo so nothing

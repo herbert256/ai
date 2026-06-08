@@ -2,6 +2,7 @@ package com.ai.ui.chat
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -129,6 +130,41 @@ private val DualMessagesSaver = androidx.compose.runtime.saveable.Saver<List<Dua
     }
 )
 
+private data class DualConfigDto(
+    val p1: String, val m1: String, val sp1: String, val params1: ChatParameters,
+    val p2: String, val m2: String, val sp2: String, val params2: ChatParameters,
+    val subject: String, val count: Int, val first: String, val second: String
+)
+
+/** Persists [DualChatConfig] across PROCESS DEATH (the AppViewModel that
+ *  holds it in UiState does not survive a kill). Stores provider IDs rather
+ *  than whole AppService objects; restores null if a provider id no longer
+ *  resolves — the run can't continue without its models anyway. */
+private val DualChatConfigSaver = androidx.compose.runtime.saveable.Saver<DualChatConfig?, String>(
+    save = { c ->
+        if (c == null) "" else com.ai.data.createAppGson().toJson(
+            DualConfigDto(
+                c.model1Provider.id, c.model1Name, c.model1SystemPrompt, c.model1Params,
+                c.model2Provider.id, c.model2Name, c.model2SystemPrompt, c.model2Params,
+                c.subject, c.interactionCount, c.firstPrompt, c.secondPrompt
+            )
+        )
+    },
+    restore = { json ->
+        if (json.isBlank()) null else runCatching {
+            val d = com.ai.data.createAppGson().fromJson(json, DualConfigDto::class.java)
+            val p1 = AppService.findById(d.p1)
+            val p2 = AppService.findById(d.p2)
+            if (p1 == null || p2 == null) null
+            else DualChatConfig(
+                model1Provider = p1, model1Name = d.m1, model1SystemPrompt = d.sp1, model1Params = d.params1,
+                model2Provider = p2, model2Name = d.m2, model2SystemPrompt = d.sp2, model2Params = d.params2,
+                subject = d.subject, interactionCount = d.count, firstPrompt = d.first, secondPrompt = d.second
+            )
+        }.getOrNull()
+    }
+)
+
 private fun loadStringList(prefs: android.content.SharedPreferences, key: String): List<String> {
     return try {
         val json = prefs.getString(key, null) ?: return emptyList()
@@ -162,14 +198,19 @@ fun DualChatSetupScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(DUAL_PREFS, Context.MODE_PRIVATE) }
 
-    var model1Provider by remember { mutableStateOf(AppService.findById(prefs.getString(KEY_M1_PROVIDER, "") ?: "")) }
-    var model1Name by remember { mutableStateOf(prefs.getString(KEY_M1_NAME, "") ?: "") }
-    var model1ParamsIds by remember { mutableStateOf(loadStringList(prefs, KEY_M1_PARAMS)) }
-    var model1SystemPromptId by remember { mutableStateOf<String?>(prefs.getString(KEY_M1_SYSTEM, null)) }
-    var model2Provider by remember { mutableStateOf(AppService.findById(prefs.getString(KEY_M2_PROVIDER, "") ?: "")) }
-    var model2Name by remember { mutableStateOf(prefs.getString(KEY_M2_NAME, "") ?: "") }
-    var model2ParamsIds by remember { mutableStateOf(loadStringList(prefs, KEY_M2_PARAMS)) }
-    var model2SystemPromptId by remember { mutableStateOf<String?>(prefs.getString(KEY_M2_SYSTEM, null)) }
+    // Saveable across rotation / process death — AppService is stored by its
+    // id and the param-id list as a Serializable ArrayList. (The prefs save on
+    // dispose handles rotation; these also survive a process kill mid-edit.)
+    val providerSaver = remember { Saver<AppService?, String>(save = { it?.id ?: "" }, restore = { AppService.findById(it) }) }
+    val idListSaver = remember { Saver<List<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it }) }
+    var model1Provider by rememberSaveable(stateSaver = providerSaver) { mutableStateOf(AppService.findById(prefs.getString(KEY_M1_PROVIDER, "") ?: "")) }
+    var model1Name by rememberSaveable { mutableStateOf(prefs.getString(KEY_M1_NAME, "") ?: "") }
+    var model1ParamsIds by rememberSaveable(stateSaver = idListSaver) { mutableStateOf(loadStringList(prefs, KEY_M1_PARAMS)) }
+    var model1SystemPromptId by rememberSaveable { mutableStateOf<String?>(prefs.getString(KEY_M1_SYSTEM, null)) }
+    var model2Provider by rememberSaveable(stateSaver = providerSaver) { mutableStateOf(AppService.findById(prefs.getString(KEY_M2_PROVIDER, "") ?: "")) }
+    var model2Name by rememberSaveable { mutableStateOf(prefs.getString(KEY_M2_NAME, "") ?: "") }
+    var model2ParamsIds by rememberSaveable(stateSaver = idListSaver) { mutableStateOf(loadStringList(prefs, KEY_M2_PARAMS)) }
+    var model2SystemPromptId by rememberSaveable { mutableStateOf<String?>(prefs.getString(KEY_M2_SYSTEM, null)) }
     var subject by rememberSaveable { mutableStateOf(prefs.getString(KEY_SUBJECT, "") ?: "") }
     var interactionCount by rememberSaveable { mutableStateOf(prefs.getString(KEY_INTERACTIONS, "10") ?: "10") }
     var firstPrompt by rememberSaveable { mutableStateOf(prefs.getString(KEY_FIRST_PROMPT, "Let's talk about %subject%") ?: "Let's talk about %subject%") }
@@ -402,7 +443,12 @@ fun DualChatSessionScreen(
     }
     BackHandler { onExit() }
 
-    val config = remember { appViewModel.uiState.value.dualChatConfig }
+    // Seed from UiState on first entry, then persist via the Saver so the
+    // session survives a process kill (UiState's dualChatConfig does not).
+    // Rotation was already safe — the AppViewModel survives config changes.
+    val config = rememberSaveable(stateSaver = DualChatConfigSaver) {
+        mutableStateOf(appViewModel.uiState.value.dualChatConfig)
+    }.value
     if (config == null) {
         LaunchedEffect(Unit) { onNavigateBack() }
         return

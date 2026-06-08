@@ -18,7 +18,7 @@ for non-deserializable payloads.
 entry extraction per row, or parse into a nullable DTO with exception
 containment around the whole map step.
 
-**Status:** Open
+**Status:** Fixed — 2280e9a5 (Rerank: don't let a non-numeric id/rank escape the parser)
 
 ### Bug 2 - Severity: High - Category: Throttle permit leak
 **Location:** `ai/src/main/java/com/ai/viewmodel/ThrottledBatch.kt:232-263` (`PermitHold.yieldFor`)
@@ -40,7 +40,7 @@ permit.
 in `catch/finally`, or replace blocking loops with an interrupt-safe helper
 that returns all partially acquired resources.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (release partially re-acquired permits on interrupt in yieldFor)
 
 ### Bug 3 - Severity: High - Category: Secondary storage path safety
 **Location:** `ai/src/main/java/com/ai/data/SecondaryResult.kt:231-237`, `ai/src/main/java/com/ai/data/SecondaryResult.kt:372-377`, `ai/src/main/java/com/ai/data/SecondaryResult.kt:1021-1030`
@@ -60,7 +60,7 @@ outside the flat result-id namespace.
 read/write/delete helpers and add a canonical-child check before touching
 the file.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (share isSafeResultId across get/exists/delete)
 
 ### Bug 4 - Severity: High - Category: Report bundle import resource limits
 **Location:** `ai/src/main/java/com/ai/data/ReportBundle.kt:118-123` (`importReportBundle`)
@@ -79,7 +79,7 @@ all bytes before it can reject the bundle.
 expanded-size caps, and reject unknown top-level paths before reading the
 full body.
 
-**Status:** Open
+**Status:** Fixed — 4a3c3cca (ReportBundle: cap import entry/total size + count)
 
 ### Bug 5 - Severity: Medium - Category: Report bundle parsing
 **Location:** `ai/src/main/java/com/ai/data/ReportBundle.kt:127-132` (`meta.json`)
@@ -97,7 +97,7 @@ or non-integer primitives.
 **Proposed fix:** Wrap meta parsing in a checked import error path and use
 safe primitive extraction before the version range check.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (route meta.json parse through the controlled import error)
 
 ### Bug 6 - Severity: Medium - Category: Report bundle partial corruption
 **Location:** `ai/src/main/java/com/ai/data/ReportBundle.kt:154-158`, `ai/src/main/java/com/ai/data/ReportBundle.kt:179-185`
@@ -115,7 +115,7 @@ importing valid entries.
 **Proposed fix:** Catch per-entry parse exceptions, count skipped entries,
 and surface a clear warning while importing the valid report body.
 
-**Status:** Open
+**Status:** Fixed — 99f19086 (ReportBundle: contain per-entry parse failures on import)
 
 ### Bug 7 - Severity: High - Category: Prompt translation path safety
 **Location:** `ai/src/main/java/com/ai/data/PromptTranslationStore.kt:23-37`, `ai/src/main/java/com/ai/data/PromptTranslationStore.kt:52-60`
@@ -134,7 +134,7 @@ translation root.
 **Proposed fix:** Sanitize every path segment to a safe flat name and verify
 canonical descendants under the root before read/write/delete.
 
-**Status:** Open
+**Status:** Fixed — c4f90621 (PromptTranslationStore: sanitize path segments)
 
 ### Bug 8 - Severity: Low - Category: Prompt cache path safety
 **Location:** `ai/src/main/java/com/ai/data/PromptCache.kt:55-68`, `ai/src/main/java/com/ai/data/PromptCache.kt:85-93`
@@ -151,7 +151,7 @@ debug/import path.
 **Proposed fix:** Validate that keys match the expected SHA-256 hex pattern,
 or make raw-key helpers private and expose only `keyFor`-derived APIs.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (require a 64-hex key in the raw PromptCache helpers)
 
 ### Bug 9 - Severity: Medium - Category: App log path safety
 **Location:** `ai/src/main/java/com/ai/data/AppLog.kt:200-211` (`readLogFile`, `deleteLog`)
@@ -169,7 +169,7 @@ filename.
 **Proposed fix:** Validate filenames with the same prefix/suffix/date
 pattern used by `getLogFiles`, and add canonical-child checks.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (validate the applog filename in readLogFile/deleteLog)
 
 ### Bug 10 - Severity: Medium - Category: External pricing parsing
 **Location:** `ai/src/main/java/com/ai/data/PricingParsers.kt:139-164`, `ai/src/main/java/com/ai/data/PricingParsers.kt:188-194`
@@ -187,7 +187,7 @@ instead of skipping the bad entry.
 **Proposed fix:** Add safe numeric helpers and skip/record malformed rows
 without throwing out the entire catalog refresh.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (skip non-numeric pricing rows via numOrNull/intOrNull)
 
 ### Bug 11 - Severity: Medium - Category: Local LLM path safety
 **Location:** `ai/src/main/java/com/ai/data/local/LocalLlm.kt:65-68` (`llmFile`)
@@ -206,7 +206,7 @@ for that path.
 **Proposed fix:** Reject model names containing separators or dots before
 building the file, and canonical-check the result under `local_llms`.
 
-**Status:** Open
+**Status:** Fixed — fea9c1c7 (LocalLlm: reject path-escaping model names in llmFile)
 
 ### Bug 12 - Severity: Medium - Category: Local embedder path safety
 **Location:** `ai/src/main/java/com/ai/data/local/LocalEmbedder.kt:194-199` (`modelFile`)
@@ -223,7 +223,7 @@ does not enforce a safe flat filename stem.
 **Proposed fix:** Validate model names against installed model stems or a
 strict filename regex, then canonical-check under `local_models`.
 
-**Status:** Open
+**Status:** Fixed — 568775ad (LocalEmbedder: reject path-escaping model names in modelFile)
 
 ### Bug 13 - Severity: Medium - Category: TransRank parser tolerance
 **Location:** `ai/src/main/java/com/ai/data/TranslatorRankModel.kt:137-142`
@@ -242,7 +242,7 @@ plaintext parser, which may parse the wrong number.
 **Proposed fix:** Use explicit primitive checks and return a clear
 missing-field result instead of falling through to whole-body number search.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (type-check the JSON score instead of falling through)
 
 ### Bug 14 - Severity: Low - Category: Secondary storage cache coherence
 **Location:** `ai/src/main/java/com/ai/data/SecondaryResult.kt:231-237` (`get`)
@@ -260,7 +260,7 @@ for many rows, such as detail/trace-linked views during live updates.
 in `listCache`, or add a small per-id read cache with the same invalidation
 rules.
 
-**Status:** Open
+**Status:** Fixed — 51bad4ff (SecondaryResult: get() reuses the parsed-row cache)
 
 ### Bug 15 - Severity: Low - Category: Local embedder partial sweep
 **Location:** `ai/src/main/java/com/ai/data/local/LocalEmbedder.kt:174-191` (`availableModels`)
@@ -277,7 +277,7 @@ a slow import/download leaves a `.part` file older than the cutoff.
 **Proposed fix:** Move sweeping into explicit maintenance/download startup
 paths, or expose a separate background cleanup method.
 
-**Status:** Open
+**Status:** Fixed — 3b639676 (LocalEmbedder: don't delete .part files from a query)
 
 ### Bug 16 - Severity: Medium - Category: App log toast threading
 **Location:** `ai/src/main/java/com/ai/data/AppLog.kt:164-174` (`maybeShowToast`)
@@ -294,5 +294,5 @@ a critical user-action error. The second toast is suppressed.
 **Proposed fix:** Coalesce per `(level, tag)` or per normalized message, and
 allow ERROR to bypass a prior WARN suppression window.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (coalesce toasts per (level, tag) so a WARN can't muffle an ERROR)
 

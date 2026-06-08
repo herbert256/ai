@@ -387,6 +387,22 @@ internal fun importTfliteModel(context: Context, uri: android.net.Uri): String? 
             AppLog.e("LocalRuntime", "tflite import: rename failed for $sanitized")
             return null
         }
+        // Validate it actually loads as a MediaPipe text embedder before
+        // publishing it — otherwise any non-empty file "installs" and only
+        // fails later when first selected for embedding. We're on
+        // Dispatchers.IO here, so building + closing one is safe.
+        val loadable = runCatching {
+            val options = com.google.mediapipe.tasks.text.textembedder.TextEmbedder.TextEmbedderOptions.builder()
+                .setBaseOptions(com.google.mediapipe.tasks.core.BaseOptions.builder().setModelAssetPath(finalTarget.absolutePath).build())
+                .setL2Normalize(true)
+                .build()
+            com.google.mediapipe.tasks.text.textembedder.TextEmbedder.createFromOptions(context, options).close()
+        }.isSuccess
+        if (!loadable) {
+            finalTarget.delete()
+            AppLog.e("LocalRuntime", "tflite import: '$sanitized' is not a usable MediaPipe text embedder")
+            return null
+        }
         finalTarget.nameWithoutExtension
     } catch (e: Exception) {
         staging?.takeIf { it.exists() }?.delete()
@@ -414,6 +430,14 @@ internal fun importTaskModel(context: Context, uri: android.net.Uri): String? {
             if (c.moveToFirst() && nameIdx >= 0) c.getString(nameIdx) else null
         }?.takeIf { it.isNotBlank() } ?: "llm_${System.currentTimeMillis()}.task"
         val lower = displayName.lowercase()
+        // Only accept a real LLM bundle or an archive we know how to unpack —
+        // previously any unknown file (PDF, image, …) fell through and was
+        // copied verbatim as a `.task`, appearing as an installed LLM that
+        // only failed later at generation time.
+        if (listOf(".task", ".zip", ".tar.gz", ".tgz", ".tar").none { lower.endsWith(it) }) {
+            AppLog.e("LocalRuntime", "LLM import: unsupported file type '$displayName' (expected .task, .zip, .tar, .tar.gz, or .tgz)")
+            return null
+        }
         val outDir = LocalLlm.localLlmsDir(context)
         val outName = when {
             lower.endsWith(".task") -> sanitizeFileName(displayName, ".task")
