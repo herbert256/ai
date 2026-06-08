@@ -238,7 +238,11 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
         openTranslator = { openTranslatorKey = it },
         onOpenWorkers = { showWorkers = true },
         onRestartFailed = { scope.launch { engine.restartFailedCells(context, runKey) } },
-        onDeleteRun = { scope.launch { engine.deleteRun(context, runKey) }; onBack() },
+        // Call deleteRun DIRECTLY (it's not suspend — it drops the run
+        // synchronously and sweeps disk on viewModelScope). Wrapping it in
+        // scope.launch raced with onBack() cancelling this screen's scope, so
+        // the delete sometimes never fired and the rows stayed on disk.
+        onDeleteRun = { engine.deleteRun(context, runKey); onBack() },
         onBack = onBack
     )
 }

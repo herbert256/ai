@@ -1420,10 +1420,18 @@ fun ReportsScreen(
                 },
                 onBack = { openTranslationRunId = null }
             )
-            // 🏅 confirm dialog (with the call count) for the run-screen medal.
+            // 🏅 confirm dialog (with the call count) for the run-screen medal —
+            // same flow as the Translations list: count popup → build-stage
+            // "Building translator ranking" progress bar → opens the ranking.
             com.ai.ui.report.manage.RankTranslatorsConfirmHost(rid, rankPending, transRankEngine) { req ->
-                transRankEngine?.startRun(context, rid, req.runId, req.lang, req.native, null, req.overrideWorkers)
-                transRankOpenState?.value = com.ai.data.transRankRunKey(rid, req.runId)
+                val key = java.util.UUID.randomUUID().toString()
+                val rk = com.ai.data.transRankRunKey(rid, req.runId)
+                armBuildStage(
+                    key, "Building translator ranking",
+                    { transRankOpenState?.value = rk },
+                    { transRankEngine?.deleteRun(context, rk) }
+                )
+                transRankEngine?.startRun(context, rid, req.runId, req.lang, req.native, key, req.overrideWorkers)
             }
         }
         return
