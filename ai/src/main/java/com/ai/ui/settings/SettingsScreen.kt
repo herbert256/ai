@@ -109,6 +109,9 @@ fun SettingsScreen(
     onStartRefreshAll: () -> Unit = {},
     onStartRefreshWorkers: () -> Unit = {},
     onClearRefreshAllState: () -> Unit = {},
+    /** When true and the initial sub-screen is AI_REFRESH, open straight on
+     *  the Info Providers sub-page (Manage-data → Info providers → Refresh). */
+    refreshOpenInfoProviders: Boolean = false,
     /** Replace the current sub-screen with the Refresh page. Used by
      *  the post-API-keys-import dialog so "Run Refresh all" lands the
      *  user on the progress overlay it just kicked off. */
@@ -787,6 +790,7 @@ fun SettingsScreen(
                     currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
                 },
                 onNavigateToHelpTopic = onNavigateToHelpTopic,
+                openInfoProvidersInitially = refreshOpenInfoProviders,
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onSettings = settingsModelsSetup
             )

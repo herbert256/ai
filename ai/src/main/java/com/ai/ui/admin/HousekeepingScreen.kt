@@ -22,11 +22,11 @@ fun HousekeepingScreen(
     onBackToHome: () -> Unit,
     /** True when at least one provider has a working API key (state ==
      *  "ok"). When false the screen folds to a minimal "first-run"
-     *  shape: only Refresh + Reset + a Restore-only / Import-only
+     *  shape: only Manage data + a Restore-only / Import-only
      *  pair remain. Trim by age is hidden because it has nothing
      *  meaningful to operate on (no reports, no traces yet). Backup is
      *  hidden because there's nothing worth backing up; Export is
-     *  hidden because there's nothing to export. Reset stays visible
+     *  hidden because there's nothing to export. Manage data stays visible
      *  unconditionally — it's a recovery tool the user might need to
      *  reach when something is wrong, including on a broken first run.
      *  The user can still Restore / Import to bring data in from
@@ -40,9 +40,8 @@ fun HousekeepingScreen(
     hasTrimmable: Boolean = true,
     onNavigateToBackupRestore: () -> Unit = {},
     onNavigateToImportExport: () -> Unit = {},
-    onNavigateToRefresh: () -> Unit = {},
+    onNavigateToManageData: () -> Unit = {},
     onNavigateToTrimByAge: () -> Unit = {},
-    onNavigateToReset: () -> Unit = {},
     onNavigateToTest: () -> Unit = {},
     onNavigateToUpdateFromCloud: () -> Unit = {},
     onNavigateToCosts: () -> Unit = {},
@@ -157,23 +156,16 @@ fun HousekeepingScreen(
                     onClick = onNavigateToCaches
                 )
             }
-            // Refresh and Reset live together at the bottom — both
-            // wholesale-state operations that finish with a forced app
-            // restart popup.
+            // Manage data lives at the bottom — the merged hub of every
+            // wholesale-state operation (update catalogs/workers, or clear
+            // data and reset app state), each subject pairing its refresh
+            // and reset actions on one card.
             item {
                 IconLinkCard(
                     icon = MetadataDefaults.RELOAD,
-                    title = "Refresh",
-                    subtitle = "Refresh providers, model lists, pricing catalogs, and defaults",
-                    onClick = onNavigateToRefresh
-                )
-            }
-            item {
-                IconLinkCard(
-                    icon = MetadataDefaults.CLEAR,
-                    title = "Reset",
-                    subtitle = "Clear runtime data, configuration, caches, or reset app state",
-                    onClick = onNavigateToReset
+                    title = "Manage data",
+                    subtitle = "Refresh catalogs/workers, or clear data and reset app state",
+                    onClick = onNavigateToManageData
                 )
             }
             item { Spacer(Modifier.height(24.dp)) }

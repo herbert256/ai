@@ -320,7 +320,7 @@ fun AppNavHost(
     val currentNavRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val housekeepingSubRoutes = setOf(
         NavRoutes.AI_BACKUP_RESTORE, NavRoutes.AI_TRIM_BY_AGE,
-        NavRoutes.AI_UPDATE_FROM_CLOUD, NavRoutes.AI_RESET,
+        NavRoutes.AI_UPDATE_FROM_CLOUD, NavRoutes.AI_MANAGE_DATA,
         NavRoutes.AI_PROMPT_TRANSLATIONS,
         NavRoutes.AI_APPLOG_LIST, NavRoutes.AI_TEST, NavRoutes.AI_COSTS_MAINTENANCE,
         // 2-levels-deep, housekeeping-only screens (the 🧹 used to vanish
@@ -604,6 +604,9 @@ fun SettingsScreenNav(
     initialEditingSwarmId: String? = null,
     initialEditingInternalPromptId: String? = null,
     initialInternalPromptCategory: String? = null,
+    /** With initialSubScreen == AI_REFRESH, open straight on the Info
+     *  Providers sub-page (Manage-data → Info providers → Refresh). */
+    refreshOpenInfoProviders: Boolean = false,
     sectionIconOverride: com.ai.ui.shared.TopBarLeftIcon? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -627,6 +630,7 @@ fun SettingsScreenNav(
         onStartRefreshAll = { viewModel.startRefreshAll() },
         onStartRefreshWorkers = { viewModel.startRefreshWorkers() },
         onClearRefreshAllState = { viewModel.clearRefreshAllState() },
+        refreshOpenInfoProviders = refreshOpenInfoProviders,
         onNavigateToRefresh = onNavigateToRefresh,
         onSaveHuggingFaceApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(huggingFaceApiKey = it)) },
         onSaveOpenRouterApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = it)) },

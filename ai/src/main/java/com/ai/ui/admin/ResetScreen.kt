@@ -12,39 +12,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.data.MetadataDefaults
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.IconLinkCard
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
 import com.ai.viewmodel.AppViewModel
 
-/** Reset hub. Each card drills into its own full screen with its
- *  own help topic. Wipe semantics live in the leaf screens — this
- *  one is pure navigation. */
-@Composable
-fun ResetScreen(
-    onBack: () -> Unit,
-    onNavigateHome: () -> Unit,
-    onOpenRuntimeData: () -> Unit,
-    onOpenInfoProviders: () -> Unit,
-    onOpenConfiguration: () -> Unit,
-    onOpenAssets: () -> Unit,
-    onOpenApplication: () -> Unit
-) {
-    BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "reset", title = "Reset", subject = "Five ways to clear data, safe to drastic", onBackClick = onBack)
-
-        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            IconLinkCard(MetadataDefaults.DELETE, "Clear runtime data", "Delete logs, chats, traces, reports, prompt history and usage", onOpenRuntimeData)
-            IconLinkCard(MetadataDefaults.INFO, "Clear Info providers", "Drop cached pricing catalogs and provider metadata", onOpenInfoProviders)
-            IconLinkCard(MetadataDefaults.SETTINGS, "Clear all configuration", "Wipe providers, agents, prompts, parameters and overrides", onOpenConfiguration)
-            IconLinkCard(MetadataDefaults.PACKAGE_BOX, "assets/*.json", "Reload bundled providers, prompts, examples and defaults", onOpenAssets)
-            IconLinkCard(MetadataDefaults.CLEAR, "Reset application", "Factory-style reset while preserving API keys", onOpenApplication)
-        }
-    }
-}
+// The former ResetScreen hub is gone — its five leaf screens below are now
+// reached directly from the merged Manage-data hub (see ManageDataScreen.kt).
 
 @Composable
 fun ResetRuntimeDataScreen(

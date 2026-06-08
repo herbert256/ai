@@ -380,9 +380,8 @@ internal fun NavGraphBuilder.developerRoutes(
                 hasTrimmable = hasTrimmable,
                 onNavigateToBackupRestore = { navController.navigate(NavRoutes.AI_BACKUP_RESTORE) },
                 onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
-                onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
+                onNavigateToManageData = { navController.navigate(NavRoutes.AI_MANAGE_DATA) },
                 onNavigateToTrimByAge = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) },
-                onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) },
                 onNavigateToTest = { navController.navigate(NavRoutes.AI_TEST) },
                 onNavigateToUpdateFromCloud = { navController.navigate(NavRoutes.AI_UPDATE_FROM_CLOUD) },
                 onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) },
@@ -484,15 +483,29 @@ internal fun NavGraphBuilder.developerRoutes(
                 onDeleteReports = { reportIds -> reportViewModel.bulkDeleteReports(context, reportIds) }
             )
         }
-        composable(NavRoutes.AI_RESET) {
-            com.ai.ui.admin.ResetScreen(
+        composable(NavRoutes.AI_MANAGE_DATA) {
+            val uiState by appViewModel.uiState.collectAsState()
+            val hasAnyKeyedProvider = com.ai.data.AppService.entries.any {
+                uiState.aiSettings.getApiKey(it).isNotBlank()
+            }
+            com.ai.ui.admin.ManageDataScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome,
-                onOpenRuntimeData = { navController.navigate(NavRoutes.AI_RESET_RUNTIME) },
-                onOpenInfoProviders = { navController.navigate(NavRoutes.AI_RESET_INFO_PROVIDERS) },
-                onOpenConfiguration = { navController.navigate(NavRoutes.AI_RESET_CONFIGURATION) },
-                onOpenAssets = { navController.navigate(NavRoutes.AI_RESET_ASSETS) },
-                onOpenApplication = { navController.navigate(NavRoutes.AI_RESET_APPLICATION) }
+                hasAnyKeyedProvider = hasAnyKeyedProvider,
+                onRefreshAll = {
+                    appViewModel.startRefreshAll()
+                    navController.navigate(NavRoutes.AI_REFRESH)
+                },
+                onRefreshWorkers = {
+                    appViewModel.startRefreshWorkers()
+                    navController.navigate(NavRoutes.AI_REFRESH)
+                },
+                onRefreshInfoProviders = { navController.navigate(NavRoutes.AI_REFRESH_INFO_PROVIDERS) },
+                onResetApplication = { navController.navigate(NavRoutes.AI_RESET_APPLICATION) },
+                onRestoreProviders = { navController.navigate(NavRoutes.AI_RESET_ASSETS) },
+                onClearInfoProviders = { navController.navigate(NavRoutes.AI_RESET_INFO_PROVIDERS) },
+                onClearRuntime = { navController.navigate(NavRoutes.AI_RESET_RUNTIME) },
+                onClearConfiguration = { navController.navigate(NavRoutes.AI_RESET_CONFIGURATION) },
+                onRestoreAssets = { navController.navigate(NavRoutes.AI_RESET_ASSETS) }
             )
         }
         composable(NavRoutes.AI_RESET_RUNTIME) {
@@ -593,6 +606,23 @@ internal fun NavGraphBuilder.developerRoutes(
                 initialSubScreen = SettingsSubScreen.AI_REFRESH,
                 // Reached from Housekeeping → show 🧹 (not the AI Setup 🤖)
                 // and route the tap back to the Housekeeping hub.
+                sectionIconOverride = com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.housekeeping) {
+                    if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
+                        navController.navigate(NavRoutes.AI_HOUSEKEEPING)
+                }
+            )
+        }
+        // Deep-link into the Refresh screen's Info Providers sub-page, used by
+        // the Manage-data hub's "Refresh" button on the Info-providers card.
+        composable(NavRoutes.AI_REFRESH_INFO_PROVIDERS) {
+            SettingsScreenNav(
+                viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_REFRESH,
+                refreshOpenInfoProviders = true,
                 sectionIconOverride = com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.housekeeping) {
                     if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
                         navController.navigate(NavRoutes.AI_HOUSEKEEPING)

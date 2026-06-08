@@ -50,6 +50,10 @@ fun RefreshScreen(
      *  straight to the provider whose key / model needs fixing. */
     onOpenProvider: (AppService) -> Unit = {},
     onNavigateToHelpTopic: (String) -> Unit = {},
+    /** Deep-link entry: when true the screen opens straight on the Info
+     *  Providers sub-page (used by the Manage-data hub's "Refresh" button on
+     *  the Info-providers card). Back from that sub-page pops the route. */
+    openInfoProvidersInitially: Boolean = false,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSettings: (() -> Unit)? = null
@@ -377,7 +381,7 @@ fun RefreshScreen(
     // AI Info Providers sub-page lives as a full-screen overlay reached
     // via a NavCard on the main Refresh screen. Same early-return idiom
     // as before so the parent's remember state survives the round-trip.
-    var subPage by remember { mutableStateOf<RefreshSubPage?>(null) }
+    var subPage by remember { mutableStateOf<RefreshSubPage?>(if (openInfoProvidersInitially) RefreshSubPage.INFO_PROVIDERS else null) }
     if (subPage == RefreshSubPage.INFO_PROVIDERS) {
         InfoProvidersRefreshPage(
             isAnyRunning = isAnyRunning,
@@ -390,7 +394,10 @@ fun RefreshScreen(
             onLLMPrices = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } },
             onArtificialAnalysis = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } },
             onNavigateToHelpTopic = onNavigateToHelpTopic,
-            onBack = { subPage = null },
+            // Deep-linked entry has no 3-card parent to fall back to, so Back
+            // pops the route (returns to Manage data); normal entry just closes
+            // the overlay back to the Refresh hub.
+            onBack = { if (openInfoProvidersInitially) onBack() else subPage = null },
             onNavigateHome = onNavigateHome
         )
         return

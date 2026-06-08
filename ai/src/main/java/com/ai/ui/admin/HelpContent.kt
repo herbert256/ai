@@ -256,7 +256,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "cache_embeddings" to listOf("caches", "help_costs"),
     "backup_restore" to listOf("help_backup", "help_privacy"),
     "trim_by_age" to listOf("help_backup", "help_privacy"),
-    "reset" to listOf("help_backup", "help_privacy"),
+    "manage_data" to listOf("refresh", "help_backup", "help_privacy"),
     "reset_runtime" to listOf("help_privacy"),
     "reset_info_providers" to listOf("help_home_info_providers", "help_privacy"),
     "reset_configuration" to listOf("help_privacy"),

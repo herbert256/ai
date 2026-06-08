@@ -553,9 +553,9 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Housekeeping",
         cards = listOf(
             HelpCard("Overview", "Maintenance hub using the same icon-card layout as Monitor. Each card opens a full screen with its own help topic."),
-            HelpCard("Cards", "Backup & Restore, Export & Import, Refresh, Update from cloud, Costs, Test, Trim by age, and Reset. The list moves from safe/inspectable actions toward more destructive cleanup actions."),
+            HelpCard("Cards", "Backup & Restore, Export & Import, Update from cloud, Costs, Test, Trim by age, and Manage data. The list moves from safe/inspectable actions toward more destructive cleanup actions."),
             HelpCard("Related maintenance", "Prompt-bundle editing lives under Settings -> AI Setup -> Prompt management. Manual pricing cleanup lives under Settings -> AI Setup -> Costs. Usage and spend inspection lives under Monitor."),
-            HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear runtime data, and Clear all configuration are not undoable."),
+            HelpCard("Tips", "Backup before any of the destructive actions under Manage data — Reset application, Clear runtime data, and Clear all configuration are not undoable."),
         )
     ),
     "prompt_translations" to HelpContent(
@@ -672,16 +672,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "Example prompts are pure data, not bound to any app feature. Add as many as you like; reorder via Title since the list sorts alphabetically."),
         )
     ),
-    "reset" to HelpContent(
-        title = "Help - Reset",
+    "manage_data" to HelpContent(
+        title = "Help - Manage data",
         cards = listOf(
-            HelpCard("Overview", "Hub of five destructive operations, each drilling into its own full screen with its own help topic. Order is roughly safe → destructive: runtime data → Info provider caches → all configuration → asset restores → full app reset."),
-            HelpCard("Clear runtime data", "Wipes app logs, chats, API traces, AI reports (incl. their secondary rows), prompt history, and usage stats. Configuration and all caches survive. Tap the row for the full description and the wipe button."),
-            HelpCard("Clear Info providers", "Drops the per-provider pricing tier blobs from the six Info providers plus the OpenRouter model-specs cache. Manual overrides and Together's native pricing survive."),
-            HelpCard("Clear all configuration", "Wipes every provider's API key, models, endpoints; every agent / flock / swarm; every prompt and parameter preset; External Services keys. Reports, chats, traces, and usage stats are kept."),
-            HelpCard("assets/*.json", "Three per-file restore buttons (providers / prompts / examples). Each drops the targeted list and reloads it from the bundled JSON; nothing outside that list is touched."),
-            HelpCard("Reset application", "Factory-style — keeps API keys but wipes everything else, reloads providers + internal prompts from assets, then runs the Refresh-all chain. Gated by a type-RESET dialog and force-restarts the app on success."),
-            HelpCard("Pitfalls", "Each leaf screen has its own confirmation dialog. Reset application's confirmation is CASE-sensitive (literally \"RESET\", trimmed). The other four are immediate after the dialog."),
+            HelpCard("Overview", "The single Housekeeping hub for every wholesale-state operation — it merges the former separate Refresh and Reset screens. Each card is one subject; a subject that can be both updated and cleared shows BOTH buttons (e.g. Info providers → Refresh / Clear). Order is roughly safe → drastic."),
+            HelpCard("Whole app", "Refresh = the Refresh-all chain (six catalogs + per-provider workers in parallel, then a restart prompt). Reset = factory-style reset that keeps API keys but wipes everything else and reloads from assets. The Refresh button is disabled until at least one provider has a key."),
+            HelpCard("Providers / models / agents", "Refresh = per-provider key test → model-list fetch → default-agent rewrite (skips the external catalogs). Restore = opens the assets/*.json restore screen where \"back to assets/providers/\" reloads provider definitions. The Refresh button needs at least one keyed provider."),
+            HelpCard("Info providers", "The one fully-paired subject. Refresh opens the six-catalog refresh page (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis); Clear drops their cached pricing tiers plus the OpenRouter model-specs cache (manual overrides + Together's native pricing survive)."),
+            HelpCard("Runtime data / Configuration / Bundled assets", "Clear-only subjects. Runtime data wipes logs/chats/traces/reports/prompt-history/usage. Configuration wipes keys/agents/prompts/parameters. Bundled assets/*.json restores providers/prompts/examples/meta/workers from the shipped JSON."),
+            HelpCard("Pitfalls", "Each reset action still opens its own confirmation dialog on the next screen — nothing destructive happens straight from this hub. Reset application's confirmation is CASE-sensitive (literally \"RESET\"). The Providers \"Restore\" and Bundled-assets \"Restore\" open the same assets/*.json screen."),
         )
     ),
     "reset_runtime" to HelpContent(

@@ -14,6 +14,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,6 +64,58 @@ fun IconLinkCard(
                 }
             }
             Text("›", fontSize = 22.sp, color = AppColors.TextTertiary)
+        }
+    }
+}
+
+/** Subject card for the Manage-data hub: large icon + title, optional
+ *  subtitle, then a row of up to two action buttons — an update/"refresh"
+ *  action and a clear/reset action. Either button is omitted when its label
+ *  is null, so one component serves both single- and dual-action subjects.
+ *  When both are present they split the row evenly; a lone button fills it. */
+@Composable
+fun DualActionCard(
+    icon: String,
+    title: String,
+    subtitle: String? = null,
+    refreshLabel: String? = null,
+    onRefresh: (() -> Unit)? = null,
+    refreshEnabled: Boolean = true,
+    clearLabel: String? = null,
+    onClear: (() -> Unit)? = null
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            IconCardHeader(icon, title)
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    subtitle, fontSize = 11.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.padding(start = 54.dp, top = 2.dp)
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (refreshLabel != null && onRefresh != null) {
+                    OutlinedButton(
+                        onClick = onRefresh,
+                        enabled = refreshEnabled,
+                        modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text(refreshLabel, maxLines = 1, softWrap = false) }
+                }
+                if (clearLabel != null && onClear != null) {
+                    OutlinedButton(
+                        onClick = onClear,
+                        modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text(clearLabel, maxLines = 1, softWrap = false) }
+                }
+            }
         }
     }
 }
