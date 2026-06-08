@@ -2,6 +2,8 @@
 
 ## P01 - Split `ApiDispatch.kt` by provider format and call kind
 
+> **Status (2026-06-08): ✅ done** — split into `ApiDispatchModels` / `…Streaming` / `…Builders` (1864→963 LOC, same package) (`8704e214`).
+
 Priority: P1
 
 Evidence:
@@ -64,6 +66,8 @@ Provider calls become easier to log, test, and display in a future execution
 plan preview.
 
 ## P03 - Add dispatch golden tests for each API family
+
+> **Status (2026-06-08): ✅ done** — `ApiDispatchGoldenTest` (request shapes + vision) and `ApiStreamingGoldenTest` (SSE per family) (`448dde10`, `efed50d0`).
 
 Priority: P1
 
@@ -149,6 +153,8 @@ Users can understand why work is waiting. Tests can assert structured state
 rather than parsing diagnostic strings.
 
 ## P06 - Isolate blocking retry-yield behavior
+
+> **Status (2026-06-08): ◑ partial** — `PermitHold` release/reacquire + double-release-guard tests added (`f5083e38`, T03); the interface wrapper itself was judged cosmetic and deferred.
 
 Priority: P1
 
@@ -271,6 +277,8 @@ Retry, benching, UI badges, audit logs, and tests can reason about failures
 without string parsing.
 
 ## P10 - Use live-call mocks as first-class test infrastructure
+
+> **Status (2026-06-08): ✅ done** — the existing MockWebServer harness was reused + extended by the dispatch golden tests (`448dde10`).
 
 Priority: P1
 

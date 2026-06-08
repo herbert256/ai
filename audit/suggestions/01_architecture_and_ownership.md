@@ -80,6 +80,8 @@ try/log/merge block. It also makes startup timing and failures easier to report.
 
 ## A03 - Define package boundaries around UI, domain, and storage
 
+> **Status (2026-06-08): ✅ done** — `SettingsPreferences` moved to `com.ai.data.preferences` (`61375de7`); UI no longer owns the persistent schema. (The source-boundary test A10 was not added.)
+
 Priority: P0
 
 Evidence:

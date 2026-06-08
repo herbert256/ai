@@ -2,6 +2,8 @@
 
 ## D01 - Split settings persistence by domain
 
+> **Status (2026-06-08): ◑ partial** — facade move done (A03); first sub-store `PromptHistoryStore` extracted (`b2ecf1c0`). `GeneralSettingsStore` / `UsageStatsStore` still to split.
+
 Priority: P0
 
 Evidence:
@@ -32,6 +34,8 @@ Each settings domain gets focused tests and ownership. Adding a new preference
 stops touching one central mega-class.
 
 ## D02 - Add load/save parity tests for `GeneralSettings`
+
+> **Status (2026-06-08): ✅ done** — `GeneralSettingsParityTest` (`293102d8`).
 
 Priority: P0
 
@@ -286,6 +290,8 @@ Expected benefit:
 Schema evolution becomes routine rather than risky.
 
 ## D11 - Move usage-stat flush policy out of settings storage
+
+> **Status (2026-06-08): ☐ deferred** — usage stats is 3 interlinked caches under one lock + cost-ledger reconcile coupling; wants a focused, data-verified pass.
 
 Priority: P2
 

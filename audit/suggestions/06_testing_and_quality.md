@@ -15,6 +15,8 @@ contracts, and settings persistence parity.
 
 ## T01 - Add settings persistence parity tests
 
+> **Status (2026-06-08): ✅ done** — `GeneralSettingsParityTest` (`293102d8`).
+
 Priority: P1
 
 What to test:
@@ -31,6 +33,8 @@ Why:
 mirrors are cheap to write once and expensive to trust forever.
 
 ## T02 - Add batch engine lifecycle unit tests
+
+> **Status (2026-06-08): ✅ done** — `BatchEngineTest` (`5ef0a8d3`).
 
 Priority: P1
 
@@ -53,6 +57,8 @@ too coupled to Android `Context`, first extract smaller pure collaborators.
 
 ## T03 - Add `runThrottledBatch` and `PermitHold` tests
 
+> **Status (2026-06-08): ✅ done** — `PermitHoldTest` / `BatchResumeTest` / `RunThrottledBatchTest` (`f5083e38`).
+
 Priority: P1
 
 What to test:
@@ -73,6 +79,8 @@ This helper protects the app from deadlocks. It should have direct tests because
 many high-cost workflows depend on it.
 
 ## T04 - Add provider dispatch golden tests
+
+> **Status (2026-06-08): ✅ done** — `ApiDispatchGoldenTest` + `ApiStreamingGoldenTest` (`448dde10`, `efed50d0`).
 
 Priority: P1
 
@@ -96,6 +104,8 @@ resources and avoid live API keys.
 
 ## T05 - Add report execution plan tests
 
+> **Status (2026-06-08): ✅ done** — `ReportExecutionPlanTest` (`c5ee76e2`).
+
 Priority: P1
 
 After adding `ReportExecutionPlan`, test:
@@ -116,6 +126,8 @@ This gives high confidence that UI selection and dispatch will agree before
 network calls are launched.
 
 ## T06 - Add storage command tests
+
+> **Status (2026-06-08): ✅ done** — `ReportStorage` already had 11 instrumented tests; added cost-ledger dedup + corrupted-JSON tolerance (`c13cacc0`).
 
 Priority: P1
 
@@ -207,6 +219,8 @@ The current source shows boundary drift. Cheap source tests can stop future
 drift while refactors are underway.
 
 ## T11 - Add fake provider infrastructure for report-section tests
+
+> **Status (2026-06-08): ✅ done** — reused / extended the MockWebServer harness (`448dde10`).
 
 Priority: P1
 
