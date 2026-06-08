@@ -1151,18 +1151,31 @@ fun modelLabel(
 fun shortModelName(model: String): String =
     if (model.contains('/')) model.substringAfterLast('/') else model
 
-/** Like [shortModelName] but also trims cosmetic suffixes for tight display
- *  sites: a trailing `-latest`, a `-YYYYMMDD` date, or a `-YYYY-MM-DD` date —
- *  e.g. `mistral-small-latest` → `mistral-small`,
- *  `claude-haiku-4-5-20251001` → `claude-haiku-4-5`,
- *  `gpt-4o-2024-08-06` → `gpt-4o`. DISPLAY ONLY — never use for keys /
- *  matching (two snapshots collapse to the same string). Opt in per site;
- *  callers stay on [shortModelName] unless they want the shorter label. */
+/** Like [shortModelName] but also trims the release-channel / snapshot-date
+ *  suffix providers append, keeping the real version number. Validated against
+ *  the whole live catalog (1399 model ids) — every one of the five forms below
+ *  is a date / `-latest`, and real versions (`gpt-5.5`, `claude-opus-4-5`,
+ *  `grok-4.20`, `…-24b-instruct`, `deepseek-chat-v3`, `tts-1`) are untouched:
+ *
+ *   - `-latest`              mistral-small-latest        → mistral-small
+ *   - `-YYYY-MM-DD`          gpt-5.5-2026-04-23          → gpt-5.5      (OpenAI/Google)
+ *   - `-MM-YYYY`             command-r7b-12-2024         → command-r7b  (Cohere/Command)
+ *   - `-YYYYMMDD`            claude-opus-4-5-20251101    → claude-opus-4-5 (Anthropic)
+ *   - `-YYMM` / `-MMDD`      codestral-2508, gpt-4-0613  → codestral, gpt-4
+ *
+ *  Order matters: the dashed-date forms must run before the bare 4-digit code,
+ *  else `command-r7b-12-2024` would lose only `-2024`. Three-digit revisions
+ *  (`babbage-002`, `text-embedding-004`) are left alone — there the number IS
+ *  the version. DISPLAY ONLY — never use for keys / matching, since two
+ *  snapshots collapse to one string. Opt in per site; everything else stays on
+ *  [shortModelName]. */
 fun shortModelName2(model: String): String =
     shortModelName(model)
         .removeSuffix("-latest")
         .replace(Regex("-\\d{4}-\\d{2}-\\d{2}$"), "")
+        .replace(Regex("-\\d{2}-\\d{4}$"), "")
         .replace(Regex("-\\d{8}$"), "")
+        .replace(Regex("-\\d{4}$"), "")
 
 /** Translate a SecondaryResult's stored `errorMessage` into something
  *  the user wants to read. Today the only rewrite is the legacy
