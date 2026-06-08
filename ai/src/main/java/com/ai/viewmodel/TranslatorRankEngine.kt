@@ -354,7 +354,8 @@ class TranslatorRankEngine internal constructor(
                     SecondaryResultStorage.recordTournamentMatch(
                         context, reportId, rowId, item.judge.providerId, item.judge.model,
                         resp.analysis.orEmpty(), inT, outT, inCost, outCost,
-                        System.currentTimeMillis() - started, traceFile = traceSink.get()
+                        System.currentTimeMillis() - started, traceFile = traceSink.get(),
+                        tokenUsage = tu
                     )
                 } else {
                     recordCellError(context, reportId, rowId, item.placeholder,

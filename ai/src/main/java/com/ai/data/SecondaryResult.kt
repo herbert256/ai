@@ -895,7 +895,12 @@ object SecondaryResultStorage {
         providerId: String, model: String, content: String,
         inputTokens: Int, outputTokens: Int,
         inputCost: Double, outputCost: Double, durationMs: Long,
-        traceFile: String? = null
+        traceFile: String? = null,
+        /** Full usage to persist when the caller has it (TransRank passes the
+         *  whole [TokenUsage] so cached / cache-creation / reasoning tokens and
+         *  the API-reported cost survive). When null, the row keeps the legacy
+         *  input/output-only shape built from [inputTokens] / [outputTokens]. */
+        tokenUsage: TokenUsage? = null
     ) {
         init(context)
         lock.withLock {
@@ -910,7 +915,7 @@ object SecondaryResultStorage {
                 agentName = "$providerId / $model",
                 content = content,
                 errorMessage = null,
-                tokenUsage = TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens),
+                tokenUsage = tokenUsage ?: TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens),
                 inputCost = inputCost,
                 outputCost = outputCost,
                 durationMs = durationMs,
