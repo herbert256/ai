@@ -70,7 +70,7 @@ internal fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService,
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.toTokenUsage(service)
         if (!content.isNullOrBlank()) AnalysisResponse(service, content, null, usage,
-            citations = body?.citations, searchResults = body?.search_results, relatedQuestions = body?.related_questions,
+            citations = body.citations, searchResults = body.search_results, relatedQuestions = body.related_questions,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
         // Pass `usage` on the empty-content branch too — a reasoning
         // model that burned all max_tokens on encrypted reasoning

@@ -76,7 +76,7 @@ fun SystemPromptEditScreen(
                 label = { Text("Name") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors(),
                 isError = name.isNotBlank() && nameError != null,
-                supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.DangerAccent) } } else null
+                supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError, color = AppColors.DangerAccent) } } else null
             )
 
             OutlinedTextField(

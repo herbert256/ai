@@ -799,7 +799,7 @@ private fun TournamentL3(
                 m.confidence?.let {
                     Text("Confidence: ${String.format(Locale.US, "%.0f", it * 100)}%", color = AppColors.TextSecondary, fontSize = 12.sp)
                 }
-                if (!m.reason.isNullOrBlank()) Text(m.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
+                if (!m.reason.isNullOrBlank()) Text(m.reason, color = AppColors.TextSecondary, fontSize = 12.sp)
                 Text("Orientation: ${if (m.orientation == 0) "A-vs-B" else "B-vs-A (swapped)"}", color = AppColors.TextTertiary, fontSize = 11.sp)
                 m.judgeModel?.let { Text("Judged by: ${it}", color = AppColors.TextTertiary, fontSize = 11.sp) }
                 m.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.DangerAccent, fontSize = 11.sp) }

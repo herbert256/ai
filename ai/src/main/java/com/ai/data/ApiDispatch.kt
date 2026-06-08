@@ -889,7 +889,7 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
             val headers = formatHeaders(response.headers)
             val statusCode = response.code
             if (response.isSuccessful) {
-                val responseBody = response.body?.string()
+                val responseBody = response.body.string()
                 try {
                     // Parse the success body by the provider's API format
                     // (Bug 11): a Gemini/Anthropic provider returns a shape
@@ -915,7 +915,7 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
                     else AnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode)
                 } catch (_: Exception) { AnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode) }
             } else {
-                AnalysisResponse(service, null, "API error: $statusCode - ${response.body?.string()}", httpHeaders = headers, httpStatusCode = statusCode)
+                AnalysisResponse(service, null, "API error: $statusCode - ${response.body.string()}", httpHeaders = headers, httpStatusCode = statusCode)
             }
         }
     } catch (e: kotlinx.coroutines.CancellationException) {

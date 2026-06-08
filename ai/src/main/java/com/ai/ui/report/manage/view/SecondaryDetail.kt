@@ -410,7 +410,7 @@ internal fun SecondaryResultDetailScreen(
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             subject = title,
             onBackClick = onBack,
-            onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
+            onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename) } } else null,
             onDelete = {
                 // Multi-language items get the 3-button popup so the
                 // user can drop just the active-language rendering vs.

@@ -206,9 +206,9 @@ internal fun TranslationL3Screen(
             subject = titleSubject,
             onBackClick = onBack,
             onOpenView = onOpenViewJump,
-            onTrace = if (traceEnabled) { { actions.onNavigateToTraceFile(traceFilename!!) } } else null,
+            onTrace = if (traceEnabled) { { actions.onNavigateToTraceFile(traceFilename) } } else null,
             onInfo = if (translationProviderService != null && !item.model.isNullOrBlank()) {
-                { actions.onNavigateToModelInfo(translationProviderService, item.model!!) }
+                { actions.onNavigateToModelInfo(translationProviderService, item.model) }
             } else null,
             onCopy = item.translatedText?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "translation") }

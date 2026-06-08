@@ -127,7 +127,7 @@ fun ReportsViewScreen(
     val languages = remember(availableLanguages) {
         val seen = linkedSetOf<String>()
         seen += ""
-        availableLanguages.forEach { seen += (it ?: "") }
+        availableLanguages.forEach { seen += it }
         seen.toList()
     }
     val initialLangIdx = remember(languages, initialLanguage) {

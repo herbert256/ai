@@ -1054,7 +1054,7 @@ fun AiStatModelsScreen(
                         }
                         if (d.maxContextModel != null) {
                             Spacer(Modifier.height(4.dp))
-                            KeyVal("Largest", "${com.ai.ui.shared.shortModelName(d.maxContextModel!!)} (${formatCompactNumber(d.maxContextTokens.toLong())})", AppColors.TextSecondary)
+                            KeyVal("Largest", "${com.ai.ui.shared.shortModelName(d.maxContextModel)} (${formatCompactNumber(d.maxContextTokens.toLong())})", AppColors.TextSecondary)
                         }
                     }
                 }

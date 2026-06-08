@@ -660,7 +660,7 @@ internal fun ColumnScope.GenerationPhase(
     val displayRows: List<DisplayRow> = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings.agents) {
         val rows = if (isStagedMode) {
             staged.map { m ->
-                val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId!!
+                val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId
                             else "swarm:${m.provider.id}:${m.model}"
                 // Carry both the model and the provider display name so
                 // the row label can honour the user's "Model name layout"

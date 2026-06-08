@@ -222,7 +222,7 @@ internal fun ModerationDetailScreen(
             subject = reportTitle,
             onBackClick = onBack,
             onEdit = if (modelSwitch != null) { { showChangeActions = true } } else null,
-            onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
+            onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename) } } else null,
             onDelete = { confirmDelete = true },
             onOpenView = onOpenViewJump,
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, eff.model) } } else null,

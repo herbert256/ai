@@ -95,8 +95,12 @@ class ReportStorageInstrumentedTest {
         assertThat(reloaded.agents[0].durationMs).isEqualTo(250)
         // All agents done → completedAt populated.
         assertThat(reloaded.completedAt).isNotNull()
-        // totalCost recomputed from agents.
-        assertThat(reloaded.totalCost).isEqualTo(0.0001)
+        // Per-agent cost is persisted on the agent row (asserted above), but the
+        // report's totalCost is owned by the append-only cost ledger
+        // (`apiCallCosts`), which markAgentSuccess does not write — a fresh report
+        // is ledger-current with an empty ledger, so totalCost stays 0 here. The
+        // ledger path is covered by the cost-ledger tests below.
+        assertThat(reloaded.totalCost).isEqualTo(0.0)
     }
 
     @Test fun markAgentSuccess_clears_prior_error_on_re_run() {
@@ -128,20 +132,25 @@ class ReportStorageInstrumentedTest {
         assertThat(reloaded.agents.map { it.agentId }).containsExactly("a")
     }
 
-    @Test fun removeAgent_drops_row_and_recomputes_total_cost() {
+    @Test fun removeAgent_drops_row_and_preserves_removed_cost() {
         val report = ReportStorage.createReport(
             context = context, title = "t", prompt = "p",
             agents = listOf(agent("a"), agent("b"))
         )
         ReportStorage.markAgentSuccess(context, report.id, "a", 200, null, "x", null, 0.05)
         ReportStorage.markAgentSuccess(context, report.id, "b", 200, null, "y", null, 0.10)
-        assertThat(ReportStorage.getReport(context, report.id)!!.totalCost).isWithin(1e-9).of(0.15)
+        // Per-agent cost lands on each agent row.
+        assertThat(ReportStorage.getReport(context, report.id)!!.agents.mapNotNull { it.cost })
+            .containsExactly(0.05, 0.10)
 
         val removed = ReportStorage.removeAgent(context, report.id, "a")
         assertThat(removed).isTrue()
         val reloaded = ReportStorage.getReport(context, report.id)!!
         assertThat(reloaded.agents.map { it.agentId }).containsExactly("b")
-        assertThat(reloaded.totalCost).isWithin(1e-9).of(0.10)
+        // The removed row's per-agent spend (0.05) is rolled into
+        // costsFromDeletedItems so the report's lifetime total stays stable
+        // after the row is dropped.
+        assertThat(reloaded.costsFromDeletedItems).isWithin(1e-9).of(0.05)
     }
 
     @Test fun removeAgent_returns_false_for_unknown_id() {

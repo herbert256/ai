@@ -661,7 +661,7 @@ class IconGenerationManager(
             val providerId = parts?.firstOrNull().orEmpty()
             val modelId = parts?.getOrNull(1) ?: res.model.orEmpty()
             val tier = AppService.findById(providerId)
-                ?.let { PricingCache.getPricing(context, it, modelId)?.source }
+                ?.let { PricingCache.getPricing(context, it, modelId).source }
                 .orEmpty()
             if (res.inputCost > 0.0 || res.outputCost > 0.0 || res.inputTokens > 0 || res.outputTokens > 0) {
                 ReportStorage.appendIconCall(
@@ -1017,7 +1017,7 @@ class IconGenerationManager(
                     try {
                         withTracerTags(reportId = reportId, category = "report/language-icon") {
                             val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-                            val resolvedIcon = effIconPrompt!!.text.replace("@LANGUAGE@", detectedName)
+                            val resolvedIcon = effIconPrompt.text.replace("@LANGUAGE@", detectedName)
                             val started = System.currentTimeMillis()
                             val outcome = withTraceFilenameSink(traceSink) {
                                 rvm.workerRunner.run(effIconPrompt, resolvedIcon, aiSettings, context) {

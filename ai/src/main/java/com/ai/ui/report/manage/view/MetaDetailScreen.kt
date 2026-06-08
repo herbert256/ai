@@ -488,7 +488,7 @@ internal fun MetaDetailScreen(
             subject = title,
             onBackClick = onBack,
             onEdit = if (metaEditManager != null) { { showResponseChangeActions = true } } else null,
-            onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
+            onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename) } } else null,
             onDelete = {
                 if (langTabs.size > 1) confirmLangChoice = true
                 else confirmDelete = true

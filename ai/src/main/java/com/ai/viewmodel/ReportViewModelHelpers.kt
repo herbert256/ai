@@ -425,7 +425,7 @@ internal fun lookupLanguageTranslations(
         (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "")
     }
     val prompt = byTarget["PROMPT:prompt"]?.content ?: report.prompt
-    val title = byTarget["TITLE:title"]?.content ?: (report.title ?: "")
+    val title = byTarget["TITLE:title"]?.content ?: report.title
     val native = translates.firstNotNullOfOrNull { it.targetLanguageNative }
     val bodies = report.agents
         .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }

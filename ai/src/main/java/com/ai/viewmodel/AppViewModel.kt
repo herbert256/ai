@@ -1877,7 +1877,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val passed = testError == null
                     updateProviderState(service, if (passed) "ok" else "error")
                     if (!passed) {
-                        setWorkerStage(service.id, WorkerStage.Failed(testError ?: "error"))
+                        setWorkerStage(service.id, WorkerStage.Failed(testError))
                         return@async
                     }
 

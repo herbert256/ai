@@ -125,7 +125,7 @@ fun TournamentViewScreen(
                         null -> null
                         "tie" -> "tie"
                         else -> {
-                            val winnerAgent = if (v == "A") r!!.matchResponseAId else r!!.matchResponseBId
+                            val winnerAgent = if (v == "A") r.matchResponseAId else r.matchResponseBId
                             if (winnerAgent == agA) "A" else "B"
                         }
                     }

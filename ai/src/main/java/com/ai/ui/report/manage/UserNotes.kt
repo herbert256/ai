@@ -331,7 +331,7 @@ private fun noteTargetLabel(
     "SECONDARY" -> secondaries.firstOrNull { it.id == note.targetId }
         ?.let { secondaryShortLabel(it) } ?: "Deleted item"
     "FANOUT_RUN" -> secondaries.firstOrNull {
-        it.metaPromptId != null && runKey(reportId, it.metaPromptId!!) == note.targetId
+        it.metaPromptId != null && runKey(reportId, it.metaPromptId) == note.targetId
     }?.let { "Fan out · ${it.metaPromptName ?: "fan out"}" } ?: "Deleted item"
     else -> "Deleted item"
 }

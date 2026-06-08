@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
  *  `"reportId|metaPromptId"` for Fan Out's multi-run-per-report);
  *  [ItemKey] the per-item map key; [ItemState] one [BatchItem];
  *  [RunState] one [BatchRun]. */
-abstract class BatchEngine<RunKey, ItemKey, ItemState : BatchItem<ItemKey>, RunState : BatchRun<ItemKey, ItemState>> {
+abstract class BatchEngine<RunKey : Any, ItemKey, ItemState : BatchItem<ItemKey>, RunState : BatchRun<ItemKey, ItemState>> {
 
     protected val _runs = MutableStateFlow<Map<RunKey, RunState>>(emptyMap())
     val runs: StateFlow<Map<RunKey, RunState>> = _runs.asStateFlow()

@@ -325,7 +325,7 @@ internal fun buildShortHtmlFromData(data: HtmlReportData): String {
             sb.append("<p class='err'>Error: ").append(esc(a.errorMessage)).append("</p>")
         }
         if (!a.responseText.isNullOrBlank()) {
-            sb.append("<div>").append(convertMarkdownToHtmlForExport(a.responseText!!)).append("</div>")
+            sb.append("<div>").append(convertMarkdownToHtmlForExport(a.responseText)).append("</div>")
         }
         a.citations?.takeIf { it.isNotEmpty() }?.let { cites ->
             sb.append("<h4>Sources</h4><ol>")

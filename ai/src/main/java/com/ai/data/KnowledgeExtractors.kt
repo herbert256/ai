@@ -526,7 +526,7 @@ internal object KnowledgeExtractors {
         // Drop nav / footer / aside boilerplate when present —
         // doesn't catch every site but cleans up the easy cases.
         doc.select("script, style, noscript, nav, footer, aside, header").forEach { it.remove() }
-        return doc.body()?.text().orEmpty().normalised()
+        return doc.body().text().orEmpty().normalised()
     }
 
     private fun String.normalised(): String =

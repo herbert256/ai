@@ -119,7 +119,7 @@ fun PromptViewScreen(
         if (loaded.translatedByLang.isNotEmpty()) {
             loaded.translatedByLang.keys.forEach { seen += it }
         } else {
-            availableLanguages.forEach { seen += (it ?: "") }
+            availableLanguages.forEach { seen += it }
         }
         seen.toList()
     }

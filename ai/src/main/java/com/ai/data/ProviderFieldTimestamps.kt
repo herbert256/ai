@@ -65,10 +65,12 @@ object ProviderFieldTimestamps {
     }
 
     /** Drop every recorded timestamp — Restart from asset. */
-    fun clearAll() = synchronized(lock) {
-        if (ts.isEmpty()) return
-        ts.clear()
-        saveLocked()
+    fun clearAll() {
+        synchronized(lock) {
+            if (ts.isEmpty()) return
+            ts.clear()
+            saveLocked()
+        }
     }
 
     /** Drop timestamps for one provider — used when removing it. */

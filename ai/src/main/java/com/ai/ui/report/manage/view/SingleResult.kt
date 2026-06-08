@@ -397,7 +397,7 @@ fun ReportModelScreen(
             originalLabel = "Original",
             originalContent = agent.responseBody!!,
             translatedLabel = translatedLangLabel,
-            translatedContent = liveAgentTranslate.content!!,
+            translatedContent = liveAgentTranslate.content,
             onBack = { showLiveTranslationCompare = false },
             onNavigateHome = onNavigateHome,
             onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } },
@@ -405,7 +405,7 @@ fun ReportModelScreen(
                 onDeleteRowById(liveAgentTranslate.id)
                 showLiveTranslationCompare = false
             },
-            originalIcon = report?.languageIcon,
+            originalIcon = report.languageIcon,
             translatedIcon = translatedIcon
         )
         return

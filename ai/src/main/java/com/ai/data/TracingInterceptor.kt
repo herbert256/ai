@@ -136,7 +136,7 @@ class TracingInterceptor : Interceptor {
             // This was the previous behaviour and is the safest path for
             // small JSON responses (model lists, chat completions without
             // stream=true, error bodies).
-            val responseBody = response.body?.let { body ->
+            val responseBody = response.body.let { body ->
                 try {
                     val source = body.source()
                     source.request(BODY_CAP_BYTES)
@@ -187,10 +187,7 @@ class TracingInterceptor : Interceptor {
         // EOF or is closed — whichever fires first wins via [saved]
         // CAS, so a half-consumed cancelled stream still produces a
         // (truncated but complete) trace.
-        val originalBody = response.body ?: run {
-            saveWith(null, partial = false, filename = partialFilename)
-            return response
-        }
+        val originalBody = response.body
         val captured = Buffer()
         val saved = AtomicBoolean(false)
         fun finishOnce() {

@@ -143,14 +143,14 @@ internal val AltTranslateTargetSaver: Saver<AltTranslateTarget?, Any> = listSave
     restore = { l ->
         if (l.isEmpty()) null
         else AltTranslateTarget(
-            reportId = l[0] as String,
-            runId = l[1] as String,
-            itemId = l[2] as String,
-            isTitleKind = (l[3] as String).toBoolean(),
-            sourceText = l[4] as String,
-            traceType = l[5] as String,
-            targetLanguageName = l[6] as String,
-            persistedRowId = (l[7] as String).takeIf { it.isNotEmpty() }
+            reportId = l[0],
+            runId = l[1],
+            itemId = l[2],
+            isTitleKind = l[3].toBoolean(),
+            sourceText = l[4],
+            traceType = l[5],
+            targetLanguageName = l[6],
+            persistedRowId = l[7].takeIf { it.isNotEmpty() }
         )
     }
 )
@@ -178,21 +178,20 @@ internal val ReportModelListSaver: Saver<List<ReportModel>, Any> = listSaver(
         val out = mutableListOf<ReportModel>()
         var i = 0
         while (i + 10 <= saved.size) {
-            val providerId = saved[i] as? String
-            val provider = providerId?.let { AppService.findById(it) }
+            val provider = AppService.findById(saved[i])
             if (provider != null) {
                 out.add(
                     ReportModel(
                         provider = provider,
-                        model = saved[i + 1] as? String ?: "",
-                        type = saved[i + 2] as? String ?: "",
-                        sourceType = saved[i + 3] as? String ?: "",
-                        sourceName = saved[i + 4] as? String ?: "",
-                        sourceId = (saved[i + 5] as? String)?.takeIf { it.isNotEmpty() },
-                        agentId = (saved[i + 6] as? String)?.takeIf { it.isNotEmpty() },
-                        endpointId = (saved[i + 7] as? String)?.takeIf { it.isNotEmpty() },
-                        agentApiKey = (saved[i + 8] as? String)?.takeIf { it.isNotEmpty() },
-                        paramsIds = (saved[i + 9] as? String)?.takeIf { it.isNotEmpty() }?.split(",") ?: emptyList()
+                        model = saved[i + 1],
+                        type = saved[i + 2],
+                        sourceType = saved[i + 3],
+                        sourceName = saved[i + 4],
+                        sourceId = saved[i + 5].takeIf { it.isNotEmpty() },
+                        agentId = saved[i + 6].takeIf { it.isNotEmpty() },
+                        endpointId = saved[i + 7].takeIf { it.isNotEmpty() },
+                        agentApiKey = saved[i + 8].takeIf { it.isNotEmpty() },
+                        paramsIds = saved[i + 9].takeIf { it.isNotEmpty() }?.split(",") ?: emptyList()
                     )
                 )
             }

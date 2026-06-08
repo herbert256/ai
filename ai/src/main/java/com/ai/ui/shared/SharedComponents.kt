@@ -1562,28 +1562,28 @@ fun TitleBar(
     val resolvedOnSwipePrev: (() -> Boolean)? = onSwipePrev
         ?: if (swipeAutoReady) ({
             val match = com.ai.ui.helpers.findSwipeMatch(
-                swipeCtx, swipeIds, swipeCurrentReportId!!,
+                swipeCtx, swipeIds, swipeCurrentReportId,
                 com.ai.ui.helpers.SwipeDirection.Prev,
                 swipeFilter
             )
             if (match == null) false
             else {
                 swipeOnMatch?.invoke(match)
-                swipeReportSwitchHandler!!(match.reportId)
+                swipeReportSwitchHandler(match.reportId)
                 true
             }
         }) else null
     val resolvedOnSwipeNext: (() -> Boolean)? = onSwipeNext
         ?: if (swipeAutoReady) ({
             val match = com.ai.ui.helpers.findSwipeMatch(
-                swipeCtx, swipeIds, swipeCurrentReportId!!,
+                swipeCtx, swipeIds, swipeCurrentReportId,
                 com.ai.ui.helpers.SwipeDirection.Next,
                 swipeFilter
             )
             if (match == null) false
             else {
                 swipeOnMatch?.invoke(match)
-                swipeReportSwitchHandler!!(match.reportId)
+                swipeReportSwitchHandler(match.reportId)
                 true
             }
         }) else null
@@ -1746,7 +1746,7 @@ internal fun AppTopBarChrome(
             val titleClick = if (homeBar && !forceTitleClick) reportNavClick else (onTitleClick ?: sectionIcon?.onClick)
             var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
-            val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()
+            val topText = if (hasScreenTitle) screenTitle else secondLine.orEmpty()
             // Top row: left icon · main screen title · right icon.
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 // Left — report glyph > section icon > AI logo. Hidden on
@@ -2454,7 +2454,7 @@ fun BottomIconBar(
         // Shown just left of ❓ when this screen has its own "<topic>_icons"
         // help page AND more than 3 action icons (❓/❔ not counted).
         // (Suppressed on useLegend screens — the overlay's red ❓ replaces it.)
-        val iconTopic = icons?.helpTopic?.let { "${it}_icons" }
+        val iconTopic = icons.helpTopic?.let { "${it}_icons" }
             ?.takeIf { com.ai.ui.admin.HELP_TOPICS.containsKey(it) }
         // White ❔ sits just left of the red ❓. On useLegend screens it opens
         // the live icon-legend overlay (shown whenever there's ≥1 icon); on

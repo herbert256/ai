@@ -212,7 +212,7 @@ fun TournamentPodiumViewScreen(
                         collapseCompleteMatches = true
                     )
                 }
-                item { TournamentTotalTable(loaded.row?.tournamentMatrix, loaded.rankings) }
+                item { TournamentTotalTable(loaded.row.tournamentMatrix, loaded.rankings) }
             } else {
                 item {
                     MethodSelector(
@@ -402,8 +402,8 @@ private fun buildTournamentViewMatches(
 private fun tournamentViewSideFrom(row: SecondaryResult?): TournamentViewSide {
     val parsed = row?.let { parseMatchVerdict(it.content) }
     val winnerAgentId = when (parsed?.verdict) {
-        "A" -> row?.matchResponseAId
-        "B" -> row?.matchResponseBId
+        "A" -> row.matchResponseAId
+        "B" -> row.matchResponseBId
         else -> null
     }
     val judge = row?.model

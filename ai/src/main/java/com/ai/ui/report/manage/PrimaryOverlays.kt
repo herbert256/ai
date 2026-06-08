@@ -412,7 +412,7 @@ internal fun ReportPrimaryOverlays(
         // the user lands back on Manage.
         val reportListBundle = com.ai.ui.shared.LocalReportListIconBundle.current
         val backFromView: () -> Unit = if (reportListBundle.initialView && reportListBundle.onExitToList != null) {
-            reportListBundle.onExitToList!!
+            reportListBundle.onExitToList
         } else {
             { onShowViewReportScreenChange(false) }
         }

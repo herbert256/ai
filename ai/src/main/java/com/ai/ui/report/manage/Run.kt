@@ -256,7 +256,7 @@ internal fun ReportRunScreen(
                 val comparePrompt = compareMetaItems.firstOrNull { it.id == id }?.metaPromptName?.let { name ->
                     aiSettings.internalPrompts.firstOrNull { it.category == "meta_compare" && it.name.equals(name, ignoreCase = true) }
                 }
-                if (rid != null && comparePrompt != null) {
+                if (comparePrompt != null) {
                     // Build stage: block behind "Preparing…" while the cell grid
                     // is created, then open the L1 once done.
                     val key = java.util.UUID.randomUUID().toString()
@@ -448,7 +448,7 @@ internal fun ReportRunScreen(
             // then bumps the tick so the produceState re-reads and the tint flips.
             onReportModels = if (currentReportId != null) {
                 {
-                    currentReportId?.let { rid ->
+                    currentReportId.let { rid ->
                         val next = !useReportModelsAsWorkers
                         reportModelsScope.launch(Dispatchers.IO) {
                             ReportStorage.setUseReportModelsAsWorkers(context, rid, next)
@@ -909,7 +909,7 @@ internal fun ReportRunScreen(
                 },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
-                        currentReportId?.let { rid ->
+                        currentReportId.let { rid ->
                             // Build stage: block behind "Preparing…" while the
                             // match grid is created, then open the L1 once done.
                             val key = java.util.UUID.randomUUID().toString()
@@ -950,7 +950,7 @@ internal fun ReportRunScreen(
                 },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
-                        currentReportId?.let { rid ->
+                        currentReportId.let { rid ->
                             val key = java.util.UUID.randomUUID().toString()
                             val arm = { ws: List<com.ai.model.Worker>? ->
                                 onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })

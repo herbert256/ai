@@ -471,7 +471,7 @@ private fun CompareL2(
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!c.reason.isNullOrBlank()) {
                     Spacer(Modifier.height(6.dp))
-                    Text(c.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
+                    Text(c.reason, color = AppColors.TextSecondary, fontSize = 12.sp)
                 }
                 c.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.DangerAccent, fontSize = 11.sp) }
             }

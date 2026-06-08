@@ -714,7 +714,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
             it.category == "workers" && it.name == "report-icon"
         }
-        val iconAgent = iconPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
+        val iconAgent = iconPrompt?.workers?.firstNotNullOfOrNull { ai.resolveWorker(it) }
         // Prefer the persisted provider/model the icon actually ran on
         // (Report.iconModel, "provider/model") so re-pinning the icon
         // prompt after the run doesn't re-attribute / re-price the row to
@@ -755,7 +755,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val detectPrompt = ai?.internalPrompts?.firstOrNull {
             it.category == "workers" && it.name == "report-language-name"
         }
-        val agent = detectPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
+        val agent = detectPrompt?.workers?.firstNotNullOfOrNull { ai.resolveWorker(it) }
         val provider = agent?.provider
         val model = agent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
@@ -776,10 +776,10 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
             it.category == "workers" && it.name == "report-language-icon"
         }
-        val iconAgent = iconPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
+        val iconAgent = iconPrompt?.workers?.firstNotNullOfOrNull { ai.resolveWorker(it) }
         val pickedParts = report.languageIconModel?.split("/", limit = 2)
         val provider = pickedParts?.firstOrNull()?.let { AppService.findById(it) } ?: iconAgent?.provider
-        val model = pickedParts?.getOrNull(1) ?: iconAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
+        val model = pickedParts?.getOrNull(1) ?: iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
             type = "report/language-icon",
@@ -809,7 +809,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         if (inCost <= 0.0 && outCost <= 0.0) return null
         val parts = storedModel?.split("/", limit = 2)
         val provider = parts?.firstOrNull()?.let { AppService.findById(it) } ?: titleFallbackAgent?.provider
-        val model = parts?.getOrNull(1) ?: titleFallbackAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
+        val model = parts?.getOrNull(1) ?: titleFallbackAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         return CostRow(
             type = type,
@@ -1016,9 +1016,9 @@ fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
             columnLabels = listOf("Model", "Calls", "Total"),
             columnWeights = listOf(2f, 1f, 1f),
             keyExtractors = listOf(
-                { com.ai.ui.shared.shortModelName((it as GroupTotal).model ?: "") },
-                { (it as GroupTotal).calls },
-                { (it as GroupTotal).let { g -> g.inputCents + g.outputCents } },
+                { com.ai.ui.shared.shortModelName(it.model ?: "") },
+                { it.calls },
+                { it.let { g -> g.inputCents + g.outputCents } },
             ),
             renderCells = { g ->
                 listOf(
@@ -1116,9 +1116,9 @@ fun ReportApiCallsScreen(report: Report, onBack: () -> Unit, onNavigateToTraceFi
                         columnLabels = listOf("Type", "Model", "Cost"),
                         columnWeights = listOf(1f, 2f, 1f),
                         keyExtractors = listOf(
-                            { (it as CostRow).type },
-                            { com.ai.ui.shared.shortModelName((it as CostRow).model) },
-                            { (it as CostRow).let { r -> r.inputCents + r.outputCents } },
+                            { it.type },
+                            { com.ai.ui.shared.shortModelName(it.model) },
+                            { it.let { r -> r.inputCents + r.outputCents } },
                         ),
                         renderCells = { r ->
                             listOf(
