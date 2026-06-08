@@ -66,8 +66,11 @@ object BrokenWorkPolicy {
      *  is the agent half of the hub's old reportHasProblems, now the single
      *  routine that also feeds the ⚠️ Broken-work badge. */
     fun agentProblems(report: Report, reportIsLive: Boolean): Pair<List<String>, List<String>> {
+        // ERROR and STOPPED both count as "broken work" needing attention — a
+        // "Stopped by user" agent (often a spurious stop from a delete cancelling
+        // a different report's run) must light the ⚠️ badge + list for restart.
         val errored = report.agents
-            .filter { it.reportStatus == ReportStatus.ERROR }
+            .filter { it.reportStatus == ReportStatus.ERROR || it.reportStatus == ReportStatus.STOPPED }
             .map { it.agentId }
         val interrupted = if (reportIsLive) emptyList()
             else report.agents

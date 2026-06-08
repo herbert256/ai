@@ -65,6 +65,10 @@ fun BrokenWorkScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onOpenReport: (String) -> Unit,
+    /** Card tap → open this broken item's OWN detail/batch screen (not the
+     *  report overview): restores the report then opens the item's screen via a
+     *  view-only PendingBatchOpen. */
+    onOpenItem: (BrokenBatch) -> Unit = {},
     /** Card-level "Continue" for the 6 batch-screen families (Fan Out / Fan
      *  Meta / Tournament / Judges / Compare / Translation): stop the batch,
      *  re-queue every broken item, restart it, and open that batch's own
@@ -165,8 +169,20 @@ fun BrokenWorkScreen(
                         batch, warningGlyph, index,
                         busyKeys = busyKeys,
                         onOpen = {
-                            if (responsesSingle) onOpenModel(batch.reportId, batch.key)
-                            else onOpenReport(batch.reportId)
+                            // Card tap → straight to the item, never an overview.
+                            val mode = if (batch.errorCount > 0) BrokenItemMode.ERRORS else BrokenItemMode.UNFINISHED
+                            when (batch.kind) {
+                                // One broken agent → its Model response; several → the agents list.
+                                BatchFamilyKind.RESPONSES ->
+                                    if (responsesSingle) onOpenModel(batch.reportId, batch.key)
+                                    else viewing = batch to mode
+                                // Independent Meta/Rerank/Moderation: one → its detail; several → the list.
+                                BatchFamilyKind.OTHER ->
+                                    if (batch.errorCount + batch.unfinishedCount == 1) onOpenItem(batch)
+                                    else viewing = batch to mode
+                                // Batch screens (+ Regenerate fallback) → open the screen itself.
+                                else -> onOpenItem(batch)
+                            }
                         },
                         onView = { mode -> viewing = batch to mode },
                         onRestart = { mode -> onRestart(batch, mode) },
@@ -552,7 +568,7 @@ fun loadBrokenItems(context: Context, batch: BrokenBatch, mode: BrokenItemMode):
     if (batch.kind == BatchFamilyKind.RESPONSES) {
         val report = ReportStorage.getReport(context, batch.reportId) ?: return emptyList()
         return report.agents.filter {
-            if (errors) it.reportStatus == ReportStatus.ERROR
+            if (errors) it.reportStatus == ReportStatus.ERROR || it.reportStatus == ReportStatus.STOPPED
             else it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING
         }.map { a ->
             val label = a.model.ifBlank { a.agentName }.ifBlank { "model" }

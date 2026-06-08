@@ -4,8 +4,11 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroidSize
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +43,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
@@ -79,6 +83,7 @@ import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 
 // ---------------------------------------------------------------------
 // Value view — cost × quality (Pareto) frontier. Pure derivation from
@@ -888,18 +893,40 @@ private fun ValueGraphFullScreen(
         Box(
             modifier = Modifier.fillMaxSize()
                 .background(AppColors.AppBackground)
-                // Tap left half → previous ranking, right half → next (wraps).
-                // Keyed on yAxisTitle (changes each cycle) so the detector
-                // recaptures the current onPrev/onNext + zoom state.
+                // One detector disambiguates tap-cycle from pinch/pan so a
+                // fumbled zoom can't flip the ranking (which also reset the
+                // zoom, since scale/offset are keyed on yAxisTitle). A gesture
+                // that crosses touch-slop is a transform; otherwise it's a tap:
+                // left half → previous ranking, right half → next (wraps).
+                // Keyed on yAxisTitle so it recaptures onPrev/onNext each cycle.
+                // See audit report bug 14.
                 .pointerInput(yAxisTitle) {
-                    detectTapGestures { tap ->
-                        if (tap.x < size.width / 2f) onPrev() else onNext()
-                    }
-                }
-                .pointerInput(yAxisTitle) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 8f)
-                        offset += pan
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var pastSlop = false
+                        var canceled = false
+                        do {
+                            val event = awaitPointerEvent()
+                            canceled = event.changes.any { it.isConsumed }
+                            if (!canceled) {
+                                val zoom = event.calculateZoom()
+                                val pan = event.calculatePan()
+                                if (!pastSlop) {
+                                    val zoomMotion = abs(1f - zoom) * event.calculateCentroidSize(useCurrent = false)
+                                    if (zoomMotion > viewConfiguration.touchSlop ||
+                                        pan.getDistance() > viewConfiguration.touchSlop) pastSlop = true
+                                }
+                                if (pastSlop) {
+                                    scale = (scale * zoom).coerceIn(1f, 8f)
+                                    offset += pan
+                                    event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                }
+                            }
+                        } while (!canceled && event.changes.any { it.pressed })
+                        // Never crossed slop and wasn't consumed → a real tap.
+                        if (!pastSlop && !canceled) {
+                            if (down.position.x < size.width / 2f) onPrev() else onNext()
+                        }
                     }
                 }
         ) {

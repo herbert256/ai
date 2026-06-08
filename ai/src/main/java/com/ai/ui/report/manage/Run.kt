@@ -188,29 +188,6 @@ internal fun ReportRunScreen(
     }
     val compareEnabled = compareMetaItems.isNotEmpty() && tournamentResponseCount >= 1
     var compareStep by rememberSaveable { mutableStateOf(0) }
-    // Armed by the 🏆 / 🚦 bottom-bar icons when no rerank / moderation exists
-    // yet: the icon opens the picker, and once the run's placeholder row lands
-    // in secondaryRuns the LaunchedEffect below jumps to its detail screen.
-    // rememberSaveable so it survives the picker overlay (which unmounts this
-    // screen); cleared on navigation and on report switch.
-    var pendingOpenRerank by rememberSaveable(currentReportId) { mutableStateOf(false) }
-    var pendingOpenModeration by rememberSaveable(currentReportId) { mutableStateOf(false) }
-    LaunchedEffect(secondaryRuns, pendingOpenRerank) {
-        if (pendingOpenRerank) {
-            secondaryRuns.firstOrNull { it.kind == com.ai.data.SecondaryKind.RERANK }?.let {
-                st.openMetaResultId.value = it.id
-                pendingOpenRerank = false
-            }
-        }
-    }
-    LaunchedEffect(secondaryRuns, pendingOpenModeration) {
-        if (pendingOpenModeration) {
-            secondaryRuns.firstOrNull { it.kind == com.ai.data.SecondaryKind.MODERATION }?.let {
-                st.openMetaResultId.value = it.id
-                pendingOpenModeration = false
-            }
-        }
-    }
     val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
     // isPinned produceState re-reads from disk and the 📌 tint flips
@@ -527,15 +504,14 @@ internal fun ReportRunScreen(
                 .takeIf { it.isNotBlank() }
                 ?: com.ai.data.MetadataDefaults.TRANSLATE,
             // 🏆 Rerank — single-shot: if one exists, jump straight to its
-            // detail; otherwise open the picker and arm pendingOpenRerank so
-            // the LaunchedEffect lands on the detail once the row appears.
+            // detail; otherwise start it (the picker → run then surfaces the
+            // "Report - second results" screen, where the new row appears).
             onRerank = if (currentReportId != null) {
                 {
                     val existing = secondaryRuns.firstOrNull { it.kind == com.ai.data.SecondaryKind.RERANK }
                     if (existing != null) {
                         st.openMetaResultId.value = existing.id
                     } else {
-                        pendingOpenRerank = true
                         generationHandlers.onOpenRerankPicker()
                     }
                 }
@@ -550,7 +526,6 @@ internal fun ReportRunScreen(
                     if (existing != null) {
                         st.openMetaResultId.value = existing.id
                     } else {
-                        pendingOpenModeration = true
                         generationHandlers.onOpenModerationPicker()
                     }
                 }

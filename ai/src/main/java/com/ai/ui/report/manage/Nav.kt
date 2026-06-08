@@ -978,7 +978,15 @@ internal fun ConsumePendingBatchOpen(
                 st.listIsFanMeta.value = true
             })
             com.ai.viewmodel.BatchFamilyKind.TRANSLATION -> ({ st.openTranslationRunId.value = p.key })
+            // View-only (Broken-work card tap): a single Meta/Rerank/Moderation
+            // → open its secondary detail (key carries the result id).
+            com.ai.viewmodel.BatchFamilyKind.OTHER -> ({ st.openMetaResultId.value = p.key })
             else -> return@LaunchedEffect
+        }
+        // View-only just opens the item's screen — no re-queue / build popup.
+        if (p.viewOnly) {
+            nav()
+            return@LaunchedEffect
         }
         val key = java.util.UUID.randomUUID().toString()
         var job: kotlinx.coroutines.Job? = null

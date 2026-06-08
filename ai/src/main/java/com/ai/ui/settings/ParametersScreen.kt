@@ -22,7 +22,6 @@ fun ParametersEditScreen(
     onNavigateHome: () -> Unit,
     forceAdd: Boolean = false
 ) {
-    BackHandler { onBack() }
     val isEditing = params != null && !forceAdd
     var resetTick by remember { mutableStateOf(0) }
 
@@ -57,6 +56,24 @@ fun ParametersEditScreen(
         else -> null
     }
 
+    // comma→dot before parsing: the Decimal keyboard surfaces a comma key on
+    // comma-decimal locales (nl-NL) and toFloatOrNull is dot-only.
+    fun String.decimalToFloat(): Float? = replace(',', '.').toFloatOrNull()
+    fun buildParams(id: String) = Parameters(
+        id, name.trim(), temperature.decimalToFloat(), maxTokens.toIntOrNull(),
+        topP.decimalToFloat(), topK.toIntOrNull(), frequencyPenalty.decimalToFloat(),
+        presencePenalty.decimalToFloat(), systemPrompt.takeIf { it.isNotBlank() },
+        params?.stopSequences,
+        seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
+        searchRecency.takeIf { it.isNotBlank() },
+        webSearchTool,
+        reasoningEffort.takeIf { it.isNotBlank() }
+    )
+    val paramsId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null) buildParams(if (isAddMode) paramsId else params!!.id) else null
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+    BackHandler { back() }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -64,42 +81,18 @@ fun ParametersEditScreen(
             helpTopic = "parameters_edit",
             title = if (isAddMode) "Add Parameters" else "Edit Parameters",
             subject = name,
-            onBackClick = onBack,
+            onBackClick = back,
             onCopyReport = null,
             onClear = { resetTick++ }
         )
-        // Preserve stopSequences from the existing preset (no editor UI yet,
-        // but the data model carries them — saving null dropped imported lists).
-        // Normalize comma→dot before parsing: the Decimal keyboard surfaces a
-        // comma key on comma-decimal locales (nl-NL), and toFloatOrNull is
-        // dot-only, so "0,7" would silently parse to null and drop the value.
-        fun String.decimalToFloat(): Float? = replace(',', '.').toFloatOrNull()
-        fun buildParams(id: String) = Parameters(
-            id, name.trim(), temperature.decimalToFloat(), maxTokens.toIntOrNull(),
-            topP.decimalToFloat(), topK.toIntOrNull(), frequencyPenalty.decimalToFloat(),
-            presencePenalty.decimalToFloat(), systemPrompt.takeIf { it.isNotBlank() },
-            params?.stopSequences,
-            seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
-            searchRecency.takeIf { it.isNotBlank() },
-            webSearchTool,
-            reasoningEffort.takeIf { it.isNotBlank() }
-        )
         Spacer(modifier = Modifier.height(8.dp))
-        if (isAddMode) {
-            OutlinedButton(
-                onClick = { onSave(buildParams(java.util.UUID.randomUUID().toString())); onBack() },
-                enabled = nameError == null,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Create", maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-            // Edit: no Save button — auto-persist while editing and on leave.
-            com.ai.ui.shared.AutoSaveOnChange(
-                current = if (nameError == null) buildParams(params!!.id) else null,
-                onSave = onSave
-            )
-        }
+        OutlinedButton(
+            onClick = { onSave(current!!); onBack() },
+            enabled = current != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(

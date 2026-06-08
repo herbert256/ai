@@ -1676,6 +1676,14 @@ class SecondaryRunManager(
         }
         } finally {
             appViewModel.updateRunningSingleSecondaries { it - placeholder.id }
+            // A single secondary (Moderation / Rerank / single Meta) just landed
+            // its result — re-scan broken work NOW so a fix clears the ⚠️ badge +
+            // the Broken-work screen immediately, instead of waiting up to 30s for
+            // the sweep (and a fresh error lights it at once too). NonCancellable
+            // so it still runs when the run was cancelled; best-effort.
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                try { refreshBrokenBatches(context) } catch (_: Exception) {}
+            }
         }
     }
 
@@ -1713,6 +1721,9 @@ class SecondaryRunManager(
         // and should sort the report to the top of History, same as an
         // additive change does.
         ReportStorage.bumpReportTimestamp(context, reportId)
+        // Deleting an errored row is a fix — re-scan broken work now so the ⚠️
+        // badge + Broken-work screen clear at once, not on the next 30s sweep.
+        appViewModel.viewModelScope.launch { try { refreshBrokenBatches(context) } catch (_: Exception) {} }
     }
 
     /** Bulk-delete every secondary result row in [resultIds] off the
@@ -1753,6 +1764,9 @@ class SecondaryRunManager(
             ReportStorage.removeIconCallsForSecondaryIds(context, reportId, deletedSecondaryIds)
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
+            // Dropping broken rows is also a fix — re-scan now so the ⚠️ badge +
+            // Broken-work screen clear immediately, not on the next 30s sweep.
+            try { refreshBrokenBatches(context) } catch (_: Exception) {}
             withContext(Dispatchers.Main) { onComplete() }
         }
 }

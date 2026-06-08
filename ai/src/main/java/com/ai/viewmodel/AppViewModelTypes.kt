@@ -93,6 +93,11 @@ data class PendingBatchOpen(
     val kind: BatchFamilyKind,
     val key: String,
     val fanOutName: String? = null,
+    /** View-only: just open the item's screen (set the open-state), without the
+     *  re-queue/Continue. Used by the Broken-work card tap → "go to that item".
+     *  For [BatchFamilyKind.OTHER] (Meta/Rerank/Moderation), [key] then carries
+     *  the errored secondary's result id (opens its detail). */
+    val viewOnly: Boolean = false,
 )
 
 /** How combined provider+model labels render across UI rows.

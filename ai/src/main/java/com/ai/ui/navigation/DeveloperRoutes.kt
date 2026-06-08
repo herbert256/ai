@@ -144,12 +144,12 @@ private suspend fun recoverBrokenBatch(
         }
         BatchFamilyKind.RESPONSES -> {
             // Primary report agents — restart regenerates the agent, delete
-            // drops it (no API call). ERRORS mode acts on ERROR agents,
-            // UNFINISHED on the PENDING/RUNNING ones a process kill stranded.
-            // [rowIds] null means the whole line (every agent in that mode).
+            // drops it (no API call). ERRORS mode acts on ERROR + STOPPED agents
+            // (incl. "Stopped by user"), UNFINISHED on the PENDING/RUNNING ones a
+            // process kill stranded. [rowIds] null means the whole line.
             val report = ReportStorage.getReport(context, rid) ?: return
             val modeAgentIds = report.agents.filter {
-                if (errors) it.reportStatus == ReportStatus.ERROR
+                if (errors) it.reportStatus == ReportStatus.ERROR || it.reportStatus == ReportStatus.STOPPED
                 else it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING
             }.map { it.agentId }
             val targets = if (rowIds != null) modeAgentIds.filter { it in rowIds } else modeAgentIds
@@ -839,6 +839,39 @@ internal fun NavGraphBuilder.developerRoutes(
                         navController.navigate(NavRoutes.aiReportManage()) {
                             popUpTo(NavRoutes.AI_BROKEN_WORK) { inclusive = true }
                         }
+                    }
+                },
+                // Card tap → the item's own screen (view-only PendingBatchOpen,
+                // no re-queue). OTHER carries the errored secondary's result id so
+                // its detail opens; FAN_OUT/FAN_META carry the metaPromptName the
+                // fan-out list filters by; the rest open their batch screen.
+                onOpenItem = { batch ->
+                    com.ai.data.LastReportTracker.record(batch.reportId, view = false)
+                    brokenWorkScope.launch {
+                        val key: String
+                        val fanOutName: String?
+                        when (batch.kind) {
+                            BatchFamilyKind.OTHER -> {
+                                key = withContext(Dispatchers.IO) {
+                                    matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.ERRORS).firstOrNull()?.id
+                                } ?: batch.key
+                                fanOutName = null
+                            }
+                            BatchFamilyKind.FAN_OUT, BatchFamilyKind.FAN_META -> {
+                                key = batch.key
+                                fanOutName = withContext(Dispatchers.IO) {
+                                    (matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.ERRORS) +
+                                        matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.UNFINISHED))
+                                        .firstNotNullOfOrNull { it.metaPromptName?.takeIf { n -> n.isNotBlank() } }
+                                }
+                            }
+                            else -> { key = batch.key; fanOutName = null }
+                        }
+                        reportViewModel.restoreCompletedReport(brokenWorkContext, batch.reportId)
+                        appViewModel.requestBatchOpen(
+                            PendingBatchOpen(batch.reportId, batch.kind, key, fanOutName, viewOnly = true)
+                        )
+                        navController.navigate(NavRoutes.aiReportManage())
                     }
                 },
                 onRestart = { batch, mode ->

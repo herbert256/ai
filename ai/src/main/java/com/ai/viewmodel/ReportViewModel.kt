@@ -2538,11 +2538,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         //     and gets the same treatment.
         //   - reportGenerationJob is the agent-fanout for the initial
         //     generation; if the user trashes mid-generation it needs
-        //     to die too. We only cancel it when the deleted report
-        //     is the currently-active one — a delete from the hub
-        //     while a different report is generating mustn't kill the
-        //     active run.
-        if (cleared) reportGenerationJob?.cancel()
+        //     to die too. Cancel it ONLY when the deleted report is the
+        //     one actually GENERATING ([activeGenerationReportId]) — not
+        //     merely the one being viewed ([cleared]/currentReportId).
+        //     The shared job belongs to whatever report is generating, so
+        //     deleting a different (even the viewed) report must not cancel
+        //     it and strand its agents as "Stopped by user".
+        if (activeGenerationReportId == reportId) reportGenerationJob?.cancel()
         val fanOutPrefix = "$reportId|"
         // Fan-out runs + per-pair coroutines are owned by the engine now.
         fanOutEngine.cancelAllForReport(reportId)

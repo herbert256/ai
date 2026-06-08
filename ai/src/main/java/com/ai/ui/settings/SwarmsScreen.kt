@@ -30,7 +30,6 @@ fun SwarmEditScreen(
     /** 🗑 delete this swarm (Setup → Workers → Swarms edit). Null hides it. */
     onDelete: (() -> Unit)? = null
 ) {
-    BackHandler { onBack() }
     val isEditing = swarm != null
     // Member rows are always kept sorted by provider id, then the DISPLAYED
     // (short) model name — both case-insensitive — so the list reads in the
@@ -111,6 +110,12 @@ fun SwarmEditScreen(
         return
     }
 
+    val swarmId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null && selectedMembers.isNotEmpty())
+        Swarm(if (isAddMode) swarmId else swarm!!.id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId) else null
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+    BackHandler { back() }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -118,7 +123,7 @@ fun SwarmEditScreen(
             helpTopic = "swarm_edit",
             title = if (isAddMode) "Add Swarm" else "Edit Swarm",
             subject = name,
-            onBackClick = onBack,
+            onBackClick = back,
             onOpenView = if (!isAddMode) onOpenView else null,
             // 👯 duplicate this swarm into a new one (standard copy-on-edit
             // flow), 🗑 delete it — both hidden once the screen flips into
@@ -130,24 +135,13 @@ fun SwarmEditScreen(
             onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))
-        if (isAddMode) {
-            OutlinedButton(
-                onClick = {
-                    onSave(Swarm(java.util.UUID.randomUUID().toString(), name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId)); onBack()
-                },
-                enabled = nameError == null && selectedMembers.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Create", maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-            // Edit: no Save button — auto-persist while editing and on leave.
-            com.ai.ui.shared.AutoSaveOnChange(
-                current = if (nameError == null && selectedMembers.isNotEmpty())
-                    Swarm(swarm!!.id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId) else null,
-                onSave = onSave
-            )
-        }
+        OutlinedButton(
+            onClick = { onSave(current!!); onBack() },
+            enabled = current != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = name, onValueChange = { name = it },

@@ -45,7 +45,6 @@ fun AgentEditScreen(
     /** 🗑 delete this agent (Setup → Workers → Agents edit). Null hides it. */
     onDelete: (() -> Unit)? = null
 ) {
-    BackHandler { onBack() }
     val scope = rememberCoroutineScope()
     val isEditing = agent != null
 
@@ -141,6 +140,18 @@ fun AgentEditScreen(
         }
     }
 
+    fun persistSelectedEndpoint() {
+        pendingEndpoints.firstOrNull { it.second.id == selectedEndpointId }
+            ?.let { (provider, ep) -> onAddEndpoint(provider, ep) }
+    }
+    val agentId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null)
+        Agent(if (isAddMode) agentId else agent!!.id, name.trim(), selectedProvider, model, "", selectedEndpointId, selectedParamsIds, selectedSystemPromptId)
+    else null
+    // Back confirms "Discard changes?" when edited; the Save button bypasses it.
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+    BackHandler { back() }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -148,7 +159,7 @@ fun AgentEditScreen(
             helpTopic = "agent_edit",
             title = if (isAddMode) "Add Agent" else "Edit Agent",
             subject = name,
-            onBackClick = onBack,
+            onBackClick = back,
             // 👁 only visible on Edit (the View screen needs an
             // existing agent id) — null in Add mode.
             onOpenView = if (!isAddMode) onOpenView else null,
@@ -160,34 +171,16 @@ fun AgentEditScreen(
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }
         )
-        // Save / Create CTA hoisted to the top — the form below can
-        // be long enough to push a bottom button out of reach.
-        fun buildAgent(id: String) = Agent(id, name.trim(), selectedProvider, model, "", selectedEndpointId, selectedParamsIds, selectedSystemPromptId)
-        // Persist the LiteLLM endpoint picked this session (only the selected
-        // one) as part of saving — runs on each auto-save and on Create.
-        fun persistSelectedEndpoint() {
-            pendingEndpoints.firstOrNull { it.second.id == selectedEndpointId }
-                ?.let { (provider, ep) -> onAddEndpoint(provider, ep) }
-        }
+        // Save / Create CTA hoisted to the top — the form below can be long
+        // enough to push a bottom button out of reach. Both persist + close.
         Spacer(modifier = Modifier.height(8.dp))
-        if (isAddMode) {
-            OutlinedButton(
-                onClick = {
-                    persistSelectedEndpoint()
-                    onSave(buildAgent(java.util.UUID.randomUUID().toString())); onBack()
-                },
-                enabled = nameError == null,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Create", maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-            // Edit: no Save button — auto-persist while editing and on leave.
-            com.ai.ui.shared.AutoSaveOnChange(
-                current = if (nameError == null) buildAgent(agent!!.id) else null,
-                onSave = { saved -> persistSelectedEndpoint(); onSave(saved) }
-            )
-        }
+        OutlinedButton(
+            onClick = { persistSelectedEndpoint(); onSave(current!!); onBack() },
+            enabled = current != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
