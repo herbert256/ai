@@ -40,7 +40,8 @@ class HomeBarModeScreenTest {
                         onSettings = { clicked.value = "settings" },
                         onTraceFallback = { clicked.value = "trace" },
                         onHelpFallback = { clicked.value = "help" },
-                        onAbout = { clicked.value = "about" }
+                        onAbout = { clicked.value = "about" },
+                        onAppLog = { clicked.value = "applog" }
                     )
                 }
             }

@@ -181,4 +181,40 @@ class ReportStorageInstrumentedTest {
         val ids = ReportStorage.getAllReports(context).map { it.id }
         assertThat(ids).containsExactly(c.id, b.id, a.id).inOrder()
     }
+
+    // ---- cost ledger + load-failure tolerance (audit T06) ----
+
+    private fun costRecord(id: String) = ReportApiCallCost(
+        id = id, type = "report", provider = "UNIT", model = "m", pricingTier = "t",
+        inputTokens = 10, outputTokens = 20, inputCost = 0.001, outputCost = 0.002
+    )
+
+    @Test fun appendApiCallCost_is_idempotent_for_a_duplicate_record_id() {
+        val report = ReportStorage.createReport(context, "ledger", "p", listOf(agent("a")))
+        val rec = costRecord("rec-1")
+
+        val first = ReportStorage.appendApiCallCost(context.filesDir, report.id, rec)
+        // Same record id again → dedup: returns null and does NOT append a 2nd row
+        // (a non-null return would double-count callCount/tokens/cost on replay).
+        val second = ReportStorage.appendApiCallCost(context.filesDir, report.id, rec)
+
+        assertThat(first).isNotNull()
+        assertThat(second).isNull()
+        assertThat(ReportStorage.getReport(context, report.id)!!.apiCallCosts.map { it.id })
+            .containsExactly("rec-1")
+    }
+
+    @Test fun corrupted_report_json_is_skipped_and_reported_not_crashing() {
+        val good = ReportStorage.createReport(context, "good", "p", listOf(agent("a")))
+        // Drop a garbage file into the reports dir alongside the valid one.
+        java.io.File(java.io.File(context.filesDir, "reports"), "broken.json")
+            .writeText("{ this is not valid json")
+
+        val all = ReportStorage.getAllReports(context)
+
+        // The valid report still loads; the corrupt file doesn't crash the list call.
+        assertThat(all.map { it.id }).contains(good.id)
+        assertThat(ReportStorage.getLastLoadFailures(context).map { it.filename })
+            .contains("broken.json")
+    }
 }
