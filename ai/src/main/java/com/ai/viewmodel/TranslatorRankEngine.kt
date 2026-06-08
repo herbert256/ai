@@ -401,12 +401,22 @@ class TranslatorRankEngine internal constructor(
             .mapNotNull { g -> g.maxByOrNull { it.timestamp }?.let { anchor -> anchor to g } }
             .groupBy { (anchor, _) -> anchor.translationRunId.orEmpty() }
             .mapNotNull { (_, runs) -> runs.maxByOrNull { (a, _) -> a.timestamp } }
-        val prompt = rankPrompt(aiSettings) ?: return
+        val realPrompt = rankPrompt(aiSettings)
         latestPerLang.forEach { (anchor, group) ->
             val sourceRunId = anchor.translationRunId.orEmpty()
             val key = transRankRunKey(reportId, sourceRunId)
             val aggRow = group.firstOrNull { it.tournamentRole == TRANSRANK_ROLE_AGGREGATE }
             val cells = group.mapNotNull { it.toTransRankCellState() }.associateBy { it.key }
+            // Keep the run visible even if the translate-rank prompt was deleted
+            // or renamed since it ran: fall back to a synthetic prompt built from
+            // the row metadata (blank text / no workers) so the run hydrates
+            // read-only. Restart is gated on a real prompt — a synthetic one has
+            // blank text — see restartFailedCells. See audit bug 4.
+            val prompt = realPrompt ?: InternalPrompt(
+                id = anchor.metaPromptId ?: "",
+                name = anchor.metaPromptName?.takeIf { it.isNotBlank() } ?: PROMPT_NAME,
+                category = "workers"
+            )
             _runs.update {
                 it + (key to TransRankRunState(
                     key = key, reportId = reportId, runId = anchor.tournamentJudgeRunId!!,
@@ -422,6 +432,9 @@ class TranslatorRankEngine internal constructor(
     fun restartFailedCells(context: Context, key: TransRankRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[key] ?: return@launch
+            // A synthetic (prompt-unavailable) run carries blank prompt text —
+            // it can't be re-run. See audit bug 4.
+            if (run.prompt.text.isBlank()) return@launch
             val report = ReportStorage.getReport(context, run.reportId) ?: return@launch
             val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
             val failed = run.cells.values.filter { it.status == TransRankCellStatus.ERROR }
