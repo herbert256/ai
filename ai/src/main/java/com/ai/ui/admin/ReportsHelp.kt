@@ -27,6 +27,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("How to read it", "Top-left is the sweet spot: cheap and high-scoring. 💎 marks the best-value model (the most quality per cost). Dimmed points are 'dominated': another model is at least as good for the same or less money; the non-dimmed points form the Pareto frontier. Both axes are padded a little so no point sits on an axis line."),
             HelpCard("Full-screen graph", "Tap the chart to open it full-screen — nothing but the graph, no bars. Pinch to zoom in and out and drag to pan around. Press back to return."),
             HelpCard("Where it comes from", "Pure derivation — no new API calls. It reuses the per-agent cost already stored on the report and the scores from the selected ranking. Scores are model-scaled (e.g. 0–1 vs 0–100), so the quality axis auto-scales to this report's range."),
+            HelpCard("Fan-out cost", "If this report has a fan-out AND every model shown here also answered that fan-out (the answerer set matches the report's models), each model's cost adds up its main answer PLUS all the fan-out responses it produced — so the comparison reflects total spend per model. A partial fan-out (only some models answered) leaves costs as the main answer only. The caption says when fan-out cost is included."),
             HelpCard("List below the chart", "Each model with its cost and score, sorted best-value first, badged 💎 Best value / Pareto / dominated.")
         )
     ),

@@ -120,8 +120,16 @@ private data class ValuePoint(
  *  rerank-shaped ranking (`id` = 1-based SUCCESS position, the same
  *  numbering the Rerank flow and the Tournament view both use). Quality is
  *  the ranking's own score as-is; only when a row carries no score do we
- *  fall back to a rank-derived value. */
-private fun buildValuePoints(report: Report, rows: List<RerankRow>): List<ValuePoint> {
+ *  fall back to a rank-derived value.
+ *
+ *  [fanOutCostByAgentId] adds each agent's fan-out RESPONSE spend (USD) on
+ *  top of its main report-answer cost — non-empty only when the fan-out
+ *  answerer set matched the report's model set (see the caller). */
+private fun buildValuePoints(
+    report: Report,
+    rows: List<RerankRow>,
+    fanOutCostByAgentId: Map<String, Double> = emptyMap()
+): List<ValuePoint> {
     val rowsById = rows.associateBy { it.id }
     val success = report.agents.filter {
         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
@@ -132,7 +140,8 @@ private fun buildValuePoints(report: Report, rows: List<RerankRow>): List<ValueP
     val raw = success.mapIndexedNotNull { idx, a ->
         val row = rowsById[idx + 1] ?: return@mapIndexedNotNull null
         val quality = row.score ?: row.rank?.let { (n - it + 1).toDouble() } ?: return@mapIndexedNotNull null
-        val costUsd = a.cost ?: ((a.inputCost ?: 0.0) + (a.outputCost ?: 0.0))
+        val baseCostUsd = a.cost ?: ((a.inputCost ?: 0.0) + (a.outputCost ?: 0.0))
+        val costUsd = baseCostUsd + (fanOutCostByAgentId[a.agentId] ?: 0.0)
         Raw(a.agentId, AppService.findById(a.provider)?.id ?: a.provider, shortModelName(a.model), quality, costUsd * 100.0)
     }
     if (raw.isEmpty()) return emptyList()
@@ -163,10 +172,18 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
         /** Consensus win matrix from the latest Judge-the-judges run, or null
          *  when none (or too few resolvable answers). */
         val judgesMatrix: WinMatrix?,
-        val reportTitle: String?
+        val reportTitle: String?,
+        /** Extra fan-out RESPONSE spend (USD) to fold into each agent's cost,
+         *  keyed by agentId. Non-empty only when this report's fan-out
+         *  answerer model set equals the report's success-model set; empty
+         *  disables the fold. */
+        val fanOutCostByAgentId: Map<String, Double>,
+        /** True when [fanOutCostByAgentId] is folding fan-out cost in — drives
+         *  the caption note so the higher numbers aren't a mystery. */
+        val includesFanOut: Boolean
     )
     val loadedState = produceState(
-        Loaded(null, emptyList(), null, null, null, null, null),
+        Loaded(null, emptyList(), null, null, null, null, null, emptyMap(), false),
         reportId, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
@@ -202,6 +219,33 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                     ?.mapIndexed { idx, a -> a.agentId to (idx + 1) }?.toMap() ?: emptyMap()
                 judgesConsensusWinMatrix(cells) { successIds[it] }.takeIf { it.n >= 2 }
             }
+            // Fan-out cost fold-in. Only when the report's own models were ALSO
+            // the fan-out answerers — i.e. the answerer model set equals the
+            // report's success-model set — does it make sense to add each
+            // model's fan-out RESPONSE spend onto its Value-view cost; a
+            // partial-scope fan-out (some models didn't answer) would skew the
+            // comparison, so we leave the map empty there. The on-disk pair row
+            // stores only the answerer's (provider, model), so we match on that
+            // (case-insensitive, alias-resolved), the same way FanOutEngine
+            // hydration does. Icon/title Fan-Meta spend is excluded — those
+            // aren't "responses".
+            val successAgents = report?.agents?.filter {
+                it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+            } ?: emptyList()
+            fun modelKey(provider: String, model: String): String =
+                "${(AppService.findById(provider)?.id ?: provider).lowercase()}|$model"
+            val fanOutPairs = rows.filter {
+                it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null
+            }
+            val answererKeys = fanOutPairs.map { modelKey(it.providerId, it.model) }.toSet()
+            val successKeys = successAgents.map { modelKey(it.provider, it.model) }.toSet()
+            val fanOutCostByAgentId: Map<String, Double> =
+                if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && answererKeys == successKeys) {
+                    val costByKey = fanOutPairs
+                        .groupBy { modelKey(it.providerId, it.model) }
+                        .mapValues { (_, list) -> list.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } }
+                    successAgents.associate { it.agentId to (costByKey[modelKey(it.provider, it.model)] ?: 0.0) }
+                } else emptyMap()
             Loaded(
                 report = report,
                 rerankRows = rerankRows,
@@ -209,7 +253,9 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 tournamentMatrix = decoded?.first,
                 tournamentDefaultMethod = decoded?.second,
                 judgesMatrix = judgesMatrix,
-                reportTitle = report?.barTitle
+                reportTitle = report?.barTitle,
+                fanOutCostByAgentId = fanOutCostByAgentId,
+                includesFanOut = fanOutCostByAgentId.isNotEmpty()
             )
         }
     }
@@ -253,7 +299,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             } ?: emptyList()
             null -> emptyList()
         }
-        buildValuePoints(report, rows)
+        buildValuePoints(report, rows, loaded.fanOutCostByAgentId)
     }
     val best = remember(points) { points.firstOrNull { it.bestValue } }
 
@@ -330,8 +376,10 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
         }
 
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            val fanOutNote = if (loaded.includesFanOut)
+                " Cost includes each model's fan-out responses (every model here also answered the fan-out)." else ""
             Text(
-                "Cost × quality. Top-left = cheap & good. ${com.ai.data.MetadataIconsHolder.current.gem} = best value; dimmed = dominated (another model is at least as good for less). Tap the chart to expand — pinch to zoom, drag to pan.",
+                "Cost × quality. Top-left = cheap & good. ${com.ai.data.MetadataIconsHolder.current.gem} = best value; dimmed = dominated (another model is at least as good for less).$fanOutNote Tap the chart to expand — pinch to zoom, drag to pan.",
                 color = AppColors.TextTertiary, fontSize = 11.sp,
                 modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
             )
