@@ -152,7 +152,9 @@ internal fun ReportRunScreen(
     val translatorRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
     // Pending 🏅 launch (translationRunId, lang, native) → shared confirm dialog.
-    val pendingRank = remember { mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null) }
+    val pendingRank = rememberSaveable(currentReportId, stateSaver = com.ai.ui.report.manage.PendingRankRequestSaver) {
+        mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null)
+    }
     // onRankMedal is declared further down, after useReportModelsAsWorkers, so it
     // can read that flag (audit bug 6).
     // Compare runs the meta-compare prompt with the SAME NAME as the meta item,

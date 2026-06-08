@@ -125,6 +125,16 @@ internal data class PendingRankRequest(
     val overrideWorkers: List<com.ai.model.Worker>? = null
 )
 
+/** Saver so a pending 🏅 confirm survives a config change (audit bug 21).
+ *  Persists the run identity only; a runtime worker pick (overrideWorkers) is
+ *  dropped on restore — the rare rotate-mid-confirm case then recomputes the
+ *  count and runs against the configured/report-model workers. */
+internal val PendingRankRequestSaver =
+    androidx.compose.runtime.saveable.listSaver<PendingRankRequest?, String>(
+        save = { it?.let { r -> listOf(r.runId, r.lang, r.native) } ?: emptyList() },
+        restore = { l -> if (l.size >= 3) PendingRankRequest(l[0], l[1], l[2], null) else null }
+    )
+
 @Composable
 internal fun RankTranslatorsConfirmHost(
     reportId: String?,

@@ -403,7 +403,9 @@ fun ReportsScreen(
     // 🏅 Rank-the-translators launch from the Translation run screens.
     val transRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
-    val rankPending = remember { mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null) }
+    val rankPending = rememberSaveable(currentReportId, stateSaver = com.ai.ui.report.manage.PendingRankRequestSaver) {
+        mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null)
+    }
     val effectiveReportIcon = runtime.effectiveReportIcon
     val onDeleteSecondaryWithRefresh = runtime.onDeleteSecondaryWithRefresh
     val onSecondaryRefresh = runtime.onSecondaryRefresh
