@@ -33,6 +33,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     private val gson = createAppGson()
 
+    // Per-domain persistence is being split out of this class (audit D01). The
+    // prompt-history list now lives in its own store; the methods below delegate
+    // so callers are unchanged.
+    private val promptHistoryStore = PromptHistoryStore(filesDir)
+
     private object TypeTokens {
         val listStringType: Type = object : TypeToken<List<String>>() {}.type
         val listAgentType: Type = object : TypeToken<List<Agent>>() {}.type
@@ -52,7 +57,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
         val mapStringIntType: Type = object : TypeToken<Map<String, Int>>() {}.type
-        val listPromptHistoryType: Type = object : TypeToken<List<PromptHistoryEntry>>() {}.type
         val listUsageStatsType: Type = object : TypeToken<List<UsageStats>>() {}.type
     }
 
@@ -445,53 +449,15 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     // ===== Prompt History =====
 
-    fun loadPromptHistory(): List<PromptHistoryEntry> {
-        promptHistoryCache?.let { return it }
-        return synchronized(promptHistoryLock) {
-            promptHistoryCache?.let { return@synchronized it }
-            readPromptHistoryFromDisk().also { promptHistoryCache = it }
-        }
-    }
+    fun loadPromptHistory(): List<PromptHistoryEntry> = promptHistoryStore.load()
 
-    private fun readPromptHistoryFromDisk(): List<PromptHistoryEntry> {
-        val file = filesDir?.let { File(it, FILE_PROMPT_HISTORY) } ?: return emptyList()
-        if (!file.exists()) return emptyList()
-        return try { gson.fromJson(file.readText(), TypeTokens.listPromptHistoryType) ?: emptyList() } catch (_: Exception) { emptyList() }
-    }
+    fun savePromptToHistory(title: String, prompt: String) = promptHistoryStore.add(title, prompt)
 
-    fun savePromptToHistory(title: String, prompt: String) {
-        synchronized(promptHistoryLock) {
-            val history = (promptHistoryCache ?: readPromptHistoryFromDisk().also { promptHistoryCache = it }).toMutableList()
-            history.indexOfFirst { it.title == title && it.prompt == prompt }.let { if (it >= 0) history.removeAt(it) }
-            history.add(0, PromptHistoryEntry(System.currentTimeMillis(), title, prompt))
-            savePromptHistoryListLocked(history.take(MAX_PROMPT_HISTORY))
-        }
-    }
+    fun savePromptHistoryList(entries: List<PromptHistoryEntry>) = promptHistoryStore.saveList(entries)
 
-    fun savePromptHistoryList(entries: List<PromptHistoryEntry>) {
-        synchronized(promptHistoryLock) {
-            savePromptHistoryListLocked(entries)
-        }
-    }
-
-    private fun savePromptHistoryListLocked(entries: List<PromptHistoryEntry>) {
-        val file = filesDir?.let { File(it, FILE_PROMPT_HISTORY) } ?: return
-        val snapshot = entries.take(MAX_PROMPT_HISTORY)
-        file.writeTextAtomic(gson.toJson(snapshot))
-        promptHistoryCache = snapshot
-    }
-
-    /** Wipe the prompt-history file and return how many entries it
-     *  held before the wipe. Callers that don't need the count can
-     *  ignore the return value (Kotlin's standard discard rule). */
-    fun clearPromptHistory(): Int {
-        return synchronized(promptHistoryLock) {
-            val n = (promptHistoryCache ?: readPromptHistoryFromDisk().also { promptHistoryCache = it }).size
-            filesDir?.let { File(it, FILE_PROMPT_HISTORY) }?.let { if (it.exists()) it.delete() }
-            promptHistoryCache = emptyList()
-            n
-        }
-    }
+    /** Wipe the prompt-history file and return how many entries it held before
+     *  the wipe. Callers that don't need the count can ignore the return value. */
+    fun clearPromptHistory(): Int = promptHistoryStore.clear()
 
     fun clearLastReportPrompt() { prefs.edit { remove(KEY_LAST_AI_REPORT_TITLE); remove(KEY_LAST_AI_REPORT_PROMPT) } }
 
@@ -1069,8 +1035,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         @Volatile private var usageCategoryStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats>? = null
         @Volatile private var usageReportStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>? = null
         @Volatile private var lastUsageStatsFlush: Long = 0L
-        private val promptHistoryLock = Any()
-        @Volatile private var promptHistoryCache: List<PromptHistoryEntry>? = null
         private const val USAGE_STATS_FLUSH_MS = 2_000L
         const val PREFS_NAME = "eval_prefs"
 
@@ -1144,14 +1108,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AI_TEST_EXCLUDED_MODELS = "ai_test_excluded_models"
         private const val KEY_AI_INACCESSIBLE_MODELS = "ai_inaccessible_models"
         private const val KEY_AI_DEFAULT_META_ITEMS = "ai_default_meta_items"
-
-        const val MAX_PROMPT_HISTORY = 100
         const val KEY_LAST_AI_REPORT_TITLE = "last_ai_report_title"
         const val KEY_LAST_AI_REPORT_PROMPT = "last_ai_report_prompt"
         private const val FILE_USAGE_STATS = "usage-stats.json"
         private const val FILE_USAGE_CATEGORY_STATS = "usage-category-stats.json"
         private const val FILE_USAGE_REPORT_STATS = "usage-report-stats.json"
-        private const val FILE_PROMPT_HISTORY = "prompt-history.json"
         private const val KEY_MODEL_LIST_TIMESTAMP_PREFIX = "model_list_timestamp_"
         private const val MODEL_LISTS_CACHE_DURATION_MS = 24 * 60 * 60 * 1000L
     }
