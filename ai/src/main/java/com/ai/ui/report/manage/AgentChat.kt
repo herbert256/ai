@@ -170,6 +170,10 @@ internal fun AgentChatScreen(
                         bridge.estimateTokens(reply)
                     )
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Navigation / scope cancellation isn't a model failure — rethrow
+                // so no spurious failure bubble is appended. See audit bug 18.
+                throw e
             } catch (_: Exception) {
                 messages.add(ChatMessage(role = "assistant", content = "${com.ai.data.MetadataIconsHolder.current.statusWarning} The model call failed. Try again."))
             } finally {
