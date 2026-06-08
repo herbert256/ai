@@ -82,6 +82,7 @@ import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.shortModelName
+import com.ai.ui.shared.shortModelName2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -759,7 +760,11 @@ private fun ValueScatterCanvas(
         val canvasW = size.width; val canvasH = size.height
         val os = points.map { px(it) }
         val rs = points.map { dotRadius(it) }
-        val names = points.map { if (fullModelNames) it.modelShort else it.modelShort.take(14) }
+        // Full-screen graph: trim cosmetic -latest / date suffixes too (shortModelName2).
+        val names = points.map {
+            val nm = if (fullScreen) shortModelName2(it.modelShort) else it.modelShort
+            if (fullModelNames) nm else nm.take(14)
+        }
         val ws = names.map { labelPaint.measureText(it) }
         val placed = ArrayList<android.graphics.RectF>()
         // Seed with the dots so labels dodge every marker, not just each other.

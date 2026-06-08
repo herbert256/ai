@@ -1151,6 +1151,19 @@ fun modelLabel(
 fun shortModelName(model: String): String =
     if (model.contains('/')) model.substringAfterLast('/') else model
 
+/** Like [shortModelName] but also trims cosmetic suffixes for tight display
+ *  sites: a trailing `-latest`, a `-YYYYMMDD` date, or a `-YYYY-MM-DD` date —
+ *  e.g. `mistral-small-latest` → `mistral-small`,
+ *  `claude-haiku-4-5-20251001` → `claude-haiku-4-5`,
+ *  `gpt-4o-2024-08-06` → `gpt-4o`. DISPLAY ONLY — never use for keys /
+ *  matching (two snapshots collapse to the same string). Opt in per site;
+ *  callers stay on [shortModelName] unless they want the shorter label. */
+fun shortModelName2(model: String): String =
+    shortModelName(model)
+        .removeSuffix("-latest")
+        .replace(Regex("-\\d{4}-\\d{2}-\\d{2}$"), "")
+        .replace(Regex("-\\d{8}$"), "")
+
 /** Translate a SecondaryResult's stored `errorMessage` into something
  *  the user wants to read. Today the only rewrite is the legacy
  *  "Interrupted by app restart" marker (stamped by the resume-on-open
