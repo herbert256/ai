@@ -148,8 +148,17 @@ class JudgeEvalEngine internal constructor(
             return
         }
         val (runId, group) = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }!!
+        // Keep the run visible even if the judge prompt was deleted/renamed since
+        // it ran: fall back to a synthetic prompt from the row metadata (blank
+        // text) so cells hydrate read-only. Add-judge / resume no-op on a
+        // synthetic (blank-text) prompt. See audit bug 17.
         val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
-            ?: judgePrompt(aiSettings) ?: run { _runs.update { it - reportId }; return }
+            ?: judgePrompt(aiSettings)
+            ?: InternalPrompt(
+                id = group.first().metaPromptId ?: "",
+                name = group.first().metaPromptName?.takeIf { it.isNotBlank() } ?: "(prompt unavailable)",
+                category = WORKERS_CATEGORY
+            )
         val aggRow = group.firstOrNull { it.tournamentRole == JUDGE_ROLE_AGGREGATE }
         val currentCells = _runs.value[reportId]?.cells
         val cells = group.mapNotNull { it.toJudgeCellState() }
@@ -551,6 +560,7 @@ class JudgeEvalEngine internal constructor(
                 .ifEmpty { pickJudgeMatches(report) }
             if (matches.isEmpty()) return@launch
             val prompt = run.prompt
+            if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't add a judge
             val runId = run.runId
             val scopeEncoded = SecondaryScope.AllReports.encode()
             val judge = Judge(Worker(provider = provider.id, model = model), provider.id, model)
@@ -828,6 +838,7 @@ class JudgeEvalEngine internal constructor(
             try {
                 val run = _runs.value[reportId] ?: return@launch
                 val prompt = run.prompt
+                if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't resume
                 val report = ReportStorage.getReport(context, reportId) ?: return@launch
                 val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.JUDGES)
                     .filter {
