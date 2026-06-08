@@ -1958,12 +1958,12 @@ private fun RankingWeightsSubScreen(
         TitleBar(
             helpTopic = "settings_ranking_weights", title = "Ranking weights",
             subject = "Weight each ranking 0–10", onBackClick = onBack,
-            // Title-bar clear → factory defaults (an empty map resolves to them).
+            // 🧽 clear (icons bar) → factory defaults (an empty map resolves to them).
             onClear = { weights = emptyMap() }
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Each ranking gets a weight from 0 to 10. The title-bar clear resets every slider to its default.",
+                "Each ranking gets a weight from 0 to 10. The 🧽 in the icons bar resets every slider to its default.",
                 fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 8.dp)
             )
             val setWeight: (String, Int) -> Unit = { key, v -> weights = weights + (key to v) }
