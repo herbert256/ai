@@ -193,6 +193,15 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
             onBack()
         }
     }
+    // ⚖️ Judge-the-judges launcher: stash the request, then close this overlay
+    // so the Manage screen re-renders and ConsumePendingJudgeJudges fires the
+    // batch + the shared build-stage popup (same flow as the Manage Tournament
+    // icon's "Judge the judges" row).
+    val pendingJudgeJudges = com.ai.ui.shared.LocalPendingJudgeJudges.current
+    val closeTournamentOverlay = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+    val onJudgeJudges: (() -> Unit)? = pendingJudgeJudges?.let { slot ->
+        { slot.value = reportId; closeTournamentOverlay?.invoke() }
+    }
 
     BackHandler {
         when {
@@ -246,6 +255,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
                 onRemoveFailed = { scope.launch { engine.removeFailedMatches(context, reportId) } },
                 onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
                 onOpenView = onOpenTournamentView,
+                onJudgeJudges = onJudgeJudges,
                 onBack = onBack)
         }
     }
@@ -324,6 +334,7 @@ private fun TournamentL1(
     onRemoveFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onOpenView: (() -> Unit)?,
+    onJudgeJudges: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
     // Worker-pool batch (category B): no Bench bucket; rate-gated matches
@@ -344,6 +355,7 @@ private fun TournamentL1(
             onBackClick = onBack,
             onOpenView = onOpenView,
             onBatchWorkers = onOpenWorkers,
+            onJudgeJudges = onJudgeJudges,
             onReload = onRedo,
             onDelete = onDeleteRun
         )

@@ -616,6 +616,9 @@ fun ReportsScreen(
     // Broken-work "Continue" one-shot: re-queue the chosen batch (build popup)
     // and open its own screen. Helper-hosted for the same 64 KB reason.
     ConsumePendingBatchOpen(st, currentReportId, armBuildStage)
+    // ⚖️ Tournament-screen "Judge the judges" launcher: when the Tournament
+    // overlay requested it (and closed), arm the build popup + start the batch.
+    ConsumePendingJudgeJudges(armBuildStage, onRunJudgeJudges, onDeleteJudgeRun)
     // Track the user's CURRENT mode (Manage vs View) in real-time so
     // the Hub's big-AI-logo "resume" knob lands them back where
     // they actually were. Extracted out of [ReportsScreen] for the

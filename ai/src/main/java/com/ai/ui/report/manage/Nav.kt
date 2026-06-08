@@ -306,6 +306,10 @@ fun ReportsScreenNav(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
     val openJudgeEvalId = openJudgeEvalReportId.value
+    // Cross-overlay request: the Tournament overlay sets this (then closes
+    // itself) to ask the re-rendered Manage screen to launch Judge-the-judges
+    // with the shared build-stage popup. Consumed by ConsumePendingJudgeJudges.
+    val pendingJudgeJudges = remember { mutableStateOf<String?>(null) }
     val openCompareReportId = rememberSaveable(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
@@ -437,6 +441,7 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalTournamentOpenState provides exclusiveTournamentReportId,
         com.ai.ui.shared.LocalJudgeEvalEngine provides reportViewModel.judgeEvalEngine,
         com.ai.ui.shared.LocalJudgeEvalOpenState provides exclusiveJudgeEvalReportId,
+        com.ai.ui.shared.LocalPendingJudgeJudges provides pendingJudgeJudges,
         com.ai.ui.shared.LocalCompareEngine provides reportViewModel.compareEngine,
         com.ai.ui.shared.LocalCompareOpenState provides exclusiveCompareReportId,
         com.ai.ui.shared.LocalTranslatorRankEngine provides reportViewModel.translatorRankEngine,
@@ -996,6 +1001,33 @@ internal fun ConsumePendingBatchOpen(
         var job: kotlinx.coroutines.Job? = null
         armBuildStage(key, "Re-queuing…", nav) { job?.cancel() }
         job = controller.launch(p, key)
+    }
+}
+
+/** Tournament-overlay → Manage hand-off for the ⚖️ launcher. The Tournament
+ *  overlay sets [com.ai.ui.shared.LocalPendingJudgeJudges] then closes itself;
+ *  the re-rendered Manage screen lands here and arms the shared build-stage
+ *  popup + starts the judge-eval batch — the same effect as Run.kt's "Judge
+ *  the judges" confirm, minus the dialog (the icon launches directly). */
+@Composable
+internal fun ConsumePendingJudgeJudges(
+    armBuildStage: (String, String, () -> Unit, () -> Unit) -> Unit,
+    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?) -> Unit,
+    onDeleteJudgeRun: (String) -> Unit,
+) {
+    val pending = com.ai.ui.shared.LocalPendingJudgeJudges.current
+    val judgeOpen = com.ai.ui.shared.LocalJudgeEvalOpenState.current
+    val rid = pending?.value
+    LaunchedEffect(rid) {
+        if (rid == null) return@LaunchedEffect
+        pending.value = null
+        val key = java.util.UUID.randomUUID().toString()
+        armBuildStage(
+            key, "Building judge-the-judges",
+            { judgeOpen?.value = rid },
+            { onDeleteJudgeRun(rid) }
+        )
+        onRunJudgeJudges(rid, key, null)
     }
 }
 

@@ -737,6 +737,12 @@ val LocalSecondaryModelSwitch = compositionLocalOf<com.ai.viewmodel.SecondaryMod
 val LocalJudgeEvalOpenState =
     compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
 
+/** Request slot: the Tournament overlay sets this to a reportId to ask the
+ *  (re-rendered) Manage screen to launch Judge-the-judges with the shared
+ *  build-stage popup. Consumed + cleared by ConsumePendingJudgeJudges. */
+val LocalPendingJudgeJudges =
+    compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
+
 /** [LocalTournamentEngine] analog for the "Compare with meta" drill-in. */
 val LocalCompareEngine = compositionLocalOf<com.ai.viewmodel.CompareEngine?> { null }
 
@@ -931,6 +937,10 @@ data class TitleBarIcons(
      *  that batch's per-worker (model) grouping into its own
      *  sub-screen. Null → glyph hidden. */
     val onBatchWorkers: (() -> Unit)? = null,
+    /** Optional ⚖️ "Judge the judges" hook — wired from the Tournament L1
+     *  bottom bar to start the judge-eval batch with the shared build popup.
+     *  Null → glyph hidden. */
+    val onJudgeJudges: (() -> Unit)? = null,
     /** Grays the 🐜 ant icon when false. Set on the workers screens so the
      *  user sees they're already in workers mode; the icon still clicks
      *  (back to the models view). True (the L1 models screens) = full. */
@@ -1236,6 +1246,8 @@ fun TitleBar(
     onOpenView: (() -> Unit)? = null,
     /** Optional 🐜 open-batch-workers hook (type-B batch L1 screens). */
     onBatchWorkers: (() -> Unit)? = null,
+    /** Optional ⚖️ "Judge the judges" launcher (Tournament L1 bottom bar). */
+    onJudgeJudges: (() -> Unit)? = null,
     onRankTranslators: (() -> Unit)? = null,
     /** False on the workers screens grays the 🐜 (still clicks → models). */
     batchWorkersActive: Boolean = true,
@@ -1446,6 +1458,7 @@ fun TitleBar(
         onInfo = onInfo,
         onOpenView = onOpenView,
         onBatchWorkers = onBatchWorkers,
+        onJudgeJudges = onJudgeJudges,
         batchWorkersActive = batchWorkersActive,
         onRankTranslators = onRankTranslators,
         onOpenManage = onOpenManage,
@@ -2107,6 +2120,7 @@ private fun buildBottomBarIcons(
     // actions follow, and 🔄 regenerate sits just before 🗑 delete. -----
     icons.onOpenView?.let { add(BottomBarIcon(mi.view, Color.Unspecified, it, 32, fontSize = 18.sp, legendKey = D.VIEW)) }
     icons.onBatchWorkers?.let { add(BottomBarIcon(mi.ant, Color.Unspecified, it, 28, alpha = if (icons.batchWorkersActive) 1f else 0.35f, legendKey = D.ANT)) }
+    icons.onJudgeJudges?.let { add(BottomBarIcon(mi.judges, Color.Unspecified, it, 28, legendKey = D.JUDGES)) }
     icons.onRankTranslators?.let { add(BottomBarIcon(mi.translatorRank, Color.Unspecified, it, 28, legendKey = D.TRANSLATOR_RANK)) }
     icons.onTranslationCompare?.let { add(BottomBarIcon(mi.translationCompare, Color.Unspecified, it, 28, legendKey = D.TRANSLATION_COMPARE)) }
     icons.onMemo?.let { add(BottomBarIcon(mi.memo, Color.Unspecified, it, 28, legendKey = D.MEMO)) }
