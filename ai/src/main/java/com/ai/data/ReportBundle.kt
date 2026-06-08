@@ -153,8 +153,11 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
     // reference ids that no longer exist on this install.
     val parsedSecondaries = entries.entries
         .filter { it.key.startsWith("secondary/") && it.key.endsWith(".json") }
-        .mapNotNull { (_, bytes) ->
-            gson.fromJson(String(bytes, Charsets.UTF_8), SecondaryResult::class.java)
+        .mapNotNull { (key, bytes) ->
+            // Contain a single malformed secondary so it skips instead of
+            // aborting the whole import. See audit data bug 6.
+            try { gson.fromJson(String(bytes, Charsets.UTF_8), SecondaryResult::class.java) }
+            catch (e: Exception) { AppLog.w("ImportExport", "skipped bad secondary $key: ${e.message}"); null }
         }
     val secIdMap: Map<String, String> =
         parsedSecondaries.associate { it.id to UUID.randomUUID().toString() }
@@ -179,7 +182,10 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
     entries.entries
         .filter { it.key.startsWith("traces/") && it.key.endsWith(".json") }
         .forEach { (key, bytes) ->
-            val parsed = gson.fromJson(String(bytes, Charsets.UTF_8), ApiTrace::class.java)
+            // Contain a single malformed trace so it skips instead of aborting
+            // the whole import. See audit data bug 6.
+            val parsed = try { gson.fromJson(String(bytes, Charsets.UTF_8), ApiTrace::class.java) }
+                catch (e: Exception) { AppLog.w("ImportExport", "skipped bad trace $key: ${e.message}"); return@forEach }
                 ?: return@forEach
             val newName = ApiTracer.saveTrace(parsed.copy(reportId = newReportId), filename = null)
                 ?: return@forEach
