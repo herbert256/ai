@@ -353,6 +353,12 @@ val LocalSuppressTitleBarEndIcons = compositionLocalOf { false }
 data class BrokenWorkBadge(val count: Int, val onOpen: () -> Unit)
 val LocalBrokenWork = compositionLocalOf<BrokenWorkBadge?> { null }
 
+/** Force one Broken-work scan NOW (drives the ⚠️ top-bar warning). Provided by
+ *  AppNavHost; called by the Manage / Get-info / second-results screens the
+ *  moment they detect an error (a red ❌), so the badge appears immediately
+ *  instead of waiting for the 30-second background sweep. */
+val LocalRefreshBrokenWork = compositionLocalOf<(() -> Unit)?> { null }
+
 /** Provided by AppNavHost so an AI-report screen's top-left 📝 icon can
  *  jump to the AI Reports hub. Used by the report-section screens (New
  *  report, All reports, Search, …) whose top-left glyph is the report

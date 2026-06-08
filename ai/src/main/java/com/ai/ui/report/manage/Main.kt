@@ -396,6 +396,17 @@ fun ReportsScreen(
     val secondEnabled = runtime.secondEnabled
     val secondState = runtime.secondState
     val secondTotal = runtime.secondTotal
+    // The moment this report shows an error (a red ❌ on Manage / Get-info /
+    // second-results — i.e. a failed info job, a failed secondary, or an errored
+    // agent), force a Broken-work scan NOW so the ⚠️ top-bar warning appears
+    // immediately instead of waiting out the 30-second background sweep.
+    val reportHasError = infoState == InfoJobState.FAILED ||
+        secondState == InfoJobState.FAILED ||
+        reportsAgentResults.values.any { it.error != null }
+    val refreshBrokenWork = com.ai.ui.shared.LocalRefreshBrokenWork.current
+    LaunchedEffect(currentReportId, reportHasError) {
+        if (reportHasError) refreshBrokenWork?.invoke()
+    }
     val agentRecordsByAgentId = runtime.agentRecordsByAgentId
     val loadedReportPrompt = runtime.loadedReportPrompt
     val loadedReportTitle = runtime.loadedReportTitle
