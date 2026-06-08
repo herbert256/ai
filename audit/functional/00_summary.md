@@ -124,13 +124,17 @@ an open discrepancy.
 This audit is a map, not a bug queue, but two items are concrete enough
 to act on:
 
-1. **Unused DataStore dependency.** `androidx.datastore.preferences` is
-   declared (`ai/build.gradle.kts`, `gradle/libs.versions.toml`), and the
-   versions-catalog comment frames it as a SharedPreferences replacement,
-   but it has zero runtime usage — no `AppDataStore`, no
-   `androidx.datastore` import anywhere in source. Either remove the
-   dependency or follow through on the migration it implies. (Code change,
-   deferred.)
+1. **Unused dependencies (done).** A sweep found three declared-but-unused
+   libraries with no code reference and no transitive build need:
+   `androidx.datastore.preferences` (no `androidx.datastore` import; the
+   `AppDataStore` it implied was never written), `retrofit converter-scalars`
+   (only `GsonConverterFactory` is registered), and `okhttp
+   logging-interceptor` (the app uses its own `TracingInterceptor` stack).
+   All three were removed from `ai/build.gradle.kts`,
+   `gradle/libs.versions.toml`, and the in-app Dependencies screen.
+   `profileinstaller` (no baseline profile bundled yet) and
+   `ui-tooling-preview` (no `@Preview`s today) were left in place as
+   intentional/low-cost.
 2. **`CLAUDE.md` drift.** The root `CLAUDE.md` file/LOC counts trailed the
    source (374 vs 388 files) and listed an `AppDataStore` that does not
    exist. Refreshed alongside this audit.

@@ -118,7 +118,6 @@ private val DEPENDENCY_SECTIONS: List<Pair<String, List<Pair<String, String>>>> 
         "lifecycle-runtime-ktx" to "2.10.0",
         "lifecycle-viewmodel-compose" to "2.10.0",
         "navigation-compose" to "2.9.8",
-        "datastore-preferences" to "1.2.1",
         "profileinstaller" to "1.4.1",
         "emoji2-emojipicker" to "1.6.0"
     ),

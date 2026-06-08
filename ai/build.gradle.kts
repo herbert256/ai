@@ -208,9 +208,7 @@ dependencies {
     // Networking
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
-    implementation(libs.retrofit.scalars)
     implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
 
     // Coroutines
     implementation(libs.coroutines.core)
@@ -221,9 +219,6 @@ dependencies {
 
     // Baseline profile installer (apply AOT profiles when bundled)
     implementation(libs.androidx.profileinstaller)
-
-    // Preferences DataStore
-    implementation(libs.androidx.datastore.preferences)
 
     // MediaPipe Tasks Text — wraps a LiteRT runtime so the app can run
     // .tflite text-embedder models locally for on-device semantic
