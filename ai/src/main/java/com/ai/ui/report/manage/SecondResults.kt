@@ -92,7 +92,11 @@ internal fun ReportSecondResultsScreen(
     onOpenTranslationRun: (String) -> Unit,
     onMissingTranslationIcon: (String) -> Unit,
     onOpenTranslationIconDetail: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** Title tap → next of the three report screens (wraps to Manage). */
+    onCycleNext: () -> Unit = {},
+    /** Report-icon tap → the View hub. */
+    onOpenViewHub: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -114,6 +118,9 @@ internal fun ReportSecondResultsScreen(
             title = "Report - second results",
             subject = "Status of every secondary result",
             onBackClick = onBack,
+            onTitleClick = onCycleNext,
+            forceTitleClick = true,
+            onReportIconClick = onOpenViewHub,
             publishBottomBar = false
         )
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {

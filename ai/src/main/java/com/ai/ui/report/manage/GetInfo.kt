@@ -365,6 +365,10 @@ fun ReportGetInfoScreen(
     perModelTitle: Boolean,
     runningInfoJobs: Set<String>,
     onBack: () -> Unit,
+    /** Title tap → next of the three report screens. */
+    onCycleNext: () -> Unit = {},
+    /** Report-icon tap → the View hub. */
+    onOpenViewHub: () -> Unit = {},
     onOpenIconDetail: () -> Unit,
     onOpenLanguageDetect: () -> Unit,
     onOpenLanguageDetail: () -> Unit,
@@ -405,6 +409,9 @@ fun ReportGetInfoScreen(
         // ignored anyway with nothing published.)
         TitleBar(
             helpTopic = "report_get_info", title = "Report - Get info", subject = "Status of icon, title & language jobs", onBackClick = onBack,
+            onTitleClick = onCycleNext,
+            forceTitleClick = true,
+            onReportIconClick = onOpenViewHub,
             publishBottomBar = false
         )
         LazyColumn(modifier = Modifier.weight(1f)) {

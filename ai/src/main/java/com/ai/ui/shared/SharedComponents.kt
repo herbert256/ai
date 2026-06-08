@@ -1275,6 +1275,9 @@ fun TitleBar(
      *  title double as a navigation toggle between them. Null →
      *  title is non-interactive. */
     onTitleClick: (() -> Unit)? = null,
+    /** Honor [onTitleClick] even in Home bar mode (the report screens whose
+     *  title cycles to the next of the three report screens). */
+    forceTitleClick: Boolean = false,
     /** Optional 👯 duplicate-report hook. Different from [onCopy]
      *  (which is clipboard copy) — this one duplicates the underlying
      *  report. Used by Report - manage. Null → icon hidden. */
@@ -1572,6 +1575,7 @@ fun TitleBar(
         reportIcon = resolvedReportIcon,
         onReportIconClick = reportIconClick,
         onTitleClick = effectiveTitleClick,
+        forceTitleClick = forceTitleClick,
         reportNavClick = reportNavClick,
         onSwipePrev = resolvedOnSwipePrev,
         onSwipeNext = resolvedOnSwipeNext,
@@ -1613,6 +1617,9 @@ internal fun AppTopBarChrome(
      *  inert in Home bar so home-page links don't work there. */
     reportNavClick: (() -> Unit)? = null,
     onTitleClick: (() -> Unit)?,
+    /** Honor [onTitleClick] even in Home bar mode (instead of the report-nav
+     *  mirror). Set by the report screens whose title cycles to the next one. */
+    forceTitleClick: Boolean = false,
     onSwipePrev: (() -> Boolean)?,
     onSwipeNext: (() -> Boolean)?,
     secondProviderService: com.ai.data.AppService? = null,
@@ -1701,8 +1708,10 @@ internal fun AppTopBarChrome(
             // In Home bar mode the title only navigates when the left report
             // glyph goes to the report's Manage page (then the title mirrors
             // it); otherwise it's inert (its tap would have gone to the home
-            // page, which the persistent home bar owns).
-            val titleClick = if (homeBar) reportNavClick else (onTitleClick ?: sectionIcon?.onClick)
+            // page, which the persistent home bar owns). [forceTitleClick]
+            // opts out (the report screens whose title cycles to the next
+            // screen want their onTitleClick honored even in Home bar mode).
+            val titleClick = if (homeBar && !forceTitleClick) reportNavClick else (onTitleClick ?: sectionIcon?.onClick)
             var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()

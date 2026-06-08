@@ -146,6 +146,18 @@ internal fun ReportRunScreen(
     val judgeEvalOpenState = com.ai.ui.shared.LocalJudgeEvalOpenState.current
     // "Report - second results" layer flag — survivable (held in ReportsScreenNav).
     val showSecondResults = com.ai.ui.shared.LocalShowSecondResults.current
+    // Title-tap cycles the three report screens, wrapping with no edge:
+    // Manage → Get-info → (second results, only when one exists) → Manage.
+    val cycleReportScreens: () -> Unit = {
+        when {
+            showSecondResults?.value == true -> showSecondResults.value = false        // second → Manage
+            st.showGetInfo.value -> {                                                  // Get-info → next
+                st.showGetInfo.value = false
+                if (secondEnabled || secondTotal > 0.0) showSecondResults?.value = true // → second, else Manage
+            }
+            else -> st.showGetInfo.value = true                                        // Manage → Get-info
+        }
+    }
     val tournamentResponseCount = reportsAgentResults.values.count { it.error == null && !it.analysis.isNullOrBlank() }
     // "Compare with meta" — two-page selection flow (meta items → prompt) then
     // the worker-judged grid. compareStep: 0 = none, 1 = select meta, 2 = select
@@ -424,10 +436,11 @@ internal fun ReportRunScreen(
             title = "Manage a report",
             costText = totalCostForBar.takeIf { it > 0.0 }?.let { com.ai.ui.shared.formatCents(it, 2) },
             onCostClick = generationHandlers.onViewCosts,
-            // Tapping the "Manage report" screen title opens the main
-            // View hub ("View a report") — same target as the report
-            // icon, the green report-name and the bottom-bar 👁.
-            onTitleClick = onOpenViewReport,
+            // Tapping the title / orange report title cycles to the next of
+            // the three report screens (Manage → Get-info → second results).
+            // The report icon (below) keeps going to the View hub.
+            onTitleClick = cycleReportScreens,
+            forceTitleClick = true,
             subject = promptTitleForBar,
             reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon else null,
             // On the Manage report screen the report icon opens the main
@@ -700,6 +713,8 @@ internal fun ReportRunScreen(
                     perModelTitle = uiState.generalSettings.perModelTitleOn(),
                     runningInfoJobs = runningInfoJobs,
                     onBack = { st.showGetInfo.value = false },
+                    onCycleNext = cycleReportScreens,
+                    onOpenViewHub = onOpenViewReport,
                     onOpenIconDetail = { st.showIconDetail.value = true },
                     onOpenLanguageDetect = {
                         st.showIconDetail.value = true
@@ -749,7 +764,9 @@ internal fun ReportRunScreen(
                     onOpenTranslationRun = generationHandlers.onOpenTranslationRun,
                     onMissingTranslationIcon = generationHandlers.onMissingTranslationIcon,
                     onOpenTranslationIconDetail = generationHandlers.onOpenTranslationIconDetail,
-                    onBack = { showSecondResults.value = false }
+                    onBack = { showSecondResults.value = false },
+                    onCycleNext = cycleReportScreens,
+                    onOpenViewHub = onOpenViewReport
                 )
             }
         }
