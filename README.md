@@ -10,8 +10,9 @@ response into another's prompt, and chat with real-time streaming.
 
 - **42 Cloud AI Services** across three API formats — 40
   OpenAI-compatible, 1 Anthropic, 1 Google — all with real-time SSE
-  streaming, loaded at runtime from `assets/providers.json` rather than
-  hardcoded, plus a synthetic on-device `Local` provider
+  streaming, loaded at runtime from per-provider files under
+  `assets/providers/` rather than hardcoded, plus a synthetic on-device
+  `Local` provider
 - **Multi-Agent Reports** — query providers in parallel, compare
   responses side-by-side, exportable as HTML, JSON, PDF, DOCX, ODT,
   RTF, or a self-contained zipped HTML site
@@ -30,6 +31,17 @@ response into another's prompt, and chat with real-time streaming.
 - **Tournament / Judge the judges / Compare with meta** — worker-judged
   report analysis batches: head-to-head rankings, judge-agreement
   checks, and answer × Meta-row similarity scoring
+- **Rank the translators** — a panel of judge models scores each
+  translated answer 0–100 and ranks the translator models by their
+  average, one run per target language (worker-judged, no
+  re-translation)
+- **Value view** — plot every model on a cost × quality plane and mark
+  the best-value pick and the Pareto frontier; switch the quality
+  source between Rerank, Judge-the-judges, any Rank-the-translators run,
+  Tournament totals/methods, or a weighted Combined blend (pure local
+  derivation, no API calls)
+- **Broken-work detection** — worker batches that stalled or need
+  attention surface with a ⚠️ marker so partial runs are easy to find
 - **AI Chat** with multi-turn conversations, streaming, vision,
   reasoning-effort selection, and auto-saved history
 - **AI Dual Chat** — two models in conversation with each other
@@ -64,8 +76,10 @@ response into another's prompt, and chat with real-time streaming.
 - **Granular Export / Import** — split bundles for Settings, Model
   lists, Parameters, System prompts, Workers (agents + flocks +
   swarms), Costs CSV, and the All bundle (with or without API keys)
-- **Refresh All** — chains the seven repositories in dependency
-  order on a full-screen progress page, then auto-restarts the app
+- **Refresh All** — refreshes six of the seven catalog sources in
+  parallel (HuggingFace is excluded — it loads lazily on demand)
+  alongside a worker phase on a full-screen progress page, then shows a
+  manual "Restart application" banner you tap when it finishes
 - **Comprehensive in-app help** — on report-Manage screens the help ❔
   opens a live icon overlay (every visible bottom-bar icon, named and
   tappable) and the red ❓ opens the screen's help page; other screens
@@ -74,7 +88,7 @@ response into another's prompt, and chat with real-time streaming.
 
 ## Requirements
 
-- Android 8.0 (API 26) or higher
+- Android 16 (API 36) or higher
 - API keys for the cloud providers you want to use
 
 ## Installation
@@ -88,7 +102,7 @@ adb install -r ai/build/outputs/apk/debug/ai-debug.apk
 
 ## Documentation
 
-Full documentation lives in **[doc/](doc/)** — 32 reference docs, all
+Full documentation lives in **[doc/](doc/)** — 34 reference docs, all
 verified against the current source. The complete set (see
 [doc/README.md](doc/README.md) for the suggested reading order):
 
@@ -104,6 +118,8 @@ verified against the current source. The complete set (see
 | [doc/system-prompts.md](doc/system-prompts.md) | How the system prompt resolves per call site |
 | [doc/secondary-results.md](doc/secondary-results.md) | Rerank / Meta prompts / Moderate / Translate / Fan-out / Fan-in / Tournament / Judges / Compare deep dive |
 | [doc/tournament-judges-compare.md](doc/tournament-judges-compare.md) | Tournament rankings, Judge-the-judges agreement, Compare-with-meta grids |
+| [doc/rank-translators.md](doc/rank-translators.md) | Rank the translators (TRANSRANK): judge panel scores each translation and ranks the translator models |
+| [doc/value-view.md](doc/value-view.md) | Cost × quality frontier: ranking-source switch, Combined weights, fan-out cost fold-in, Pareto graph |
 | [doc/ui-customization.md](doc/ui-customization.md) | UI Colors, Default icons, `AppColors`, `MetadataIcons`, aliases and persistence |
 | [doc/workers.md](doc/workers.md) | AI Workers: Agents, Flocks, Swarms |
 | [doc/knowledge.md](doc/knowledge.md) | RAG: knowledge bases, nine extractors, embedding, retrieval |
@@ -117,7 +133,7 @@ verified against the current source. The complete set (see
 | [doc/translation.md](doc/translation.md) | TRANSLATE secondary-kind, multi-language fan-out, translation runs |
 | [doc/share-target.md](doc/share-target.md) | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` flow |
 | [doc/backup-restore.md](doc/backup-restore.md) | Backup zip format, two-pass validate-then-write restore |
-| [doc/providers.md](doc/providers.md) | All 42 cloud providers from `providers.json` |
+| [doc/providers.md](doc/providers.md) | All 42 cloud providers from `assets/providers/` |
 | [doc/repositories.md](doc/repositories.md) | The seven external metadata sources |
 | [doc/persistent.md](doc/persistent.md) | Every prefs key and every persistent file |
 | [doc/help.md](doc/help.md) | The in-app Help system: live icon overlay vs help page, per-screen topics, per-provider pages |

@@ -1,41 +1,59 @@
 # Translation
 
 The Translate flow is a `SecondaryKind` (`TRANSLATE`, one of the
-seven kinds in `data/SecondaryModels.kt`) that operates on a
-finished report's content — translating the original prompt, every
-successful agent response, and any chat-type Meta rows in scope
-into one or more target languages, fanning out one API call per
-(source × language) pair. It is owned by `TranslationRunManager`
+eight kinds in `data/SecondaryModels.kt` — `RERANK`, `META`,
+`MODERATION`, `TRANSLATE`, `TOURNAMENT`, `JUDGES`, `COMPARE`,
+`TRANSRANK`) that operates on a finished report's content —
+translating the original prompt, every successful agent response,
+the report / model / fan-out titles, and every chat-type Meta row
+into **one** target language per run, fanning out one API call per
+translatable item. Each Translate click is its own run; tap Translate
+again to add another language. It is owned by `TranslationRunManager`
 (`viewmodel/TranslationRunManager.kt`), reached from
 `ReportViewModel` as `reportViewModel.translation`.
+
+A sibling feature, **Rank the translators** (`TRANSRANK`), grades and
+ranks which translator model produced the best translation of a run —
+see [rank-translators.md](rank-translators.md). The rest of this doc
+covers the Translate flow itself.
 
 ## Triggering a Translate run
 
 From the result-phase Actions row on a finished report, tap
-**Translate** (`onTranslate` → `showTranslateLanguagePicker`). The
-flow:
+**Translate** (`onTranslate` → `showTranslateLanguagePicker`, wired
+in `GenerationHandlers.kt`). The flow has **no scope picker and no
+model picker** — the language picker launches the run directly
+(`ui/report/manage/Main.kt`, "Order: language picker → progress
+screen"):
 
 1. **Language picker** (`ui/report/other/LanguageSelection.kt`,
-   `LanguageSelectionScreen`) — pick one or more target languages
-   from a comprehensive English-name list (with native renderings as
-   subtitles, e.g. "Dutch / Nederlands"). Multi-select.
-2. **Scope picker** (`ui/report/manage/SecondaryScope.kt`,
-   `SecondaryScopeScreen`) — the same scope screen the chat-type
-   Meta runs use:
-   - All model reports
-   - Top-N from a chosen rerank
-   - Manual selection
-3. **Run** — there is **no model picker**. The language picker
-   launches the run directly: `TranslationRunManager.startTranslation`
-   allocates a fresh `runId`, snapshots the report's translatable
-   items, and fires the runner. Each item is dispatched through the
-   **translate worker swarm** (see below), so the model is chosen by
-   the `WorkerRunner` fallback chain rather than the user. Each
-   settled item writes a `SecondaryResult` with `kind = TRANSLATE`,
-   attributed to the worker that actually answered. Every item is
-   **persisted as it settles** (`saveOneTranslationItem`), not in
-   one bulk flush at the end, so a crash mid-run keeps the completed
-   translations.
+   `LanguageSelectionScreen`, title "Pick target language", help
+   `translation_language`) — a **single-select** picker over the
+   curated `TARGET_LANGUAGES` list (~56 entries; English name as the
+   `@LANGUAGE@` key, native rendering on a second line). It has a
+   search box and a **Recent** block (`RecentTargetLanguages`, an MRU
+   of the last 3 picks persisted in `eval_prefs`). Tapping a row
+   confirms one language; pick more languages by re-running Translate.
+2. **Worker pick (conditional)** — if the report's ♻️
+   `useReportModelsAsWorkers` flag is on, the whole run uses the
+   report's own answer models (`reportModelWorkers`). Otherwise, if
+   the driving `translate-text` prompt's model selection is `*SELECT`,
+   a one-time `RuntimeWorkerPick` overlay ("Translate — pick workers")
+   lets the user choose the swarm for this run (passed as
+   `overrideWorkers`). In every other case the run goes straight to
+   the configured swarm.
+3. **Run** — `TranslationRunManager.startTranslation` allocates a
+   fresh `runId`, snapshots the report's translatable items, and fires
+   the runner behind a blocking build-stage popup ("Preparing N / M…"
+   / "Translating to <language>", keyed by `buildKey`) that covers the
+   up-front placeholder persistence, then lands on the Translation L1
+   screen. Each item is dispatched through the **translate worker
+   swarm** (see below), so the model is chosen by the `WorkerRunner`
+   fallback chain rather than the user. Each settled item writes a
+   `SecondaryResult` with `kind = TRANSLATE`, attributed to the worker
+   that actually answered. Every item is **persisted as it settles**
+   (`saveOneTranslationItem`), not in one bulk flush at the end, so a
+   crash mid-run keeps the completed translations.
 
 Up front, `startTranslation` writes one empty placeholder
 `SecondaryResult` per planned item (stamped with its eventual
@@ -54,8 +72,8 @@ model and no per-model work queue:
   `runOneTranslation` calls `rvm.workerRunner.run(prompt, resolved,
   …)`. Body kind picks the `workers/translate-text` prompt
   (`@TEXT@`); the four title kinds pick `workers/translate-title`
-  (`@TITLE@`). Both carry a worker swarm (the bundled **Translate**
-  swarm by default).
+  (`@TITLE@`). Both reference the shared **`workers`** swarm by
+  default (see below).
 - The `WorkerRunner` owns model selection and fallback: it shuffles
   the swarm each call, and on a **429** parks that worker on a short
   cooldown and tries the next; on **404/410** it disables the worker
@@ -73,8 +91,9 @@ model and no per-model work queue:
   strand the run.
 - The winning worker's `(provider, model)` is recorded on the
   `SecondaryResult` (and the live `TranslationItem`) for cost
-  attribution and the L1 per-model grouping; usage posts to AI Usage
-  under the item's per-kind `translate/*` type.
+  attribution and the 🐜 Translation-workers per-model grouping;
+  usage posts to AI Usage under the item's per-kind `translate/*`
+  type.
 
 ## Multiple concurrent translation runs
 
@@ -93,14 +112,15 @@ can target one specific run.
 
 ## What gets translated
 
-For each selected language, one TRANSLATE call is made per:
+A Translate run covers the whole report — there is no scope subset to
+pick. For the chosen language, one TRANSLATE call is made per:
 
 - **The prompt** — `translateSourceKind = "PROMPT"`,
   `translateSourceTargetId = "prompt"`.
-- **Each in-scope agent response** (`SUCCESS` + non-blank body) —
+- **Each successful agent response** (`SUCCESS` + non-blank body) —
   `translateSourceKind = "AGENT"`,
   `translateSourceTargetId = agent.agentId`.
-- **Each in-scope chat-type Meta result** (`kind = META`, non-blank
+- **Each chat-type Meta result** (`kind = META`, non-blank
   content — a "Compare" / "Critique" / "Synthesize" row, whatever
   the user named the Meta prompt) —
   `translateSourceKind = "META"`,
@@ -135,13 +155,15 @@ that enum (`AGENT_RESPONSE` ↔ `"AGENT"`).
 ### Prompts
 
 Two `InternalPrompt` rows in the **`workers`** category drive the
-substitution (both seeded from `assets/internal-prompts/<lang>/workers/`
+substitution (both seeded from `assets/internal-prompts/<Language>/workers/`
 and delta-merged into existing installs on launch, editable via
-Settings → AI Setup → Internal prompts → **Worker prompts**). Each
-carries a worker swarm — the bundled **Translate** swarm by default
-(`assets/workers/swarms/`: gpt-5.4-mini, gemini-2.5-flash,
-mistral-medium, deepseek-chat, claude-haiku, grok). Re-curate that
-swarm to change which models translate:
+Settings → AI Setup → Prompt management → Internal prompts →
+**Worker prompts**). Each references the shared **`workers`** swarm
+(`assets/workers/swarms/workers.json`) — at time of writing its
+members are Mistral `mistral-medium-latest`, OpenAI `gpt-4o-mini`,
+Groq `llama-3.3-70b-versatile`, Cerebras `gpt-oss-120b`, and DeepSeek
+`deepseek-v4-flash`. Re-curate that swarm to change which models
+translate:
 
 | Prompt | Used for | Placeholders |
 |---|---|---|
@@ -156,9 +178,11 @@ NOT add commentary, preface, or explanation — output only the
 translation." followed by `TEXT TO TRANSLATE:` and `@TEXT@`. The
 title prompt is terser: "Translate the following text to
 @LANGUAGE@, give only the translation back, nothing else." followed
-by `@TITLE@`. If the `translate-title` row hasn't been delta-merged
-yet, the runner falls back to a hard-coded
-`DEFAULT_TRANSLATE_TITLE_TEMPLATE` mirroring that asset.
+by `@TITLE@`. The main runner needs the `translate-title` row present
+(a missing prompt fails the item); the **Find alternative
+translation** path additionally falls back to a hard-coded
+`DEFAULT_TRANSLATE_TITLE_TEMPLATE` mirroring that asset when the row
+hasn't been delta-merged yet.
 
 Like every other `workers`-category prompt, the translate prompts
 run through `WorkerRunner`, which dispatches each worker call with no
@@ -196,36 +220,41 @@ under the user-given name regardless of language.
 ## UI screens
 
 - **`LanguageSelectionScreen`** (`ui/report/other/LanguageSelection.kt`)
-  — multi-select language picker, feeds into the Translate flow.
+  — single-select language picker (search + Recent MRU), feeds into
+  the Translate flow.
 - **`SecondaryResultsScreen`** (`ui/report/manage/view/Secondary.kt`,
-  help `secondary_list`) — list of every secondary row on the
-  report, scoped to whichever Meta-prompt name (or structured kind:
-  Rerank / Moderation / Translate) the user tapped on the View row.
-  The Translations branch groups rows by `translationRunId`; each
-  group surfaces as a single "run" row with the model name(s), the
-  language list, and the count.
+  help `secondary_list`, title "Secondary results") — list of every
+  secondary row on the report, scoped to whichever Meta-prompt name
+  (or structured kind: Rerank / Moderation / Translate) the user
+  tapped on the View row. The Translations branch groups rows by
+  `translationRunId`; each group surfaces as a single "run" row with
+  the model name(s), the language list, and the count.
 - **`TranslationL1Screen` / `TranslationRunScreen`**
   (`ui/report/manage/TranslationL1.kt` / `TranslationRun.kt`, help
-  `translation_run_l1`, title "Translation") — drill into a run.
-  Above a per-model progress list it shows the shared
-  `BatchStatsRow` panel (Total / Done / Error / Run / Wait / Queue /
-  Costs — worker-swarm batch, so benched items fold into Error; no
-  Bench column), a **Translation workers ↔ Translation types**
-  grouping toggle, and whole-run failure controls: **Remove failed**,
-  **Restart failed**, **Remove benched**, and **Redo every entry**.
-  `TranslationL2Screen`
-  (`TranslationL2.kt`, help `translation_run_l2`) is the per-model
-  sub-drill.
+  `translation_run_l1`, title "Translation") — drill into a run. L1
+  lists translation **types** (per trace/cost-type rows, e.g.
+  `model_response`, `report_prompt`). Above the list it shows the
+  shared `BatchStatsRow` panel (Total / Done / Error / Run / Wait /
+  Queue / Costs — worker-pool batch, so there is no Bench bucket;
+  failed items stay normal failed rows). The title-bar actions are
+  👁 **View**, 🐜 **Translation workers**, 🏅 **Rank the translators**,
+  🔄 **Redo every entry** (deletes every row and re-dispatches the
+  full set), 🐞 **trace**, and 🗑 **delete run**. The per-model
+  grouping moved off L1 into its own **`TranslationWorkersScreen`**
+  (same file, help `translation_workers`, title "Translation
+  workers"), reached via the 🐜 action. Failure recovery (restart /
+  remove failed, continue broken) is handled by the shared Broken-work
+  batch screen, not by L1 buttons. `TranslationL2Screen`
+  (`TranslationL2.kt`, help `translation_run_l2`) is the per-group
+  sub-drill (works in either Types or Workers mode).
 - **`TranslationL3Screen`** (`ui/report/manage/TranslationL3.kt`,
   help `translation_run_l3`, title "Translation call") — one
   specific TRANSLATE row, with the source text, target language,
-  model, full translated body, and a raw HTTP trace (🐞) link. The
-  legacy-row trace fallback filters `ApiTracer.getTraceFiles()` by
-  `reportId`, `model`, and `category.startsWith("translate")`
-  (translation categories are `translate/...`-prefixed, e.g.
-  `translate/model_response`), taking the newest — so a row
-  reconstructed from disk without its own `traceFile` still gets a
-  working 🐞 link.
+  model, full translated body, a **Find alternative translation**
+  button (see below), and a raw HTTP trace (🐞) link. The 🐞 link
+  uses only the row's own captured `traceFile` (`item.traceFile`) —
+  there is no longer a category-scan fallback, so a legacy row written
+  before that field existed has no trace link.
 - **`TranslationCompareScreen`** (`ui/helpers/TranslationCompare.kt`,
   help `translation_compare`, title "Translation compare") —
   side-by-side comparison of the same source across translations.
@@ -238,6 +267,22 @@ under the user-given name regardless of language.
 The Translate detail Actions card uses the layout setting (Model
 only / Provider and model) to derive row labels, and pending / live
 translation rows on the Report Result are clickable.
+
+## Find alternative translation
+
+From a Translation-call (L3) screen, **Find alternative translation**
+re-translates that one item's source text on each model the user
+picks (`AltTranslateTarget` hoists the item identity to the
+report-manage screen so the shared model picker + candidate screen,
+`ui/report/manage/FindAlternativeTranslations.kt`, render over the
+yielded run screen). It mirrors the Find-alt icon / title fan-out:
+`TranslationRunManager.startAltTranslationFanOut` fires one
+non-persisting probe call per picked model, collecting candidates in
+`AppViewModel.altTranslationByItem`; tapping a candidate calls
+`applyAltTranslation`, which overwrites that item's persisted
+TRANSLATE row in place (content + model + cost + trace + duration).
+Only the picked candidate lands on disk — the probe spend still shows
+on AI Usage under the item's `translate/*` type.
 
 ## Viewing a translated report
 
@@ -306,10 +351,10 @@ so the per-item screens can deep-link a 🐞 straight to the call.
 
 ## Editing the translation prompt
 
-Settings → AI Setup → Internal prompts → **Worker prompts** lists the
-fixed-name `workers`-category templates, including `translate-text`
-and `translate-title` alongside the icon / title / language /
-tournament workers. Edit the `text` field of the `translate-text`
+Settings → AI Setup → Prompt management → Internal prompts →
+**Worker prompts** lists the fixed-name `workers`-category templates,
+including `translate-text` and `translate-title` alongside the icon /
+title / language / tournament / `translate-rank` workers. Edit the `text` field of the `translate-text`
 row (bodies) or `translate-title` row (titles), and edit each row's
 **worker swarm** to change which models translate; the name is not
 user-editable for these fixed-list templates. Defaults are seeded from
@@ -321,6 +366,9 @@ reloads the bundled tree fresh.
 
 ## See also
 
+- [rank-translators.md](rank-translators.md) for the **Rank the
+  translators** (`TRANSRANK`) batch — the 🏅 flow that scores and
+  ranks which translator model produced the best translation of a run.
 - [secondary-results.md](secondary-results.md) for the full
   secondary-result lifecycle, prompt resolution, and the
   `@RESULTS@` block.

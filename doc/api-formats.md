@@ -3,17 +3,21 @@
 Three dispatch paths cover all 42 bundled cloud providers. Identity is
 **always** keyed off `service.apiFormat` — never off provider id —
 which is why adding an OpenAI-compatible provider is usually a single
-JSON entry in `assets/providers.json`.
+JSON file under `assets/providers/`.
 
 ```kotlin
 enum class ApiFormat { OPENAI_COMPATIBLE, ANTHROPIC, GOOGLE }
 ```
 
-The enum has exactly three values (`ApiFormat.kt`). Across the 42
-entries in `assets/providers.json`, **40 are `OPENAI_COMPATIBLE`, 1 is
-`ANTHROPIC` (the `Anthropic` provider), 1 is `GOOGLE` (the `Google`
-provider)**. The inline `// 28 providers…` comment in `ApiFormat.kt` is
-stale — the real OpenAI-compatible count is 40.
+The enum has exactly three values (`ApiFormat.kt`). Provider
+definitions are now one JSON file per provider under
+`assets/providers/` (each file a bare `ProviderDefinition`, no
+`{ "providers": [...] }` wrapper), loaded via
+`ProviderRegistry.importFromAsset`. Across the 42 provider files,
+**40 are `OPENAI_COMPATIBLE`, 1 is `ANTHROPIC` (the `Anthropic`
+provider), 1 is `GOOGLE` (the `Google` provider)**. The inline
+`// 28 providers…` comment in `ApiFormat.kt` is stale — the real
+OpenAI-compatible count is 40.
 
 Dispatch lives in `com.ai.data.ApiDispatch`; chat streaming in
 `com.ai.data.ApiStreaming`. Every public entry point switches on a
@@ -22,7 +26,7 @@ single `when (service.apiFormat)` with the three branches:
 | Entry point | OPENAI_COMPATIBLE | ANTHROPIC | GOOGLE |
 |---|---|---|---|
 | `analyze` | `analyzeOpenAi` | `analyzeAnthropic` | `analyzeGemini` |
-| `sendChat` | `chatOpenAi` | `chatAnthropic` | `chatGemini` |
+| `sendChatResponse` (`sendChat` wraps it) | `chatOpenAiResponse` | `chatAnthropicResponse` | `chatGeminiResponse` |
 | `fetchModelsWithKinds` | `fetchModelsOpenAi` | `fetchModelsAnthropic` | `fetchModelsGemini` |
 | `analyzeAgentStreaming` (report) | `streamOpenAiReport` | `streamAnthropicReport` | `streamGeminiReport` |
 | `sendChatStream` (chat, in `ApiStreaming.kt`) | `streamOpenAi` | `streamAnthropic` | `streamGemini` |
@@ -36,7 +40,7 @@ Only `ANTHROPIC` and `GOOGLE` carry format-specific code. The 40
 `OPENAI_COMPATIBLE` providers all share one Retrofit interface
 (`OpenAiCompatibleApi`, dynamic `@Url` endpoints) and one set of
 dispatchers — per-provider behaviour is data, driven by `AppService`
-fields read from `providers.json`.
+fields read from each provider's JSON file under `assets/providers/`.
 
 ## OPENAI_COMPATIBLE (default — 40 of 42 providers)
 
@@ -51,12 +55,16 @@ Request/response shapes are `OpenAiRequest` / `OpenAiResponse` in
   type path). `buildChatUrl` tolerates a bare base, a full endpoint
   already ending in the path, or a full endpoint ending in a different
   known path (stripped then re-appended).
-- **`max_tokens` default**: `defaultMaxTokens(service, model)` =
-  `service.maxTokensDefaults.resolveMaxTokens(model) ?: 4096`. Although
-  4096 is "Anthropic's required default", the dispatch layer applies it
-  to OpenAI-compatible chat too — without a cap, OpenRouter and others
-  gate the whole output window against the account balance and 402 on
-  expensive models that would answer a normal request fine.
+- **`max_tokens` default**: `defaultMaxTokens(service, model)` resolves
+  `service.maxTokensDefaults.resolveMaxTokens(model)` first; failing
+  that it reads the model's `models.dev` max-output cap (clamped to
+  `context − 4096` headroom, floor 1024, when a context length is
+  known), and only falls back to a flat `4096` when neither is
+  available. Although 4096 is "Anthropic's required default", the
+  dispatch layer applies a cap to OpenAI-compatible chat too — without
+  one, OpenRouter and others gate the whole output window against the
+  account balance and 402 on expensive models that would answer a
+  normal request fine.
 - **Streaming**: SSE — `data: {...}\n\ndata: {...}\n\n…\ndata: [DONE]`.
   Parsed by `parseSseStream` (the shared reader) via the
   `streamOpenAi` / `streamOpenAiReport` implementations. Data lines are
@@ -106,9 +114,9 @@ OpenAI uses two separate endpoints depending on the model family:
 Routing is `usesResponsesApi(service, model)` (in `AnalysisRepository`):
 
 1. **`service.responsesApiPatterns.anyMatches(model)`** — the
-   authoritative source, declared in `providers.json` (the OpenAI entry
-   carries prefix patterns `gpt-5`, `o1`, `o3`, `o4`, `gpt-4.1`) and
-   editable in Service Settings.
+   authoritative source, declared in the OpenAI provider's JSON file
+   (`assets/providers/OpenAI.json` carries prefix patterns `gpt-5`,
+   `o1`, `o3`, `o4`, `gpt-4.1`) and editable in Service Settings.
 2. Else **`ModelType.infer(model) == ModelType.RESPONSES`** — a naming
    heuristic catching `gpt-5` / `o3` / `o4` prefixes on custom
    OpenAI-compatible endpoints with no pattern config. (`infer` does
@@ -118,9 +126,11 @@ Routing is `usesResponsesApi(service, model)` (in `AnalysisRepository`):
 There is no `endpointRules` field anywhere in the current code; the
 `gpt-5` / `o3` / `o4` prefixes that "used to live in OpenAI's
 endpointRules" now live in `ModelType.infer`.
-`AppService.responsesPath` is a **computed getter** that resolves to
-`v1/responses` from `typePaths` / the type-path defaults — it is not a
-stored field. Only OpenAI uses this split; other providers don't.
+`AppService.responsesPath` is a **computed getter**
+(`typePaths[RESPONSES]` ?: the user type-path defaults) — not a stored
+field — and the dispatcher falls back to the literal `v1/responses`
+when it comes back null. Only OpenAI uses this split; other providers
+don't.
 
 Responses-API specifics (`OpenAiResponsesRequest`, `ApiModels.kt`):
 
@@ -232,10 +242,15 @@ Gemini's `:generateContent` path-style API.
   injected when the agent's `webSearchTool` parameter is set. The 🌐
   toggle's availability is gated by `provider.webSearchModelPatterns`
   (Gemini 1.5+ / 2.x).
-- **Thinking / reasoning**: Gemini exposes a `thinkingConfig` with a
-  `thinkingBudget` (the dispatcher translates `reasoningEffort` → budget)
-  and `includeThoughts`. The provider's `reasoningModelPatterns` gates
-  whether the field is sent.
+- **Thinking / reasoning**: when `reasoningEffort` is set and the model
+  passes `isReasoningCapableForDispatch`, `geminiThinkingConfigField`
+  attaches a `thinkingConfig` carrying **only** `thinkingBudget`
+  (translated from effort via the shared `budgetForEffort`: `low=1024`,
+  `medium=4096`, `high=16384`). `includeThoughts` is intentionally left
+  off so the response body isn't bloated with the model's reasoning
+  summary. The capability gate is the same `isReasoningCapableForDispatch`
+  check the other two formats use, which ultimately consults the
+  provider's `reasoningModelPatterns` through the layered lookup.
 
 Models list at `v1beta/models` with `modelListFormat=array`.
 Path-encoded model ids mean the trace file shows the model in the URL,
@@ -253,9 +268,31 @@ Request-header / auth setup is one `when (service.apiFormat)` block
 | `ANTHROPIC` | host + `/v1/messages` | `x-api-key: <key>`, `anthropic-version: 2023-06-01` |
 | `GOOGLE` | host + `/v1beta/models/<model>:generateContent` | `?key=<key>` query param |
 
-Per-format response usage is parsed the same way (`ReportStorage`):
-`ClaudeUsage` (Anthropic), `GeminiUsageMetadata` (Google), `OpenAiUsage`
-(OpenAI-compatible).
+Per-format response usage is normalised into the unified `TokenUsage`
+(uncached `inputTokens`, `cachedInputTokens`, `cacheCreationTokens`,
+`outputTokens`, `reasoningTokens`) by the `toTokenUsage` helpers in
+`ApiModels.kt`, dispatched per format from
+`ReportStorage.extractTokenUsageFromTrace` — `ClaudeUsage` (Anthropic),
+`GeminiUsageMetadata` (Google), `OpenAiUsage` (OpenAI-compatible).
+Cached-token accounting differs per format:
+
+- **OpenAI-compatible** — most providers report `prompt_tokens` as a
+  *cached-inclusive* total, so the cached count
+  (`prompt_tokens_details.cached_tokens`, or DeepSeek's
+  `prompt_cache_hit_tokens`, or a flattened top-level `cached_tokens`
+  that some providers — notably xAI — emit) is subtracted to get the
+  fresh-input bucket. DeepSeek's explicit `prompt_cache_miss_tokens` is
+  used directly when present. Providers whose `prompt_tokens` already
+  *excludes* the cached tokens set `promptTokensIncludeCachedTokens=false`
+  in their JSON (xAI does), so the total passes through as fresh input
+  instead of being double-discounted.
+- **Anthropic** — `input_tokens` already excludes both cache buckets;
+  `cache_read_input_tokens` / `cache_creation_input_tokens` are carried
+  through (`cachedInputTokens` / `cacheCreationTokens`) and billed at
+  their own rates.
+- **Google** — `cachedContentTokenCount` is a subset of
+  `promptTokenCount`; the difference is the fresh bucket, and
+  `thoughtsTokenCount` (hidden reasoning) maps onto `reasoningTokens`.
 
 ## Adding an `ApiFormat`
 
@@ -273,7 +310,8 @@ If you ever need a fourth format:
    classes — Gson handles the (de)serialisation as long as the field
    names match.
 5. In `ReportStorage`, add the per-format usage parser branch.
-6. Set `apiFormat` on the new provider's entry in `providers.json`.
+6. Set `apiFormat` in the new provider's JSON file under
+   `assets/providers/`.
 
 The 40-of-42 ratio of `OPENAI_COMPATIBLE` providers means you almost
 never need to do this — it's worth pushing back on the third party to
@@ -309,8 +347,8 @@ chat-capable.
 OpenAI's `omni-moderation-*` / `text-moderation-*` (moderation),
 `tts-1` (TTS), `whisper-1` (STT), and `dall-e-3` / `gpt-image-1`
 (image) model ids do **not** show up in `/v1/models` — they're
-documented but unlisted. OpenAI's `providers.json` entry sets
-`mergeHardcodedModels=true`, which gates the OpenAI-only fallback union
+documented but unlisted. OpenAI's `assets/providers/OpenAI.json` entry
+sets `mergeHardcodedModels=true`, which gates the OpenAI-only fallback union
 in `Settings.withModels`: the fetcher path unions
 `service.hardcodedModels` into the live `/models` list (and
 `distinct()`s the overlap) so the Moderation / TTS / Image / STT

@@ -16,13 +16,31 @@ They surface across **three** screens under **Settings**:
 
 | Settings nav card | Sub-screen | Help topic | What it edits |
 |---|---|---|---|
-| **UI tweaks** | `SETTINGS_UI` | `settings_ui` | App home, Model-name layout, Experimental features, Full-screen |
+| **UI tweaks** | `SETTINGS_UI` | `settings_ui` | App home, Model-name layout, Experimental features (+ Show Knowledge card), Full-screen (default on), Show Ladybug icons |
 | **UI Colors** | `SETTINGS_UI_COLORS` | `settings_ui_colors` | **Colors mode** (Day / Night / Auto) at the top, then the Day and Night colour sets (`AppColors` role overrides) |
 | **Default icons** | `SETTINGS_DEFAULT_ICONS` | `settings_default_icons` | Every fallback / bottom-bar emoji (`MetadataIcons`) |
 
 (`SettingsSubScreen` in `ui/settings/SettingsScreen.kt` drives the
 two-tier in-Settings navigation; the matching `when` block routes each
 value to its composable.)
+
+### App home (Home-bar mode)
+
+The first card on **UI tweaks** is **App home**
+(`GeneralSettings.appHomeMode`, enum `AppHomeMode` in
+`viewmodel/AppViewModelTypes.kt`, default `HOME_BAR`). It is a
+navigation/layout choice rather than a colour/glyph customization, but it
+shares the screen and the same editable glyph set:
+
+- `HOME_BAR` (default) — a persistent top icon strip (`HomeIconBar`,
+  `ui/shared/SharedComponents.kt`) on app screens; Home opens the latest
+  report (or the First-launch screen).
+- `HOME_SCREEN` — the classic large-card Hub.
+
+That strip and the per-screen `BottomIconBar` / `ViewBottomBar` draw their
+glyphs from the same `MetadataIcons` set documented below, so editing a
+Default icon repaints them too. Persisted under the `app_home` pref key.
+See `doc/manual.md` for the full home walkthrough.
 
 A fourth screen, **Metadata & icons** (`SETTINGS_METADATA`, help topic
 `settings_metadata`), is *generation* configuration — the master switch
@@ -213,7 +231,10 @@ keys so an upgrade keeps a user's prior colours. The old hue names
 keys. These are **import/load fallbacks only**; new saved settings use
 the functional names, and the `ui_card_background_argb` /
 `ui_button_background_argb` Int prefs are kept as mirrors of the Night
-`CardBackgroundAlt` / `ButtonBackground` overrides.
+`CardBackgroundAlt` / `ButtonBackground` overrides. As a further
+back-compat step, a missing `SubTitle` override is seeded from a legacy
+`WarningAccent` / `Orange` value if one is present (the subtitle used to
+share the warning hue).
 
 ---
 
@@ -243,9 +264,10 @@ Many shared components are passed a hard-coded factory glyph (e.g.
 constant up in `factoryGlyphMap()` and returns the live glyph (or the
 factory glyph unchanged if untouched). `iconizedText(text)` does the same
 replacement across an entire string. This is what lets a single edit on
-the Default icons screen propagate everywhere, including the bottom action
-bars, whose render sites (`buildBottomBarIcons` / the View bottom bar)
-read the same `MetadataIcons` set.
+the Default icons screen propagate everywhere, including the home strip
+and bottom action bars, whose render sites (`HomeIconBar` /
+`buildBottomBarIcons` / `BottomIconBar` / the `ViewBottomBar`) read the
+same `MetadataIcons` set.
 
 `MetadataIcons.sanitized()` backfills any field left null (older stored
 JSON predating it) or blank with its factory default. Gson allocates the
@@ -257,7 +279,7 @@ bars never draw a null/blank glyph.
 
 The screen (`DefaultIconsSubScreen`) is **always reachable**, independent
 of the Metadata master switch, because the report/result fallbacks render
-on view screens regardless. It groups every editable glyph into ~18
+on view screens regardless. It groups every editable glyph into 18
 collapsible category cards (`DEFAULT_ICON_SECTIONS`):
 
 `Report` · `Secondary results` · `Translation` · `Monitor bar` ·
@@ -285,14 +307,16 @@ the UI renders). The 🧽 title-bar action resets *all* icons to factory
 
 ### Notable groups
 
-`MetadataIcons` carries ~170 glyph fields, among them:
+`MetadataIcons` carries ~172 glyph fields, among them:
 
 - **report / model fallback** icons (`reportIcon`, `reportModelIcon`),
 - **secondary-result kinds** — `rerank`, `moderate`, `meta`,
-  `tournament`, `judges`, `compare`, `fanOutRow`, `fanInRow` (six of the
-  seven `SecondaryKind` values — `TRANSLATE`'s glyph is `translationRow`
-  below — plus the fan-out / fan-in row variants;
-  `MetadataDefaults.forKind(kind)` maps any kind to its glyph),
+  `tournament`, `judges`, `compare`, plus `translationRow` (for
+  `TRANSLATE`) and `translatorRank` 🏅 (for the `TRANSRANK`
+  translator-ranking kind). `MetadataIcons.forKind(kind)` maps each of
+  the **eight** `SecondaryKind` values to its glyph. The fan-out /
+  fan-in row variants (`fanOutRow`, `fanInRow`) are separate
+  non-`SecondaryKind` glyphs,
 - **translation** — `languageIcon`, `translationRow`,
   `translationCompare`,
 - bottom-bar groups: Monitor jumps, create/chat/per-response actions,
@@ -300,6 +324,13 @@ the UI renders). The 🧽 title-bar action resets *all* icons to factory
   view-bar + help toggles (`help` ❓, `helpLegend` ❔),
 - status/progress glyphs, marks/ranks/medals, arrows/carets, and a long
   tail of search/file/content/media/cost/workers/device symbols.
+
+A couple of carried fields are **not** surfaced as editor rows (they're
+absent from `DEFAULT_ICON_SECTIONS`, so `normalized()` and the screen
+never touch them): `translatorRank` 🏅 and `reportModels` ♻️. They are
+still persisted, sanitized and backed up like every other field, and the
+action bars draw them via `forFactoryGlyph` / `forKind` — they just can't
+be re-skinned on the Default icons screen yet.
 
 Generated metadata icons on a report or secondary row still win over
 these defaults — the defaults are the fallback when a row has no
@@ -330,5 +361,9 @@ navigation cards.
   `GeneralSettings` colour/icon fields.
 
 See also `doc/persistent.md` (every prefs key), `doc/report-icons.md`
-(generated icons vs these fallbacks, and the Metadata master switch), and
-`doc/backup-restore.md` (how these settings ride in a backup).
+(generated icons vs these fallbacks, and the Metadata master switch),
+`doc/backup-restore.md` (how these settings ride in a backup), and
+`doc/manual.md` (the App home / Home-bar walkthrough). The separate
+"Ranking weights" settings screen (`GeneralSettings.rankingWeights`) is
+not a colour/glyph customization — it lives in `doc/value-view.md` /
+`doc/rank-translators.md`.

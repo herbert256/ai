@@ -9,10 +9,10 @@ atomic `writeTextAtomic` helper. The backup-eligible slots
 round-trip through `BackupManager` (Settings → Housekeeping → Backup
 & Restore) into a single `.zip` — see [backup-restore.md](backup-restore.md).
 
-## SharedPreferences (11 files)
+## SharedPreferences (10 files)
 
 All under `/data/data/com.ai/shared_prefs/<name>.xml`. **Seven** of
-the eleven are captured in `BackupManager.PREFS_TO_BACKUP`:
+the ten are captured in `BackupManager.PREFS_TO_BACKUP`:
 
 | Prefs file | Owner | In backup? |
 |---|---|---|
@@ -22,19 +22,20 @@ the eleven are captured in `BackupManager.PREFS_TO_BACKUP`:
 | `dual_chat_prefs` | `DualChatScreen` | ✅ |
 | `huggingface_cache` | `HuggingFaceCache` | ✅ |
 | `model_cooldowns` | `ModelCooldownStore` | ✅ |
-| `view_screen_prefs` | View-grid tile order + per-screen view state | ✅ |
+| `view_screen_prefs` | View-grid tile order (`tile_order`) | ✅ |
 | `provider_field_timestamps` | `ProviderFieldTimestamps` (recomputable) | ❌ |
 | `last_report_tracker` | `LastReportTracker` (device-local pointer) | ❌ |
-| `translation_modes` | `TranslationModeStore` (per-report) | ❌ |
 | `update_from_cloud` | `UpdateFromCloudScreen` (local APK pointer) | ❌ |
 
-The four excluded files are either recomputable caches or
+The three excluded files are either recomputable caches or
 device-local pointers that don't make sense to graft onto another
-device. `WebViewChromiumPrefs` is also intentionally excluded.
+device. `WebViewChromiumPrefs` is also intentionally excluded. (The
+old `translation_modes` prefs file is gone — per-report translation
+modes are no longer persisted in their own prefs file.)
 
 ### `eval_prefs` — main settings
 By far the largest. Loaded by `SettingsPreferences`, which defines
-66 `KEY_*` constants. (Note: where a value below shows a default, it
+68 `KEY_*` constants. (Note: where a value below shows a default, it
 is the `prefs.getX(key, default)` *read-fallback* used when the key
 is absent on disk — for the throttle / concurrency keys this read
 fallback can differ from the `GeneralSettings` data-class field
@@ -49,10 +50,13 @@ default; the value applied to a missing key is the one shown here.)
 | `artificial_analysis_api_key` | String | for the AA pricing/scores tier |
 | `default_email` | String | default email for the report email export |
 | `default_type_paths` | JSON Map<String,String> | global per-type API path defaults |
-| `tracing_enabled` | Boolean (default true) | master switch for `ApiTracer.isTracingEnabled` |
-| `full_screen` | Boolean (default false) | hides the Android status bar when enabled |
-| `model_name_layout` | String | `ModelNameLayout` name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`) |
-| `app_home` | String | `AppHomeMode` name (`HOME_SCREEN` / `HOME_BAR`); default `HOME_SCREEN` |
+| `logging_master_enabled` | Boolean (default true) | grand-master gate for the whole Log/trace/audit/statistics page. When false, tracing / audit log / usage stats / file logger are forced off at runtime regardless of their stored values (the per-item flags below are preserved so re-enabling restores prior choices) |
+| `tracing_enabled` | Boolean (default true) | master switch for `ApiTracer.isTracingEnabled`; gated by `logging_master_enabled` |
+| `audit_log_enabled` | Boolean (default false) | per-report audit log (`AuditLog`, `audit/<reportId>.log`); gated by `logging_master_enabled` |
+| `usage_stats_enabled` | Boolean (default true) | cumulative usage-stat recording (per-provider / per-model token counts + costs); gated by `logging_master_enabled` |
+| `full_screen` | Boolean (default true) | hides the Android status bar so the app gets the full screen height; turn off to re-show the system bar |
+| `model_name_layout` | String | `ModelNameLayout` name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`); default `MODEL_ONLY` |
+| `app_home` | String | `AppHomeMode` name (`HOME_SCREEN` / `HOME_BAR`); default `HOME_BAR` |
 | `ui_color_mode` | String | `UiColorMode` name (`DAY` / `NIGHT` / `AUTO`); which colour set the app paints, default `NIGHT` |
 | `ui_color_overrides` | JSON Map<String,Int> | functional `AppColors` role overrides (the Night set) edited in Settings → UI Colors |
 | `ui_color_overrides_day` | JSON Map<String,Int> | the Day-variant colour overrides |
@@ -82,22 +86,33 @@ default; the value applied to a missing key is the one shown here.)
 | `nonstreaming_read_timeout_sec` | Int | read timeout for non-streaming calls. Read-fallback `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC` (120) |
 | `max_calls_per_provider_per_minute` | Int | per-host sliding-window rate cap mirrored to `NetworkSettings.maxCallsPerProviderPerMinute` (read-fallback 30; `GeneralSettings` field default 60). See [throttle.md](throttle.md) |
 | `max_concurrent_calls_per_provider` | Int | per-host concurrency cap (read-fallback 3; field default 5) |
-| `max_concurrent_api_calls` | Int | global flow-level cap, `ApiCallCaps.global` (read-fallback 50; field default 100) |
-| `max_concurrent_report_calls` | Int | `ApiCallCaps.report` cap (read-fallback 15) |
-| `max_concurrent_translation_calls` | Int | `ApiCallCaps.translation` cap (read-fallback 15) |
-| `max_concurrent_fan_out_calls` | Int | `ApiCallCaps.fanOut` cap (read-fallback 15) |
-| `max_concurrent_fan_meta_calls` | Int | `ApiCallCaps.fanMeta` **and** `ApiCallCaps.workers` caps (read-fallback 15) |
-| `max_test_api_calls` | Int | cap for Housekeeping → Test calls (read-fallback 40) |
+| `max_concurrent_api_calls` | Int | global flow-level cap, `ApiCallCaps.global` (read-fallback 50; field default 100). The per-kind caps (report / translation / fan-out / fan-meta / workers) are **not** separately persisted — they derive from this global at runtime |
 | `max_retries_on_429` | Int (default 3) | in-line 429 retries; 0 disables |
 | `retry_backoff_ms_429` | Long (default 1000) | base back-off between 429 retry attempts (ms) |
 | `max_retries_on_529` | Int (default 3) | in-line 529 (server overloaded) retries; 0 disables |
 | `retry_backoff_ms_529` | Long (default 1000) | base back-off between 529 retry attempts (ms) |
-| `log_level` | String (default `INFO`) | threshold for `com.ai.data.AppLog`. One of `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Read directly from `eval_prefs` so DEBUG calls inside bootstrap are admitted on cold start |
+| `type_a_bench_enabled` | Boolean (default true) | Type-A (fixed-model) batch bench-and-requeue on 429/529 for Fan Out + Judge the judges; mirrored to `ModelCooldownStore.typeABenchEnabled` |
+| `type_a_bench_seconds` | Int (default 10) | bench duration (seconds) when a 429/529 carries no Retry-After hint; mirrored to `ModelCooldownStore.typeABenchBaseMs` (× 1000) |
+| `type_a_bench_max_attempts` | Int (default 5) | consecutive benches one item gets before the batch leaves it errored; mirrored to `ModelCooldownStore.typeABenchMaxAttempts` |
+| `log_level` | String (default `WARN`) | threshold for `com.ai.data.AppLog`. One of `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Read directly from `eval_prefs` so DEBUG calls inside bootstrap are admitted on cold start. Forced to `OFF` at runtime when `logging_master_enabled` is false |
 
 > The 429/529 retry defaults are **3 retries with a 1000 ms base
 > back-off** (exponential with ±50 % jitter, capped at 30 s), each
 > per-provider-overridable. The retry budgets for 429 and 529 are
 > independent — see [throttle.md](throttle.md).
+
+> **Not persisted (session-only `GeneralSettings` fields):** two
+> fields on the `GeneralSettings` data class have **no** `KEY_*`
+> constant and are neither read in `loadGeneralSettings` nor written
+> in `saveGeneralSettings`, so they reset to their data-class default
+> on every process restart:
+> - `rankingWeights` (the "Ranking weights" 0–10 sliders map, Settings
+>   → Ranking weights) — resets to `emptyMap()` (falls back to
+>   `RANKING_WEIGHT_DEFAULTS`). This looks like a bug: the edited
+>   weights survive only for the running session.
+> - `showLadybugIcons` (the 🐞 trace hot-link toggle) — resets to
+>   `true`. It is mirrored to `ApiTracer.showLadybugIcons` at runtime
+>   but never written to `eval_prefs`.
 
 > The chat-title / model-info / model-intro / translate-text /
 > second-rerank / second-moderation / test-model prompt templates
@@ -160,6 +175,8 @@ definition (`AppService.defaultModel` / `defaultModelSource`), so
 | `ai_report_models_v2` | StringSet | last-used direct-model selection for the Reports flow |
 | `last_ai_report_title` | String | most recent report title (used by external-intent flows) |
 | `last_ai_report_prompt` | String | most recent report prompt |
+| `recent_target_languages` | String (newline-separated) | last **3** translation target languages (`RecentTargetLanguages`), each `"name\|native"`, most-recent first |
+| `last_test_provider` / `last_test_api_url` / `last_test_model` / `last_test_prompt` / `last_test_system_prompt` / `last_test_temperature` / `last_test_max_tokens` / `last_test_raw_json` | String | sticky form state for the Developer → **Test API** screen (also pre-filled by "open in Test API" from a trace). The API key is **never** stored (`last_test_api_key` is explicitly removed). These live in `eval_prefs`, so they ride along in backups |
 
 ### `provider_registry`
 The full provider registry, serialised by `ProviderRegistry`. Note
@@ -246,16 +263,18 @@ models auto-benched after a 429 with a long retry-after. See
 | `traces` | JSON Map<String, String> | `"providerId:model"` → trace filename of the 429 that benched it |
 
 ### `view_screen_prefs`
-The View-grid tile order plus per-screen view state. The single
-`tile_order` key holds a comma-separated list of tile ids (the user
-explicitly arranges the grid — e.g. "Costs first"); a new tile id
-such as `doc:Matrix` (the Answer matrix tile) is appended to the
-saved order. Backed up so layout preferences survive restore.
+The View-grid tile order. A single `tile_order` key holds a
+comma-separated list of tile ids (the user explicitly arranges the
+grid — e.g. "Costs first"); a new tile id such as `doc:Matrix` (the
+Answer matrix tile) is appended to the saved order. No other key is
+written. Backed up so layout preferences survive restore.
 
-### Not backed up: `last_report_tracker`, `translation_modes`, `update_from_cloud`
-Device-local pointers (the last viewed report + view mode, per-report
-translation modes, and the synced-APK update pointer). Excluded from
-the backup zip.
+### Not backed up: `last_report_tracker`, `update_from_cloud`
+Device-local pointers — the last viewed report + view mode
+(`last_report_tracker`) and the synced-APK update pointer
+(`update_from_cloud`, single key `apk_uri`). Excluded from the backup
+zip. (`provider_field_timestamps` is the third non-backed-up file —
+recomputable; documented above.)
 
 ## Files (under `<filesDir>`)
 
@@ -308,7 +327,10 @@ instead of being silently swallowed.
 ### `secondary/<reportId>/<resultId>.json`
 One file per `SecondaryResult` row — RERANK, META (every chat-type
 Meta / Fan-out / Fan-in prompt), MODERATION, TRANSLATE, TOURNAMENT,
-JUDGES, or COMPARE. (`SecondaryKind` has exactly these 7 values.)
+JUDGES, COMPARE, or TRANSRANK. (`SecondaryKind` has exactly these 8
+values.) TRANSRANK is the "Rank the translators" run — a
+tournament-style ranking over translation outputs; like TOURNAMENT it
+carries `tournamentRole` (`MATCH` / aggregate via `TRANSRANK_ROLE_AGGREGATE`).
 META rows carry the user-given `metaPromptName` (and `metaPromptId`)
 so the UI / exports group them under the prompt name. The
 `secondaryScope` field encodes the SecondaryScope used at run time so
@@ -466,12 +488,23 @@ from KB chunk storage, which lives under `knowledge/<kbId>/chunks/` as
 `FloatArray`. Dim mismatches log a warning instead of silently
 zeroing.
 
-### `internal_prompt_icons.json`, `model_pricing.json`, `model_supported_parameters.json`
+### `internal_prompt_icons.json`, `meta_cache.json`, `model_pricing.json`, `model_supported_parameters.json`
 Top-level supplementary catalogs (atomic writes):
 `internal_prompt_icons.json` is the generated/cached internal-prompt
-icon map; `model_pricing.json` and `model_supported_parameters.json`
-are the flattened pricing + supported-parameters catalogs written by
+icon map (`InternalPromptIconCache`); `meta_cache.json` is the
+`MetaCache` map (cached meta titles + the language-flag icon, **7-day
+TTL** — the "Meta (titles / lang-icon)" Caches category);
+`model_pricing.json` and `model_supported_parameters.json` are the
+flattened pricing + supported-parameters catalogs written by
 `PricingCache`.
+
+> **Caches screen** (Housekeeping → Caches) browses 7 categories,
+> each backed by one of the on-disk slots above: Prompts
+> (`prompt_cache/`, 48 h TTL), Internal-prompt icons
+> (`internal_prompt_icons.json`), Meta (`meta_cache.json`, 7 d TTL),
+> Model lists (`model_lists/<providerId>.json`), Pricing tiers
+> (`pricing/`), Supported params (`model_supported_parameters.json`),
+> and Embeddings (`embeddings/<sha256>.json`).
 
 ## What's NOT persisted
 
@@ -489,9 +522,11 @@ are the flattened pricing + supported-parameters catalogs written by
 
 ## What's NOT in the backup zip
 
-- The four non-backed-up prefs files above, plus
-  `WebViewChromiumPrefs`.
-- The four `FILES_DIR_BACKUP_EXCLUDES` subdirs.
+- The three non-backed-up prefs files above
+  (`provider_field_timestamps`, `last_report_tracker`,
+  `update_from_cloud`), plus `WebViewChromiumPrefs`.
+- The four `FILES_DIR_BACKUP_EXCLUDES` subdirs
+  (`local_llms/`, `local_models/`, `native/`, `applog/`).
 - In-flight cacheDir temp files matching `CACHE_TOPLEVEL_SKIP_PREFIXES`
   (`ai-restore-`, `reset_keys_`, `ai-backup-`) — these would
   self-contain the in-flight backup, yank the file out from under the

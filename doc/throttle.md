@@ -108,10 +108,11 @@ Three acquire entry points:
 - **`acquire(host): Releaser`** — **blocking** (`Thread.sleep`).
   Used by the OkHttp `ProviderThrottleInterceptor`, which always
   runs on a dispatcher worker, never the main thread. Gates the
-  rate window **first** (appends a timestamp on admission even if
-  the concurrency permit then blocks — the safe, over-throttle
-  direction), then the concurrency permit. Returns a `Releaser`
-  whose `release()` must run in a `finally`.
+  **concurrency permit first** (`sem.acquire()`), then loops on the
+  per-minute rate window, appending a timestamp on admission; if the
+  rate loop throws (interrupt) the concurrency permit is released so
+  nothing leaks. Returns a `Releaser` whose `release()` must run in a
+  `finally`.
 - **`tryAcquire(host): Outcome`** — **non-blocking**. Returns
   `Outcome.Acquired(Releaser)` or `Outcome.Blocked(availableAtMs)`.
   Checks the concurrency permit first and releases it on a
@@ -160,15 +161,23 @@ OkHttp application interceptors, outer → inner (assembled in
 `data/ApiClient.kt`):
 
 ```
-RateLimitRetryInterceptor    (429 retries)
-  → OverloadedRetryInterceptor   (529 server-overloaded retries)
-    → ProviderThrottleInterceptor  (per-host acquire/release)
-      → ReadTimeoutInterceptor   (per-call read-timeout swap)
-        → TestCallTimeoutInterceptor  (Provider-test 30 s window)
-          → TracingInterceptor   (writes the ApiTracer JSON)
-            → HttpStatusStatsInterceptor  (tallies every response code)
-              → upstream
+OkHttpCallContextInterceptor (restores per-call trace/throttle context)
+  → RateLimitRetryInterceptor    (429 retries)
+    → OverloadedRetryInterceptor   (529 server-overloaded retries)
+      → ProviderThrottleInterceptor  (per-host acquire/release)
+        → ReadTimeoutInterceptor   (per-call read-timeout swap)
+          → TestCallTimeoutInterceptor  (Provider-test 30 s window)
+            → TracingInterceptor   (writes the ApiTracer JSON)
+              → HttpStatusStatsInterceptor  (tallies every response code)
+                → upstream
 ```
+
+`OkHttpCallContextInterceptor` (`data/OkHttpCallContext.kt`) is the
+**outermost** interceptor. It restores the trace/throttle context
+captured at OkHttp `Call` construction time, so a call OkHttp later
+promotes from its queue on a different worker thread still carries
+its originating tags / `permitPreAcquired` flag — making queued-call
+promotion race-free.
 
 Both retry interceptors sit **outside** the throttle / timeout /
 tracing layers, so each retry re-acquires its own per-host permit,
@@ -178,6 +187,14 @@ The 429 and 529 budgets are independent — a 529 burst can't eat
 the 429 retry count. `HttpStatusStatsInterceptor` is innermost so
 it counts every per-attempt response (and failures as `0`)
 regardless of the tracing toggle.
+
+A second client (`rawFetchClient`, used by the model-list snapshot
+fetch `fetchUrlAsString`) reuses the same builder but **drops both
+retry interceptors** — its chain is `OkHttpCallContext →
+ProviderThrottle → ReadTimeout → TestCallTimeout → Tracing →
+HttpStatusStats` — so a 429/529 on a best-effort sidecar fetch
+doesn't pin the caller while the typed model-list request already
+handles the real result.
 
 The shared `OkHttpClient` deliberately sets the dispatcher's
 `maxRequests = 512` and `maxRequestsPerHost = 512` so OkHttp gates
@@ -195,13 +212,24 @@ Loops on HTTP **429**, sleeping between attempts up to
 change while a call is in flight takes effect on the next
 iteration. `maxRetries == 0` is a valid "no in-line retries".
 
+The in-line retry loop **only runs when a `backoffPermitYielder` is
+registered** — i.e. the call is part of a throttled batch that can
+release its held permits during the sleep. For any other call (chat,
+single non-batch dispatches), `maxRetries` is forced to `0` and the
+429 is returned immediately so the coroutine layer can retry without
+a thread sitting on a sleeping OkHttp worker. The `suppressInlineRetry`
+ThreadLocal (the "Test all models" sweep) also forces `maxRetries = 0`.
+
 Backoff is **exponential with equal jitter**: `(backoffMs shl
 attempt)` capped at 30 000 ms, jittered ±50 %; a server
 `Retry-After` (seconds or HTTP-date, clamped 1 ms…5 min) wins when
 present. The sleep delegates to `ProviderThrottle.backoffSleep`,
 which routes through `backoffPermitYielder` (releasing batch
 permits during the pause) when one is registered, else plain
-`Thread.sleep`.
+`Thread.sleep`. Each attempt is recorded to `RetryStats`
+(`data/RetryStats.kt`) — `record()` + `enterBackoff()`/`exitBackoff()`
+brackets — for the Live Dashboard's live retry-pressure readout
+(attempts in the trailing 5 min + calls currently parked in backoff).
 
 Hard guards:
 
@@ -224,22 +252,30 @@ than `LONG_RETRY_THRESHOLD_MS`. See [model-states.md](model-states.md).
 
 When a **type-A** batch (Fan Out, Judge the judges — where a model
 can't be swapped for another) runs an item, `runThrottledBatch`
-installs a per-item `ProviderThrottle.benchSignal`. On a transient
-429/529 (the long-bench cases above didn't fire) the interceptor
-**short-benches** the model — `ModelCooldownStore.markShortBench`
-for the response's `Retry-After` hint, or `typeABenchSeconds`
-(default 10 s) when there's none — sets the signal, and returns
-immediately (no in-line sleep). The batch loop then **re-queues** the
-item instead of erroring, and **gates its same-model siblings** on the
+installs a per-item `ProviderThrottle.benchSignal` (a fresh
+`AtomicBoolean` per attempt). On a transient 429/529 (the long-bench
+cases above didn't fire) and when `ModelCooldownStore.typeABenchEnabled`,
+the interceptor **short-benches** the model via
+`ModelCooldownStore.markShortBench` — for the response's `Retry-After`
+hint, or `ModelCooldownStore.typeABenchBaseMs` (default **10 000 ms**)
+when there's none, clamped to **1 s … 5 min** — sets the signal, and
+returns immediately (no in-line sleep). The batch loop then **re-queues**
+the item instead of erroring, and **gates its same-model siblings** on the
 bench so they don't fire doomed calls; everything returns to Queue
 when the bench lifts. After `typeABenchMaxAttempts` (default 5)
 consecutive benches the item is left errored. The short-bench map is
-session-only and **separate** from the long `cooldownMap` so model
-pickers don't flicker "rate-limited" for a 10 s blip; it drives the
-**Bench** stat column (parked items, not just errored ones). Tunable
-under Settings → Network → **Model bench**; off → the in-line retry
-loop runs as before. Worker-swarm (type-B) batches don't use it —
-they fall back to another model instead.
+session-only (not persisted) and **separate** from the long `cooldownMap`
+so model pickers don't flicker "rate-limited" for a 10 s blip; it drives
+the **Bench** stat column (parked items, not just errored ones).
+
+The three knobs live on `GeneralSettings` (`typeABenchEnabled` /
+`typeABenchSeconds` (10) / `typeABenchMaxAttempts` (5)) and are mirrored
+onto `ModelCooldownStore` (`typeABenchEnabled` / `typeABenchBaseMs` =
+`typeABenchSeconds` × 1000 / `typeABenchMaxAttempts`) by `AppViewModel`.
+Tunable under Settings → Network settings → **Model bench
+(fixed-model batches)** ("Bench fixed-model batches on 429 / 529");
+off → the in-line retry loop runs as before. Worker-swarm (type-B)
+batches don't use it — they fall back to another model instead.
 
 ### `OverloadedRetryInterceptor` (`data/OverloadedRetry.kt`)
 
@@ -247,8 +283,16 @@ The HTTP **529** (server-overloaded, Anthropic `overloaded_error`)
 sibling of the 429 path, with an **independent** retry budget
 (`maxRetriesOn529` / `retryBackoffMs529`). Same main-thread guard,
 cancellation check, close-before-reissue, exponential-jitter
-backoff, and `Retry-After` honoring. Caps resolve per 529 via
+backoff, `Retry-After` honoring, `RetryStats` accounting, and the
+same type-A bench-and-requeue (it reads `benchSignal` and benches
+via `ModelCooldownStore.markShortBench`). Caps resolve per 529 via
 `ProviderThrottle.retryLimitsFor529(host)`.
+
+**One asymmetry with the 429 path**: the 529 loop does *not* gate on
+`backoffPermitYielder` presence — it runs the in-line retry whenever
+`maxRetries > 0` (off the main thread), suppressed only by
+`suppressInlineRetry`. So a non-batch 529 is retried in line, whereas
+a non-batch 429 is handed back for coroutine-level retry.
 
 ### `ProviderThrottleInterceptor`
 
@@ -386,18 +430,81 @@ The legacy single-host `acquireOrRequeue`
 - **Fan-out** (`FanOutEngine`) — the batched per-pair path uses
   `runThrottledBatch(subCap = ApiCallCaps.fanOut)`; the single-call
   path uses `ApiCallCaps.fanOut.withPermit { … permitPreAcquired … }`.
-- **Fan-Meta / Tournament / Judges / Compare** — `runThrottledBatch`
-  in dynamic-host mode (`subCap = ApiCallCaps.fanMeta` /
-  `ApiCallCaps.workers`); each worker self-throttles its host.
-- **Worker engine** (per-report icon, per-model title/icon,
-  Find-alternative icons) — worker chains throttle through the
-  same `ApiCallCaps.workers` + per-host gate; see
-  [report-icons.md](report-icons.md).
-- **Translation** — `ApiCallCaps.translation`; see
-  [translation.md](translation.md).
+  The `fanOut` sub-cap is also taken by `MetaEditManager`,
+  `SecondaryModelSwitchManager` and `SecondaryRunManager`.
+- **Fan-Meta / icon generation** (`IconGenerationManager` — per-pair
+  title+icon, per-report / per-model / per-language / per-agent icon
+  fan-outs) — `runThrottledBatch` in dynamic-host mode,
+  `subCap = ApiCallCaps.fanMeta`; each worker self-throttles its host.
+- **Worker swarms** — `runThrottledBatch` in dynamic-host mode,
+  `subCap = ApiCallCaps.workers`. This pool gates the `WorkerRunner`
+  chains behind Rerank / Moderation / Meta / Fan-in / Translate
+  (see [secondary-results.md](secondary-results.md)) **and** the
+  Tournament (`TournamentEngine`), Judge-the-judges
+  (`JudgeEvalEngine`), Compare (`CompareEngine`) and
+  Rank-the-translators (`TranslatorRankEngine`) engines; each worker
+  self-throttles its own provider host. See [report-icons.md](report-icons.md)
+  for the icon chains.
+- **Translation** — `ApiCallCaps.translation` (`TranslationRunManager`);
+  see [translation.md](translation.md).
 - **Chat** and single non-batched calls go through `withHostGate`
   + `withApiCallTimeout` and let `ProviderThrottleInterceptor`
   acquire the host gate inline (no pre-acquire).
+
+## Live batch stats (Bench / Wait surfaces)
+
+Every running-batch screen renders the same strip via the shared
+**`BatchStatsRow`** (`ui/report/manage/BatchStats.kt`) — a two-row
+label/value block, canonical column order:
+
+```
+Total · Done · Error · Run · [Bench] · Wait · Queue · Costs
+```
+
+The counts come from **`deriveBatchCounts` / `deriveBatchSummary`**
+(`ui/report/manage/BatchCounts.kt`), which carve each item into
+exactly one bucket with this precedence:
+
+```
+DONE → Bench (per benchMode) → ERROR → Wait (throttled) → Run (RUNNING) → Queue (PENDING)
+```
+
+Two of the columns are direct surfaces of the throttle layer:
+
+- **Wait** — items currently parked on a per-host / sub-cap / global
+  gate (the `throttledIds` set the batch flow tracks). A throttled
+  item counts only under Wait, never also under Run — uniform across
+  every batch kind.
+- **Bench** — items whose model is short-benched
+  (`ModelCooldownStore.markShortBench`). Shown **only** for
+  fixed-model batches (`BatchFamily.FIXED_MODEL` → `BenchMode.MODEL_PARKED`:
+  Fan Out, Judge the judges); a benched model carves **all** of its
+  non-done items out of Error/Run/Wait/Queue into Bench. Worker-swarm
+  batches (`BatchFamily.WORKER_POOL` → `BenchMode.NONE`: Tournament,
+  Compare, Translation, Fan Meta) omit the column — a cooldown there is
+  a worker-selection concern, not a terminal result.
+
+## Fan Out HTTP statistics
+
+Fan Out surfaces a per-run **HTTP statistics** breakdown
+(`ui/report/manage/FanStats.kt`, rendered through the same
+`BatchStatsRow`). The data is a session-only per-run tally,
+**`RunHttpStats`** (`data/RunHttpStats.kt`), keyed by
+`(runId, "providerId|model")` and recorded by
+`HttpStatusStatsInterceptor` — the innermost interceptor — so the
+**429/529 retry loops re-run it on every attempt**: a 429 that's
+retried then succeeds shows as one 429 **+** one 200, surfacing the
+rate-limit pressure the per-item *final* status would hide. Buckets
+(`FanOutHttpStatusCounts` in `data/FanOutHttpStats.kt`):
+`ok200` / `rate429` / `overloaded529` / `client4xx` / `server5xx` /
+`other`. Memory-only; `hasRun(runId)` gates the icon so nothing shows
+after a restart.
+
+This is distinct from the process-wide **`HttpStatusStats`**
+(`data/HttpStatusStats.kt`) the same innermost interceptor also feeds:
+a rolling 5-minute ring of bucketed codes (`OK2XX` / `R429` / `C4XX` /
+`S5XX` / `OTHER`), response-time percentiles, recent-error feed and
+slowest-call list, for the Live Dashboard.
 
 ## Per-provider overrides
 
@@ -441,21 +548,30 @@ alphabetically by id (commit `9fe78b89`).
 | File | Holds |
 |---|---|
 | `data/ApiTracer.kt` | `NetworkSettings`, `ApiCallCaps` |
-| `data/ProviderThrottling.kt` | `ProviderThrottle` (+ `permitPreAcquired`, `backoffPermitYielder`, `throttleWaitObserver`) and `ProviderThrottleInterceptor` |
+| `data/ProviderThrottling.kt` | `ProviderThrottle` (+ `permitPreAcquired`, `backoffPermitYielder`, `benchSignal`, `throttleWaitObserver`) and `ProviderThrottleInterceptor` |
 | `data/RateLimitRetry.kt` | `RateLimitRetryInterceptor` (429) |
 | `data/OverloadedRetry.kt` | `OverloadedRetryInterceptor` (529) |
 | `data/ReadTimeout.kt` | `ReadTimeoutInterceptor` |
 | `data/TestCallTimeout.kt` | `TestCallTimeoutInterceptor` |
 | `data/TracingInterceptor.kt` | `TracingInterceptor` |
-| `data/ApiClient.kt` | assembles the interceptor chain + 512/512 dispatcher on the shared `OkHttpClient` |
+| `data/OkHttpCallContext.kt` | `OkHttpCallContextInterceptor` (outermost; restores per-call context for queued-call promotion) |
+| `data/HttpStatusStats.kt` | `HttpStatusStats` (process-wide 5-min ring) + `HttpStatusStatsInterceptor` (innermost) |
+| `data/RunHttpStats.kt` | per-run Fan Out HTTP-response tally |
+| `data/FanOutHttpStats.kt` | Fan Out HTTP bucket data classes |
+| `data/RetryStats.kt` | `RetryStats` — live retry-pressure counters for the dashboard |
+| `data/ModelCooldownStore.kt` | long `cooldownMap` + session-only short-bench map; `typeABench*` mirror fields |
+| `data/ApiClient.kt` | assembles the interceptor chain + 512/512 dispatcher on the shared `OkHttpClient`; `rawFetchClient` (no retries) |
 | `data/ApiDispatch.kt` | `withHostGate`, `withApiCallTimeout` |
 | `viewmodel/ThrottledBatch.kt` | `runThrottledBatch`, `PermitHold` |
 | `viewmodel/ReportViewModelHelpers.kt` | `acquireThrottledPermits`, `acquireOrRequeue` |
+| `ui/report/manage/BatchStats.kt` | shared `BatchStatsRow` strip |
+| `ui/report/manage/BatchCounts.kt` | `deriveBatchCounts` / `deriveBatchSummary`, `BenchMode`, `BatchFamily` |
+| `ui/report/manage/FanStats.kt` | Fan Out HTTP-statistics screen |
 | `data/AppService.kt` | the six nullable override fields |
 | `data/ProviderRegistry.kt` | calls `ProviderThrottle.resetForNewLimits()` from `save`; `findByHost` host index |
 | `data/ProviderFieldTimestamps.kt` | per-provider per-field edit timestamps the asset-sync paths consult |
-| `viewmodel/AppViewModel.kt` | mirrors `GeneralSettings.*` into `NetworkSettings` + `ApiCallCaps.resetForNewLimits` on bootstrap and on update |
-| `ui/settings/SettingsScreen.kt` | the **Network settings** sub-screen + its **Maximal API calls** child (`SETTINGS_NETWORK` / `SETTINGS_NETWORK_API_CALLS`) |
+| `viewmodel/AppViewModel.kt` | mirrors `GeneralSettings.*` into `NetworkSettings` + `ApiCallCaps.resetForNewLimits` + `ModelCooldownStore.typeABench*` on bootstrap and on update |
+| `ui/settings/SettingsScreen.kt` | the **Network settings** sub-screen (incl. the **Model bench** section) + its **Maximal API calls** child (`SETTINGS_NETWORK` / `SETTINGS_NETWORK_API_CALLS`) |
 | `ui/settings/ServiceSettingsScreens.kt` | the per-provider "Throttle & retry overrides" card |
 
 ## See also

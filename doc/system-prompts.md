@@ -21,8 +21,11 @@ stores a single optional `systemPromptId`. A `Parameters` preset can *also* carr
 a free-text `systemPrompt`, and an `InternalPrompt` references a preset by **name**
 (`InternalPrompt.systemPrompt`, default `"*NONE"`).
 
-> Moderation calls have **no** system prompt and are omitted from the chains
-> below.
+> Moderation, and every **worker-driven** secondary / metadata call (the main
+> translation, Tournament, Compare, Judges, Transrank, and the initial
+> icon / title / language generation) send **no** system prompt at all — see the
+> three dispatch families under
+> [Secondary operations](#secondary-operations--metadata-generation).
 
 ---
 
@@ -142,18 +145,49 @@ its swarm level.
 
 ## Secondary operations & metadata generation
 
-Rerank, Meta, Fan-out, Fan-in, Translate, Compare-with-meta, and the
-metadata-gen calls (report / per-model icon, title, language, alternatives) all
-resolve their parameters **and** system prompt through one shared helper:
+There is no single chain here — secondary / metadata calls split into **three
+dispatch families**, and only the first one resolves a system prompt at all. The
+8 `SecondaryKind` values (`data/SecondaryModels.kt`:
+`RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES, COMPARE, TRANSRANK`)
+plus the metadata-gen calls map onto them like this:
+
+| Call | Dispatcher | System prompt |
+|---|---|---|
+| **Rerank** (chat-model path) | `executeSecondaryTask` | resolved (Family 1) |
+| **Meta / Summarize** | `executeSecondaryTask` | resolved (Family 1) |
+| **Fan-out** pairs + replay | `executeSecondaryTask` / direct | resolved (Family 1) |
+| **Fan-in** | `executeSecondaryTask` | resolved (Family 1) |
+| **Meta edit / replay** | direct `analyzeWithAgent` | resolved (Family 1) |
+| **Find-alternatives** probes (alt icons / alt titles / alt translations) | direct `analyzeWithAgent` | resolved (Family 1) |
+| **Translate** (main text + titles) | `WorkerRunner.run` | none (Family 2) |
+| **Tournament** | `WorkerRunner.run` | none (Family 2) |
+| **Compare**-with-meta | `WorkerRunner.run` | none (Family 2) |
+| Initial **report** icon / title / language name + icon | `WorkerRunner.run` | none (Family 2) |
+| Initial **per-model** icons / titles, **fan-meta** | `WorkerRunner.run` | none (Family 2) |
+| **Judges** (judge-the-judges) | fixed per-cell direct | none (Family 3) |
+| **Transrank** ("Rank the translators") | fixed per-cell direct | none (Family 3) |
+| **Moderation** | `callModerationApi` | none — no params at all |
+
+### Family 1 — `resolveSecondaryParams` (system prompt resolved & applied)
+
+Rerank, Meta/Summarize, Fan-out (per-pair + replay), Fan-in, Meta-edit, and the
+"Find alternatives" probes resolve their parameters **and** system prompt
+through one shared helper:
 
 ```kotlin
 resolveSecondaryParams(general, aiSettings, paramsIds, systemPromptId,
                        prompt?: InternalPrompt, agent?: Agent)
 ```
 
-(`viewmodel/ReportViewModelHelpers.kt`). Call sites include `FanOutEngine`,
-`IconGenerationManager` (icons / titles / alternatives), `MetaEditManager`,
-`TranslationRunManager`, and `SecondaryRunManager` (rerank / meta).
+(`viewmodel/ReportViewModelHelpers.kt`). The resolved `AgentParameters` is then
+passed **positionally** as `agentResolvedParams` to
+`AnalysisRepository.analyzeWithAgent`, so the system-prompt string actually
+reaches the call. Call sites: `SecondaryRunManager.executeSecondaryTask`
+(rerank / meta / fan-in, and fan-out pairs routed in from `FanOutEngine`),
+`FanOutEngine` (fan-out replay), `MetaEditManager` (meta edit/replay),
+`IconGenerationManager` (only the *alternatives* fan-outs — alt icons / alt
+model & report titles), and `TranslationRunManager` (only the *alternative*
+translation probe).
 
 The **system-prompt id** is picked by first-non-null:
 
@@ -177,16 +211,48 @@ When a system prompt resolves, `resolveSecondaryParams` returns
 unchanged. (Note this is **first-non-null**, not a merge — there is no
 report-level or provider level in the secondary chain.)
 
+### Family 2 — `WorkerRunner.run` (no system prompt)
+
+Main translation, Tournament, Compare-with-meta, and **all initial
+metadata generation** (report icon / title / language name + icon, per-model
+icons / titles, fan-meta) dispatch through `WorkerRunner.run(prompt,
+resolvedText, aiSettings, context, accept)` (`viewmodel/WorkerRunner.kt`). The
+runner expands the prompt's `workers` to their members, shuffles, and on each
+attempt calls `analyzeWithAgent(agent, "", resolvedText, …)` — with **no**
+`agentResolvedParams` and **no** `overrideParams`. So these calls carry **no
+resolved parameters and no system prompt** (not the worker's, not app-wide):
+they are deterministic JSON-/artifact-emitting utility calls. Consistent with
+that, every bundled `assets/internal-prompts/English/workers/*.json` (and
+`meta_compare/`) seed has `"systemPrompt": "*NONE"`.
+
+### Family 3 — fixed per-cell dispatch (no system prompt)
+
+Judges (`JudgeEvalEngine`) and Transrank (`TranslatorRankEngine`) do **not** use
+`WorkerRunner`; each cell is scored by a *fixed* judge resolved from the prompt's
+swarm and dispatched with a direct `analyzeWithAgent(agent, "", resolved, …)` —
+again with no `agentResolvedParams`, so **no system prompt** is sent. The seed
+`workers/translate-rank.json` carries `"systemPrompt": "*NONE"`.
+
 Moderation takes no params and no system prompt at all
-(`SecondaryRunManager.runModeration` calls `callModerationApi` directly).
+(`SecondaryRunManager.runModeration` → `executeSecondaryTask` short-circuits on
+`kind == MODERATION` and calls `callModerationApi` directly).
 
-### Tournament, Judge-the-judges, Compare-with-meta
+> **`useReportModelsAsWorkers` (♻️) does not touch system-prompt resolution.**
+> When the report flag is set, the worker-driven kinds swap the prompt's
+> `workers` for the report's own models (`it.copy(workers = reportModelWorkers(report))`)
+> — i.e. it changes *which* models run, not how (or whether) a system prompt is
+> resolved. For Families 2 & 3 that is still "no system prompt"; for Family 1
+> the runtime → prompt → agent → app-wide chain is unchanged.
 
-These are **worker-judged**: they run the bundled `workers/tournament` (or
-`meta_compare/equivalent`) prompt through `WorkerRunner`, which picks a worker
-from the prompt's swarm. The judging model — and therefore its
-agent / provider / app-wide system-prompt resolution — is the resolved worker's,
-chosen at call time. See
+### Tournament, Judge-the-judges, Compare-with-meta, Transrank
+
+These four are **worker-judged**. Tournament and Compare run the bundled
+`workers/tournament` / `meta_compare` prompt through `WorkerRunner` (Family 2);
+Judges and Transrank score each cell with a fixed judge (Family 3). In **all
+four** the judging model is a resolved worker dispatched with default
+parameters, so **no system prompt is sent** — the worker's own
+agent / provider / app-wide system-prompt levels are *not* consulted, and the
+seeded worker prompts carry `systemPrompt = "*NONE"`. See
 [tournament-judges-compare.md](tournament-judges-compare.md) and
 [secondary-results.md](secondary-results.md).
 
@@ -232,3 +298,10 @@ turn — there is no per-turn system-prompt override.
 6. **Chat is the exception**: it does not walk this ladder — it only takes a
    system prompt from a parameters preset (agent / dual-chat) or what the user
    types/picks at setup.
+7. **Secondaries split three ways.** Only the `resolveSecondaryParams` family
+   (rerank, meta, fan-out, fan-in, meta-edit, and the *alternatives* probes)
+   resolves a system prompt — runtime 🎭 → prompt's own → bound agent →
+   app-wide. The `WorkerRunner` family (main translation, tournament, compare,
+   initial icons / titles / language) and the fixed-cell family (judges,
+   transrank), plus moderation, dispatch with default params and send **no**
+   system prompt.

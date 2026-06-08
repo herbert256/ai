@@ -21,22 +21,22 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 ┌─────────────────────────────────────────────────────────────────────┐
 │  MainActivity                                                       │
 │  └── AppNavHost  (Jetpack Navigation Compose)                      │
-│       ├── HubScreen                                                 │
-│       ├── ReportsHubScreen / ReportScreen / ViewAiReportScreen      │
+│       ├── HubScreen (Home-screen mode) / HomeIconBar (Home-bar)     │
+│       ├── ReportsHubScreen / ReportsScreen / ViewAiReportScreen     │
 │       │     └── AnswerMatrixViewScreen  (overlay tile)              │
-│       ├── ChatsHubScreen / ChatScreens / DualChatScreen             │
+│       ├── ChatsHubScreen / ChatScreens / DualChatSessionScreen      │
 │       ├── ModelInfoScreen / ModelListScreen                         │
 │       ├── SearchScreens (Quick / Extended local + Remote semantic)  │
 │       ├── ShareChooserScreen   (overlay before NavHost)             │
 │       ├── SettingsScreen (two-tier: enum-driven sub-screens)        │
 │       ├── Monitor / Housekeeping hubs (icon cards + drill-ins)      │
-│       ├── Secondary results: Meta / Fan-out / Tournament / Compare  │
-│       └── HelpScreen / TraceScreen / DocumentationScreen            │
+│       ├── Second results / Broken-work / View tile-grid hub         │
+│       └── HelpScreen / TraceListScreen / DocumentationScreen        │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  ViewModels (viewmodel/, 19 files)                                  │
+│  ViewModels (viewmodel/, 24 files)                                  │
 │  ├── AppViewModel       — the only AndroidViewModel; owns UiState,  │
 │  │                        Settings, prefs, model fetching, bootstrap│
 │  ├── ChatViewModel      — plain class wrapping AppViewModel; chat   │
@@ -44,17 +44,16 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 │  └── ReportViewModel    — plain class wrapping AppViewModel; report │
 │       │                   + secondary-result generation, language   │
 │       │                   fan-out, translation, Fan-out/Fan-in      │
-│       └── extracted engines/managers (internal constructors):       │
-│            RegenerateBatchEngine, SecondaryRunManager,              │
-│            IconGenerationManager, FanOutEngine, TournamentEngine,   │
-│            JudgeEvalEngine, CompareEngine, MetaEditManager,         │
-│            ModelTestEngine, StressTestEngine, TranslationRunManager,│
-│            WorkerRunner                                             │
+│       └── 21 extracted helpers — BatchEngine base + 8 engines:      │
+│            Compare, FanOut, JudgeEval, ModelTest, RegenerateBatch,  │
+│            StressTest, Tournament, TranslatorRank; 5 managers:      │
+│            IconGeneration, MetaEdit, SecondaryModelSwitch,          │
+│            SecondaryRun, TranslationRun; WorkerRunner; + types      │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Data layer (com.ai.data, 82 files)                                 │
+│  Data layer (com.ai.data, 88 files)                                 │
 │  ├── AnalysisRepository  — façade with withRetry / fallback        │
 │  ├── ApiDispatch         — selects ApiFormat-specific code path     │
 │  ├── ApiStreaming        — SSE parser + Flow emission               │
@@ -75,14 +74,14 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 │  ├── ReportStorage       — per-report JSON file persistence         │
 │  ├── SecondaryResultStorage — RERANK / META / MODERATION /          │
 │  │                            TRANSLATE / TOURNAMENT / JUDGES /     │
-│  │                            COMPARE persistence                   │
+│  │                            COMPARE / TRANSRANK persistence       │
 │  ├── ChatHistoryManager  — chat session persistence                 │
 │  ├── HuggingFaceCache    — HF model-info cache                      │
 │  ├── BackupManager       — zip-based backup/restore                 │
 │  ├── ModelListCache / PromptCache / EmbeddingsStore                 │
 │  ├── Knowledge* / KnowledgeService / KnowledgeExtractors  — RAG     │
 │  ├── local/  — LocalLlm, LocalEmbedder, LlmRuntime, LocalRuntime    │
-│  ├── RegenerateBatch + TournamentRunModel / CompareRunModel        │
+│  ├── RegenerateBatch + Tournament/Compare/JudgeEval/TransRank models│
 │  └── SharedContent       — snapshot of an ACTION_SEND payload       │
 └─────────────────────────────────────────────────────────────────────┘
                               │
@@ -95,37 +94,47 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 
 ## Codebase shape
 
-~141,000 LOC across 363 Kotlin files under `ai/src/main/java/com/ai`
-(`namespace = "com.ai"`, `applicationId = "com.ai"`, `minSdk = 26`,
-`targetSdk = 36`):
+~153,180 LOC across 388 Kotlin files under `ai/src/main/java/com/ai`
+(`namespace = "com.ai"`, `applicationId = "com.ai"`, `compileSdk = 37`,
+`minSdk = 36`, `targetSdk = 36`; Kotlin 2.4.0 / AGP 9.2.1 / Compose BOM
+2026.05.01, Java 25 / JVM target 25):
 
-- **`data/` — 82 files.** 78 at the top level plus a nested
+- **`data/` — 88 files.** 84 at the top level plus a nested
   `data/local/` (4 files: `LocalLlm`, `LocalEmbedder`, `LlmRuntime`,
   `LocalRuntime`). Covers HTTP/dispatch/streaming, the tracer +
   interceptor stack, the provider registry, pricing, all on-disk
   storage objects, the in-app file logger, atomic-write helpers,
   bundled-asset seeds, the RAG / Knowledge layer, the on-device
-  runtime, and the regenerate-batch + Tournament / Judge / Compare run
-  models.
+  runtime, and the regenerate-batch + Tournament / Judge / Compare /
+  TranslatorRank run models.
 - **`model/` — 2 files.** `SettingsModels.kt` (the settings data
   classes — `ProviderConfig`, `Agent`, `Flock`, `Swarm`,
   `SwarmMember`, `Parameters`, `SystemPrompt`, `BlockedModel`, …) and
   `SettingsHolder.kt` (`object SettingsHolder`).
-- **`viewmodel/` — 19 files.** `AppViewModel` + `AppViewModelTypes.kt`
-  (the `GeneralSettings` data class and UI enums), `ChatViewModel`,
-  `ReportViewModel` + `ReportViewModelHelpers.kt`, the extracted
-  engines (`CompareEngine`, `FanOutEngine`, `JudgeEvalEngine`,
-  `ModelTestEngine`, `RegenerateBatchEngine`, `StressTestEngine`,
-  `TournamentEngine`, `MetaEditManager`), the managers/runners
-  (`SecondaryRunManager`, `IconGenerationManager`,
-  `TranslationRunManager`, `WorkerRunner`), and support/type files
-  (`ThrottledBatch.kt`, `TranslationTypes.kt`).
-- **`ui/` — 259 files** across sub-domains (`report` × 88,
-  `cruds` × 48, `admin` × 33, `settings` × 22, `shared` × 17,
+- **`viewmodel/` — 24 files.** Three top-level VMs — `AppViewModel`,
+  `ChatViewModel`, and `ReportViewModel` — plus 21 extracted helper /
+  support files:
+  - an abstract `BatchEngine` base shared by the batch engines;
+  - **8 engines** (`CompareEngine`, `FanOutEngine`, `JudgeEvalEngine`,
+    `ModelTestEngine`, `RegenerateBatchEngine`, `StressTestEngine`,
+    `TournamentEngine`, `TranslatorRankEngine`); of these `Compare` /
+    `FanOut` / `JudgeEval` / `Tournament` / `TranslatorRank` extend
+    `BatchEngine`;
+  - **5 managers** (`IconGenerationManager`, `MetaEditManager`,
+    `SecondaryModelSwitchManager`, `SecondaryRunManager`,
+    `TranslationRunManager`);
+  - one runner (`WorkerRunner`);
+  - 6 type/support files: `AppViewModelTypes.kt` (the
+    `GeneralSettings` data class + UI enums incl. `AppHomeMode`),
+    `ReportViewModelHelpers.kt`, `ThrottledBatch.kt`
+    (`acquireThrottledPermits` + `PermitHold` + `BatchResume`),
+    `TranslationTypes.kt`, `BrokenWorkPolicy.kt`, `BuildProgress.kt`.
+- **`ui/` — 273 files** across sub-domains (`report` × 98,
+  `cruds` × 48, `admin` × 35, `settings` × 22, `shared` × 17,
   `helpers` × 16, `navigation` × 7, `other` × 6, `chat` × 5,
-  `search` × 4, `hub` × 4, `history` × 3, `models` × 2, `share` × 2,
+  `hub` × 5, `search` × 4, `history` × 3, `models` × 3, `share` × 2,
   `knowledge` × 1, `theme` × 1). No files sit directly at the `ui/`
-  root. `report/` is fully nested: `report/manage` × 56,
+  root. `report/` is fully nested: `report/manage` × 66,
   `report/view` × 22, `report/start` × 7, `report/other` × 2,
   `report/info` × 1.
 - **`MainActivity.kt`** — the single entry file at the `com/ai` root.
@@ -133,7 +142,8 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 ## Entry point
 
 `MainActivity` (`class MainActivity : ComponentActivity()`) is the only
-Activity / Application class in the codebase. In `onCreate` it:
+Activity in the codebase (there is no custom `Application` subclass). In
+`onCreate` it:
 
 1. calls `CrashReporter.init(applicationContext)` **before anything
    else**, so an early-startup crash still lands in
@@ -171,14 +181,65 @@ chatViewModel, safePopBack, navigateHome)`. The `ui/navigation/` folder
 is exactly these seven files: `AppNavHost.kt`, `NavRoutes.kt`, and the
 five route-group files.
 
+#### Home mode + the persistent icon bars
+
+`AppNavHost` wraps the `NavHost` in a `Column` plus a stack of
+`CompositionLocal`s. The `generalSettings.appHomeMode` enum
+(`AppHomeMode`, **defaulting to `HOME_BAR`**) picks between two shells:
+
+- **`HOME_SCREEN`** — the legacy large-card `HubScreen` is the `AI`
+  start destination.
+- **`HOME_BAR`** — the `AI` route is a thin redirector (to the latest
+  report's Manage screen, the Reports hub, or First launch) and a
+  persistent `HomeIconBar` is painted at the **top** with section
+  shortcuts (Reports, Chat, Monitor, Setup, Housekeeping, Settings,
+  …). Back at the nav root in this mode `finish()`es the app.
+
+A `BottomIconBar` is painted at the bottom of every destination except
+the `AI` Hub and Help screens; each screen's `TitleBar` publishes its
+action icons into it via `LocalBottomIconState`. View screens instead
+render their own `ViewBottomBar` (centred 🔧) when a
+`ViewBottomBarSpec` is published. A read-only background scan publishes
+a `BrokenWorkBadge` (`LocalBrokenWork`) that swaps the top-bar logo for
+a ⚠️ opening the Broken-work screen (see *State recovery*).
+
+#### The report screen: Manage / Get-info / second-results + View hub
+
+The `AI_REPORTS` composable hosts the working report UI as a set of
+state-driven overlays rather than separate routes (`ReportsScreenNav`):
+
+- The **title tap cycles three screens** (`cycleReportScreens` in
+  `report/manage/Run.kt`): Manage → Get-info → (second-results, only
+  when at least one secondary result exists) → back to Manage.
+- The **report-icon tap opens the View tile-grid hub**
+  (`ViewAiReportScreen`, `report/view/Main.kt`), where each secondary
+  kind shows up as a tile: **Fan-out** and **Fan-in** are now split
+  into two separate screens (`report/view/Fan.kt` /
+  `report/view/FanIn.kt`, each getting one tile per persisted run),
+  alongside per-run **Meta** tiles plus **Rerank**, **Tournament**,
+  **Moderation**, the **Answer matrix** (`doc:Matrix`, between Reports
+  and Costs), **Costs**, **Icons**, and **Value view** (`doc:Value`)
+  tiles.
+- All secondary results collapse into **one** "second results" Manage
+  row + screen (`report/manage/SecondResults.kt`,
+  `ReportSecondResultsScreen`).
+- "Pick a report" pickers (`ReportPickerScreen`) back both the View
+  hub's 📋 and each Manage screen's 🗂️ via the `ManagePickKind` enum
+  (which filters and titles the picker per source screen).
+
 ### 2. Settings sub-screens — the `SettingsSubScreen` enum
 
 Inside `SettingsScreen.kt`, sub-screens are routed via the
-`enum class SettingsSubScreen` (~48 values: `MAIN`, `AI_SETUP`,
+`enum class SettingsSubScreen` (48 values: `MAIN`, `AI_SETUP`,
 `AI_PROVIDERS`, `AI_PROVIDER_EDIT`, `AI_MODELS_SETUP`, `AI_AGENTS`,
 `AI_FLOCKS`, `AI_SWARMS`, `AI_PARAMETERS`, `AI_SYSTEM_PROMPTS`,
 `AI_INTERNAL_PROMPTS`, the `*_SETUP` hubs, the model-state lists,
-`AI_IMPORT_EXPORT`, the `SETTINGS_*` preference pages, …). The current
+`AI_IMPORT_EXPORT`, and the `SETTINGS_*` preference pages carved out of
+the old monolithic Settings screen — `SETTINGS_NETWORK`,
+`SETTINGS_NETWORK_API_CALLS`, `SETTINGS_NETWORK_PER_PROVIDER`,
+`SETTINGS_UI`, `SETTINGS_UI_COLORS`, `SETTINGS_LOGGING`,
+`SETTINGS_OTHER`, `SETTINGS_METADATA`, `SETTINGS_AUTOSTART`,
+`SETTINGS_DEFAULT_ICONS`, `SETTINGS_RANKING_WEIGHTS`, …). The current
 sub-screen is held in
 `var currentSubScreen by rememberSaveable { mutableStateOf(...) }`, and
 one large `when (currentSubScreen)` block both renders the sub-screen
@@ -197,8 +258,8 @@ these three values). Dispatch always keys off the format, never off
 provider identity, so **40 of the 42 bundled providers share unified
 code paths**; only the single `Anthropic` provider (`ANTHROPIC`) and the
 single `Google` provider (`GOOGLE`) have format-specific branches.
-Adding an OpenAI-compatible provider is one entry in
-`assets/providers.json` (see [development.md](development.md)).
+Adding an OpenAI-compatible provider is one new JSON file under
+`assets/providers/` (see [development.md](development.md)).
 
 > The inline comment in `ApiFormat.kt` that says "28 providers using
 > OpenAI-compatible" is stale — the real count is 40.
@@ -243,13 +304,16 @@ chat session round-trips.
 
 ### `ProviderRegistry` — the 42 providers are an asset, not Kotlin
 
-The 42 cloud providers are **not** hardcoded in Kotlin. They are JSON
-entries in the bundled asset `assets/providers.json` (a top-level
-`{ "providers": [...] }` with 42 entries). `ProviderRegistry` is a
-mutable `object` that starts **empty** on a fresh install; the providers
-load on demand from the asset via `importFromAsset(context,
-"providers.json")` and persist to the `provider_registry`
-SharedPreferences file.
+The 42 cloud providers are **not** hardcoded in Kotlin. They are bundled
+as **one JSON file per provider under `assets/providers/`** (42 files,
+each a bare `ProviderDefinition` object — no `{ "providers": [...] }`
+wrapper). `ProviderRegistry` is a mutable `object` that starts **empty**
+on a fresh install; the providers load on demand via
+`importFromAsset(context)`, which reads every `*.json` under
+`assets/providers/` (sorted for a deterministic merge) and persists to
+the `provider_registry` SharedPreferences file. The
+`{ "providers": [...] }` array shape is only the format accepted by the
+user-driven `upsertFromJson` import.
 
 JSON maps to `AppService` via `ProviderDefinition`, whose `apiFormat`
 String is parsed by `ApiFormat.valueOf(...)` inside a `try/catch` that
@@ -285,7 +349,8 @@ Inference.net.
   (`iconFanOutByReport`, `agentIconFanOutByAgent`, `pairIconFanOutByPair`)
   consumed by the alternative-icon pickers, the `iconRefreshTick`
   counter on `UiState`, the hot running/throttled cell-id sets for the
-  worker-judged batches, and the `backgroundResumeSweepJob`.
+  worker-judged batches, the `brokenBatches` `StateFlow`, and the
+  `backgroundResumeSweepJob`.
 
 - **`ChatViewModel`** (`class ChatViewModel(private val appViewModel:
   AppViewModel)`) — a plain class, **not** an androidx ViewModel. Chat
@@ -299,16 +364,18 @@ Inference.net.
 
 - **`ReportViewModel`** (`class ReportViewModel(private val
   appViewModel: AppViewModel)`) — also a plain wrapper. Report
-  generation, the secondary-result flows (RERANK / META / MODERATION /
-  TRANSLATE / TOURNAMENT / JUDGES / COMPARE), the multi-language
-  fan-out for chat-type META and TRANSLATE, the Fan-out / Fan-in flow,
+  generation, the secondary-result flows (the eight `SecondaryKind`s:
+  RERANK / META / MODERATION / TRANSLATE / TOURNAMENT / JUDGES /
+  COMPARE / TRANSRANK), the multi-language fan-out for chat-type META
+  and TRANSLATE, the Fan-out / Fan-in flow,
   **and** per-model report icons (derived from each model's title via
   the worker engine, `workers/model-icons`). It holds an in-memory
   `_agentResults` flow separate from `UiState` so per-task completions
   don't ripple equality checks across the rest of `UiState`, and
   delegates the heavy lifting to the extracted engines
   (`fanOutEngine`, `tournamentEngine`, `judgeEvalEngine`,
-  `secondaryRunManager`, `regenerateBatchEngine`, `translation`, …).
+  `compareEngine`, `translatorRankEngine`, `secondaryRunManager`,
+  `regenerateBatchEngine`, `translation`, …).
   Long-running flows (initial generate, regenerate, secondary launches,
   the report-icon work) are launched on `appViewModel.viewModelScope`
   rather than the report VM's own scope, so navigating away from the
@@ -384,8 +451,21 @@ does not recompose at batch speed.
   agreement with consensus.
 - **Compare with meta** scores each report answer against selected Meta
   rows using `meta_compare` worker prompts.
+- **Rank the translators** (`TranslatorRankEngine`, kind `TRANSRANK`,
+  UI in `report/manage/TranslatorRank.kt`) is a fourth `BatchEngine`
+  sibling: it judges the per-language translations of a report's
+  answers head-to-head to rank translation quality. See
+  [rank-translators.md](rank-translators.md).
 
 See [tournament-judges-compare.md](tournament-judges-compare.md).
+
+### Value view
+
+`ValueView` (`ui/report/view/ValueView.kt`) is a read-only View-hub
+tile (`doc:Value`) that plots each answer's quality-vs-cost trade-off,
+folding rerank ranks and the configurable ranking weights (Settings →
+Ranking weights) into a single value score. Like the Answer matrix it
+performs no new API calls. See [value-view.md](value-view.md).
 
 ### Layered lookups
 
@@ -631,8 +711,8 @@ cumulative `usageMetadata`).
 
 OpenAI routes between two endpoints. `usesResponsesApi(service, model)`
 returns true when `service.responsesApiPatterns.anyMatches(model)`
-(authoritative, from `providers.json` — for OpenAI the patterns are
-prefix `gpt-5`, `o1`, `o3`, `o4`, `gpt-4.1`) **or** when
+(authoritative, from the bundled provider JSON — for OpenAI the patterns
+are prefix `gpt-5`, `o1`, `o3`, `o4`, `gpt-4.1`) **or** when
 `ModelType.infer(model) == RESPONSES` (the naming heuristic, which
 catches `gpt-5` / `o3` / `o4` by prefix). When true the dispatch uses the
 Responses API (system prompt → `instructions`, single text turn passed as
@@ -654,17 +734,19 @@ Recovery mechanisms keep the app robust to process death:
    `regenerateBatchEngine`) and finally re-issues interrupted single-call
    Meta / Rerank / Moderation placeholders. It is **no longer invoked
    automatically** — opening a report does not auto-resume its stale work.
-3. A 30-second app-wide **read-only** background scan
-   (`startBackgroundBrokenScan`, `Job` on
-   `AppViewModel.backgroundResumeSweepJob`) walks every report newer than
-   7 days and *detects* interrupted work (blank content, no error, no
-   duration — fan-out / tournament / judges / translation / single-Meta
-   placeholders, plus `RUNNING`-dead / `PAUSED_ON_ERROR` regenerate jobs)
-   without fixing anything. It publishes a `List<BrokenReport>` to
-   `AppViewModel.brokenReports`; while non-empty the top-bar AI logo is
-   replaced by a ⚠️ (`LocalBrokenWork` → `AppTopBarChrome`) that opens the
-   Broken-work screen (`BrokenWorkScreen`, route `AI_BROKEN_WORK`). Each
-   row taps through to its report, where the user resumes work manually.
+3. An app-wide **read-only** background scan
+   (`SecondaryRunManager.startBackgroundBrokenScan`, fired once from
+   `AppNavHost`, `Job` on `AppViewModel.backgroundResumeSweepJob`)
+   walks every report newer than 7 days and *detects* interrupted work
+   (blank content, no error, no duration — fan-out / tournament /
+   judges / translation / single-Meta placeholders, plus `RUNNING`-dead
+   / `PAUSED_ON_ERROR` regenerate jobs) without fixing anything. The
+   classification rules live in `viewmodel/BrokenWorkPolicy.kt`. It
+   publishes a `List<BrokenBatch>` to `AppViewModel.brokenBatches`;
+   while non-empty the top-bar AI logo is replaced by a ⚠️
+   (`LocalBrokenWork` → `AppTopBarChrome`) that opens the Broken-work
+   screen (`BrokenWorkScreen`, route `AI_BROKEN_WORK`). Each row taps
+   through to its report, where the user resumes work manually.
 4. `rememberSaveable` on key UI state (AI Usage's expanded provider list,
    drill-in scope buckets per `(report, prompt)`, the selected view
    language, the Answer-matrix open flag) survives navigation away and
@@ -712,14 +794,14 @@ state) and after the "Reset application" full reset.
 ## Persistence map
 
 Persistence is **`SharedPreferences` + JSON/text files** only (no
-DataStore). There are 11 distinct SharedPreferences files; the main one
-is `eval_prefs` (`SettingsPreferences.PREFS_NAME`), holding ~66 `KEY_*`
+DataStore). There are 10 distinct SharedPreferences files; the main one
+is `eval_prefs` (`SettingsPreferences.PREFS_NAME`), holding ~68 `KEY_*`
 keys (agents, flocks, swarms, parameters, system prompts, internal
 prompts, provider states, the model-state lists, throttle settings, API
 keys, …). The others: `provider_registry`, `pricing_cache`,
 `dual_chat_prefs`, `huggingface_cache`, `model_cooldowns`,
 `view_screen_prefs`, `last_report_tracker`, `provider_field_timestamps`,
-`translation_modes`, `update_from_cloud`.
+`update_from_cloud`.
 
 `filesDir` holds one subdirectory per storage object — `reports`,
 `secondary`, `trace`, `chat-history`, `embeddings`, `knowledge`,
@@ -735,7 +817,7 @@ keys, …). The others: `provider_registry`, `pricing_cache`,
 
 `BackupManager` streams a single `.zip` to a SAF Uri:
 `manifest.json` (version = `MANIFEST_VERSION` = 1), `prefs/<name>.json`
-(7 of the 11 prefs files, type-tagged so `Int` doesn't collapse to
+(7 of the 10 prefs files, type-tagged so `Int` doesn't collapse to
 `Double`), `files/<mirror of filesDir>/…`, and `cache/<mirror of
 cacheDir>/…`. The `filesDir` mirror excludes
 `FILES_DIR_BACKUP_EXCLUDES = {"local_llms", "local_models", "native",
@@ -767,8 +849,9 @@ on fresh install — each via an `ensureAllPresent(...)` pass that only
 adds missing entries (by `(category, name)` for prompts, by stable id
 for providers) and never overwrites an existing row:
 
-- `assets/providers.json` — entries import on first run; new entries
-  append on later starts. `ProviderFieldTimestamps` decide which fields
+- `assets/providers/` (one JSON file per provider) — entries import on
+  first run; new entries append on later starts.
+  `ProviderFieldTimestamps` decide which fields
   the every-start `syncFromAsset` may overwrite — a field the user has
   edited (timestamp non-null) is left alone; an un-edited field tracks
   the asset.

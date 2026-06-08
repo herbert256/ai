@@ -56,35 +56,44 @@ adding 12 per-domain maps plus one auto-built map:
 |---|---:|---|
 | `ProviderSettingsHelp.kt` | 12 | Provider setup / config cards |
 | `InfoProviderHelp.kt` | 7 | One `info_provider_*` page per metadata repository |
-| `GlossaryHelp.kt` | 17 | The Help-home reference topics (see below) + `manual` / `technical_documentation` |
-| `ReportsHelp.kt` | 103 | The whole reports flow + every report-Manage drill-in |
+| `GlossaryHelp.kt` | 18 | The Help-home reference topics (see below) + `about` / `dependencies` / `manual` / `technical_documentation` |
+| `ReportsHelp.kt` | 112 | The whole reports flow + every report-Manage drill-in |
 | `SearchHelp.kt` | 4 | Search / local semantic search |
 | `LocalKnowledgeHelp.kt` | 13 | RAG knowledge bases + on-device runtime |
-| `SettingsAdminHelp.kt` | 79 | Settings sub-screens + Housekeeping |
+| `SettingsAdminHelp.kt` | 90 | Settings sub-screens + Housekeeping |
 | `DeveloperHelp.kt` | 21 | Trace, logs, developer tools |
 | `ChatHelp.kt` | 9 | Chat hub, session, Dual Chat |
 | `ModelsHelp.kt` | 14 | Model lists, states, info |
-| `ProviderCatalogHelp.kt` | 44 | `provider_edit` + 43 `provider_*` per-provider pages |
+| `ProviderCatalogHelp.kt` | 44 | `providers` overview + `provider_edit` + 42 `provider_*` per-provider pages |
 | `CrudHelp.kt` | 1 | Shared CRUD overview |
 
-That is **325 base `HelpContent` entries**. On top of those,
+That is **345 base `HelpContent` entries**. On top of those,
 `ICON_HELP_TOPIC_CONTENT` auto-builds **22** empty-bodied
 `<topic>_icons` pages (one per `ICON_HELP_AS_PAGE` member; the table
 itself is rendered by `HelpScreen`, not stored in the `HelpContent`),
-for **~347 topics** total.
+for **367 topics** total.
 
 Topics group, roughly, into:
 
 - **Hub** — what the home screen does, what each card means.
 - **Reports flow** — New AI Report, the model-selection screen, the
-  result screen, the secondary-result flows (Meta / Fan-out /
-  Fan-in / Rerank / Moderation / Tournament / Judge-the-judges /
-  Compare), the translation drill-ins, exports.
+  result screen, the report *second-results* hub
+  (`report_second_results`), the secondary-result flows — the **8**
+  `SecondaryKind`s (Rerank / Meta / Moderation / Translate /
+  Tournament / Judge-the-judges / Compare / **Rank the translators**,
+  the last being `TRANSRANK`, topics `translator_rank` +
+  `translator_rank_workers`) plus the Fan-out / Fan-in / Fan Meta
+  drill-ins — the translation drill-ins, the Value view
+  (`value_view`), the regenerate-batch screen (`regenerate_batch`),
+  exports.
 - **Chat flow** — Chat hub, configure-on-the-fly, chat session,
   Dual Chat.
 - **Settings → AI Setup** — every sub-card has a topic. Sub-hubs
   (Models, Workers, Prompt management, Default icons, UI Colors)
-  have an overview topic plus per-card detail topics.
+  have an overview topic plus per-card detail topics. Recent
+  additions include `settings_ranking_weights` (the Ranking-weights
+  screen) and `broken_work` / `broken_items` (the Broken-work
+  housekeeping screen).
 - **Housekeeping** — Backup & Restore, Export & Import, Refresh,
   Trim by age, Update from cloud, Costs, Test, Reset.
 - **Trace / developer** — Trace list, Trace detail, the
@@ -113,18 +122,26 @@ map): `help_about`, `help_getting_started`, `concepts`,
 `help_privacy`, `help_backup`, `help_translations`, plus the three
 table-style pages `help_home_icons`, `help_home_info_providers`,
 `help_home_ai_providers`. Only those **three** `help_home_*` topics
-exist — there is no broader `help_home_*` family.
+exist — there is no broader `help_home_*` family. The same
+`glossaryHelp` map also carries four screen/topic pages that aren't
+home-page reference cards: `about` (the About screen), `dependencies`
+(the third-party-licences page), and `manual` / `technical_documentation`
+(the two bundled-doc WebView screens, covered at the end). That's why
+the map has 18 entries, not 14.
 
 ## The two help glyphs
 
 `BottomIconBar` (`SharedComponents.kt`) renders the screen's action
 icons (up to 7 per row, wrapping to additional left-aligned rows)
 and pins the help glyph(s) to the right of the **last** row; the
-glyphs never count toward the 7-per-row cap. The **red ❓** is present
-in Home screen mode and navigates to the screen's main help topic. A second,
-**white ❔** appears just to its left in two distinct behaviours,
-selected by `useLegend = (icons?.helpTopic in LEGEND_OVERLAY_TOPICS)
-&& specs.isNotEmpty()`:
+glyphs never count toward the 7-per-row cap. The **red ❓**
+(`showScreenHelp = !suppressScreenTraceAndHelp`) navigates to the
+screen's main help topic; it shows in the bottom bar by default and
+is relocated to the persistent top Home bar in Home-bar mode (where
+the bottom bar is rendered with `suppressScreenTraceAndHelp = true`).
+A second, **white ❔** appears just to its left in two distinct
+behaviours, selected by `useLegend = (icons?.helpTopic in
+LEGEND_OVERLAY_TOPICS) && specs.isNotEmpty()`:
 
 - `showLegendHelp = useLegend`
 - `showIconPageHelp = !useLegend && iconTopic != null && specs.size > 3`
@@ -133,14 +150,18 @@ selected by `useLegend = (icons?.helpTopic in LEGEND_OVERLAY_TOPICS)
 ### Live icon-legend overlay (report-Manage screens)
 
 On screens whose `helpTopic` is in `LEGEND_OVERLAY_TOPICS`
-(`SharedComponents.kt`, ~50 entries — the whole report-Manage
-family: `report_run` plus its edit / create / get-info / icons /
-titles overlays and sub-editors; the Meta / secondary / fan-out
-drill-ins; the translation, tournament, and judge-the-judges
-drill-ins; the Find-alternative and icon-lookup screens; the
-per-agent result / content / cost screens; `report_notes`;
-`report_agent_chat`; etc.) — the white ❔ opens a **full-screen live
-overlay** titled "`<screen title>` - icons" (`IconLegendOverlay`).
+(`SharedComponents.kt`, **56 entries** — the whole report-Manage
+family: `reports_hub` and `report_run` plus its edit / create /
+get-info / icons / titles overlays and sub-editors; the Meta /
+secondary / fan-out / **fan-meta** drill-ins (`fan_meta`,
+`fan_meta_workers`); the translation drill-ins (incl.
+`translation_workers`); the tournament drill-ins (incl.
+`tournament_workers`); the judge-the-judges drill-ins (`judge_eval_l1`
+… `judge_eval_match`); the Find-alternative and icon-lookup screens;
+the per-agent result / content / cost screens; `regenerate_batch`;
+`report_notes`; `report_agent_chat`; etc.) — the white ❔ opens a
+**full-screen live overlay** titled "`<screen title>` - icons"
+(`IconLegendOverlay`).
 
 - The overlay lists the icons **currently visible in that screen's
   bottom bar** — two columns: the big glyph, then the icon's name +
@@ -263,7 +284,7 @@ category that `startsWith("pricing/")`.
 - Per-provider pages share an infrastructure helper so each provider
   card has a uniform layout (`providerCatalogHelp` +
   `CLOUD_PROVIDER_TAGLINES`).
-- The topic catalog (~347 entries) carries code-accurate detail and
+- The topic catalog (~367 entries) carries code-accurate detail and
   tips — when changing a flow, the help text deserves the same edit
   so the in-app docs stay in sync. Every full-screen overlay (model
   picker, scope picker, viewer detail, agent icon detail,

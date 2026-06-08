@@ -6,18 +6,20 @@ models in parallel, fanning one model's response into another's
 prompt, and chatting with them.
 
 The project is a single Activity ([`MainActivity`](../ai/src/main/java/com/ai/MainActivity.kt)),
-Kotlin 2.2.10 + Jetpack Compose, ~141,000 LOC across 363 Kotlin files
-(`data` 82, `ui` 259, `viewmodel` 19, `model` 2, plus the one entry
+Kotlin 2.4.0 + Jetpack Compose, ~153,180 LOC across 388 Kotlin files
+(`data` 88, `ui` 273, `viewmodel` 24, `model` 2, plus the one entry
 file). It is MVVM, but with exactly **one** real Android view model:
 [`AppViewModel`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt)
 (`: AndroidViewModel`). `ReportViewModel` and `ChatViewModel` are plain
 wrapper classes constructed with an `AppViewModel` and delegating all
 state to it — they carry the `…ViewModel` name but are not androidx
-view models. Generation logic is split out into 8 engines and 4
-managers/runners (the 19 files under `viewmodel/`). There are **42
-cloud providers** loaded at runtime from `assets/providers.json`
-(40 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`, 1 `GOOGLE`) — they are not
-hardcoded — plus the synthetic on-device `AppService.LOCAL`. Seven
+view models. Generation logic is split out into 8 engines and 5
+managers (plus a `BatchEngine` base, a `WorkerRunner`, and type/support
+files — the 24 files under `viewmodel/`). There are **42
+cloud providers** loaded at runtime from one JSON file per provider
+under `assets/providers/` (40 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`, 1
+`GOOGLE`) — they are not hardcoded — plus the synthetic on-device
+`AppService.LOCAL`. Seven
 external metadata repositories plus two provider self-report sources
 and a manual override layer into one resolved view per
 `(provider, model)` pair.
@@ -51,12 +53,13 @@ and a manual override layer into one resolved view per
 - **[secondary-results.md](secondary-results.md)** — Deep dive on the
   meta-result flow: RERANK, user-driven META prompts, MODERATION,
   TRANSLATE, Fan-out / Fan-in, and the worker-judged secondary kinds
-  TOURNAMENT / JUDGES / COMPARE.
+  TOURNAMENT / JUDGES / COMPARE / TRANSRANK.
 - **[tournament-judges-compare.md](tournament-judges-compare.md)** —
-  Worker-judged report analysis: Tournament rankings (Copeland win-rate
-  now over per-model contested games, plus ELO / Davidson / Tideman /
-  Markov), Judge-the-judges agreement, and Compare-with-meta similarity
-  grids.
+  Worker-judged report analysis: Tournament rankings via eleven methods
+  (Copeland win-rate now over per-model contested games, plus ELO,
+  Davidson, Tideman, Markov, Schulze, Minimax, Colley, Glicko2, Points,
+  TrueSkill2), Judge-the-judges agreement, and Compare-with-meta
+  similarity grids.
 - **[ui-customization.md](ui-customization.md)** — Settings → UI tweaks
   (Colors mode), UI Colors, and Default icons: `AppColors` Day/Night
   palettes + `UiColorMode`, `MetadataIcons`, persistence, aliases, and
@@ -112,9 +115,15 @@ and a manual override layer into one resolved view per
 - **[costs.md](costs.md)** — Cost tracking, the AI Usage screen,
   per-report cost breakdown, manual price overrides, and costs
   maintenance.
+- **[value-view.md](value-view.md)** — Cost × quality frontier: the
+  ranking-source switch, Combined 0–1000 weights, fan-out cost
+  fold-in, and the Pareto graph.
 - **[translation.md](translation.md)** — TRANSLATE secondary-kind,
   multi-language fan-out, translation runs, the side-by-side /
   Translate Run / Translate Call detail screens.
+- **[rank-translators.md](rank-translators.md)** — Rank the translators
+  (TRANSRANK): a judge panel scores each translation 0–100 and ranks
+  the translator models.
 - **[share-target.md](share-target.md)** — `ACTION_SEND` /
   `ACTION_SEND_MULTIPLE` plumbing, the chooser, and the two landing
   routes (Report, Chat).
@@ -123,9 +132,9 @@ and a manual override layer into one resolved view per
   provider catalog merge.
 
 ### Reference data
-- **[providers.md](providers.md)** — All 42 cloud providers from
-  `assets/providers.json` with base URL, admin URL, and non-default
-  fields.
+- **[providers.md](providers.md)** — All 42 cloud providers from the
+  per-provider JSON files under `assets/providers/` with base URL,
+  admin URL, and non-default fields.
 - **[repositories.md](repositories.md)** — The seven external metadata
   repositories (LiteLLM, OpenRouter, models.dev, Helicone, llm-prices,
   Artificial Analysis, HuggingFace) with endpoints, auth, what they
@@ -172,7 +181,9 @@ useful when picking up where someone left off.
 The documentation is hand-written — the code is the ultimate source of
 truth. When in doubt, the relevant files are:
 
-- `assets/providers.json` — provider definitions
+- `assets/providers/` — provider definitions, one JSON file per
+  provider (42 files, each a bare `ProviderDefinition` object — no
+  `{ "providers": [...] }` wrapper)
 - `assets/internal-prompts/` — Internal Prompts (Meta / Fan-out / Fan-in / Other internal)
 - `assets/examples.json` — Example Prompts library
 - `data/AppService.kt` — provider runtime model
@@ -184,12 +195,14 @@ truth. When in doubt, the relevant files are:
   OpenRouter cross-provider fallback → Helicone → `DEFAULT_PRICING`
   ($25/M in, $75/M out). Manual override sits **above** all curated
   catalog tiers but below the two provider self-report tiers. (The
-  class-level docstring still describes a stale five-tier order — the
-  code is authoritative.) Tier blobs live under `<filesDir>/pricing/`;
+  class-level KDoc is now correct; only `getPricing`'s own KDoc still
+  says "five-tier lookup" — the code is authoritative.) Tier blobs live
+  under `<filesDir>/pricing/`;
   the `pricing_cache` prefs file keeps only timestamps and the
   manual-override map
-- `data/SecondaryModels.kt` — `SecondaryKind` (the 7 kinds RERANK,
-  META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES, COMPARE), the
+- `data/SecondaryModels.kt` — `SecondaryKind` (the 8 kinds RERANK,
+  META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES, COMPARE, TRANSRANK),
+  the
   single flat `SecondaryResult` row used for every kind, and the
   prompt-template helpers (`resolveSecondaryPrompt`,
   `resolveFanInPrompt`, …)
@@ -200,7 +213,8 @@ truth. When in doubt, the relevant files are:
   (AllReports / TopRanked / Manual) used by Meta / Fan-out scope
   selection
 - `data/TournamentRunModel.kt`, `data/JudgeEvalRunModel.kt`,
-  `data/CompareRunModel.kt` — worker-judged analysis run state
+  `data/CompareRunModel.kt`, `data/TranslatorRankModel.kt` (TRANSRANK)
+  — worker-judged analysis run state
 - `ui/shared/AppColors.kt` + `data/MetadataDefaults.kt` — configurable
   UI colors and Default-icons-backed glyphs
 - `data/SharedContent.kt` — share-target snapshot
@@ -215,7 +229,8 @@ truth. When in doubt, the relevant files are:
 - `viewmodel/ReportViewModel.kt` — report-generation orchestration
   (plain wrapper over `AppViewModel`); the secondary kinds are
   delegated to `SecondaryRunManager`, `FanOutEngine`, `CompareEngine`,
-  `TournamentEngine`, `JudgeEvalEngine`, and `TranslationRunManager`
+  `TournamentEngine`, `JudgeEvalEngine`, `TranslatorRankEngine`, and
+  `TranslationRunManager`
 - `ui/settings/SettingsPreferences.kt` — every prefs key
 - `ui/admin/HelpScreen.kt` — per-screen / per-provider / per-repository help topics
 - `data/BackupManager.kt` — what gets backed up

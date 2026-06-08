@@ -45,15 +45,32 @@ DEBUG calls inside bootstrap itself are admitted on cold
 start — `AppLog` keeps no `SettingsPreferences` dependency so it
 can apply the threshold before any higher-level singletons exist.
 The `GeneralSettings.logLevel` field mirrors it for the rest of
-the runtime; an update via **Settings → Logging and tracing →
-Application log level** re-mirrors to `AppLog.threshold`.
+the runtime; an update via **Settings → Log/trace/audit/statistics
+→ Application log level** (a radio-row level picker) re-mirrors to
+`AppLog.threshold`.
+
+## Master enable flag
+
+`GeneralSettings.loggingMasterEnabled` (default **on**) is the
+grand-master gate for the whole *Log/trace/audit/statistics*
+settings page — API tracing, the per-report audit log, usage
+statistics, **and** this file logger. While it is off, the four
+per-item settings are hidden in the UI and forced off at runtime
+regardless of their stored values; the per-item values are
+preserved so flipping the master back on restores prior choices.
+For the file logger specifically, `GeneralSettings.effectiveLogLevel()`
+returns the stored `logLevel` only while the master is on and
+collapses to `OFF` when it isn't — and it is **that** effective
+value (not the raw `logLevel`) that `AppViewModel` mirrors into
+`AppLog.threshold`. So a master toggle silences the file appender
+without touching the user's chosen level.
 
 ## File format
 
 One line per call:
 
 ```
-2026-05-11 09:51:09.732 INFO  App: App started — AI v1.42 (built 2026-05-11T07:53:00Z, installed …) logLevel=INFO, tracing=true
+2026-05-11 09:51:09.732 INFO  App: App started — AI v1.42 (built 2026-05-11T07:53:00Z, installed …) logLevel=WARN, tracing=true
 ```
 
 Format: `yyyy-MM-dd HH:mm:ss.SSS LEVEL TAG: message`. A stack
@@ -75,8 +92,10 @@ structured INFO line (tag `App`) capturing the app label,
 `BuildConfig.VERSION_NAME`, the build timestamp, the install time
 (`PackageInfo.lastUpdateTime`), and the resolved log level +
 tracing flag. Makes it trivial to tell, in a multi-day log file,
-exactly when the app last (re)started. The detailed per-step
-bootstrap trace lines use the `App.start` tag.
+exactly when the app last (re)started. Because it is an INFO line,
+it only reaches the *file* once the threshold is lowered to
+INFO/DEBUG — at the default WARN it still fires to logcat. The
+detailed per-step bootstrap trace lines use the `App.start` tag.
 
 ## No per-report tagging
 
@@ -92,13 +111,18 @@ coroutine context — `Dispatchers.IO` + the crash handler).
 
 ## Sensitive-value redaction
 
-`AppLog.redactSecret` strips three common secret shapes inline
+`AppLog.redactSecret` strips four common secret shapes inline
 before each line is written (and before a toast is shown):
 
 - `Bearer <token>` / `Basic <auth>` → `Bearer [REDACTED]`
   (regex `(?i)(Bearer|Basic)\s+[A-Za-z0-9._\-+/=]+`).
 - Raw API keys — a `sk-` / `xai-` / `gsk_` / `key-` prefix
   followed by ≥16 key-ish chars → `<prefix>[REDACTED]`.
+- Contextual secrets — a key-ish field name (`api_key` / `key` /
+  `token` / `secret` / `password` / `client_secret`) followed by
+  `:` or `=` (and an optional quote) and ≥24 value chars →
+  `<field>=[REDACTED]`. Catches provider keys with no fixed prefix
+  when they're logged next to their field name.
 - Google `key=<token>` query params (≥16 chars) → `key=[REDACTED]`.
 
 These are the same shapes `TracingInterceptor` guards against, so
@@ -112,9 +136,13 @@ message>` truncated to 140 chars — so the user notices a problem
 without opening the viewer. A burst (e.g. fan-out icon retries
 spraying dozens of warnings in a second) is coalesced via
 `TOAST_MIN_INTERVAL_MS = 1500ms` so the screen isn't flooded with
-un-dismissable toasts. The toast needs the application `Context`
-captured in `init`; before `init` it is silently skipped (the
-file + logcat lines still fire).
+un-dismissable toasts. The debounce is keyed per **(level, tag)**
+(a `ConcurrentHashMap<String, Long>`), so a benign WARN burst on
+one tag can't muffle a later ERROR — or an unrelated tag's
+warning — within the same window; each key coalesces on its own.
+The toast needs the application `Context` captured in `init`;
+before `init` it is silently skipped (the file + logcat lines
+still fire).
 
 ## In-memory file-list cache
 
@@ -147,8 +175,8 @@ logger.
 
 The data + viewmodel layers carry broad DEBUG / INFO
 coverage. The canonical tag set is the literal tag *strings*
-passed to `AppLog.v/d/i/w/e` (not class names); there are roughly
-**77 distinct tags**. Grouped:
+passed to `AppLog.d/i/w/e` (not class names); there are roughly
+**80 distinct tags**. Grouped:
 
 - **Lifecycle / infra** — `App` (startup line), `App.start`
   (per-step bootstrap), `Crash`, `Housekeeping`, `CapsWatch`,
@@ -185,11 +213,12 @@ passed to `AppLog.v/d/i/w/e` (not class names); there are roughly
 
 ## Viewer screens
 
-Reached from **Settings → Logging and tracing → Application log**,
-and from the **Monitor / AI Dashboard** hub (the *Application log*
-card; a sibling *App log statistics* aggregate page is also
-reachable from the 📈 icon on the list screen). All three screens
-below live in `ui/admin/AppLogScreen.kt`.
+Reached from the **Monitor / AI Dashboard** hub (the *Application
+log* card) and the home-bar fallback icon; a sibling *App log
+statistics* aggregate page is also reachable from the 📈 icon on
+the list screen. (The *Log/trace/audit/statistics* settings page
+only sets the threshold — it doesn't open the viewer.) All three
+screens below live in `ui/admin/AppLogScreen.kt`.
 
 ### `AppLogListScreen` — file list
 
@@ -280,16 +309,19 @@ that method's own prior log lines go with it).
 ## Files
 
 - `data/AppLog.kt` — the `object` singleton, `LogLevel` enum,
-  `AppLogFileInfo` type, redaction regexes, toast debounce, and
-  the `currentLogId` ThreadLocal.
+  `AppLogFileInfo` type, the four redaction regexes, the
+  per-(level, tag) toast debounce, and the writer-health surfaces
+  (`lastWriterError` / `droppedLineCount`).
 - `ui/admin/AppLogScreen.kt` — list + file viewer + per-entry
   screens, plus the log-entry parser and time-filter helpers.
 - `ui/admin/AiDashboardScreen.kt` — the *Application log* hub card
   and the *App log statistics* aggregate page (`ai_log_stats`).
 - `ui/admin/DeveloperHelp.kt` — `applog_list` / `applog_detail`
   help topics.
-- `ui/settings/SettingsScreen.kt` — the `Logging and tracing` card
-  (threshold dropdown).
+- `ui/settings/SettingsScreen.kt` — the `Log/trace/audit/statistics`
+  page (the *Enable logging & tracing* master switch + the
+  radio-row *Application log level* picker).
 - `viewmodel/AppViewModelTypes.kt` — `GeneralSettings.logLevel`
-  (mirrored to `AppLog.threshold` on every settings save) and
-  `loggingMasterEnabled` (the master gate, default on).
+  and `loggingMasterEnabled` (the master gate, default on), folded
+  by `effectiveLogLevel()` and mirrored to `AppLog.threshold` on
+  every settings save.

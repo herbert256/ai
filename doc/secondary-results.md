@@ -1,11 +1,11 @@
-# Secondary Results: Meta prompts, Rerank, Moderate, Translate, Fan-out / Fan-in, Tournament, Judges, Compare
+# Secondary Results: Meta prompts, Rerank, Moderate, Translate, Fan-out / Fan-in, Tournament, Judges, Compare, Rank the translators
 
 A "secondary result" operates on a finished report's per-agent
-outputs. Exactly seven kinds exist — `SecondaryKind`
+outputs. Exactly eight kinds exist — `SecondaryKind`
 (`data/SecondaryModels.kt:9`):
 
 ```kotlin
-enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES, COMPARE }
+enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES, COMPARE, TRANSRANK }
 ```
 
 | Kind | Purpose | What the call produces |
@@ -17,6 +17,7 @@ enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDG
 | `TOURNAMENT` | Worker-judged head-to-head answer tournament | `N(N-1)` MATCH rows + one AGGREGATE ranking row |
 | `JUDGES` | Judge-the-judges agreement analysis | Every judge scores the same random answer-pairs; one AGGREGATE row stores agreement |
 | `COMPARE` | Compare-with-meta similarity grid | A 0..100 similarity score per (answer × the one chosen Meta row) cell; no aggregate row |
+| `TRANSRANK` | "Rank the translators" — worker-judged head-to-head ranking of the translator models for one language | Per-language CELL rows + one AGGREGATE ranking row — see [rank-translators.md](rank-translators.md) |
 
 Every chat-type prompt routes through the single `META` kind; the
 user-given prompt name carried on the row (`metaPromptName`) is what
@@ -29,14 +30,17 @@ carry `kind = META` but are distinguished by structure:
 (a Fan-in combined report).
 
 `SecondaryResult` (`data/SecondaryModels.kt:48`) is a single flat row
-type shared by all seven kinds. Common fields: `id`, `reportId`,
+type shared by all eight kinds. Common fields: `id`, `reportId`,
 `kind`, `providerId`, `model`, `agentName`, `timestamp`, `content`,
 `errorMessage`, `tokenUsage`, `inputCost` / `outputCost`,
 `durationMs`, `httpStatusCode`, `traceFile`. Kind-specific clusters layer on top
 (TRANSLATE language fields, META `metaPromptId` / `metaPromptName` /
 `fanOutSourceAgentId` / `fanInOf` / `secondaryScope`, per-pair
 Fan-Meta `icon` / `title` fields, TOURNAMENT `tournamentRole` /
-`tournamentMatrix`, COMPARE `compareRunId` / `compareToResultId`).
+`tournamentJudgeRunId` / `tournamentMatrix`, COMPARE `compareRunId` /
+`compareToResultId`). `TRANSRANK` reuses the TOURNAMENT cluster
+(`tournamentRole` = `CELL` / `AGGREGATE`, `tournamentJudgeRunId`,
+`tournamentMatrix`) — see [rank-translators.md](rank-translators.md).
 
 Each result is the work of a single chosen model and is persisted
 independently — a report can accumulate any combination, and each
@@ -44,17 +48,19 @@ entry is independently viewable and deletable.
 
 Tournament, Judge-the-judges, and Compare are grid-shaped
 worker-judged batches; their cell/aggregate plumbing lives in
-[tournament-judges-compare.md](tournament-judges-compare.md). This
-doc covers the single-call kinds (Rerank, Meta, Moderation,
-Translate) and Fan-out / Fan-in in detail, and links out for the
-grid kinds.
+[tournament-judges-compare.md](tournament-judges-compare.md).
+Rank-the-translators (`TRANSRANK`) is a fourth grid-shaped batch
+with its own engine and dedicated doc
+[rank-translators.md](rank-translators.md). This doc covers the
+single-call kinds (Rerank, Meta, Moderation, Translate) and Fan-out
+/ Fan-in in detail, and links out for the grid kinds. The aggregate
+ranking sources (reranks, tournament, compare, transrank) also feed
+the in-app **Value view** — see [value-view.md](value-view.md).
 
 ## How a kind is routed
 
-There is **no** name→kind lookup function. Three explicit entry
-methods on `SecondaryRunManager` (`viewmodel/SecondaryRunManager.kt`)
-set the kind directly, all wired from
-`ui/report/manage/Nav.kt`:
+There is **no** name→kind lookup function. The entry points set the
+kind directly, all wired from `ui/report/manage/Nav.kt`:
 
 | UI action | Entry method | Resulting kind |
 |---|---|---|
@@ -67,13 +73,19 @@ set the kind directly, all wired from
 | Tournament | `tournamentEngine` | `TOURNAMENT` |
 | Judge the judges | `judgeEvalEngine` | `JUDGES` |
 | Compare with meta | `compareEngine` (`CompareEngine`) | `COMPARE` |
+| Rank the translators | `translatorRankEngine` (`TranslatorRankEngine`) | `TRANSRANK` |
+
+The three single-call methods on `SecondaryRunManager`
+(`runRerank` / `runMetaPrompt` / `runModeration`, plus
+`runFanInPrompt`) live in `viewmodel/SecondaryRunManager.kt`; the
+grid kinds each own a dedicated engine.
 
 `runRerank`, `runMetaPrompt`, and `runModeration` all funnel into the
 shared `executeSecondaryTask`. Moderation short-circuits to
 `com.ai.data.callModerationApi` before the chat path. Rerank only
 takes the dedicated rerank endpoint when
 `isRerankApiPath = kind == RERANK && getModelType(provider, model)
-== ModelType.RERANK` (`SecondaryRunManager.kt:1240`) — a *chat* model
+== ModelType.RERANK` (`SecondaryRunManager.kt:1524`) — a *chat* model
 picked for rerank goes through the normal analyse path and is
 expected to emit the rerank JSON itself. For provider `Local`,
 `runRerank` delegates to `runLocalRerank` (MediaPipe `TextEmbedder`,
@@ -101,22 +113,29 @@ under `assets/internal-prompts/<language>/<category>/` is:
   responses back into a single combined-report row. Bundled seeds:
   `test`, `factcheck`.
 - **Compare prompts** (`category = "meta_compare"`) — worker-judged
-  prompts used by Compare-with-meta. Bundled seed: `equivalent`
+  prompts used by Compare-with-meta. Bundled seed: `summarize`
   (asks for a 0..100 similarity percentage plus a reason).
 - **Worker prompts** (`category = "workers"`) — prompt +
-  fallback-worker chains for generated metadata and worker-judged
-  batches. Bundled seeds: `tournament`, `fan-meta`, `model-icons`,
-  `model-titles`, `report-icon`, `report-language-name`,
-  `report-language-icon`, `report-title-short`, `report-title-long`,
-  `second-meta`, `translation-icon`, `user-note`.
+  fallback-worker swarms for generated metadata, worker-judged
+  batches **and** the single-call secondaries (each holder carries a
+  chat template plus the swarm that runs it). Bundled seeds:
+  `second-rerank`, `second-moderation`, `meta`, `fan-in`,
+  `second-meta`, `tournament`, `translate-rank`, `fan-meta`,
+  `model-icons`, `model-titles`, `report-icon`,
+  `report-language-name`, `report-language-icon`,
+  `report-title-short`, `report-title-long`, `translate-text`,
+  `translate-title`, `translation-icon`, `find-translation`,
+  `user-note`.
 - **Alternative prompts** (`category = "alt"`) — prompts used by the
   Find-alternative icon / title / language flows. Bundled seeds:
   `main`, `report`, `fan_out`, `language`, `meta`, `translation`,
   `report_title`, `report_title_long`, `model_title`.
 - **Other internal** (`category = "internal"`) — a fixed list of
-  eight templates: `chat-title`, `model-info`, `model-intro`,
-  `translate-text`, `translate-title`, `second-rerank`,
-  `second-moderation`, `test-model`. No Add / Delete in this bucket.
+  four templates: `chat-title`, `model-info`, `model-intro`,
+  `test-model`. No Add / Delete in this bucket. (The `translate-text`
+  / `translate-title` / `second-rerank` / `second-moderation`
+  templates moved out to the `workers` category once the single-call
+  secondaries became worker swarms.)
 
 Each entry has:
 
@@ -200,8 +219,10 @@ For a chat-type Meta run the template is the `InternalPrompt.text`
 of whichever Meta button the user tapped. For RERANK runs that take
 the chat path, the template is the rerank-typed entry the user
 picked (defaults to the seeded `second-rerank` entry). For TRANSLATE
-runs the runtime looks up the `internal`-category `translate-text`
-(bodies) / `translate-title` (titles) prompts. MODERATION runs
+runs the runtime looks up the `workers`-category `translate-text`
+(bodies) / `translate-title` (titles) prompts (resolved by name via
+`getInternalPromptByName`, so the category is incidental).
+MODERATION runs
 through a provider's `/moderations` endpoint, which takes no chat
 prompt — there is nothing to substitute.
 
@@ -215,7 +236,7 @@ for Fan-in.
 | `@RESULTS@` | Pre-formatted block, see below | `resolveSecondaryPrompt` |
 | `@COUNT@` | Number of results being processed | both |
 | `@TITLE@` | Report title (or empty) | both |
-| `@DATE@` | Current date/time | `resolveSecondaryPrompt` |
+| `@DATE@` | Current date/time | both |
 | `@LANGUAGE@` / `@TEXT@` | TRANSLATE only — target language name / source text (`translate-text`) | translation flow |
 | `@RESPONSE@` | Fan-out / Compare cell — the source agent's response body | fan-out / `CompareEngine` |
 | `@META_RESPONSE@` | Compare cell — the Meta content (its `## References` legend stripped) | `CompareEngine` |
@@ -224,7 +245,7 @@ for Fan-in.
 
 ## The @RESULTS@ block
 
-`buildResultsBlock(report, includeIds?)` (`SecondaryResult.kt:1013`)
+`buildResultsBlock(report, includeIds?)` (`SecondaryResult.kt:1239`)
 emits one block per **success** agent, prefixed only with the
 bracketed `[N]` id — no provider / model identifiers inline (those
 reach the user via the appended Reference legend, not the prompt):
@@ -273,7 +294,7 @@ reference legend to the persisted content:
 ```
 
 The legend is built once per batch via `buildReferenceLegend(report,
-includeIds)` (`SecondaryResult.kt:1035`), so it honours the same
+includeIds)` (`SecondaryResult.kt:1261`), so it honours the same
 Manual / TopRanked filter as the results block and uses the same
 1-based ids. It is written before save, so subsequent renders /
 exports include it without further work.
@@ -319,7 +340,7 @@ placeholders, and L1/L2/L3 drill-in:
   consensus.
 - **Compare with meta** (`CompareEngine`) — the user picks **one**
   existing plain Meta row (single tap) plus a `meta_compare` prompt
-  (bundled `equivalent`). The grid is (successful answers × 1 chosen
+  (bundled `summarize`). The grid is (successful answers × 1 chosen
   Meta row); each cell is worker-judged, starting at
   `providerId = "*workers"` / `model = "*pending"` and overwritten
   with the winning worker. The cell prompt substitutes `@RESPONSE@`
@@ -330,6 +351,16 @@ placeholders, and L1/L2/L3 drill-in:
 See [tournament-judges-compare.md](tournament-judges-compare.md) for
 the full cell/aggregate model, resume orchestration, and ranking
 math.
+
+**Rank the translators** (`TranslatorRankEngine`, kind `TRANSRANK`)
+is the same grid shape but operates on a report's *translations*
+rather than its answers: for one target language it head-to-head
+ranks the translator models that produced that language's content,
+via the bundled `workers/translate-rank` swarm. Launched with the 🏅
+action on a Translations screen; cells use `tournamentRole = CELL`
+and the per-language ranking lands on a `tournamentRole = AGGREGATE`
+row. Its full cell/aggregate/resume model lives in its own doc
+[rank-translators.md](rank-translators.md).
 
 ## Storage
 
@@ -364,21 +395,25 @@ Useful methods beyond the basics:
   incoming row (additive accumulation, not overwrite).
 - `listForReport(reportId, kind?)`, `get`, `updateContent`, `delete`.
 - `countForReport` → `Counts(rerank, meta, moderation, translate,
-  tournament, judges, compare)`. TOURNAMENT and JUDGES count **only**
-  `tournamentRole == "AGGREGATE"` rows (the MATCH rows are inspection
-  detail); COMPARE counts cells flat. `countByMetaName` groups the
-  remaining chat-type Meta rows by `metaPromptName`.
+  tournament, judges, compare, transrank)`. TOURNAMENT, JUDGES and
+  TRANSRANK count **only** `tournamentRole == "AGGREGATE"` rows (the
+  per-match / per-cell rows are inspection detail); COMPARE counts
+  cells flat. `countByMetaName` groups the remaining chat-type Meta
+  rows by `metaPromptName`.
 - Tournament / Compare cell commits (`recordTournamentMatch`,
   `recordCompareCell`, and their `reset*` siblings) and the Fan-out
-  icon/title setters live here too.
+  icon/title setters live here too. `recordTournamentMatch` is shared
+  by Rank-the-translators cells (it accepts an optional full
+  `TokenUsage` so TransRank's cached / reasoning tokens survive).
 
-Tournament / Judges / Compare runs are stored in the same directory;
-their in-memory run maps are disposable and hydrate from rows grouped
-by run id on reopen (newest run group wins).
+Tournament / Judges / Compare / Rank-the-translators runs are stored
+in the same directory; their in-memory run maps are disposable and
+hydrate from rows grouped by run id on reopen (newest run group
+wins).
 
 ## Display labels
 
-`legacyKindDisplayName(kind)` (`SecondaryResult.kt:914`) is the
+`legacyKindDisplayName(kind)` (`SecondaryResult.kt:1139`) is the
 fallback label when a row has no `metaPromptName`:
 
 | Kind | Label |
@@ -390,6 +425,7 @@ fallback label when a row has no `metaPromptName`:
 | `TOURNAMENT` | Tournament |
 | `JUDGES` | Judge the judges |
 | `COMPARE` | Compare |
+| `TRANSRANK` | Rank the translators |
 
 `secondaryPromptDisplayName(name)` collapses the internal asset names
 back to friendly labels: `second-rerank → rerank`,
@@ -470,10 +506,12 @@ Fan-out is owned by **`FanOutEngine`**
   icons) is `FanMetaScreen` (`FanMeta.kt`) + `FanMetaL1/L2/L3` with its
   own `FanMetaNav` back-stack. Both share the one `FanOutEngine` /
   `FanOutRunState` / `PairState` (the title+icon live on the same
-  `SecondaryResult` row as the response). The mount point
-  (`view/Secondary.kt`) picks one of the two off the `isFanMetaDrillIn`
-  flag — set by the two distinct result-list rows (`onViewSecondaryName`
-  → Fan Out, `onViewFanMeta` → Fan Meta). Cross-link buttons hop between
+  `SecondaryResult` row as the response). `SecondaryResultsScreen`
+  (`ui/report/manage/view/Secondary.kt`, mounted by
+  `SecondaryResultsListMount` in `ui/report/manage/SecondaryMounts.kt`)
+  picks one of the two off the `isFanMetaDrillIn` flag — set by the
+  two distinct result-list rows in `ui/report/manage/SecondResults.kt`
+  (`onViewSecondaryName` → Fan Out, `onViewFanMeta` → Fan Meta). Cross-link buttons hop between
   them (Fan Out's "Fan Meta" button → `onShowFanMeta`; Fan Meta's
   "Fan-Out" button → `onShowResponses`, both flipping that flag); each
   screen's top-level back closes to the report's secondary list.
@@ -561,8 +599,8 @@ filesystem-safe regex (so `Pro/Con` becomes `Pro_Con`).
 
 Every secondary call is tagged in `usage-stats.json` with the `kind`
 it ran under: `"rerank"`, `"meta"`, `"moderation"`, `"translate"`,
-`"tournament"`, `"judges"`, or `"compare"`. The AI Usage screen shows
-the kind as a small pill on the per-model row.
+`"tournament"`, `"judges"`, `"compare"`, or `"transrank"`. The AI
+Usage screen shows the kind as a small pill on the per-model row.
 
 In the Report cost summary and HTML export the **Type** column is the
 hierarchical type assigned in `ReportStorage` (the cost ledger), not
@@ -578,12 +616,13 @@ a bare kind. For a META-family row it is built from `metaPromptName`:
 | Tournament | `after/tournament` |
 | Judge the judges | `after/judges` |
 | Compare cell | `meta/compare` |
+| Rank the translators | `transrank/rank` |
 | Translate | `translate/...` per source kind — see `translateTraceType` |
 
 The same string is used as the **trace category** the run writes
 (`runMetaPrompt` tags its calls `"<category>/<name>"`, e.g.
 `meta/Compare`), so each row's 🐞 link points at the right captured
-API trace. `SecondaryResult.fullCost()` (`SecondaryModels.kt:250`)
+API trace. `SecondaryResult.fullCost()` (`SecondaryModels.kt:253`)
 rolls the per-pair Fan-Meta icon + title spend into the
 delete / re-run cost accounting so it isn't silently dropped.
 
@@ -597,9 +636,10 @@ delete / re-run cost accounting so it isn't silently dropped.
   **60 calls/min, 5 concurrent** per provider host). Limits hold
   across every overlapping flow on the same provider host.
   See [throttle.md](throttle.md).
-- Tournament, Judges, Compare, Fan-out, Fan Meta, translation, and
-  primary report generation also pass through **`ApiCallCaps`**
-  per-flow coroutine sub-caps (defaults: global 100, report 50,
+- Tournament, Judges, Compare, Rank-the-translators (via the
+  `workers` sub-cap), Fan-out, Fan Meta, translation, and primary
+  report generation also pass through **`ApiCallCaps`** per-flow
+  coroutine sub-caps (defaults: global 100, report 50,
   translation 50, fanOut 50, fanMeta 50, workers 50). The canonical
   acquisition order is sub-cap → `ApiCallCaps.global` → per-host
   gate; permits parked on a busy host gate release the outer two

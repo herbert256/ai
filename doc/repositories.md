@@ -48,10 +48,12 @@ Two things are easy to get wrong here, so spell them out:
   fallback, Helicone). It used to sit *behind* LiteLLM, so an
   override added specifically to correct a stale catalog entry was
   silently ignored — the opposite of what the Cost Config UI
-  implies. The class-level KDoc still describes the old "five-tier
-  API > LITELLM > OVERRIDE > OPENROUTER > DEFAULT" model; that
-  comment is stale — the code at `PricingCache.kt:369-398` is
-  authoritative.
+  implies. The precedence is implemented top-to-bottom in
+  `PricingCache.findPricingMatch`, and the class-level KDoc now
+  matches it (override before the curated tiers). One stale
+  shorthand survives — `getPricing`'s own KDoc still calls it a
+  "five-tier lookup" — but the order it executes is
+  `findPricingMatch`'s.
 
 `DEFAULT_PRICING = ModelPricing("default", 25.00e-6, 75.00e-6,
 "DEFAULT")` — i.e. **$25 / M input, $75 / M output**, not zero. A
@@ -132,7 +134,9 @@ the next Refresh overwrites both file and timestamp. See
 
 In addition, the OpenRouter spec fetch writes two **top-level**
 filesDir files — `model_pricing.json` and
-`model_supported_parameters.json` (see
+`model_supported_parameters.json`. Only the latter is actually read
+back (by `getSupportedParameters`); `model_pricing.json` is written
+and cleaned up but no longer consulted by the lookup (see
 [Cross-provider fan-out](#cross-provider-fan-out)).
 
 ---
@@ -177,21 +181,38 @@ filesDir files — `model_pricing.json` and
 
 ### Cross-provider fan-out
 
-OpenRouter ids are `<vendor>/<model>`.
-`fetchAndSaveModelSpecifications` maps each id back to a *local*
-provider via `AppService.openRouterName` and writes two **top-level**
-filesDir files:
+OpenRouter ids are `<vendor>/<model>`. Two distinct mechanisms exploit
+that — keep them separate:
 
-- `model_pricing.json` — `ModelPricingEntry(provider, model, pricing)`
-  rows, giving every matched local provider a cross-provider price
-  (the step-7 fallback in the precedence list).
+**1. Cross-provider price fallback (step 7 of the precedence list).**
+`findOpenRouterPricing` resolves a *non-OpenRouter* `(provider, model)`
+lookup against the **`openrouter_pricing.json`** catalog by prefixing
+the model id with the caller's `AppService.openRouterName` (then a
+bucketed normalized scan). This is what gives every local provider a
+cross-provider price drawn from OpenRouter's aggregated catalog — and
+it reads the **same blob the OpenRouter tier loads**, not a separate
+file.
+
+**2. Per-model spec capture.** `fetchAndSaveModelSpecifications` walks
+the full detailed catalog, maps each `<vendor>/<model>` id back to a
+local provider via `AppService.openRouterName`, and writes two
+**top-level** filesDir files:
+
 - `model_supported_parameters.json` — `supported_parameters` per
   `(provider, model)`, read by `getSupportedParameters` so the
-  dispatch layer can filter out unsupported parameters.
+  dispatch layer can drop parameters a model can't accept.
+- `model_pricing.json` — `ModelPricingEntry(provider, model, pricing)`
+  rows. **Written (and cleaned up) but no longer read by the pricing
+  lookup** — the step-7 fallback above goes through
+  `openrouter_pricing.json`, so this file is dead weight for pricing
+  today.
 
-This is gated on `AppService.crossProviderModelList` (true only for
-the OpenRouter provider in `providers.json`) and is what makes
-OpenRouter's catalog "free type/price tags for every provider".
+The OpenRouter provider itself is distinguished by
+`AppService.crossProviderModelList` (true only for OpenRouter in
+`providers.json`): when *it* is the caller, OpenRouter pricing is its
+own step-1 self-report; for every other caller the same catalog is the
+step-7 fallback. Together this is what makes OpenRouter's catalog
+"free price tags for every provider".
 
 ## 3. models.dev
 
@@ -256,18 +277,26 @@ All, **not** bundled, and **not** a pricing source — it's a lazy,
 per-model card-metadata lookup.
 
 - **Endpoint:** `https://huggingface.co/api/models/{modelId}`
-- **Auth:** Bearer token (External Services → HuggingFace) —
-  raises the anonymous rate limit and unlocks gated-model metadata.
+  (via `ApiFactory.createHuggingFaceApi().getModelInfo`, traced under
+  the `info/huggingface` category — *not* a `pricing/` category).
+- **Auth:** Bearer token (External Services → HuggingFace), and it is
+  **required**: when the key is blank the lookup is skipped entirely
+  and a null (miss) is cached, so Model Info shows nothing for HF until
+  a token is set. With a token, gated-model metadata also unlocks.
 - **Provides:** model-card metadata — license, downloads, likes,
   `pipeline_tag`, `library_name`, tags, dataset references, base-model
   pointers. Surfaced on the Model Info screen → Sources card.
-- **Cache:** the `huggingface_cache` SharedPreferences (one JSON-blob
-  key) with a **7-day TTL**. Negative results are cached so a model
-  with no HF mirror doesn't re-hit the API on every screen open;
-  concurrent load-modify-save is serialised so two simultaneous
-  misses don't tear the blob.
+- **Cache:** the `huggingface_cache` SharedPreferences (single
+  `entries_json` JSON-blob key, keyed `${providerId}::${modelId}`)
+  with a **7-day TTL** (`HuggingFaceCache`). Negative results are
+  cached so a model with no HF mirror doesn't re-hit the API on every
+  screen open; concurrent load-modify-save is serialised so two
+  simultaneous misses don't tear the blob.
 - **Fetched:** lazily, the first time a Model Info screen opens for a
-  `(provider, model)` whose entry is stale or missing.
+  `(provider, model)` whose entry is stale or missing. The candidate
+  id is probed in three forms (the base `vendor/model`, then its
+  dash→dot and dot→dash variants); the first 2xx wins, otherwise the
+  miss is cached.
 
 ---
 

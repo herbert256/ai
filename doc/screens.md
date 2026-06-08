@@ -35,8 +35,10 @@ screens use the generic `TitleBar`.
 | Agent | This agent's model, prompt & settings |
 | Agent | \<agent name\> |
 | Agents | Saved model + prompt + params combos |
+| All reports | Browse every saved report, newest first |
 | Alternative icons | Live icon ideas from several models |
 | Alternative titles | Live title ideas from several models |
+| Alternative translations | Live translations from several models |
 | Answer matrix | \<report title\> |
 | API Test | Hand-craft a raw API call to a model |
 | API trace statistics | What hit the network |
@@ -46,10 +48,13 @@ screens use the generic `TitleBar`.
 | App settings | App-wide & report-model default prompt / parameters |
 | Application log | Daily app logs for diagnosing issues |
 | assets/*.json | Restore providers/prompts from defaults |
+| Audit | Per-report audit trail |
+| Audit | \<report title\> |
 | Backup & Restore | Back up or restore the whole app to a zip |
 | Blocked model | \<provider\> · \<model\> |
 | Blocked models | Models the app will never call |
-| Cached prompts | Cached internal-prompt responses (48 h) |
+| Broken work | Batch work that needs attention |
+| Caches | Browse and manage every on-disk cache |
 | Chat | Start or resume a chat with a model |
 | Chat | \<running cost\> |
 | Chat History | Resume any of your saved chat sessions |
@@ -60,17 +65,16 @@ screens use the generic `TitleBar`.
 | Configure API parameters | |
 | Configure API parameters | Current active: \<preset names\> |
 | Continue in chat | Send this answer into a new chat |
-| Compare | \<report title\> |
-| Compare - cell | \<report title\> |
-| Compare - meta | \<report title\> |
-| Compare - model | \<report title\> |
-| Compare with meta | Pick a comparison prompt |
-| Compare with meta | Pick meta results to score answers against |
+| Compare with meta | Pick a meta result to score answers against |
+| Compare with meta | \<report title\> |
+| Compare with meta - model | \<report title\> |
 | Cooldown | \<provider\> / \<model\> |
 | Costs | Correct model prices used in cost totals |
 | Costs | Where the money went, per call |
 | Costs | \<report title\> |
 | Costs tiers | Pricing tier per model + catalog freshness |
+| Crash report | \<crash file\> |
+| Crash reports | Captured errors — tap to view & share |
 | Default icons | Fallback + bottom-bar action emoji |
 | Default meta item | \<meta name\> |
 | Default meta items | Meta prompts auto-run when a report finishes |
@@ -81,6 +85,7 @@ screens use the generic `TitleBar`.
 | Edit Agent | \<agent name\> |
 | Edit blocked model | Block one model from being called |
 | Edit cooldown | Pause a model until a given time |
+| Edit dashboard | Pin, reorder and preview cards |
 | Edit default meta item | Auto-run a meta prompt on report completion |
 | Edit example prompt | \<prompt title\> |
 | Edit Flock | \<flock name\> |
@@ -102,6 +107,9 @@ screens use the generic `TitleBar`.
 | Edit title | Rename one fan-out response title |
 | Edit titles | Every dynamic title in this report |
 | Edit \<prompt type\> | \<name\> |
+| Embeddings | Cached RAG / semantic-search vectors |
+| Errored models | \<report title\> · \<batch name\> |
+| Errors | \<report title\> · \<batch name\> |
 | Example prompt | \<prompt title\> |
 | Example prompts | Starter prompts for new reports |
 | Examples | Open ready-made example reports |
@@ -110,6 +118,7 @@ screens use the generic `TitleBar`.
 | Extended local search | Tokenised search over saved reports |
 | External request | Another app wants to make a report |
 | External Services | Keys for search and other extras |
+| Fan In | \<report title\> |
 | Fan Meta | Loading the fan-out… |
 | Fan Meta | \<fan-out run\> |
 | Fan Meta - All | \<fan-out run\> |
@@ -117,13 +126,14 @@ screens use the generic `TitleBar`.
 | Fan Meta - model | \<provider\> / \<model\> |
 | Fan Meta - pair | This pair no longer exists |
 | Fan Meta - pair | \<answerer label\> |
+| Fan Meta workers | \<fan-out run\> |
 | Fan out | Loading the fan-out… |
 | Fan out | \<fan-out run\> |
 | Fan out - model | \<provider\> / \<model\> |
-| Fan out - model titles | \<provider\> / \<model\> |
-| Fan out - one page | \<model label\> |
+| Fan out - one page | \<provider\> / \<model\> (one page) |
 | Fan out - pair | This pair no longer exists |
 | Fan out - pair | \<answerer label\> |
+| Fan out statistics | \<fan-out run\> |
 | Fan Out - run | Confirm the calls before fanning out |
 | Fan Out - scope | \<secondary kind\> |
 | Fan out/in prompts | Prompts for multi-model fan out/in |
@@ -131,7 +141,9 @@ screens use the generic `TitleBar`.
 | Fan-out pair | \<report title\> |
 | Flock | \<flock name\> |
 | Flocks | Named groups of agents |
+| Find alternative translation | \<target language\> - \<type\> |
 | Find icon | \<icon target\> |
+| First launch | Start with setup essentials |
 | Help | \<per-topic subject\> |
 | Head-to-heads | \<model\> |
 | History | All your saved reports, newest first |
@@ -146,6 +158,8 @@ screens use the generic `TitleBar`.
 | Info provider | \<provider name\> |
 | Info Providers | Six pricing & capability catalogs |
 | Internal prompts | Prompts the app's own flows use |
+| Internal-prompt icons | Per-(name, title) emoji for internal-prompt rows |
+| Interrupted models | \<report title\> · \<batch name\> |
 | Judge | \<report title\> |
 | Judge the judges | \<report title\> |
 | Match | \<report title\> |
@@ -168,10 +182,13 @@ screens use the generic `TitleBar`.
 | Maximal API calls | How many calls run at once |
 | Meta | Run a meta prompt over the answers |
 | Meta | Run a prompt over the report's answers |
+| Meta (titles / lang-icon) | Cached report titles + language icons (7 d) |
+| Meta detail | \<secondary title\> |
 | Metadata & icons | Master switch and per-item options for optional report metadata |
 | Model cooldowns | Models paused after rate-limit errors |
 | Model Info | \<model name\> |
 | Model Info | \<report title\> |
+| Model lists | Cached /models response per provider |
 | Model reports | \<report title\> |
 | Model response | Conclusion, motivation and full reply |
 | Model response | Read each model's full answer |
@@ -205,18 +222,26 @@ screens use the generic `TitleBar`.
 | Pick provider / model | Add one model, with live pricing |
 | Pick rerank model | Add one model, with live pricing |
 | Pick target language | Choose a language to translate into |
+| Pricing tiers | Per-source model pricing catalogs |
 | Prompt | The prompt sent to the models |
 | Prompt | \<report title\> |
 | Prompt History | Reuse a prompt you sent before |
 | Prompt management | System, internal and example prompts |
+| Prompt translations | Generate and manage internal-prompt translations |
+| Prompts | Cached internal-prompt responses (48 h) |
 | Provider | \<provider id\> |
 | Providers | 42 built-in plus your own providers |
 | Providers / Models | The whole model fleet |
 | Quick local search | Fast substring match, no scoring |
+| Rank the translators | \<report title\> |
+| Rank workers | \<report title\> |
+| Ranking weights | Weight each ranking 0–10 |
+| Refine answer | \<answer label\> |
 | Refresh | Update model catalogs and workers |
 | Regenerate report | Re-run every model on this report |
 | Report - API | Raw API request and response |
 | Report - Get info | Status of icon, title & language jobs |
+| Report - second results | Status of every secondary result |
 | Report - select models | Add agents, flocks, swarms or models |
 | Report information | Everything we know about this report |
 | Report information | \<report title\> |
@@ -246,6 +271,7 @@ screens use the generic `TitleBar`.
 | Spend & usage | Calls, tokens and cost by provider, type, report and model |
 | Statistics | Lifetime aggregates across the app |
 | Stress test | Report every example prompt with swarm "Level 2" |
+| Supported params | OpenRouter per-model supported parameters |
 | Swarm | \<swarm name\> |
 | Swarms | Multi-step agent pipelines |
 | System prompt | \<prompt name\> |
@@ -264,10 +290,15 @@ screens use the generic `TitleBar`.
 | Trace models | Every model, by trace count |
 | Translate | \<report title\> |
 | Translation | Per-model progress of this translation |
+| Translation | \<target language\> |
 | Translation - model | \<model label\> |
+| Translation - type | \<type label\> |
 | Translation call | Source text and its translation |
 | Translation call | \<target language\> |
 | Translation compare | \<translation title\> |
+| Translation workers | \<target language\> |
+| Translations | \<report title\> |
+| Translator | \<report title\> |
 | Trim by age | Delete reports, chats & traces by age |
 | Tournament | Head-to-head tools |
 | Tournament | \<report title\> |
@@ -275,9 +306,13 @@ screens use the generic `TitleBar`.
 | Tournament - judge | \<report title\> |
 | Tournament - Match | \<report title\> |
 | Tournament - model | \<report title\> |
+| Tournament workers | \<report title\> |
 | UI tweaks | Visual and layout preferences |
 | UI Colors | App palette |
+| Unfinished | \<report title\> · \<batch name\> |
 | Update from cloud | Install the latest APK from a synced file |
+| User notes | Every note in this report |
+| Value view | \<report title\> |
 | View a report | \<report title\> |
 | View in one page | \<section title\> |
 | View Reports | Read each model's full answer |

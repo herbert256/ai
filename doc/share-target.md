@@ -98,11 +98,21 @@ data class SharedContent(
 ) {
     val isEmpty: Boolean get() = text.isNullOrBlank() && uris.isEmpty()
 
-    /** True when [text] is a single non-whitespace token starting with
-     *  http:// or https:// — drives the "Add to Knowledge as URL" card. */
+    /** First http(s) URL *embedded anywhere* in [text] (a regex match,
+     *  trailing punctuation trimmed). Accepts browser shares that wrap
+     *  the URL in a page title or markdown link, not just a bare URL. */
+    val firstUrl: String?
+
+    /** True when [text] contains an http(s) URL (`firstUrl != null`) —
+     *  drives the "Add to Knowledge as URL" card and queue entry. */
     val isUrl: Boolean
 }
 ```
+
+> `isUrl` is no longer a "the whole text *is* a URL" test — it now
+> fires whenever a URL appears anywhere in the text, and `firstUrl`
+> exposes just the matched URL so the Knowledge route can queue the
+> link rather than the surrounding prose.
 
 - `ACTION_SEND` reads a single `EXTRA_STREAM` Uri into a one-element
   `uris` list (`listOfNotNull(uri?.toString())`).
@@ -134,7 +144,7 @@ if (sharedContent != null && !sharedContent.isEmpty) {
         experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled,
         onCancel = onSharedContentHandled,
         onSendToReport   = { /* routeShareToReport(...) */ },
-        onSendToChat     = { /* stage chatStarterText, nav AI_CHAT_PROVIDER */ },
+        onSendToChat     = { /* routeShareToChat(...) — text + first image */ },
         onSendToKnowledge = { /* stage pendingKnowledgeUris, nav AI_KNOWLEDGE */ }
     )
     return
@@ -148,18 +158,25 @@ state survives. A `BackHandler` inside `ShareChooserScreen` routes the
 hardware back button to `onCancel`, which clears the share state
 (`onSharedContentHandled`) and reveals the screen underneath.
 
-`TitleBar` on the chooser uses `title = "Share"` with the dedicated
-help topic `share_target` (defined in `DeveloperHelp.kt`).
+`TitleBar` on the chooser uses `title = "Share"` (subtitle "Turn shared
+content into a report/chat") with the dedicated help topic
+`share_target` (defined in `DeveloperHelp.kt`).
 
 The chooser shows a preview card — subject (bold), up to 300 chars of
-text, an attachment count ("N attachments"), and the mime type — then
-up to three destination cards:
+text (truncated with an ellipsis), an attachment count ("1 attachment" /
+"N attachments"), and the mime type — then up to three destination
+cards:
 
 | Card | Icon | Enabled when | Notes |
 |------|------|--------------|-------|
-| **New Report** | report glyph | `hasText \|\| hasUris` | Multi-model analysis. |
-| **New Chat** | chat glyph | `hasText` | Single-model conversation. |
+| **New Report** | report glyph | `hasText \|\| hasUris` | Multi-model analysis; text → prompt, first image → vision, other files → KB. |
+| **New Chat** | chat glyph | `hasText \|\| hasImageUris` | Single-model conversation; text + first image staged as the first turn. |
 | **Add to Knowledge** | library glyph | `hasUris \|\| isUrl` | Only rendered when `experimentalFeatures` is on. |
+
+`hasImageUris` is true when any shared Uri resolves to an `image/*` type
+(`contentResolver.getType`, falling back to `shared.mime`) — so a pure
+image share with no text can still go to Chat (the image becomes the
+first turn's attachment).
 
 The "Add to Knowledge" card is shown only when Experimental features is
 enabled — Knowledge / RAG is an experimental surface. With it off, only
@@ -193,34 +210,46 @@ suspend helper:
    `popUpTo(AI)`. The user still picks models and taps Generate — no
    API credits move automatically.
 
-### Chat
+### Chat — `routeShareToChat`
 
-Handled inline in `AppNavHost.onSendToChat`:
+`routeShareToChat(context, appViewModel, navController, shared)` is a
+suspend helper:
 
-1. Stage `chatStarterText = shared.text` in `UiState`. **Only the text
-   is staged** — the share-to-chat path does not attach a shared image
-   (the `chatStarterImageBase64/Mime` UiState fields exist but are
-   written by the AI Chat hub's "📸 Start with photo" entry, not by the
-   share chooser).
-2. Navigate to `AI_CHAT_PROVIDER` — the configure-on-the-fly provider
+1. Stage `chatStarterText = shared.text` in `UiState`.
+2. The **first image-typed** Uri (`contentResolver.getType`, falling
+   back to `shared.mime`) is decoded off the main thread via
+   `loadImageAsBase64` and staged into `chatStarterImageBase64` /
+   `chatStarterImageMime` (same 1568 px / JPEG-85 downscale as the
+   Report path; mime always `image/jpeg`). So a share to Chat carries
+   the text **and** the first image as the first turn's vision
+   attachment. These are the same two UiState fields the AI Chat hub's
+   "📸 Start with photo" entry writes — the share chooser is no longer
+   text-only. Non-image attachments are ignored on the chat route.
+3. Navigate to `AI_CHAT_PROVIDER` — the configure-on-the-fly provider
    picker — so the user chooses model / parameters before chatting,
    `popUpTo(AI)`.
 
-`ChatSessionScreen` receives the staged text as `initialUserInput`,
-seeds the input box on first composition, and fires `onConsumeStarter()`
-(clearing the UiState field) so navigating away and back doesn't
-re-stuff the box. A `rememberSaveable` consumed-flag and
-`rememberSaveable` input state mean a rotation or process recreation
-between staging the starter and tapping Send keeps the user's text.
+`ChatSessionScreen` (wired from `ChatRoutes.kt`) receives the staged
+text as `initialUserInput` and the staged image as
+`initialUserImageBase64` / `initialUserImageMime`, seeds the input box
+and the attached-image slot on first composition, and fires
+`onConsumeStarter()` (clearing all three UiState fields) so navigating
+away and back doesn't re-stuff them. A `rememberSaveable` consumed-flag
+plus `rememberSaveable` input state mean a rotation or process
+recreation between staging the starter and tapping Send keeps the
+user's text and image.
 
 ### Knowledge
 
 Handled inline in `AppNavHost.onSendToKnowledge` (only reachable when
 the Knowledge card was shown, i.e. Experimental features on):
 
-1. Build **one** queue from the attachment URIs plus the URL text (when
-   `shared.isUrl`):
-   `shared.uris + listOfNotNull(urlText.takeIf { it.isNotBlank() })`.
+1. Build **one** queue from the attachment URIs plus the extracted URL
+   (`shared.firstUrl`, when one matched):
+   `shared.uris + listOfNotNull(shared.firstUrl.orEmpty().takeIf { it.isNotBlank() })`.
+   Only the matched URL is queued, not the surrounding prose — a
+   browser share like "Some page title https://example.com" hands
+   Knowledge just the URL.
 2. Stage it into `pendingKnowledgeUris` and navigate to `AI_KNOWLEDGE`,
    `popUpTo(AI)`.
 
@@ -285,9 +314,14 @@ re-stage the confirmation after the user has cancelled or confirmed.
 - `ai/src/main/java/com/ai/ui/share/ExternalIntentConfirmScreen.kt` —
   `PendingExternalReport` + the custom-intent confirmation overlay.
 - `ai/src/main/java/com/ai/ui/navigation/AppNavHost.kt` — the chooser
-  overlay, `routeShareToReport`, and the inline chat / knowledge
-  routing.
+  overlay, `routeShareToReport`, `routeShareToChat`, and the inline
+  knowledge routing.
 - `ai/src/main/java/com/ai/data/ImageAttach.kt` — `loadImageAsBase64`
-  (downscale + JPEG re-encode for the vision attachment).
+  (downscale + JPEG re-encode for the vision attachment; shared by the
+  Report and Chat routes).
+- `ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt` — wires the
+  staged `chatStarterText` / `chatStarterImageBase64` /
+  `chatStarterImageMime` UiState fields into `ChatSessionScreen`.
 - `ai/src/main/java/com/ai/ui/chat/ChatScreens.kt` —
-  `initialUserInput` / `onConsumeStarter` consumption.
+  `initialUserInput` / `initialUserImageBase64` / `initialUserImageMime`
+  / `onConsumeStarter` consumption.

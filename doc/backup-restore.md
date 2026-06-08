@@ -110,25 +110,38 @@ Exceeding either throws `IllegalStateException` and leaves
 
 ### Prefs (`PREFS_TO_BACKUP`)
 
-Only **7 of the app's 11 SharedPreferences files** are backed up:
+Only **7 of the app's 10 SharedPreferences files** are backed up:
 
 | Pref file | What it carries |
 |---|---|
 | `eval_prefs` | The main store. All user-curated settings: API keys, per-provider model + endpoint config, agents / flocks / swarms / parameters / system prompts / internal prompts (stored under the legacy `ai_meta_prompts` key) / example prompts, blocked / test-excluded / inaccessible model lists, throttle limits, and per-screen recents (last report title/prompt, last selections, secondary-picker state). |
-| `provider_registry` | Custom provider definitions added or imported by the user, keyed by provider id. The 42 bundled providers come from `assets/providers.json` at runtime, not from this file. |
+| `provider_registry` | Custom provider definitions added or imported by the user, keyed by provider id. The 42 bundled providers come from `assets/providers/` (one JSON file per provider) at runtime, not from this file. |
 | `pricing_cache` | Per-tier timestamps + the user's **manual** price overrides. The bulk pricing JSON itself lives in `files/pricing/` (below). |
 | `dual_chat_prefs` | Last-used Dual Chat configuration plus the recent-subjects / recent-prompts ring buffers. |
 | `huggingface_cache` | 7-day-TTL HuggingFace model-info lookups (positive **and** negative — a cached miss avoids a re-fetch storm on a model HF doesn't have). |
 | `model_cooldowns` | Models auto-benched after a 429 with a long retry-after, plus the per-model trace filename of the benching 429 (see [model-states.md](model-states.md)). |
 | `view_screen_prefs` | The reorderable View-grid tile order — single string key `tile_order` holding a comma-separated list of tile ids. The user explicitly arranged the grid (e.g. "Costs first"), so the order survives a round-trip. |
 
-The **4 prefs files NOT backed up** are all recomputable or
+The **3 prefs files NOT backed up** are all recomputable or
 device-local: `provider_field_timestamps` (a null lookup just
 means "refresh this field from the asset on next boot"),
-`last_report_tracker`, `translation_modes`, and `update_from_cloud`.
+`last_report_tracker`, and `update_from_cloud`.
 `WebViewChromiumPrefs` (Chromium cookies / web-process state) is
-also intentionally excluded. New prefs files added to the app
-must be added to `PREFS_TO_BACKUP` explicitly to be archived.
+also intentionally excluded, but it's created by the WebView
+system rather than app code, so it isn't counted among the 10.
+New prefs files added to the app must be added to
+`PREFS_TO_BACKUP` explicitly to be archived.
+
+> **Caveat — `rankingWeights` is never persisted.** The
+> "Ranking weights" map (`GeneralSettings.rankingWeights`,
+> edited under Settings) is held only in the in-memory
+> `GeneralSettings` and is **not** written by
+> `SettingsPreferences.saveGeneralSettings` / read by
+> `loadGeneralSettings` — there's no `eval_prefs` key for it.
+> Because backup serialises `eval_prefs` verbatim and the map
+> was never stored there, ranking weights are not captured by a
+> backup (and don't survive an app restart at all). This looks
+> like a persistence bug rather than an intentional exclusion.
 
 ### Files (under `<filesDir>`)
 
@@ -204,7 +217,7 @@ never destroys them.
 
 - `WebViewChromiumPrefs` — Chromium cookies / web-process state;
   doesn't make sense across devices.
-- The 4 non-backed-up SharedPreferences files listed above.
+- The 3 non-backed-up SharedPreferences files listed above.
 
 ## Restore: validate-then-write
 
@@ -231,20 +244,29 @@ memory first, destroy second**:
    total caps and the path-traversal check), and stages it in a
    `LinkedHashMap<String, ByteArray>`. Any IOException or
    truncation throws **here**, before the destructive wipe.
-4. **Apply prefs** — `applyPrefsOnly` commits every
+4. **Sanity floor** — if the staged map contains **no `files/`
+   entry at all**, restore throws `IllegalStateException`
+   ("Backup contains no data files — refusing to restore; your
+   current data is untouched.") *before* any prefs apply or wipe.
+   This is the runtime guard against the historical "0 files" /
+   symlink-skip regression (see [above](#symlink--traversal-safety)):
+   a structurally-valid backup that happens to carry zero data
+   files would otherwise wipe the device's reports / chats / KBs
+   and write nothing back.
+5. **Apply prefs** — `applyPrefsOnly` commits every
    `prefs/<name>.json` entry into its SharedPreferences file via
    `edit().clear()...commit()` (synchronous, atomic per file).
    Prefs go first so a process death between this step and the
    file pass leaves prefs valid + `filesDir` empty (re-restorable),
    rather than the inverse where `filesDir` is partly written but
    prefs still point at the pre-restore state.
-5. **Wipe `filesDir`** — `clearFilesDirForRestore` deletes every
+6. **Wipe `filesDir`** — `clearFilesDirForRestore` deletes every
    top-level child except the `FILES_DIR_BACKUP_EXCLUDES` preserve
    set.
-6. **Wipe `cacheDir`** — `clearCacheDirForRestore(preserve =
+7. **Wipe `cacheDir`** — `clearCacheDirForRestore(preserve =
    {tempZip.name})` deletes everything except the in-flight
    restore zip.
-7. **Apply files** — `applyFilesOnly` writes every staged
+8. **Apply files** — `applyFilesOnly` writes every staged
    `files/` and `cache/` entry to disk. Each file is
    **fsync'd** (`FileDescriptor.sync()`) before returning, because
    `HousekeepingScreen` kills the process immediately afterward
@@ -261,8 +283,16 @@ registry rides along in the `provider_registry` prefs file, so the
 registry rebuilds straight from disk on next launch.
 `ProviderRegistry.importFromAsset` is the only path that grafts
 newly-bundled providers in, and it runs on demand from the
-Providers screen, not from restore. (Earlier drafts of this doc
-described a `mergeMissingProvidersFromSetup` step and a
+Providers screen, not from restore. It reads every JSON file under
+`assets/providers/` (one bare `ProviderDefinition` per file, sorted
+by filename for a deterministic merge) and **appends only the ids
+not already present** — existing rows are left strictly alone, no
+field overwrites — returning the count added (or `-1` on a broken
+bundle). The sibling `upsertFromJson` (user-picked
+`{ "providers": [...] }` blob from the Providers screen's import
+button) instead **replaces by id or appends**; neither is invoked
+by restore. (Earlier drafts of this doc described a
+`mergeMissingProvidersFromSetup` step and a
 `RestoreSummary.newProviders` field — neither exists in the code.)
 
 Memory cost: the full uncompressed payload is held during the

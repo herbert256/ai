@@ -6,7 +6,7 @@ test sweep, marked unreachable, or has its API type forced by hand.
 Four are advisory/exclusion lists; the fifth (manual overrides) is a
 classification list. Each has a CRUD screen under **AI Setup → AI
 Models** (the `ModelsSetupScreen` cards,
-[ui/settings/SetupScreens.kt:137](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt)).
+[ui/settings/SetupScreens.kt:139](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt)).
 The four `Settings.*`-backed lists are stored on the settings object;
 cooldowns are a separate runtime store (`ModelCooldownStore`) with its
 own SharedPreferences.
@@ -16,7 +16,7 @@ All keys share the shape `"${providerId}:${model}"` — the same form as
 
 | List | Field / store | Auto-populated by | Picker effect | CRUD |
 |---|---|---|---|---|
-| Cooldowns | `ModelCooldownStore` (own prefs) | 429 with retry-after > 1h | dim + ⏳ caption | `cruds/models/cooldowns/` |
+| Cooldowns | `ModelCooldownStore` (own prefs) | long-bench 429 (>1h hint / quota / billing) | dim + ⏳ caption | `cruds/models/cooldowns/` |
 | Blocked | `Settings.blockedModels` | sweep FAIL → block, PASS → un-block | dim + 🚫 caption | `cruds/models/blocked/` |
 | Test-excluded | `Settings.testExcludedModels` | probe cost > 5¢; `excluded.json` seed | none (sweep-only) | `cruds/models/testexcluded/` |
 | Inaccessible | `Settings.inaccessibleModels` | tier-gate probe error; `inaccessible.json` seed | dim + 🔒 caption | `cruds/models/inaccessible/` |
@@ -25,8 +25,8 @@ All keys share the shape `"${providerId}:${model}"` — the same form as
 The CRUD screens are reached through the two-tier `SettingsSubScreen`
 router: **AI Setup → AI Models** lands on `AI_MODELS_SETUP`, whose cards
 push `AI_BLOCKED_MODELS` / `AI_TEST_EXCLUDED_MODELS` /
-`AI_INACCESSIBLE_MODELS` / `AI_MANUAL_MODEL_TYPES` and the cooldowns
-list ([ui/settings/SettingsScreen.kt:436](../ai/src/main/java/com/ai/ui/settings/SettingsScreen.kt)).
+`AI_INACCESSIBLE_MODELS` / `AI_MANUAL_MODEL_TYPES` / `AI_MODEL_COOLDOWNS`
+([ui/settings/SettingsScreen.kt:445](../ai/src/main/java/com/ai/ui/settings/SettingsScreen.kt)).
 Each sub-screen is a four-file CRUD (`add` / `edit` / `list` / `view`)
 under `ui/cruds/models/<name>/`.
 
@@ -50,23 +50,27 @@ store prunes it.
 
 ## Cooldowns
 
-Transient, time-based benches. A provider that answers a 429 with a
-`retry-after` hint longer than `LONG_RETRY_THRESHOLD_MS` (1 hour —
-Google's exhausted-quota case) gets the pair benched until the hint
-expires. See [throttle.md](throttle.md) for the 429 retry path that
-fires this.
+Transient, time-based benches. A 429 gets the pair benched (until a
+computed `benchUntil`) in any of four cases the retry interceptor
+recognises ([data/RateLimitRetry.kt:86](../ai/src/main/java/com/ai/data/RateLimitRetry.kt)):
+Gemini daily-quota exhausted (retry-after hint, else next Pacific
+midnight), Cohere Trial-key monthly cap (next month start), any
+provider out of credits / over its spending limit (a billing 429 —
+benched 6h), and any provider whose `retry-after` hint exceeds
+`LONG_RETRY_THRESHOLD_MS` (1 hour). See [throttle.md](throttle.md) for
+the 429 retry path that fires these.
 
 - **Stored** in `ModelCooldownStore`
-  ([data/ModelCooldownStore.kt:27](../ai/src/main/java/com/ai/data/ModelCooldownStore.kt))
+  ([data/ModelCooldownStore.kt:28](../ai/src/main/java/com/ai/data/ModelCooldownStore.kt))
   — a plain `object` singleton (both the OkHttp 429 interceptor, which
   has no `Context`, and the Compose pickers read it) with its **own**
   SharedPreferences (`model_cooldowns`, key `map`). A sibling `traces`
   map (key `traces`) records the API-trace filename whose 429 caused each
   bench; it's device-local and **not** carried in Import/Export.
 - **Populated** by `markUnavailable(providerId, model, availableAtMs,
-  traceFile)`, called from `RateLimitRetryInterceptor` when a 429's
-  retry-after exceeds `LONG_RETRY_THRESHOLD_MS`
-  ([data/RateLimitRetry.kt:94](../ai/src/main/java/com/ai/data/RateLimitRetry.kt)).
+  traceFile)`, called from `RateLimitRetryInterceptor` once a 429's
+  `benchUntil` resolves (any of the four cases above)
+  ([data/RateLimitRetry.kt:104](../ai/src/main/java/com/ai/data/RateLimitRetry.kt)).
   Reads are side-effect-free (Bug 48): `isUnavailable` and `availableAt`
   are pure timestamp compares (`until > now`) that **don't** drop the
   expired entry — model pickers call them per row, so they must not write
@@ -88,12 +92,17 @@ Manually flagged pairs the app treats as failing. Identity is the
 `(providerId, model)` pair — no UUID, optional `reason` (default `""`)
 ([model/SettingsModels.kt:158](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 
-- **Populated** mostly by the "Test all models" sweep:
-  `syncBlockedModelsFromTestRun(failures, testedKeys)`
-  ([model/SettingsModels.kt:791](../ai/src/main/java/com/ai/model/SettingsModels.kt))
-  drops every key the run tested (so a PASS un-blocks) then appends the
-  run's failures (so a FAIL blocks / refreshes its reason). Untested
-  entries are left alone. Hand-curable via the `blocked/` CRUD
+- **Populated** by the "Test all models" sweep, **per item, live** as
+  the run progresses — `AppViewModel.applyTestItemIncrement(item)`
+  ([viewmodel/AppViewModel.kt:1251](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
+  fires on each PASS/FAIL transition: PASS drops the key from Blocked;
+  FAIL **not** on cooldown upserts it with the error (`take(300)`,
+  default `"Test failed"`); FAIL **on** cooldown drops it (the cooldown
+  list owns that pair). Writes are in-memory only; the engine flushes
+  once at end-of-run / cancel via `flushAiSettingsToDisk`. Untested
+  entries are never touched. (The older batched
+  `syncBlockedModelsFromTestRun` still exists on `Settings` but is no
+  longer called.) Hand-curable via the `blocked/` CRUD
   (`upsertBlockedModel` / `removeBlockedModel`).
 - **Picker effect**: dimmed in every picker with a red `🚫 Blocked: …`
   caption (`blockedReasonByKey` feeds the advisory lookup).
@@ -107,12 +116,14 @@ UUID ([model/SettingsModels.kt:170](../ai/src/main/java/com/ai/model/SettingsMod
 practice `ModelTestEngine.startRun` consults it per-model via
 `isTestExcluded` ([viewmodel/ModelTestEngine.kt:192](../ai/src/main/java/com/ai/viewmodel/ModelTestEngine.kt)).
 
-- **Populated** automatically when a probe's computed cost exceeds the
-  5¢ ceiling (`COSTLY_PROBE_USD_THRESHOLD = 0.05` in
-  [viewmodel/AppViewModel.kt:1948](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
-  — the model is appended on run completion via
-  `addTestExclusionsFromTestRun` (no-clobber, no-duplicate) so the next
-  sweep won't pay for it again. Also **seeded** from
+- **Populated** automatically when a probe's cost exceeds the 5¢
+  ceiling (`COSTLY_PROBE_USD_THRESHOLD = 0.05` in
+  [viewmodel/AppViewModel.kt:2036](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
+  — the same per-item `applyTestItemIncrement` hook appends the model
+  (no-clobber) when `item.totalCost > COSTLY_PROBE_USD_THRESHOLD`, in
+  memory, flushed at end-of-run, so the next sweep won't pay for it
+  again. (The batched `addTestExclusionsFromTestRun` still exists on
+  `Settings` but is no longer called.) Also **seeded** from
   `assets/excluded.json` on app start (`TestExcludedSeed.ensureAllPresent`,
   [data/TestExcludedSeed.kt:43](../ai/src/main/java/com/ai/data/TestExcludedSeed.kt)),
   a delta-merge that never touches existing keys. Hand-curable via the
@@ -128,10 +139,14 @@ Pairs genuinely unreachable on the user's account/tier (e.g. Together
 or OpenRouter non-serverless catalog entries). Carries a **required**
 `reason` ([model/SettingsModels.kt:184](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 
-- **Populated** by the test engine when a probe returns a tier-gating
-  error ("Unable to access non-serverless" or similar) — `upsertInaccessibleModel`
-  records it ([viewmodel/ModelTestEngine.kt:547](../ai/src/main/java/com/ai/viewmodel/ModelTestEngine.kt))
-  and the row is dropped from sweep results rather than counted as FAIL.
+- **Populated** by the test engine when a probe's error matches a
+  tier-gating signal — `non-serverless` (Together dedicated-only
+  entries), `is not available on` (SambaNova's HTTP 410 wording), or a
+  bare HTTP 404 (model id not found anywhere reachable on this account)
+  — `upsertInaccessibleModel` records it (reason `take(200)`,
+  [viewmodel/ModelTestEngine.kt:551](../ai/src/main/java/com/ai/viewmodel/ModelTestEngine.kt))
+  and the item is marked PASS (kept in the run so Total stays stable)
+  rather than counted as FAIL.
   Also **seeded** from `assets/inaccessible.json` on start
   (`InaccessibleSeed.ensureAllPresent`,
   [data/InaccessibleSeed.kt:49](../ai/src/main/java/com/ai/data/InaccessibleSeed.kt));
@@ -150,7 +165,7 @@ or OpenRouter non-serverless catalog entries). Carries a **required**
 Per-model API-type assignments that win over autodetection — a flat,
 cross-provider CRUD list living at the `Settings` root (one entry per
 override, identified by UUID `id`), rather than one map per provider
-([model/SettingsModels.kt:297](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
+([model/SettingsModels.kt:310](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 Each entry sets a `type` — one of the ten type tokens in `ModelType.ALL`
 (`chat`, `responses`, `embedding`, `rerank`, `image`, `tts`, `stt`,
 `moderation`, `classify`, `ocr`;
@@ -160,14 +175,14 @@ optional capability flags: `supportsVision` 👁, `supportsWebSearch` 🌐,
 `supportsReasoning` 🧠.
 
 - **Type precedence** (`getModelType`,
-  [model/SettingsModels.kt:441](../ai/src/main/java/com/ai/model/SettingsModels.kt)):
+  [model/SettingsModels.kt:454](../ai/src/main/java/com/ai/model/SettingsModels.kt)):
   a matching override returns first and short-circuits everything —
   ahead of the LiteLLM type (`PricingCache.liteLLMModelType`, used only
   when it's not plain `CHAT`), the per-provider `modelTypes` map (native
   list-API metadata), and the `ModelType.infer` naming heuristic.
 - **Capability precedence**: each of `isVisionCapable` /
   `isWebSearchCapable` / `isReasoningCapable`
-  ([model/SettingsModels.kt:466/503/560](../ai/src/main/java/com/ai/model/SettingsModels.kt))
+  ([model/SettingsModels.kt:479/516/573](../ai/src/main/java/com/ai/model/SettingsModels.kt))
   checks, in order: the per-provider set (e.g. `ProviderConfig.visionModels`,
   populated by Model Info edits and fetch unions) → the matching override
   flag → the per-provider *precomputed* cache (`visionCapableComputed`
@@ -182,7 +197,7 @@ optional capability flags: `supportsVision` 👁, `supportsWebSearch` 🌐,
 - The edit form pulls the provider's known models from
   `aiSettings.getProvider(...).models`; if the provider hasn't been
   fetched the model dropdown is empty and prompts a fetch first
-  ([cruds/models/manualoverrides/edit.kt:68](../ai/src/main/java/com/ai/ui/cruds/models/manualoverrides/edit.kt)).
+  ([cruds/models/manualoverrides/edit.kt:67](../ai/src/main/java/com/ai/ui/cruds/models/manualoverrides/edit.kt)).
 - **Stored** in `Settings.modelTypeOverrides`, prefs key
   `ai_model_type_overrides`.
 
@@ -202,8 +217,8 @@ For [persistent.md](persistent.md) cross-reference:
 
 The four `ai_*` keys live in the main `eval_prefs` settings store
 (constants at
-[ui/settings/SettingsPreferences.kt:1045](../ai/src/main/java/com/ai/ui/settings/SettingsPreferences.kt),
-written at :375–378). The three exclusion lists
+[ui/settings/SettingsPreferences.kt:1134](../ai/src/main/java/com/ai/ui/settings/SettingsPreferences.kt),
+loaded at :296–299, written at :411–414). The three exclusion lists
 (`ai_blocked_models` / `ai_test_excluded_models` /
 `ai_inaccessible_models`) are each written `null` when empty (so the key
 disappears); `ai_model_type_overrides` is written unconditionally as a

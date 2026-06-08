@@ -96,7 +96,7 @@ then clamp, then (only if an override existed) drop-unsupported.**
 | **Provider** preset | AI Setup → Providers → a provider → edit (🌡️) |
 | **App-wide** & **Report-model** defaults | AI Setup → App settings (`appWideParametersIds`, `reportModelParametersIds`) |
 | The presets themselves | AI Setup → Parameters (CRUD) |
-| Per **internal prompt** | AI Setup → Prompt management → a prompt → 🌡️ (stored by preset *name*) |
+| Per **internal prompt** | AI Setup → Prompt management → a prompt → 🌡️ (stored as `prompt.parameters` — a stable preset id; legacy rows may still hold the preset *name*) |
 
 ---
 
@@ -166,11 +166,16 @@ wins per field over the task's `resolvedParams`).
 
 ## Secondary operations & metadata generation
 
-Rerank, Meta, Fan-out, Fan-in, Translate, Compare-with-meta, and the automatic
-metadata-gen calls (report icon / title / language, per-model icon / title,
-alternative icons / titles via the Find-alternative pickers) resolve through one
-helper: `viewmodel/ReportViewModelHelpers.kt` →
+Rerank, Meta, Fan-out, Fan-in, Translate, and the **Find-alternative** metadata
+calls (alternative icons / titles, model titles) resolve through one helper:
+`viewmodel/ReportViewModelHelpers.kt` →
 `resolveSecondaryParams(general, aiSettings, paramsIds, systemPromptId, prompt?, agent?)`.
+
+> The **automatic** metadata-gen calls (report icon / title / language, per-model
+> icon / title) and the **worker-grid** flows do **not** use this helper — they
+> run through the `WorkerRunner` chain (or a fixed-host judge call) and send empty
+> parameters. See "Worker-grid flows send no parameters" below. Only the
+> single-result, picker-driven secondaries listed above resolve params here.
 
 Unlike the report chains, the parameter-id source here is picked by
 **first-non-empty** (`ifEmpty`), *not* a cross-level merge — once a level
@@ -180,29 +185,81 @@ folded with `Settings.mergeParameters`:
 | # (first non-empty wins) | Source |
 |---|---|
 | 1 | **Runtime 🌡️ pick** on the op's model selector (`paramsIds`) |
-| 2 | The **internal prompt's own** parameters preset (matched by *name*; blank / `*NONE` ignored) |
+| 2 | The **internal prompt's own** parameters preset (`prompt.parameters`, resolved by stable id or — legacy — by name; blank / `*NONE` ignored) |
 | 3 | The **bound agent's** preset (`agent.paramsIds`) — when the prompt is pinned to an agent |
 | 4 | **App-wide** default (`appWideParametersIds`) |
 | 5 | empty `AgentParameters()` |
 
+> Level 3 is **currently inert**: `resolveSecondaryParams` accepts an `agent`
+> argument and would slot it between the prompt's own and the app-wide level, but
+> **no call site passes one** — every secondary op is driven by a provider+model
+> worker or a runtime-picked model, so the `agent` parameter always defaults to
+> `null`. It is kept in the signature for the (not-yet-wired) agent-pinned case.
+
 The system prompt resolves independently (also first-non-empty):
-`systemPromptId` → the prompt's own `systemPrompt` (by name) → `agent.systemPromptId`
-→ `appWideSystemPromptId`; if found it is copied onto the resolved bundle's
-`systemPrompt`. Callers include `SecondaryRunManager` (rerank / meta / fan-in),
+`systemPromptId` → the prompt's own `systemPrompt` (by stable id or legacy name) →
+`agent.systemPromptId` → `appWideSystemPromptId`; if found it is copied onto the
+resolved bundle's `systemPrompt`. Callers include `SecondaryRunManager` (rerank /
+meta / fan-in, via `runSecondaryViaSwarm` → `executeSecondaryTask`),
 `FanOutEngine`, `MetaEditManager`, `TranslationRunManager`, and
-`IconGenerationManager` (alt icons, model titles).
+`IconGenerationManager` (alt icons, model titles). For the swarm-driven kinds
+(rerank / meta / fan-in) the **worker chain only picks the provider/model** (random
+pick + fallback); fan-out / translate / alt-metadata run against a fixed model.
+Either way the *parameters* come from `resolveSecondaryParams` above.
 
 (Moderation: no parameters.)
 
-Tournament and Judge-the-judges are worker-grid flows rather than single
-selected-model secondary calls. They use the bundled `workers/tournament` prompt
-and the `tournament` swarm: each expanded worker keeps its own agent / provider
-parameters, and the prompt's own presets still apply when the worker call is
-resolved. The runtime shape is documented in
-[tournament-judges-compare.md](tournament-judges-compare.md). Compare-with-meta is
-also a worker-grid flow but its per-cell prompt resolves through
-`resolveSecondaryParams` like the other secondaries — see
+### Worker-grid flows send **no parameters** at all
+
+Tournament, Judge-the-judges, Compare-with-meta, and Rank-the-translators
+(`SecondaryKind` = `TOURNAMENT` / `JUDGES` / `COMPARE` / `TRANSRANK` — the latter
+four of the **eight** kinds) are worker-grid flows rather than single
+selected-model secondary calls, and they bypass `resolveSecondaryParams`
+entirely:
+
+- **Tournament** and **Compare-with-meta** run each cell through
+  `WorkerRunner.run` (the random-pick + fallback worker chain over the prompt's
+  swarm).
+- **Judge-the-judges** (`JudgeEvalEngine`) and **Rank-the-translators**
+  (`TranslatorRankEngine`) fix one named judge per cell and call
+  `analyzeWithAgent` directly.
+
+In **all four** the call is `analyzeWithAgent(agent, "", resolved, …)` with
+**neither `agentResolvedParams` nor `overrideParams` supplied** — so
+`agentResolvedParams` defaults to an empty `AgentParameters()` and nothing is
+overridden. The resolved worker contributes **only** provider / model / API key /
+base URL; its agent or provider parameter presets, and the prompt's own preset,
+are **all ignored**. Net effect: every judge/match/compare cell is sent with the
+provider defaults (no temperature, maxTokens, top-p, …). This is what the
+rank-translators feature means by "the judge worker uses `parameters=*NONE`". The
+runtime shape of these grids is documented in
+[tournament-judges-compare.md](tournament-judges-compare.md) and
 [secondary-results.md](secondary-results.md).
+
+### `modelSelection` — `*CONFIGURED` vs `*SELECT`
+
+A worker-carrying `InternalPrompt` has a `modelSelection` field
+(`model/SettingsModels.kt`, sentinels `MODEL_SELECTION_CONFIGURED = "*CONFIGURED"`
+/ `MODEL_SELECTION_SELECT = "*SELECT"`):
+
+- `*CONFIGURED` (default) — run against the prompt's configured `workers`.
+- `*SELECT` — at run time, before the work starts, show the
+  +Agent/+Flock/+Swarm/+Model picker and run against the workers the user picks
+  (passed down as `overrideWorkers`; never written back to the prompt).
+
+This only changes **which** workers run; it does **not** change parameter
+resolution — the single-result kinds still resolve params via
+`resolveSecondaryParams`, and the worker-grid kinds still send empty params.
+
+### `useReportModelsAsWorkers` (♻️)
+
+A per-report flag (`Report.useReportModelsAsWorkers`) swaps the prompt's worker
+swarm for the report's own answer models (`reportModelWorkers(report)` —
+provider/model-only `Worker`s) on every worker-driven kind: Tournament, Judges,
+Compare, TransRank, Fan-meta, and the model-icon / model-title batches. It
+**wins over a `*SELECT` pick** (checked first in each engine's `when`). Like
+`*SELECT`, it changes only the worker set; parameters resolve exactly as above
+(empty for worker-grid kinds, `resolveSecondaryParams` for single-result kinds).
 
 ---
 
@@ -221,6 +278,13 @@ web-search and 🧠 reasoning toggles overlay the session params
 (`copy(webSearchTool = true)` when web-search is on and the session didn't already
 have it; `copy(reasoningEffort = …)`, where an empty string clears back to "no
 hint"). Otherwise the session params are sent as-is.
+
+The two per-turn toggles are screen state seeded from the session params
+(`useWebSearch` / `reasoningEffort` in `ui/chat/ChatScreens.kt`), held in
+`rememberSaveable(currentSessionId)` so a rotation or process re-creation keeps
+the user's current selection instead of snapping back to the session default. The
+reasoning value is also re-validated against the model's advertised
+`reasoningEffortLevels` and cleared if unsupported.
 
 | # (highest wins) | Source |
 |---|---|
@@ -242,3 +306,6 @@ hint"). Otherwise the session params are sent as-is.
    clamps values to provider-valid ranges, and — when an override was present —
    drops anything the model can't accept. `reasoning_effort` is gated once more at
    the wire by `isReasoningCapableForDispatch`.
+5. **Worker-grid flows are the exception**: Tournament / Judges / Compare /
+   TransRank send **no** resolved parameters — provider defaults only. `*SELECT`
+   and ♻️ `useReportModelsAsWorkers` change *which* workers run, never the params.

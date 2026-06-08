@@ -27,10 +27,17 @@ app, plus optional on-device LLMs and embedders.
 
 ## The home screen
 
-The home screen shows the app logo and a column of big cards. Cards
-appear only when they're usable — before any provider has a key the
-AI Reports / AI Chat cards are replaced by an **AI Examples** card so
-a first-run user can still open a real bundled report.
+The app ships in two interchangeable home presentations, chosen under
+**Settings → UI tweaks → App home** (**Home bar** / **Home screen**).
+The default is **Home bar**.
+
+### Home screen (card hub)
+
+In **Home screen** mode the home screen shows the app logo and a column
+of big cards. Cards appear only when they're usable — before any
+provider has a key the AI Reports / AI Chat cards are replaced by an
+**AI Examples** card so a first-run user can still open a real bundled
+report.
 
 - **AI Reports** — multi-model reports with rerank / chat-meta /
   fan-out / moderate / translate / tournament / judges / compare.
@@ -62,14 +69,22 @@ The home logo doubles as a one-tap shortcut to the most recent
 report's result page (or to the AI Reports hub when no report exists
 yet).
 
-Settings -> UI tweaks -> App home can switch Home into **Home bar**
-mode. In that mode the classic Home card screen is no longer the
-main navigation surface: a persistent top icon bar appears above the
-current title bar with shortcuts for Reports, Chat, Monitor, Setup,
-Housekeeping, Settings, trace, help, and About. Pressing Home opens
-the newest report directly on its Manage screen. If no report exists,
-Home opens **First launch**, with cards for **Import API keys**,
-**AI Setup**, **Housekeeping**, **Settings**, and **About**.
+### Home bar (default)
+
+In **Home bar** mode the classic card screen is no longer the main
+navigation surface: a persistent top icon bar sits above every screen's
+title bar with shortcuts for **About** (the leading AI-logo glyph),
+**Reports**, **Chat**, **Monitor**, **Housekeeping**, **Application
+log**, **Traces**, **AI Setup**, **Settings**, and **Help** (the
+trailing red ❓). The 📤 share and 📋 copy icons stay in each screen's
+bottom bar, exactly as in Home screen mode.
+
+Pressing the Home/About logo opens whatever makes sense for your state:
+if you have a report it lands on the newest one's **Manage** screen; if
+you have no report but have API keys it opens the **AI Reports** hub;
+and a freshly-installed, unconfigured app opens **First launch**, with
+cards for **Import API keys**, **AI Setup**, **Example reports**,
+**Housekeeping**, **Settings**, **Help**, and **About**.
 
 ## Reports
 
@@ -89,33 +104,39 @@ Tapping **AI Reports** lands on a hub screen with several cards:
   static 🕘 / 📌 when icon-gen is off or the call failed). The
   card is styled to match Start so the hub reads as two parallel
   entry points.
-- **Search** — three options:
+- **Search** — escalating-cost options:
   - **Quick local search** — fast keyword scan across saved report
     prompts and bodies.
   - **Extended local search** — slower, broader scan (also into
     secondaries / translations).
   - **Remote semantic search** — embed your query against any chat
     provider and rank reports by cosine similarity.
+  - **Local semantic search** — the same cosine ranking but embedded
+    with an on-device embedder; only shown when one is installed.
 - **Manage** — bulk housekeeping (pin/unpin, delete, export many).
 
 ### Selection phase
 
 1. Tap **New AI Report**. You land on the model selection screen.
-2. Add models to the report using the buttons at the top:
+2. Add models to the report using the **+chip** row:
    - **+Agent** — full-screen Agent picker with rich rows.
    - **+Flock** — full-screen Flock picker (with Edit + One-time
      entry points right on the picker).
    - **+Swarm** — full-screen Swarm picker (with Edit + One-time).
-   - **+Provider** — pick any provider, then any of its models.
+   - **+Report** — appears only once a saved report is selectable;
+     pulls every model from an existing report into this one.
    - **+Model** — full-screen multi-select picker across every active
-     provider's catalog. The **+Report** entry only appears once an
-     existing report is selectable.
+     provider's catalog. This supersedes the old provider-then-model
+     two-step (there's no separate +Provider button); installed
+     on-device LLMs appear under the synthetic **Local** provider in
+     the same picker.
 3. Optionally tap **Params** to apply a parameter preset (temperature,
    max_tokens, system prompt, reasoning effort, etc.). See
    [parameters.md](parameters.md) for how presets resolve.
 4. Optionally attach a vision image (📎), toggle web-search 🌐, or
    pick a reasoning level 🧠.
-5. Type your prompt and tap **Generate**.
+5. Type your prompt and tap **Generate** (the button is pinned to the
+   top of the selection screen).
 
 ### Generation phase
 
@@ -158,50 +179,97 @@ on the row's cost cell and show up under the Costs view's per-call
 
 ### Result phase
 
-When the report is complete, the top of the screen carries a
-two-tier toggle action bar:
+A finished report lives on the **Manage a report** screen — a row per
+agent, the running total cost in the bottom bar, and a full bottom
+**action bar**. There are two gestures worth knowing on the title bar:
 
-- **View** — a grid of content tiles: **Prompt**, **Reports**,
-  **Matrix**, **Costs**, **Icons**, an optional **Value view**
-  (only when a rerank exists to supply quality scores), one tile per
-  Meta-prompt name with at least one row on this report, plus the
-  computed **every:** kinds (rerank / moderation / translate /
-  tournament / judges / compare) folded into the grid with a smart
-  drill-in. The **Matrix** tile (between Reports and Costs) opens the
-  read-only **Answer matrix** described below.
-- **✏️ Edit** — opens a full-screen **Edit report** overview
-  (layer on top of the screen, not a small pop-up): a big centred
-  report icon, the short + long title, a `Parameters: …` line, a
-  `System prompt: …` line and the prompt body — each with its own
-  ✏️ that opens the existing editor — plus three buttons:
-  **Edit models**, **Edit icons**, **Edit titles**. **Edit icons**
-  lists every icon in the report (report, language, per-model,
-  meta, ranking, moderation, per-language translation, fan-out
-  response) and opens that icon's Icon-lookup / Find-alternative
-  flow; **Edit titles** lists every dynamic title (report short /
-  long, per-model, fan-out response), each with a manual-edit ✏️
-  and a **Find** (multi-model) button. Prompt / parameter edits
-  queue up; tap **Regenerate** to re-run. A model-list-only change
-  makes Regenerate **additive** — it runs just the new models and
-  merges them in. The phased regenerate engine is detailed in
-  [regenerate.md](regenerate.md).
-- **🆕 Create** — opens a full-screen **Create** launcher (layer
-  on top): one big-icon + description row per secondary kind —
-  **Meta** / **Rerank** / **Moderation** / **Fan out** /
-  **Translate** / **Tournament** / **Judge the judges** /
-  **Compare with meta** — tapping a row opens that kind's picker or
-  drill-in. Disabled rows (no prompt configured, not enough source
-  rows, or a single-shot kind already present) render dimmed.
+- **Tap the title** (or the orange report-name line) to **cycle three
+  report screens**: **Manage a report** → **Report - Get info** →
+  **Report - second results** → back to Manage. *Get info* lists every
+  metadata-generation job (report icon, language, short/long title,
+  per-model icons + titles) with its status and cost; *second results*
+  lists every secondary result (see below). The second-results step is
+  skipped when the report has none.
+- **Tap the report icon** (the leftmost title-bar emoji, shown when
+  icon-gen is on) — or the bottom-bar 👁 — to open the **View a report**
+  hub, a grid of content tiles.
 
-The TitleBar above the result screen carries a 💬 Chat icon that
-starts a new chat session pre-populated with the report's
-prompt, a 📋 Copy icon, and a 📤 Share icon. The leftmost
-title-bar glyph is the report's generated emoji (when
-icon-gen is enabled). The footer row mirrors the agent-row
-layout and shows the report's total cost on the right; a
-**Costs from deleted items** line surfaces above the Total when
-non-zero so deleting rows doesn't lose visibility into what the
-API actually billed.
+The bottom action bar carries direct icons for the common secondary
+actions — **Rerank**, **Moderation**, **🌐 Translate**, **Fan out**, and
+the head-to-head **Tournament** tools — alongside 👁 View, ✏️ Edit,
+🆕 Create, 💬 Chat (starts a new chat pre-populated with the report's
+prompt), 📋 Copy, 📤 Share, 🔄 Regenerate, 🐞 Trace, 🗑 Delete,
+📌 Pin, ℹ️ report info, ✍️ add note / 📒 notes list, and the ♻️
+"use report models as workers" toggle. Single-shot kinds (Rerank,
+Moderation) jump straight to the existing result if one exists;
+otherwise they open the picker. The footer row mirrors the agent-row
+layout and shows the report's total cost on the right; a **Costs from
+deleted items** line surfaces above the Total when non-zero so deleting
+rows doesn't lose visibility into what the API actually billed.
+
+#### The View hub (View a report)
+
+The report icon / 👁 opens **View a report**, a reorderable grid of
+content tiles (long-press to drag; the order persists across reports):
+
+- Fixed document tiles: **Prompt**, **Reports**, **Matrix**, **Costs**,
+  **Icons**, and an optional **Value view** (only when the report has a
+  ranking to draw on — a Rerank, a Tournament, a Judge-the-judges run,
+  or a Rank-the-translators run). The **Matrix** tile (between Reports
+  and Costs) opens the read-only **Answer matrix** described below; the
+  **Value view** tile opens the cost × quality view ([Value
+  view](#value-view)).
+- One tile per **Meta run** (e.g. Compare, Critique), per **Fan-out**
+  run, and per **Fan-in** run — each labelled with its prompt name and
+  its own generated emoji, opening that specific result.
+- The computed structured tiles **Rerank**, **Tournament**, and
+  **Moderation**, each shown only when at least one such row exists. A
+  tile that resolves to a single result opens it directly; with two or
+  more it expands an inline picker list. (Translate has no View tile —
+  its source/translation list lives on the 🌐 Translations screen;
+  Judges, Compare-with-meta and Rank-the-translators are reached from
+  the **second results** screen.)
+
+#### ✏️ Edit a report
+
+The bottom-bar **✏️** opens a full-screen **Edit report** overview
+(layer on top of the screen, not a small pop-up): a big centred report
+icon, the short + long title, a `Parameters: …` line, a `System
+prompt: …` line and the prompt body — each with its own ✏️ that opens
+the existing editor — plus three buttons: **Edit models**, **Edit
+icons**, **Edit titles**. **Edit icons** lists every icon in the report
+(report, language, per-model, meta, ranking, moderation, per-language
+translation, fan-out response) and opens that icon's Icon-lookup /
+Find-alternative flow; **Edit titles** lists every dynamic title
+(report short / long, per-model, fan-out response), each with a
+manual-edit ✏️ and a **Find** (multi-model) button. Prompt / parameter
+edits queue up; tap **Regenerate** to re-run. A model-list-only change
+makes Regenerate **additive** — it runs just the new models and merges
+them in. The phased regenerate engine is detailed in
+[regenerate.md](regenerate.md).
+
+#### 🆕 Create
+
+The bottom-bar **🆕** opens the **Meta** launcher (layer on top): two
+big-icon + description rows — **Meta** (compare / critique / synthesize
+the answers) and **Compare with meta** (score each answer's similarity
+to a meta result). The head-to-head tools have their own launcher
+behind the **Tournament** bottom-bar icon — **Tournament** and **Judge
+the judges**. The remaining secondary kinds (Rerank, Moderation,
+Translate, Fan out) each have their own direct bottom-bar icon because
+reusing or jumping to an existing one is the common path. Disabled rows
+(no prompt configured, not enough source rows) render dimmed.
+
+#### Report - second results
+
+The Manage screen folds every secondary result into a single
+**second** row (status ⏳/✅/❌ and the summed secondary spend). Tapping
+it — or cycling the title twice — opens **Report - second results**,
+which lists the Tournament / Judges / Compare / Rank-the-translators
+batches, then the individual Meta / Rerank / Moderation / Fan-in rows,
+the Fan-out + Fan-meta rows, and the live + finished Translation rows,
+each with its icon and per-row cost. Tapping a row opens that result's
+detail or drill-in.
 
 #### View → Matrix (Answer matrix)
 
@@ -229,6 +297,24 @@ Minimal grid of every agent's generated emoji. Tap a glyph to
 open that agent's **Model response** detail screen; back returns
 to the grid. Grid spacing adapts down when not every icon fits
 at the default size.
+
+#### Value view
+
+The 💎 **Value view** tile plots every successful model on a
+**cost × quality** plane and marks the **best-value** model and the
+**Pareto frontier** — answering "which model gives the most quality for
+the least money?". It's a pure local derivation (no API calls): the X
+axis is each agent's recorded cost, and the Y axis is a per-model
+**ranking** you pick with a chip switch along the top — the report's
+**Rerank**, the **Judge-the-judges** consensus, any **Rank the
+translators** run (one chip per language), the **Tournament** total or
+any individual Tournament method, or the weighted **Combined** blend
+(see [Ranking weights](#preferences) below). Switching the ranking
+re-ranks the chart, the 💎 best-value pick and the list instantly.
+
+The tile only appears once the report has at least one ranking to draw
+on (a Rerank, Tournament, Judge-the-judges, or Rank-the-translators
+run). Full detail in [value-view.md](value-view.md).
 
 #### Per-agent prev/next on Model response
 
@@ -272,11 +358,11 @@ flow.
 
 You can run any of them multiple times per report — each run is a
 separate, independently viewable, independently deletable entry.
-Once results exist, the View grid gains a tile per Meta prompt name
-that has at least one row on this report (e.g. **Compare**,
-**Critique**), plus the **Reranks / Moderations / Translations**
-computed tiles for those structured kinds. See
-[secondary-results.md](secondary-results.md) for the data model.
+Once results exist, the View grid gains a tile per Meta run (e.g.
+**Compare**, **Critique**) plus the computed **Rerank** and
+**Moderation** tiles; every run also shows up on the **second
+results** screen. See [secondary-results.md](secondary-results.md)
+for the data model.
 
 #### Tournament, Judge the judges, Compare with meta
 
@@ -287,9 +373,10 @@ Meta rows:
   twice, A-vs-B and B-vs-A (to cancel position bias), using the
   `workers/tournament` prompt and the `tournament` swarm. It stores
   N(N−1) match rows plus one aggregate leaderboard. The View side can
-  switch **Copeland / Elo / Davidson / Tideman / Markov** ranking
-  (a pure local recompute — no API calls) and drill into model
-  head-to-heads. The Copeland win-rate is computed per model as a
+  switch between **eleven ranking methods** — Copeland, Elo, Davidson,
+  Tideman, Markov, Schulze, Minimax, Colley, Glicko-2, Points, and
+  TrueSkill2 — (a pure local recompute — no API calls) and drill into
+  model head-to-heads. The Copeland win-rate is computed per model as a
   percentage of the head-to-heads that model actually contested
   (not a fixed N−1), so a missing or errored match no longer scores
   like a loss.
@@ -305,6 +392,27 @@ All three have L1/L2/L3 drill-ins, running/waiting/error counters,
 restart-failed and redo actions, per-cell cost, app-kill resume, and
 trace links when tracing was enabled. See
 [tournament-judges-compare.md](tournament-judges-compare.md).
+
+#### Rank the translators
+
+A fourth worker-judged batch, but it grades **translations** instead of
+the original answers: it scores which translator *model* produced the
+best translation of a finished [Translate](translation.md) run. It does
+not re-translate anything — it reuses one existing translation run (one
+run = one target language) and has a panel of judge models score each
+long-form translated answer 0–100, then ranks each translator model by
+the average score its translations earned.
+
+There's no separate button: a run starts from the **🏅 medal** on a
+translation row — on the 🌐 **Translations** list (one per run) and on a
+**Translation run** screen's title bar. A confirm dialog shows the
+planned number of scoring calls; on **Rank** the batch builds and runs,
+landing on the **Rank the translators** screen — an L1 leaderboard
+(`#`, translator model, items, average score) with a 🐜 workers panel,
+🔄 restart-failed and 🗑 delete. Because it's keyed per language, you
+can rank each language's translation run independently. Its result feeds
+the [Value view](#value-view) as a ranking source. Full detail in
+[rank-translators.md](rank-translators.md).
 
 #### Scope step
 
@@ -329,8 +437,8 @@ they always operate on the full set.
 ### Fan out / Fan in
 
 A separate flow that turns one report into many — reachable from the
-**Create** launcher (Fan out), with a sibling **Fan in** action once
-fan-out rows exist.
+report's bottom-bar **Fan out** icon, with a sibling **Fan in** action
+once fan-out rows exist.
 
 1. **Run a fan-out** — pick a Fan-out prompt (CRUD'd under AI
    Setup → Prompt management → Internal prompts → **Fan out/in
@@ -360,8 +468,16 @@ fan-out rows exist.
    model's fan-out conversation can also be promoted into a
    standalone report.
 
+**Fan Meta** is its own separate screen (it used to be folded into the
+fan-out drill-in): a per-pair **title + icon** batch that the worker
+engine runs over a fan-out run's responses, so each fan-out pair gets
+its own generated title and emoji. It has its own L1/L2/L3 drill-in and
+🐜 workers panel, can autostart on a finished fan-out (Settings →
+Autostart → **Autostart Fan Meta**), and shows up as a **fan-meta**
+sibling row on the second-results screen.
+
 After-fan-out runs surface as standalone secondary rows on the
-Report Result and inside the Fan-out drill-in.
+report's **second results** screen and inside the Fan-out drill-in.
 
 ### Export
 
@@ -424,6 +540,20 @@ appears at the top of the result screen until you tap **Regenerate**.
   the row and tap Restart. A paused or app-killed batch is flagged on
   the ⚠️ Broken-work screen (the app detects it but no longer resumes
   it for you). Full detail in [regenerate.md](regenerate.md).
+
+### Broken work
+
+A background scan watches every report for batch work that stalled —
+items left mid-flight by an app-kill, or cells that errored out. When it
+finds any, the right-hand **AI-logo** in the top bar is replaced
+app-wide by a ⚠️ badge (with a count). Tapping it opens the **Broken
+work** screen, which lists each affected batch (model responses, meta,
+fan-out, fan-meta, translations, tournament / judges / compare / rank
+batches). Per line you can **view** the broken items, **restart** them,
+or **delete** them; tapping a card opens the underlying report. Nothing
+is re-run automatically — the screen just surfaces what needs a nudge.
+When the last broken item clears, the screen closes itself and the ⚠️
+reverts to the AI logo.
 
 ## Chat
 
@@ -592,7 +722,8 @@ visual customization under dedicated UI screens.
 
 ### Preferences
 
-- **UI tweaks** — full-screen mode, model-name layout,
+- **UI tweaks** — full-screen mode, model-name layout, **App home**
+  (Home bar vs Home screen, see [The home screen](#the-home-screen)),
   **Experimental features** master toggle, and **Show Knowledge card
   on home page**.
 - **UI Colors** — collapsed color-picker cards for App background,
@@ -607,6 +738,11 @@ visual customization under dedicated UI screens.
   toggles: **Generate report icon**, **Generate per model icons**,
   **Generate per model titles**, report language/title, and
   internal-prompt icons. See [report-icons.md](report-icons.md).
+- **Ranking weights** — two cards of 0–10 sliders: one for the named
+  rankings (**Rerank**, **Judges**, **Translations**), one with a
+  slider per Tournament method (Copeland, Elo, Davidson, …). These feed
+  the **Combined** score in the report [Value view](#value-view); the
+  🧽 in the icons bar resets every slider to its default.
 - **Autostart** — report-completion automation: **Auto create Rerank
   and Moderation**, **Autostart Fan Meta**, and **Default meta
   items**.
@@ -681,7 +817,9 @@ doesn't lose typed changes.
 > language generators, the Tournament judge prompt, and the
 > **translate-text / translate-title** prompts (each with its own
 > worker swarm — translation runs through the worker engine now, no
-> model picker) live in **Worker prompts**; Find-alternative variants
+> model picker) live in **Worker prompts**, as does the
+> **translate-rank** judge prompt that drives [Rank the
+> translators](#rank-the-translators); Find-alternative variants
 > live in **Alternative prompts**.
 
 ### Refresh

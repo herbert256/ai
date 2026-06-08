@@ -7,8 +7,8 @@ listed here — see the file directly. Cost / token / trace bookkeeping
 fields on big classes (`Report`, `SecondaryResult`) are summarised
 rather than exhaustively transcribed; read the source for the full set.
 
-The codebase is ~141,000 LOC across 363 Kotlin files under
-`ai/src/main/java/com/ai` (`data` 82, `ui` 259, `viewmodel` 19, `model`
+The codebase is ~153,000 LOC across 388 Kotlin files under
+`ai/src/main/java/com/ai` (`data` 88, `ui` 273, `viewmodel` 24, `model`
 2, plus `MainActivity.kt`). Persistence is SharedPreferences + JSON
 files under `<filesDir>` — there is **no** Jetpack DataStore at runtime
 (the dependency is declared but unused). See
@@ -165,6 +165,7 @@ test-model).
 | provider, model | `String?` | optional alternative to `agent`: pin the prompt directly to a provider id + model (resolved to a synthetic agent, taking precedence over `agent`) |
 | parameters, systemPrompt | `String` (default `"*NONE"`) | per-prompt Parameters preset NAME / System-prompt NAME used for THIS prompt's call, overriding the agent/flock/swarm/provider/app-wide levels (unless a runtime 🌡️/🎭 pick was made) |
 | workers | `List<Worker>` (default empty) | only the `workers` category: the ordered fallback chain `WorkerRunner` runs in random order until one succeeds. Each `Worker` is a Model / Agent / Flock / Swarm pick |
+| modelSelection | `String` (default `"*CONFIGURED"`) | worker-selection mode for the kinds this prompt drives (Meta / Fan-in / Rerank / Moderation / the type-B batches / Find-alternative). `*CONFIGURED` runs against the configured `workers`; `*SELECT` pops the +Agent/+Flock/+Swarm/+Model picker at run time and runs against the user's pick (never written back) |
 
 > The legacy `type` field is gone — routing is derived from
 > `category`. There is **no** `metaTypeToKind` function: Rerank,
@@ -215,7 +216,7 @@ disk once per 2 s.
 | model | `String` | |
 | callCount | `Int` | |
 | inputTokens, outputTokens | `Long` | |
-| kind | `String` | `report`, `rerank`, `meta`, `moderation`, `translate`, `tournament`, `judges`, `compare`, plus metadata / worker buckets such as `icon`, `model/icons`, `fan/meta`, and the `translate/...` sub-types. The Type column often displays a friendlier prompt / flow label. |
+| kind | `String` | `report`, `rerank`, `meta`, `moderation`, `translate`, `tournament`, `judges`, `compare`, `transrank`, plus metadata / worker buckets such as `icon`, `model/icons`, `fan/meta`, and the `translate/...` sub-types. The Type column often displays a friendlier prompt / flow label. |
 | searchUnits | `Long` | per-search billing units for `rerank` rows (Cohere bills per search-unit, not per token) |
 | inputCost, outputCost | `Double?` | persisted USD cost at call time; null on legacy rows (readers fall back to `PricingCache`) |
 | pricingSource | `String?` | which tier priced the row; forced to `"API_REPORTED"` for providers that self-report cost |
@@ -249,6 +250,7 @@ Result of a single provider model-list fetch.
 | visionModels | `Set<String>` |
 | capabilities | `Map<String, ModelCapabilities>` |
 | rawResponse | `String?` |
+| nativePricing | `Map<String, PricingCache.ModelPricing>` (default empty) — per-model prices harvested from the `/models` payload (Together AI only); fed into the `TOGETHER` pricing tier |
 
 ---
 
@@ -278,6 +280,7 @@ titleLong / language) are summarised below.
 | knowledgeBaseIds | `List<String>` | attached RAG knowledge bases ([knowledge.md](knowledge.md)) |
 | parameterPresetIds, advancedParameters, selectionParamsById, reportSystemPromptId | resolved generation config | captured at create time so Regenerate replays the SAME selections, not whatever the live UiState holds now |
 | pinned | `Boolean` | user-pinned; surfaces above Recent on the Reports hub |
+| useReportModelsAsWorkers | `Boolean` (default false) | ♻️ when on, every covered secondary / batch / auto-icon call draws its workers from the report's own answer models instead of the configured / `*SELECT` chain. Rerank / Moderation ignore it. Set on the New report screen, toggleable on Manage report |
 | costsFromDeletedItems | `Double` | input+output cost of every deleted row (agent / secondary / fan-out / fan-in / translation). Uses `SecondaryResult.fullCost()` so a pair's icon+title spend isn't dropped. Surfaced as its own line above Total when non-zero |
 | icon, iconErrorMessage, iconModel | `String?` | per-report emoji from `kickOffIconGeneration` (worker engine `workers/report-icon`); error reason on failure; `iconModel` set when picked manually via Find-alternative ([report-icons.md](report-icons.md)) |
 | icon{Input,Output}{Tokens,Cost}, iconDurationMs, iconTraceFile | token / USD / time / trace bookkeeping for the icon call |
@@ -303,9 +306,11 @@ titleLong / language) are summarised below.
 | reportStatus | `ReportStatus` (`PENDING`, `RUNNING`, `SUCCESS`, `ERROR`, `STOPPED`) | |
 | httpStatus | `Int?` | |
 | requestHeaders, requestBody, responseHeaders, responseBody | `String?` | |
+| responseChangeSource, responseChangeValue | `String?` | replacement marker for `responseBody` (`Chat` / `Temperature` / `Reasoning Effort` / `Web Search` / `Edit` / `Model switch`); null for the original response or a plain regenerate |
 | errorMessage | `String?` | |
 | tokenUsage | `TokenUsage?` | |
-| cost, durationMs | `Double?`, `Long?` | |
+| cost, inputCost, outputCost, durationMs | `Double?` × 3, `Long?` | `inputCost`/`outputCost` are the USD split pinned at run completion so a later re-price doesn't shift historical cost |
+| traceFile | `String?` | trace filename of this agent's primary response call |
 | citations, searchResults, relatedQuestions | `List<String>?` / `List<SearchResult>?` | |
 | rawUsageJson | `String?` | |
 | icon, iconErrorMessage | `String?` | per-model emoji from the worker engine (`workers/model-icons`), derived from the model **title** not the response. Null until it runs / on failure |
@@ -354,7 +359,8 @@ A single flat row used for **every** secondary kind — rerank, chat-type
 Meta (driven by the user's Meta-prompt CRUD entries), moderation,
 translation, fan-out per-pair row, fan-in combined-report row,
 Tournament match / aggregate row, Judge-the-judges cell / aggregate row,
-or Compare cell. Persisted one JSON file per result at
+Compare cell, or Translator-rank (TRANSRANK) score cell / aggregate row.
+Persisted one JSON file per result at
 `<filesDir>/secondary/<reportId>/<resultId>.json` by the
 `SecondaryResultStorage` object. The kind-specific fields are mostly
 null on rows of other kinds. See
@@ -365,7 +371,7 @@ null on rows of other kinds. See
 | Field | Type | Notes |
 |---|---|---|
 | id, reportId | `String` | |
-| kind | `SecondaryKind` | one of the 7 below |
+| kind | `SecondaryKind` | one of the 8 below (`RERANK`, `META`, `MODERATION`, `TRANSLATE`, `TOURNAMENT`, `JUDGES`, `COMPARE`, `TRANSRANK`) |
 | providerId, model, agentName | `String` | |
 | timestamp | `Long` | |
 | content | `String?` | the model output. A chat-type META row whose Meta prompt has `reference=true` gets a deterministic `## References` legend appended at storage time |
@@ -447,6 +453,24 @@ uses `providerId="*tournament"` / `model="aggregate"`.
 A Compare cell placeholder starts at sentinel `providerId="*workers"` /
 `model="*pending"`, overwritten with the winning worker on commit.
 
+**TRANSRANK fields** (no new columns — "Rank the translators" reuses
+the existing tournament / compare / translate fields):
+
+| Reused field | Meaning on a TRANSRANK row |
+|---|---|
+| `providerId`, `model` | the **judge** model that scored the translation |
+| `tournamentRole` | `"MATCH"` for a score cell, `"AGGREGATE"` for the per-translator ranking row |
+| `tournamentJudgeRunId`, `runId` | the transrank run id |
+| `translationRunId` | the source translation run being ranked |
+| `compareToResultId` | the scored TRANSLATE row id |
+| `matchResponseAId`, `matchResponseBId` | the **translator** model's providerId / model |
+| `targetLanguage`, `targetLanguageNative` | the language scored |
+| `content` | the judge's two-line reply (0–100 score + reason) |
+
+The AGGREGATE row uses sentinel `providerId="*transrank"` / `model="aggregate"`;
+its `content` is the JSON ranking from `List<TranslatorRankRow>.toTransRankJson()`.
+See the runtime value types under [`TransRankRunState` / `TransRankCellState`](#transrankrunstate--transrankcellstate).
+
 ### `SecondaryScope` (sealed)
 - `AllReports` — every successful agent feeds the meta-result.
 - `TopRanked(count: Int, rerankResultId: String)` — input narrowed
@@ -477,8 +501,9 @@ Runtime state for one Tournament on a report. Hydrated from
 | `TournamentRunState` | `key`, `reportId`, `runId`, `tournamentPrompt`, `scope`, `matches`, `aggregateRowId`, `selectedMethod`, `cancelled`; derived counts for total/done/error/running/queued/cost/judge models |
 | `MatchState` | one ordered head-to-head: row id, response A/B ids, orientation, status, judge model, verdict, confidence, reason, raw content, error, tokens, cost, duration, timestamp |
 
-`TournamentMethod` supports `COPELAND`, `ELO`, `DAVIDSON`,
-`TIDEMAN`, and `MARKOV`. See
+`TournamentMethod` has 11 ranking methods: `COPELAND`, `ELO`,
+`DAVIDSON`, `TIDEMAN`, `MARKOV`, `SCHULZE`, `MINIMAX`, `COLLEY`,
+`GLICKO2`, `POINTS`, `TRUESKILL2`. See
 [tournament-judges-compare.md](tournament-judges-compare.md).
 
 ### `JudgeEvalRunState` / `JudgeCellState`
@@ -489,7 +514,7 @@ Runtime state for one Judge-the-judges run on a report. Hydrated from
 |---|---|
 | `JudgeEvalRunState` | `key`, `reportId`, `runId`, prompt, cell map, aggregate row id, cancelled flag; derived judge/match counts and cost |
 | `JudgeCellState` | one judge's verdict on one shared match: row id, judge provider/model, response A/B ids, status, verdict, confidence, reason, trace, tokens, cost, duration |
-| `JudgeStats` | computed agreement row: judge key/model, agreement, matches judged, cost, API time |
+| `JudgeStats` | computed per-judge row (sorted best-first by agreement): judge providerId/model, `matchesJudged`, `errors`, `agreement` (0..1 vs the per-match consensus), `tieRate`, `aLean` (position-bias proxy), `avgConfidence`, `totalCost`, `totalMs` |
 
 ### `CompareRunState` / `CompareCellState`
 Runtime state for Compare with meta. Hydrated from
@@ -499,6 +524,39 @@ Runtime state for Compare with meta. Hydrated from
 |---|---|
 | `CompareRunState` | `key`, `reportId`, `runId`, selected compare prompt, cell map, cancelled flag; derived counts/cost and per-agent/per-meta averages |
 | `CompareCellState` | one answer × meta-item similarity score: row id, agent id, meta result id, status, 0..100 percent, reason, scoring worker, trace, tokens, cost, duration |
+
+### `TransRankRunState` / `TransRankCellState`
+Runtime state for one "Rank the translators" run (`SecondaryKind.TRANSRANK`),
+defined in `data/TranslatorRankModel.kt`. A run **reuses an existing
+translation run**: every long-form translated item is scored 0–100 by a
+panel of judge models — every model in the `translate-rank` worker swarm
+*except* the one that produced the item. One CELL per (item × judge); one
+AGGREGATE row holds the per-translator-model ranking. Hydrated from
+`SecondaryResult(kind=TRANSRANK)` rows.
+
+| Type | Notes |
+|---|---|
+| `TransRankCellState` | one judge's score of one translated item: `id` (= SecondaryResult.id), judge providerId/model, translator providerId/model, `translationRowId`, `sourceTranslationRunId`, `targetLanguage`, `status` (`TransRankCellStatus` = `BatchItemStatus`), parsed `score` (0–100) / `reason`, raw `content`, `errorMessage`, `inputCost`/`outputCost`, `durationMs`, `tokenUsage`, `traceFile`, `timestamp`. Derived `judgeKey` / `translatorKey` (`"provider/model"`), `key` (`"$judge|$translationRowId"`), `totalCost` |
+| `TransRankRunState` | `key` (`"$reportId\|$sourceTranslationRunId"` — one ranking per language), `reportId`, `runId`, `sourceTranslationRunId`, `targetLanguageName`, `targetLanguageNative`, `prompt: InternalPrompt`, `cells: Map<String, TransRankCellState>`, `aggregateRowId`, `cancelled`; derived `translatorKeys` |
+
+Caps: `TRANSRANK_CELLS_PER_TRANSLATOR = 25` (≤ 25 score cells per
+translator model). Role sentinels `TRANSRANK_ROLE_CELL = "MATCH"` /
+`TRANSRANK_ROLE_AGGREGATE = "AGGREGATE"`.
+
+### `TranslatorRankRow`
+One row of the aggregated translator ranking, produced by
+`aggregateTranslatorRanks(cells)` (averages each translator's scores over
+cells where judge ≠ translator, best-first) and serialised to the
+AGGREGATE row's `content` via `toTransRankJson()`.
+
+| Field | Type | Notes |
+|---|---|---|
+| providerId, model | `String` | the translator model |
+| avgScore | `Double` | mean of the scores it received |
+| itemCount | `Int` | distinct translated items it produced that got ≥1 score |
+| judgedCount | `Int` | total scores received |
+
+Derived `translatorKey` = `"providerId/model"`.
 
 ### `RerankApiResult`
 Result of a provider's dedicated rerank endpoint call (e.g.
@@ -524,9 +582,12 @@ Outcome of a single moderation endpoint call.
 > There is no `SecondaryRunState` data class. In-flight secondary work
 > is surfaced via `UiState.activeSecondaryBatches: Int` (incremented on
 > entry, decremented in `finally` by every `SecondaryRunManager` runner)
-> plus the per-engine hot-state sets on `AppViewModel`
-> (`runningTournamentMatches`, `runningCompareCells`,
-> `runningJudgeEvalCells`, …).
+> plus the hot per-row `StateFlow<Set<String>>` sets on `AppViewModel`
+> (`runningFanOutPairs`, `runningFanMetaPairs`, `runningFanMetaRowIds`,
+> `runningSingleSecondaries`, `runningInfoJobs`). The Tournament /
+> Judges / Compare / TransRank engines instead hydrate their respective
+> `*RunState` from disk and track in-flight items via the per-item
+> `status` on each cell/match.
 
 ### `TokenUsage`
 | Field | Type | Notes |
@@ -705,6 +766,7 @@ view, used by the layered Costs view and the 🐞 pricing trace.
 | content | `String` |
 | imageBase64, imageMime | `String?` (vision attachment as base64; JPEG-encoded after downscale) |
 | timestamp | `Long` |
+| id | `String?` (UUID, default generated) |
 
 ### `ChatSession`
 | Field | Type | Notes |
@@ -851,9 +913,10 @@ See [throttle.md](throttle.md) for the full chain.
 ## Logging (`com.ai.data.AppLog`)
 
 ### `LogLevel` (enum)
-`TRACE` (priority 2 = `Log.VERBOSE`), `DEBUG` (3), `INFO` (4),
-`WARN` (5), `ERROR` (6), `OFF` (99 — sentinel that disables the
-file appender; logcat still fires).
+`DEBUG` (priority 3, also the home of the former `TRACE` calls),
+`INFO` (4), `WARN` (5), `ERROR` (6), `OFF` (99 — sentinel that
+disables the file appender; logcat still fires). The former `TRACE`
+level is gone.
 
 ### `AppLogFileInfo`
 One row of metadata for a log file under `<filesDir>/applog/`.
@@ -927,14 +990,18 @@ Computed:
 | huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey | `String` | |
 | defaultEmail | `String` | |
 | defaultTypePaths | `Map<String, String>` | global per-type API path defaults |
-| tracingEnabled | `Boolean` (default true) | master switch for `ApiTracer.isTracingEnabled` |
+| loggingMasterEnabled | `Boolean` (default true) | grand-master gate for the whole Log/trace/audit/statistics page. When false the four diagnostic settings below are forced off at runtime (via the `effective*` helpers) regardless of their stored values |
+| tracingEnabled | `Boolean` (default true) | master switch for `ApiTracer.isTracingEnabled`; gated by `loggingMasterEnabled` — consumed via `effectiveTracingEnabled()` |
 | showLadybugIcons | `Boolean` (default true) | hides/shows trace hot-link icons without disabling trace capture |
-| auditLogEnabled | `Boolean` (default true) | master switch for per-report audit-log writes |
-| fullScreen | `Boolean` (default false) | hides the Android status bar when enabled |
+| auditLogEnabled | `Boolean` (default **false**) | master switch for per-report audit-log writes; gated via `effectiveAuditLogEnabled()` |
+| usageStatsEnabled | `Boolean` (default true) | accumulate per-provider/per-model usage stats on every API call; gated via `effectiveUsageStatsEnabled()` |
+| fullScreen | `Boolean` (default **true**) | hides the Android status bar when enabled |
 | modelNameLayout | `ModelNameLayout` | `MODEL_ONLY` (default) or `PROVIDER_AND_MODEL` |
-| appHomeMode | `AppHomeMode` | `HOME_SCREEN` (default) keeps the classic Home hub; `HOME_BAR` shows the persistent top Home bar and makes Home open the latest report Manage screen or First launch |
+| appHomeMode | `AppHomeMode` | `HOME_BAR` (default) shows the persistent top Home bar and makes Home open the latest report Manage screen or First launch; `HOME_SCREEN` keeps the classic large-card Home hub |
 | uiCardBackgroundArgb, uiButtonBackgroundArgb | `Int` | legacy single-color mirrors for card/button customization |
-| uiColorOverrides, uiColorOverridesDay | `Map<String, Int>` | ARGB overrides for functional `AppColors` roles (dark + day variants); see [ui-customization.md](ui-customization.md) |
+| rankingWeights | `Map<String, Int>` (default empty) | 0–10 sliders from the "Ranking weights" screen. Key = `"rerank"` / `"judges"` / `"translations"` or a `TournamentMethod` name. Stored sparsely; a missing key resolves via `GeneralSettings.rankingWeight(key)` → `RANKING_WEIGHT_DEFAULTS` (`rerank`→3, `judges`→6, `translations`→6, `ELO`/`DAVIDSON`/`TIDEMAN`→4) else 0 |
+| uiColorOverrides, uiColorOverridesDay | `Map<String, Int>` | ARGB overrides for functional `AppColors` roles (Night + Day variants); see [ui-customization.md](ui-customization.md) |
+| uiColorMode | `UiColorMode` (default `NIGHT`) | which colour set is painted — `NIGHT` / `DAY` / `AUTO` (follow system day/night) |
 | metadataEnabled | `Boolean` (default true) | grand-master switch for optional metadata generation |
 | iconGenEnabled | `Boolean` (default true) | master switch for the per-report icon-gen feature. When true, every new report kicks off a background worker call (`workers/report-icon`) that generates a fitting emoji and writes it onto `Report.icon`. Surfaces in the result page, AI Reports hub, history rows, search hits, and report title bars. When false the call is skipped and existing on-disk icon values stay intact for re-enable |
 | reportLanguageGenEnabled | `Boolean` (default true) | gates automatic report language + flag detection |
@@ -942,6 +1009,7 @@ Computed:
 | perModelIconGenEnabled | `Boolean` (default true) | master switch for per-model icons. When true, every successful agent call (initial generation AND regenerate) derives the model's icon from its title via the worker engine (`workers/model-icons`). Each agent's leftmost ✅ flips to the returned emoji once it lands. When false the step never runs automatically; per-agent rows keep their plain ✅. See [report-icons.md](report-icons.md) |
 | perModelTitleGenEnabled | `Boolean` (default true) | gates automatic per-model response titles |
 | useInternalPromptsIcons | `Boolean` (default true) | gates generated/cached icons for internal prompt rows |
+| autostartItemsEnabled | `Boolean` (default false) | grand-master gate for every autostart item. When false nothing autostarts when a report finishes (auto Rerank / Moderation + Default meta items are skipped) and the per-item autostart settings are hidden |
 | autostartFanMeta | `Boolean` (default true) | starts Fan Meta automatically after a clean Fan-out run |
 | autoCreateRerankAndModeration | `Boolean` (default true) | creates default Rerank + Moderation rows after primary report generation when capable models exist |
 | metadataIcons | `MetadataIcons` | Default-icons overrides used by view/navigation cards and fallback metadata glyphs |
@@ -957,7 +1025,10 @@ Computed:
 | retryBackoffMs429 | `Long` (default 1000) | wait between 429 retry attempts in milliseconds |
 | maxRetriesOn529 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 529 (server overloaded). 0 disables in-line retries entirely. Independent of the 429 budget |
 | retryBackoffMs529 | `Long` (default 1000) | wait between 529 retry attempts in milliseconds |
-| logLevel | `LogLevel` (default `INFO`) | threshold for the in-app file logger ([applog.md](applog.md)). `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Persisted in main prefs; `AppLog.init` reads it directly so DEBUG calls inside bootstrap are admitted on cold start |
+| typeABenchEnabled | `Boolean` (default true) | Type-A (fixed-model) batch bench-and-requeue: on a 429/529 the answerer/judge model is parked and its waiting same-model items move to Bench, then back to Queue when the bench lifts. Applies to Fan Out + Judge the judges. Mirrors to `ModelCooldownStore.typeABenchEnabled` |
+| typeABenchSeconds | `Int` (default 10) | bench duration (seconds) when a 429/529 carries no Retry-After hint. Mirrors to `ModelCooldownStore.typeABenchBaseMs` (× 1000) |
+| typeABenchMaxAttempts | `Int` (default 5) | consecutive benches one item gets before the batch leaves it errored. Mirrors to `ModelCooldownStore.typeABenchMaxAttempts` |
+| logLevel | `LogLevel` (default `WARN`) | threshold for the in-app file logger ([applog.md](applog.md)). `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF` (no more `TRACE`). Persisted in main prefs; `AppLog.init` reads it directly so DEBUG calls inside bootstrap are admitted on cold start. Forced to `OFF` at runtime when `loggingMasterEnabled` is false (`effectiveLogLevel()`) |
 | showKnowledgeCard | `Boolean` (default false) | shows AI Knowledge on the Hub when Experimental features are enabled |
 | experimentalFeaturesEnabled | `Boolean` (default false) | gates Local models, Knowledge/RAG, and Local Semantic Search surfaces |
 | pinnedDashboardCards, dashboardCardOrder | `Set<String>` / `List<String>` | persisted Live Dashboard layout |
@@ -997,14 +1068,17 @@ Notable subset:
 - `loadingModelsFor: Set<AppService>`
 - `fetchModelsErrors: Map<String, FetchModelsError>`
 - Report flow: `showGenericAgentSelection`, `showGenericReportsDialog`,
-  `genericPromptTitle/Text`, `currentReportId`, `genericReportsProgress/Total`,
-  `pendingReportModels`, `editModeReportId`, `stagedReportModels`,
-  `hasPendingPromptChange`, `hasPendingParametersChange`,
+  `genericPromptTitle/Text`, `genericPromptTitleLong`, `currentReportId`,
+  `genericReportsProgress/Total`, `pendingReportModels`, `editModeReportId`,
+  `stagedReportModels`, `hasPendingPromptChange`, `hasPendingParametersChange`,
   `reportImageBase64`, `reportImageMime`, `reportWebSearchTool`,
-  `reportReasoningEffort`, `reportAdvancedParameters`
+  `reportReasoningEffort`, `reportUseReportModelsAsWorkers`,
+  `reportAdvancedParameters`, `reportParametersIds`, `reportSystemPromptId`,
+  `attachedKnowledgeBaseIds`
 - Share-target staging: `chatStarterText: String?`,
   `chatStarterImageBase64/Mime: String?` (also fed by the AI Chat
-  hub's "📸 Start with photo" entry)
+  hub's "📸 Start with photo" entry), `pendingKnowledgeUris`,
+  `pendingReportKnowledgeUris`
 - `activeSecondaryBatches: Int` — count of in-flight secondary
   batches; the Meta button's hourglass / poll loop key off this
 - `iconRefreshTick: Int` — incremented every time the icon-gen

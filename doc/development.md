@@ -11,9 +11,9 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleDebug
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleRelease
 ```
 
-Toolchain: Kotlin 2.2.10, AGP 9.2.0, Gradle 9.5, Java 17 (JVM
-target 17, source/target compatibility 17), Compose BOM 2026.04.01.
-`compileSdk = 36`, `buildToolsVersion = "36.1.0"`, `minSdk = 26`,
+Toolchain: Kotlin 2.4.0, AGP 9.2.1, Gradle 9.5.1, Java 25 (JVM
+target 25, source/target compatibility 25), Compose BOM 2026.05.01.
+`compileSdk = 37`, `buildToolsVersion = "37.0.0"`, `minSdk = 36`,
 `targetSdk = 36`, namespace `com.ai`, `applicationId = "com.ai"`.
 Release builds enable `isMinifyEnabled` and `isShrinkResources` and
 require `local.properties` to define `KEYSTORE_FILE` /
@@ -92,7 +92,7 @@ are written through inline redaction (Bearer tokens, raw `sk-` /
 a shared log never carries plain secrets. The viewer supports
 search, level checkboxes, time-range pickers, tag dropdown, and a
 Copy/Share dialog with **Filtered only** + **Last N lines /
-Complete** options. The code uses ~75 distinct `AppLog` tags. See
+Complete** options. The code uses ~80 distinct `AppLog` tags. See
 [applog.md](applog.md).
 
 ## Project layout
@@ -100,7 +100,7 @@ Complete** options. The code uses ~75 distinct `AppLog` tags. See
 ```
 ai/src/main/java/com/ai/
 ├── MainActivity.kt                   # the only Activity (ComponentActivity)
-├── data/                             # 82 files, core data layer
+├── data/                             # 88 files, core data layer
 │   ├── (HTTP, dispatch, streaming, tracer, throttle, registry, …)
 │   ├── AnalysisRepository.kt   ApiClient.kt     ApiDispatch.kt
 │   ├── ApiFormat.kt            ApiModels.kt     ApiStreaming.kt
@@ -120,26 +120,29 @@ ai/src/main/java/com/ai/
 │   └── local/  (4)             # LocalLlm / LocalEmbedder / LlmRuntime / LocalRuntime
 ├── model/                            # 2 files
 │   └── SettingsModels.kt + SettingsHolder.kt
-├── viewmodel/                        # 19 files
+├── viewmodel/                        # 24 files
 │   ├── AppViewModel.kt  (+ AppViewModelTypes.kt holding GeneralSettings
 │   │   and the extracted top-level enums)
 │   ├── ChatViewModel.kt + ReportViewModel.kt (+ ReportViewModelHelpers.kt)
+│   ├── BatchEngine.kt — abstract base the batch engines extend
 │   └── extracted engines/managers: RegenerateBatchEngine,
 │       SecondaryRunManager, IconGenerationManager, TournamentEngine,
 │       JudgeEvalEngine, CompareEngine, FanOutEngine, ModelTestEngine,
-│       StressTestEngine, MetaEditManager, TranslationRunManager,
-│       WorkerRunner, ThrottledBatch, TranslationTypes
-└── ui/                               # 259 files (no files at the ui/ root)
-    ├── report/      (88)             # report flows, secondary results,
+│       StressTestEngine, TranslatorRankEngine, MetaEditManager,
+│       TranslationRunManager, SecondaryModelSwitchManager, WorkerRunner,
+│       ThrottledBatch, BrokenWorkPolicy, BuildProgress, TranslationTypes
+└── ui/                               # 273 files (no files at the ui/ root)
+    ├── report/      (98)             # report flows, secondary results,
     │                                 # Fan-out / Fan-in / Tournament / Judges /
-    │                                 # Compare screens, exports (PDF, DOCX/ODT,
-    │                                 # RTF, zipped HTML), translation screens,
-    │                                 # icon screens, manage/ overview + edit,
-    │                                 # Get-info / regenerate, the Answer matrix
+    │                                 # Compare / Rank-translators screens,
+    │                                 # exports (PDF, DOCX/ODT, RTF, zipped HTML),
+    │                                 # translation screens, icon screens,
+    │                                 # manage/ overview + edit, Get-info /
+    │                                 # regenerate, the Answer matrix
     ├── cruds/       (48)             # generic CRUD framework + per-entity
     │                                 # CRUDs: workers (agents/flocks/swarms),
     │                                 # model-states, prompts, params, cost overrides
-    ├── admin/       (33)             # Housekeeping / Backup-Restore / Reset /
+    ├── admin/       (35)             # Housekeeping / Backup-Restore / Reset /
     │                                 # Trim by age / Costs / Test / traces / help /
     │                                 # provider admin / developer / docs / AppLog
     ├── settings/    (22)             # SettingsScreen sub-screens + Workers /
@@ -152,21 +155,21 @@ ai/src/main/java/com/ai/
     ├── chat/        (5)              # chat + chat history + dual chat
     ├── search/      (4)              # Quick / Extended local + Remote
     │                                 # + Local semantic search screens
-    ├── hub/         (4)             # main hub + Reports / Chats hubs
+    ├── hub/         (5)             # main hub + Reports / Chats hubs
     ├── history/     (3)              # report + prompt history + picker
-    ├── models/      (2)              # model search + Model Info
+    ├── models/      (3)              # model search + Model Info
     ├── share/       (2)              # ShareChooserScreen + helpers
     ├── knowledge/   (1)              # RAG Knowledge screens
     └── theme/       (1)              # Material3 dark theme
 ```
 
-Roughly **363 Kotlin files, ~141,000 LOC** total
-(`data` 82 + `model` 2 + `viewmodel` 19 + `ui` 259 + `MainActivity`).
+Roughly **388 Kotlin files, ~153,180 LOC** total
+(`data` 88 + `model` 2 + `viewmodel` 24 + `ui` 273 + `MainActivity`).
 
 ### Navigation, in two systems
 
 1. **Top-level routes** use Jetpack Navigation Compose.
-   `NavRoutes.kt` holds ~150 route-template constants plus
+   `NavRoutes.kt` holds ~120 route-template constants plus
    arg-encoding builder helpers (e.g. `aiReportInfo()`,
    `traceDetail()`). `AppNavHost.kt` declares the single `NavHost`
    but does **not** register composables inline — registration is
@@ -176,7 +179,7 @@ Roughly **363 Kotlin files, ~141,000 LOC** total
    `chatRoutes`. All five take the same `(navController, appViewModel,
    reportViewModel, chatViewModel, safePopBack, navigateHome)`.
 2. **`SettingsScreen` sub-screens** use an internal `when` block.
-   `SettingsScreen.kt` holds an `enum class SettingsSubScreen` (~50
+   `SettingsScreen.kt` holds an `enum class SettingsSubScreen` (~40
    values: `MAIN`, `AI_SETUP`, `AI_PROVIDERS`, `AI_AGENTS`,
    `AI_PARAMETERS`, `SETTINGS_NETWORK`, `SETTINGS_UI`, …), a
    `rememberSaveable currentSubScreen`, and a large `when` that both
@@ -205,25 +208,32 @@ Only `AppViewModel` is an actual androidx `ViewModel`
 `ReportViewModel` and `ChatViewModel` are **plain classes** that
 take an `AppViewModel` in their constructor and delegate all state
 to it (`UiState` / `StateFlow`); despite the `…ViewModel` name they
-do not extend androidx `ViewModel`. The extracted engines
+do not extend androidx `ViewModel`. The extracted batch engines
 (`CompareEngine`, `FanOutEngine`, `TournamentEngine`,
 `JudgeEvalEngine`, `RegenerateBatchEngine`, `ModelTestEngine`,
-`StressTestEngine`, `MetaEditManager`) use `internal constructor`;
-the managers (`SecondaryRunManager`, `IconGenerationManager`,
+`StressTestEngine`, `TranslatorRankEngine`, `MetaEditManager`,
+`SecondaryModelSwitchManager`) use `internal constructor` and most
+extend the `abstract class BatchEngine`; the managers
+(`SecondaryRunManager`, `IconGenerationManager`,
 `TranslationRunManager`, `WorkerRunner`) are public.
 
 ## Adding things
 
 ### A new OpenAI-compatible provider
 
-1. Add an entry to `assets/providers.json` under `providers`.
+1. Add **one new JSON file** under `assets/providers/` — the bundled
+   catalog is now one file per provider (42 files), each a bare
+   `ProviderDefinition` object (**no** `{"providers": [...]}` wrapper).
    Required: `id`, `baseUrl`, `adminUrl`, `defaultModel`. Optional:
    `apiFormat` (defaults to `OPENAI_COMPATIBLE`), `openRouterName`,
    `litellmPrefix`, `hardcodedModels`, `mergeHardcodedModels`,
    `defaultModelSource`, `modelFilter`, `typePaths`, `modelsPath`,
-   `builtInEndpoints`, the per-provider throttle/retry overrides
-   (`maxCallsPerProviderPerMinute`, `maxConcurrentCallsPerProvider`,
-   `maxRetriesOn529`, …), etc.
+   `responsesApiPatterns`, `builtInEndpoints`, the per-provider
+   throttle/retry overrides (`maxCallsPerProviderPerMinute`,
+   `maxConcurrentCallsPerProvider`, `maxRetriesOn529`, …), etc.
+   `ProviderRegistry.readBundledProviderDefs` reads every `*.json` in
+   the folder, sorted by filename for a deterministic merge; one bad
+   file is skipped, not fatal.
 
    Note: `id` is the **only** name field — there is no separate
    `displayName` or `prefsKey`. The UI shows `id` directly, and
@@ -231,8 +241,11 @@ the managers (`SecondaryRunManager`, `IconGenerationManager`,
 2. For a non-default chat or models path, set `typePaths` (e.g.
    `typePaths.chat`) and `modelsPath`. `chatPath` / `responsesPath`
    are computed getters over `typePaths`, not stored fields.
-3. The bundled JSON is a flat `{"providers": [...]}` shape with **no
-   top-level `version` field**.
+3. The user-facing import/export wire format (the "Import providers.json"
+   button + "Share providers", via `ProviderRegistry.upsertFromJson`)
+   is still the flat `{"providers": [...]}` shape with **no top-level
+   `version` field** — only the on-disk bundled layout changed to
+   per-file.
 
 `AppService` is a plain `class` (not a `data class`): its
 `equals`/`hashCode`/`toString` are **id-only**, and it hand-writes a
@@ -242,11 +255,12 @@ the `copy(...)` body, and to `ProviderDefinition` (the Gson DTO in
 `ProviderRegistry.kt`) plus its `toAppService` / `fromAppService`.
 
 `ProviderRegistry` starts **empty** on a fresh install. The first
-run reads `providers.json` via `importFromAsset` and persists each
-provider into the `provider_registry` SharedPreferences file. To
-force a re-import on an existing install: AI Setup → Providers →
-Refresh providers (or Housekeeping → Reset → Refresh bundled assets,
-which re-pulls `providers.json` *and* the `internal-prompts/` tree).
+run reads the `assets/providers/` folder via `importFromAsset(context)`
+and persists each provider into the `provider_registry`
+SharedPreferences file. To force a re-import on an existing install:
+AI Setup → Providers → Refresh providers (or Housekeeping → Reset →
+Refresh bundled assets, which re-pulls the `assets/providers/` set
+*and* the `internal-prompts/` tree).
 
 `importFromAsset` is append-only (it never overwrites an existing
 id, returns the count of newly-added providers, `-1` on failure) and
@@ -286,15 +300,21 @@ Google appends a URL-encoded `?key=` query param to
 1. Add it to `AgentParameters` (and `ChatParameters` if it should
    also appear in chat) in `data/DataModels.kt`, **and** to the
    `Parameters` preset class in `model/SettingsModels.kt`.
-2. Wire the fold in `mergeParameters` (`SettingsModels.kt`) — most
-   scalar/string fields use "later non-null wins"; boolean toggles
-   are OR-ed (or AND-ed, for opt-outs like `returnCitations`).
+2. Wire the field into **both** parameter-fold sites — each is its own
+   exhaustive constructor call, so a missing field just drops silently:
+   `Settings.mergeParameters(ids)` in `model/SettingsModels.kt` (folds
+   the preset chain) **and** `AnalysisRepository.mergeParameters`
+   (folds the per-call override over the agent params) plus its
+   `filterParametersBySupported`. Most scalar/string fields use
+   "later non-null wins"; boolean toggles are OR-ed (or AND-ed, for
+   opt-outs like `returnCitations`).
 3. Add UI inputs in `AgentEditScreen` (`settings/AgentsScreen.kt`)
    and `ParametersEditScreen` (`settings/ParametersScreen.kt`).
 4. Update the request model in `ApiModels.kt` (per `ApiFormat`).
 5. Pass it through in `ApiDispatch.kt` and the streaming methods.
 6. If it should be settable per-turn from a chat session (like
-   reasoning effort), wire it in `ChatSessionScreen`.
+   reasoning effort), wire it in `ChatSessionScreen`
+   (`ui/chat/ChatScreens.kt`).
 
 > For how an added parameter is *resolved* at call time (agent /
 > flock / swarm / per-call precedence), see
@@ -303,18 +323,20 @@ Google appends a URL-encoded `?key=` query param to
 
 ### A new pricing tier
 
-The lookup precedence in `PricingCache.getPricing` is, first hit
-wins: (1) **OpenRouter self-report** (only when the caller provider
-has `crossProviderModelList`) → (2) **Together self-report** (only
-when `pricingFromModelList`) → (3) **manual OVERRIDE** → (4) LiteLLM
-→ (5) models.dev → (6) llm-prices → (7) Artificial Analysis →
-(8) OpenRouter cross-provider fallback (for non-OpenRouter callers)
-→ (9) Helicone → (10) `DEFAULT_PRICING`. (The class-level KDoc in
-`PricingCache.kt` still describes a stale "five-tier" model with
-LiteLLM ahead of OVERRIDE — ignore it; the code at the
-`getPricing` body is authoritative, and OVERRIDE is **ahead** of the
-curated tiers so a user's manual correction can't be silently
-overridden by a stale catalog.)
+The lookup precedence lives in the single private
+`PricingCache.findPricingMatch` chain (which `getPricing` /
+`getPricingWithoutOverride` / `lookupPricing` all delegate to), first
+hit wins: (1) **OpenRouter self-report** (only when the caller
+provider has `crossProviderModelList`) → (2) **Together self-report**
+(only when `pricingFromModelList`) → (3) **manual OVERRIDE** →
+(4) LiteLLM → (5) models.dev → (6) llm-prices → (7) Artificial
+Analysis → (8) OpenRouter cross-provider fallback (for non-OpenRouter
+callers) → (9) Helicone → (10) `DEFAULT_PRICING` (returned by
+`getPricing` when `findPricingMatch` misses). The class-level KDoc in
+`PricingCache.kt` now matches this order (OVERRIDE ahead of the
+curated tiers), so a user's manual correction can't be silently
+overridden by a stale catalog. `getPricingWithoutOverride` runs the
+same chain with `includeOverride = false`.
 
 To add a tier:
 
@@ -325,9 +347,10 @@ To add a tier:
    sidecar for capability tiers), with a bundled fallback at
    `assets/info-providers/<key>.json`. Bump to a `_v2` key if a
    parser revision must invalidate stale data.
-3. Insert the tier into `getPricing` / `lookupPricing` /
-   `getTierBreakdown` in the right precedence slot. Keep manual
-   OVERRIDE above the curated tiers.
+3. Add a `find<Tier>Pricing` helper, then insert it into
+   `findPricingMatch` (the single precedence-ordered chain) in the
+   right slot, and into `getTierBreakdown` (+ the `pricesConflict`
+   tier list). Keep manual OVERRIDE above the curated tiers.
 4. Wire a card on `RefreshScreen` and (if a free API key is
    required) a field on `ExternalServicesScreen`.
 5. Add the tier as a new column in the layered-cost CSV export.
@@ -340,10 +363,12 @@ To add a tier:
 `ModelPricing("default", 25e-6, 75e-6)` ($25/M in, $75/M out), so an
 unknown model is conservatively over-priced rather than free.
 
-### A new SecondaryKind (after RERANK / META / MODERATION / TRANSLATE / TOURNAMENT / JUDGES / COMPARE)
+### A new SecondaryKind (after RERANK / META / MODERATION / TRANSLATE / TOURNAMENT / JUDGES / COMPARE / TRANSRANK)
 
-`SecondaryKind` (`data/SecondaryModels.kt`) has exactly these seven
-values, in this order. Most "I want a new analysis on report
+`SecondaryKind` (`data/SecondaryModels.kt`) has exactly these **eight**
+values, in this order (the most recent addition is `TRANSRANK` —
+"Rank the translators", a grid-shaped kind driven by
+`TranslatorRankEngine`). Most "I want a new analysis on report
 outputs" cases need **no** new kind — add a Meta-prompt entry under
 Settings → AI Setup → Prompt management instead. Add a new
 `SecondaryKind` only when the flow has fundamentally different
@@ -354,23 +379,32 @@ and Moderation are dispatched by three separate entry methods on
 `SecondaryRunManager` (`runRerank` → `RERANK`, `runModeration` →
 `MODERATION`, `runMetaPrompt` → `META`), all funneling through the
 shared `executeSecondaryTask`. The grid-shaped kinds have dedicated
-engines (`TournamentEngine`, `JudgeEvalEngine`, `CompareEngine`) and
-Fan-out / Fan-in / Translate have their own managers.
+engines (`TournamentEngine`, `JudgeEvalEngine`, `CompareEngine`,
+`TranslatorRankEngine`) and Fan-out / Fan-in / Translate have their
+own managers.
 
 Add the enum value, then walk the compiler's exhaustive-`when`
 errors:
 
-- `legacyKindDisplayName` mapping
+- `legacyKindDisplayName` mapping (`data/SecondaryResult.kt`)
 - `SecondaryResultStorage.Counts` + `countForReport`
+  (`data/SecondaryResult.kt`)
 - The `SecondaryRunManager` entry method + `executeSecondaryTask`
-  (or a new engine if grid-shaped)
+  (or a new `BatchEngine` subclass if grid-shaped, à la
+  `TranslatorRankEngine`)
 - `RegeneratePhase` + `RegenerateBatchEngine` if the kind should be
-  regenerable
-- `SecondaryResultsScreen` routing (picker / table / drill-in list)
+  regenerable (the grid kinds JUDGES / COMPARE / TRANSRANK are **not**
+  regenerable phases — only TOURNAMENT among them is)
+- The `SecondaryResultsScreen` routing in `ui/report/manage/SecondResults.kt`
+  (picker / table / drill-in list) — the trace/usage "Type" string and
+  the AI Usage `kind`
 - `ContentDisplay.ReportCostTable` row mapping
-- The report-export builders: `ReportExport` (view-picker tabs +
-  card rendering + costs Type column), `WordOdtExport`,
-  `ZippedHtmlExport`, and the `PdfExport` filter
+  (`ui/report/manage/view/ContentDisplay.kt`)
+- The report-export builders (`ui/helpers/`): `ReportExport`
+  (view-picker tabs + card rendering + costs Type column),
+  `WordOdtExport`, `ZippedHtmlExport`, and the `PdfExport` filter
+- A help topic for any new screen and a default glyph for the dashboard
+  / cost-table StatChip
 
 The pattern documents itself; lean on the compiler.
 
@@ -381,8 +415,12 @@ seeded categories (folders under `assets/internal-prompts/<lang>/`):
 `meta`, `meta_compare`, `fan_out`, `fan_in`, `workers`, `alt`,
 `internal`. To add one:
 
-1. Seed default rows under `assets/internal-prompts/<lang>/<cat>/`.
-   They are delta-merged in on the next cold start (existing rows are
+1. Seed default rows under `assets/internal-prompts/<Language>/<cat>/`
+   — two files per prompt: a `<name>.json` metadata sidecar (name,
+   title, reference, agent, optional provider/model/parameters/
+   systemPrompt) plus a `<name>.txt` body (real line breaks). The
+   folder name is the authoritative category. They are delta-merged in
+   on the next cold start by `InternalPromptSeed` (existing rows are
    never overwritten).
 2. Add a sub-hub entry in `SetupScreens.kt` → `InternalPromptsHubScreen`
    (which counts entries by category and routes to the per-category
@@ -398,10 +436,11 @@ seeded categories (folders under `assets/internal-prompts/<lang>/`):
 ### A new Help topic / help page
 
 `ui/admin/HelpContent.kt` assembles `HELP_TOPICS` from 12 per-domain
-maps (`ReportsHelp.kt` 103, `SettingsAdminHelp.kt` 78,
-`ProviderCatalogHelp.kt` 44, …; 323 base entries) plus 22
-auto-built `<topic>_icons` pages → **~345 topics total**. Each
-full-screen overlay has its own entry. To add one:
+maps (`ReportsHelp.kt` 112, `SettingsAdminHelp.kt` 90,
+`ProviderCatalogHelp.kt` 44, `developerHelp` 21, `glossaryHelp` 18,
+`crudHelp` 15, …; ~359 base entries) plus 22 auto-built
+`<topic>_icons` pages → **~381 topics total**. Each full-screen
+overlay has its own entry. To add one:
 
 1. Add a `"<topicId>" to HelpContent(title, cards)` entry to the
    relevant per-domain map.
@@ -437,25 +476,31 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew test                         # 
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew connectedDebugAndroidTest    # instrumented (~40s on emulator)
 ```
 
-Both layers use Truth. Roughly **25 unit-test files** under
-`ai/src/test/java/com/ai/` (`ApiDispatchHelpersTest`,
-`BuildChatUrlTest`, `ResponsesUrlTest`, `TracerTagsTest`,
-`DefaultClaudeMaxTokensTest`, `ModelTypeTest`, `EmbeddingsStoreTest`,
+Both layers use Truth. Roughly **59 unit-test files** under
+`ai/src/test/java/com/ai/` (representative: `ApiDispatchHelpersTest`,
+`ApiMockWebServerTest`, `BuildChatUrlTest`, `ResponsesUrlTest`,
+`TracerTagsTest`, `DefaultClaudeMaxTokensTest`, `ModelTypeTest`,
+`EmbeddingsStoreTest`, `EmbeddingsCosineTest`,
 `SecondaryResultHelpersTest`, `ApiModelsUsageTest`,
 `BackupManagerRestoreTest`, `AtomicFileWriteTest`,
-`SettingsGraphTest`, `ProviderDefinitionTest`,
-`DualChatParametersTest`, `SettingsPreferencesUsageStatsTest`,
-`UiFormattingTest`, `TraceTranslationExtractionTest`,
-`ParametersMergeTest`, `AnalysisRepositoryParametersTest`,
-`ExportRedactionTest`, `ReportMarkdownExportTest`,
-`WordOdtMarkdownTest`, `ZippedHtmlNamingTest`,
-`SemanticSearchChoicesTest`, `BulkExportUnpackTest`); and roughly
-**23 instrumented files** under `ai/src/androidTest/java/com/ai/`
-covering the Compose UI (`ChatsHubScreenTest`, `ReportsHubScreenTest`,
-`ContentDisplayTest`, `SharedComponentsTest`, `TitleBarTest`,
-`HelpScreenTest`, `HousekeepingScreenTest`, `ReportExportScreenTest`,
-`TranslationCompareScreenTest`) and device-side data plumbing
-(`ChatHistoryManagerInstrumentedTest`,
+`SettingsGraphTest`, `SettingsAiSetupGraphTest`,
+`ProviderDefinitionTest`, `AppServiceLocalTest`,
+`DualChatParametersTest`, `ParametersMergeTest`,
+`AnalysisRepositoryParametersTest`, `ExportRedactionTest`,
+`ReportMarkdownExportTest`, `WordOdtMarkdownTest`,
+`ZippedHtmlNamingTest`, `SemanticSearchChoicesTest`,
+`BulkExportUnpackTest`, `BrokenWorkPolicyTest`,
+`TranslationGroupingTest`, `MarkdownTablesTest`); and roughly
+**27 instrumented files** under `ai/src/androidTest/java/com/ai/`
+(several are shared harnesses — `BottomBarHarness`,
+`PersistentStateGuard`, `TestProvider`) covering the Compose UI
+(`ChatsHubScreenTest`, `ReportsHubScreenTest`, `ContentDisplayTest`,
+`SharedComponentsTest`, `TitleBarTest`, `HelpScreenTest`,
+`HousekeepingScreenTest`, `ReportExportScreenTest`,
+`TranslationCompareScreenTest`, `HomeBarModeScreenTest`,
+`ReportLauncherScreensInstrumentedTest`,
+`ReportChangeResultScreensInstrumentedTest`) and device-side data
+plumbing (`ChatHistoryManagerInstrumentedTest`,
 `ProviderRegistryInstrumentedTest`, `ReportStorageInstrumentedTest`,
 `SecondaryResultStorageInstrumentedTest`,
 `ApiTracerInstrumentedTest`, `PricingCacheInstrumentedTest`, plus the
@@ -483,11 +528,13 @@ unit tests verify code correctness, not feature correctness here.
 
 - **Anthropic `max_tokens` is supplied at dispatch, not hardcoded.**
   The `ClaudeRequest` field is nullable; `defaultMaxTokens` resolves
-  `service.maxTokensDefaults.resolveMaxTokens(model) ?: 4096`. That
-  4096 default is also applied to OpenAI-compatible calls (to avoid
-  OpenRouter balance-gating 402s), not Anthropic-only.
-  `claudeReasoningBundle` bumps `max_tokens` above the thinking
-  `budget_tokens` when needed and logs the override.
+  in order: `service.maxTokensDefaults.resolveMaxTokens(model)` (the
+  per-provider config) → the model's models.dev max-output window
+  (capped against its context window minus `INPUT_HEADROOM`) → a
+  static **4096** fallback. That default is also applied to
+  OpenAI-compatible calls (to avoid OpenRouter balance-gating 402s),
+  not Anthropic-only. `claudeReasoningBundle` bumps `max_tokens` above
+  the thinking `budget_tokens` when needed and logs the override.
 - **Google auth uses a `?key=` query param**, URL-encoded, not a
   Bearer token.
 - **OpenAI dual API**: `gpt-4o`-class uses Chat Completions; `gpt-5.x`
@@ -500,8 +547,8 @@ unit tests verify code correctness, not feature correctness here.
   message, and multi-text blocks are concatenated by the dispatch
   layer.
 - **OpenAI's `/v1/models` omits moderation / TTS / image / STT
-  models.** OpenAI carries `mergeHardcodedModels: true` in
-  `providers.json`; `Settings.withModels` unions
+  models.** OpenAI carries `mergeHardcodedModels: true` in its
+  `assets/providers/OpenAI.json` definition; `Settings.withModels` unions
   `service.hardcodedModels` into the fetched list **only** for
   providers with that flag, so those picker entries survive a
   refresh. (If you need a specific OpenAI model to reappear in a
@@ -518,7 +565,8 @@ unit tests verify code correctness, not feature correctness here.
   resolve per host via `ProviderThrottle.retryLimitsFor429(host)` /
   `retryLimitsFor529(host)` (per-provider override → global default).
   Anthropic ships a stricter 529 override (5 retries, 5000 ms) in
-  `providers.json`. Setting retries to 0 disables the in-line loop;
+  `assets/providers/Anthropic.json`. Setting retries to 0 disables the
+  in-line loop;
   the outer `AnalysisRepository.withRetry` still gets one more
   attempt and treats 408 / 425 / 429 as transient.
   (CLAUDE.md's "5× with 3 s back-off" is stale.)
@@ -526,11 +574,14 @@ unit tests verify code correctness, not feature correctness here.
   one semaphore (concurrency) + sliding-window deque (per-minute
   rate) per host, caps = per-provider override → global default.
   Separately, `ApiCallCaps` (`ApiTracer.kt`) is a set of
-  coroutine-level `Semaphore` pools: `global` (100), `report` (50),
-  `translation` (50), `fanOut` (50), `fanMeta` (50), `workers` (50,
-  shares the fanMeta knob). Batch flows acquire in the canonical
-  **subCap → global → per-host** order via `runThrottledBatch` /
-  `acquireThrottledPermits` (`ReportViewModelHelpers.kt`). The key
+  coroutine-level `Semaphore` pools, each with its own knob —
+  `global` (init 100), `report` / `translation` / `fanOut` /
+  `fanMeta` / `workers` (init 50 each). `resetForNewLimits(globalMax)`
+  resizes **every** sub-cap to the global cap, so in practice only the
+  single "Concurrent API calls" global limit binds. Batch flows
+  acquire in the canonical **subCap → global → per-host** order via
+  `runThrottledBatch` (`ThrottledBatch.kt`) / `acquireThrottledPermits`
+  (`ReportViewModelHelpers.kt`). The key
   invariant (commit *report-primary caps*): while **parked** on a
   saturated per-host gate, the `PermitHold` releases both subCap and
   global and re-takes them on the next poll — so a flow's cap counts
@@ -598,22 +649,31 @@ unit tests verify code correctness, not feature correctness here.
   format changes in a way an old restore can't read. (This is
   separate from per-report `EXPORT_VERSION = 1` in `ReportBundle.kt`,
   which governs the single-report import/export zip.)
-- **No bundled `setup.json`.** The provider catalog is
-  `assets/providers.json` (flat `{"providers": [...]}`); Internal
-  Prompts come from `assets/internal-prompts/`; Example Prompts from
-  `assets/examples.json`; plus `system-prompts.json`, `excluded.json`,
-  `inaccessible.json`, `meta.json`. None carry a top-level version.
-  (A stale in-code comment in `withModels` still references
-  `setup.json` — ignore it.)
+- **No single bundled catalog file.** The bundled assets are now split
+  into per-item directories, each read by its own `*Seed` object:
+  the provider catalog is `assets/providers/` (one bare
+  `ProviderDefinition` JSON per provider, 42 files); System Prompts
+  are `assets/prompts/system/` (`SystemPromptSeed`); Example Prompts
+  are `assets/prompts/examples/` (`ExamplePromptSeed`); Internal
+  Prompts are `assets/internal-prompts/<Language>/<category>/`
+  (`<name>.json` sidecar + `<name>.txt` body, `InternalPromptSeed`);
+  swarms are `assets/workers/swarms/` (`SwarmSeed`) and flocks
+  `assets/workers/flocks/` (`FlockSeed`). The remaining single-file
+  seeds are `assets/excluded.json` (`TestExcludedSeed`),
+  `assets/inaccessible.json` (`InaccessibleSeed`) and
+  `assets/meta.json` (`DefaultMetaItemSeed`). None carry a top-level
+  version. (Stale in-code comments / KDoc still mention `setup.json`,
+  `providers.json`, `examples.json` — ignore them; only the wire/import
+  format kept those flat shapes, not the on-disk layout.)
 - **`ApiFactory.fetchUrlAsString` is preferred over `URL.openStream`**
   for ad-hoc HTTP gets so the call goes through `TracingInterceptor`
   and the retry interceptors like everything else.
 - **Two `huggingface` keys**: `huggingface_api_key` (External
   Services → HuggingFace, for HF model-info lookups, with its own
   `huggingface_cache` prefs + 7-day TTL) and the optional
-  `HuggingFace` provider in `providers.json` (HF Inference API, used
-  as a chat provider). Separate things even though both prompt for an
-  HF token.
+  `HuggingFace` provider in `assets/providers/HuggingFace.json` (HF
+  Inference API, used as a chat provider). Separate things even though
+  both prompt for an HF token.
 - **`AppService.id` is the only name field.** The legacy
   `displayName` / `prefsKey` collapsed into `id` in the
   id-unification refactor; there are no backwards-compat migrations.
@@ -637,8 +697,9 @@ unit tests verify code correctness, not feature correctness here.
   [report-icons.md](report-icons.md).
 - **Background continuation.** Initial report generation, regenerate
   (the phased `RegenerateBatchEngine`), secondary launches (rerank /
-  meta / moderation / translate / tournament / judges / compare), and
-  the icon flows are all launched on `appViewModel.viewModelScope`
+  meta / moderation / translate / tournament / judges / compare /
+  rank-translators), and the icon flows are all launched on
+  `appViewModel.viewModelScope`
   (not a report-VM scope) so navigating away doesn't cancel the work.
   The result screen recovers stale placeholders on entry via
   `restoreCompletedReport` / `hydrateAgentResultsFromStorage`. A 30 s
@@ -661,21 +722,23 @@ merge of bundled assets on **every** app start, not just fresh
 install. The first-run gate is `KEY_FIRST_RUN_BOOTSTRAPPED` in
 `eval_prefs`.
 
-- `assets/providers.json` — new entries are appended on every start
+- `assets/providers/` — new entries are appended on every start
   (`importFromAsset`). Per-field updates are gated by
   `ProviderFieldTimestamps`: a field the user has edited (non-null
   timestamp) is left alone; an un-edited field tracks the asset
   (`syncFromAsset`).
-- `assets/internal-prompts/<lang>/…` — bundled rows missing by
-  `(category, name)` are added; existing rows are never overwritten
-  (`InternalPromptSeed.ensureAllPresent`). So shipping new bundled
-  prompts reaches existing installs on the next cold start.
-- `assets/examples.json` — delta-merged by title
+- `assets/internal-prompts/<Language>/<category>/` — bundled rows
+  missing by `(category, name)` are added; existing rows are never
+  overwritten (`InternalPromptSeed.ensureAllPresent`). So shipping new
+  bundled prompts reaches existing installs on the next cold start.
+- `assets/prompts/examples/` — delta-merged by title
   (`ExamplePromptSeed.ensureAllPresent`).
-- `assets/system-prompts.json`, `assets/excluded.json`,
-  `assets/inaccessible.json`, `assets/meta.json`, plus seeded
-  swarms/flocks — each delta-merged the same way (`ensureAllPresent`),
-  appending only missing rows.
+- `assets/prompts/system/`, `assets/workers/swarms/`,
+  `assets/workers/flocks/`, `assets/excluded.json`,
+  `assets/inaccessible.json`, `assets/meta.json` — each delta-merged
+  the same way (`SystemPromptSeed` / `SwarmSeed` / `FlockSeed` /
+  `TestExcludedSeed` / `InaccessibleSeed` / `DefaultMetaItemSeed`,
+  all `ensureAllPresent`), appending only missing rows.
 
 There is no one-shot bundled-prompt migration block — only the
 every-start delta-merges above remain.

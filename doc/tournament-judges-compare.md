@@ -5,8 +5,10 @@ finished report. They are stored as `SecondaryResult` rows but are not ordinary
 single-call Meta rows: each run pre-creates a grid of cells, dispatches the
 cells through workers or fixed judges, persists each cell independently, and
 hydrates the run back from disk when a report is reopened. They are three of the
-seven `SecondaryKind` values (`RERANK, META, MODERATION, TRANSLATE, TOURNAMENT,
-JUDGES, COMPARE` — `data/SecondaryModels.kt`).
+eight `SecondaryKind` values (`RERANK, META, MODERATION, TRANSLATE, TOURNAMENT,
+JUDGES, COMPARE, TRANSRANK` — `data/SecondaryModels.kt`). The eighth,
+`TRANSRANK` ("Rank the translators"), is a sibling feature that reuses this
+file's tournament cell/matrix machinery — see [rank-translators.md](rank-translators.md).
 
 ## Shared model
 
@@ -23,17 +25,31 @@ All three flows use the same operational pattern:
 - On process loss or navigation away, hydration rebuilds the run state from
   `<filesDir>/secondary/<reportId>/`. There is one run per report — the newest
   run group wins if legacy multi-run rows are present.
+- **Persisted runs hydrate read-only when their prompt is missing.** Each
+  engine resolves the run's prompt by `metaPromptId`, then falls back to the
+  current bundled prompt (`workers/tournament` / `meta_compare`), and finally —
+  if both are gone (the prompt was deleted/renamed since the run) — to a
+  *synthetic* `InternalPrompt` built from the row's `metaPromptId` /
+  `metaPromptName` with **blank text** (its name shows as `(prompt unavailable)`
+  when even that is gone). Every mutating path (resume, rerun, restart-failed,
+  add-judge) guards on `prompt.text.isBlank()` and no-ops, so a synthetic run
+  hydrates for viewing but can't re-fire API calls. (Audit bugs 15 / 16 / 17.)
 - Failed cells can be restarted without deleting successful cells.
 - A full redo deletes the run's rows and launches a new grid.
 - App-kill resume and a per-cell retry bound (`BatchResume.capForRetry`) apply.
 
-The hot state lives on `AppViewModel`, outside `UiState`:
+Each engine owns its own per-report run-state `StateFlow` (`runs`, on the
+`BatchEngine` base); per-item RUNNING status lives in that map (there is **no**
+separate "running ids" set on `AppViewModel`). The only hot id sets on
+`AppViewModel` (outside `UiState`) are the throttled/"waiting" sets below; the
+live in-process Job ids come from each engine's `inFlightRowIds()`
+(`matchJobs` / `cellJobs` keys), which the read-only broken-work scan excludes.
 
-| Flow | Runtime owner (in `ReportViewModel`) | Running ids | Throttled (waiting) ids |
+| Flow | Runtime owner (in `ReportViewModel`) | Run-state StateFlow | Throttled (waiting) ids |
 |---|---|---|---|
-| Tournament | `rvm.tournamentEngine` (`TournamentEngine`) | `runningTournamentMatches` | `throttledTournamentMatches` |
-| Judge the judges | `rvm.judgeEvalEngine` (`JudgeEvalEngine`) | `runningJudgeEvalCells` | `throttledJudgeEvalCells` |
-| Compare with meta | `rvm.compareEngine` (`CompareEngine`) | `runningCompareCells` | `throttledCompareCells` |
+| Tournament | `rvm.tournamentEngine` (`TournamentEngine`) | `runs` (per-match `MatchStatus`) | `throttledTournamentMatches` |
+| Judge the judges | `rvm.judgeEvalEngine` (`JudgeEvalEngine`) | `runs` (per-cell `JudgeCellStatus`) | `throttledJudgeEvalCells` |
+| Compare with meta | `rvm.compareEngine` (`CompareEngine`) | `runs` (per-cell `CompareCellStatus`) | `throttledCompareCells` |
 
 All three use `ApiCallCaps.workers` as their per-flow sub-cap (which shares the
 `fanMeta` concurrency limit, default 50), layered over the global
@@ -42,10 +58,15 @@ All three use `ApiCallCaps.workers` as their per-flow sub-cap (which shares the
 sub-cap → global → host; the engines reuse the same park-friendly batch helpers
 as Fan-Meta and fan-out.
 
-The cross-kind resume orchestrator (`SecondaryRunManager.resumeStaleRunsForReport`)
-delegates to each engine's own `resumeStaleRunsForReport`; the single-call
-Meta/Rerank/Moderation resume and the legacy "no data yet" fallback explicitly
-**skip** TOURNAMENT/JUDGES rows because their engines own them.
+The cross-kind resume orchestrator (`SecondaryRunManager.resumeStaleRunsForReport`,
+the app-start + 30 s background sweep) delegates to the fan-out, tournament, and
+judge-eval engines' own `resumeStaleRunsForReport`. **Compare is not in that
+central sweep** — it resumes alongside the others when its Manage screen opens
+(`ui/report/manage/Nav.kt`). The single-call Meta/Rerank/Moderation resume and
+the legacy "no data yet" fallback explicitly **skip** TOURNAMENT/JUDGES rows by
+kind (their engines own them); COMPARE/TRANSRANK cells are skipped implicitly,
+because their pending sentinel provider (`*workers`) fails the
+`AppService.findById` check that path requires.
 
 ## Tournament
 
@@ -77,6 +98,16 @@ Stored rows:
 |---|---|---|---|
 | Match | `TOURNAMENT` | `*workers` / `*pending` (until judged) | `tournamentRole="MATCH"`, `tournamentJudgeRunId`, `matchResponseAId`, `matchResponseBId`, `matchOrientation` |
 | Aggregate | `TOURNAMENT` | `*tournament` / `aggregate` (`AGG_PROVIDER`/`AGG_MODEL`) | `tournamentRole="AGGREGATE"`, `tournamentMatrix`, ranked JSON in `content` |
+
+> **Shared with TransRank.** The whole tournament cell/matrix field cluster —
+> `tournamentRole` (`MATCH`/`AGGREGATE`), `tournamentJudgeRunId`,
+> `tournamentMatrix` — plus the `recordTournamentMatch` storage helper are reused
+> by the sibling `TRANSRANK` ("Rank the translators") feature. `recordTournamentMatch`
+> takes an optional full `TokenUsage` (TransRank passes the whole usage so
+> cached / reasoning tokens and the API-reported cost survive); when null it falls
+> back to the legacy input/output-token-only shape Tournament uses. See
+> [rank-translators.md](rank-translators.md) for the TransRank specifics; they are
+> not duplicated here.
 
 ### Aggregation and the win matrix
 
@@ -111,19 +142,26 @@ recompute and persist a different ranking **locally with no API calls**
 
 ### Ranking methods
 
-`rankFor(method, matrix)` dispatches to one of the `TournamentMethod` values;
-every method emits the same rerank-compatible `[{id, rank, score, reason}]`
-JSON (`toRerankJson`, which coerces non-finite scores to 0 and rounds
-numerically — never `"%.2f".format(x).toDouble()`, which would crash on a
-comma-decimal locale).
+`rankFor(method, matrix)` dispatches to one of the **eleven** `TournamentMethod`
+values (`COPELAND, ELO, DAVIDSON, TIDEMAN, MARKOV, SCHULZE, MINIMAX, COLLEY,
+GLICKO2, POINTS, TRUESKILL2`); every method emits the same rerank-compatible
+`[{id, rank, score, reason}]` JSON (`toRerankJson`, which coerces non-finite
+scores to 0 and rounds numerically — never `"%.2f".format(x).toDouble()`, which
+would crash on a comma-decimal locale).
 
 | Method | What it does |
 |---|---|
 | **Copeland** | Win-count. `score = 100 · wins / played`, where `wins` is the model's total fractional wins and `played` is the number of opponents it **actually contested** (`games[i][j] > 0`), coerced to ≥ 1. This is a true per-model win-rate; it equals `n-1` only for a complete round-robin. Reason: `"Won %.1f of %d head-to-heads"` (pinned to `Locale.US`). |
 | **Elo** | Replays each contested pair once in deterministic id order, K=32 from a 1500 base. Order-sensitive, so a weaker fit for a static round-robin. |
-| **Davidson** | Tie-aware paired-comparison MLE using the explicit tie counts, 700 gradient iterations; score = fitted strength rescaled so the strongest = 100. Only Davidson needs `hasTieData` and will rebuild the matrix from rows when the sidecar lacks ties. |
+| **Davidson** | Tie-aware paired-comparison MLE using the explicit tie counts, 700 gradient iterations; score = fitted strength rescaled so the strongest = 100. Davidson is the only method that **triggers a rebuild** of the matrix from the match rows when the sidecar lacks explicit ties (`hasTieData == false`); TrueSkill2 also reads tie counts but uses whatever the decoded matrix carries (synthesized from wins/games when absent). |
 | **Tideman** | Ranked Pairs — locks pairwise majorities strongest-first, skipping any edge that would close a cycle; scores by rank position in the resulting DAG. |
-| **Markov** | Random-walk stationary distribution over the pairwise results (damping 0.92), rescaled so the strongest = 100. |
+| **Markov** | Random-walk stationary distribution over the pairwise results (damping 0.92, ~500 power-iterations), rescaled so the strongest = 100. |
+| **Schulze** | Beatpaths (Condorcet). Seeds each ordered pair with the winner's pairwise points, then Floyd–Warshall finds the strongest (widest) path between every pair; `i` outranks `j` when its strongest path beats `j`'s back. Ordering method — rank-based score, beatpath win count as the reason. |
+| **Minimax** | Simpson–Kramer. Each response's worst pairwise defeat margin; the smallest-worst-defeat ranks first (a Condorcet winner's is 0). Ordering method. |
+| **Colley** | Colley's bias-free rating (the sports/BCS method): solves `C·r = b` via Gauss–Jordan with partial pivoting; ratings centre near 0.5 and fold in schedule strength without margin bias, rescaled so the strongest = 100. Falls back to a plain win share if the solve degenerates. |
+| **Glicko-2** | One rating period folding all of a response's games against the others (held at start-of-period ratings); volatility solved by Glickman's Illinois iteration. Score = the updated rating from a 1500 base. |
+| **Points** | Plain head-to-head points tally (win = 1, draw = 0.5) summed over every contested pair. Unlike Copeland this is **not** a win-rate — playing (and winning) more matches counts for more. Score = the points total. |
+| **TrueSkill2** | The 1-v-1 core of Microsoft's TrueSkill: a Bayesian μ/σ skill belief per response updated through every contested pair (draw margin estimated from the observed tie rate). Score = the conservative estimate μ − 3σ. |
 
 > The Copeland denominator was previously a fixed `n-1` shared by all models,
 > which scored an uncontested or errored pair like a loss and overstated the
@@ -145,9 +183,22 @@ View-side drill-in:
 
 - Tournament appears as its own View tab (`ui/report/view/Tournament.kt`, with
   the podium in `TournamentPodium.kt`).
-- The leaderboard can switch aggregation method (a pure local recompute).
+- The in-tab leaderboard's method toggle currently exposes only the first
+  **five** methods (Copeland / Elo / Davidson / Tideman / Markov); switching is a
+  pure local recompute via `applyTournamentMethod` (no API calls).
+- The **podium** (`TournamentPodium.kt`) is the full surface: its
+  `MethodSelector` lists **all eleven** methods (`TournamentMethod.entries`), and
+  a "total" table shows each model's position across every method side-by-side,
+  each column recomputed locally from the stored win matrix.
 - Tapping a ranked model opens head-to-head cards, including A-vs-B/B-vs-A
   orientation switching and trace links.
+
+The aggregate row's rerank-compatible `content` is consumed beyond the tournament
+screens: it drives the Top-ranked scope (`extractTopRankedIds`) and feeds the
+**Value view** (`ui/report/view/ValueView.kt`), which surfaces a "Tournament"
+total ranking source plus one source per method and folds them into its weighted
+"Combined" (0–1000) ranking alongside Rerank / TransRank — see
+[value-view.md](value-view.md).
 
 Trace category `after/tournament`; usage kind `tournament`.
 
@@ -207,16 +258,21 @@ its own category); usage kind `judges`.
 **Compare with meta** scores how closely each primary report answer matches
 selected Meta results.
 
-The user first selects one existing plain Meta row (a single tap, no
-multi-select), then chooses an internal prompt from
-`category="meta_compare"` (the bundled prompt is
-`meta_compare/equivalent`). The run creates:
+The user selects one existing plain Meta row (a single tap, no multi-select).
+There is **no separate prompt-selection step** any more — the former
+`CompareSelectPromptScreen` was removed. Instead the launch (`Run.kt`)
+auto-resolves the `meta_compare` prompt whose **name matches the picked meta
+item's `metaPromptName`** (case-insensitive); the bundled prompt is
+`meta_compare/summarize` (it pairs with the bundled `Summarize` meta). If the
+resolved prompt's `modelSelection` is `*SELECT` (and report-models-as-workers is
+off), a worker picker pops first. The run then creates:
 
 ```
 successful answers × 1 (the one chosen meta row)
 ```
 
-(`cellCountFor(agentCount, metaCount) = agentCount * metaCount`.) Each cell is
+(`cellCountFor(agentCount, metaCount) = agentCount * metaCount`; the engine still
+takes a `metaResultIds` list, but the UI only ever supplies one.) Each cell is
 worker-judged through the prompt's worker list. The scoring worker is **dynamic
 like Tournament**: placeholders start at the sentinel `*workers` / `*pending`
 (`COMPARE_PENDING_PROVIDER` / `COMPARE_PENDING_MODEL`) and are overwritten with
@@ -239,7 +295,7 @@ cells:
 
 - L1 lists each report answer with its score against the single chosen
   meta result — no grouping toggle (the "Meta items" mode was removed).
-  The L2 title is now always "Compare - model".
+  The L2 title is now always "Compare with meta - model".
 
 L2 opens one group; L3 opens one cell with answer text, meta text, worker reply,
 reason, cost, and trace.
@@ -289,7 +345,8 @@ lifetime total stays whole.
 - `data/TournamentRunModel.kt` — match/run types, `parseMatchVerdict`, pending
   sentinels
 - `data/TournamentRanking.kt` — `WinMatrix`, `computeWinMatrix`, `rankFor` and
-  the five ranking methods, encode/decode of the matrix sidecar
+  the eleven ranking methods, `toRerankJson`, `applyTournamentMethod`,
+  encode/decode of the matrix sidecar
 - `data/JudgeEvalRunModel.kt` — judge cell/run types, `JUDGE_MATCH_COUNT`,
   role constants
 - `data/JudgeAgreement.kt` — per-judge agreement aggregation
@@ -304,3 +361,11 @@ lifetime total stays whole.
 - `ui/report/manage/Compare.kt`
 - `ui/report/view/Tournament.kt`
 - `ui/report/view/TournamentPodium.kt`
+- `ui/report/view/ValueView.kt` — consumes the tournament aggregate as ranking sources
+
+See also:
+
+- [rank-translators.md](rank-translators.md) — the sibling `TRANSRANK` feature
+  that reuses this file's tournament cell/matrix machinery.
+- [value-view.md](value-view.md) — the Value view that folds Tournament / Rerank /
+  TransRank rankings into a weighted "Combined" score.

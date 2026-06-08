@@ -7,9 +7,16 @@
 >
 > The whole subsystem's UI is gated behind the **Experimental
 > features** master toggle (see [experimental.md](experimental.md)).
-> When it's off the entry points disappear, but **KBs already
-> attached to a chat or report keep injecting context at API time** —
-> only the attach/manage UI is hidden, nothing on disk is touched.
+> The home-Hub **"AI Knowledge" card** has a *second* gate on top of
+> that: the **"Show Knowledge card on home page"** toggle
+> (`showKnowledgeCard`, default off) — the Hub card shows only when
+> `experimentalFeaturesEnabled && showKnowledgeCard`
+> ([`HubScreens.kt`](../ai/src/main/java/com/ai/ui/hub/HubScreens.kt)),
+> and the secondary toggle itself is hidden until the master toggle is on.
+> When the master toggle is off the entry points disappear, but **KBs
+> already attached to a chat or report keep injecting context at API
+> time** — only the attach/manage UI is hidden, nothing on disk is
+> touched.
 
 ## Data model
 
@@ -18,7 +25,7 @@ In [`data/Knowledge.kt`](../ai/src/main/java/com/ai/data/Knowledge.kt):
 | Type | Holds |
 |---|---|
 | `KnowledgeBase` | id, name, `embedderProviderId` + `embedderModel` (fixed at creation), `embeddingDim`, `createdAt`, `sources`; computed `totalChunks` / `totalChars` |
-| `KnowledgeSource` | id, `type` (a `KnowledgeSourceType`), display `name`, `origin` (SAF Uri or URL, kept so re-index can refetch), `addedAt`, `chunkCount`, `charCount`, optional `errorMessage` |
+| `KnowledgeSource` | id, `type` (a `KnowledgeSourceType`), display `name`, `origin` (SAF Uri or URL, kept so re-index can refetch), `addedAt`, `chunkCount`, `charCount`, optional `errorMessage` (last index attempt failed), optional `needsReindexReason` (chunks written but untrustworthy — e.g. after an embedder dim change) |
 | `KnowledgeChunk` | id, `sourceId`, `ordinal`, `text`, `embedding: FloatArray` |
 
 The embedder identity is **fixed per KB** — query and chunk vectors
@@ -30,10 +37,16 @@ and recreating the KB.
 `embedderProviderId == "LOCAL"` (all-caps) routes to the on-device
 [`LocalEmbedder`](local-runtime.md) — `KnowledgeService` short-circuits
 straight to `LocalEmbedder.embed` and **never** calls `AppService.findById`.
-A KB created with the local embedder is stamped with `providerKey = "LOCAL"`
-in `LocalSemanticSearchScreen`. Any other id is treated as a provider id,
+A KB created with the local embedder is stamped with
+`embedderProviderId = "LOCAL"` in `NewKnowledgeBaseScreen`
+([`ui/knowledge/KnowledgeScreens.kt`](../ai/src/main/java/com/ai/ui/knowledge/KnowledgeScreens.kt)),
+which offers each installed LiteRT model as a `Triple("LOCAL", model, "Local · model")`
+option. Any other id is treated as a provider id,
 resolved with `AppService.findById(embedderProviderId)` and embedded over
 `/v1/embeddings` (or Gemini `batchEmbedContents`) via `AnalysisRepository.embed`.
+(The identically-named `providerKey = "LOCAL"` literal in
+`LocalSemanticSearchScreen` is the *report*-embedding cache key for
+`EmbeddingsStore`, unrelated to KBs.)
 
 > **Casing trap:** the KB local-embedder sentinel is the literal
 > all-caps string `"LOCAL"`. The chat/report *LLM* sentinel
@@ -50,7 +63,7 @@ indistinguishable from double for cosine ranking. It feeds the
 primitive
 [`EmbeddingsStore.cosine(FloatArray, FloatArray)`](../ai/src/main/java/com/ai/data/EmbeddingsStore.kt)
 retrieval hot path
-([`EmbeddingsStore.kt:105`](../ai/src/main/java/com/ai/data/EmbeddingsStore.kt)),
+([`EmbeddingsStore.kt:157`](../ai/src/main/java/com/ai/data/EmbeddingsStore.kt)),
 which iterates primitives but accumulates `dot`/`normA`/`normB` in
 `Double` internally to avoid float-accumulator drift.
 
@@ -64,15 +77,20 @@ the array by reference identity and silently never match.
 The boxed `cosine(List<Double>, List<Double>)` in the same file is a
 **separate** path used by report semantic search via `EmbeddingsStore`'s
 per-document cache, not by KB retrieval. Both overloads return `0.0`
-when either vector is empty, and **log a warning and return `0.0` on a
-dim mismatch** (the previous silent-zero made a "wrong embedder"
-mistake look like "no relevant hits"). KB retrieval uses **only** the
-`FloatArray` overload.
+when either vector is empty and **log a warning on a dim mismatch**, but
+the mismatch return value differs by overload: the boxed `List<Double>`
+overload returns **`Double.NaN`** (so a "wrong embedder / stale vector"
+mistake is distinguishable from a genuinely orthogonal `0.0` score),
+while the `FloatArray` overload returns **`0.0`**. KB retrieval never
+actually hits the `FloatArray` fallback — `retrieve` skips
+dim-mismatched chunks *before* calling `cosine` (see the retrieve step
+below) — so its `0.0` is purely defensive. KB retrieval uses **only**
+the `FloatArray` overload.
 
 ## The 9 source extractors
 
 `KnowledgeSourceType` has exactly nine values, in this order
-([`Knowledge.kt:11`](../ai/src/main/java/com/ai/data/Knowledge.kt)):
+([`Knowledge.kt:12`](../ai/src/main/java/com/ai/data/Knowledge.kt)):
 `TEXT, MARKDOWN, PDF, DOCX, ODT, XLSX, ODS, CSV, URL`.
 `KnowledgeExtractors.extract(context, type, origin)` dispatches all
 nine in a single `when` block
@@ -126,14 +144,24 @@ hard-split by char count. Returns chunk-text strings only;
 **Embed** — batched: `batchSize = 1` for `"LOCAL"` (one MediaPipe
 `TextEmbedder` call per text), else `32` per remote `/v1/embeddings`
 call. Vectors come back `List<Double>` and are converted per chunk to
-`FloatArray`. `embeddingDim` is taken from the first vector; a
-**zero-dim** batch errors `"Embedder returned empty vectors"`, and any
-**per-chunk dim mismatch** errors too — rather than persist
-silently-empty chunks that would score `0.0` on every future retrieval.
+`FloatArray`. `embeddingDim` is taken from the first vector; three
+validations gate the save, each rather than persist invisible chunks
+that would score `0.0` on every future retrieval:
+
+- a **zero-dim** batch errors `"Embedder returned empty vectors for …"`;
+- any **per-chunk dim mismatch** errors `"Embedder returned dim N on
+  chunk i (expected …)"`;
+- a **count mismatch** (fewer vectors than chunks, e.g. a deduped /
+  partial provider batch) errors `"Embedder returned N vectors for M
+  chunks"` rather than throwing a cryptic `IndexOutOfBoundsException`
+  when zipping the two lists.
+
 Chunks + the updated source row are written by
 `KnowledgeStore.saveSource`, which adopts the first source's dim and
-**warns loudly** if a later re-index produces a different dim (the
-manifest dim is retained; the user almost certainly swapped embedders
+**warns loudly** if a later re-index produces a different dim: the
+manifest dim is retained and the source row is stamped with
+`needsReindexReason = "Embedding dimension changed from X to Y;
+recreate this KB"` (the user almost certainly swapped embedders
 mid-life and should re-create the KB).
 
 **Remote embed dispatch** — `repository.embed` / `embedWithStatus` are
@@ -179,15 +207,22 @@ hiccup falls back to the bare prompt instead of killing the call:
   retrieves against the **last user message**, then either **merges**
   the context block into the existing system message (preserving the
   user's own system prompt) or inserts a new system message at the
-  head. The whole flow runs inside `flow { … }.flowOn(Dispatchers.IO)`
-  so the embedder + cosine sweep never block the collector (usually
-  the main) thread.
-- **Report**: `AnalysisRepository.analyze` builds a `ragPrefix` when
+  head. An **image-only** turn (no text) is skipped — the text
+  embedder has nothing to query on. The whole flow runs inside
+  `flow { … }.flowOn(Dispatchers.IO)` so the embedder + cosine sweep
+  never block the collector (usually the main) thread; a side
+  `recordRagEmbeddingUsage` logs the query's token cost against the
+  KB's embedder under usage-kind `"chat/rag"`. This applies to the
+  on-device-LLM chat path (`sendLocalLlmStream`) too.
+- **Report**: `AnalysisRepository.analyzeWithAgent` (and its streaming
+  sibling `analyzeWithAgentStreaming`) builds a `ragPrefix` when
   `knowledgeBaseIds` is non-empty and a `context` + `aiSettings` are
   present, then prepends it to the built prompt via `withRagPrefix`
   ([`data/AnalysisRepository.kt` — the `ragPrefix` block just before
   the `agent.provider.id == AppService.LOCAL.id`
-  fork](../ai/src/main/java/com/ai/data/AnalysisRepository.kt)).
+  fork](../ai/src/main/java/com/ai/data/AnalysisRepository.kt)). Both
+  the LOCAL and the remote dispatch arms wrap `buildPrompt(...)` with
+  the same prefix.
 
 Because injection keys off the stored `knowledgeBaseIds`, an
 already-attached KB keeps feeding context even when the
@@ -211,7 +246,11 @@ One chunk file per source keeps add/remove/re-index cheap (no full-KB
 rewrite). `forEachChunk` parses one source file at a time and lets the
 decoded array go out of scope between files, so peak heap during
 retrieval is bounded by the largest single source's chunks plus the
-top-K heap — never the whole KB.
+top-K heap — never the whole KB. It streams each file straight into
+Gson (no whole-file `String`), **skips an unreadable chunk file** with
+a logged warning instead of aborting the KB, and wraps each chunk's
+`block(...)` in a per-chunk `try` so one corrupt chunk (e.g. a null
+embedding) drops only itself, not the rest of that source.
 
 `KnowledgeStore` is an `object` whose mutators serialise their manifest
 read-modify-write under a shared `ReentrantLock`. Both `kbId` and

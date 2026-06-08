@@ -2,10 +2,11 @@
 
 Two related surfaces on the Manage hub:
 
-1. **Get info** — a read-only status board for a report's
-   *metadata* generation jobs (icon, language, title, per-model
-   icon / per-model title). Aggregated into the single **info**
-   row on Manage.
+1. **Get info** — a status board for a report's *metadata*
+   generation jobs (icon, language, title, per-model icon /
+   per-model title), with per-item / errors-only / all-info
+   regenerate actions. Aggregated into the single **info** row
+   on Manage.
 2. **Regenerate report** — the orchestration engine that re-runs
    *everything* on a report (metadata + agents + every secondary
    result) in a fixed phase order, surviving app restarts and
@@ -18,14 +19,30 @@ This doc owns the **orchestration**. The icon-generation content
 ## Get info
 
 The Manage hub collapses the separate metadata-generation jobs
-into one **info** row (built in `GenerationPhase.kt`, ~line 778 —
+into one **info** row (built in `GenerationPhase.kt`, ~line 791 —
 `RowTypeCell("info")` with an `onGetInfo()` click). The info row is
 **always the first row** on Manage — it sits above the Regenerate
-batch row. Tapping it opens `ReportGetInfoScreen`
-(`GetInfo.kt:337`, launched from `Run.kt:618`), help topic
-`report_get_info`. The screen is a layer over the Manage hub —
-`publishBottomBar = false`, so Manage keeps publishing its own
-bottom bar and the screen total surfaces there.
+batch row, which sits above the **second** results row (the three
+summary rows render in the order `info → regenerate → second`).
+Tapping it opens `ReportGetInfoScreen` (`GetInfo.kt:357`, launched
+from `Run.kt:705`), help topic `report_get_info`. The screen is a
+layer over the Manage hub — `publishBottomBar = false`, so Manage
+keeps publishing its own bottom bar and the screen total surfaces
+there.
+
+**Title-tap cycle.** Get-info is one of three report screens the
+title bar cycles through (`cycleReportScreens`, `Run.kt:151`):
+**Manage → Get-info → second-results → Manage**, with the
+second-results step skipped when the report has no secondary
+results (`secondEnabled || secondTotal > 0.0`). The screen passes
+`onCycleNext = cycleReportScreens` with `forceTitleClick = true`,
+so a title tap advances rather than peeling back (Back / the report
+icon still peel one layer to Manage). The **second results** row /
+screen (`SecondResults.kt`, `ReportSecondResultsScreen`) is the
+secondary-result analogue of Get-info — it collapses every
+secondary-result row (rerank / meta / moderation / translate /
+fan-out / tournament / judges / compare / rank) into one board.
+See [secondary-results.md](secondary-results.md).
 
 `buildInfoJobs` (`GetInfo.kt:88`) is the single source of truth
 for the rows — used by both the Info screen *and* the Manage info
@@ -57,34 +74,84 @@ left spinning *Queued…* forever. This covers legacy reports and
 copies/fan-out-derived reports whose metadata was inherited rather
 than generated.
 
+`InfoJobState` (`GetInfo.kt:35`) has five values — `CLOCK` (⏰
+queued), `RUNNING` (animated hourglass), `FAILED` (❌), `EMPTY` (⊘
+terminal-no-result, grey) and `DONE` (the generated icon, else ✅).
+
 Per-model jobs sit at `InfoJobState.CLOCK` (⏰) until that agent's
 own response reaches `SUCCESS`. The model-icon is derived from the
 model-title, so when both are on the icon waits for the title. A
 per-model icon/title call that **concludes without a result and
 without an error** (markers recorded — cost / tokens / duration /
 prompt-name — but `icon` / `modelTitle` left null, e.g. an
-empty/unparseable model reply) is treated as terminal `DONE` via
+empty/unparseable model reply) is terminal — model-title settles to
+`EMPTY` ("· no title"), model-icon to `DONE` — via
 `ReportAgent.modelIconAttempted()` / `modelTitleAttempted()`
 (`GetInfo.kt:63`, `:71`), so the Manage **info** row doesn't keep
 the animated hourglass spinning forever. (Per-model analogue of the
 report-level `iconNeverRan` guard.)
 
-`aggregateInfoState` (`GetInfo.kt:309`) drives the Manage row's
+**Phantom-RUNNING guard on completed reports.** A finished report
+(`report.completedAt != null`) whose per-model job left *no* markers
+at all — never ran, e.g. an imported / copied report or per-model
+icon/title toggled on after generation — would previously fall to
+the `else -> RUNNING` branch and spin the hourglass forever.
+`titleStateFor` / the icon-state `when` now short-circuit on
+`completedAt != null` to terminal (`EMPTY` for title, `DONE` for
+icon) *before* that fallback (`GetInfo.kt:267`, `:311`). During
+live generation `completedAt` is null, so a freshly-succeeded model
+still correctly shows `RUNNING` while its enrichment call is in
+flight. The report-level analogue is `reportPending`
+(`GetInfo.kt:109`): a report-level `CLOCK` keeps the aggregate
+spinning only while `completedAt == null`; once the report is
+finished an unstarted job reads as terminal (still shown as ⏰) and
+doesn't pin the Manage row to ⏳.
+
+`aggregateInfoState` (`GetInfo.kt:328`) drives the Manage row's
 status cell: ❌ if any job FAILED, else ⏳ while any job is still
 genuinely `pending`, else ✅ (or the report's own icon). A `CLOCK`
 left by an **ERRORed** or **STOPPED** model is *not* pending
-(`perModelPending`, `GetInfo.kt:261`) — a finished report with one
+(`perModelPending`, `GetInfo.kt:276`) — a finished report with one
 failed model settles to ✅ rather than spinning forever.
 
 Rows are clickable to their existing detail screens (icon detail,
 language detail, edit-title, agent-icon detail, edit-model-title),
-layered over the Info overlay. Get info itself does **not** launch
-regeneration — it reports status. Regeneration is driven either by
-the normal generate flow or the Regenerate batch below.
+layered over the Info overlay; the per-item 🔄 on those detail
+screens re-runs that single item via
+`ReportViewModel.regenerateMetaItem` (titles + language-icon are
+`MetaCache`-backed, so the relevant cache entry is evicted first).
+
+Get-info also has two screen-level regenerate entry points, both
+scoped to **info jobs only** (the model responses + secondary
+results are left untouched, and each new call's cost is *added* on
+top of the report's existing spend):
+
+- **Bottom-bar 🔄** (Manage's reload, repurposed while the Get-info
+  layer is up — `Run.kt:589`) → `regenerateReportInfo`
+  (`ReportViewModel.kt:2064`): re-runs language, title→icon, and
+  per-model enrichment for every successful agent. Pops a
+  "Regenerate report info?" confirm first.
+- **"Restart errors"** button — rendered only when at least one job
+  is `FAILED` (`GetInfo.kt:459`) → `restartReportInfoErrors`
+  (`ReportViewModel.kt:2021`): clears the error state of *only* the
+  errored rows and re-fires just the failed side (title-error
+  re-runs title→icon together since the icon derives from the
+  title; per-model re-runs only the side — icon or model-title —
+  that errored).
+
+**⚠️ warning lights immediately on error.** The Manage hub stays
+composed underneath the Get-info / second-results layers, so its
+`reportHasError` check (`Main.kt:403` — any `FAILED` info job, any
+`FAILED` secondary, or any errored agent) fires a `LaunchedEffect`
+that calls `LocalRefreshBrokenWork` to force a Broken-work scan
+*now*, surfacing the ⚠️ top-bar badge the instant a red ❌ appears
+on Manage / Get-info / second-results instead of waiting out the
+30-second background sweep. See [the broken-work
+section](#pause-on-error--background-resume) below.
 
 ## Regenerate batch engine
 
-`RegenerateBatchEngine` (`RegenerateBatchEngine.kt:52`, a `class`
+`RegenerateBatchEngine` (`RegenerateBatchEngine.kt:53`, a `class`
 with an `internal constructor(appViewModel, reportViewModel)`) is
 the authoritative runtime owner of the per-report "Regenerate
 report" job. It replaces the legacy one-shot `regenerateReport`
@@ -99,14 +166,15 @@ Manage) and tracked in `orchestratorJobs`
 (`ConcurrentHashMap<String, Job>`) so a cancel can `.cancel()` it.
 
 Public API: `hasJob`, `hydrate`, `enqueueAndStart`, `restart`,
-`cancel`, `cancelJobNow`, `reconcile`, `deleteJob`.
+`cancel`, `cancelJobNow`, `reconcile`, `detectBroken`,
+`isActivelyRunning`, `deleteJob`.
 
 ### Phase order (verified)
 
 `RegeneratePhase` (`RegenerateBatch.kt:20`) is a **10-value** enum
 in fixed order; the orchestrator walks forward by `ordinal`.
 `enqueueAndStart` starts at `RegeneratePhase.values().firstOrNull()`
-(not a hardcoded phase, `RegenerateBatchEngine.kt:103`), so
+(not a hardcoded phase, `RegenerateBatchEngine.kt:104`), so
 prepending a phase can't silently skip it.
 
 | # | Phase | Re-runs | Dispatcher (`dispatchPhase`) | Row-status source |
@@ -134,13 +202,24 @@ Notes on specific phases:
   match rows settle. `JUDGES` and `COMPARE` cells are owned by
   their own engines (`JudgeEvalEngine` / `CompareEngine`) and are
   deliberately excluded from the regenerate batch (`isMetaPhaseRow`,
-  `RegenerateBatchEngine.kt:884`).
+  `RegenerateBatchEngine.kt:945`, which excludes `TRANSLATE`,
+  `TOURNAMENT`, `JUDGES`, `COMPARE` plus fan-out / fan-in rows).
+- **`TRANSRANK`** ("Rank the translators", the 8th `SecondaryKind`)
+  has *no* dedicated regenerate phase and is **not** excluded by
+  `isMetaPhaseRow`. Its rows carry `tournamentRole`
+  (`TRANSRANK_ROLE_CELL` / `_AGGREGATE`) and a `translationRunId`
+  but no `fanOutSourceAgentId` / `fanInOf`, so a TRANSRANK row falls
+  through into the generic **META** phase and is resumed via the
+  single-call `resumeStaleMetaPlaceholder` path rather than re-judged
+  by `TranslatorRankEngine`. (Translator-rank batches are best
+  resumed from their own "Rank the translators" screen — see
+  [secondary-results.md](secondary-results.md).)
 - `FAN_OUT` and `TOURNAMENT` pass `resetAttempts = true` so a
   user-initiated regenerate clears any per-session retry counts a
   prior manual resume ran up — otherwise the pair/match would be
   terminalized instantly and never re-fire.
 
-`buildTaskList` (`RegenerateBatchEngine.kt:727`) builds the task
+`buildTaskList` (`RegenerateBatchEngine.kt:788`) builds the task
 set from the report's *current* contents:
 
 - `TITLE` / `ICON` / `LANGUAGE` only when the matching gate is on
@@ -160,7 +239,7 @@ set from the report's *current* contents:
 
 ### Phase step machine
 
-Per phase, `orchestrate` (`RegenerateBatchEngine.kt:247`) loops:
+Per phase, `orchestrate` (`RegenerateBatchEngine.kt:286`) loops:
 
 1. Empty phase → `advanceToNextPhase`, continue.
 2. Flip **every** task in the phase to `RUNNING` (not just
@@ -177,7 +256,7 @@ Per phase, `orchestrate` (`RegenerateBatchEngine.kt:247`) loops:
    and the dispatcher's additive cost write adds the new call's cost
    on top.
 3. `dispatchPhase` fires the phase's dispatcher (table above).
-4. `awaitPhaseCompletion` (`RegenerateBatchEngine.kt:311`) polls
+4. `awaitPhaseCompletion` (`RegenerateBatchEngine.kt:350`) polls
    disk **every 1500 ms**, flipping each `RUNNING` task to
    `SUCCESS` / `ERROR` / `CANCELLED` from the row's on-disk
    content / errorMessage. A **30-minute** per-phase timeout is a
@@ -185,7 +264,7 @@ Per phase, `orchestrate` (`RegenerateBatchEngine.kt:247`) loops:
 5. Halt on the **first** ERROR row → `pauseOnError`; otherwise once
    every task is terminal, `advanceToNextPhase`.
 
-`readRowStatuses` (`RegenerateBatchEngine.kt:370`) dispatches the
+`readRowStatuses` (`RegenerateBatchEngine.kt:422`) dispatches the
 status read per phase; the synthetic TITLE / ICON / LANGUAGE rows
 read `Report` fields directly (no persistent row to match), and the
 `FAN_META` read treats an icon present as a usable (partial)
@@ -206,28 +285,44 @@ errored row). No further phases fire until a `restart` succeeds.
 
 Resume paths, all idempotent:
 
-- **`restart`** (`RegenerateBatchEngine.kt:123`) — Restart button
-  on the detail screen (the only resume trigger now). For a paused
-  job it only resumes when the paused row is **no longer errored**
-  on disk (`isRowStillErrored`); otherwise no-op (re-running would
-  just hit the same error). `CANCELLED` jobs always restart at
-  `currentPhase`. `DONE` and an already-live `RUNNING` orchestrator
-  are no-ops.
-- **`reconcile`** (`RegenerateBatchEngine.kt`) — retained for the
-  manual `resumeStaleRunsForReport` orchestrator. DONE / CANCELLED →
-  no-op; RUNNING with a dead orchestrator (app kill) → revive;
-  RUNNING with a live orchestrator → no-op; PAUSED_ON_ERROR with the
-  row now OK → resume; still errored → no-op. **It is no longer
-  called from the background pass** — that pass is now detect-only
-  (`detectBroken`, `RegenerateBatchEngine.kt`) and a
-  RUNNING-but-dead / PAUSED_ON_ERROR job is surfaced on the ⚠️
-  Broken-work screen instead of being auto-revived.
-- **`cancel`** (`RegenerateBatchEngine.kt:164`) — stops the
+- **`restart`** (`RegenerateBatchEngine.kt:124`) — Restart button
+  on the detail screen (the only *user-facing* resume trigger now).
+  For a paused job it only resumes when the paused row is **no
+  longer errored** on disk (`isRowStillErrored`); otherwise no-op
+  (re-running would just hit the same error). `CANCELLED` jobs always
+  restart at `currentPhase`. `DONE` and an already-live `RUNNING`
+  orchestrator are no-ops.
+- **`reconcile`** (`RegenerateBatchEngine.kt:192`) — retained for
+  the **manual** `resumeStaleRunsForReport` orchestrator (now
+  explicit/manual-use only — fired by user Regenerate / retry, not
+  on report open). DONE / CANCELLED → no-op; RUNNING with a dead
+  orchestrator (app kill) → revive; RUNNING with a live orchestrator
+  → no-op; PAUSED_ON_ERROR with the row now OK → resume; still
+  errored → no-op. **It is no longer called from the background
+  pass** — that pass (`startBackgroundBrokenScan`, every 30 s) is
+  now detect-only and a RUNNING-but-dead / PAUSED_ON_ERROR job is
+  surfaced on the ⚠️ Broken-work screen instead of being
+  auto-revived.
+- **`detectBroken`** (`RegenerateBatchEngine.kt:236`) — read-only
+  counterpart to `reconcile` used by that scan: true when the job
+  is PAUSED_ON_ERROR, or RUNNING with no live orchestrator in *this*
+  process (app-kill-interrupted); false for DONE / CANCELLED and a
+  genuinely-live orchestrator. `detectBrokenBatchesForReport`
+  (`SecondaryRunManager.kt:733`) turns a true into one synthetic
+  `BrokenBatch(kind = REGENERATE)` — `errorCount = 1` /
+  "Paused on an error" when PAUSED, `unfinishedCount = 1` /
+  "Interrupted mid-run" when RUNNING-but-dead.
+- **`isActivelyRunning`** (`RegenerateBatchEngine.kt:251`) — true
+  while a live orchestrator coroutine exists in this process; the
+  Broken-work agent scan (`BrokenWorkPolicy.agentProblems`,
+  `reportIsLive`) reads it so a mid-batch report's PENDING/RUNNING
+  agents aren't mistaken for app-kill-stranded ones.
+- **`cancel`** (`RegenerateBatchEngine.kt:167`) — stops the
   orchestrator; in-flight HTTP calls finish themselves and persist.
   Only the orchestrator's own `finally` decrements
   `activeSecondaryBatches` (Bug 80 — cancelling decremented it too,
   drifting the badge below the real count).
-- **`cancelJobNow`** (`RegenerateBatchEngine.kt:157`) — the
+- **`cancelJobNow`** (`RegenerateBatchEngine.kt:160`) — the
   synchronous variant used by `deleteReport`, which must stop the
   orchestrator *before* removing the report dir (the async `cancel`
   returns before its `launch` body runs).
@@ -244,19 +339,19 @@ regenerate batches.
 
 ### UI
 
-`RegenerateBatchScreen` (`RegenerateBatch.kt:72`), help topic
+`RegenerateBatchScreen` (`RegenerateBatch.kt:70`), help topic
 `regenerate_batch`, title **"Regenerate report"** / subject
 *"Re-run every model on this report"* — a status banner (phase /
 counts / "paused on error"), an action row (Cancel when RUNNING,
 Restart when PAUSED / CANCELLED), and per-task cards grouped by
 phase (phase chip via the `RegeneratePhase.label` map —
-`RegenerateBatch.kt:438` — timestamps, duration, error). It is
-mounted as a `RegenerateBatchOverlay` (`RegenerateBatch.kt:347`)
+`RegenerateBatch.kt:436` — timestamps, duration, error). It is
+mounted as a `RegenerateBatchOverlay` (`RegenerateBatch.kt:345`)
 wrapping the screen in `LocalNavigateToCurrentReport`. The
 bottom-bar 🗑 pops a confirm dialog, then routes through `deleteJob`
 (cancels the orchestrator, drops the JSON + memory entry).
 
-`RegenerateBatchManageRow` (`RegenerateBatch.kt:372`) renders the
+`RegenerateBatchManageRow` (`RegenerateBatch.kt:370`) renders the
 top-of-list `regenerate` row on Manage, keyed to the **current**
 report only (via `LocalCurrentReportIdForSwipe`) so a leftover job
 from another report can't surface on an unrelated one. Its label is
@@ -273,7 +368,7 @@ file per report, `ReentrantLock`-guarded, atomic writes, with
 `..`-traversal / suspect-id / canonical-containment guards on the
 resolved path. `update` is a compound read-modify-write under one
 lock acquisition. `listActiveReports`
-(`RegenerateBatchStorage.kt:104`) returns the reportId of every
+(`RegenerateBatchStorage.kt:106`) returns the reportId of every
 JSON under the dir. See [persistent.md](persistent.md).
 
 ## Find alternative title / icon

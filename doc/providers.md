@@ -1,6 +1,7 @@
 # Providers
 
-Every provider shipped in `assets/providers.json`. The full schema is
+Every provider shipped under `assets/providers/` — one JSON file per
+provider, each a bare `ProviderDefinition` object. The full schema is
 in [datastructures.md](datastructures.md) under `AppService`; this
 table shows only the fields that differ from the default. The dispatch
 behaviour each `apiFormat` selects is in [api-formats.md](api-formats.md);
@@ -11,12 +12,18 @@ the pricing tiers `litellmPrefix` / `openRouterName` / `pricingFromModelList`
 
 ## How the catalog loads
 
-The bundled JSON is a flat `{"providers": [...]}` object — 42 entries,
-no top-level `version`. It is **not** hardcoded in Kotlin.
-`ProviderRegistry` (`data/ProviderRegistry.kt`) is a mutable `object`
-that starts **empty** on a fresh install; the catalog is pulled in on
-demand by `ProviderRegistry.importFromAsset(context, "providers.json")`
-(wired to a button on the Providers screen) and cached in memory as a
+The catalog is **one JSON file per provider** under `assets/providers/`
+— 42 files, each a bare `ProviderDefinition` object (no
+`{"providers": [...]}` wrapper, no top-level `version`). It is **not**
+hardcoded in Kotlin. `ProviderRegistry` (`data/ProviderRegistry.kt`)
+is a mutable `object` that starts **empty** on a fresh install; the
+catalog is pulled in on demand by
+`ProviderRegistry.importFromAsset(context)` — which calls
+`readBundledProviderDefs` to read **every** `*.json` file under
+`assets/providers/` (sorted by filename for a deterministic merge; a
+single malformed file is skipped rather than fatal; a directory-read
+failure returns `-1` = "broken bundle") — wired to a button on the
+Providers screen and cached in memory as a
 `CopyOnWriteArrayList<AppService>`. It persists back to the
 `provider_registry` SharedPreferences file (`KEY_PROVIDERS =
 "providers_json"`, `KEY_INITIALIZED = "initialized"`) as a list of
@@ -33,8 +40,12 @@ hand-edited — timestamp still null — and never appends new providers),
 `findByHost` (resolves a request hostname to its provider via a
 `hostIndex` rebuilt on every `save()` from `baseUrl` + `auxHosts`,
 first claimant wins on collision — this is what `ProviderThrottle` uses
-to find per-provider overrides). `parseProvidersJson` silently drops
-entries with a blank `id` or `baseUrl` rather than crashing.
+to find per-provider overrides). The per-file asset read is
+`readBundledProviderDefs` (used by `importFromAsset`, `syncFromAsset`,
+`restartFromAsset`); `parseProvidersJson` parses the persisted prefs
+array on load and silently drops entries with a blank `id` or `baseUrl`
+rather than crashing. `upsertFromJson` is the user-import path and still
+expects a top-level `{"providers": [...]}` wrapper.
 
 `apiFormat` is parsed by `ApiFormat.valueOf(apiFormat ?:
 "OPENAI_COMPATIBLE")` wrapped in a `try/catch` that falls back to
@@ -89,7 +100,7 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 |---|---|---|---|---|
 | **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `modelFilter=gpt\|o1\|o3\|o4`, `defaultModelSource=API`, `mergeHardcodedModels=true`, `builtInEndpoints` (Chat Completions + Responses API), `responsesApiPatterns`/`reasoningModelPatterns`/`webSearchModelPatterns` for `gpt-5`/`o1`/`o3`/`o4`(/`gpt-4.1`), `maxCallsPerProviderPerMinute=120`, `maxConcurrentCallsPerProvider=10` |
 | **Anthropic** | `https://api.anthropic.com/` | `https://console.anthropic.com/settings/keys` | `claude-haiku-4-5-20251001` | `apiFormat=ANTHROPIC`, `typePaths.chat=v1/messages`, `openRouterName=anthropic`, `modelFilter=claude`, 8 hardcoded models, `defaultModelSource=API`, `reasoningModelPatterns`/`webSearchModelPatterns`/`adaptiveThinkingPatterns` (opus-4-7), `maxTokensDefaults` (opus-4=32000, sonnet/haiku-4 & claude-3.5=8192), `maxRetriesOn529=5`, `retryBackoffMs529=5000` |
-| **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.0-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `modelListFormat=array`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API`, `maxCallsPerProviderPerMinute=60` |
+| **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.5-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `modelListFormat=array`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API`, `reasoningModelPatterns`/`webSearchModelPatterns` (gemini-2.x), `maxCallsPerProviderPerMinute=60` |
 | **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `promptTokensIncludeCachedTokens=false`, `litellmPrefix=xai`, `modelFilter=grok`, `defaultModelSource=API`, `externalReasoningSignalUntrusted=true`, `reasoningModelPatterns`/`reasoningEffortAcceptPatterns` for grok-3/4 |
 | **Groq** | `https://api.groq.com/openai/` | `https://console.groq.com/keys` | `llama-3.3-70b-versatile` | `litellmPrefix=groq`, `defaultModelSource=API` |
 | **DeepSeek** | `https://api.deepseek.com/` | `https://platform.deepseek.com/api_keys` | `deepseek-chat` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=deepseek`, `litellmPrefix=deepseek`, `modelFilter=deepseek`, `defaultModelSource=API`, `mergeHardcodedModels=true`, **2 hardcoded models** (`deepseek-chat`, `deepseek-reasoner`) merged with `/models` because the live list is sometimes missing, `builtInEndpoints` (Chat Completions + Beta/FIM). DeepSeek is the pinned agent for the bundled `internal/chat-title` prompt — cheap, fast, reliable |

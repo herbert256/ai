@@ -52,7 +52,7 @@ attribution).
 
 In the bundled prompts every worker entry is a single **Swarm
 named `"workers"`** (see [The bundled worker swarm](#the-bundled-worker-swarm)
-below), which expands into nine cheap-provider candidates. That
+below), which expands into five cheap-provider candidates. That
 swarm — not an inline model list baked into each prompt — is the
 shared default fallback chain.
 
@@ -84,10 +84,19 @@ shared default fallback chain.
 `runWorkerBatch` is the reusable batched form: it runs a list of
 items through the chain under the shared `ApiCallCaps.workers`
 cap in `dynamicHost` mode (each worker call self-throttles its
-own provider host). The batched icon/title flows (e.g. the
-per-pair Fan-Meta batch, `runFanMetaBatch`) drive `runThrottledBatch`
-directly with their own sub-cap (`ApiCallCaps.fanMeta`) rather
-than going through `runWorkerBatch`.
+own provider host). No feature calls it yet — the batched
+icon/title flows (e.g. the per-pair Fan-Meta batch,
+`runFanMetaBatch`) drive `runThrottledBatch` directly with their
+own sub-cap (`ApiCallCaps.fanMeta`) rather than going through
+`runWorkerBatch`.
+
+**The ♻️ report flag** — when a report's
+`useReportModelsAsWorkers` is on, the per-report icon, per-model
+icon, and language flows swap the bundled `workers` swarm for the
+report's **own** models (`reportModelWorkers`) before the run, so
+the metadata is produced by the same models that wrote the report.
+The `WorkerRunner` shuffle still applies, so it lands on a random
+report model. See [datastructures.md](datastructures.md).
 
 ## The bundled worker swarm
 
@@ -95,36 +104,38 @@ The `workers`-category prompts and the `alt`-category
 Find-alternative prompts all point their worker list at one
 Swarm named **`workers`**, seeded from `assets/workers/swarms/`
 by `data/SwarmSeed.kt` (delta merge by case-insensitive name, so
-a user-edited swarm is left alone). On the bundled chain its nine
+a user-edited swarm is left alone). On the bundled chain its five
 members are the cheap-provider fallback:
 
 | Provider | Model |
 |---|---|
+| Mistral | `mistral-medium-latest` |
 | OpenAI | `gpt-4o-mini` |
-| DeepSeek | `deepseek-chat` |
-| Groq | `llama-3.1-8b-instant` |
-| Cerebras | `llama3.1-8b` |
-| SambaNova | `Meta-Llama-3.1-8B-Instruct` |
-| Google | `gemini-2.5-flash-lite` |
-| OpenAI | `gpt-4.1-nano` |
-| Mistral | `ministral-8b-latest` |
-| xAI | `grok-4-1-fast-non-reasoning` |
+| Groq | `llama-3.3-70b-versatile` |
+| Cerebras | `gpt-oss-120b` |
+| DeepSeek | `deepseek-v4-flash` |
 
-`SwarmSeed` also seeds a separate `tournament` swarm (used by the
-Tournament / Judges / Compare worker judging) plus the `Level 1`
-/ `Level 2` / `Level 3` reasoning swarms. To change which models
-back the icon/title/language metadata, edit the `workers` swarm
-under Settings → AI Setup → Workers → Swarms, or re-point an
-individual prompt's worker list under Settings → AI Setup →
-Prompt management → Internal prompts.
+The only other bundled swarms `SwarmSeed` seeds are the `Level 1`
+/ `Level 2` / `Level 3` reasoning swarms (`level-1.json` …
+`level-3.json`); there is **no** separate `tournament` swarm. The
+Tournament / Judges / Compare worker judging runs through the
+bundled `tournament` *prompt*, whose worker list points at this
+same `workers` swarm. To change which models back the
+icon/title/language metadata, edit the `workers` swarm under
+Settings → AI Setup → Workers → Swarms, or re-point an individual
+prompt's worker list under Settings → AI Setup → Prompt management
+→ Internal prompts.
 
 ## The bundled worker + alt prompts
 
-Seeded per language from `assets/internal-prompts/<language>/`
-(`English/`, `Dutch/`, …) on every app start — a delta merge that
-only adds missing entries by `(category, name)`, so user edits
-survive. The auto-generation prompts live under category
-`workers`; their Find-alternative variants under `alt`:
+Seeded from the base-language tree `assets/internal-prompts/English/`
+(English is the only bundled language —
+`InternalPromptSeed.BASE_LANGUAGE`; other languages are per-report
+translation *overlays* generated into `PromptTranslationStore`, not
+separate seed sets) on every app start — a delta merge that only
+adds missing entries by `(category, name)`, so user edits survive.
+The auto-generation prompts live under category `workers`; their
+Find-alternative variants under `alt`:
 
 | Name | Category | Substitutions | Used by |
 |---|---|---|---|
@@ -148,6 +159,15 @@ survive. The auto-generation prompts live under category
 | `translation` | `alt` | `@LANGUAGE@` | Find-alternative translation icon |
 | `report_title` / `report_title_long` | `alt` | `@PROMPT@` | Find-alternative report short / long title |
 | `model_title` | `alt` | `@RESPONSE@` | Find-alternative model / fan-out-pair title |
+
+The `workers` category holds more than the icon/title/language/meta
+prompts above — `fan-in`, `second-rerank`, `second-moderation`,
+`translate-text` / `translate-title` / `translate-rank`, and the
+`find-translation` model-resolver holder back the secondary and
+translation flows documented in
+[secondary-results.md](secondary-results.md) /
+[translation.md](translation.md). They share the same `workers`
+swarm and worker engine.
 
 Every one of these prompts ships with its worker list set to the
 single `workers` swarm above. There is **no per-prompt
@@ -265,9 +285,17 @@ model picker; the user picks any number of `(provider, model)`
 pairs. Each scope runs its own self-contained `alt/*` template
 **directly against the picked models** (via `analyzeWithAgent`,
 not the random worker chain — the user chose the models on
-purpose). When the picker is skipped, `altWorkerModels` resolves
-the `alt/*` prompt's own worker list (the `workers` swarm) to
-seed the candidates instead.
+purpose).
+
+Whether the picker appears is governed by the alt prompt's own
+**model-selection mode** (`altPromptModelSelection`): `*SELECT`
+forces the picker every run, while `*CONFIGURED` skips it and lets
+`altWorkerModels` resolve the `alt/*` prompt's worker list (the
+`workers` swarm) to seed the candidates instead. The user can also
+**edit the resolved prompt before picking** — the pre-pick "Edit
+prompt" editor stashes its result in `pendingAltEdit`
+(`AltEditPayload`), a one-shot consumed by the next `start*FanOut`
+call.
 
 | Launched from | Template | Substitutions | Commit (`promptUsed`) |
 |---|---|---|---|
@@ -283,7 +311,8 @@ seed the candidates instead.
 Each fan-out (`startIconFanOut` / `startAgentIconFanOut` /
 `startPairIconFanOut` / `startLanguageIconFanOut` /
 `startReportTitleFanOut` / `startModelTitleFanOut` /
-`startTranslationIconFanOut` / `startInternalPromptIconFanOut`):
+`startPairTitleFanOut` / `startTranslationIconFanOut` /
+`startInternalPromptIconFanOut`):
 
 - Dedupes picks by `"providerId:model"`.
 - Pre-populates `IconCandidate.Running` rows so the Alternative
@@ -364,9 +393,12 @@ Per-icon spend surfaces in three places:
    per-report icon, every Find-alternative `alt/*` call) shows as
    its own row. The icon row in the Complete view shows the
    agent's effective icon + cost.
-3. **Global AI Usage** — each icon call posts with
-   `kind="icon"`, attributed to the model that actually ran.
-   Filterable in the Usage screen.
+3. **Global AI Usage** — the per-report and per-model icon calls
+   post with `kind="icon"`, attributed to the model that actually
+   ran. The report **language** icon posts under a distinct
+   `kind="language-icon"` (its sibling language-*detection* call is
+   `kind="language"`, and titles are `kind="title"`). All are
+   filterable in the Usage screen.
 
 `Report.costsFromDeletedItems` (bumped on per-agent / secondary /
 fan-out deletions) surfaces as its own line above the Total when
@@ -392,7 +424,8 @@ data class Report(
     var iconTraceFile: String? = null,
     var iconModel: String? = null,           // "<providerId>/<modelId>" when alt-picked
     var iconPromptUsed: String? = null,
-    var iconCalls: MutableList<IconCallRecord> = mutableListOf(),
+    var iconDurationMs: Long? = null,
+    var iconCalls: MutableList<IconCallRecord> = mutableListOf(),   // per-AGENT icon-call rows live here, keyed by agentId
     var costsFromDeletedItems: Double = 0.0
 )
 
@@ -405,10 +438,10 @@ data class ReportAgent(
     var iconInputCost: Double = 0.0,
     var iconOutputCost: Double = 0.0,
     var iconTraceFile: String? = null,
-    var iconModel: String? = null,
-    var iconPromptUsed: String? = null,
-    var iconDurationMs: Long? = null,
-    var iconWinningTier: Int? = null         // always null now — set only by the removed 3-tier chain; manual / alt / worker-engine icons leave it null
+    var iconWinningTier: Int? = null,        // always null now — set only by the removed 3-tier chain; manual / alt / worker-engine icons leave it null
+    var iconPromptUsed: String? = null
+    // NB: ReportAgent has NO iconModel / iconDurationMs / iconCalls of its own —
+    // the per-agent icon-call audit rows live on Report.iconCalls (keyed by agentId)
 )
 
 data class IconCallRecord(
@@ -461,7 +494,11 @@ data class IconCallRecord(
   every icon in the report.
 - `assets/workers/swarms/` — the bundled `workers` swarm
   definition.
-- `assets/internal-prompts/<language>/workers/` +
-  `assets/internal-prompts/<language>/alt/` — the bundled worker +
+- `assets/internal-prompts/English/workers/` +
+  `assets/internal-prompts/English/alt/` — the bundled worker +
   Find-alternative prompt definitions (`.json` metadata + `.txt`
-  body, one set per seeded language).
+  body). English is the only bundled language
+  (`InternalPromptSeed.BASE_LANGUAGE`); the per-language directory
+  level exists for translation overlays, which only English ships.
+- `data/InternalPromptSeed.kt` — the `(category, name)` delta-merge
+  loader for the `workers` / `alt` prompt trees.

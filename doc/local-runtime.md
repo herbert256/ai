@@ -16,7 +16,7 @@ All four files live under
 
 `LOCAL` is a sentinel `AppService` defined in the `AppService`
 companion object
-([`data/AppService.kt:226`](../ai/src/main/java/com/ai/data/AppService.kt)):
+([`data/AppService.kt:234`](../ai/src/main/java/com/ai/data/AppService.kt)):
 
 ```kotlin
 val LOCAL = AppService(id = "Local", baseUrl = "local://", adminUrl = "", defaultModel = "")
@@ -26,13 +26,13 @@ It is **not registered in `ProviderRegistry`** — it never shows up in
 the registry-driven provider lists — and is reachable only because
 `AppService.findById` special-cases its id **before** delegating to the
 registry
-([`AppService.kt:233`](../ai/src/main/java/com/ai/data/AppService.kt)):
+([`AppService.kt:241`](../ai/src/main/java/com/ai/data/AppService.kt)):
 
 ```kotlin
 fun findById(id: String): AppService? = if (id == LOCAL.id) LOCAL else ProviderRegistry.findById(id)
 ```
 
-`AppServiceAdapter` (the Gson serializer at `AppService.kt:242`)
+`AppServiceAdapter` (the Gson serializer at `AppService.kt:250`)
 serializes an `AppService` as its id string and deserializes through
 `findById`, so a persisted `ChatSession` whose provider was Local
 round-trips after a restart even though the registry has never heard of
@@ -57,14 +57,22 @@ entirely:
 
 | Flow | Site | Routes to |
 |---|---|---|
-| Report / agent generation | `analyzeWithAgent`, [`AnalysisRepository.kt:260`](../ai/src/main/java/com/ai/data/AnalysisRepository.kt) | `LocalLlm.generate(context, agent.model, finalPrompt)` |
-| Chat | `sendLocalLlmStream`, [`ChatViewModel.kt:143`](../ai/src/main/java/com/ai/viewmodel/ChatViewModel.kt) | `LocalLlm.generate` (response emitted as a single chunk) |
-| Rerank | `runLocalRerank`, [`SecondaryRunManager.kt:145`](../ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt) | `LocalEmbedder.embed` + cosine-to-prompt |
+| Report / agent generation | `analyzeWithAgent`, [`AnalysisRepository.kt:261`](../ai/src/main/java/com/ai/data/AnalysisRepository.kt) | `LocalLlm.generate(context, agent.model, finalPrompt)` |
+| Chat | `sendLocalLlmStream`, [`ChatViewModel.kt:188`](../ai/src/main/java/com/ai/viewmodel/ChatViewModel.kt) | `LocalLlm.generate` (response emitted as a single chunk) |
+| Rerank | `runLocalRerank`, [`SecondaryRunManager.kt:142`](../ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt) | `LocalEmbedder.embed` + cosine-to-prompt |
 
 On the report fork, success returns an `AnalysisResponse` with
 `httpStatusCode = 200`; a `null` result becomes a 500 whose message
 points the user at *Housekeeping → Local LLMs*. The local-rerank
 placeholder/cost rows are saved with `providerId = "LOCAL"`.
+
+The **streaming** report entry point
+([`AnalysisRepository.kt:395`](../ai/src/main/java/com/ai/data/AnalysisRepository.kt))
+also short-circuits Local: a `provider.id == AppService.LOCAL.id`
+agent (alongside missing-key, web-search-tool, and
+no-native-streaming cases) falls through to the authoritative
+non-streaming `analyzeWithAgent` path above — there is no token
+stream from the on-device engine, only the single `generate` result.
 
 **RAG still works for a Local agent.** The dispatch fork sits *after*
 the KB-context build: `analyzeWithAgent` retrieves hits via
@@ -97,8 +105,19 @@ state. Both expose `release(name)` / `releaseAll()` and a
 model file, returning the count removed (used by the housekeeping
 "clear all configuration" flow).
 
+**Model-name resolution is path-traversal-hardened.** Both
+`LocalLlm.llmFile` and `LocalEmbedder.modelFile` reject a model name
+that is blank, `"."`, `".."`, or contains a `/` or `\`, then build
+`<dir>/<name>.task` (resp. `.tflite`) and verify the resolved
+`canonicalPath` still sits under the model dir before returning it —
+so a persisted/restored `ChatSession` (or KB) carrying a crafted Local
+model name can't read or load a file outside `local_llms/` /
+`local_models/`. A name that fails the check resolves to `null`, which
+the engine builders turn into an `IllegalStateException("… not found
+in …")`.
+
 The LLM engine is built with `setMaxTokens(2048)`
-([`LocalLlm.kt:131`](../ai/src/main/java/com/ai/data/local/LocalLlm.kt)) —
+([`LocalLlm.kt:143`](../ai/src/main/java/com/ai/data/local/LocalLlm.kt)) —
 a conservative cap that keeps memory in check on non-flagship phones.
 The embedder is built with `setL2Normalize(true)`, and
 `LocalEmbedder.embed` reads `embedding.floatEmbedding()` per input and
@@ -164,7 +183,15 @@ Embedder** (`average_word_embedder`, ~5 MB, English, near-instant),
 both from `storage.googleapis.com/mediapipe-models`. Anything more
 exotic must arrive via SAF import with metadata stamped by MediaPipe
 Model Maker. `download` streams to a `.part` temp then atomic-renames
-into place.
+into place (falling back to a non-atomic `Files.move` when
+`ATOMIC_MOVE` isn't supported).
+
+The stale-`.part` sweep (`sweepStalePartials`, files older than 5 min)
+runs **only on the `download` path**, never from `availableModels()`.
+A read-only query — the picker enumerating installed `.tflite`s — must
+not mutate the filesystem; an earlier version swept on every
+`availableModels()` call and could race-delete a `.part` belonging to a
+download in flight.
 
 ## Dashboard snapshot (`LocalRuntime`)
 
@@ -174,29 +201,50 @@ card. `snapshot()` pulls `LocalLlm.loadedModelNames()` /
 `currentlyGenerating` and `LocalEmbedder.loadedModelNames()` /
 `currentlyEmbedding` into a `Snapshot(llmLoaded, llmGenerating,
 embedderLoaded, embedding)`; `Snapshot.active` is true when anything is
-loaded or running. The `generating` / `embedding` fields are `@Volatile`
-strings set for the duration of each call by `LocalLlm.generate` /
-`LocalEmbedder.embed`.
+loaded or running. `loadedModelNames()` returns the keys of the cached
+native-handle map. The "currently running" state is **ref-counted**,
+not a single flag: each object keeps a `ConcurrentHashMap<String,
+AtomicInteger>` (`generatingCounts` / `embeddingCounts`) that
+`generate` / `embed` increment on entry and decrement (dropping the key
+at zero) in a `finally`, so a model stays listed until *every* in-flight
+call against it finishes. `currentlyGenerating` / `currentlyEmbedding`
+are computed getters that join the sorted active-model keys (or `null`
+when idle).
 
 ## Setup UI
 
-The setup screens live in
+Both runtime screens hang off a small hub. AI Setup → **Models setup**
+(`ModelsSetupScreen`) shows a **Local Models** card *only when*
+**Experimental features** is on — that `if (experimentalFeatures)`
+block ([`SetupScreens.kt:175`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt))
+is the single gate for the whole subsystem's UI. The card opens
+`LocalModelsSetupScreen` (the **Local models** hub, also in
+`SetupScreens.kt`), whose two cards open the actual management screens
+in
 [`ui/settings/LocalRuntimeScreens.kt`](../ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt):
 
-- **`LocalLlmsScreen`** (AI Setup → Local LLMs) — download / delete the
-  LLM native runtime, hand-off download links, and SAF import of
+- **`LocalLlmsScreen`** (Local models → Local LLMs) — download / delete
+  the LLM native runtime, hand-off download links, and SAF import of
   `.task` / `.zip` / `.tar.gz` / `.tgz` / `.tar` into `local_llms/`
   (the first `.task` entry inside an archive is extracted
   automatically), with per-row Remove.
-- **`LocalLiteRtModelsScreen`** (AI Setup → Local LiteRT models) —
+- **`LocalLiteRtModelsScreen`** (Local models → Local LiteRT models) —
   download the two published embedders or SAF-import a `.tflite` into
   `local_models/`, with per-row Remove.
 
-Both entry points are hidden when **Experimental features** is off (the
-gate sits in `SetupScreens.kt`); the full set of gate sites is
-enumerated in [experimental.md](experimental.md). Nothing is deleted
-when the toggle flips off — installed files stay and already-attached
-KBs keep sending context.
+**Everything that touches the filesystem or the native loader runs off
+the main thread.** Both screens load their installed-model list in a
+`LaunchedEffect` via `withContext(Dispatchers.IO)` (a plain
+`remember { listFiles() }` blocked the first frame), the runtime-install
+button's `LlmRuntime.ensureLoaded` (a `System.load` of the ~26 MB `.so`)
+runs under `Dispatchers.IO`, and the Local-model counts on both the
+Models-setup card and the Local-models hub are computed off-main via
+`produceState` + `Dispatchers.IO` so a resume never stutters the hub.
+
+The full set of Experimental gate sites is enumerated in
+[experimental.md](experimental.md). Nothing is deleted when the toggle
+flips off — installed files stay and already-attached KBs keep sending
+context.
 
 ## Local semantic search tie-in
 
