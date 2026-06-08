@@ -348,7 +348,11 @@ private fun TranslatorRankL2(
     onBack: () -> Unit
 ) {
     val cells = run.cells.values.filter { it.translatorKey == translatorKey }
+    // Stable order both live and after hydration: sort item groups by their
+    // earliest cell timestamp (creation ≈ source order), tie-broken by row id,
+    // so the "Item N" numbering doesn't shuffle on restart. See audit bug 7.
     val byItem = cells.groupBy { it.translationRowId }.toList()
+        .sortedWith(compareBy({ (_, cs) -> cs.minOf { it.timestamp } }, { (id, _) -> id }))
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "translator_rank", title = "Translator", subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack)
         Text(
