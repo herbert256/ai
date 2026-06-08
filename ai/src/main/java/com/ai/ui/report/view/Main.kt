@@ -410,12 +410,13 @@ internal fun ViewAiReportScreen(
         val list: List<com.ai.data.SecondaryResult>,
         val report: com.ai.data.Report?,
         val tournaments: List<com.ai.data.SecondaryResult>,
-        val judges: List<com.ai.data.SecondaryResult>
+        val judges: List<com.ai.data.SecondaryResult>,
+        val transRanks: List<com.ai.data.SecondaryResult>
     )
     val reportDataVersion by ReportDataVersion.version.collectAsState()
     val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
     val translatesState = androidx.compose.runtime.produceState(
-        initialValue = TranslatesLoad(emptyList(), null, emptyList(), emptyList()), reportId, reportDataVersion, secondaryDataVersion
+        initialValue = TranslatesLoad(emptyList(), null, emptyList(), emptyList(), emptyList()), reportId, reportDataVersion, secondaryDataVersion
     ) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val rows = com.ai.data.SecondaryResultStorage.listForReport(viewPrefsCtx, reportId)
@@ -426,14 +427,18 @@ internal fun ViewAiReportScreen(
             val judges = rows
                 .filter { it.kind == SecondaryKind.JUDGES && it.tournamentRole == "AGGREGATE" }
                 .sortedByDescending { it.timestamp }
+            val transRanks = rows
+                .filter { it.kind == SecondaryKind.TRANSRANK && it.tournamentRole == com.ai.data.TRANSRANK_ROLE_AGGREGATE }
+                .sortedByDescending { it.timestamp }
             val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(viewPrefsCtx, reportId)
-            TranslatesLoad(list, rep, tournaments, judges)
+            TranslatesLoad(list, rep, tournaments, judges, transRanks)
         }
     }
     val translates = translatesState.value.list
     val loadedReport = translatesState.value.report
     val tournamentRows = translatesState.value.tournaments
     val judgesRows = translatesState.value.judges
+    val transRankRows = translatesState.value.transRanks
     val originalLanguageIcon = loadedReport?.languageIcon
 
     // The View screen is read-only: it loads once and renders. No 5 s
@@ -905,7 +910,7 @@ internal fun ViewAiReportScreen(
         val key = "${prompt.id}|${prompt.name}|${prompt.title}"
         if (missingPromptIconKickoffs.add(key)) onMissingPromptIcon(prompt)
     }
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, iconRefreshTick, onOpenHtmlPreview, onViewIcons, everyItems, tournamentRows, judgesRows) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, iconRefreshTick, onOpenHtmlPreview, onViewIcons, everyItems, tournamentRows, judgesRows, transRankRows) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -955,7 +960,7 @@ internal fun ViewAiReportScreen(
             // supply per-model quality scores: a rerank, a tournament, OR a
             // Judge-the-judges run (the Value view's top switch picks which
             // one feeds the chart).
-            if (everyItems["rerank"].orEmpty().isNotEmpty() || tournamentRows.isNotEmpty() || judgesRows.isNotEmpty()) {
+            if (everyItems["rerank"].orEmpty().isNotEmpty() || tournamentRows.isNotEmpty() || judgesRows.isNotEmpty() || transRankRows.isNotEmpty()) {
                 add(IdentifiedTile("doc:Value", ViewTile("Value view", com.ai.data.MetadataIconsHolder.current.gem, AppColors.SuccessAccent) { showValueView = true }))
             }
         }
