@@ -89,7 +89,7 @@ import com.ai.data.computeReportStats
 import com.ai.data.computeTierCounts
 import com.ai.data.computeTierCountsRuntime
 import com.ai.data.computeUsageGroups
-import com.ai.ui.settings.SettingsPreferences
+import com.ai.data.preferences.SettingsPreferences
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCompactNumber

@@ -26,7 +26,7 @@ import com.ai.model.*
 import com.ai.ui.helpers.ContentWithThinkSections
 import com.ai.ui.helpers.formatPricingPerMillion
 import com.ai.ui.settings.AgentEditScreen
-import com.ai.ui.settings.SettingsPreferences
+import com.ai.data.preferences.SettingsPreferences
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

@@ -1,5 +1,7 @@
 package com.ai.ui.settings
 
+import com.ai.data.preferences.SettingsPreferences
+
 import com.ai.data.LogLevel
 import com.ai.data.MetadataIcons
 import com.ai.testutil.MemorySharedPreferences

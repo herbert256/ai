@@ -1,7 +1,7 @@
 package com.ai.data
 
 import android.content.Context
-import com.ai.ui.settings.SettingsPreferences
+import com.ai.data.preferences.SettingsPreferences
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import java.io.File

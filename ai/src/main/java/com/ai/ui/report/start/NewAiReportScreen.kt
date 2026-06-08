@@ -24,7 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.ui.settings.SettingsPreferences
+import com.ai.data.preferences.SettingsPreferences
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 

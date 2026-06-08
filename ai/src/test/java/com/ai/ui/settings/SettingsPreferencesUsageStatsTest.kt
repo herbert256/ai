@@ -1,5 +1,7 @@
 package com.ai.ui.settings
 
+import com.ai.data.preferences.SettingsPreferences
+
 import com.ai.data.ApiFormat
 import com.ai.data.AppService
 import com.ai.testutil.MemorySharedPreferences
