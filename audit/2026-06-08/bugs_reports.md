@@ -20,7 +20,7 @@ matches both runs' rows.
 `tournamentJudgeRunId == run.runId`, or delete the exact aggregate/cell ids
 captured from the selected run.
 
-**Status:** Open
+**Status:** Fixed — ae5d1d9c (scope deleteRun to the selected run id)
 
 ### Bug 2 - Severity: High - Category: TransRank retry fidelity
 **Location:** `ai/src/main/java/com/ai/viewmodel/TranslatorRankEngine.kt:421-442` (`restartFailedCells`)
@@ -42,7 +42,7 @@ restart failed cells. The retried call is rebuilt from provider/model only.
 re-resolve the original prompt worker by stable worker id/key instead of
 constructing a new minimal `Worker`.
 
-**Status:** Open
+**Status:** Fixed — 43fb24e5 (replay original judge worker on retry)
 
 ### Bug 3 - Severity: High - Category: TransRank accounting
 **Location:** `ai/src/main/java/com/ai/viewmodel/TranslatorRankEngine.kt:344-357`, `ai/src/main/java/com/ai/data/SecondaryResult.kt:893-918` (`recordTournamentMatch`)
@@ -62,7 +62,7 @@ stored secondary JSON. The stored `tokenUsage` lacks those fields.
 full `TokenUsage`, or add a TransRank-specific commit helper that writes the
 complete usage object.
 
-**Status:** Open
+**Status:** Fixed — 2b15b66a (persist full TokenUsage on scored cells)
 
 ### Bug 4 - Severity: High - Category: TransRank persistence
 **Location:** `ai/src/main/java/com/ai/viewmodel/TranslatorRankEngine.kt:392-415` (`hydrate`)
@@ -83,7 +83,7 @@ persisted run is not hydrated.
 prompt cannot be resolved, and only block restart/new calls that need a live
 prompt.
 
-**Status:** Open
+**Status:** Fixed — 21b05de4 (hydrate persisted runs read-only when prompt is missing)
 
 ### Bug 5 - Severity: Medium - Category: TransRank determinism
 **Location:** `ai/src/main/java/com/ai/viewmodel/TranslatorRankEngine.kt:129-133` (`cappedItems`)
@@ -122,7 +122,7 @@ different number of workers. The actual call count differs from the dialog.
 **Proposed fix:** Move the count dialog after worker selection, or calculate
 and refresh the count with `overrideWorkers` after the picker returns.
 
-**Status:** Open
+**Status:** Fixed — e6b32c95 (pick workers before the confirm so the count matches)
 
 ### Bug 7 - Severity: Medium - Category: TransRank display ordering
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/TranslatorRank.kt:327-348` (`TranslatorRankL2`)
@@ -141,7 +141,7 @@ run.
 **Proposed fix:** Persist an explicit item order on each cell/run, or sort
 groups by source translation row timestamp/order before rendering.
 
-**Status:** Open
+**Status:** Fixed — 1fd0b9f9 (stable item ordering in the L2 detail)
 
 ### Bug 8 - Severity: Low - Category: TransRank Compose keys
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/TranslatorRank.kt:337-348` (`LazyColumn` item cells)
@@ -158,7 +158,7 @@ cells, then trigger retries or hydration that changes row ordering.
 **Proposed fix:** Use `items(itemCells, key = { it.id })` and key group
 headers by stable translation row id.
 
-**Status:** Open
+**Status:** Fixed — 62e5e422 (stable Compose keys in the L2 cell list)
 
 ### Bug 9 - Severity: Medium - Category: TransRank score parsing
 **Location:** `ai/src/main/java/com/ai/data/TranslatorRankModel.kt:147-150` (`parseScoreAndReason`)
@@ -176,7 +176,7 @@ missing.
 **Proposed fix:** Only parse a score from an explicit score field/line, or
 require a clear `score` label before falling back beyond the first line.
 
-**Status:** Open
+**Status:** Fixed — 59aa2aba (only read score from the score line, not reason text)
 
 ### Bug 10 - Severity: Medium - Category: Value View cost attribution
 **Location:** `ai/src/main/java/com/ai/ui/report/view/ValueView.kt:235-247` (`modelKey`, fan-out fold-in)
@@ -216,7 +216,7 @@ double-assign that model-level fan-out spend.
 multisets rather than sets. If only model keys are available, do not fold in
 cost when duplicates exist.
 
-**Status:** Open
+**Status:** Fixed — 56d128cc (don't fold fan-out cost when models are duplicated)
 
 ### Bug 12 - Severity: Medium - Category: Value View best-value ranking
 **Location:** `ai/src/main/java/com/ai/ui/report/view/ValueView.kt:148-151` (`buildValuePoints`)
@@ -287,7 +287,7 @@ prompt, then reopen the report. The persisted cells are no longer exposed.
 **Proposed fix:** Hydrate a read-only run from row metadata and mark restart
 actions unavailable until a runnable prompt is selected.
 
-**Status:** Open
+**Status:** Fixed — fbe2faea (Compare: hydrate persisted runs read-only when prompt is missing)
 
 ### Bug 16 - Severity: High - Category: Tournament persistence
 **Location:** `ai/src/main/java/com/ai/viewmodel/TournamentEngine.kt:108-123` (`hydrate`)
@@ -306,7 +306,7 @@ run.
 **Proposed fix:** Hydrate stored matches and aggregate with a missing-prompt
 state; require a prompt only for restart/additional judging.
 
-**Status:** Open
+**Status:** Fixed — 9594bbd3 (Tournament: hydrate persisted runs read-only when prompt is missing)
 
 ### Bug 17 - Severity: High - Category: JudgeEval persistence
 **Location:** `ai/src/main/java/com/ai/viewmodel/JudgeEvalEngine.kt:139-152` (`hydrate`)
@@ -323,7 +323,7 @@ then reopen the report.
 **Proposed fix:** Render persisted rows read-only with a missing-prompt
 warning and disable only actions that need live prompt resolution.
 
-**Status:** Open
+**Status:** Fixed — 0ca406bf (JudgeEval: hydrate persisted runs read-only when prompt is missing)
 
 ### Bug 18 - Severity: Medium - Category: Report agent chat cancellation
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/AgentChat.kt:158-176` (`sendTurn`)
@@ -340,7 +340,7 @@ The cancellation path can be handled as a model-call failure.
 **Proposed fix:** Add a dedicated `catch (e: CancellationException) { throw e }`
 before the generic exception handler.
 
-**Status:** Open
+**Status:** Fixed — 1b70bdd7 (treat cancellation as cancellation, not failure)
 
 ### Bug 19 - Severity: Medium - Category: Report agent chat persistence
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/AgentChat.kt:173-176` (`sendTurn`)
@@ -357,7 +357,7 @@ failure bubble, close and reopen the chat. The failure bubble may be gone.
 **Proposed fix:** Persist `messages.toList()` after appending the failure
 message, ideally on `Dispatchers.IO`.
 
-**Status:** Open
+**Status:** Fixed — 1111d75c (persist the failure bubble)
 
 ### Bug 20 - Severity: Medium - Category: Report agent chat state
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/AgentChat.kt:92-103` (`AgentChatScreen`)
@@ -375,7 +375,7 @@ state.
 **Proposed fix:** Key state with the stable chat target id, or hoist the
 state into the caller keyed by target.
 
-**Status:** Open
+**Status:** Fixed — 48292c9c (key conversation/streaming state on the target)
 
 ### Bug 21 - Severity: Low - Category: TransRank confirmation state
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/Run.kt:151-162`, `ai/src/main/java/com/ai/ui/report/manage/Main.kt:403-407`
@@ -392,7 +392,7 @@ device. The pending confirmation can reset.
 **Proposed fix:** Use `rememberSaveable` with a saver for the triple, keyed
 by report id.
 
-**Status:** Open
+**Status:** Fixed — 65e46a81 (keep the rank confirm across rotation)
 
 ### Bug 22 - Severity: Low - Category: Secondary scope language state
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/SecondaryScope.kt:98-102`, `ai/src/main/java/com/ai/ui/report/manage/SecondaryScope.kt:140-157`
@@ -410,7 +410,7 @@ the stale scope screen.
 **Proposed fix:** Key `pickedLanguages` by a stable language-list key and
 intersect submitted selections with the current language set.
 
-**Status:** Open
+**Status:** Fixed — 0bf50625 (re-seed + intersect picked languages)
 
 ### Bug 23 - Severity: Medium - Category: Report launch language scope
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/Main.kt:1196-1235` (`showRerankPicker`, `showModerationPicker`)
@@ -431,7 +431,7 @@ confirming the first picker.
 picker, clear it only after completion/cancel, and prevent concurrent scope
 launch requests.
 
-**Status:** Open
+**Status:** Fixed — 41a60af7 (snapshot launch language scope inside the effect)
 
 ### Bug 24 - Severity: Low - Category: Report manage copy confirmation
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/Run.kt:295`, `ai/src/main/java/com/ai/ui/report/manage/Run.kt:433-435`
@@ -447,7 +447,7 @@ many other overlay states.
 **Proposed fix:** Use `rememberSaveable(currentReportId)` for the
 confirmation state.
 
-**Status:** Open
+**Status:** Fixed — cfff150b (keep copy-report confirm across rotation)
 
 ### Bug 25 - Severity: Medium - Category: Translation run delete state
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/TranslationRun.kt:265-278`
@@ -464,7 +464,7 @@ device.
 **Proposed fix:** Use `rememberSaveable(runId)` for confirmation and
 deleting state.
 
-**Status:** Open
+**Status:** Fixed — 622a1ced (keep delete/reload confirms across rotation)
 
 ### Bug 26 - Severity: Medium - Category: Report last-modified lookup
 **Location:** `ai/src/main/java/com/ai/data/ReportStorage.kt:399-402` (`reportLastModified`)
@@ -481,7 +481,7 @@ UI or import path. The helper checks outside the intended flat-id namespace.
 **Proposed fix:** Apply the same `isSafeFlatId` guard and canonical-child
 check used by `deleteReport` and save paths.
 
-**Status:** Open
+**Status:** Fixed — 57f4146f (guard reportLastModified flat-id like delete/save)
 
 ### Bug 27 - Severity: Low - Category: Value View row overflow
 **Location:** `ai/src/main/java/com/ai/ui/report/view/ValueView.kt:647-659` (`ValueListRow`)
@@ -498,7 +498,7 @@ screen, then open Value View.
 **Proposed fix:** Give the badge a bounded width and ellipsis, or move it
 to a second line when available width is small.
 
-**Status:** Open
+**Status:** Fixed — f15db8f6 (stop long labels crowding the badge in the list)
 
 ### Bug 28 - Severity: Medium - Category: TransRank cost deletion
 **Location:** `ai/src/main/java/com/ai/viewmodel/TranslatorRankEngine.kt:467-472` (`deleteRun`)
@@ -516,5 +516,5 @@ translation run, then delete one. `costDelta` includes rows from both.
 **Proposed fix:** After fixing deletion scope to selected run ids, compute
 the cost delta from that same exact victim set.
 
-**Status:** Open
+**Status:** Fixed — ae5d1d9c (scope deleteRun to the selected run id (bugs 1, 28))
 

@@ -6,7 +6,8 @@ Worktree audited: `/Users/herbert/ai-codex`
 
 Branch observed: `codex`
 
-Status: static audit complete, 64 open findings.
+Status: static audit complete, 64 findings — 45 fixed, 19 open
+(per-finding status in each `bugs_*.md`).
 
 ## Highest-Risk Themes
 

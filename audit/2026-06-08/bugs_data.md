@@ -18,7 +18,7 @@ for non-deserializable payloads.
 entry extraction per row, or parse into a nullable DTO with exception
 containment around the whole map step.
 
-**Status:** Open
+**Status:** Fixed — 2280e9a5 (Rerank: don't let a non-numeric id/rank escape the parser)
 
 ### Bug 2 - Severity: High - Category: Throttle permit leak
 **Location:** `ai/src/main/java/com/ai/viewmodel/ThrottledBatch.kt:232-263` (`PermitHold.yieldFor`)
@@ -79,7 +79,7 @@ all bytes before it can reject the bundle.
 expanded-size caps, and reject unknown top-level paths before reading the
 full body.
 
-**Status:** Open
+**Status:** Fixed — 4a3c3cca (ReportBundle: cap import entry/total size + count)
 
 ### Bug 5 - Severity: Medium - Category: Report bundle parsing
 **Location:** `ai/src/main/java/com/ai/data/ReportBundle.kt:127-132` (`meta.json`)
@@ -115,7 +115,7 @@ importing valid entries.
 **Proposed fix:** Catch per-entry parse exceptions, count skipped entries,
 and surface a clear warning while importing the valid report body.
 
-**Status:** Open
+**Status:** Fixed — 99f19086 (ReportBundle: contain per-entry parse failures on import)
 
 ### Bug 7 - Severity: High - Category: Prompt translation path safety
 **Location:** `ai/src/main/java/com/ai/data/PromptTranslationStore.kt:23-37`, `ai/src/main/java/com/ai/data/PromptTranslationStore.kt:52-60`
@@ -134,7 +134,7 @@ translation root.
 **Proposed fix:** Sanitize every path segment to a safe flat name and verify
 canonical descendants under the root before read/write/delete.
 
-**Status:** Open
+**Status:** Fixed — c4f90621 (PromptTranslationStore: sanitize path segments)
 
 ### Bug 8 - Severity: Low - Category: Prompt cache path safety
 **Location:** `ai/src/main/java/com/ai/data/PromptCache.kt:55-68`, `ai/src/main/java/com/ai/data/PromptCache.kt:85-93`
@@ -206,7 +206,7 @@ for that path.
 **Proposed fix:** Reject model names containing separators or dots before
 building the file, and canonical-check the result under `local_llms`.
 
-**Status:** Open
+**Status:** Fixed — fea9c1c7 (LocalLlm: reject path-escaping model names in llmFile)
 
 ### Bug 12 - Severity: Medium - Category: Local embedder path safety
 **Location:** `ai/src/main/java/com/ai/data/local/LocalEmbedder.kt:194-199` (`modelFile`)
@@ -223,7 +223,7 @@ does not enforce a safe flat filename stem.
 **Proposed fix:** Validate model names against installed model stems or a
 strict filename regex, then canonical-check under `local_models`.
 
-**Status:** Open
+**Status:** Fixed — 568775ad (LocalEmbedder: reject path-escaping model names in modelFile)
 
 ### Bug 13 - Severity: Medium - Category: TransRank parser tolerance
 **Location:** `ai/src/main/java/com/ai/data/TranslatorRankModel.kt:137-142`
@@ -260,7 +260,7 @@ for many rows, such as detail/trace-linked views during live updates.
 in `listCache`, or add a small per-id read cache with the same invalidation
 rules.
 
-**Status:** Open
+**Status:** Fixed — 51bad4ff (SecondaryResult: get() reuses the parsed-row cache)
 
 ### Bug 15 - Severity: Low - Category: Local embedder partial sweep
 **Location:** `ai/src/main/java/com/ai/data/local/LocalEmbedder.kt:174-191` (`availableModels`)
@@ -277,7 +277,7 @@ a slow import/download leaves a `.part` file older than the cutoff.
 **Proposed fix:** Move sweeping into explicit maintenance/download startup
 paths, or expose a separate background cleanup method.
 
-**Status:** Open
+**Status:** Fixed — 3b639676 (LocalEmbedder: don't delete .part files from a query)
 
 ### Bug 16 - Severity: Medium - Category: App log toast threading
 **Location:** `ai/src/main/java/com/ai/data/AppLog.kt:164-174` (`maybeShowToast`)
