@@ -27,10 +27,10 @@ import com.google.gson.JsonParser
 const val TRANSRANK_ROLE_CELL = "MATCH"
 const val TRANSRANK_ROLE_AGGREGATE = "AGGREGATE"
 
-/** Max random items scored per translator model — caps the batch (like
- *  Judge-the-judges' JUDGE_MATCH_COUNT) so not every translation of a big run
- *  is judged by every model. */
-const val TRANSRANK_ITEMS_PER_TRANSLATOR = 25
+/** Max scoring cells (item × judge pairs) per translator model — caps the
+ *  whole batch at (#translators × this). With 10 translator models → ≤ 250
+ *  cells. Not every translation of a big run is judged by every model. */
+const val TRANSRANK_CELLS_PER_TRANSLATOR = 25
 
 /** "$judge|$translationRowId" — unique per cell. */
 fun transRankCellKey(judgeProviderId: String, judgeModel: String, translationRowId: String): String =
