@@ -107,17 +107,19 @@ object AuditLog {
         outTokens: Int?,
         costUsd: Double?,
         statusCode: Int?,
-        error: String?
+        error: String?,
+        traceFilename: String? = null
     ) {
         val hostPath = shortUrl(url)
+        val tracePart = traceFilename?.takeIf { it.isNotBlank() }?.let { " · trace $it" }.orEmpty()
         val line = if (error != null || (statusCode != null && statusCode !in 200..299)) {
             val status = statusCode?.toString() ?: "—"
             val msg = error?.takeIf { it.isNotBlank() }?.let { " ${it.take(180)}" } ?: ""
-            "API $method $hostPath · ERROR $status$msg"
+            "API $method $hostPath · ERROR $status$msg$tracePart"
         } else {
             val inN = inTokens ?: 0
             val outN = outTokens ?: 0
-            "API $method $hostPath · in $inN out $outN · ${fmtCost(costUsd)}"
+            "API $method $hostPath · in $inN out $outN · ${fmtCost(costUsd)}$tracePart"
         }
         append(reportId, line)
     }
@@ -136,7 +138,8 @@ object AuditLog {
         url: String,
         usage: TokenUsage?,
         statusCode: Int?,
-        error: String?
+        error: String?,
+        traceFilename: String? = null
     ) {
         if (reportId.isNullOrBlank()) return
         val cost = usage?.let { u ->
@@ -153,7 +156,8 @@ object AuditLog {
             outTokens = usage?.outputTokens,
             costUsd = cost,
             statusCode = statusCode,
-            error = error
+            error = error,
+            traceFilename = traceFilename
         )
     }
 

@@ -161,11 +161,13 @@ fun AuditDetailScreen(
     }
     var confirmDelete by remember { mutableStateOf(false) }
 
-    // Resolve the trace whose timestamp is nearest this line's timestamp
-    // (the technical line is written at dispatch completion ≈ trace time;
-    // its paired functional line lands a few ms later). Restricted to this
-    // report's traces so concurrent reports can't cross-match.
+    // Prefer exact trace filenames on new API audit lines. Older audit files
+    // do not have that field, so they fall back to the historical nearest-
+    // timestamp match within this report's traces.
     fun traceFor(line: String): String? {
+        explicitTraceFilename(line)
+            ?.takeIf { name -> traces.any { it.filename == name } }
+            ?.let { return it }
         val ts = parseAuditMillis(line) ?: return null
         return traces.asSequence()
             .filter { kotlin.math.abs(it.timestamp - ts) <= 30_000L }
@@ -264,6 +266,11 @@ fun AuditDetailScreen(
 /** The message body of an audit line, i.e. everything after the
  *  `yyyy-MM-dd HH:mm:ss.SSS ` (24-char) timestamp prefix. */
 private fun bodyOf(line: String): String = if (line.length > 24) line.substring(24) else line
+
+private val TRACE_FILENAME_REGEX = Regex("""(?:^| · )trace ([^\s]+\.json)""")
+
+private fun explicitTraceFilename(line: String): String? =
+    TRACE_FILENAME_REGEX.find(bodyOf(line))?.groupValues?.getOrNull(1)
 
 /** Parse the `yyyy-MM-dd HH:mm:ss.SSS` prefix of an audit line to epoch
  *  millis (device timezone, matching how [AuditLog] formats it). */

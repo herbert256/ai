@@ -264,7 +264,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Tapping an API-call audit line opens the trace whose timestamp is nearest within a 30 s window. Two API calls in the same report within 30 s of each other can resolve a line to the wrong trace.
 **Root cause:** Timestamp-nearest matching with a coarse 30 s window and no per-call id linkage.
 **Proposed fix:** Persist a call id / trace filename on the audit line so the link is exact.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — report API audit calls now install a trace filename sink and append `trace <filename>` to the technical audit line; the Audit detail screen prefers that exact filename and only falls back to timestamp-nearest matching for older audit files.
 
 ---
 
