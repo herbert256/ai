@@ -841,6 +841,18 @@ class SecondaryRunManager(
                 placeholder.fullCost().takeIf { it > 0.0 }?.let {
                     ReportStorage.bumpCostsFromDeletedItems(context, reportId, it)
                 }
+                // Drop the stale ❌ + content NOW so the row immediately shows
+                // ⏳ while the fix re-runs and, on success, the item's real
+                // icon — instead of the old red cross lingering until (or past)
+                // completion. Mirrors FanOutEngine.rerunPairsBlocking, which
+                // clears before re-issuing; executeSecondaryTask then overwrites
+                // this row with the fresh content (or a fresh error).
+                SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                    content = null, errorMessage = null, durationMs = null,
+                    httpStatusCode = null, inputCost = null, outputCost = null,
+                    tokenUsage = null, responseChangeSource = null,
+                    responseChangeValue = null, timestamp = System.currentTimeMillis()
+                ))
                 withTracerTags(reportId = reportId, category = cat) {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     // Fan-in (combine-reports) rows rebuild from the fan-out
