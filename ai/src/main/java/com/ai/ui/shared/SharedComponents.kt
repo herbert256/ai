@@ -697,6 +697,14 @@ val LocalRegenerateBatchOpenState =
  *  intermediate composable. Null outside a report screen. */
 val LocalTournamentEngine = compositionLocalOf<com.ai.viewmodel.TournamentEngine?> { null }
 
+/** "Report - second results" layer open-flag, held in ReportsScreenNav (above
+ *  the batch-overlay early-returns) so it SURVIVES opening a Nav-level batch
+ *  drill-in (Tournament / Judges / Compare / Rank) — Back from the drill-in then
+ *  re-shows the second-results list rather than dropping to Manage. The "second"
+ *  row sets it; the layer + paused-flag read it. */
+val LocalShowSecondResults =
+    compositionLocalOf<androidx.compose.runtime.MutableState<Boolean>?> { null }
+
 /** Shared "Tournament L1 is open for reportId X" state slot, shared by the
  *  Manage row's click handler and the overlay-mount site. */
 val LocalTournamentOpenState =

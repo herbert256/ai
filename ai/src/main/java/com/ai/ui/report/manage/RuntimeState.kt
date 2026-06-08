@@ -77,6 +77,9 @@ internal data class ReportRuntimeState(
     val infoEnabled: Boolean,
     val infoState: InfoJobState,
     val infoMetaTotal: Double,
+    val secondEnabled: Boolean,
+    val secondState: InfoJobState,
+    val secondTotal: Double,
     val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
     val loadedReportPrompt: String,
     val loadedReportTitle: String?,
@@ -115,6 +118,11 @@ internal fun rememberReportRuntimeState(
     var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
     var fanOutSummaries by remember { mutableStateOf(emptyList<FanOutRunSummary>()) }
     var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
+    // Aggregate of every secondary result, for the Manage "second" row + the
+    // "Report - second results" screen — recomputed on each secondary reload.
+    var secondEnabled by remember { mutableStateOf(false) }
+    var secondState by remember { mutableStateOf(InfoJobState.DONE) }
+    var secondTotal by remember { mutableStateOf(0.0) }
     var costsFromDeletedItems by remember { mutableStateOf(0.0) }
 
     var reportIcon by remember { mutableStateOf<String?>(null) }
@@ -260,6 +268,9 @@ internal fun rememberReportRuntimeState(
             translationRunSummaries = emptyList()
             fanOutSummaries = emptyList()
             secondaryTotals = SecondaryTotals.ZERO
+            secondEnabled = false
+            secondState = InfoJobState.DONE
+            secondTotal = 0.0
             costsFromDeletedItems = 0.0
             return@LaunchedEffect
         }
@@ -310,6 +321,14 @@ internal fun rememberReportRuntimeState(
                         it.iconInputCost + it.iconOutputCost + it.titleInputCost + it.titleOutputCost
                     }
                 )
+                // "second" row aggregate + summed cost — disk-based, like the
+                // info row. Any unfinished cell (blank content, no error, no
+                // duration) → ⏳; any error → ❌; else ✅. Cost = all secondary
+                // spend (incl. fan-meta title+icon).
+                secondEnabled = all.isNotEmpty()
+                secondTotal = secondaryTotals.inputCost + secondaryTotals.outputCost +
+                    secondaryTotals.fanOutMetaCost
+                secondState = secondAggregate(all, liveTranslations = false)
             }
         }
         reload()
@@ -356,6 +375,9 @@ internal fun rememberReportRuntimeState(
         infoEnabled = infoEnabled,
         infoState = infoState,
         infoMetaTotal = infoMetaTotal,
+        secondEnabled = secondEnabled,
+        secondState = secondState,
+        secondTotal = secondTotal,
         agentRecordsByAgentId = agentRecordsByAgentId,
         loadedReportPrompt = loadedReportPrompt,
         loadedReportTitle = loadedReportTitle,

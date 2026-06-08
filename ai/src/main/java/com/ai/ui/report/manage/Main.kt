@@ -393,6 +393,9 @@ fun ReportsScreen(
     val infoEnabled = runtime.infoEnabled
     val infoState = runtime.infoState
     val infoMetaTotal = runtime.infoMetaTotal
+    val secondEnabled = runtime.secondEnabled
+    val secondState = runtime.secondState
+    val secondTotal = runtime.secondTotal
     val agentRecordsByAgentId = runtime.agentRecordsByAgentId
     val loadedReportPrompt = runtime.loadedReportPrompt
     val loadedReportTitle = runtime.loadedReportTitle
@@ -1708,6 +1711,9 @@ fun ReportsScreen(
             infoEnabled = infoEnabled,
             infoState = infoState,
             infoMetaTotal = infoMetaTotal,
+            secondEnabled = secondEnabled,
+            secondState = secondState,
+            secondTotal = secondTotal,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             onDismiss = onDismiss,

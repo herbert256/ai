@@ -315,6 +315,10 @@ fun ReportsScreenNav(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
     val openTransRankId = openTransRankKey.value
+    // "Report - second results" layer flag — held here (above the batch-overlay
+    // early-returns) so it survives opening a Nav-level batch drill-in; Back
+    // from the drill-in then re-shows the second-results list.
+    val showSecondResults = rememberSaveable { mutableStateOf(false) }
     val exclusiveRegenerateBatchReportId = remember(
         openRegenerateBatchReportId, openTournamentReportId, openJudgeEvalReportId,
         openCompareReportId, openTransRankKey
@@ -435,6 +439,7 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalCompareOpenState provides exclusiveCompareReportId,
         com.ai.ui.shared.LocalTranslatorRankEngine provides reportViewModel.translatorRankEngine,
         com.ai.ui.shared.LocalTransRankOpenState provides exclusiveTransRankKey,
+        com.ai.ui.shared.LocalShowSecondResults provides showSecondResults,
         com.ai.ui.shared.LocalPendingBatchOpenController provides pendingBatchOpenController,
         com.ai.ui.shared.LocalMetaEditManager provides reportViewModel.metaEditManager,
         com.ai.ui.shared.LocalSecondaryModelSwitch provides reportViewModel.secondaryModelSwitch

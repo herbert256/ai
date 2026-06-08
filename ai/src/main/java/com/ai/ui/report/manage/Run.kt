@@ -99,6 +99,9 @@ internal fun ReportRunScreen(
     infoEnabled: Boolean = false,
     infoState: InfoJobState = InfoJobState.DONE,
     infoMetaTotal: Double = 0.0,
+    secondEnabled: Boolean = false,
+    secondState: InfoJobState = InfoJobState.DONE,
+    secondTotal: Double = 0.0,
     hasPrevReport: Boolean,
     hasNextReport: Boolean,
     onDismiss: () -> Unit,
@@ -141,6 +144,8 @@ internal fun ReportRunScreen(
     // on the batch screen immediately instead of staying on Manage.
     val tournamentOpenState = com.ai.ui.shared.LocalTournamentOpenState.current
     val judgeEvalOpenState = com.ai.ui.shared.LocalJudgeEvalOpenState.current
+    // "Report - second results" layer flag — survivable (held in ReportsScreenNav).
+    val showSecondResults = com.ai.ui.shared.LocalShowSecondResults.current
     val tournamentResponseCount = reportsAgentResults.values.count { it.error == null && !it.analysis.isNullOrBlank() }
     // "Compare with meta" — two-page selection flow (meta items → prompt) then
     // the worker-judged grid. compareStep: 0 = none, 1 = select meta, 2 = select
@@ -634,12 +639,15 @@ internal fun ReportRunScreen(
             infoEnabled = infoEnabled,
             infoState = infoState,
             infoMetaTotal = infoMetaTotal,
+            secondEnabled = secondEnabled,
+            secondState = secondState,
+            secondTotal = secondTotal,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             // Pause the hub's background effects while any full-screen layer
             // (Get-info / Edit report / Edit icons / Edit titles) is on top —
             // the hub stays composed underneath.
-            paused = st.showGetInfo.value || st.showEditReportOverview.value ||
+            paused = st.showGetInfo.value || (showSecondResults?.value == true) || st.showEditReportOverview.value ||
                 st.showEditIconsList.value || st.showEditTitlesList.value ||
                 st.showCreateOverview.value
         )
@@ -706,6 +714,42 @@ internal fun ReportRunScreen(
                     onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
                     onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId },
                     onRestartErrors = { onRestartInfoErrors(currentReportId) }
+                )
+            }
+        }
+
+        // "Report - second results" — the secondary-result analogue of Get-info,
+        // drawn as a layer over the still-composed hub (same publishBottomBar
+        // pattern). Tapping a row sets the same open-states / handlers the hub
+        // rows used, so their detail screens / overlays open on top; Back peels.
+        if (showSecondResults?.value == true && currentReportId != null) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { showSecondResults.value = false }
+            ) {
+                ReportSecondResultsScreen(
+                    reportId = currentReportId,
+                    uiState = uiState,
+                    aiSettings = aiSettings,
+                    secondaryRuns = secondaryRuns,
+                    fanOutSummaries = fanOutSummaries,
+                    translationRuns = translationRuns,
+                    translationRunSummaries = translationRunSummaries,
+                    languageName = languageName,
+                    // The 🔤 model-names toggle is a Manage-row local (out of
+                    // scope here); the screen always shows prompt titles.
+                    showModelNamesInReportRows = false,
+                    onOpenSecondaryRun = generationHandlers.onOpenSecondaryRun,
+                    onMissingPromptIcon = generationHandlers.onMissingPromptIcon,
+                    onOpenInternalPromptIconDetail = generationHandlers.onOpenInternalPromptIconDetail,
+                    onOpenInternalPromptIconDetailForRow = generationHandlers.onOpenInternalPromptIconDetailForRow,
+                    onViewSecondaryName = generationHandlers.onViewSecondaryName,
+                    onViewFanMeta = generationHandlers.onViewFanMeta,
+                    onOpenTranslationRun = generationHandlers.onOpenTranslationRun,
+                    onMissingTranslationIcon = generationHandlers.onMissingTranslationIcon,
+                    onOpenTranslationIconDetail = generationHandlers.onOpenTranslationIconDetail,
+                    onBack = { showSecondResults.value = false }
                 )
             }
         }

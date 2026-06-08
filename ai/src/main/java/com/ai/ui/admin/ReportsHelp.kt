@@ -101,6 +101,14 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Costs", "Each row shows its own cost; the screen total is in the bottom bar. The single info row on Manage report mirrors this total, and its status aggregates these jobs (❌ if any failed, else ⏳ if any are still clock/running, else ✅). Tap a row to open its detail (icon / language / title / per-model icon).")
         )
     ),
+    "report_second_results" to HelpContent(
+        title = "Help - Report - second results",
+        cards = listOf(
+            HelpCard("What you see", "Every secondary result the report has produced, in one place: Tournament, Judge-the-judges, Compare, and Rank-the-translators batches; individual Meta / Rerank / Moderation / Fan-in rows; Fan-out and Fan-meta; and Translation runs (live + finished). Each row shows the same icon it uses on Manage, a status (⏳ running, ❌ failed, ✅ done), and its own cost."),
+            HelpCard("Tap a row", "Opens that result's existing detail or drill-in (the rank / tournament / judges / compare leaderboard, the per-run translation list, a single meta result, the fan-out pairs, …). Back returns here; Back again returns to Manage."),
+            HelpCard("Costs", "Each row shows its own cost; the single second row on Manage report sums them all and its status aggregates them (❌ if any failed, else ⏳ if any still running, else ✅). The screen is a layer over Manage, so Manage keeps its bottom bar and grand total.")
+        )
+    ),
     "report_edit_model_title" to HelpContent(
         title = "Help - Edit model title",
         cards = listOf(
