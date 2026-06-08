@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -362,8 +363,8 @@ private fun TranslatorRankL2(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)
         )
         LazyColumn(Modifier.fillMaxSize()) {
-            byItem.forEachIndexed { idx, (_, itemCells) ->
-                item(key = "h$idx") {
+            byItem.forEachIndexed { idx, (grpId, itemCells) ->
+                item(key = "h:$grpId") {
                     val scored = itemCells.mapNotNull { it.score }
                     val avg = if (scored.isNotEmpty()) scored.average() else null
                     Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -372,8 +373,7 @@ private fun TranslatorRankL2(
                     }
                     HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.35f), thickness = 0.5.dp)
                 }
-                items(itemCells.size) { i ->
-                    val c = itemCells[i]
+                items(itemCells, key = { it.id }) { c ->
                     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(shortModelName(c.judgeModel), color = AppColors.TextPrimary, fontSize = 13.sp,
