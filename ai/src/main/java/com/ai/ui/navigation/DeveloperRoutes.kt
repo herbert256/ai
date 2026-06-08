@@ -940,6 +940,7 @@ internal fun NavGraphBuilder.developerRoutes(
                         navController.navigate(NavRoutes.aiReportModel(reportId, agentId))
                     }
                 },
+                onOpenTrace = { filename -> navController.navigate(NavRoutes.traceDetail(filename)) },
                 loadItems = { batch, mode -> loadBrokenItems(brokenWorkContext, batch, mode) },
             )
         }

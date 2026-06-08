@@ -34,7 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** One row in the [BrokenItemsScreen] detail list. */
-data class BrokenItemRow(val id: String, val label: String, val detail: String)
+data class BrokenItemRow(val id: String, val label: String, val detail: String, val traceFile: String? = null)
 
 fun brokenWorkActionPrefix(batch: BrokenBatch, mode: BrokenItemMode): String =
     "${batch.reportId}|${batch.kind}|${batch.key}|${mode.name}"
@@ -83,6 +83,9 @@ fun BrokenWorkScreen(
     // RESPONSES detail rows and the single-broken-agent card (which skips the
     // list and taps straight through).
     onOpenModel: (String, String) -> Unit = { _, _ -> },
+    /** Open the API trace for an errored item — the 🐞 on each Errors-screen
+     *  row that carries a trace file (gated by ApiTracer.ladybugLinksEnabled). */
+    onOpenTrace: (String) -> Unit = {},
     loadItems: suspend (BrokenBatch, BrokenItemMode) -> List<BrokenItemRow>,
 ) {
     var viewing by remember { mutableStateOf<Pair<BrokenBatch, BrokenItemMode>?>(null) }
@@ -117,6 +120,7 @@ fun BrokenWorkScreen(
             onDelete = { if (!busy) onDelete(v.first, v.second) },
             onRestartItems = { ids -> if (!busy) onRestartItems(v.first, v.second, ids) },
             onDeleteItems = { ids -> if (!busy) onDeleteItems(v.first, v.second, ids) },
+            onOpenTrace = onOpenTrace,
         )
         return
     }
@@ -355,6 +359,7 @@ fun BrokenItemsScreen(
     onDelete: () -> Unit,
     onRestartItems: (Set<String>) -> Unit,
     onDeleteItems: (Set<String>) -> Unit,
+    onOpenTrace: (String) -> Unit = {},
 ) {
     BackHandler { onBack() }
     var rows by remember(batch, mode) { mutableStateOf<List<BrokenItemRow>?>(null) }
@@ -446,6 +451,19 @@ fun BrokenItemsScreen(
                                             row.detail, fontSize = 11.sp,
                                             color = if (mode == BrokenItemMode.ERRORS) AppColors.DangerAccent else AppColors.TextSecondary,
                                             maxLines = 3, overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                // 🐞 trace link for an errored row that captured a
+                                // trace (gated like every other ladybug in the app).
+                                row.traceFile?.let { tf ->
+                                    if (com.ai.data.ApiTracer.ladybugLinksEnabled) {
+                                        Text(
+                                            com.ai.data.MetadataIconsHolder.current.traces,
+                                            fontSize = 20.sp, color = AppColors.TextSecondary,
+                                            modifier = Modifier
+                                                .clickable { onOpenTrace(tf) }
+                                                .padding(start = 6.dp, top = 2.dp)
                                         )
                                     }
                                 }
@@ -583,6 +601,6 @@ fun loadBrokenItems(context: Context, batch: BrokenBatch, mode: BrokenItemMode):
             if (batch.kind == BatchFamilyKind.FAN_META) (r.titleErrorMessage ?: r.iconErrorMessage ?: "")
             else (r.errorMessage ?: "")
         } else "Queued — never ran"
-        BrokenItemRow(r.id, label, detail)
+        BrokenItemRow(r.id, label, detail, r.traceFile)
     }
 }
