@@ -478,6 +478,11 @@ class SecondaryRunManager(
         //      the lifecycle (hydrate → re-dispatch stale cells).
         rvm.judgeEvalEngine.resumeStaleRunsForReport(context, reportId)
 
+        // 2c''. Rank-the-translators batches: same contract — TranslatorRankEngine
+        //       owns the lifecycle (hydrate → re-dispatch stale cells). One run
+        //       per language; the engine sweeps every run on this report.
+        rvm.translatorRankEngine.resumeStaleRunsForReport(context, reportId)
+
         // 2b. Fan Meta batches: relaunch any fan-meta sweep the user
         //     started (some pair already carries a title/icon / error /
         //     run id) so a batch interrupted by an app kill resumes from
@@ -649,6 +654,7 @@ class SecondaryRunManager(
             rvm.tournamentEngine.inFlightRowIds() +
             rvm.judgeEvalEngine.inFlightRowIds() +
             rvm.compareEngine.inFlightRowIds() +
+            rvm.translatorRankEngine.inFlightRowIds() +
             rvm.resumingMetaIds
         val activeFanMetaRunKeys = rvm.fanMetaJobs
             .filterValues { it.isActive }

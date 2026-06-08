@@ -844,6 +844,8 @@ fun ReportsScreenNav(
             reportViewModel.judgeEvalEngine.resumeStaleRunsForReport(context, rid)
             // Compare-with-meta runs too.
             reportViewModel.compareEngine.resumeStaleRunsForReport(context, rid)
+            // Rank-the-translators runs too (one per language).
+            reportViewModel.translatorRankEngine.resumeStaleRunsForReport(context, rid)
         },
         onResumeStaleRuns = { rid ->
             reportViewModel.secondary.resumeStaleRunsForReport(context, rid)
