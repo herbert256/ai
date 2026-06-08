@@ -1196,8 +1196,11 @@ fun ReportsScreen(
     // Rerank now runs through the Rerank worker swarm — no model picker.
     if (showRerankPicker && currentReportId != null) {
         val rid = currentReportId
-        val ls = pendingLanguageScope
         LaunchedEffect(rid) {
+            // Snapshot the launch language scope at effect start, before the
+            // reset below, so the picker's confirm callback uses this launch's
+            // scope and can't pick up a later concurrent change. See audit bug 23.
+            val ls = pendingLanguageScope
             showRerankPicker = false
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
@@ -1218,8 +1221,11 @@ fun ReportsScreen(
     // (mistral-moderation-latest by default) — no model picker.
     if (showModerationPicker && currentReportId != null) {
         val rid = currentReportId
-        val ls = pendingLanguageScope
         LaunchedEffect(rid) {
+            // Snapshot the launch language scope at effect start, before the
+            // reset below, so the picker's confirm callback uses this launch's
+            // scope and can't pick up a later concurrent change. See audit bug 23.
+            val ls = pendingLanguageScope
             showModerationPicker = false
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
