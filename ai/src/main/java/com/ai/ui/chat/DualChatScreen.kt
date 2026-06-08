@@ -695,7 +695,7 @@ fun DualChatSessionScreen(
             text = {
                 Column {
                     Text(
-                        "${config.model1Provider.id} — ${com.ai.ui.shared.shortModelName(config.model1Name)}",
+                        "${config.model1Provider.id} — ${com.ai.ui.shared.shortModelName2(config.model1Name)}",
                         fontSize = 14.sp, color = AppColors.TextPrimary,
                         modifier = Modifier.fillMaxWidth().clickable {
                             showInfoPicker = false
@@ -703,7 +703,7 @@ fun DualChatSessionScreen(
                         }.padding(vertical = 12.dp)
                     )
                     Text(
-                        "${config.model2Provider.id} — ${com.ai.ui.shared.shortModelName(config.model2Name)}",
+                        "${config.model2Provider.id} — ${com.ai.ui.shared.shortModelName2(config.model2Name)}",
                         fontSize = 14.sp, color = AppColors.TextPrimary,
                         modifier = Modifier.fillMaxWidth().clickable {
                             showInfoPicker = false

@@ -62,6 +62,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
+import com.ai.ui.shared.shortModelName2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -395,7 +396,7 @@ fun ReportsViewScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
+                            text = activeAgent?.let { shortModelName2(it.model) }.orEmpty(),
                             color = AppColors.SuccessAccent,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -729,7 +730,7 @@ private fun ModelReportCard(
     val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon
     val title = overrideTitle?.takeIf { it.isNotBlank() }
         ?: agent.modelTitle?.takeIf { it.isNotBlank() }
-        ?: shortModelName(agent.model)
+        ?: shortModelName2(agent.model)
     val provider = com.ai.data.AppService.findById(agent.provider)
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -752,7 +753,7 @@ private fun ModelReportCard(
         if (expanded) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = shortModelName(agent.model),
+                text = shortModelName2(agent.model),
                 color = AppColors.SuccessAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.modelInfoViewClickable(provider, agent.model)

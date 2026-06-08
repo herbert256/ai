@@ -28,6 +28,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.shortModelName
+import com.ai.ui.shared.shortModelName2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -280,7 +281,7 @@ fun buildInfoJobs(
 
     if (perModelTitle) {
         report.agents.forEach { a ->
-            val modelName = "${a.provider} · ${shortModelName(a.model)}"
+            val modelName = "${a.provider} · ${shortModelName2(a.model)}"
             val titleState = titleStateFor(a)
             val label = if (titleState == InfoJobState.EMPTY) "$modelName · no title" else modelName
             jobs += InfoJob(
@@ -294,7 +295,7 @@ fun buildInfoJobs(
     }
     if (perModelIcon) {
         report.agents.forEach { a ->
-            val modelName = "${a.provider} · ${shortModelName(a.model)}"
+            val modelName = "${a.provider} · ${shortModelName2(a.model)}"
             val foundTitle = a.modelTitle?.takeIf { it.isNotBlank() }
             val titleState = if (perModelTitle) titleStateFor(a) else null
             val iconState = when {

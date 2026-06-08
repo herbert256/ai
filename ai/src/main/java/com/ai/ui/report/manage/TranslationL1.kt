@@ -309,7 +309,7 @@ internal fun TranslationWorkersScreen(
                 items(modelRows, key = { it.modelKey }) { row ->
                     TranslationL1Row(
                         calls = row.total,
-                        name = com.ai.ui.shared.shortModelName(row.modelKey.substringAfter('|')),
+                        name = com.ai.ui.shared.shortModelName2(row.modelKey.substringAfter('|')),
                         cost = row.cost,
                         barFrac = row.done.toFloat() / maxDone,
                         showBar = showBars,

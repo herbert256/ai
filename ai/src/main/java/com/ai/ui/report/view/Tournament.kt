@@ -48,6 +48,7 @@ import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.shortModelName
+import com.ai.ui.shared.shortModelName2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -100,9 +101,9 @@ fun TournamentViewScreen(
             val successful = report?.agents
                 ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 ?: emptyList()
-            val labels = successful.mapIndexed { i, a -> (i + 1) to shortModelName(a.model) }.toMap()
+            val labels = successful.mapIndexed { i, a -> (i + 1) to shortModelName2(a.model) }.toMap()
             val agentIdToLabel = successful.associate {
-                it.agentId to shortModelName(it.model)
+                it.agentId to shortModelName2(it.model)
             }
             val matchRows = row?.tournamentJudgeRunId?.let { rk ->
                 SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
@@ -130,7 +131,7 @@ fun TournamentViewScreen(
                     }
                     // Judging worker model for this orientation — the match row's
                     // model (sentinel "*pending"/"*workers" until judged → null).
-                    val judge = r?.model?.takeIf { it.isNotBlank() && !it.startsWith("*") }?.let { shortModelName(it) }
+                    val judge = r?.model?.takeIf { it.isNotBlank() && !it.startsWith("*") }?.let { shortModelName2(it) }
                     return H2HSide(winner, parsed?.reason, r?.errorMessage, r?.traceFile, judge)
                 }
                 MatchRow(

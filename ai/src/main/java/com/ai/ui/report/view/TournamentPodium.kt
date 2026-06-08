@@ -66,6 +66,7 @@ import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.shortModelName
+import com.ai.ui.shared.shortModelName2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -338,13 +339,13 @@ private fun loadTournamentPodium(
             (index + 1) to TournamentAgent(
                 rankId = index + 1,
                 agentId = agent.agentId,
-                label = shortModelName(agent.model)
+                label = shortModelName2(agent.model)
             )
         }.toMap()
     // Labels for every agent (not just SUCCESS) so a participant that dipped
     // out of SUCCESS still names its model in the head-to-head cards.
     val agentIdToLabel = (report?.agents ?: emptyList())
-        .associate { it.agentId to shortModelName(it.model) }
+        .associate { it.agentId to shortModelName2(it.model) }
     val agentIdToResponse = successful.associate { it.agentId to it.responseBody }
     val records = buildTournamentRecords(matchRows)
     val rankings = row?.content?.let { parseRerankRows(it) }.orEmpty().map { rankRow ->
@@ -407,7 +408,7 @@ private fun tournamentViewSideFrom(row: SecondaryResult?): TournamentViewSide {
     }
     val judge = row?.model
         ?.takeIf { it.isNotBlank() && !it.startsWith("*") }
-        ?.let { shortModelName(it) }
+        ?.let { shortModelName2(it) }
     return TournamentViewSide(
         winnerAgentId = winnerAgentId,
         tie = parsed?.verdict == "tie",

@@ -58,6 +58,7 @@ import com.ai.data.ApiTracer
 import com.ai.data.ApiUsageRates
 import com.ai.data.AppLog
 import com.ai.data.AppService
+import com.ai.ui.shared.modelInfoClickable
 import com.ai.data.DiskUsageStats
 import com.ai.data.HttpStatusStats
 import com.ai.data.RetryStats
@@ -1620,7 +1621,8 @@ private fun ColumnScope.SpendUsageModelsTab(
                 modifier = Modifier.padding(vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(row.model, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text(com.ai.ui.shared.shortModelName(row.model), fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.width(cName).modelInfoClickable(AppService.findById(row.model.substringBefore('/')), row.model))
                 Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                 Text(formatCompactNumber(row.tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
                 Spacer(Modifier.width(cGap))

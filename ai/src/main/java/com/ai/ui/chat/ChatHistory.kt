@@ -110,7 +110,7 @@ fun ChatHistoryScreen(
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Row {
                                         Text(session.provider.id, fontSize = 12.sp, color = AppColors.InfoAccent)
-                                        Text(" \u00B7 ${com.ai.ui.shared.shortModelName(session.model)}", fontSize = 12.sp, color = AppColors.TextTertiary)
+                                        Text(" \u00B7 ${com.ai.ui.shared.shortModelName2(session.model)}", fontSize = 12.sp, color = AppColors.TextTertiary)
                                     }
                                     Text(dateFormat.format(session.updatedAt), fontSize = 11.sp, color = AppColors.TextDim)
                                 }

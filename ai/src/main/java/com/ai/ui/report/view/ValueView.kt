@@ -190,7 +190,7 @@ private fun buildValuePoints(
         val fanOut = fanOutCostByAgentId[a.agentId] ?: 0.0
         val baseCostUsd = a.cost ?: ((a.inputCost ?: 0.0) + (a.outputCost ?: 0.0))
         val costUsd = baseCostUsd + fanOut
-        Raw(a.agentId, AppService.findById(a.provider)?.id ?: a.provider, shortModelName(a.model), quality, costUsd * 100.0, knownBase != null || fanOut > 0.0)
+        Raw(a.agentId, AppService.findById(a.provider)?.id ?: a.provider, shortModelName2(a.model), quality, costUsd * 100.0, knownBase != null || fanOut > 0.0)
     }
     if (raw.isEmpty()) return emptyList()
     val eps = 1e-6

@@ -66,6 +66,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.shortModelName
+import com.ai.ui.shared.shortModelName2
 import com.ai.viewmodel.TournamentEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -273,7 +274,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
 // ---------- grouping helpers ----------
 
 private fun agentLabel(agents: Map<String, ReportAgent>, agentId: String?): String =
-    agents[agentId]?.let { shortModelName(it.model) } ?: "?"
+    agents[agentId]?.let { shortModelName2(it.model) } ?: "?"
 
 /** L1 group rows for the active mode. groupKey encodes the mode. */
 private data class GroupRow(val key: String, val label: String, val matches: List<MatchState>) {
@@ -289,7 +290,7 @@ private fun buildGroups(run: TournamentRunState, agents: Map<String, ReportAgent
         TournamentGroupMode.TOURNAMENT_MODELS ->
             run.matches.values.filter { it.judgeModel != null }
                 .groupBy { it.judgeModel!! }
-                .map { (judge, ms) -> GroupRow("judge:$judge", shortModelName(judge.substringAfterLast('/')), ms) }
+                .map { (judge, ms) -> GroupRow("judge:$judge", shortModelName2(judge.substringAfterLast('/')), ms) }
                 .sortedByDescending { it.total }
         TournamentGroupMode.REPORT_MODELS ->
             run.matches.values
@@ -581,7 +582,7 @@ private fun TournamentL2(
     onBack: () -> Unit
 ) {
     val matches = matchesForGroup(run, groupKey)
-    val title = groupKey.substringAfter(":").let { if (groupKey.startsWith("judge:")) shortModelName(it.substringAfterLast('/')) else agentLabel(agents, it) }
+    val title = groupKey.substringAfter(":").let { if (groupKey.startsWith("judge:")) shortModelName2(it.substringAfterLast('/')) else agentLabel(agents, it) }
     val activeReportAgentId = groupKey.takeIf { groupMode == TournamentGroupMode.REPORT_MODELS }
         ?.substringAfter("answerer:", "")
     val screenTitle = when (groupMode) {
@@ -715,7 +716,7 @@ private fun MatchRowItem(
         when (groupMode) {
             TournamentGroupMode.REPORT_MODELS -> {
                 val opponent = if (m.responseAId == activeReportAgentId) labelB else labelA
-                val judge = m.judgeModel?.let { shortModelName(it.substringAfterLast('/')) } ?: "..."
+                val judge = m.judgeModel?.let { shortModelName2(it.substringAfterLast('/')) } ?: "..."
                 TournamentL2Cell(scoreText(m, activeReportAgentId), color = AppColors.SuccessAccent, columnIndex = 0)
                 TournamentL2Cell(opponent, columnIndex = 1)
                 TournamentL2Cell(judge, color = AppColors.TextSecondary, columnIndex = 2)

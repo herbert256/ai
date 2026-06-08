@@ -830,7 +830,7 @@ internal fun ViewAiReportScreen(
                         sourceKind = "AGENT",
                         targetId = agent.agentId,
                         sourceText = sourceText,
-                        label = "$prov / ${com.ai.ui.shared.shortModelName(agent.model)}"
+                        label = "$prov / ${com.ai.ui.shared.shortModelName2(agent.model)}"
                     )
                 }
                 if (items.isNotEmpty()) {
@@ -890,7 +890,7 @@ internal fun ViewAiReportScreen(
                         sourceKind = "META",
                         targetId = meta.id,
                         sourceText = sourceText,
-                        label = "$name: $prov / ${com.ai.ui.shared.shortModelName(meta.model)}"
+                        label = "$name: $prov / ${com.ai.ui.shared.shortModelName2(meta.model)}"
                     )
                 }
                 if (items.isNotEmpty()) {

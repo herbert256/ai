@@ -65,6 +65,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.shortModelName
+import com.ai.ui.shared.shortModelName2
 import com.ai.viewmodel.JudgeEvalEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -290,7 +291,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
             onDismissRequest = { confirmDeleteJudge = null },
             title = { Text("Remove judge?") },
             text = {
-                Text("Remove ${shortModelName(mdl)} from this batch AND from the judges' swarm? Its verdicts are deleted from this run, and future Tournaments / Judge-the-judges runs will no longer use it.")
+                Text("Remove ${shortModelName2(mdl)} from this batch AND from the judges' swarm? Its verdicts are deleted from this run, and future Tournaments / Judge-the-judges runs will no longer use it.")
             },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
@@ -489,7 +490,7 @@ private fun JudgeEvalL1(
                     byJudge.forEach { (jk, cells) ->
                         val done = cells.count { it.status == JudgeCellStatus.DONE || it.status == JudgeCellStatus.ERROR }
                         JudgeProgressRow(
-                            label = shortModelName(jk.substringAfterLast('/')),
+                            label = shortModelName2(jk.substringAfterLast('/')),
                             done = done, total = cells.size,
                             barFrac = if (cells.isNotEmpty()) done.toFloat() / cells.size else 0f
                         ) { openJudge(jk) }
@@ -544,7 +545,7 @@ private fun JudgeLeaderRow(rank: Int, s: JudgeStats, onDelete: () -> Unit, onCli
     ) {
         Text("$rank", color = AppColors.TextTertiary, fontSize = 12.sp,
             fontFamily = FontFamily.Monospace, modifier = Modifier.width(22.dp))
-        Text(shortModelName(s.judgeModel), color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+        Text(shortModelName2(s.judgeModel), color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 4.dp))
         Text(formatCents(s.totalCost, 2), color = AppColors.TextSecondary, fontSize = 12.sp,
             fontFamily = FontFamily.Monospace, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
@@ -587,7 +588,7 @@ private fun JudgeEvalL2(
             onDelete = onDelete
         )
         Text(
-            shortModelName(judgeKey.substringAfterLast('/')),
+            shortModelName2(judgeKey.substringAfterLast('/')),
             color = AppColors.SuccessAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)
@@ -610,7 +611,7 @@ private fun JudgeEvalL2(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "${shortModelName(agents[c.responseAId]?.model ?: "?")} vs ${shortModelName(agents[c.responseBId]?.model ?: "?")}",
+                        "${shortModelName2(agents[c.responseAId]?.model ?: "?")} vs ${shortModelName2(agents[c.responseBId]?.model ?: "?")}",
                         color = AppColors.TextPrimary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
@@ -669,7 +670,7 @@ private fun JudgeEvalL3(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(4.dp))
             Text(
-                "Judge: ${shortModelName(judgeKey.substringAfterLast('/'))}",
+                "Judge: ${shortModelName2(judgeKey.substringAfterLast('/'))}",
                 color = AppColors.SuccessAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
             )
@@ -699,10 +700,10 @@ private fun JudgeEvalL3(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            ResponsePane("A — ${shortModelName(aAgent?.model ?: "?")}", aAgent?.responseBody.orEmpty(),
+            ResponsePane("A — ${shortModelName2(aAgent?.model ?: "?")}", aAgent?.responseBody.orEmpty(),
                 highlight = cell.verdict == "A")
             Spacer(Modifier.height(10.dp))
-            ResponsePane("B — ${shortModelName(bAgent?.model ?: "?")}", bAgent?.responseBody.orEmpty(),
+            ResponsePane("B — ${shortModelName2(bAgent?.model ?: "?")}", bAgent?.responseBody.orEmpty(),
                 highlight = cell.verdict == "B")
             Spacer(Modifier.height(24.dp))
         }
@@ -777,8 +778,8 @@ private fun buildMatchSummaries(run: JudgeEvalRunState, agents: Map<String, Repo
             val cons = consensusForMatch(verdicts)
             MatchSummary(
                 matchKey = mk,
-                aLabel = shortModelName(agents[first.responseAId]?.model ?: "?"),
-                bLabel = shortModelName(agents[first.responseBId]?.model ?: "?"),
+                aLabel = shortModelName2(agents[first.responseAId]?.model ?: "?"),
+                bLabel = shortModelName2(agents[first.responseBId]?.model ?: "?"),
                 consensus = cons,
                 agreeCount = cs.count { it.verdict != null && cons != null && it.verdict == cons },
                 votedCount = verdicts.size,
@@ -829,7 +830,7 @@ private fun JudgeEvalMatchScreen(
     val cons = consensusForMatch(cells.mapNotNull { it.verdict })
     val first = cells.firstOrNull()
     val pairLabel = if (first != null)
-        "${shortModelName(agents[first.responseAId]?.model ?: "?")} vs ${shortModelName(agents[first.responseBId]?.model ?: "?")}"
+        "${shortModelName2(agents[first.responseAId]?.model ?: "?")} vs ${shortModelName2(agents[first.responseBId]?.model ?: "?")}"
     else "Match"
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -857,7 +858,7 @@ private fun JudgeEvalMatchScreen(
                     modifier = Modifier.fillMaxWidth().clickable { openJudge(c.judgeKey) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(shortModelName(c.judgeModel), color = AppColors.TextPrimary, fontSize = 13.sp,
+                    Text(shortModelName2(c.judgeModel), color = AppColors.TextPrimary, fontSize = 13.sp,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Text(verdictGlyph(c.verdict, c.status), color = AppColors.TextPrimary, fontSize = 13.sp,
                         textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))

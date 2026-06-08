@@ -51,6 +51,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.shortModelName
+import com.ai.ui.shared.shortModelName2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -238,7 +239,7 @@ private fun TranslatePair(
         "AGENT" -> {
             val agent = report?.agents?.firstOrNull { it.agentId == sourceTargetId }
             val prov = agent?.let { AppService.findById(it.provider)?.id ?: it.provider } ?: "?"
-            val mdl = agent?.model?.let { shortModelName(it) } ?: sourceTargetId.take(8)
+            val mdl = agent?.model?.let { shortModelName2(it) } ?: sourceTargetId.take(8)
             sourceLabel = "${mi.agent} $prov / $mdl"
             sourceBody = agent?.responseBody.orEmpty()
         }
@@ -267,7 +268,7 @@ private fun TranslatePair(
         "AGENT_TITLE" -> {
             val agent = report?.agents?.firstOrNull { it.agentId == sourceTargetId }
             val prov = agent?.let { AppService.findById(it.provider)?.id ?: it.provider } ?: "?"
-            val mdl = agent?.model?.let { shortModelName(it) } ?: sourceTargetId.take(8)
+            val mdl = agent?.model?.let { shortModelName2(it) } ?: sourceTargetId.take(8)
             sourceLabel = "${mi.agent} Title · $prov / $mdl"
             sourceBody = agent?.modelTitle.orEmpty()
         }

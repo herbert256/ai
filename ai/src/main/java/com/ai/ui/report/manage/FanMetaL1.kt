@@ -183,7 +183,7 @@ internal fun FanMetaL1Screen(
                         .verticalScroll(rememberScrollState())) {
                         errored.forEach { p ->
                             Text(
-                                "${p.providerId} / ${com.ai.ui.shared.shortModelName(p.model)}",
+                                "${p.providerId} / ${com.ai.ui.shared.shortModelName2(p.model)}",
                                 fontSize = 13.sp, color = AppColors.InfoAccent,
                                 fontWeight = FontWeight.Bold
                             )
@@ -228,7 +228,7 @@ internal fun FanMetaL1Screen(
                 .map { ak ->
                     FanMetaL1RowModel(
                         key = "rep:$ak",
-                        label = com.ai.ui.shared.shortModelName(ak.substringAfter('|')),
+                        label = com.ai.ui.shared.shortModelName2(ak.substringAfter('|')),
                         pairs = run.pairs.values.filter { "${it.providerId}|${it.model}" == ak },
                         onClick = { onOpenModel(ak) }
                     )
@@ -412,7 +412,7 @@ internal fun FanMetaWorkersScreen(
             items(rows, key = { it.first }) { (metaKey, calls, cost) ->
                 FanMetaModelsL1Row(
                     calls = calls,
-                    name = com.ai.ui.shared.shortModelName(metaKey.substringAfterLast('/')),
+                    name = com.ai.ui.shared.shortModelName2(metaKey.substringAfterLast('/')),
                     cost = cost,
                     barFrac = calls.toFloat() / maxDone,
                     showBar = showBars,
