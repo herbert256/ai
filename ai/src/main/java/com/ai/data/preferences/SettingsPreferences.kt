@@ -92,6 +92,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             try { gson.fromJson(it, com.ai.data.MetadataIcons::class.java) } catch (_: Exception) { null }
         } ?: com.ai.data.MetadataIcons()).sanitized()
         val uiColorOverrides = loadUiColorOverrides()
+        // Absent-key fallbacks for the network caps reference the GeneralSettings
+        // data-class defaults so a fresh install matches an in-app reset (these
+        // used to diverge: load → 30/3/50, reset/data-class → 60/5/100).
+        val defaults = GeneralSettings()
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
@@ -147,9 +151,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             nonStreamingReadTimeoutSec = prefs.getInt(
                 KEY_NONSTREAMING_READ_TIMEOUT_SEC, com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC
             ),
-            maxCallsPerProviderPerMinute = prefs.getInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, 30),
-            maxConcurrentCallsPerProvider = prefs.getInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, 3),
-            maxConcurrentApiCalls = prefs.getInt(KEY_MAX_CONCURRENT_API_CALLS, 50),
+            maxCallsPerProviderPerMinute = prefs.getInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, defaults.maxCallsPerProviderPerMinute),
+            maxConcurrentCallsPerProvider = prefs.getInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, defaults.maxConcurrentCallsPerProvider),
+            maxConcurrentApiCalls = prefs.getInt(KEY_MAX_CONCURRENT_API_CALLS, defaults.maxConcurrentApiCalls),
             maxRetriesOn429 = prefs.getInt(KEY_MAX_RETRIES_ON_429, 3),
             retryBackoffMs429 = prefs.getLong(KEY_RETRY_BACKOFF_MS_429, 1_000L),
             maxRetriesOn529 = prefs.getInt(KEY_MAX_RETRIES_ON_529, 3),

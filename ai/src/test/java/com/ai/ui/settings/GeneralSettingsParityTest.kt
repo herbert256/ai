@@ -154,12 +154,14 @@ class GeneralSettingsParityTest {
         assertThat(loaded.loggingMasterEnabled).isTrue()
         assertThat(loaded.showLadybugIcons).isTrue()
         assertThat(loaded.pinnedDashboardCards).isEqualTo(GeneralSettings().pinnedDashboardCards)
-        // NOTE: the load-path network-cap defaults (30/3/50) intentionally diverge
-        // from the GeneralSettings data-class defaults (60/5/100); a fresh load
-        // yields the load-path values. Asserted so the divergence is explicit.
-        assertThat(loaded.maxCallsPerProviderPerMinute).isEqualTo(30)
-        assertThat(loaded.maxConcurrentCallsPerProvider).isEqualTo(3)
-        assertThat(loaded.maxConcurrentApiCalls).isEqualTo(50)
+        // Fresh-install (absent keys) MUST match the GeneralSettings data-class
+        // defaults, so a clean install and an in-app reset agree. (They used to
+        // diverge — load gave 30/3/50, reset gave 60/5/100 — which made fresh
+        // installs throttle harder than reset installs.)
+        val def = GeneralSettings()
+        assertThat(loaded.maxCallsPerProviderPerMinute).isEqualTo(def.maxCallsPerProviderPerMinute)
+        assertThat(loaded.maxConcurrentCallsPerProvider).isEqualTo(def.maxConcurrentCallsPerProvider)
+        assertThat(loaded.maxConcurrentApiCalls).isEqualTo(def.maxConcurrentApiCalls)
     }
 
     @Test fun emptyCollections_stayEmpty() {
