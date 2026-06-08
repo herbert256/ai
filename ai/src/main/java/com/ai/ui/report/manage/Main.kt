@@ -403,7 +403,7 @@ fun ReportsScreen(
     // 🏅 Rank-the-translators launch from the Translation run screens.
     val transRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
-    val rankPending = remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    val rankPending = remember { mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null) }
     val effectiveReportIcon = runtime.effectiveReportIcon
     val onDeleteSecondaryWithRefresh = runtime.onDeleteSecondaryWithRefresh
     val onSecondaryRefresh = runtime.onSecondaryRefresh
@@ -1405,21 +1405,23 @@ fun ReportsScreen(
                 onRankTranslators = { runId, ln, lnn ->
                     val key = com.ai.data.transRankRunKey(rid, runId)
                     if (transRankEngine?.runByKey(key) != null) transRankOpenState?.value = key
-                    else rankPending.value = Triple(runId, ln, lnn)
+                    else {
+                        // *SELECT swarm: pick workers BEFORE the confirm so its
+                        // count matches the run (audit bug 6).
+                        val driver = aiSettings.workerPromptByName("translate-rank")
+                        if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                            st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                                "Rank translators — pick workers", driver.workers,
+                                { picked -> rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }, {})
+                        } else rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+                    }
                 },
                 onBack = { openTranslationRunId = null }
             )
             // 🏅 confirm dialog (with the call count) for the run-screen medal.
-            com.ai.ui.report.manage.RankTranslatorsConfirmHost(rid, rankPending, transRankEngine) { runId, ln, lnn ->
-                val arm = { ws: List<com.ai.model.Worker>? ->
-                    transRankEngine?.startRun(context, rid, runId, ln, lnn, null, ws)
-                    transRankOpenState?.value = com.ai.data.transRankRunKey(rid, runId)
-                }
-                val driver = aiSettings.workerPromptByName("translate-rank")
-                if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                    st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                        "Rank translators — pick workers", driver.workers, { picked -> arm(picked) }, {})
-                } else arm(null)
+            com.ai.ui.report.manage.RankTranslatorsConfirmHost(rid, rankPending, transRankEngine) { req ->
+                transRankEngine?.startRun(context, rid, req.runId, req.lang, req.native, null, req.overrideWorkers)
+                transRankOpenState?.value = com.ai.data.transRankRunKey(rid, req.runId)
             }
         }
         return

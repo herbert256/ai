@@ -152,14 +152,9 @@ internal fun ReportRunScreen(
     val translatorRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
     // Pending 🏅 launch (translationRunId, lang, native) → shared confirm dialog.
-    val pendingRank = remember { mutableStateOf<Triple<String, String, String>?>(null) }
-    // 🏅 handler: open an existing rank run for this translation, else confirm-start.
-    val onRankMedal: (String, String, String) -> Unit = handler@{ runId, ln, lnn ->
-        val rid = currentReportId ?: return@handler
-        val key = com.ai.data.transRankRunKey(rid, runId)
-        if (translatorRankEngine?.runByKey(key) != null) transRankOpenState?.value = key
-        else pendingRank.value = Triple(runId, ln, lnn)
-    }
+    val pendingRank = remember { mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null) }
+    // onRankMedal is declared further down, after useReportModelsAsWorkers, so it
+    // can read that flag (audit bug 6).
     // Compare runs the meta-compare prompt with the SAME NAME as the meta item,
     // so only show meta items that actually have a matching meta-compare prompt;
     // the rest can't be compared.
@@ -218,6 +213,20 @@ internal fun ReportRunScreen(
         } ?: false
     }
     val reportModelsScope = rememberCoroutineScope()
+    // 🏅 handler: open an existing rank run for this translation, else confirm-start.
+    // For a *SELECT swarm the runtime worker pick runs BEFORE the confirm so the
+    // dialog's call count matches the chosen judges (audit bug 6).
+    val onRankMedal: (String, String, String) -> Unit = handler@{ runId, ln, lnn ->
+        val rid = currentReportId ?: return@handler
+        val key = com.ai.data.transRankRunKey(rid, runId)
+        if (translatorRankEngine?.runByKey(key) != null) { transRankOpenState?.value = key; return@handler }
+        val driver = aiSettings.workerPromptByName("translate-rank")
+        if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+            st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                "Rank translators — pick workers", driver.workers,
+                { picked -> pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }, {})
+        } else pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+    }
     // The select callback is pulled from LocalSystemPromptChange so we
     // don't thread it through the call site as another arg.
     val systemPromptChange = com.ai.ui.shared.LocalSystemPromptChange.current
@@ -834,22 +843,15 @@ internal fun ReportRunScreen(
         // 🏅 Rank-the-translators launch — shared confirm dialog (with the call
         // count); on Rank, build-stage + run + open the ranking overlay. Honors
         // the ♻️ / *SELECT worker-source precedence, like Tournament / Judges.
-        com.ai.ui.report.manage.RankTranslatorsConfirmHost(currentReportId, pendingRank, translatorRankEngine) { runId, ln, lnn ->
+        com.ai.ui.report.manage.RankTranslatorsConfirmHost(currentReportId, pendingRank, translatorRankEngine) { req ->
             currentReportId?.let { rid ->
-                val arm = { ws: List<com.ai.model.Worker>? ->
-                    val key = java.util.UUID.randomUUID().toString()
-                    onArmBuildStage(
-                        key, "Building translator ranking",
-                        { transRankOpenState?.value = com.ai.data.transRankRunKey(rid, runId) },
-                        { translatorRankEngine?.deleteRun(context, com.ai.data.transRankRunKey(rid, runId)) }
-                    )
-                    translatorRankEngine?.startRun(context, rid, runId, ln, lnn, key, ws)
-                }
-                val driver = aiSettings.workerPromptByName("translate-rank")
-                if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                    st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                        "Rank translators — pick workers", driver.workers, { picked -> arm(picked) }, {})
-                } else arm(null)
+                val key = java.util.UUID.randomUUID().toString()
+                onArmBuildStage(
+                    key, "Building translator ranking",
+                    { transRankOpenState?.value = com.ai.data.transRankRunKey(rid, req.runId) },
+                    { translatorRankEngine?.deleteRun(context, com.ai.data.transRankRunKey(rid, req.runId)) }
+                )
+                translatorRankEngine?.startRun(context, rid, req.runId, req.lang, req.native, key, req.overrideWorkers)
             }
         }
 

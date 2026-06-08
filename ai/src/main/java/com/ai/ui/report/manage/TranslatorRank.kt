@@ -114,31 +114,44 @@ fun TranslatorRankManageRow() {
  *  langNative); [onLaunch] performs the actual start (build-stage handling
  *  differs per call site). Mounted by the Translations list (Run.kt) and the
  *  Translation run screens (Main.kt). Cancel/dismiss creates nothing. */
+/** A pending 🏅 launch awaiting the confirm dialog. [overrideWorkers] carries
+ *  the runtime-picked judges (MODEL_SELECTION_SELECT) so the displayed call
+ *  count is computed against — and the run launches with — exactly that set.
+ *  Null = use the prompt's configured / report-model workers. See audit bug 6. */
+internal data class PendingRankRequest(
+    val runId: String,
+    val lang: String,
+    val native: String,
+    val overrideWorkers: List<com.ai.model.Worker>? = null
+)
+
 @Composable
 internal fun RankTranslatorsConfirmHost(
     reportId: String?,
-    pending: androidx.compose.runtime.MutableState<Triple<String, String, String>?>,
+    pending: androidx.compose.runtime.MutableState<PendingRankRequest?>,
     engine: TranslatorRankEngine?,
-    onLaunch: (runId: String, lang: String, native: String) -> Unit
+    onLaunch: (PendingRankRequest) -> Unit
 ) {
     val p = pending.value ?: return
-    val (runId, lang, native) = p
     val context = LocalContextSafe()
-    val count by produceState<Int?>(null, runId, reportId) {
-        value = if (engine != null && reportId != null) engine.plannedCellCount(context, reportId, runId) else null
+    // Count against the same workers the run will use (the runtime pick, when
+    // present), so the dialog can't show a number the run then contradicts.
+    val count by produceState<Int?>(null, p.runId, reportId, p.overrideWorkers) {
+        value = if (engine != null && reportId != null)
+            engine.plannedCellCount(context, reportId, p.runId, p.overrideWorkers) else null
     }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = { pending.value = null },
         title = { Text("Rank the translators?") },
         text = {
             Text(
-                "Have the other models score the translated answers in ${lang.ifBlank { "this language" }} " +
+                "Have the other models score the translated answers in ${p.lang.ifBlank { "this language" }} " +
                     "(0–100) and rank the translator models by average score." +
                     (count?.let { "\n\nThis is about $it scoring call${if (it == 1) "" else "s"}." } ?: "\n\n(counting…)")
             )
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { pending.value = null; onLaunch(runId, lang, native) }) { Text("Rank") }
+            androidx.compose.material3.TextButton(onClick = { val req = p; pending.value = null; onLaunch(req) }) { Text("Rank") }
         },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = { pending.value = null }) { Text("Cancel") }
