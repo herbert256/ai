@@ -144,12 +144,12 @@ private suspend fun recoverBrokenBatch(
         }
         BatchFamilyKind.RESPONSES -> {
             // Primary report agents — restart regenerates the agent, delete
-            // drops it (no API call). ERRORS mode acts on ERROR agents,
-            // UNFINISHED on the PENDING/RUNNING ones a process kill stranded.
-            // [rowIds] null means the whole line (every agent in that mode).
+            // drops it (no API call). ERRORS mode acts on ERROR + STOPPED agents
+            // (incl. "Stopped by user"), UNFINISHED on the PENDING/RUNNING ones a
+            // process kill stranded. [rowIds] null means the whole line.
             val report = ReportStorage.getReport(context, rid) ?: return
             val modeAgentIds = report.agents.filter {
-                if (errors) it.reportStatus == ReportStatus.ERROR
+                if (errors) it.reportStatus == ReportStatus.ERROR || it.reportStatus == ReportStatus.STOPPED
                 else it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING
             }.map { it.agentId }
             val targets = if (rowIds != null) modeAgentIds.filter { it in rowIds } else modeAgentIds

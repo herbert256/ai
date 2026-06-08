@@ -568,7 +568,7 @@ fun loadBrokenItems(context: Context, batch: BrokenBatch, mode: BrokenItemMode):
     if (batch.kind == BatchFamilyKind.RESPONSES) {
         val report = ReportStorage.getReport(context, batch.reportId) ?: return emptyList()
         return report.agents.filter {
-            if (errors) it.reportStatus == ReportStatus.ERROR
+            if (errors) it.reportStatus == ReportStatus.ERROR || it.reportStatus == ReportStatus.STOPPED
             else it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING
         }.map { a ->
             val label = a.model.ifBlank { a.agentName }.ifBlank { "model" }
