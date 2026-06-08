@@ -16,7 +16,7 @@ import com.google.gson.JsonParser
  * (`extractTopRankedIds`).
  */
 
-enum class TournamentMethod { COPELAND, ELO, DAVIDSON, MARKOV, SCHULZE, COLLEY, GLICKO2, POINTS, TRUESKILL2 }
+enum class TournamentMethod { COPELAND, ELO, DAVIDSON, MARKOV, SCHULZE, COLLEY, TRUESKILL2 }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
@@ -108,8 +108,6 @@ fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (metho
     TournamentMethod.MARKOV -> markov(m)
     TournamentMethod.SCHULZE -> schulze(m)
     TournamentMethod.COLLEY -> colley(m)
-    TournamentMethod.GLICKO2 -> glicko2(m)
-    TournamentMethod.POINTS -> pointsRanking(m)
     TournamentMethod.TRUESKILL2 -> trueskill2(m)
 }
 
@@ -387,99 +385,6 @@ private fun solveLinearSystem(a: Array<DoubleArray>, b: DoubleArray): DoubleArra
         }
     }
     return DoubleArray(n) { i -> mtx[i][n] / mtx[i][i] }
-}
-
-/** Points: the plain head-to-head points tally (win = 1, draw = 0.5),
- *  summed across every contested pair. Unlike Copeland it is NOT a win-rate
- *  — it's the raw total, so playing (and winning) more matches counts for
- *  more. The visible score is the points total. */
-fun pointsRanking(m: WinMatrix): List<RankRow> {
-    val n = m.n
-    if (n == 0) return emptyList()
-    val scored = (0 until n).map { i ->
-        val pts = (0 until n).sumOf { j -> m.points(i, j) }
-        val played = (0 until n).sumOf { j -> m.games.getOrNull(i)?.getOrNull(j) ?: 0.0 }
-        RankScored(m.ids[i], Math.round(pts * 10.0) / 10.0,
-            String.format(java.util.Locale.US, "%.1f points from %.0f games", pts, played))
-    }
-    return assignRanks(scored)
-}
-
-/** Glicko-2 (Glickman). Every response starts at rating 1500, RD 350,
- *  volatility 0.06, then a SINGLE rating period folds in all of its games
- *  against the other responses (held at their start-of-period ratings, the
- *  standard simultaneous update). The volatility is solved with Glickman's
- *  Illinois iteration. The visible score is the updated rating. */
-fun glicko2(m: WinMatrix): List<RankRow> {
-    val n = m.n
-    if (n == 0) return emptyList()
-    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
-    val scale = 173.7178
-    val tau = 0.5
-    val phi0 = 350.0 / scale
-    val sigma0 = 0.06
-    val piSq = Math.PI * Math.PI
-    fun g(phi: Double) = 1.0 / kotlin.math.sqrt(1.0 + 3.0 * phi * phi / piSq)
-
-    val ratings = DoubleArray(n) { 1500.0 }
-    for (i in 0 until n) {
-        val mu = 0.0          // (rating 1500) at the start of the period
-        val phi = phi0
-        var vInv = 0.0
-        var sumTerm = 0.0
-        var totalGames = 0.0
-        for (j in 0 until n) {
-            if (j == i) continue
-            val cnt = m.games.getOrNull(i)?.getOrNull(j) ?: 0.0
-            if (cnt <= 0.0) continue
-            val gj = g(phi0)                       // opponent at start-of-period RD
-            val e = 1.0 / (1.0 + kotlin.math.exp(-gj * (mu - 0.0)))
-            vInv += cnt * gj * gj * e * (1.0 - e)
-            sumTerm += cnt * gj * (m.wins[i][j] - e)
-            totalGames += cnt
-        }
-        if (totalGames <= 0.0 || vInv <= 1e-12) continue
-        val v = 1.0 / vInv
-        val delta = v * sumTerm
-        // volatility update — root of f via the Illinois (regula falsi) method.
-        val a = kotlin.math.ln(sigma0 * sigma0)
-        val phi2 = phi * phi
-        fun f(x: Double): Double {
-            val ex = kotlin.math.exp(x)
-            val d2 = delta * delta
-            return ex * (d2 - phi2 - v - ex) / (2.0 * (phi2 + v + ex) * (phi2 + v + ex)) - (x - a) / (tau * tau)
-        }
-        var lo = a
-        var hi: Double
-        val d2 = delta * delta
-        if (d2 > phi2 + v) {
-            hi = kotlin.math.ln(d2 - phi2 - v)
-        } else {
-            var k = 1
-            while (f(a - k * tau) < 0.0 && k < 100) k++
-            hi = a - k * tau
-        }
-        var fLo = f(lo)
-        var fHi = f(hi)
-        var iter = 0
-        while (kotlin.math.abs(hi - lo) > 1e-6 && iter < 100) {
-            val mid = lo + (lo - hi) * fLo / (fHi - fLo)
-            val fMid = f(mid)
-            if (fMid * fHi <= 0.0) { lo = hi; fLo = fHi } else { fLo /= 2.0 }
-            hi = mid; fHi = fMid
-            iter++
-        }
-        val sigmaNew = kotlin.math.exp(lo / 2.0)
-        val phiStar = kotlin.math.sqrt(phi2 + sigmaNew * sigmaNew)
-        val phiNew = 1.0 / kotlin.math.sqrt(1.0 / (phiStar * phiStar) + 1.0 / v)
-        val muNew = mu + phiNew * phiNew * sumTerm
-        ratings[i] = scale * muNew + 1500.0
-    }
-    val scored = (0 until n).map { i ->
-        RankScored(m.ids[i], Math.round(ratings[i]).toDouble(),
-            String.format(java.util.Locale.US, "Glicko-2 %.0f", ratings[i]))
-    }
-    return assignRanks(scored)
 }
 
 /** TrueSkill (the 1-v-1 core of Microsoft's TrueSkill2). A Bayesian skill

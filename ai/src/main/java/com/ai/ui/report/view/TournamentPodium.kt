@@ -889,8 +889,6 @@ private fun methodLabel(method: TournamentMethod): String = when (method) {
     TournamentMethod.MARKOV -> "Markov"
     TournamentMethod.SCHULZE -> "Schulze"
     TournamentMethod.COLLEY -> "Colley"
-    TournamentMethod.GLICKO2 -> "Glicko-2"
-    TournamentMethod.POINTS -> "Points"
     TournamentMethod.TRUESKILL2 -> "TrueSkill2"
 }
 
