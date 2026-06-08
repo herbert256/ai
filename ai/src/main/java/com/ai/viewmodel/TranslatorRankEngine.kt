@@ -126,6 +126,34 @@ class TranslatorRankEngine internal constructor(
             }
     }
 
+    /** Keep at most [com.ai.data.TRANSRANK_ITEMS_PER_TRANSLATOR] random items
+     *  per translator model (so not every translation of a big run is judged). */
+    private fun cappedItems(items: List<ScorableItem>): List<ScorableItem> =
+        items.groupBy { "${it.translatorProviderId}/${it.translatorModel}" }
+            .flatMap { (_, list) -> list.shuffled().take(com.ai.data.TRANSRANK_ITEMS_PER_TRANSLATOR) }
+
+    /** The number of scoring calls a run would make right now — for the confirm
+     *  popup. Mirrors [startRun]'s prompt/judge/item resolution; the random cap
+     *  doesn't change the COUNT (only which items), so this matches the build. */
+    suspend fun plannedCellCount(
+        context: Context, reportId: String, sourceTranslationRunId: String,
+        overrideWorkers: List<Worker>? = null
+    ): Int = withContext(Dispatchers.IO) {
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val report = ReportStorage.getReport(context, reportId) ?: return@withContext 0
+        val prompt = rankPrompt(aiSettings)?.let {
+            when {
+                report.useReportModelsAsWorkers -> it.copy(workers = reportModelWorkers(report))
+                overrideWorkers != null -> it.copy(workers = overrideWorkers)
+                else -> it
+            }
+        } ?: return@withContext 0
+        val judges = resolveJudges(aiSettings, prompt)
+        if (judges.isEmpty()) return@withContext 0
+        val items = cappedItems(scorableItems(context, report, sourceTranslationRunId))
+        items.sumOf { item -> judges.count { it.key != "${item.translatorProviderId}/${item.translatorModel}" } }
+    }
+
     private data class PendingCell(
         val judge: Judge, val item: ScorableItem, val placeholder: SecondaryResult
     )
@@ -170,7 +198,10 @@ class TranslatorRankEngine internal constructor(
                         AppLog.w("TransRank", "no resolvable judges in the swarm — aborting")
                         return@withTracerTags
                     }
-                    val items = scorableItems(context, report, sourceTranslationRunId)
+                    // Cap each translator to at most TRANSRANK_ITEMS_PER_TRANSLATOR
+                    // random items (like Judge-the-judges' 25-match cap) so the
+                    // batch doesn't explode on a report with many answers.
+                    val items = cappedItems(scorableItems(context, report, sourceTranslationRunId))
                     // A cell only exists where a DIFFERENT model judges the item.
                     val cellCount = items.sumOf { item -> judges.count { it.key != "${item.translatorProviderId}/${item.translatorModel}" } }
                     if (cellCount == 0) {
@@ -413,18 +444,35 @@ class TranslatorRankEngine internal constructor(
             recomputeAndPersistAggregate(context, key)
         }
 
-    fun deleteRun(context: Context, key: TransRankRunKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[key] ?: return@launch
-            runJobs[key]?.cancelAndJoin()
-            run.cells.values.forEach { cellJobs[it.id]?.cancelAndJoin() }
-            val costDelta = run.cells.values.sumOf { it.totalCost }
-            run.cells.values.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
-            run.aggregateRowId?.let { SecondaryResultStorage.delete(context, run.reportId, it) }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
-            dropRun(key)
-            ReportStorage.bumpReportTimestamp(context, run.reportId)
+    fun deleteRun(context: Context, key: TransRankRunKey): Job {
+        // Stop the UI updating FIRST: cancel the build/dispatch job and drop the
+        // run from the flow synchronously. The live screen + the Manage row both
+        // read _runs, so they stop rendering this run immediately — and the
+        // per-cell finally `transitionCell` calls + finalizeLeftoverCells now
+        // no-op (run gone), so we skip the drive-everything-to-ERROR re-render
+        // storm that made delete feel slow. Cancel (no join) the cell jobs;
+        // recordTournamentMatch guards `!exists`, so a late write can't recreate
+        // a deleted row. Disk cleanup runs in the background.
+        val run = _runs.value[key]
+        runJobs[key]?.cancel()
+        run?.cells?.values?.forEach { cellJobs[it.id]?.cancel() }
+        dropRun(key)
+        // key = "reportId|sourceTranslationRunId". Sweep the disk by source-run
+        // id rather than the (possibly not-yet-populated) in-memory cell map, so
+        // a mid-build cancel — where startRun already wrote the aggregate but
+        // hasn't published the run — still removes every row (no orphan row).
+        val reportId = key.substringBefore("|")
+        val sourceRunId = key.substringAfter("|")
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSRANK)
+                .filter { it.translationRunId == sourceRunId }
+            if (rows.isEmpty()) return@launch
+            val costDelta = rows.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+            rows.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, reportId)
         }
+    }
 
     fun cancelAllForReport(reportId: String) {
         _runs.value.keys.filter { it.startsWith("$reportId|") }.forEach { k ->

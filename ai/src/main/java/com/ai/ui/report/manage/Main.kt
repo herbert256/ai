@@ -400,6 +400,10 @@ fun ReportsScreen(
     // ♻️ When on, covered secondary launch sites skip the *SELECT worker
     // picker (the engines substitute the report's own models instead).
     val useReportModelsAsWorkers = runtime.loadedReportUseReportModelsAsWorkers
+    // 🏅 Rank-the-translators launch from the Translation run screens.
+    val transRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
+    val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
+    val rankPending = remember { mutableStateOf<Triple<String, String, String>?>(null) }
     val effectiveReportIcon = runtime.effectiveReportIcon
     val onDeleteSecondaryWithRefresh = runtime.onDeleteSecondaryWithRefresh
     val onSecondaryRefresh = runtime.onSecondaryRefresh
@@ -1325,6 +1329,14 @@ fun ReportsScreen(
     if (openRunId != null && currentReportId != null && altTranslateTarget == null) {
         val rid = currentReportId
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { openTranslationRunId = null }) {
+            // Hydrate the rank engine so the 🏅 medal can OPEN an existing run
+            // (the Manage hub's ManageRow that normally hydrates isn't composed here).
+            LaunchedEffect(rid) {
+                transRankEngine?.let { e ->
+                    if (e.runs.value.keys.none { it.startsWith("$rid|") })
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { e.hydrate(context, rid) }
+                }
+            }
             TranslationRunScreen(
                 reportId = rid,
                 runId = openRunId,
@@ -1384,8 +1396,25 @@ fun ReportsScreen(
                         showAltTranslatePicker = true
                     }
                 ),
+                onRankTranslators = { runId, ln, lnn ->
+                    val key = com.ai.data.transRankRunKey(rid, runId)
+                    if (transRankEngine?.runByKey(key) != null) transRankOpenState?.value = key
+                    else rankPending.value = Triple(runId, ln, lnn)
+                },
                 onBack = { openTranslationRunId = null }
             )
+            // 🏅 confirm dialog (with the call count) for the run-screen medal.
+            com.ai.ui.report.manage.RankTranslatorsConfirmHost(rid, rankPending, transRankEngine) { runId, ln, lnn ->
+                val arm = { ws: List<com.ai.model.Worker>? ->
+                    transRankEngine?.startRun(context, rid, runId, ln, lnn, null, ws)
+                    transRankOpenState?.value = com.ai.data.transRankRunKey(rid, runId)
+                }
+                val driver = aiSettings.workerPromptByName("translate-rank")
+                if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                    st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                        "Rank translators — pick workers", driver.workers, { picked -> arm(picked) }, {})
+                } else arm(null)
+            }
         }
         return
     }

@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -108,6 +109,43 @@ fun TranslatorRankManageRow() {
     }
 }
 
+/** Shared confirm dialog for launching a "Rank the translators" run, showing
+ *  the live count of scoring calls. [pending] = (translationRunId, langName,
+ *  langNative); [onLaunch] performs the actual start (build-stage handling
+ *  differs per call site). Mounted by the Translations list (Run.kt) and the
+ *  Translation run screens (Main.kt). Cancel/dismiss creates nothing. */
+@Composable
+internal fun RankTranslatorsConfirmHost(
+    reportId: String?,
+    pending: androidx.compose.runtime.MutableState<Triple<String, String, String>?>,
+    engine: TranslatorRankEngine?,
+    onLaunch: (runId: String, lang: String, native: String) -> Unit
+) {
+    val p = pending.value ?: return
+    val (runId, lang, native) = p
+    val context = LocalContextSafe()
+    val count by produceState<Int?>(null, runId, reportId) {
+        value = if (engine != null && reportId != null) engine.plannedCellCount(context, reportId, runId) else null
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { pending.value = null },
+        title = { Text("Rank the translators?") },
+        text = {
+            Text(
+                "Have the other models score the translated answers in ${lang.ifBlank { "this language" }} " +
+                    "(0–100) and rank the translator models by average score." +
+                    (count?.let { "\n\nThis is about $it scoring call${if (it == 1) "" else "s"}." } ?: "\n\n(counting…)")
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { pending.value = null; onLaunch(runId, lang, native) }) { Text("Rank") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = { pending.value = null }) { Text("Cancel") }
+        }
+    )
+}
+
 /** Overlay-mount helper called by ReportsScreenNav when the open-state var
  *  (the run key "$reportId|$sourceTranslationRunId") is non-null. */
 @Composable
@@ -138,8 +176,16 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
         ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon
 
     var openTranslatorKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // 🐜 second mode — per-judge-model breakdown (like Fan Meta / Tournament).
+    var showWorkers by rememberSaveable { mutableStateOf(false) }
 
-    BackHandler { if (openTranslatorKey != null) openTranslatorKey = null else onBack() }
+    BackHandler {
+        when {
+            openTranslatorKey != null -> openTranslatorKey = null
+            showWorkers -> showWorkers = false
+            else -> onBack()
+        }
+    }
 
     if (run == null) {
         Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)) {
@@ -157,9 +203,15 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
         return
     }
 
+    if (showWorkers) {
+        TranslatorRankWorkersScreen(run, reportTitle, reportIcon) { showWorkers = false }
+        return
+    }
+
     TranslatorRankL1(
         run = run, reportTitle = reportTitle, reportIcon = reportIcon,
         openTranslator = { openTranslatorKey = it },
+        onOpenWorkers = { showWorkers = true },
         onRestartFailed = { scope.launch { engine.restartFailedCells(context, runKey) } },
         onDeleteRun = { scope.launch { engine.deleteRun(context, runKey) }; onBack() },
         onBack = onBack
@@ -177,6 +229,7 @@ private fun TranslatorRankL1(
     reportTitle: String,
     reportIcon: String,
     openTranslator: (String) -> Unit,
+    onOpenWorkers: () -> Unit,
     onRestartFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onBack: () -> Unit
@@ -195,6 +248,7 @@ private fun TranslatorRankL1(
             helpTopic = "translator_rank", title = "Rank the translators",
             subject = reportTitle, reportIcon = reportIcon,
             onBackClick = onBack,
+            onBatchWorkers = onOpenWorkers,
             onReload = if (error > 0) onRestartFailed else null,
             onDelete = onDeleteRun
         )
@@ -222,11 +276,7 @@ private fun TranslatorRankL1(
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Each translated answer is scored 0–100 by the other models; translators are ranked by their average. Models are judged on the items each one happened to translate.",
-                color = AppColors.TextTertiary, fontSize = 11.sp, modifier = Modifier.padding(bottom = 10.dp)
-            )
+            Spacer(Modifier.height(12.dp))
 
             if (ranking.isEmpty()) {
                 Text(
@@ -318,6 +368,75 @@ private fun TranslatorRankL2(
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
+    }
+}
+
+// ---------- 🐜 Workers: per-judge-model breakdown ----------
+
+private data class JudgeBreak(val key: String, val model: String, val total: Int, val done: Int, val cost: Double)
+
+@Composable
+private fun TranslatorRankWorkersScreen(
+    run: TransRankRunState,
+    reportTitle: String,
+    reportIcon: String,
+    onBack: () -> Unit
+) {
+    val byJudge = remember(run) {
+        run.cells.values.groupBy { it.judgeKey }
+            .map { (key, cs) ->
+                JudgeBreak(
+                    key = key, model = cs.first().judgeModel, total = cs.size,
+                    done = cs.count { it.status == TransRankCellStatus.DONE || it.status == TransRankCellStatus.ERROR },
+                    cost = cs.sumOf { it.totalCost }
+                )
+            }
+            .sortedBy { it.model.substringAfterLast('/').lowercase() }
+    }
+    val anyOutstanding = run.cells.values.any { it.status == TransRankCellStatus.RUNNING || it.status == TransRankCellStatus.PENDING }
+    val maxDone = (byJudge.maxOfOrNull { it.done } ?: 0).coerceAtLeast(1)
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(
+            helpTopic = "translator_rank_workers", title = "Rank workers",
+            subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack,
+            onBatchWorkers = onBack, batchWorkersActive = false
+        )
+        Text(
+            run.targetLanguageNative.takeIf { it.isNotBlank() } ?: run.targetLanguageName,
+            color = AppColors.SuccessAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp)
+        )
+        Text("The models that scored the translations.", color = AppColors.TextTertiary, fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 8.dp))
+        LazyColumn(Modifier.fillMaxSize()) {
+            byJudge.forEach { j ->
+                item(key = j.key) {
+                    TransRankWorkerRow(j, barFrac = j.done.toFloat() / maxDone, showBar = anyOutstanding)
+                    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
+                }
+            }
+            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun TransRankWorkerRow(j: JudgeBreak, barFrac: Float, showBar: Boolean) {
+    val barColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .drawBehind { if (showBar && barFrac > 0f) drawRect(color = barColor, size = Size(size.width * barFrac, size.height)) }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("${j.done}/${j.total}", color = AppColors.TextSecondary, fontSize = 13.sp,
+            fontFamily = FontFamily.Monospace, textAlign = TextAlign.End,
+            modifier = Modifier.padding(start = 8.dp).width(56.dp))
+        Text(shortModelName(j.model), color = AppColors.TextPrimary, fontSize = 14.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+        if (j.cost > 0.0) Text(formatCents(j.cost), color = AppColors.TextTertiary, fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace, modifier = Modifier.padding(end = 8.dp))
     }
 }
 

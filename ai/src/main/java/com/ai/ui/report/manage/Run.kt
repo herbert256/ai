@@ -151,10 +151,15 @@ internal fun ReportRunScreen(
     // 🏅 Rank the translators — engine + open-state (run key "$reportId|$translationRunId").
     val translatorRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
-    // Pending 🏅 launch: the tapped translation run's id + language (confirm dialog).
-    var rankRunId by rememberSaveable { mutableStateOf<String?>(null) }
-    var rankLangName by rememberSaveable { mutableStateOf("") }
-    var rankLangNative by rememberSaveable { mutableStateOf("") }
+    // Pending 🏅 launch (translationRunId, lang, native) → shared confirm dialog.
+    val pendingRank = remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    // 🏅 handler: open an existing rank run for this translation, else confirm-start.
+    val onRankMedal: (String, String, String) -> Unit = handler@{ runId, ln, lnn ->
+        val rid = currentReportId ?: return@handler
+        val key = com.ai.data.transRankRunKey(rid, runId)
+        if (translatorRankEngine?.runByKey(key) != null) transRankOpenState?.value = key
+        else pendingRank.value = Triple(runId, ln, lnn)
+    }
     // Compare runs the meta-compare prompt with the SAME NAME as the meta item,
     // so only show meta items that actually have a matching meta-compare prompt;
     // the rest can't be compared.
@@ -818,7 +823,7 @@ internal fun ReportRunScreen(
                     // show the still-running ones with a green progress bar.
                     activeRuns = translationRuns.filter { !it.isFinished && !it.cancelled },
                     onOpenRun = { st.openTranslationRunId.value = it },
-                    onRankTranslators = { runId, ln, lnn -> rankRunId = runId; rankLangName = ln; rankLangNative = lnn },
+                    onRankTranslators = onRankMedal,
                     onOpenOriginal = { showTranslationsList = false },
                     onNewTranslation = { generationHandlers.onTranslate() },
                     onBack = { showTranslationsList = false }
@@ -826,49 +831,26 @@ internal fun ReportRunScreen(
             }
         }
 
-        // 🏅 Rank-the-translators launch — confirm, then build-stage + run +
-        // open the ranking overlay. Honors the ♻️ / *SELECT worker-source
-        // precedence, like the Tournament / Judges launches.
-        val pendingRankRunId = rankRunId
-        if (pendingRankRunId != null && currentReportId != null) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { rankRunId = null },
-                title = { androidx.compose.material3.Text("Rank the translators?") },
-                text = {
-                    androidx.compose.material3.Text(
-                        "Have the other models score each translated answer in " +
-                            "${rankLangName.ifBlank { "this language" }} (0–100) and rank the translator " +
-                            "models by average score. This makes several API calls."
+        // 🏅 Rank-the-translators launch — shared confirm dialog (with the call
+        // count); on Rank, build-stage + run + open the ranking overlay. Honors
+        // the ♻️ / *SELECT worker-source precedence, like Tournament / Judges.
+        com.ai.ui.report.manage.RankTranslatorsConfirmHost(currentReportId, pendingRank, translatorRankEngine) { runId, ln, lnn ->
+            currentReportId?.let { rid ->
+                val arm = { ws: List<com.ai.model.Worker>? ->
+                    val key = java.util.UUID.randomUUID().toString()
+                    onArmBuildStage(
+                        key, "Building translator ranking",
+                        { transRankOpenState?.value = com.ai.data.transRankRunKey(rid, runId) },
+                        { translatorRankEngine?.deleteRun(context, com.ai.data.transRankRunKey(rid, runId)) }
                     )
-                },
-                confirmButton = {
-                    androidx.compose.material3.TextButton(onClick = {
-                        currentReportId?.let { rid ->
-                            val ln = rankLangName; val lnn = rankLangNative
-                            val arm = { ws: List<com.ai.model.Worker>? ->
-                                val key = java.util.UUID.randomUUID().toString()
-                                onArmBuildStage(
-                                    key, "Building translator ranking",
-                                    { transRankOpenState?.value = com.ai.data.transRankRunKey(rid, pendingRankRunId) },
-                                    { translatorRankEngine?.deleteRun(context, com.ai.data.transRankRunKey(rid, pendingRankRunId)) }
-                                )
-                                translatorRankEngine?.startRun(context, rid, pendingRankRunId, ln, lnn, key, ws)
-                            }
-                            val driver = aiSettings.workerPromptByName("translate-rank")
-                            if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                                st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                                    "Rank translators — pick workers", driver.workers, { picked -> arm(picked) }, {})
-                            } else arm(null)
-                        }
-                        rankRunId = null
-                    }) { androidx.compose.material3.Text("Rank") }
-                },
-                dismissButton = {
-                    androidx.compose.material3.TextButton(onClick = { rankRunId = null }) {
-                        androidx.compose.material3.Text("Cancel")
-                    }
+                    translatorRankEngine?.startRun(context, rid, runId, ln, lnn, key, ws)
                 }
-            )
+                val driver = aiSettings.workerPromptByName("translate-rank")
+                if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                    st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                        "Rank translators — pick workers", driver.workers, { picked -> arm(picked) }, {})
+                } else arm(null)
+            }
         }
 
         // Tournament launch — a single confirm dialog showing the N(N-1)

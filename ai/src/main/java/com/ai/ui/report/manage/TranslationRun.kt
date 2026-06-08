@@ -187,6 +187,8 @@ internal fun TranslationRunScreen(
     loadPersisted: suspend () -> TranslationRunState?,
     actions: TranslationActions,
     onBack: () -> Unit,
+    /** 🏅 Start / open the Rank-the-translators batch for this run. */
+    onRankTranslators: (String, String, String) -> Unit = { _, _, _ -> },
     /** Re-targets the parent's `openTranslationRunId` after a title-bar
      *  swipe lands on a different report. Wired in `ReportScreen`. */
     onChangeRunId: (String) -> Unit = {},
@@ -281,6 +283,7 @@ internal fun TranslationRunScreen(
             throttledSet = throttledItems,
             onOpenGroup = { groupKey -> nav = TranslationNav.L2(TranslationGroupMode.TYPES, groupKey) },
             onOpenWorkers = { nav = TranslationNav.Workers },
+            onRankTranslators = onRankTranslators,
             onReload = onReloadRun,
             onDelete = onDeleteRun,
             onTrace = onTraceRun,
@@ -291,6 +294,7 @@ internal fun TranslationRunScreen(
             run = run,
             throttledSet = throttledItems,
             onOpenGroup = { modelKey -> nav = TranslationNav.L2(TranslationGroupMode.MODELS, modelKey) },
+            onRankTranslators = onRankTranslators,
             onReload = onReloadRun,
             onDelete = onDeleteRun,
             onTrace = onTraceRun,

@@ -73,6 +73,8 @@ internal fun TranslationL1Screen(
     onOpenGroup: (String) -> Unit,
     /** Open the 🐜 Translation workers (per-model) sub-screen. */
     onOpenWorkers: () -> Unit,
+    /** 🏅 Start / open the Rank-the-translators batch for this run. */
+    onRankTranslators: (String, String, String) -> Unit = { _, _, _ -> },
     /** Reload / delete / trace / view — owned by the router (shared with
      *  the workers screen); the confirm dialogs render at the router. */
     onReload: () -> Unit,
@@ -130,6 +132,7 @@ internal fun TranslationL1Screen(
             onBackClick = onBack,
             onOpenView = onOpenView,
             onBatchWorkers = onOpenWorkers,
+            onRankTranslators = { onRankTranslators(run.runId, run.targetLanguageName, run.targetLanguageNative) },
             onReload = onReload,
             onTrace = onTrace,
             onDelete = onDelete
@@ -211,6 +214,7 @@ internal fun TranslationWorkersScreen(
     run: TranslationRunState,
     throttledSet: Set<String> = emptySet(),
     onOpenGroup: (String) -> Unit,
+    onRankTranslators: (String, String, String) -> Unit = { _, _, _ -> },
     onReload: () -> Unit,
     onDelete: () -> Unit,
     onTrace: (() -> Unit)?,
@@ -274,6 +278,7 @@ internal fun TranslationWorkersScreen(
             // 🐜 grayed here (already in workers mode); clicking returns to models.
             onBatchWorkers = onBack,
             batchWorkersActive = false,
+            onRankTranslators = { onRankTranslators(run.runId, run.targetLanguageName, run.targetLanguageNative) },
             onOpenView = onOpenView,
             onReload = onReload,
             onTrace = onTrace,

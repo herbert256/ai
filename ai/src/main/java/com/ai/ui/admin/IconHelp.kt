@@ -424,6 +424,7 @@ internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
     "💬" to ("Chat" to "Start a chat from here."),
     "🗂️" to ("Switch" to "Pick another report to work on."),
     "🐜" to ("Workers" to "Open the per-worker (model) breakdown for this batch."),
+    "🏅" to ("Rank translators" to "Rank the models that produced this translation (start or open the batch)."),
     "🔧" to ("Manage" to "Open the manage screen."),
     "🧹" to ("Housekeeping" to "Jump to the related Housekeeping screen."),
     "⚙️" to ("AI Setup" to "Jump to the related AI Setup screen."),
