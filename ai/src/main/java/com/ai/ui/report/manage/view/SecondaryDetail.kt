@@ -8,6 +8,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,6 +41,50 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.withContext
+
+/** Top card on a meta / rerank / moderation / fan-in detail: the internal
+ *  prompt that produced this row as "category / name", with an edit pencil that
+ *  opens it in the internal-prompt editor. Fan-in rows carry the fan-IN prompt
+ *  id in [SecondaryResult.fanInOf]; the others use [metaPromptId]. Renders
+ *  nothing for rows with no internal prompt (legacy / translate). */
+@Composable
+internal fun InternalPromptCard(result: SecondaryResult, aiSettings: com.ai.model.Settings) {
+    val promptId = result.fanInOf ?: result.metaPromptId
+    val prompt = promptId?.let { aiSettings.getInternalPromptById(it) }
+        ?: result.metaPromptName?.let { nm -> aiSettings.internalPrompts.firstOrNull { it.name == nm } }
+    if (prompt == null && result.metaPromptName.isNullOrBlank() && promptId == null) return
+    val category = prompt?.category ?: "?"
+    val name = prompt?.name ?: result.metaPromptName ?: "(unknown)"
+    val editId = prompt?.id ?: promptId
+    val navigate = com.ai.ui.shared.LocalNavigateToRoute.current
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Internal prompt", fontSize = 11.sp, color = AppColors.TextTertiary)
+                Text(
+                    "$category / $name",
+                    fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (editId != null) {
+                Text(
+                    com.ai.ui.shared.LocalMetadataIcons.current.edit,
+                    fontSize = 20.sp,
+                    modifier = Modifier
+                        .clickable { navigate(com.ai.ui.navigation.NavRoutes.settingsInternalPromptEdit(editId)) }
+                        .padding(start = 8.dp, top = 2.dp, bottom = 2.dp)
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+}
 
 @Composable
 internal fun SecondaryResultDetailScreen(
@@ -414,6 +459,7 @@ internal fun SecondaryResultDetailScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            InternalPromptCard(result, aiSettings)
             when {
                 result.errorMessage != null -> {
                     Text("Error", fontSize = 14.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
