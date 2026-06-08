@@ -27,14 +27,17 @@ import kotlinx.coroutines.withContext
  * "Example AI Reports" card and the standalone [AllAiExamplesScreen].
  *
  * Returns the opener lambda — call it from a row with the tapped entry +
- * whether 👁 (View) was the tap (else 🔧 Manage). The matching dialogs
- * ("Report already exists" + the import spinner) are emitted by this
- * composable itself, so a caller only needs to invoke the result.
+ * whether 👁 (View) was the tap (else 🔧 Manage). The "Report already
+ * exists" dialog is emitted by this composable itself, so a caller only
+ * needs to invoke the result.
  *
  * Behaviour: if a report with the same title already exists, ask whether
  * to continue with it or overwrite it from the example; otherwise import
- * the bundle straight away. Both [onOpenReportManage]/[onOpenReportView]
- * receive the resolved report id and navigate to the chosen hub.
+ * the bundle straight away. The import runs without a blocking dialog —
+ * progress shows as a spinning row in the Reports hub's "Latest AI Reports"
+ * card (see [com.ai.data.ReportImportProgress]). Both
+ * [onOpenReportManage]/[onOpenReportView] receive the resolved report id
+ * and navigate to the chosen hub when the import finishes.
  */
 @Composable
 internal fun rememberExampleOpener(
@@ -43,19 +46,21 @@ internal fun rememberExampleOpener(
 ): (com.ai.data.ExampleEntry, Boolean) -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Shown while an example is being imported on first open.
-    var loadingExample by remember { mutableStateOf(false) }
     // Set when the tapped example collides with an existing same-named
     // report — drives the "Report already exists" dialog. Carries the
     // tapped entry + whether 👁 (view) was the tap.
     var overwriteTarget by remember { mutableStateOf<Pair<com.ai.data.ExampleEntry, Boolean>?>(null) }
 
-    // Import the bundled zip (spinner meanwhile) and route to the chosen
-    // hub. When [overwrite] is set, every existing report with that title
-    // is deleted first.
+    // Import the bundled zip and route to the chosen hub. Progress shows
+    // right away as a spinning-hourglass row in the Reports hub's "Latest AI
+    // Reports" card (driven by ReportImportProgress) rather than a blocking
+    // dialog — the import id is minted up front so it doubles as the new
+    // report id. When [overwrite] is set, every existing report with that
+    // title is deleted first.
     fun importExampleAndOpen(entry: com.ai.data.ExampleEntry, view: Boolean, overwrite: Boolean) {
         scope.launch {
-            loadingExample = true
+            val importId = java.util.UUID.randomUUID().toString()
+            com.ai.data.ReportImportProgress.start(importId, entry.title)
             val rid = withContext(Dispatchers.IO) {
                 try {
                     if (overwrite) {
@@ -63,8 +68,8 @@ internal fun rememberExampleOpener(
                             .filter { it.title == entry.title }
                             .forEach { ReportStorage.deleteReport(context, it.id) }
                     }
-                    com.ai.data.importExampleReport(context, entry.zipFile).newReportId
-                } finally { loadingExample = false }
+                    com.ai.data.importExampleReport(context, entry.zipFile, importId).newReportId
+                } finally { com.ai.data.ReportImportProgress.finish(importId) }
             }
             if (view) onOpenReportView(rid) else onOpenReportManage(rid)
         }
@@ -95,20 +100,6 @@ internal fun rememberExampleOpener(
                     TextButton(onClick = { overwriteTarget = null }) { Text("Cancel") }
                 }
             }
-        )
-    }
-    if (loadingExample) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("One moment") },
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Loading example report…", fontSize = 13.sp)
-                }
-            },
-            confirmButton = {}
         )
     }
 

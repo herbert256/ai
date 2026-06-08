@@ -3,6 +3,10 @@ package com.ai.data
 import android.content.Context
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
@@ -44,6 +48,46 @@ internal data class ReportImportSummary(
     val secondaryCount: Int,
     val traceCount: Int
 )
+
+/** One in-flight report import, surfaced as a transient row at the top of
+ *  the Reports hub's "Latest AI Reports" card. NOT persisted — it lives only
+ *  in [ReportImportProgress] until the import finishes and the real report
+ *  (whose id equals [id]) lands on disk. [filesTotal] is 0 until the bundle
+ *  has been inflated and the file count is known; the hub shows the [title]
+ *  meanwhile, then switches to "Loading file X of Y". */
+data class ImportInProgress(
+    val id: String,
+    val title: String,
+    val filesDone: Int = 0,
+    val filesTotal: Int = 0
+)
+
+/** Live registry of report imports in flight. The Reports hub collects
+ *  [active] and renders one spinning-hourglass row per entry, with the title
+ *  line reading "Loading file X of Y". [readReportZip] drives the counters;
+ *  the caller brackets the whole import with [start] / [finish] so the row
+ *  appears the instant the user taps Import — before any slow work. The
+ *  import's [id] is reused as the new report id so the hub can hide the
+ *  freshly-persisted (but still-importing) report and hand off seamlessly to
+ *  the real row when [finish] removes the placeholder. */
+object ReportImportProgress {
+    private val _active = MutableStateFlow<List<ImportInProgress>>(emptyList())
+    val active: StateFlow<List<ImportInProgress>> = _active.asStateFlow()
+
+    fun start(id: String, title: String) = _active.update { list ->
+        if (list.any { it.id == id }) list else list + ImportInProgress(id, title)
+    }
+
+    fun setTotal(id: String, total: Int) = _active.update { list ->
+        list.map { if (it.id == id) it.copy(filesTotal = total) else it }
+    }
+
+    fun advance(id: String, done: Int) = _active.update { list ->
+        list.map { if (it.id == id) it.copy(filesDone = done) else it }
+    }
+
+    fun finish(id: String) = _active.update { list -> list.filterNot { it.id == id } }
+}
 
 private const val EXPORT_VERSION = 1
 private val gson = createAppGson()
@@ -109,7 +153,15 @@ internal fun writeReportZip(context: Context, reportId: String, out: OutputStrea
  *  Always mints a fresh report UUID + fresh secondary UUIDs + fresh
  *  trace filenames so re-importing the same zip is safe — the
  *  user just ends up with duplicates. */
-internal fun readReportZip(context: Context, input: InputStream): ReportImportSummary {
+internal fun readReportZip(
+    context: Context,
+    input: InputStream,
+    // When non-null, [readReportZip] drives the matching [ReportImportProgress]
+    // row (file counter) AND mints the new report under this exact id, so the
+    // hub can correlate the placeholder row with the report that lands. The
+    // caller is responsible for the bracketing start()/finish() calls.
+    importId: String? = null
+): ReportImportSummary {
     // Per-report bundles are small (low-MB at worst). Buffer the
     // whole zip into memory so we can read entries in any order;
     // ZipInputStream is single-pass otherwise.
@@ -132,6 +184,19 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
             zip.closeEntry()
         }
     }
+
+    // The bundle is inflated — we now know how many files will be persisted
+    // (every trace + every secondary + the report itself). Publish the total
+    // so the hub row flips from "Loading <title>…" to "Loading file X of Y".
+    // The per-file writes below are the slow part (one atomic write each), so
+    // we tick the counter as each one lands.
+    var filesDone = 0
+    if (importId != null) {
+        val secondaryEntryCount = entries.keys.count { it.startsWith("secondary/") && it.endsWith(".json") }
+        val traceEntryCount = entries.keys.count { it.startsWith("traces/") && it.endsWith(".json") }
+        ReportImportProgress.setTotal(importId, secondaryEntryCount + traceEntryCount + 1)
+    }
+    fun tick() { if (importId != null) ReportImportProgress.advance(importId, ++filesDone) }
 
     val metaBytes = entries["meta.json"]
         ?: error("Missing meta.json — not a valid AI Report bundle")
@@ -158,7 +223,10 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
     // we go through data-class .copy. Also re-stamp the timestamp to
     // "now" so a freshly imported report (Housekeeping or an example)
     // sorts to the top of the timestamp-descending report lists.
-    val newReportId = UUID.randomUUID().toString()
+    // When an [importId] was supplied, reuse it verbatim — it's already a
+    // fresh UUID, and matching the report id to the progress key lets the hub
+    // hide the still-importing report behind its placeholder row.
+    val newReportId = importId ?: UUID.randomUUID().toString()
 
     // Pass 1 — assign a fresh id to every secondary up front, so the
     // cross-references that point at secondary ids (a TRANSLATE row's
@@ -198,6 +266,9 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
     entries.entries
         .filter { it.key.startsWith("traces/") && it.key.endsWith(".json") }
         .forEach { (key, bytes) ->
+            // Count every trace entry handled (even a malformed skip) so the
+            // progress counter advances monotonically toward the total.
+            tick()
             // Contain a single malformed trace so it skips instead of aborting
             // the whole import. See audit data bug 6.
             val parsed = try { gson.fromJson(String(bytes, Charsets.UTF_8), ApiTrace::class.java) }
@@ -261,11 +332,13 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
         languageIconTraceFile = remapTrace(parsedReport.languageIconTraceFile)
     )
     ReportStorage.persistNewReport(context, report)
+    tick()
 
     // Pass 3b — persist every secondary onto its new id, with reportId,
     // translate cross-link, and trace pointer remapped.
     var secondaryCount = 0
     parsedSecondaries.forEach { parsed ->
+        tick()
         val rekeyed = parsed.copy(
             id = secIdMap.getValue(parsed.id),
             reportId = newReportId,
@@ -377,5 +450,5 @@ internal fun loadExampleIndex(context: Context): List<ExampleEntry> = try {
 
 /** Import a bundled example zip from assets/examples/ as a new report.
  *  Reuses [readReportZip], so the example lands with a fresh report id. */
-internal fun importExampleReport(context: Context, zipFile: String): ReportImportSummary =
-    context.assets.open("examples/$zipFile").use { readReportZip(context, it) }
+internal fun importExampleReport(context: Context, zipFile: String, importId: String? = null): ReportImportSummary =
+    context.assets.open("examples/$zipFile").use { readReportZip(context, it, importId) }

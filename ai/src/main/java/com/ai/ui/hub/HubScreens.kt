@@ -309,7 +309,19 @@ fun ReportsHubScreen(
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
     // Bump after a row 🗑 delete completes so the four cards re-load.
     var deleteTick by remember { mutableStateOf(0) }
-    val allReports by produceState(initialValue = emptyList<Report>(), refreshTick, deleteTick) {
+    // Imports in flight (manual Housekeeping import or first-open of an
+    // example). Each shows as a spinning placeholder row at the top of Latest
+    // with the live "Loading file X of Y" title; the matching report id is
+    // filtered out of the disk list so the two never double up.
+    val activeImports by com.ai.data.ReportImportProgress.active.collectAsState()
+    // The SET of import ids (not the per-file counters) — stable across the
+    // file-by-file ticks, so it only changes when an import starts or finishes.
+    val importingIds = remember(activeImports) { activeImports.mapTo(HashSet()) { it.id } }
+    // Re-read the disk list when an import finishes (importingIds shrinks): the
+    // just-persisted report then takes the slot the placeholder row vacated.
+    // Keying on the id set rather than ReportDataVersion avoids reloading on
+    // every unrelated report mutation while the hub is open.
+    val allReports by produceState(initialValue = emptyList<Report>(), refreshTick, deleteTick, importingIds) {
         value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
     }
     val pinnedReports = remember(allReports) {
@@ -320,8 +332,8 @@ fun ReportsHubScreen(
     // (with the spinning hourglass instead of their own icon), so don't exclude
     // them. Broken-work reports likewise stay in their normal card with the
     // warning icon.
-    val latestReports = remember(allReports) {
-        allReports.filter { !it.pinned }.take(10)
+    val latestReports = remember(allReports, importingIds) {
+        allReports.filter { !it.pinned && it.id !in importingIds }.take(10)
     }
     val bumpDelete: (String) -> Unit = { rid ->
         reportViewModel.deleteReport(context, rid)
@@ -375,7 +387,9 @@ fun ReportsHubScreen(
             if (i > 0) Spacer(modifier = Modifier.height(10.dp))
             ReportsHubListCard(
                 accentEmoji = meta.first, accentColor = meta.second,
-                label = meta.third, reports = reports, showEmptyHint = false
+                label = meta.third, reports = reports, showEmptyHint = false,
+                // In-flight imports ride on the Latest card only.
+                importing = if (meta.third == "Latest AI Reports") activeImports else emptyList()
             )
         }
         if (examples.isNotEmpty()) {
@@ -406,9 +420,11 @@ private fun ReportsHubListCard(
     accentColor: Color,
     label: String,
     reports: List<Report>,
-    showEmptyHint: Boolean = true
+    showEmptyHint: Boolean = true,
+    importing: List<com.ai.data.ImportInProgress> = emptyList()
 ) {
-    val empty = reports.isEmpty()
+    // An in-flight import keeps the card "live" even before any report exists.
+    val empty = reports.isEmpty() && importing.isEmpty()
     val mi = LocalMetadataIcons.current
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
@@ -437,6 +453,10 @@ private fun ReportsHubListCard(
                     )
                 }
             } else {
+                // Imports lead — they sort to the top and become a real row
+                // when finished (their id leaves the active set, the persisted
+                // report takes the slot).
+                importing.forEach { ImportingReportRow(it) }
                 reports.take(5).forEach { r ->
                     com.ai.ui.shared.ReportListRow(
                         report = r,
@@ -447,5 +467,29 @@ private fun ReportsHubListCard(
                 }
             }
         }
+    }
+}
+
+/** Transient placeholder row for an import still in flight: a spinning
+ *  hourglass and a live status line. Reads "Loading <title>…" until the
+ *  bundle is inflated and the file count is known, then "Loading file X of
+ *  Y" as each file lands. Not clickable — there's no report to open yet. */
+@Composable
+private fun ImportingReportRow(entry: com.ai.data.ImportInProgress) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        com.ai.ui.shared.AnimatedHourglass(fontSize = 22.sp)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = if (entry.filesTotal > 0)
+                "Loading file ${entry.filesDone} of ${entry.filesTotal}"
+            else
+                "Loading ${entry.title.ifBlank { "report" }}…",
+            fontSize = 14.sp, color = AppColors.TextPrimary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
