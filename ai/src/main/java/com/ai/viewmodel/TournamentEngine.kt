@@ -45,7 +45,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Authoritative runtime owner for the Tournament run on every report.
@@ -76,14 +75,9 @@ class TournamentEngine internal constructor(
     /** The L1 "Throttled" stat — match ids parked on a provider throttle. */
     val throttledMatches: StateFlow<Set<String>> get() = appViewModel.throttledTournamentMatches
 
-    /** Per-match coroutines keyed by [MatchState.id] (= on-disk row id). */
-    private val matchJobs = ConcurrentHashMap<String, Job>()
-
-    /** Top-level batch Job per report. */
-    private val runJobs = ConcurrentHashMap<TournamentRunKey, Job>()
-
-    /** Per-report dedup for the resume scan. */
-    private val resumeScans = ConcurrentHashMap.newKeySet<TournamentRunKey>()
+    // Run/match coroutines + resume-scan dedup now live in the shared
+    // BatchEngine base (registerRunJob / registerItemJob / beginResumeScan /
+    // runJobOf / itemJobOf / activeRunJobKeys / hasItemJob).
 
     private companion object {
         const val WORKERS_CATEGORY = "workers"
@@ -182,7 +176,7 @@ class TournamentEngine internal constructor(
      *  the worker batch, then folds the verdicts into the aggregate ranking. */
     fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? {
         val rk = tournamentRunKey(reportId)
-        runJobs[rk]?.let { if (it.isActive) return it }
+        runJobOf(rk)?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
@@ -270,8 +264,7 @@ class TournamentEngine internal constructor(
                 }
             }
         }
-        runJobs[rk] = job
-        job.invokeOnCompletion { runJobs.remove(rk, job) }
+        registerRunJob(rk, job)
         return job
     }
 
@@ -291,8 +284,7 @@ class TournamentEngine internal constructor(
             onCleared = { appViewModel.updateThrottledTournamentMatches { s -> s - it.placeholder.id } },
             dynamicHost = true,
             register = { item, d ->
-                matchJobs[item.placeholder.id] = d
-                d.invokeOnCompletion { matchJobs.remove(item.placeholder.id, d) }
+                registerItemJob(item.placeholder.id, d)
             }
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
@@ -495,8 +487,8 @@ class TournamentEngine internal constructor(
      *  or dropping the run — the keep-state counterpart of [cancelAllForReport],
      *  used by [continueBrokenBatch]. */
     private suspend fun stopInFlightKeepingState(reportId: String) {
-        runJobs[reportId]?.cancelAndJoin()
-        _runs.value[reportId]?.matches?.values?.forEach { matchJobs[it.id]?.cancelAndJoin() }
+        runJobOf(reportId)?.cancelAndJoin()
+        _runs.value[reportId]?.matches?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
     }
 
     fun rerunMatch(context: Context, reportId: String, mKey: String): Job =
@@ -514,7 +506,7 @@ class TournamentEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val failed = run.matches.values.filter { it.status == MatchStatus.ERROR }
             if (failed.isEmpty()) return@launch
-            failed.forEach { matchJobs[it.id]?.cancelAndJoin() }
+            failed.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = failed.sumOf { it.totalCost }
             failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             val remaining = run.matches - failed.map { it.key }.toSet()
@@ -540,7 +532,7 @@ class TournamentEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val stranded = run.matches.values.filter { it.status == MatchStatus.PENDING }
             if (stranded.isEmpty()) return@launch
-            stranded.forEach { matchJobs[it.id]?.cancelAndJoin() }
+            stranded.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = stranded.sumOf { it.totalCost }
             stranded.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             val remaining = run.matches - stranded.map { it.key }.toSet()
@@ -563,7 +555,7 @@ class TournamentEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val victims = run.matches.values.filter { it.id in rowIds }
             if (victims.isEmpty()) return@launch
-            victims.forEach { matchJobs[it.id]?.cancelAndJoin() }
+            victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = victims.sumOf {
                 SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
             }
@@ -634,8 +626,8 @@ class TournamentEngine internal constructor(
     fun deleteRun(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[reportId] ?: return@launch
-            runJobs[reportId]?.cancelAndJoin()
-            run.matches.values.forEach { matchJobs[it.id]?.cancelAndJoin() }
+            runJobOf(reportId)?.cancelAndJoin()
+            run.matches.values.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = run.matches.values.sumOf { it.totalCost }
             run.matches.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
@@ -655,8 +647,8 @@ class TournamentEngine internal constructor(
     /** Best-effort cancel of every in-flight match for [reportId] (called
      *  from the synchronous report-delete path). */
     fun cancelAllForReport(reportId: String) {
-        runJobs[reportId]?.cancel()
-        _runs.value[reportId]?.matches?.values?.forEach { matchJobs[it.id]?.cancel() }
+        runJobOf(reportId)?.cancel()
+        _runs.value[reportId]?.matches?.values?.forEach { itemJobOf(it.id)?.cancel() }
         _runs.update { it - reportId }
     }
 
@@ -667,12 +659,12 @@ class TournamentEngine internal constructor(
     /** Match row ids whose worker Job is live in THIS process — the
      *  read-only broken-work scan's in-flight exclusion (parallel to
      *  [FanOutEngine.inFlightRowIds]). Empty after a process kill. */
-    fun inFlightRowIds(): Set<String> = matchJobs.keys.toSet()
+    fun inFlightRowIds(): Set<String> = itemJobIds()
 
     /** Top-level Tournament runs currently alive in this process. Covers
      *  pre-created match rows that are still waiting for a per-match Job. */
     fun activeRunKeys(): Set<TournamentRunKey> =
-        runJobs.filterValues { it.isActive }.keys.toSet()
+        activeRunJobKeys()
 
     /** Re-dispatch every stale match (blank placeholder on disk, no live Job)
      *  — the app-kill recovery + RegeneratePhase.TOURNAMENT path. Bounded by
@@ -691,7 +683,7 @@ class TournamentEngine internal constructor(
                 AppLog.w("Tournament", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
                 return@launch
             }
-            if (!resumeScans.add(reportId)) return@launch
+            if (!beginResumeScan(reportId)) return@launch
             try {
                 val run = _runs.value[reportId] ?: return@launch
                 val prompt = run.tournamentPrompt
@@ -701,7 +693,7 @@ class TournamentEngine internal constructor(
                 val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
                     .filter {
                         it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
-                            it.errorMessage == null && it.durationMs == null && !matchJobs.containsKey(it.id)
+                            it.errorMessage == null && it.durationMs == null && !hasItemJob(it.id)
                     }.associateBy { it.id }
                 if (diskById.isEmpty()) {
                     // No stale matches left, but the aggregate matrix may be
@@ -751,7 +743,7 @@ class TournamentEngine internal constructor(
                 // the run as-is until the next open / sweep.
                 AppLog.w("Tournament", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
             } finally {
-                resumeScans.remove(reportId)
+                endResumeScan(reportId)
             }
         }
 
@@ -760,7 +752,7 @@ class TournamentEngine internal constructor(
             val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
                 .filter {
                     it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
-                        it.errorMessage == null && it.durationMs == null && !matchJobs.containsKey(it.id)
+                        it.errorMessage == null && it.durationMs == null && !hasItemJob(it.id)
                 }
             BatchResume.finalizeLeftover(leftover) { row ->
                 markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this match finished")
