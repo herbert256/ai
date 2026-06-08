@@ -133,7 +133,7 @@ Adding a route no longer requires remembering to update several route sets.
 
 ## U05 - Add an execution plan preview before expensive runs
 
-> **Status (2026-06-08): ✅ done** — read-only plan summary on the select-models screen (no blocking dialog → no back-stack risk) (`0ea6535c`).
+> **Status (2026-06-08): ↩︎ reverted** — shipped a read-only plan summary on the select-models screen (`0ea6535c`), but the user found the "N primary calls across …" text unwanted and asked for it to be removed; the preview and its backing `ReportExecutionPlan` model + tests (R10, which had no other consumer) were deleted.
 
 Priority: P1
 

@@ -8,9 +8,10 @@ change easier.
 > tests, dispatch golden tests for request shapes AND streaming SSE, mock-server
 > infra). Phase 2 **in progress** (`SettingsPreferences` moved to
 > `com.ai.data.preferences`; first sub-store `PromptHistoryStore` extracted;
-> `GeneralSettingsStore`/`UsageStatsStore` still to split). Phase 3 **landed**
-> (`ReportExecutionPlan` + tests + a read-only preview on the select-models
-> screen). Phase 4 **landed** (`BatchEngine` lifecycle primitives + tests; all 5
+> `GeneralSettingsStore`/`UsageStatsStore` still to split). Phase 3 **reverted**
+> (`ReportExecutionPlan` + tests + a read-only select-models preview were built,
+> then removed at the user's request — the on-screen "N primary calls across …"
+> summary was unwanted, and the plan model had no other consumer). Phase 4 **landed** (`BatchEngine` lifecycle primitives + tests; all 5
 > `BatchEngine` subclasses — Compare / Tournament / Judges / TransRank / FanOut,
 > the grid-of-cells engines — migrated, so R01 is complete. Other batch/run flows
 > — Translation, Fan Meta, Regenerate, Model-test, replay sweeps — keep their own

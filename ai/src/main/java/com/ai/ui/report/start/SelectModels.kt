@@ -52,39 +52,6 @@ internal fun ReportSelectModelsScreen(
     onSystemPromptChange: (String?) -> Unit
 ) {
     val aiSettings = uiState.aiSettings
-    // Pre-flight execution-plan summary (audit U05/R10) — pure, memoised, shown
-    // read-only above Generate so the user sees call count / providers / rough
-    // cost before committing to an N×M run.
-    val planSummary = remember(
-        models, uiState.generalSettings, advancedParameters,
-        uiState.reportWebSearchTool, uiState.reportReasoningEffort
-    ) {
-        if (models.isEmpty()) emptyList()
-        else {
-            val gs = uiState.generalSettings
-            val base = advancedParameters ?: AgentParameters()
-            val params = base.copy(
-                webSearchTool = base.webSearchTool || uiState.reportWebSearchTool,
-                reasoningEffort = base.reasoningEffort ?: uiState.reportReasoningEffort
-            )
-            com.ai.viewmodel.buildReportExecutionPlan(
-                selected = models.map {
-                    com.ai.viewmodel.PlannedModel(
-                        providerId = it.provider.id, model = it.model,
-                        isLocal = it.provider.id == com.ai.data.AppService.LOCAL.id
-                    )
-                },
-                params = params,
-                metadataEnabled = gs.metadataEnabled,
-                reportTitleAiMode = gs.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
-                reportIconEnabled = gs.iconGenEnabled,
-                reportLanguageEnabled = gs.reportLanguageGenEnabled,
-                perModelTitleEnabled = gs.perModelTitleGenEnabled,
-                perModelIconEnabled = gs.perModelIconGenEnabled,
-                autoRerankAndModeration = gs.autoCreateRerankAndModeration
-            ).summaryLines()
-        }
-    }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
     if (showSystemPromptDialog) {
         com.ai.ui.shared.SystemPromptSelectScreen(
@@ -131,8 +98,7 @@ internal fun ReportSelectModelsScreen(
             onAttachKnowledgeBases = onAttachKnowledgeBases,
             experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled,
             selectedSystemPromptId = uiState.reportSystemPromptId,
-            onSystemPromptChange = onSystemPromptChange,
-            planSummary = planSummary
+            onSystemPromptChange = onSystemPromptChange
         )
     }
 }

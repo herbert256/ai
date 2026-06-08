@@ -61,11 +61,7 @@ internal fun ColumnScope.SelectionPhase(
      *  time, replaces the per-agent / per-flock / external-intent
      *  system prompt for every agent in this report. */
     selectedSystemPromptId: String? = null,
-    onSystemPromptChange: (String?) -> Unit = {},
-    /** Pre-flight execution-plan lines (primary/metadata/secondary call
-     *  counts, providers, capability flags, rough cost ceiling) rendered
-     *  read-only under the model-count line. Empty when nothing is selected. */
-    planSummary: List<String> = emptyList()
+    onSystemPromptChange: (String?) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -141,20 +137,6 @@ internal fun ColumnScope.SelectionPhase(
         fontSize = 11.sp, color = AppColors.TextTertiary,
         modifier = Modifier.padding(bottom = 4.dp)
     )
-
-    // Pre-flight plan summary (audit U05): read-only — what this run will do
-    // (call counts, providers, reasoning/web-search, rough cost ceiling) before
-    // the user commits. No overlay/navigation, so it can't affect the back stack.
-    if (planSummary.isNotEmpty()) {
-        Column(modifier = Modifier.padding(bottom = 6.dp)) {
-            planSummary.forEach { line ->
-                Text(
-                    "· $line", fontSize = 11.sp, color = AppColors.TextTertiary,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
 
     // Selected models list — sorted by model name (case-insensitive),
     // with sortedIndices so the per-row delete callback still removes

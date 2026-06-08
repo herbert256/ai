@@ -65,11 +65,13 @@ recommendation that was acted on now carries an inline `> **Status …**` marker
 `00_executive_summary.md` has the summary table with commit refs.
 
 Shipped: all the tests the audit asked for (parity, throttle/permit, dispatch
-golden + streaming SSE, batch lifecycle, execution-plan), plus `ApiDispatch.kt`
+golden + streaming SSE, batch lifecycle), plus `ApiDispatch.kt`
 split (P01), `SettingsPreferences` moved below UI (A03) + first sub-store
-extracted (D01), `ReportExecutionPlan` + preview (R10/U05), and all 5
+extracted (D01), and all 5
 `BatchEngine` subclasses (the grid-of-judged-cells engines: Compare / Tournament
 / Judges / TransRank / FanOut) migrated onto the shared base — R01 complete.
+(`ReportExecutionPlan` + the select-models preview (R10/U05) were built then
+reverted at the user's request — the on-screen summary was unwanted.)
 (Other batch/run flows — Translation, Fan Meta, Regenerate, Model-test, and the
 replay sweeps — keep their own job maps by shape and are out of R01's scope; the
 replay sweeps are R03, a unified job view is R12.) +~50 unit tests; suite
