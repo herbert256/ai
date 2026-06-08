@@ -255,14 +255,18 @@ exclusive batch-overlay state so only one batch overlay shows at a time.
   replays the same call shape (falling back to a minimal provider/model
   Worker only when the judge is no longer in the swarm, audit bug 2),
   re-dispatches them, and recomputes the aggregate.
-- **No auto-resume.** Unlike Tournament / Judges / Fan-out,
-  `TranslatorRankEngine` is **not** wired into
-  `SecondaryRunManager.resumeStaleRunsForReport`. A run interrupted by an
-  app kill leaves PENDING cells on disk; the orchestrator's generic
-  "unrecoverable → ❌" fallback marks them `No data yet`, and the user
-  restarts them from L1's 🔄. (The cross-kind resume's single-Meta path
-  skips them anyway — every TRANSRANK row carries a non-null
-  `translationRunId`.)
+- **Auto-resume after an app kill.** Like Tournament / Judges / Fan-out,
+  `TranslatorRankEngine.resumeStaleRunsForReport` is wired into
+  `SecondaryRunManager.resumeStaleRunsForReport` (the app-start + 30 s
+  background sweep) and the Manage-open effect (`ui/report/manage/Nav.kt`).
+  It hydrates, then for every run on the report (one per language)
+  re-dispatches the cells a kill left PENDING, bounded by
+  `BatchResume.capForRetry` so a cell that can never complete is
+  terminalized after `MAX_ATTEMPTS` instead of re-dispatched forever. A
+  synthetic (prompt-deleted) run is skipped. The single-call Meta resume
+  path still skips TRANSRANK rows (each carries a non-null `translationRunId`
+  and a null `metaPromptId`), so the engine owns recovery — the user can
+  still force a retry of errored cells from L1's 🔄.
 - **Delete run** (`deleteRun`) is synchronous-on-the-flow: it cancels the
   build/dispatch + cell jobs and drops the run from `_runs` immediately
   (so the live screen and Manage row stop rendering at once and avoid a

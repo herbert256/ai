@@ -168,16 +168,12 @@ The Value view reads the weights live via
 `combinedRows` whenever `generalSettings` changes — change a slider and
 Combined re-blends without leaving the screen.
 
-> **Caveat — weights are session-only.** `saveGeneralSettings`
-> (`ui/settings/SettingsPreferences.kt:170`) does **not** write
-> `rankingWeights`, and `loadGeneralSettings` does not read it.
-> `updateGeneralSettings` keeps the edited map in the in-memory
-> `UiState.generalSettings` (so it works for the rest of the session and
-> the slider screen persists via debounce within that session), but on
-> the next process start `rankingWeights` is `emptyMap()` again and the
-> factory defaults take over. The weights also do not round-trip through
-> backup. The field's KDoc says "stored sparsely", but no SharedPrefs
-> wiring backs it yet.
+> **Persistence.** `saveGeneralSettings` stores `rankingWeights` sparsely
+> as JSON under the `ranking_weights` key in `eval_prefs` (omitted when the
+> map is empty), and `loadGeneralSettings` reads it back, falling back to
+> `RANKING_WEIGHT_DEFAULTS` for any missing key. The weights survive a
+> process restart and ride along in the backup (`eval_prefs` is archived).
+> The 🧽 clear resets to factory defaults by emptying the map.
 
 ## Cost axis — base cost + fan-out fold-in
 

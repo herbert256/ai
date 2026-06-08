@@ -59,9 +59,9 @@ sub-cap → global → host; the engines reuse the same park-friendly batch help
 as Fan-Meta and fan-out.
 
 The cross-kind resume orchestrator (`SecondaryRunManager.resumeStaleRunsForReport`,
-the app-start + 30 s background sweep) delegates to the fan-out, tournament, and
-judge-eval engines' own `resumeStaleRunsForReport`. **Compare is not in that
-central sweep** — it resumes alongside the others when its Manage screen opens
+the app-start + 30 s background sweep) delegates to the fan-out, tournament,
+judge-eval, and rank-the-translators engines' own `resumeStaleRunsForReport`.
+**Compare is not in that central sweep** — it resumes alongside the others when its Manage screen opens
 (`ui/report/manage/Nav.kt`). The single-call Meta/Rerank/Moderation resume and
 the legacy "no data yet" fallback explicitly **skip** TOURNAMENT/JUDGES rows by
 kind (their engines own them); COMPARE/TRANSRANK cells are skipped implicitly,

@@ -100,9 +100,7 @@ Manually flagged pairs the app treats as failing. Identity is the
   default `"Test failed"`); FAIL **on** cooldown drops it (the cooldown
   list owns that pair). Writes are in-memory only; the engine flushes
   once at end-of-run / cancel via `flushAiSettingsToDisk`. Untested
-  entries are never touched. (The older batched
-  `syncBlockedModelsFromTestRun` still exists on `Settings` but is no
-  longer called.) Hand-curable via the `blocked/` CRUD
+  entries are never touched. Hand-curable via the `blocked/` CRUD
   (`upsertBlockedModel` / `removeBlockedModel`).
 - **Picker effect**: dimmed in every picker with a red `🚫 Blocked: …`
   caption (`blockedReasonByKey` feeds the advisory lookup).
@@ -122,8 +120,7 @@ practice `ModelTestEngine.startRun` consults it per-model via
   — the same per-item `applyTestItemIncrement` hook appends the model
   (no-clobber) when `item.totalCost > COSTLY_PROBE_USD_THRESHOLD`, in
   memory, flushed at end-of-run, so the next sweep won't pay for it
-  again. (The batched `addTestExclusionsFromTestRun` still exists on
-  `Settings` but is no longer called.) Also **seeded** from
+  again. Also **seeded** from
   `assets/excluded.json` on app start (`TestExcludedSeed.ensureAllPresent`,
   [data/TestExcludedSeed.kt:43](../ai/src/main/java/com/ai/data/TestExcludedSeed.kt)),
   a delta-merge that never touches existing keys. Hand-curable via the

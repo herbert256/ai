@@ -132,11 +132,12 @@ the next Refresh overwrites both file and timestamp. See
 | Artificial Analysis | `aa_pricing_v2.json` + `aa_meta_v2.json` | `aa_timestamp_v2` | yes |
 | Together-native | `together_pricing.json` | `together_timestamp` | no (harvested at runtime) |
 
-In addition, the OpenRouter spec fetch writes two **top-level**
-filesDir files — `model_pricing.json` and
-`model_supported_parameters.json`. Only the latter is actually read
-back (by `getSupportedParameters`); `model_pricing.json` is written
-and cleaned up but no longer consulted by the lookup (see
+In addition, the OpenRouter spec fetch writes one **top-level**
+filesDir file — `model_supported_parameters.json` — read back by
+`getSupportedParameters`. It no longer writes a sibling
+`model_pricing.json`: nothing ever read that file, so the write was
+dropped; the cache-clear path still deletes any `model_pricing.json`
+left behind on older installs (see
 [Cross-provider fan-out](#cross-provider-fan-out)).
 
 ---
@@ -201,11 +202,11 @@ local provider via `AppService.openRouterName`, and writes two
 - `model_supported_parameters.json` — `supported_parameters` per
   `(provider, model)`, read by `getSupportedParameters` so the
   dispatch layer can drop parameters a model can't accept.
-- `model_pricing.json` — `ModelPricingEntry(provider, model, pricing)`
-  rows. **Written (and cleaned up) but no longer read by the pricing
-  lookup** — the step-7 fallback above goes through
-  `openrouter_pricing.json`, so this file is dead weight for pricing
-  today.
+- `model_pricing.json` — legacy `ModelPricingEntry(provider, model,
+  pricing)` rows. **No longer written** — nothing ever read it (the
+  step-7 fallback above goes through `openrouter_pricing.json`), so the
+  write was removed; the cache-clear path still deletes the file if an
+  older install left one behind.
 
 The OpenRouter provider itself is distinguished by
 `AppService.crossProviderModelList` (true only for OpenRouter in

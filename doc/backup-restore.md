@@ -52,7 +52,6 @@ ai-backup-YYYYMMDD-HHMMSS.zip
 │   ├── regenerate/<reportId>.json
 │   ├── audit/<reportId>.log
 │   ├── crash/last-crash.txt
-│   ├── model_pricing.json
 │   ├── model_supported_parameters.json
 │   ├── internal_prompt_icons.json
 │   ├── prompt-history.json
@@ -132,16 +131,13 @@ system rather than app code, so it isn't counted among the 10.
 New prefs files added to the app must be added to
 `PREFS_TO_BACKUP` explicitly to be archived.
 
-> **Caveat — `rankingWeights` is never persisted.** The
-> "Ranking weights" map (`GeneralSettings.rankingWeights`,
-> edited under Settings) is held only in the in-memory
-> `GeneralSettings` and is **not** written by
-> `SettingsPreferences.saveGeneralSettings` / read by
-> `loadGeneralSettings` — there's no `eval_prefs` key for it.
-> Because backup serialises `eval_prefs` verbatim and the map
-> was never stored there, ranking weights are not captured by a
-> backup (and don't survive an app restart at all). This looks
-> like a persistence bug rather than an intentional exclusion.
+> **`rankingWeights` is captured.** The "Ranking weights" map
+> (`GeneralSettings.rankingWeights`, edited under Settings) is
+> stored sparsely as JSON under the `ranking_weights` key in
+> `eval_prefs` by `SettingsPreferences.saveGeneralSettings`, so —
+> because backup serialises `eval_prefs` verbatim — it rides along
+> in the backup and survives an app restart. (`showLadybugIcons`,
+> under `show_ladybug_icons`, is likewise covered.)
 
 ### Files (under `<filesDir>`)
 
@@ -162,8 +158,7 @@ Notable contents:
   remote semantic search (distinct from KB chunks).
 - `pricing/` — the LiteLLM, models.dev, OpenRouter, Together,
   Helicone, llm-prices and Artificial Analysis tier blobs, plus
-  the top-level `model_pricing.json` / `model_supported_parameters.json`
-  catalogs.
+  the top-level `model_supported_parameters.json` catalog.
 - `model_lists/` — the most recent `/models` raw JSON per
   provider.
 - `prompt_cache/`, `regenerate/`, `audit/`, `crash/`,

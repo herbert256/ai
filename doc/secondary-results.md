@@ -673,8 +673,9 @@ delete / re-run cost accounting so it isn't silently dropped.
 `SecondaryRunManager.resumeStaleRunsForReport` is the cross-kind
 resume orchestrator (manual use only). In order it: reconciles
 stalled translation runs, starts missing translations, resumes
-stale fan-out / tournament / judge runs (delegated to their
-engines), relaunches interrupted Fan-Meta batches, re-issues
+stale fan-out / tournament / judge / rank-the-translators runs
+(delegated to their engines), relaunches interrupted Fan-Meta
+batches, re-issues
 single-call Meta / Rerank / Moderation placeholders (bounded by
 `BatchResume.capForRetry`), reconciles the Regenerate batch engine,
 and finally marks any unrecoverable rows `❌ No data yet`. Only rows

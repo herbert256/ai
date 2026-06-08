@@ -35,7 +35,7 @@ modes are no longer persisted in their own prefs file.)
 
 ### `eval_prefs` — main settings
 By far the largest. Loaded by `SettingsPreferences`, which defines
-68 `KEY_*` constants. (Note: where a value below shows a default, it
+70 `KEY_*` constants. (Note: where a value below shows a default, it
 is the `prefs.getX(key, default)` *read-fallback* used when the key
 is absent on disk — for the throttle / concurrency keys this read
 fallback can differ from the `GeneralSettings` data-class field
@@ -101,18 +101,15 @@ default; the value applied to a missing key is the one shown here.)
 > per-provider-overridable. The retry budgets for 429 and 529 are
 > independent — see [throttle.md](throttle.md).
 
-> **Not persisted (session-only `GeneralSettings` fields):** two
-> fields on the `GeneralSettings` data class have **no** `KEY_*`
-> constant and are neither read in `loadGeneralSettings` nor written
-> in `saveGeneralSettings`, so they reset to their data-class default
-> on every process restart:
-> - `rankingWeights` (the "Ranking weights" 0–10 sliders map, Settings
->   → Ranking weights) — resets to `emptyMap()` (falls back to
->   `RANKING_WEIGHT_DEFAULTS`). This looks like a bug: the edited
->   weights survive only for the running session.
-> - `showLadybugIcons` (the 🐞 trace hot-link toggle) — resets to
->   `true`. It is mirrored to `ApiTracer.showLadybugIcons` at runtime
->   but never written to `eval_prefs`.
+> **Two `GeneralSettings` fields with dedicated keys (both backed up via
+> `eval_prefs`):**
+> - `rankingWeights` (the "Ranking weights" 0–10 sliders map, Settings →
+>   Ranking weights) — stored sparsely as JSON under `ranking_weights`
+>   (the key is omitted when the map is empty; load falls back to
+>   `RANKING_WEIGHT_DEFAULTS`).
+> - `showLadybugIcons` (the 🐞 trace hot-link toggle) — stored under
+>   `show_ladybug_icons` (default `true`) and mirrored to
+>   `ApiTracer.showLadybugIcons` at runtime.
 
 > The chat-title / model-info / model-intro / translate-text /
 > second-rerank / second-moderation / test-model prompt templates
@@ -488,15 +485,16 @@ from KB chunk storage, which lives under `knowledge/<kbId>/chunks/` as
 `FloatArray`. Dim mismatches log a warning instead of silently
 zeroing.
 
-### `internal_prompt_icons.json`, `meta_cache.json`, `model_pricing.json`, `model_supported_parameters.json`
+### `internal_prompt_icons.json`, `meta_cache.json`, `model_supported_parameters.json`
 Top-level supplementary catalogs (atomic writes):
 `internal_prompt_icons.json` is the generated/cached internal-prompt
 icon map (`InternalPromptIconCache`); `meta_cache.json` is the
 `MetaCache` map (cached meta titles + the language-flag icon, **7-day
 TTL** — the "Meta (titles / lang-icon)" Caches category);
-`model_pricing.json` and `model_supported_parameters.json` are the
-flattened pricing + supported-parameters catalogs written by
-`PricingCache`.
+`model_supported_parameters.json` is the flattened supported-parameters
+catalog written by `PricingCache`. (A sibling `model_pricing.json` is no
+longer written — nothing read it — though the cache-clear path still
+deletes one left behind on an older install.)
 
 > **Caches screen** (Housekeeping → Caches) browses 7 categories,
 > each backed by one of the on-disk slots above: Prompts

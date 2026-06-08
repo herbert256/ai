@@ -808,10 +808,10 @@ keys, …). The others: `provider_registry`, `pricing_cache`,
 `pricing`, `model_lists`, `prompt_cache`, `regenerate`, `crash`,
 `audit`, `applog`, plus the on-device runtime dirs `local_llms`,
 `local_models`, `native` — and a handful of top-level files
-(`model_pricing.json`, `model_supported_parameters.json`,
-`usage-stats.json`, `usage-category-stats.json`,
-`usage-report-stats.json`, `prompt-history.json`,
-`internal_prompt_icons.json`). See [persistent.md](persistent.md).
+(`model_supported_parameters.json`, `usage-stats.json`,
+`usage-category-stats.json`, `usage-report-stats.json`,
+`prompt-history.json`, `internal_prompt_icons.json`). See
+[persistent.md](persistent.md).
 
 ## Backup / restore
 
