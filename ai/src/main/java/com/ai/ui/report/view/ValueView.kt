@@ -519,13 +519,17 @@ private fun ValueScatterCanvas(
     /** Landscape full-screen: draw whole model names (no 14-char clip). */
     fullModelNames: Boolean = false,
     /** Scales the model-name label text (landscape full-screen bumps it). */
-    labelScale: Float = 1f
+    labelScale: Float = 1f,
+    /** Full-screen graph: bigger label font + greedy label-collision avoidance
+     *  with leader lines (the inline thumbnail keeps the plain layout). */
+    fullScreen: Boolean = false
 ) {
     if (points.isEmpty()) return
     val axis = AppColors.TextTertiary
     val bestC = AppColors.SuccessAccent
     val domC = AppColors.TextDim
     val regC = AppColors.WarningAccent
+    val leaderColor = AppColors.TextSecondary.copy(alpha = 0.5f)
     val labelArgb = AppColors.TextSecondary.toArgb()
     val tickArgb = axis.toArgb()
     val titleArgb = AppColors.TextSecondary.toArgb()
@@ -564,10 +568,8 @@ private fun ValueScatterCanvas(
 
         val nc = drawContext.canvas.nativeCanvas
 
-        // points + model-name labels
-        val labelPaint = android.graphics.Paint().apply {
-            color = labelArgb; textSize = 22f * labelScale; isAntiAlias = true
-        }
+        // Dots first, so the labels (+ their leader lines) draw on top.
+        fun dotRadius(p: ValuePoint) = if (p.bestValue) 20f else if (p.dominated) 7f else 9f
         points.forEach { p ->
             val o = px(p)
             when {
@@ -578,8 +580,58 @@ private fun ValueScatterCanvas(
                 p.dominated -> drawCircle(domC, radius = 7f, center = o)
                 else -> drawCircle(regC, radius = 9f, center = o)
             }
+        }
+        // Model-name labels with greedy collision avoidance: each label takes its
+        // default spot (right of the dot) then tries up / down / left / above /
+        // below until it clears every already-placed label + dot; a thin leader
+        // line links a moved label back to its dot. Stops names overwriting.
+        val labelPaint = android.graphics.Paint().apply {
+            color = labelArgb; textSize = (if (fullScreen) 27f else 22f) * labelScale; isAntiAlias = true
+        }
+        val fm = labelPaint.fontMetrics
+        val ascent = -fm.ascent; val descent = fm.descent; val lineH = ascent + descent
+        val gap = 8f
+        val placed = ArrayList<android.graphics.RectF>()
+        // Seed with the dots so labels dodge every marker, not just each other.
+        points.forEach { p -> val o = px(p); val r = dotRadius(p); placed.add(android.graphics.RectF(o.x - r, o.y - r, o.x + r, o.y + r)) }
+        val ordered = points.sortedWith(
+            compareByDescending<ValuePoint> { it.bestValue }.thenBy { it.dominated }.thenBy { px(it).x }
+        )
+        ordered.forEach { p ->
+            val o = px(p)
+            val R = dotRadius(p)
             val name = if (fullModelNames) p.modelShort else p.modelShort.take(14)
-            nc.drawText(name, o.x + 14f, o.y + 8f, labelPaint)
+            val w = labelPaint.measureText(name)
+            val baseY = o.y + ascent * 0.35f
+            val cands = listOf(
+                o.x + R + gap to baseY,                  // right (default)
+                o.x + R + gap to o.y - lineH * 0.7f,     // right-up
+                o.x + R + gap to o.y + lineH * 1.0f,     // right-down
+                o.x + R + gap to o.y - lineH * 1.8f,     // right-up2
+                o.x + R + gap to o.y + lineH * 2.1f,     // right-down2
+                o.x - R - gap - w to baseY,              // left
+                o.x - R - gap - w to o.y - lineH * 0.7f, // left-up
+                o.x - R - gap - w to o.y + lineH * 1.0f, // left-down
+                o.x - w * 0.5f to o.y - R - gap,         // above
+                o.x - w * 0.5f to o.y + R + gap + ascent // below
+            )
+            var idx = -1
+            for ((i, c) in cands.withIndex()) {
+                val r = android.graphics.RectF(c.first, c.second - ascent, c.first + w, c.second + descent)
+                if (r.left < 2f || r.top < 2f || r.right > size.width - 2f || r.bottom > size.height - 2f) continue
+                if (placed.none { android.graphics.RectF.intersects(it, r) }) { idx = i; break }
+            }
+            if (idx == -1) idx = 0  // nothing clear — fall back to the default spot
+            val (lx, ly) = cands[idx]
+            placed.add(android.graphics.RectF(lx, ly - ascent, lx + w, ly + descent))
+            if (idx != 0) {
+                // Moved off its default spot → connect it back to the dot.
+                val target = Offset(lx, ly - ascent + lineH / 2f)
+                val dir = target - o; val len = dir.getDistance()
+                val startPt = if (len > R) o + dir * (R / len) else o
+                drawLine(leaderColor, startPt, target, strokeWidth = 1.5f)
+            }
+            nc.drawText(name, lx, ly, labelPaint)
         }
 
         // --- X-axis numeric ticks (cost) at left / mid / right ---
@@ -691,7 +743,8 @@ private fun ValueGraphFullScreen(
                     translationX = offset.x, translationY = offset.y
                 ),
                 fullModelNames = isLandscape,
-                labelScale = if (isLandscape) 1.35f else 1f
+                labelScale = if (isLandscape) 1.35f else 1f,
+                fullScreen = true
             )
         }
     }
