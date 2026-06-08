@@ -54,13 +54,15 @@ the "Top recommendations" table above uses an older, inconsistent labelling
 | D02 / T01 | `GeneralSettings` load/save parity tests | ✅ | `293102d8` |
 | T03 | `runThrottledBatch` / `PermitHold` / `BatchResume` tests | ✅ | `f5083e38` |
 | P03 / T04 | provider-dispatch golden tests | ✅ request shapes (sys-prompt placement + vision) AND streaming SSE per family | `448dde10`, `efed50d0` |
+| P01 | split `ApiDispatch.kt` by concern | ✅ 1864→963 LOC; extracted `ApiDispatchModels` / `…Streaming` / `…Builders` (same package); guarded by the golden+streaming tests | `8704e214` |
 | T11 / P10 | fake-provider / mock-server test infra | ✅ reused + extended the existing MockWebServer harness | `448dde10` |
 | A03 | move `SettingsPreferences` below UI (→ `com.ai.data.preferences`) | ✅ | `61375de7` |
 | D01 | split settings persistence by domain | ◑ facade move done; first sub-store `PromptHistoryStore` extracted; `GeneralSettingsStore` / `UsageStatsStore` still to split | `61375de7`, `b2ecf1c0` |
 | D11 | extract `UsageStatsStore`/recorder | ☐ deferred — 3 interlinked caches under one lock + cost-ledger reconcile coupling; needs a data-verified pass | — |
 | R10 / T05 | `ReportExecutionPlan` + planner + tests | ✅ | `c5ee76e2` |
 | U05 | execution-plan preview before expensive runs | ✅ read-only summary on the select-models screen (no blocking dialog → no back-stack risk) | `0ea6535c` |
-| R01 / T02 | `BatchEngine` lifecycle base + tests | ◑ primitives + tests done; `CompareEngine` migrated onto them (1st of 4); Tournament / Judges / FanOut still to migrate | `5ef0a8d3`, `ef60fb4e` |
+| R01 / T02 | `BatchEngine` lifecycle base + tests | ◑ 4 of 5 engines migrated (Compare / Tournament / Judges / TransRank); only `FanOutEngine` (largest) remains | `5ef0a8d3`, `ef60fb4e`, `ea9e0ba2`, `270321ff` |
+| T06 | `ReportStorage` command tests | ✅ already 11 instrumented tests; added cost-ledger dedup + corrupted-JSON tolerance (instrumented, compile-verified; run via the extended cycle) | `c13cacc0` |
 | P06 | wrap `PermitHold.yieldFor` behind an interface | ◑ tests done (T03); interface wrapper deferred | `f5083e38` |
 
 Delivered alongside (tracked in `audit/functional/`): removed three unused
