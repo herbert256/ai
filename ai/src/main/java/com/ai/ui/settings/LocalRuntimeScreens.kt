@@ -232,8 +232,13 @@ fun LocalLlmsScreen(
                         }
                         working = false
                         if (ok) {
-                            LlmRuntime.ensureLoaded(context)
-                            runtimeInstalled = LlmRuntime.isInstalled(context)
+                            // ensureLoaded does System.load of the ~26MB native
+                            // runtime — keep it off the main thread. See audit
+                            // settings bug 5.
+                            runtimeInstalled = withContext(Dispatchers.IO) {
+                                LlmRuntime.ensureLoaded(context)
+                                LlmRuntime.isInstalled(context)
+                            }
                             status = "Runtime installed"
                         } else status = "Runtime download failed."
                     }
