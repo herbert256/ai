@@ -194,7 +194,13 @@ object LocalEmbedder {
     /** Resolve [modelName] (no extension) to its file path. Returns
      *  null when the file isn't present in [localModelsDir]. */
     fun modelFile(context: Context, modelName: String): File? {
-        val f = File(localModelsDir(context), "$modelName.tflite")
+        // A persisted/restored embedder model name must not escape local_models.
+        // See audit data bug 12.
+        if (modelName.isBlank() || modelName == "." || modelName == ".." ||
+            modelName.contains('/') || modelName.contains('\\')) return null
+        val dir = localModelsDir(context)
+        val f = File(dir, "$modelName.tflite")
+        if (!f.canonicalPath.startsWith(dir.canonicalPath + File.separator)) return null
         return if (f.exists()) f else null
     }
 
