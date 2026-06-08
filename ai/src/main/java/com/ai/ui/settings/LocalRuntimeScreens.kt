@@ -186,10 +186,15 @@ fun LocalLlmsScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var installed by remember { mutableStateOf(LocalLlm.installedTaskFiles(context)) }
-    var runtimeInstalled by remember { mutableStateOf(LlmRuntime.isInstalled(context)) }
+    var installed by remember { mutableStateOf(emptyList<String>()) }
+    var runtimeInstalled by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
+    // Initial installed-list + runtime check off-main. See audit settings bug 2.
+    LaunchedEffect(Unit) {
+        installed = withContext(Dispatchers.IO) { LocalLlm.installedTaskFiles(context) }
+        runtimeInstalled = withContext(Dispatchers.IO) { LlmRuntime.isInstalled(context) }
+    }
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -199,7 +204,7 @@ fun LocalLlmsScreen(
             val name = withContext(Dispatchers.IO) { importTaskModel(context, uri) }
             working = false
             if (name != null) {
-                installed = LocalLlm.installedTaskFiles(context)
+                installed = withContext(Dispatchers.IO) { LocalLlm.installedTaskFiles(context) }
                 status = "Imported $name"
             } else status = "Could not import model"
         }
@@ -324,11 +329,15 @@ fun LocalLlmsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         TextButton(onClick = {
-                            LocalLlm.release(name)
-                            val target = File(LocalLlm.localLlmsDir(context), "$name.task")
-                            val deleted = target.delete()
-                            installed = LocalLlm.installedTaskFiles(context)
-                            status = if (deleted) "Removed $name" else "Could not remove $name (file in use?)"
+                            // Delete + rescan off-main. See audit settings bug 4.
+                            scope.launch {
+                                val deleted = withContext(Dispatchers.IO) {
+                                    LocalLlm.release(name)
+                                    File(LocalLlm.localLlmsDir(context), "$name.task").delete()
+                                }
+                                installed = withContext(Dispatchers.IO) { LocalLlm.installedTaskFiles(context) }
+                                status = if (deleted) "Removed $name" else "Could not remove $name (file in use?)"
+                            }
                         }) { Text("Remove", color = AppColors.DangerAccent, fontSize = 12.sp) }
                     }
                 }
