@@ -114,11 +114,20 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
     // whole zip into memory so we can read entries in any order;
     // ZipInputStream is single-pass otherwise.
     val entries = mutableMapOf<String, ByteArray>()
+    var totalBytes = 0L
     ZipInputStream(input).use { zip ->
         while (true) {
             val entry = zip.nextEntry ?: break
             if (!entry.isDirectory) {
-                entries[entry.name] = readBytesFully(zip)
+                if (entries.size >= MAX_BUNDLE_ENTRIES)
+                    error("Bundle has too many entries (> $MAX_BUNDLE_ENTRIES)")
+                // Read the INFLATED stream with a per-entry cap so a zip-bomb
+                // entry can't exhaust memory before validation. See audit data bug 4.
+                val bytes = readBytesCapped(zip, MAX_BUNDLE_ENTRY_BYTES)
+                totalBytes += bytes.size
+                if (totalBytes > MAX_BUNDLE_TOTAL_BYTES)
+                    error("Bundle is too large (> ${MAX_BUNDLE_TOTAL_BYTES / (1024 * 1024)} MB inflated)")
+                entries[entry.name] = bytes
             }
             zip.closeEntry()
         }
@@ -286,12 +295,23 @@ private fun ZipOutputStream.writeEntry(name: String, bytes: ByteArray) {
     closeEntry()
 }
 
-private fun readBytesFully(stream: InputStream): ByteArray {
-    val buf = ByteArray(8 * 1024)
+// Import resource caps — a report bundle is low-MB at worst, so these only ever
+// reject pathological / zip-bomb inputs. See audit data bug 4.
+private const val MAX_BUNDLE_ENTRIES = 100_000
+private const val MAX_BUNDLE_ENTRY_BYTES = 64L * 1024 * 1024     // 64 MB inflated, per entry
+private const val MAX_BUNDLE_TOTAL_BYTES = 256L * 1024 * 1024    // 256 MB inflated, whole bundle
+
+/** Read the (inflated) stream into memory, aborting once [cap] bytes are
+ *  exceeded so a high-ratio zip-bomb entry can't exhaust the heap. */
+private fun readBytesCapped(stream: InputStream, cap: Long): ByteArray {
+    val buf = ByteArray(64 * 1024)
     val out = ByteArrayOutputStream()
+    var total = 0L
     while (true) {
         val n = stream.read(buf)
         if (n <= 0) break
+        total += n
+        if (total > cap) error("Bundle entry exceeds the ${cap / (1024 * 1024)} MB per-entry limit")
         out.write(buf, 0, n)
     }
     return out.toByteArray()
