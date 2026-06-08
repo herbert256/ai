@@ -133,14 +133,23 @@ class TranslatorRankEngine internal constructor(
      *  model — so the whole batch is at most (#translators × 25) cells. With few
      *  items per translator each item still draws several judges; with many
      *  items the budget spreads thinner. */
-    private fun cappedCandidates(items: List<ScorableItem>, judges: List<Judge>): List<CellCandidate> =
+    private fun cappedCandidates(
+        items: List<ScorableItem>, judges: List<Judge>, sourceTranslationRunId: String
+    ): List<CellCandidate> =
         items
             .flatMap { item ->
                 val tk = "${item.translatorProviderId}/${item.translatorModel}"
                 judges.filter { it.key != tk }.map { CellCandidate(item, it) }
             }
             .groupBy { "${it.item.translatorProviderId}/${it.item.translatorModel}" }
-            .flatMap { (_, list) -> list.shuffled().take(com.ai.data.TRANSRANK_CELLS_PER_TRANSLATOR) }
+            // Deterministic per (translation run, translator): the confirm
+            // preview, the run, AND any delete-and-re-run draw the SAME 25-cell
+            // sample, so the ranking is reproducible instead of re-rolled each
+            // time `shuffled()` runs. See audit report bug 5.
+            .flatMap { (translatorKey, list) ->
+                val seed = "$sourceTranslationRunId|$translatorKey".hashCode().toLong()
+                list.shuffled(kotlin.random.Random(seed)).take(com.ai.data.TRANSRANK_CELLS_PER_TRANSLATOR)
+            }
 
     /** The number of scoring calls a run would make right now — for the confirm
      *  popup. Mirrors [startRun]'s prompt/judge/cap resolution exactly. */
@@ -159,7 +168,7 @@ class TranslatorRankEngine internal constructor(
         } ?: return@withContext 0
         val judges = resolveJudges(aiSettings, prompt)
         if (judges.isEmpty()) return@withContext 0
-        cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges).size
+        cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges, sourceTranslationRunId).size
     }
 
     private data class PendingCell(
@@ -213,7 +222,7 @@ class TranslatorRankEngine internal constructor(
                     // Cap each TRANSLATOR to at most TRANSRANK_CELLS_PER_TRANSLATOR
                     // (item × judge) cells, so the whole batch is at most
                     // (#translators × 25) — e.g. 10 translator models → ≤ 250.
-                    val candidates = cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges)
+                    val candidates = cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges, sourceTranslationRunId)
                     val cellCount = candidates.size
                     if (cellCount == 0) {
                         AppLog.w("TransRank", "nothing to rank (judges=${judges.size})")
