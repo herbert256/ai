@@ -396,6 +396,12 @@ internal fun ColumnScope.GenerationPhase(
     infoEnabled: Boolean = false,
     infoState: InfoJobState = InfoJobState.DONE,
     infoMetaTotal: Double = 0.0,
+    // Aggregate of every secondary result, now shown on "Report - second
+    // results": whether any secondary exists (→ render the second row), the
+    // aggregate status, and the summed secondary cost.
+    secondEnabled: Boolean = false,
+    secondState: InfoJobState = InfoJobState.DONE,
+    secondTotal: Double = 0.0,
     hasPrevReport: Boolean = false,
     hasNextReport: Boolean = false,
     /** True while a full-screen overlay (e.g. Get-info) is layered on top
@@ -733,10 +739,6 @@ internal fun ColumnScope.GenerationPhase(
     val visibleTranslationSummaries = remember(translationRunSummaries, activeTranslationRunIds) {
         translationRunSummaries.filter { it.runId !in activeTranslationRunIds }
     }
-    val showSecondaryRuns = isComplete && secondaryRuns.isNotEmpty()
-    val showFanOutSummaries = fanOutSummaries.isNotEmpty()
-    val showLiveTranslations = isComplete && activeTranslationRuns.isNotEmpty()
-    val showTranslationSummaries = isComplete && visibleTranslationSummaries.isNotEmpty()
     // Anchor the list to the top while it's first loading. The
     // displayRows section composes immediately (it's derived from
     // uiState's selected agents) but the secondary / fan out /
@@ -816,414 +818,31 @@ internal fun ColumnScope.GenerationPhase(
         item(key = "regen-batch-row") {
             RegenerateBatchManageRow()
         }
-        // Tournament batch — single row, only when a tournament exists for
-        // this report (self-hiding). Opens the L1 stats drill-in overlay.
-        item(key = "tournament-batch-row") {
-            TournamentManageRow()
-        }
-        // Judge-the-judges batch — single self-hiding row; opens the L1
-        // stats + agreement-analysis drill-in overlay.
-        item(key = "judge-eval-batch-row") {
-            JudgeEvalManageRow()
-        }
-        // Compare-with-meta batch — single self-hiding row; opens the L1
-        // grid (answers × meta items) drill-in overlay.
-        item(key = "compare-batch-row") {
-            CompareManageRow()
-        }
-        // Rank-the-translators batch — one self-hiding row per ranked
-        // language; opens the L1 leaderboard drill-in overlay.
-        item(key = "translator-rank-batch-row") {
-            TranslatorRankManageRow()
-        }
-        // Meta runs — one row per individual rerank / summarize /
-        // compare / moderation result on this report, sharing the
-        // agent rows' layout (status icon + label + cost). Status
-        // mirrors the agent rows: ⏳ while the placeholder is still
-        // empty, ✅ on success, ❌ on error. Tapping opens that run's
-        // detail screen. TRANSLATE rows are excluded — they're cost
-        // records rather than user-actionable runs.
-        if (showSecondaryRuns) {
-            items(secondaryRuns, key = { "sr-${it.id}" }) { run ->
-                // durationMs is stamped on every successful and errored
-                // save and cleared by resetAndRelaunch. A row with
-                // durationMs set and blank content is a successful
-                // empty-body completion — without the durationMs check
-                // the row read as Running… forever instead of ✅.
-                val running = run.errorMessage == null
-                    && run.content.isNullOrBlank()
-                    && run.durationMs == null
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenSecondaryRun(run.id) },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Resolve the InternalPrompt that produced this
-                    // row (by id — stable across renames). Falls
-                    // back to null when the prompt was deleted.
-                    // Cached emoji + miss-side kick-off live inside
-                    // the `else` (success) branch below so failed
-                    // and running rows keep ❌ / ⏳ unchanged.
-                    // Key on the prompts' id+name+title signature (not just
-                    // list size) so a rename/retitle that keeps the count
-                    // still refreshes the cached resolved prompt + emoji.
-                    val resolvedPrompt = androidx.compose.runtime.remember(
-                        run.fanInOf, run.metaPromptId,
-                        aiSettings.internalPrompts.map { "${it.id}|${it.name}|${it.title}" }
-                    ) {
-                        aiSettings.internalPrompts.firstOrNull {
-                            it.id == run.fanInOf || it.id == run.metaPromptId
-                        }
-                    }
-                    when {
-                        run.errorMessage != null -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                        running -> {
-                            val transition = rememberInfiniteTransition(label = "meta-run-${run.id}")
-                            val angle by transition.animateFloat(
-                                initialValue = 0f, targetValue = 360f,
-                                animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
-                                label = "meta-run-rot-${run.id}"
-                            )
-                            Text("⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
-                        }
-                        else -> {
-                            // SUCCESS branch: when the toggle is on
-                            // AND we resolve to a known InternalPrompt
-                            // AND its (name, title) emoji is cached,
-                            // replace ✅ with the emoji (clickable to
-                            // open the Meta-icon detail screen).
-                            // Otherwise fall back to plain ✅.
-                            // Precedence: per-row override (set by
-                            // Find-alt → pickMetaRowIcon, stored on
-                            // run.icon) wins over the shared
-                            // per-(name,title) cache. Without this the
-                            // user can pick a distinct icon for one of
-                            // two rows that share a metaPromptName and
-                            // see the cache value keep showing here.
-                            val rowIcon = run.icon?.takeIf { it.isNotBlank() }
-                            val emoji = if (
-                                uiState.generalSettings.useInternalPromptsIcons &&
-                                resolvedPrompt != null &&
-                                resolvedPrompt.name.isNotBlank()
-                            ) {
-                                val tick = uiState.iconRefreshTick
-                                androidx.compose.runtime.remember(
-                                    resolvedPrompt.id, resolvedPrompt.name,
-                                    resolvedPrompt.title, tick, rowIcon
-                                ) {
-                                    if (rowIcon != null) {
-                                        rowIcon
-                                    } else {
-                                        val cached = com.ai.data.InternalPromptIconCache
-                                            .get(resolvedPrompt.name, resolvedPrompt.title)
-                                        if (cached == null) onMissingPromptIcon(resolvedPrompt)
-                                        cached
-                                    }
-                                }
-                            } else rowIcon
-                            if (emoji != null) {
-                                Text(
-                                    emoji, fontSize = 16.sp,
-                                    modifier = Modifier
-                                        .width(24.dp)
-                                        .clickable {
-                                            // Per-row variant so a later
-                                            // alt-icon pick lands on THIS
-                                            // SecondaryResult row's `icon`
-                                            // field, not the shared
-                                            // per-(name,title) cache entry.
-                                            onOpenInternalPromptIconDetailForRow(resolvedPrompt!!, run.id)
-                                        }
-                                )
-                            } else {
-                                val mi = com.ai.ui.shared.LocalMetadataIcons.current
-                                val fallback = if (run.fanInOf != null) mi.fanInRow else mi.forKind(run.kind)
-                                Text(fallback, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                            }
-                        }
-                    }
-                    // Live row "type" cell: fan_in rows always
-                    // surface as "fan-in" (matching the prompt
-                    // category — these are combine-reports follow-ups
-                    // to a fan out run). The remaining rows use the
-                    // Meta prompt name ("Compare", "Critique", …)
-                    // verbatim, falling back to the routing label
-                    // for legacy rows that pre-date the Meta-prompt
-                    // CRUD.
-                    val typeLabel = when {
-                        run.kind == SecondaryKind.TOURNAMENT ->
-                            if (run.tournamentRole == "MATCH") "tournament-match" else "tournament"
-                        run.fanInOf != null -> "fan-in"
-                        run.metaPromptName?.isNotBlank() == true ->
-                            secondaryPromptDisplayName(run.metaPromptName).lowercase()
-                        else -> when (run.kind) {
-                            SecondaryKind.RERANK -> "rerank"
-                            SecondaryKind.META -> "meta"
-                            SecondaryKind.MODERATION -> "moderate"
-                            SecondaryKind.TRANSLATE -> "translate"
-                            SecondaryKind.TOURNAMENT -> "tournament"
-                            SecondaryKind.JUDGES -> "judges"
-                            SecondaryKind.COMPARE -> "compare"
-                            SecondaryKind.TRANSRANK -> "transrank"
-                        }
-                    }
-                    RowTypeCell(typeLabel)
-                    // Once any translation exists for this report, show
-                    // a language tag on every meta row so the user can
-                    // tell originals from translations at a glance. The
-                    // default (non-translated) rows get the report's
-                    // detected source language (Report.languageName).
-                    val hasAnyTranslation = secondaryRuns.any { it.kind == SecondaryKind.TRANSLATE }
-                    val langSuffix = when {
-                        run.targetLanguage != null -> " · ${run.targetLanguage}"
-                        hasAnyTranslation && !languageName.isNullOrBlank() -> " · $languageName"
-                        else -> ""
-                    }
+        // Second results — single summary row replacing every secondary-result
+        // row (Tournament / Judges / Compare / Rank-translators batches, Meta /
+        // Rerank / Moderation / Fan-in, Fan-out / Fan-meta, Translations); those
+        // now live on the "Report - second results" screen. Status aggregates
+        // them (❌ if any failed, else ⏳ if any running, else ✅) and the cost is
+        // the summed secondary spend. Shown when any secondary exists OR
+        // secondary cost was already spent.
+        if (secondEnabled || secondTotal > 0.0) {
+            item(key = "row-second") {
+                // Open via the survivable LocalShowSecondResults (held in
+                // ReportsScreenNav) so a Nav-level batch drill-in opened from
+                // the second-results screen returns to it, not to Manage.
+                val showSecond = com.ai.ui.shared.LocalShowSecondResults.current
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    .clickable { showSecond?.value = true },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    InfoStatusCell(secondState, doneIcon = com.ai.ui.shared.LocalMetadataIcons.current.meta)
+                    RowTypeCell("second")
                     Column(modifier = Modifier.weight(1f)) {
-                        // Fan-in rows label by the PROMPT used (its
-                        // description / title) rather than the model
-                        // — the user picks the prompt to characterise
-                        // the run, the model is incidental. Falls
-                        // back to the prompt name when no title is
-                        // set, then the model label for legacy rows
-                        // whose prompt id no longer resolves.
-                        val text = if (run.fanInOf != null) {
-                            val prompt = aiSettings.internalPrompts.firstOrNull {
-                                it.id == run.fanInOf || it.id == run.metaPromptId
-                            }
-                            val label = prompt?.title?.takeIf { it.isNotBlank() }
-                                ?: prompt?.name?.takeIf { it.isNotBlank() }
-                                ?: run.metaPromptName?.takeIf { it.isNotBlank() }
-                                ?: run.let {
-                                    val runProv = AppService.findById(it.providerId)?.id ?: it.providerId
-                                    com.ai.ui.shared.modelLabel(runProv, it.model)
-                                }
-                            "$label$langSuffix"
-                        } else {
-                            val runProv = AppService.findById(run.providerId)?.id ?: run.providerId
-                            // 🔤 toggle (mirrors the agent 'report' rows): meta /
-                            // rerank / moderation rows default to the internal-
-                            // prompt title and switch to the (short) model name
-                            // when the toggle is on. Translate / tournament rows
-                            // always keep the model name.
-                            val togglable = run.kind == SecondaryKind.META ||
-                                run.kind == SecondaryKind.RERANK || run.kind == SecondaryKind.MODERATION
-                            if (togglable && !showModelNamesInReportRows) {
-                                val prompt = aiSettings.internalPrompts.firstOrNull {
-                                    it.id == run.metaPromptId || it.name == run.metaPromptName
-                                }
-                                val title = prompt?.title?.takeIf { it.isNotBlank() }
-                                    ?: run.metaPromptName?.takeIf { it.isNotBlank() }?.let { secondaryPromptDisplayName(it) }
-                                    ?: when (run.kind) {
-                                        SecondaryKind.RERANK -> "Rerank"
-                                        SecondaryKind.MODERATION -> "Moderation"
-                                        else -> "Meta"
-                                    }
-                                "$title$langSuffix"
-                            } else {
-                                "${com.ai.ui.shared.modelLabel(runProv, run.model)}$langSuffix"
-                            }
-                        }
-                        Text(
-                            text,
+                        Text("rerank, meta, moderation, translate, fan-out, tournament, judges, compare, rank",
                             fontSize = 13.sp, color = AppColors.TextPrimary,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    // Persisted cost first; if it's zero (e.g. a rerank
-                    // whose cost was computed against a cold pricing cache
-                    // and saved as 0, or any row saved before its price
-                    // was known) fall back to recomputing from the stored
-                    // token usage × current pricing — same fallback the
-                    // Costs table uses for legacy agent rows.
-                    val totalCost = androidx.compose.runtime.remember(
-                        run.id, run.inputCost, run.outputCost, run.tokenUsage
-                    ) {
-                        val persisted = (run.inputCost ?: 0.0) + (run.outputCost ?: 0.0)
-                        if (persisted > 0.0) persisted else {
-                            val tu = run.tokenUsage
-                            val prov = AppService.findById(run.providerId)
-                            if (tu != null && prov != null) {
-                                val pr = com.ai.data.PricingCache.getPricing(context, prov, run.model)
-                                tu.inputTokens * pr.promptPrice + tu.outputTokens * pr.completionPrice
-                            } else 0.0
-                        }
-                    }
-                    if (totalCost > 0.0) {
-                        Text(formatCents(totalCost), fontSize = 10.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                    }
-                    // Per-row 🐞 removed — SecondaryResultDetailScreen
-                    // (the row's tap target) carries the same trace
-                    // icon in its title bar, so the inline duplicate
-                    // was redundant.
-                }
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-            }
-        }
-
-        // Fan-out summary rows — one per Meta-prompt name with at
-        // least one fan-out pair (or fan_in combine-reports) row on
-        // disk. A single Run Fan out click produces N×(M-1) per-pair
-        // responses plus an optional combine-reports follow-up; we
-        // collapse them into a single line here so the agent list
-        // doesn't balloon. Tap → SecondaryResultsScreen, which already
-        // detects fan out rows and renders them via FanOutDrillInView.
-        if (showFanOutSummaries) {
-            items(fanOutSummaries, key = { "cm-${it.metaPromptName}" }) { run ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
-                        onViewSecondaryName(run.metaPromptName, run.kind)
-                    },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Resolve the InternalPrompt that produced this
-                    // fan-out run so its cached emoji can replace ✅
-                    // (mirrors the meta-run row classifier above).
-                    // Fan-out summaries identify by prompt NAME (no
-                    // promptId on the summary itself), so we walk the
-                    // user's fan_out prompts and match by name.
-                    val fanOutPrompt = androidx.compose.runtime.remember(
-                        run.metaPromptName,
-                        aiSettings.internalPrompts.map { "${it.id}|${it.name}|${it.title}" }
-                    ) {
-                        aiSettings.internalPrompts.firstOrNull {
-                            it.category == "fan_out" && it.name == run.metaPromptName
-                        }
-                    }
-                    when {
-                        run.pendingCount > 0 -> Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
-                            AnimatedHourglass(fontSize = 16.sp)
-                        }
-                        run.errorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                        else -> {
-                            // Success: try the per-prompt cached emoji
-                            // before falling back to ✅. Cache miss fires
-                            // a one-shot kick-off via onMissingPromptIcon;
-                            // the row recomposes on iconRefreshTick once
-                            // the call lands.
-                            val emoji = if (
-                                uiState.generalSettings.useInternalPromptsIcons &&
-                                fanOutPrompt != null &&
-                                fanOutPrompt.name.isNotBlank()
-                            ) {
-                                val tick = uiState.iconRefreshTick
-                                androidx.compose.runtime.remember(
-                                    fanOutPrompt.id, fanOutPrompt.name,
-                                    fanOutPrompt.title, tick
-                                ) {
-                                    val cached = com.ai.data.InternalPromptIconCache
-                                        .get(fanOutPrompt.name, fanOutPrompt.title)
-                                    if (cached == null) onMissingPromptIcon(fanOutPrompt)
-                                    cached
-                                }
-                            } else null
-                            if (emoji != null) {
-                                Text(
-                                    emoji, fontSize = 16.sp,
-                                    modifier = Modifier
-                                        .width(24.dp)
-                                        .clickable { onOpenInternalPromptIconDetail(fanOutPrompt!!) }
-                                )
-                            } else {
-                                Text(com.ai.ui.shared.LocalMetadataIcons.current.fanOutRow, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                            }
-                        }
-                    }
-                    RowTypeCell("fan-out")
-                    // Static label — the title of the fan-out prompt, NOT a
-                    // live pair / pending count (the row no longer ticks as
-                    // pairs complete).
-                    val fanOutLabel = fanOutPrompt?.title?.takeIf { it.isNotBlank() } ?: run.metaPromptName
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            fanOutLabel,
-                            fontSize = 13.sp, color = AppColors.TextPrimary,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (run.totalCost > 0.0) {
-                        Text(formatCents(run.totalCost), fontSize = 10.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                    }
-                    // Per-row 🐞 removed — the fan out drill-in screen
-                    // and its per-pair detail surfaces already expose
-                    // the trace files through their own title bars.
-                }
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-
-                // Sibling "fan-meta" row — shown once a Fan Meta batch
-                // has landed at least one title/icon (or error) on this
-                // run's pairs. One Fan Meta call produces both the title
-                // and the icon, so this single row covers both. Tap opens
-                // the pair drill-in in META mode.
-                if (run.titleCount > 0 || run.iconCount > 0) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
-                            onViewFanMeta(run.metaPromptName)
-                        },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        when {
-                            run.titlePendingCount > 0 -> Box(
-                                modifier = Modifier.width(24.dp),
-                                contentAlignment = Alignment.Center
-                            ) { AnimatedHourglass(fontSize = 16.sp) }
-                            run.titleErrorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                            else -> Text(com.ai.data.MetadataIconsHolder.current.label, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                        }
-                        RowTypeCell("fan-meta")
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "${run.metaPromptName} · ${run.titleCount} title${if (run.titleCount == 1) "" else "s"}",
-                                fontSize = 13.sp, color = AppColors.TextPrimary,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        // One Fan Meta call bills both the title and the icon to
-                        // the pair, so this row shows BOTH (titleCost + iconCost)
-                        // — matching the fan-out meta spend folded into the grand
-                        // total. Showing titleCost alone left the icon half in the
-                        // total but in no row.
-                        val fanMetaCost = run.titleCost + run.iconCost
-                        if (fanMetaCost > 0.0) {
-                            Text(formatCents(fanMetaCost), fontSize = 10.sp,
-                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                        }
-                    }
-                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-                }
-            }
-        }
-
-        // Live translation rows — one per active run. Hourglass spins
-        // while items are in flight; the text leads with "n / N" so
-        // progress is visible at a glance, and the cost cell ticks up
-        // as each call returns. Tap the row to drill into the per-run
-        // detail screen; the Delete button there handles cancellation,
-        // so the row itself doesn't carry an inline Cancel.
-        if (showLiveTranslations) {
-            items(activeTranslationRuns, key = { "tr-live-${it.runId}" }) { run ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                        .clickable { onOpenTranslationRun(run.runId) },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
-                        AnimatedHourglass(fontSize = 16.sp)
-                    }
-                    RowTypeCell("translate")
-                    // Static label — the target language, NOT a live
-                    // completed / total count (matches the finished summary
-                    // row; the row no longer ticks as calls land).
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            run.targetLanguageName.ifBlank { "Translate" },
-                            fontSize = 13.sp, color = AppColors.TextPrimary,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (run.totalCostDollars > 0.0) {
-                        Text(formatCents(run.totalCostDollars), fontSize = 10.sp,
+                    if (secondTotal > 0.0) {
+                        Text(formatCents(secondTotal), fontSize = 10.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                     }
                 }
@@ -1231,77 +850,6 @@ internal fun ColumnScope.GenerationPhase(
             }
         }
 
-        // Translation runs — one row per Translate invocation. Each
-        // run produces several TRANSLATE secondaries (prompt + each
-        // agent + each summary + each compare); they're collapsed
-        // here so the user sees a single line per click. Tapping
-        // opens TranslationRunDetailScreen with the call list.
-        if (showTranslationSummaries) {
-            items(visibleTranslationSummaries, key = { "trs-${it.runId}" }) { run ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenTranslationRun(run.runId) },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Per-language icon swap — on success (no errored
-                    // calls) AND the master switch on AND a cached
-                    // emoji exists for run.targetLanguage, render the
-                    // emoji in place of ✅. Cache miss kicks off a
-                    // single background generation; iconRefreshTick
-                    // keys the remember so the row recomposes when
-                    // the call lands. Failed runs (errorCount > 0)
-                    // keep ❌ unchanged.
-                    when {
-                        run.errorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                        else -> {
-                            val lang = run.targetLanguage
-                            val emoji = if (
-                                uiState.generalSettings.useInternalPromptsIcons &&
-                                !lang.isNullOrBlank()
-                            ) {
-                                val tick = uiState.iconRefreshTick
-                                androidx.compose.runtime.remember(lang, tick) {
-                                    val cached = com.ai.data.InternalPromptIconCache
-                                        .get("translation_icon", lang)
-                                    if (cached == null) onMissingTranslationIcon(lang)
-                                    cached
-                                }
-                            } else null
-                            if (emoji != null && lang != null) {
-                                Text(
-                                    emoji, fontSize = 16.sp,
-                                    modifier = Modifier
-                                        .width(24.dp)
-                                        .clickable { onOpenTranslationIconDetail(lang) }
-                                )
-                            } else {
-                                Text(com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                            }
-                        }
-                    }
-                    RowTypeCell("translate")
-                    // Language name + item count — no model name (the
-                    // run spreads items across many models now; the
-                    // detail screen shows the per-model breakdown).
-                    val lang = run.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translate"
-                    val info = "$lang - ${run.callCount} item${if (run.callCount == 1) "" else "s"}"
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            info,
-                            fontSize = 13.sp, color = AppColors.TextPrimary,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (run.totalCost > 0.0) {
-                        Text(formatCents(run.totalCost), fontSize = 10.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                    }
-                    // Per-row 🐞 removed — TranslationRunDetailScreen
-                    // (the row's tap target) carries the same trace
-                    // icon in its title bar.
-                }
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-            }
-        }
 
         items(displayRows, key = { "row-${it.rowId}" }) { row ->
             val agentId = row.rowId

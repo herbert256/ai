@@ -176,7 +176,11 @@ object NavRoutes {
     private fun encode(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
 
     fun aiReportInfo(reportId: String) = "ai_report_info/$reportId"
-    fun aiReportModel(reportId: String, agentId: String) = "ai_report_model/$reportId/$agentId"
+    // agentId is usually a UUID, but staged swarm / fan-out rows use a
+    // synthetic id like "swarm:Provider:vendor/model" that contains '/' and
+    // ':' — encode it or the nav route can't be matched (crash). Decoded on
+    // the read side in ReportRoutes.
+    fun aiReportModel(reportId: String, agentId: String) = "ai_report_model/$reportId/${encode(agentId)}"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun aiAppLogDetail(filename: String, search: String = "") =

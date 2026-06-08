@@ -353,6 +353,12 @@ val LocalSuppressTitleBarEndIcons = compositionLocalOf { false }
 data class BrokenWorkBadge(val count: Int, val onOpen: () -> Unit)
 val LocalBrokenWork = compositionLocalOf<BrokenWorkBadge?> { null }
 
+/** Force one Broken-work scan NOW (drives the ⚠️ top-bar warning). Provided by
+ *  AppNavHost; called by the Manage / Get-info / second-results screens the
+ *  moment they detect an error (a red ❌), so the badge appears immediately
+ *  instead of waiting for the 30-second background sweep. */
+val LocalRefreshBrokenWork = compositionLocalOf<(() -> Unit)?> { null }
+
 /** Provided by AppNavHost so an AI-report screen's top-left 📝 icon can
  *  jump to the AI Reports hub. Used by the report-section screens (New
  *  report, All reports, Search, …) whose top-left glyph is the report
@@ -696,6 +702,14 @@ val LocalRegenerateBatchOpenState =
  *  the Manage row read the engine without threading it through every
  *  intermediate composable. Null outside a report screen. */
 val LocalTournamentEngine = compositionLocalOf<com.ai.viewmodel.TournamentEngine?> { null }
+
+/** "Report - second results" layer open-flag, held in ReportsScreenNav (above
+ *  the batch-overlay early-returns) so it SURVIVES opening a Nav-level batch
+ *  drill-in (Tournament / Judges / Compare / Rank) — Back from the drill-in then
+ *  re-shows the second-results list rather than dropping to Manage. The "second"
+ *  row sets it; the layer + paused-flag read it. */
+val LocalShowSecondResults =
+    compositionLocalOf<androidx.compose.runtime.MutableState<Boolean>?> { null }
 
 /** Shared "Tournament L1 is open for reportId X" state slot, shared by the
  *  Manage row's click handler and the overlay-mount site. */
@@ -1261,6 +1275,9 @@ fun TitleBar(
      *  title double as a navigation toggle between them. Null →
      *  title is non-interactive. */
     onTitleClick: (() -> Unit)? = null,
+    /** Honor [onTitleClick] even in Home bar mode (the report screens whose
+     *  title cycles to the next of the three report screens). */
+    forceTitleClick: Boolean = false,
     /** Optional 👯 duplicate-report hook. Different from [onCopy]
      *  (which is clipboard copy) — this one duplicates the underlying
      *  report. Used by Report - manage. Null → icon hidden. */
@@ -1558,6 +1575,7 @@ fun TitleBar(
         reportIcon = resolvedReportIcon,
         onReportIconClick = reportIconClick,
         onTitleClick = effectiveTitleClick,
+        forceTitleClick = forceTitleClick,
         reportNavClick = reportNavClick,
         onSwipePrev = resolvedOnSwipePrev,
         onSwipeNext = resolvedOnSwipeNext,
@@ -1599,6 +1617,9 @@ internal fun AppTopBarChrome(
      *  inert in Home bar so home-page links don't work there. */
     reportNavClick: (() -> Unit)? = null,
     onTitleClick: (() -> Unit)?,
+    /** Honor [onTitleClick] even in Home bar mode (instead of the report-nav
+     *  mirror). Set by the report screens whose title cycles to the next one. */
+    forceTitleClick: Boolean = false,
     onSwipePrev: (() -> Boolean)?,
     onSwipeNext: (() -> Boolean)?,
     secondProviderService: com.ai.data.AppService? = null,
@@ -1687,8 +1708,10 @@ internal fun AppTopBarChrome(
             // In Home bar mode the title only navigates when the left report
             // glyph goes to the report's Manage page (then the title mirrors
             // it); otherwise it's inert (its tap would have gone to the home
-            // page, which the persistent home bar owns).
-            val titleClick = if (homeBar) reportNavClick else (onTitleClick ?: sectionIcon?.onClick)
+            // page, which the persistent home bar owns). [forceTitleClick]
+            // opts out (the report screens whose title cycles to the next
+            // screen want their onTitleClick honored even in Home bar mode).
+            val titleClick = if (homeBar && !forceTitleClick) reportNavClick else (onTitleClick ?: sectionIcon?.onClick)
             var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()

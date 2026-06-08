@@ -7,6 +7,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
@@ -149,8 +151,14 @@ fun ModelsSetupScreen(
     val modelCount = remember(aiSettings) {
         aiSettings.getActiveServices().sumOf { aiSettings.getProvider(it).models.size }
     }
-    val liteRtCount = remember(refreshTick) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
-    val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
+    // Off-main: counting local model files shouldn't stutter the hub on resume.
+    // See audit settings bug 3.
+    val liteRtCount by produceState(0, refreshTick) {
+        value = withContext(Dispatchers.IO) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
+    }
+    val localLlmCount by produceState(0, refreshTick) {
+        value = withContext(Dispatchers.IO) { com.ai.data.local.LocalLlm.availableLlms(context).size }
+    }
     val cooldownCount by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
@@ -468,8 +476,14 @@ fun LocalModelsSetupScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
-    val liteRtCount = remember(refreshTick) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
-    val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
+    // Off-main: counting local model files shouldn't stutter the hub on resume.
+    // See audit settings bug 3.
+    val liteRtCount by produceState(0, refreshTick) {
+        value = withContext(Dispatchers.IO) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
+    }
+    val localLlmCount by produceState(0, refreshTick) {
+        value = withContext(Dispatchers.IO) { com.ai.data.local.LocalLlm.availableLlms(context).size }
+    }
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {

@@ -1243,14 +1243,16 @@ fun ImportExportScreen(
                     )
                 }
             }
-            "keys" -> {
-                val json = readFromUri(uri)
-                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+            "keys" -> scope.launch {
+                // Read the (possibly large / cloud-backed) URI off the main
+                // thread, like launchJsonObjectImport does. See audit settings bug 8.
+                val json = withContext(Dispatchers.IO) { readFromUri(uri) }
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@launch }
                 try {
                     val result = applyApiKeysJson(json, aiSettings)
                     if (result == null) {
                         Toast.makeText(context, "Expected a JSON object like {\"OPENAI\": \"sk-...\"}", Toast.LENGTH_LONG).show()
-                        return@rememberLauncherForActivityResult
+                        return@launch
                     }
                     // Batch all three external-service key updates into
                     // one onSaveGeneral call. Three sequential per-field

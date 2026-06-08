@@ -289,12 +289,29 @@ fun ChatSessionScreen(
     // across recreation, else rotation orphans the prior save under the old id.
     val currentSessionId = rememberSaveable { sessionId ?: java.util.UUID.randomUUID().toString() }
 
-    // Seed from disk keyed on the (saveable) session id, NOT a plain remember of
-    // initialMessages — otherwise recreation resets the UI to the stale snapshot
-    // and the next saveSession overwrites the on-disk session with that truncated
-    // set. Re-reading the session on recreation recovers the turns saved so far.
+    // Load the persisted session ONCE, off the main thread. Parsing an
+    // image-heavy session's multi-MB JSON in a plain remember{} blocked first
+    // composition, and it used to be parsed twice (messages here + metadata
+    // below). Everything below now seeds from this single object; a short spinner
+    // shows until the IO load resolves. See audit chat bugs 1 + 2.
+    val sessionLoad = produceState<Pair<Boolean, ChatSession?>>(false to null, currentSessionId) {
+        val loaded = withContext(Dispatchers.IO) { ChatHistoryManager.loadSession(currentSessionId) }
+        value = true to loaded
+    }
+    val (sessionLoaded, persistedSession) = sessionLoad.value
+    if (!sessionLoaded) {
+        Box(Modifier.fillMaxSize().background(AppColors.AppBackground), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = AppColors.PrimaryAccent)
+        }
+        return
+    }
+
+    // Seed from the loaded session keyed on the (saveable) session id, NOT a
+    // plain remember of initialMessages — otherwise recreation resets the UI to
+    // the stale snapshot and the next saveSession overwrites the on-disk session
+    // with that truncated set. Re-reading on recreation recovers turns saved so far.
     val initialMessagesForSession = remember(currentSessionId) {
-        ChatHistoryManager.loadSession(currentSessionId)?.messages ?: initialMessages
+        persistedSession?.messages ?: initialMessages
     }
     var messages by remember(currentSessionId) { mutableStateOf(initialMessagesForSession) }
     // Pre-fill the input box with text staged by the share-target
@@ -339,13 +356,15 @@ fun ChatSessionScreen(
     var attachedImage by rememberSaveable(stateSaver = AttachedImageSaver) {
         mutableStateOf(starterImage)
     }
-    var useWebSearch by remember { mutableStateOf(parameters.webSearchTool) }
+    // Saveable so a toggle made before the first user turn (when persistence is
+    // still gated) survives rotation. See audit chat bug 4.
+    var useWebSearch by rememberSaveable(currentSessionId) { mutableStateOf(parameters.webSearchTool) }
     // Per-turn reasoning-effort hint. "" = no hint; "low"/"medium"/"high"
     // map to the same OpenAI Responses-API / Gemini thinking field
     // ParametersScreen exposes. Initialized from the configure-on-the-
     // fly preset so a "high" preset starts that way; user can change
     // per turn via the pulldown next to the web-search chip.
-    var reasoningEffort by remember { mutableStateOf(parameters.reasoningEffort ?: "") }
+    var reasoningEffort by rememberSaveable(currentSessionId) { mutableStateOf(parameters.reasoningEffort ?: "") }
     var reasoningMenuExpanded by remember { mutableStateOf(false) }
     var chipPersistencePrimed by remember(currentSessionId) { mutableStateOf(false) }
     // Clamp the persisted reasoning level against the active model's
@@ -359,10 +378,15 @@ fun ChatSessionScreen(
             reasoningEffort = ""
         }
     }
+    // Shared cache-refresh tick — flips when PricingCache primes. Declared above
+    // supportsReasoning so it can key on it too (see audit chat bug 6).
+    val pricingTick = com.ai.ui.shared.resumeRefreshTick()
     // Cheap layered detection — LiteLLM, then models.dev. Null from
     // both = no info; we fall back to "show the pulldown" when the
     // model id contains common reasoning-family markers, otherwise hide.
-    val supportsReasoning = remember(provider, model) {
+    // Keyed on pricingTick so a cold-cache window doesn't latch "hidden" for
+    // the screen's lifetime.
+    val supportsReasoning = remember(provider, model, pricingTick) {
         com.ai.data.PricingCache.liteLLMSupportsReasoning(provider, model)
             ?: com.ai.data.PricingCache.modelsDevSupportsReasoning(provider, model)
             ?: run {
@@ -419,7 +443,6 @@ fun ChatSessionScreen(
     // composition during the cold-load window, and chat cost banners
     // stayed at $0.00 for the entire session even after the catalog
     // finished loading. Same pattern as DualChatScreen.
-    val pricingTick = com.ai.ui.shared.resumeRefreshTick()
     val pricing = remember(provider, model, pricingTick) { PricingCache.getPricing(context, provider, model) }
     // Running cost in cents, always priced at the current tier (re-derives when
     // pricing primes or token totals change).
@@ -436,11 +459,7 @@ fun ChatSessionScreen(
         else -> "%.2fc".format(Locale.US, totalCost)
     }
 
-    // Load the persisted session record ONCE on entry rather than calling
-    // loadSession three separate times (pinned / KB ids / title) during
-    // composition — for an image-heavy session that was three multi-MB
-    // JSON parses on the main thread per recomposition.
-    val persistedSession = remember(currentSessionId) { ChatHistoryManager.loadSession(currentSessionId) }
+    // persistedSession is loaded once, off-main, at the top of this composable.
     // Read the persisted pinned flag once on entry so subsequent saves
     // preserve it. Toggled below by the 📌 pill next to the model line.
     var pinned by remember(currentSessionId) {
@@ -454,7 +473,11 @@ fun ChatSessionScreen(
     }
     var showKbDialog by remember { mutableStateOf(false) }
     val kbRefreshTick = com.ai.ui.shared.resumeRefreshTick()
-    val availableKbs = remember(kbRefreshTick) { com.ai.data.KnowledgeStore.listKnowledgeBases(context) }
+    // Off-main: the KB directory scan + per-KB manifest parse shouldn't block
+    // composition. Empty until the IO load resolves. See audit chat bug 3.
+    val availableKbs by produceState(emptyList(), kbRefreshTick) {
+        value = withContext(Dispatchers.IO) { com.ai.data.KnowledgeStore.listKnowledgeBases(context) }
+    }
 
     // Display title. Seeded from a previously persisted value so a
     // resumed session keeps whatever title the AI generated last
@@ -739,6 +762,15 @@ fun ChatSessionScreen(
                         actuallySend(input, img)
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A THROWN moderation/trace error (vs a returned errorMessage)
+                // must still fail-open — send the message rather than silently
+                // dropping it via finally. See audit chat bug 7.
+                moderationError = e.message ?: "Moderation failed"
+                handedOffToSend = true
+                actuallySend(input, img)
             } finally {
                 isModerating = false
                 if (!handedOffToSend && pendingFlagged == null) {

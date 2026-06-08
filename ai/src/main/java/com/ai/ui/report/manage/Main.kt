@@ -393,6 +393,20 @@ fun ReportsScreen(
     val infoEnabled = runtime.infoEnabled
     val infoState = runtime.infoState
     val infoMetaTotal = runtime.infoMetaTotal
+    val secondEnabled = runtime.secondEnabled
+    val secondState = runtime.secondState
+    val secondTotal = runtime.secondTotal
+    // The moment this report shows an error (a red ❌ on Manage / Get-info /
+    // second-results — i.e. a failed info job, a failed secondary, or an errored
+    // agent), force a Broken-work scan NOW so the ⚠️ top-bar warning appears
+    // immediately instead of waiting out the 30-second background sweep.
+    val reportHasError = infoState == InfoJobState.FAILED ||
+        secondState == InfoJobState.FAILED ||
+        reportsAgentResults.values.any { it.error != null }
+    val refreshBrokenWork = com.ai.ui.shared.LocalRefreshBrokenWork.current
+    LaunchedEffect(currentReportId, reportHasError) {
+        if (reportHasError) refreshBrokenWork?.invoke()
+    }
     val agentRecordsByAgentId = runtime.agentRecordsByAgentId
     val loadedReportPrompt = runtime.loadedReportPrompt
     val loadedReportTitle = runtime.loadedReportTitle
@@ -403,7 +417,9 @@ fun ReportsScreen(
     // 🏅 Rank-the-translators launch from the Translation run screens.
     val transRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
-    val rankPending = remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    val rankPending = rememberSaveable(currentReportId, stateSaver = com.ai.ui.report.manage.PendingRankRequestSaver) {
+        mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null)
+    }
     val effectiveReportIcon = runtime.effectiveReportIcon
     val onDeleteSecondaryWithRefresh = runtime.onDeleteSecondaryWithRefresh
     val onSecondaryRefresh = runtime.onSecondaryRefresh
@@ -1196,8 +1212,11 @@ fun ReportsScreen(
     // Rerank now runs through the Rerank worker swarm — no model picker.
     if (showRerankPicker && currentReportId != null) {
         val rid = currentReportId
-        val ls = pendingLanguageScope
         LaunchedEffect(rid) {
+            // Snapshot the launch language scope at effect start, before the
+            // reset below, so the picker's confirm callback uses this launch's
+            // scope and can't pick up a later concurrent change. See audit bug 23.
+            val ls = pendingLanguageScope
             showRerankPicker = false
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
@@ -1218,8 +1237,11 @@ fun ReportsScreen(
     // (mistral-moderation-latest by default) — no model picker.
     if (showModerationPicker && currentReportId != null) {
         val rid = currentReportId
-        val ls = pendingLanguageScope
         LaunchedEffect(rid) {
+            // Snapshot the launch language scope at effect start, before the
+            // reset below, so the picker's confirm callback uses this launch's
+            // scope and can't pick up a later concurrent change. See audit bug 23.
+            val ls = pendingLanguageScope
             showModerationPicker = false
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
@@ -1399,21 +1421,31 @@ fun ReportsScreen(
                 onRankTranslators = { runId, ln, lnn ->
                     val key = com.ai.data.transRankRunKey(rid, runId)
                     if (transRankEngine?.runByKey(key) != null) transRankOpenState?.value = key
-                    else rankPending.value = Triple(runId, ln, lnn)
+                    else {
+                        // *SELECT swarm: pick workers BEFORE the confirm so its
+                        // count matches the run (audit bug 6).
+                        val driver = aiSettings.workerPromptByName("translate-rank")
+                        if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+                            st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                                "Rank translators — pick workers", driver.workers,
+                                { picked -> rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }, {})
+                        } else rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+                    }
                 },
                 onBack = { openTranslationRunId = null }
             )
-            // 🏅 confirm dialog (with the call count) for the run-screen medal.
-            com.ai.ui.report.manage.RankTranslatorsConfirmHost(rid, rankPending, transRankEngine) { runId, ln, lnn ->
-                val arm = { ws: List<com.ai.model.Worker>? ->
-                    transRankEngine?.startRun(context, rid, runId, ln, lnn, null, ws)
-                    transRankOpenState?.value = com.ai.data.transRankRunKey(rid, runId)
-                }
-                val driver = aiSettings.workerPromptByName("translate-rank")
-                if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                    st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                        "Rank translators — pick workers", driver.workers, { picked -> arm(picked) }, {})
-                } else arm(null)
+            // 🏅 confirm dialog (with the call count) for the run-screen medal —
+            // same flow as the Translations list: count popup → build-stage
+            // "Building translator ranking" progress bar → opens the ranking.
+            com.ai.ui.report.manage.RankTranslatorsConfirmHost(rid, rankPending, transRankEngine) { req ->
+                val key = java.util.UUID.randomUUID().toString()
+                val rk = com.ai.data.transRankRunKey(rid, req.runId)
+                armBuildStage(
+                    key, "Building translator ranking",
+                    { transRankOpenState?.value = rk },
+                    { transRankEngine?.deleteRun(context, rk) }
+                )
+                transRankEngine?.startRun(context, rid, req.runId, req.lang, req.native, key, req.overrideWorkers)
             }
         }
         return
@@ -1690,6 +1722,9 @@ fun ReportsScreen(
             infoEnabled = infoEnabled,
             infoState = infoState,
             infoMetaTotal = infoMetaTotal,
+            secondEnabled = secondEnabled,
+            secondState = secondState,
+            secondTotal = secondTotal,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             onDismiss = onDismiss,

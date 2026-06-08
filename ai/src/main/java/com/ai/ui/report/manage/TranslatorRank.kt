@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -114,31 +115,54 @@ fun TranslatorRankManageRow() {
  *  langNative); [onLaunch] performs the actual start (build-stage handling
  *  differs per call site). Mounted by the Translations list (Run.kt) and the
  *  Translation run screens (Main.kt). Cancel/dismiss creates nothing. */
+/** A pending 🏅 launch awaiting the confirm dialog. [overrideWorkers] carries
+ *  the runtime-picked judges (MODEL_SELECTION_SELECT) so the displayed call
+ *  count is computed against — and the run launches with — exactly that set.
+ *  Null = use the prompt's configured / report-model workers. See audit bug 6. */
+internal data class PendingRankRequest(
+    val runId: String,
+    val lang: String,
+    val native: String,
+    val overrideWorkers: List<com.ai.model.Worker>? = null
+)
+
+/** Saver so a pending 🏅 confirm survives a config change (audit bug 21).
+ *  Persists the run identity only; a runtime worker pick (overrideWorkers) is
+ *  dropped on restore — the rare rotate-mid-confirm case then recomputes the
+ *  count and runs against the configured/report-model workers. */
+internal val PendingRankRequestSaver =
+    androidx.compose.runtime.saveable.listSaver<PendingRankRequest?, String>(
+        save = { it?.let { r -> listOf(r.runId, r.lang, r.native) } ?: emptyList() },
+        restore = { l -> if (l.size >= 3) PendingRankRequest(l[0], l[1], l[2], null) else null }
+    )
+
 @Composable
 internal fun RankTranslatorsConfirmHost(
     reportId: String?,
-    pending: androidx.compose.runtime.MutableState<Triple<String, String, String>?>,
+    pending: androidx.compose.runtime.MutableState<PendingRankRequest?>,
     engine: TranslatorRankEngine?,
-    onLaunch: (runId: String, lang: String, native: String) -> Unit
+    onLaunch: (PendingRankRequest) -> Unit
 ) {
     val p = pending.value ?: return
-    val (runId, lang, native) = p
     val context = LocalContextSafe()
-    val count by produceState<Int?>(null, runId, reportId) {
-        value = if (engine != null && reportId != null) engine.plannedCellCount(context, reportId, runId) else null
+    // Count against the same workers the run will use (the runtime pick, when
+    // present), so the dialog can't show a number the run then contradicts.
+    val count by produceState<Int?>(null, p.runId, reportId, p.overrideWorkers) {
+        value = if (engine != null && reportId != null)
+            engine.plannedCellCount(context, reportId, p.runId, p.overrideWorkers) else null
     }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = { pending.value = null },
         title = { Text("Rank the translators?") },
         text = {
             Text(
-                "Have the other models score the translated answers in ${lang.ifBlank { "this language" }} " +
+                "Have the other models score the translated answers in ${p.lang.ifBlank { "this language" }} " +
                     "(0–100) and rank the translator models by average score." +
                     (count?.let { "\n\nThis is about $it scoring call${if (it == 1) "" else "s"}." } ?: "\n\n(counting…)")
             )
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { pending.value = null; onLaunch(runId, lang, native) }) { Text("Rank") }
+            androidx.compose.material3.TextButton(onClick = { val req = p; pending.value = null; onLaunch(req) }) { Text("Rank") }
         },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = { pending.value = null }) { Text("Cancel") }
@@ -161,6 +185,7 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
     val scope = rememberCoroutineScope()
     val reportId = runKey.substringBefore("|")
     val runs by engine.runs.collectAsState()
+    val throttled by engine.throttledCells.collectAsState()
     val run = runs[runKey]
 
     LaunchedEffect(reportId) {
@@ -209,11 +234,15 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
     }
 
     TranslatorRankL1(
-        run = run, reportTitle = reportTitle, reportIcon = reportIcon,
+        run = run, throttled = throttled, reportTitle = reportTitle, reportIcon = reportIcon,
         openTranslator = { openTranslatorKey = it },
         onOpenWorkers = { showWorkers = true },
         onRestartFailed = { scope.launch { engine.restartFailedCells(context, runKey) } },
-        onDeleteRun = { scope.launch { engine.deleteRun(context, runKey) }; onBack() },
+        // Call deleteRun DIRECTLY (it's not suspend — it drops the run
+        // synchronously and sweeps disk on viewModelScope). Wrapping it in
+        // scope.launch raced with onBack() cancelling this screen's scope, so
+        // the delete sometimes never fired and the rows stayed on disk.
+        onDeleteRun = { engine.deleteRun(context, runKey); onBack() },
         onBack = onBack
     )
 }
@@ -226,6 +255,7 @@ private fun LocalContextSafe() = androidx.compose.ui.platform.LocalContext.curre
 @Composable
 private fun TranslatorRankL1(
     run: TransRankRunState,
+    throttled: Set<String>,
     reportTitle: String,
     reportIcon: String,
     openTranslator: (String) -> Unit,
@@ -237,9 +267,24 @@ private fun TranslatorRankL1(
     val cells = run.cells.values
     val total = cells.size
     val done = cells.count { it.status == TransRankCellStatus.DONE }
-    val error = cells.count { it.status == TransRankCellStatus.ERROR }
-    val running = cells.count { it.status == TransRankCellStatus.RUNNING }
-    val queued = cells.count { it.status == TransRankCellStatus.PENDING }
+    // Each cell is a FIXED-MODEL judge call: a short-benched judge parks its
+    // cells in Bench, and rate-gated cells in Wait — without those buckets the
+    // queue looked stuck. Same carve as Judge-the-judges.
+    val shortBenches by com.ai.data.ModelCooldownStore.shortBenches.collectAsState()
+    fun shortBenched(p: String, m: String) = (shortBenches["$p:$m"] ?: 0L) > System.currentTimeMillis()
+    val summary = deriveBatchSummary(
+        items = cells,
+        idOf = { it.id },
+        statusOf = { it.status },
+        throttledIds = throttled,
+        family = BatchFamily.FIXED_MODEL,
+        benchedOf = { shortBenched(it.judgeProviderId, it.judgeModel) },
+    )
+    val error = summary.displayError
+    val running = summary.counts.running
+    val benchCount = summary.counts.bench
+    val throttledCount = summary.counts.wait
+    val queued = summary.counts.queued
     val allTerminal = total > 0 && (done + error) == total
     val ranking = aggregateTranslatorRanks(cells)
 
@@ -265,6 +310,8 @@ private fun TranslatorRankL1(
                 add(Triple("Done", done.toString(), AppColors.SuccessAccent))
                 add(Triple("Error", error.toString(), AppColors.DangerAccent))
                 add(Triple("Run", running.toString(), AppColors.WarningAccent))
+                if (summary.showBenchColumn) add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
+                add(Triple("Wait", throttledCount.toString(), AppColors.CautionAccent))
                 add(Triple("Queue", queued.toString(), AppColors.QueueAccent))
                 add(Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent))
             })
@@ -325,7 +372,11 @@ private fun TranslatorRankL2(
     onBack: () -> Unit
 ) {
     val cells = run.cells.values.filter { it.translatorKey == translatorKey }
+    // Stable order both live and after hydration: sort item groups by their
+    // earliest cell timestamp (creation ≈ source order), tie-broken by row id,
+    // so the "Item N" numbering doesn't shuffle on restart. See audit bug 7.
     val byItem = cells.groupBy { it.translationRowId }.toList()
+        .sortedWith(compareBy({ (_, cs) -> cs.minOf { it.timestamp } }, { (id, _) -> id }))
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "translator_rank", title = "Translator", subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack)
         Text(
@@ -335,8 +386,8 @@ private fun TranslatorRankL2(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)
         )
         LazyColumn(Modifier.fillMaxSize()) {
-            byItem.forEachIndexed { idx, (_, itemCells) ->
-                item(key = "h$idx") {
+            byItem.forEachIndexed { idx, (grpId, itemCells) ->
+                item(key = "h:$grpId") {
                     val scored = itemCells.mapNotNull { it.score }
                     val avg = if (scored.isNotEmpty()) scored.average() else null
                     Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -345,8 +396,7 @@ private fun TranslatorRankL2(
                     }
                     HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.35f), thickness = 0.5.dp)
                 }
-                items(itemCells.size) { i ->
-                    val c = itemCells[i]
+                items(itemCells, key = { it.id }) { c ->
                     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(shortModelName(c.judgeModel), color = AppColors.TextPrimary, fontSize = 13.sp,

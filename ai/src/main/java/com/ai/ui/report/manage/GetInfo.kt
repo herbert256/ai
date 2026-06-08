@@ -196,14 +196,22 @@ fun buildInfoJobs(
             doneIcon = com.ai.data.MetadataIconsHolder.current.label,
             pending = reportPending(shortState))
 
-        // 4) report-long — the long report title.
+        // 4) report-long — the long report title. A finished report that has a
+        // short title but no long one (and isn't actively generating) never ran
+        // the long-title call — e.g. legacy / imported reports from before the
+        // short+long split — so it's terminal, not a perpetual "Queued…".
         val longState = when {
             !report.titleLong.isNullOrBlank() -> InfoJobState.DONE
             "${report.id}|title" in running -> InfoJobState.RUNNING
+            report.completedAt != null -> InfoJobState.EMPTY
             else -> InfoJobState.CLOCK
         }
         val longLabel = report.titleLong?.takeIf { it.isNotBlank() }
-            ?: if (longState == InfoJobState.RUNNING) "Generating…" else "Queued…"
+            ?: when (longState) {
+                InfoJobState.RUNNING -> "Generating…"
+                InfoJobState.EMPTY -> "Not generated"
+                else -> "Queued…"
+            }
         jobs += InfoJob("report-long", longLabel, longState,
             report.titleLongInputCost + report.titleLongOutputCost,
             doneIcon = com.ai.data.MetadataIconsHolder.current.label,
@@ -250,6 +258,13 @@ fun buildInfoJobs(
             // Call concluded but yielded no title and no error → terminal,
             // but not a success.
             a.modelTitleAttempted() -> InfoJobState.EMPTY
+            // Finished report whose per-model title NEVER ran (no result, no
+            // error, no attempt markers) won't auto-run — treat it as terminal
+            // rather than a phantom RUNNING that spins the hourglass forever.
+            // (Imported / copied reports, or per-model-title toggled on after
+            // generation.) During live generation completedAt is null, so a
+            // freshly-succeeded model still shows RUNNING while its title runs.
+            report.completedAt != null -> InfoJobState.EMPTY
             else -> InfoJobState.RUNNING
         }
 
@@ -291,6 +306,9 @@ fun buildInfoJobs(
                 // (e.g. an empty/unparseable model reply) → terminal, so the
                 // Manage info row doesn't spin forever.
                 a.modelIconAttempted() -> InfoJobState.DONE
+                // Finished report whose per-model icon never ran → terminal,
+                // not a phantom RUNNING (same guard as titleStateFor).
+                report.completedAt != null -> InfoJobState.DONE
                 else -> InfoJobState.RUNNING
             }
             // Label shows the found title (the icon is derived from it);
@@ -347,6 +365,10 @@ fun ReportGetInfoScreen(
     perModelTitle: Boolean,
     runningInfoJobs: Set<String>,
     onBack: () -> Unit,
+    /** Title tap → next of the three report screens. */
+    onCycleNext: () -> Unit = {},
+    /** Report-icon tap → the View hub. */
+    onOpenViewHub: () -> Unit = {},
     onOpenIconDetail: () -> Unit,
     onOpenLanguageDetect: () -> Unit,
     onOpenLanguageDetail: () -> Unit,
@@ -387,6 +409,9 @@ fun ReportGetInfoScreen(
         // ignored anyway with nothing published.)
         TitleBar(
             helpTopic = "report_get_info", title = "Report - Get info", subject = "Status of icon, title & language jobs", onBackClick = onBack,
+            onTitleClick = onCycleNext,
+            forceTitleClick = true,
+            onReportIconClick = onOpenViewHub,
             publishBottomBar = false
         )
         LazyColumn(modifier = Modifier.weight(1f)) {

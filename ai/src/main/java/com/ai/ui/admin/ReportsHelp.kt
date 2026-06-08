@@ -8,7 +8,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("How it scores", "Every long-form translated answer (model responses + fan-out / meta responses; titles and the prompt are skipped) is scored 0–100 by each model in the panel EXCEPT the model that produced it. The panel is the `translate-rank` worker swarm (the report's own models when ♻️ is on). Each translator's average score becomes its rank."),
             HelpCard("Reading it", "The leaderboard lists each translator model with how many of its items were scored and its average score (best first). Tap a row to see that model's items and each judge's score + motivation."),
             HelpCard("A fairness note", "The translation pool spreads items across models, so each model is judged on the items IT happened to translate — not the same passage head-to-head. Item difficulty can therefore skew the average. It's most meaningful when a translation was produced by several models."),
-            HelpCard("Cost", "Each score is a normal API call, counted in the report's cost table under the 'transrank' group. Each translator has at most 25 of its translations scored (a random sample) to keep the batch bounded; the launch popup shows the exact number of calls and asks to confirm first."),
+            HelpCard("Cost", "Each score is a normal API call, counted in the report's cost table under the 'transrank' group. Each translator model gets at most 25 scoring cells (a random sample of its translation × judge pairs), so the whole batch is at most the translator count × 25; the launch popup shows the exact number of calls and asks to confirm first."),
             HelpCard("🐜 Workers", "The 🐜 icon switches to the per-judge-model breakdown — one row per model that did the scoring, with how many it judged and its cost. Tap 🐜 again to go back to the translator ranking.")
         )
     ),
@@ -99,6 +99,14 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("When jobs run", "Icon / language / title start as soon as the report runs. A model's icon and model-title wait (⏰) until that model's own response finishes, then run. A model whose response failed leaves its icon/title rows on the clock — they can't be produced without a response."),
             HelpCard("Which rows appear", "Only enabled jobs are listed: report icon, report language, report title, per-model icons, and per-model titles each follow their own Settings -> Metadata & icons toggle. Report title also requires title mode = AI."),
             HelpCard("Costs", "Each row shows its own cost; the screen total is in the bottom bar. The single info row on Manage report mirrors this total, and its status aggregates these jobs (❌ if any failed, else ⏳ if any are still clock/running, else ✅). Tap a row to open its detail (icon / language / title / per-model icon).")
+        )
+    ),
+    "report_second_results" to HelpContent(
+        title = "Help - Report - second results",
+        cards = listOf(
+            HelpCard("What you see", "Every secondary result the report has produced, in one place: Tournament, Judge-the-judges, Compare, and Rank-the-translators batches; individual Meta / Rerank / Moderation / Fan-in rows; Fan-out and Fan-meta; and Translation runs (live + finished). Each row shows the same icon it uses on Manage, a status (⏳ running, ❌ failed, ✅ done), and its own cost."),
+            HelpCard("Tap a row", "Opens that result's existing detail or drill-in (the rank / tournament / judges / compare leaderboard, the per-run translation list, a single meta result, the fan-out pairs, …). Back returns here; Back again returns to Manage."),
+            HelpCard("Costs", "Each row shows its own cost; the single second row on Manage report sums them all and its status aggregates them (❌ if any failed, else ⏳ if any still running, else ✅). The screen is a layer over Manage, so Manage keeps its bottom bar and grand total.")
         )
     ),
     "report_edit_model_title" to HelpContent(

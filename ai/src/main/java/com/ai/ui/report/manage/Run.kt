@@ -99,6 +99,9 @@ internal fun ReportRunScreen(
     infoEnabled: Boolean = false,
     infoState: InfoJobState = InfoJobState.DONE,
     infoMetaTotal: Double = 0.0,
+    secondEnabled: Boolean = false,
+    secondState: InfoJobState = InfoJobState.DONE,
+    secondTotal: Double = 0.0,
     hasPrevReport: Boolean,
     hasNextReport: Boolean,
     onDismiss: () -> Unit,
@@ -141,6 +144,20 @@ internal fun ReportRunScreen(
     // on the batch screen immediately instead of staying on Manage.
     val tournamentOpenState = com.ai.ui.shared.LocalTournamentOpenState.current
     val judgeEvalOpenState = com.ai.ui.shared.LocalJudgeEvalOpenState.current
+    // "Report - second results" layer flag — survivable (held in ReportsScreenNav).
+    val showSecondResults = com.ai.ui.shared.LocalShowSecondResults.current
+    // Title-tap cycles the three report screens, wrapping with no edge:
+    // Manage → Get-info → (second results, only when one exists) → Manage.
+    val cycleReportScreens: () -> Unit = {
+        when {
+            showSecondResults?.value == true -> showSecondResults.value = false        // second → Manage
+            st.showGetInfo.value -> {                                                  // Get-info → next
+                st.showGetInfo.value = false
+                if (secondEnabled || secondTotal > 0.0) showSecondResults?.value = true // → second, else Manage
+            }
+            else -> st.showGetInfo.value = true                                        // Manage → Get-info
+        }
+    }
     val tournamentResponseCount = reportsAgentResults.values.count { it.error == null && !it.analysis.isNullOrBlank() }
     // "Compare with meta" — two-page selection flow (meta items → prompt) then
     // the worker-judged grid. compareStep: 0 = none, 1 = select meta, 2 = select
@@ -152,14 +169,11 @@ internal fun ReportRunScreen(
     val translatorRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
     // Pending 🏅 launch (translationRunId, lang, native) → shared confirm dialog.
-    val pendingRank = remember { mutableStateOf<Triple<String, String, String>?>(null) }
-    // 🏅 handler: open an existing rank run for this translation, else confirm-start.
-    val onRankMedal: (String, String, String) -> Unit = handler@{ runId, ln, lnn ->
-        val rid = currentReportId ?: return@handler
-        val key = com.ai.data.transRankRunKey(rid, runId)
-        if (translatorRankEngine?.runByKey(key) != null) transRankOpenState?.value = key
-        else pendingRank.value = Triple(runId, ln, lnn)
+    val pendingRank = rememberSaveable(currentReportId, stateSaver = com.ai.ui.report.manage.PendingRankRequestSaver) {
+        mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null)
     }
+    // onRankMedal is declared further down, after useReportModelsAsWorkers, so it
+    // can read that flag (audit bug 6).
     // Compare runs the meta-compare prompt with the SAME NAME as the meta item,
     // so only show meta items that actually have a matching meta-compare prompt;
     // the rest can't be compared.
@@ -218,6 +232,20 @@ internal fun ReportRunScreen(
         } ?: false
     }
     val reportModelsScope = rememberCoroutineScope()
+    // 🏅 handler: open an existing rank run for this translation, else confirm-start.
+    // For a *SELECT swarm the runtime worker pick runs BEFORE the confirm so the
+    // dialog's call count matches the chosen judges (audit bug 6).
+    val onRankMedal: (String, String, String) -> Unit = handler@{ runId, ln, lnn ->
+        val rid = currentReportId ?: return@handler
+        val key = com.ai.data.transRankRunKey(rid, runId)
+        if (translatorRankEngine?.runByKey(key) != null) { transRankOpenState?.value = key; return@handler }
+        val driver = aiSettings.workerPromptByName("translate-rank")
+        if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
+            st.runtimeWorkerPick.value = RuntimeWorkerPick(
+                "Rank translators — pick workers", driver.workers,
+                { picked -> pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }, {})
+        } else pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+    }
     // The select callback is pulled from LocalSystemPromptChange so we
     // don't thread it through the call site as another arg.
     val systemPromptChange = com.ai.ui.shared.LocalSystemPromptChange.current
@@ -292,7 +320,7 @@ internal fun ReportRunScreen(
     }
     // 👯 duplicate-report tap shows a yes/no first so an accidental
     // hit on the bottom bar doesn't silently spawn a "(Copy)" report.
-    var showCopyConfirm by remember { mutableStateOf(false) }
+    var showCopyConfirm by rememberSaveable(currentReportId) { mutableStateOf(false) }
     if (showCopyConfirm) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showCopyConfirm = false },
@@ -408,10 +436,11 @@ internal fun ReportRunScreen(
             title = "Manage a report",
             costText = totalCostForBar.takeIf { it > 0.0 }?.let { com.ai.ui.shared.formatCents(it, 2) },
             onCostClick = generationHandlers.onViewCosts,
-            // Tapping the "Manage report" screen title opens the main
-            // View hub ("View a report") — same target as the report
-            // icon, the green report-name and the bottom-bar 👁.
-            onTitleClick = onOpenViewReport,
+            // Tapping the title / orange report title cycles to the next of
+            // the three report screens (Manage → Get-info → second results).
+            // The report icon (below) keeps going to the View hub.
+            onTitleClick = cycleReportScreens,
+            forceTitleClick = true,
             subject = promptTitleForBar,
             reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon else null,
             // On the Manage report screen the report icon opens the main
@@ -623,12 +652,15 @@ internal fun ReportRunScreen(
             infoEnabled = infoEnabled,
             infoState = infoState,
             infoMetaTotal = infoMetaTotal,
+            secondEnabled = secondEnabled,
+            secondState = secondState,
+            secondTotal = secondTotal,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             // Pause the hub's background effects while any full-screen layer
             // (Get-info / Edit report / Edit icons / Edit titles) is on top —
             // the hub stays composed underneath.
-            paused = st.showGetInfo.value || st.showEditReportOverview.value ||
+            paused = st.showGetInfo.value || (showSecondResults?.value == true) || st.showEditReportOverview.value ||
                 st.showEditIconsList.value || st.showEditTitlesList.value ||
                 st.showCreateOverview.value
         )
@@ -681,6 +713,8 @@ internal fun ReportRunScreen(
                     perModelTitle = uiState.generalSettings.perModelTitleOn(),
                     runningInfoJobs = runningInfoJobs,
                     onBack = { st.showGetInfo.value = false },
+                    onCycleNext = cycleReportScreens,
+                    onOpenViewHub = onOpenViewReport,
                     onOpenIconDetail = { st.showIconDetail.value = true },
                     onOpenLanguageDetect = {
                         st.showIconDetail.value = true
@@ -695,6 +729,44 @@ internal fun ReportRunScreen(
                     onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
                     onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId },
                     onRestartErrors = { onRestartInfoErrors(currentReportId) }
+                )
+            }
+        }
+
+        // "Report - second results" — the secondary-result analogue of Get-info,
+        // drawn as a layer over the still-composed hub (same publishBottomBar
+        // pattern). Tapping a row sets the same open-states / handlers the hub
+        // rows used, so their detail screens / overlays open on top; Back peels.
+        if (showSecondResults?.value == true && currentReportId != null) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { showSecondResults.value = false }
+            ) {
+                ReportSecondResultsScreen(
+                    reportId = currentReportId,
+                    uiState = uiState,
+                    aiSettings = aiSettings,
+                    secondaryRuns = secondaryRuns,
+                    fanOutSummaries = fanOutSummaries,
+                    translationRuns = translationRuns,
+                    translationRunSummaries = translationRunSummaries,
+                    languageName = languageName,
+                    // The 🔤 model-names toggle is a Manage-row local (out of
+                    // scope here); the screen always shows prompt titles.
+                    showModelNamesInReportRows = false,
+                    onOpenSecondaryRun = generationHandlers.onOpenSecondaryRun,
+                    onMissingPromptIcon = generationHandlers.onMissingPromptIcon,
+                    onOpenInternalPromptIconDetail = generationHandlers.onOpenInternalPromptIconDetail,
+                    onOpenInternalPromptIconDetailForRow = generationHandlers.onOpenInternalPromptIconDetailForRow,
+                    onViewSecondaryName = generationHandlers.onViewSecondaryName,
+                    onViewFanMeta = generationHandlers.onViewFanMeta,
+                    onOpenTranslationRun = generationHandlers.onOpenTranslationRun,
+                    onMissingTranslationIcon = generationHandlers.onMissingTranslationIcon,
+                    onOpenTranslationIconDetail = generationHandlers.onOpenTranslationIconDetail,
+                    onBack = { showSecondResults.value = false },
+                    onCycleNext = cycleReportScreens,
+                    onOpenViewHub = onOpenViewReport
                 )
             }
         }
@@ -834,22 +906,15 @@ internal fun ReportRunScreen(
         // 🏅 Rank-the-translators launch — shared confirm dialog (with the call
         // count); on Rank, build-stage + run + open the ranking overlay. Honors
         // the ♻️ / *SELECT worker-source precedence, like Tournament / Judges.
-        com.ai.ui.report.manage.RankTranslatorsConfirmHost(currentReportId, pendingRank, translatorRankEngine) { runId, ln, lnn ->
+        com.ai.ui.report.manage.RankTranslatorsConfirmHost(currentReportId, pendingRank, translatorRankEngine) { req ->
             currentReportId?.let { rid ->
-                val arm = { ws: List<com.ai.model.Worker>? ->
-                    val key = java.util.UUID.randomUUID().toString()
-                    onArmBuildStage(
-                        key, "Building translator ranking",
-                        { transRankOpenState?.value = com.ai.data.transRankRunKey(rid, runId) },
-                        { translatorRankEngine?.deleteRun(context, com.ai.data.transRankRunKey(rid, runId)) }
-                    )
-                    translatorRankEngine?.startRun(context, rid, runId, ln, lnn, key, ws)
-                }
-                val driver = aiSettings.workerPromptByName("translate-rank")
-                if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                    st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                        "Rank translators — pick workers", driver.workers, { picked -> arm(picked) }, {})
-                } else arm(null)
+                val key = java.util.UUID.randomUUID().toString()
+                onArmBuildStage(
+                    key, "Building translator ranking",
+                    { transRankOpenState?.value = com.ai.data.transRankRunKey(rid, req.runId) },
+                    { translatorRankEngine?.deleteRun(context, com.ai.data.transRankRunKey(rid, req.runId)) }
+                )
+                translatorRankEngine?.startRun(context, rid, req.runId, req.lang, req.native, key, req.overrideWorkers)
             }
         }
 

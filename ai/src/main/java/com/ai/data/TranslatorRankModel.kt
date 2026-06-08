@@ -27,10 +27,10 @@ import com.google.gson.JsonParser
 const val TRANSRANK_ROLE_CELL = "MATCH"
 const val TRANSRANK_ROLE_AGGREGATE = "AGGREGATE"
 
-/** Max random items scored per translator model — caps the batch (like
- *  Judge-the-judges' JUDGE_MATCH_COUNT) so not every translation of a big run
- *  is judged by every model. */
-const val TRANSRANK_ITEMS_PER_TRANSLATOR = 25
+/** Max scoring cells (item × judge pairs) per translator model — caps the
+ *  whole batch at (#translators × this). With 10 translator models → ≤ 250
+ *  cells. Not every translation of a big run is judged by every model. */
+const val TRANSRANK_CELLS_PER_TRANSLATOR = 25
 
 /** "$judge|$translationRowId" — unique per cell. */
 fun transRankCellKey(judgeProviderId: String, judgeModel: String, translationRowId: String): String =
@@ -146,8 +146,15 @@ fun parseScoreAndReason(content: String?): Pair<Int?, String?>? {
     if (lines.isEmpty()) return null
     val numRegex = Regex("""\d+(?:\.\d+)?""")
     val firstLine = lines[0].substringAfter(":", lines[0])
-    val score = (numRegex.find(firstLine)?.value ?: numRegex.find(cleaned)?.value)
-        ?.toDoubleOrNull()?.toInt()?.coerceIn(0, 100)
+    // Take the score from the first line, or from an explicitly "score"-labelled
+    // line — NEVER from an arbitrary number elsewhere in the reply. Scanning the
+    // whole body would read a reason like "2 strong points" as the score. See
+    // audit bug 9.
+    val scoreText = numRegex.find(firstLine)?.value
+        ?: lines.firstOrNull { it.contains("score", ignoreCase = true) }
+            ?.substringAfter(":", "")
+            ?.let { numRegex.find(it)?.value }
+    val score = scoreText?.toDoubleOrNull()?.toInt()?.coerceIn(0, 100)
     val reason = lines.getOrNull(1)?.let { it.substringAfter(":", it) }?.trim()?.takeIf { it.isNotBlank() }
         ?: lines.drop(1).joinToString(" ").takeIf { it.isNotBlank() }
     if (score == null && reason == null) return null
