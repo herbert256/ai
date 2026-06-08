@@ -196,7 +196,7 @@ match.
 `model.trim().lowercase()` or the same canonical model resolver used by the
 dispatch layer.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (lowercase the model in the Value-view fold-in key)
 
 ### Bug 11 - Severity: High - Category: Value View duplicate models
 **Location:** `ai/src/main/java/com/ai/ui/report/view/ValueView.kt:240-247` (fan-out cost grouping)
@@ -235,7 +235,7 @@ value badge.
 hide the badge for unknown pricing, or rank unknown-cost points in a
 separate category.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (exclude unknown-cost models from the Best value badge)
 
 ### Bug 13 - Severity: Medium - Category: Value View system UI
 **Location:** `ai/src/main/java/com/ai/ui/report/view/ValueView.kt:590-598` (`FullGraphDialog`)
@@ -252,7 +252,7 @@ where the dialog window does not restore bars automatically.
 **Proposed fix:** Call `WindowInsetsControllerCompat(...).show(Type.systemBars())`
 in `onDispose`, or explicitly save and restore the prior system UI state.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (restore system bars in the full-graph dialog onDispose)
 
 ### Bug 14 - Severity: Low - Category: Value View gestures
 **Location:** `ai/src/main/java/com/ai/ui/report/view/ValueView.kt:611-620` (`FullGraphDialog`)

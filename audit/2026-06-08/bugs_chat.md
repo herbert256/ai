@@ -85,7 +85,7 @@ sending another chat message.
 **Proposed fix:** Store provider id/model id in `rememberSaveable` and
 re-resolve the provider on restore.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (moderation model/picker saveable)
 
 ### Bug 6 - Severity: Medium - Category: Reasoning capability refresh
 **Location:** `ai/src/main/java/com/ai/ui/chat/ChatScreens.kt:365-373` (`supportsReasoning`)
@@ -159,7 +159,7 @@ process while on the session route.
 **Proposed fix:** Persist the config in the navigation route arguments or a
 saved session store, then restore it by id.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (persist DualChatConfig via a Saver (survives process death))
 
 ### Bug 10 - Severity: Medium - Category: Dual chat setup state
 **Location:** `ai/src/main/java/com/ai/ui/chat/DualChatScreen.kt:163-180`
@@ -177,5 +177,5 @@ then rotate immediately.
 **Proposed fix:** Use `rememberSaveable` for all setup selections and keep
 the delayed preference save as a persistence side effect.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (dual-chat setup selections saveable)
 

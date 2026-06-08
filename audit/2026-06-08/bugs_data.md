@@ -40,7 +40,7 @@ permit.
 in `catch/finally`, or replace blocking loops with an interrupt-safe helper
 that returns all partially acquired resources.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (release partially re-acquired permits on interrupt in yieldFor)
 
 ### Bug 3 - Severity: High - Category: Secondary storage path safety
 **Location:** `ai/src/main/java/com/ai/data/SecondaryResult.kt:231-237`, `ai/src/main/java/com/ai/data/SecondaryResult.kt:372-377`, `ai/src/main/java/com/ai/data/SecondaryResult.kt:1021-1030`
@@ -60,7 +60,7 @@ outside the flat result-id namespace.
 read/write/delete helpers and add a canonical-child check before touching
 the file.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (share isSafeResultId across get/exists/delete)
 
 ### Bug 4 - Severity: High - Category: Report bundle import resource limits
 **Location:** `ai/src/main/java/com/ai/data/ReportBundle.kt:118-123` (`importReportBundle`)
@@ -97,7 +97,7 @@ or non-integer primitives.
 **Proposed fix:** Wrap meta parsing in a checked import error path and use
 safe primitive extraction before the version range check.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (route meta.json parse through the controlled import error)
 
 ### Bug 6 - Severity: Medium - Category: Report bundle partial corruption
 **Location:** `ai/src/main/java/com/ai/data/ReportBundle.kt:154-158`, `ai/src/main/java/com/ai/data/ReportBundle.kt:179-185`
@@ -151,7 +151,7 @@ debug/import path.
 **Proposed fix:** Validate that keys match the expected SHA-256 hex pattern,
 or make raw-key helpers private and expose only `keyFor`-derived APIs.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (require a 64-hex key in the raw PromptCache helpers)
 
 ### Bug 9 - Severity: Medium - Category: App log path safety
 **Location:** `ai/src/main/java/com/ai/data/AppLog.kt:200-211` (`readLogFile`, `deleteLog`)
@@ -169,7 +169,7 @@ filename.
 **Proposed fix:** Validate filenames with the same prefix/suffix/date
 pattern used by `getLogFiles`, and add canonical-child checks.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (validate the applog filename in readLogFile/deleteLog)
 
 ### Bug 10 - Severity: Medium - Category: External pricing parsing
 **Location:** `ai/src/main/java/com/ai/data/PricingParsers.kt:139-164`, `ai/src/main/java/com/ai/data/PricingParsers.kt:188-194`
@@ -187,7 +187,7 @@ instead of skipping the bad entry.
 **Proposed fix:** Add safe numeric helpers and skip/record malformed rows
 without throwing out the entire catalog refresh.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (skip non-numeric pricing rows via numOrNull/intOrNull)
 
 ### Bug 11 - Severity: Medium - Category: Local LLM path safety
 **Location:** `ai/src/main/java/com/ai/data/local/LocalLlm.kt:65-68` (`llmFile`)
@@ -242,7 +242,7 @@ plaintext parser, which may parse the wrong number.
 **Proposed fix:** Use explicit primitive checks and return a clear
 missing-field result instead of falling through to whole-body number search.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (type-check the JSON score instead of falling through)
 
 ### Bug 14 - Severity: Low - Category: Secondary storage cache coherence
 **Location:** `ai/src/main/java/com/ai/data/SecondaryResult.kt:231-237` (`get`)
@@ -294,5 +294,5 @@ a critical user-action error. The second toast is suppressed.
 **Proposed fix:** Coalesce per `(level, tag)` or per normalized message, and
 allow ERROR to bypass a prior WARN suppression window.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (coalesce toasts per (level, tag) so a WARN can't muffle an ERROR)
 

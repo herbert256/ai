@@ -105,7 +105,7 @@ embedding.
 **Proposed fix:** Validate by attempting to create/release a `TextEmbedder`
 off-main, or mark unvalidated models separately with a clear error state.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (validate an imported .tflite loads as a MediaPipe embedder)
 
 ### Bug 7 - Severity: Medium - Category: Local LLM import validation
 **Location:** `ai/src/main/java/com/ai/ui/settings/LocalRuntimeScreens.kt:388-465` (`importTaskModel`)
@@ -123,7 +123,7 @@ file". It can appear as an installed LLM.
 and optionally attempt a metadata/header validation before publishing the
 model to the installed list.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (reject unknown file types instead of copying as .task)
 
 ### Bug 8 - Severity: High - Category: Import UI blocking
 **Location:** `ai/src/main/java/com/ai/ui/settings/ImportExportScreen.kt:1246-1249`
@@ -159,7 +159,7 @@ crafted filename segment.
 **Proposed fix:** Encode filename route segments, validate against
 `AppLog.getLogFiles()` before read/delete, and harden the data helpers.
 
-**Status:** Open
+**Status:** Fixed — 58dfa590 (encode the app-log-detail route filename segment)
 
 ### Bug 10 - Severity: Medium - Category: Prompt translations main-thread IO
 **Location:** `ai/src/main/java/com/ai/ui/admin/PromptTranslationsScreen.kt:54-58`, `ai/src/main/java/com/ai/ui/admin/PromptTranslationsScreen.kt:230-239`
