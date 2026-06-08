@@ -356,13 +356,15 @@ fun ChatSessionScreen(
     var attachedImage by rememberSaveable(stateSaver = AttachedImageSaver) {
         mutableStateOf(starterImage)
     }
-    var useWebSearch by remember { mutableStateOf(parameters.webSearchTool) }
+    // Saveable so a toggle made before the first user turn (when persistence is
+    // still gated) survives rotation. See audit chat bug 4.
+    var useWebSearch by rememberSaveable(currentSessionId) { mutableStateOf(parameters.webSearchTool) }
     // Per-turn reasoning-effort hint. "" = no hint; "low"/"medium"/"high"
     // map to the same OpenAI Responses-API / Gemini thinking field
     // ParametersScreen exposes. Initialized from the configure-on-the-
     // fly preset so a "high" preset starts that way; user can change
     // per turn via the pulldown next to the web-search chip.
-    var reasoningEffort by remember { mutableStateOf(parameters.reasoningEffort ?: "") }
+    var reasoningEffort by rememberSaveable(currentSessionId) { mutableStateOf(parameters.reasoningEffort ?: "") }
     var reasoningMenuExpanded by remember { mutableStateOf(false) }
     var chipPersistencePrimed by remember(currentSessionId) { mutableStateOf(false) }
     // Clamp the persisted reasoning level against the active model's
