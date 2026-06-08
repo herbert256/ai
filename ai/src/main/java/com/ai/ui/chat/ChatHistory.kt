@@ -63,6 +63,20 @@ fun ChatHistoryScreen(
                 val startIndex = currentPage * pageSize
                 val endIndex = minOf(startIndex + pageSize, allSessions.size)
                 val currentPageSessions = if (startIndex < allSessions.size) allSessions.subList(startIndex, endIndex) else emptyList()
+                val currentPageSessionIds = currentPageSessions.map { it.id }.toSet()
+                val traceVersion by com.ai.data.ApiTracer.traceVersion.collectAsState()
+                val sessionsWithTraces by produceState<Set<String>>(
+                    initialValue = emptySet(),
+                    currentPageSessionIds,
+                    traceVersion
+                ) {
+                    value = withContext(Dispatchers.IO) {
+                        com.ai.data.ApiTracer.getTraceFiles()
+                            .mapNotNull { it.reportId }
+                            .filter { it in currentPageSessionIds }
+                            .toSet()
+                    }
+                }
 
                 LaunchedEffect(pageSize, allSessions.size) {
                     if (currentPage >= totalPages && totalPages > 0) currentPage = totalPages - 1
@@ -81,14 +95,7 @@ fun ChatHistoryScreen(
                 ) {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(currentPageSessions, key = { it.id }) { session ->
-                            // Per-row trace probe \u2014 gates the \uD83D\uDC1E icon's
-                            // visibility on whether any chat-turn trace
-                            // was tagged with this sessionId.
-                            val hasTraces by produceState(initialValue = false, session.id) {
-                                value = withContext(Dispatchers.IO) {
-                                    com.ai.data.ApiTracer.getTraceFiles().any { it.reportId == session.id }
-                                }
-                            }
+                            val hasTraces = session.id in sessionsWithTraces
                             Row(
                                 modifier = Modifier.fillMaxWidth().clickable { onSelectSession(session.id) }
                                     .padding(vertical = 8.dp, horizontal = 4.dp),

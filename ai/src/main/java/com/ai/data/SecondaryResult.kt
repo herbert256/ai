@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
+import java.util.zip.CRC32
 import kotlin.concurrent.withLock
 
 /**
@@ -18,7 +19,7 @@ object SecondaryResultStorage {
     @Volatile private var rootDir: File? = null
 
     /** Per-file cache of parsed [SecondaryResult] rows. Keyed by
-     *  reportId → filename → (mtime, length, parsed). Each save /
+     *  reportId → filename → (mtime, length, content hash, parsed). Each save /
      *  delete invalidates only the affected filename's entry, so the
      *  next [listForReport] only re-parses the changed file instead
      *  of re-parsing the entire report directory. For a 56-pair
@@ -27,11 +28,14 @@ object SecondaryResultStorage {
      *
      *  Coarse-mtime collisions (two saves to the same file landing
      *  in the same filesystem second with identical content length)
-     *  are handled by the cache invalidation that fires on the save
-     *  itself — the entry is removed before the next listForReport
-     *  reads it, so the mtime+length match check is only relevant
-     *  to OTHER files in the same directory that didn't change. */
-    private data class CachedEntry(val mtime: Long, val length: Long, val parsed: SecondaryResult)
+     *  are handled by the content hash even if a future writer forgets
+     *  to invalidate its cache entry. */
+    private data class CachedEntry(
+        val mtime: Long,
+        val length: Long,
+        val contentHash: Long,
+        val parsed: SecondaryResult
+    )
     @Volatile private var listCache: HashMap<String, HashMap<String, CachedEntry>> = HashMap()
 
     fun init(context: Context) {
@@ -173,8 +177,10 @@ object SecondaryResultStorage {
                 seenFilenames.add(name)
                 val mtime = file.lastModified()
                 val length = file.length()
+                val contentHash = file.crc32OrNull()
                 val cached = cacheForReport[name]
-                if (cached != null && cached.mtime == mtime && cached.length == length) {
+                if (cached != null && contentHash != null &&
+                    cached.mtime == mtime && cached.length == length && cached.contentHash == contentHash) {
                     rows.add(cached.parsed)
                     continue
                 }
@@ -184,7 +190,11 @@ object SecondaryResultStorage {
                     null
                 }
                 if (parsed != null) {
-                    cacheForReport[name] = CachedEntry(mtime, length, parsed)
+                    if (contentHash != null) {
+                        cacheForReport[name] = CachedEntry(mtime, length, contentHash, parsed)
+                    } else {
+                        cacheForReport.remove(name)
+                    }
                     rows.add(parsed)
                 } else {
                     cacheForReport.remove(name)
@@ -201,6 +211,21 @@ object SecondaryResultStorage {
             rows.sortWith(compareBy({ it.timestamp }, { it.id }))
             if (kind != null) rows.filter { it.kind == kind } else rows
         }
+    }
+
+    private fun File.crc32OrNull(): Long? = try {
+        val crc = CRC32()
+        inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                crc.update(buffer, 0, read)
+            }
+        }
+        crc.value
+    } catch (_: Exception) {
+        null
     }
 
     fun get(context: Context, reportId: String, resultId: String): SecondaryResult? {

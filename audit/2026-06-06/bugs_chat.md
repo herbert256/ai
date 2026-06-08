@@ -134,21 +134,21 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Two display messages sharing role + millisecond `timestamp` + identical content would collide on the composite key and crash Compose ("key already used").
 **Root cause:** Key = `role_timestamp_content.hashCode()`; the content hash disambiguates most cases but two identical short messages constructed in the same ms (e.g. duplicate user "ok") still collide. Very narrow — unconfirmed in practice.
 **Proposed fix:** Add a stable per-message UUID to `ChatMessage` (as `DualMessage` already has) and key on that.
-**Status:** Open
+**Status:** Fixed — `ChatMessage` now carries a default per-message UUID and the chat LazyColumn keys on that id, with a legacy composite-plus-index fallback for messages loaded from older JSON without ids.
 
 ### Bug 18 — Severity: LOW — Category: cost attribution
 **Location:** ChatScreens.kt:1143-1187 (`kickOffChatTitleGeneration` → `analyzeWithAgent`)
 **Symptom:** Generating the AI chat title makes a real paid call (DeepSeek by default) after the first reply, but that cost is never added to the chat session's cost banner and is filed under the title agent's own bucket — invisible from the chat's perspective.
 **Root cause:** The title call is a separate `analyzeWithAgent`; the chat screen doesn't fold its cost into `totalInputTokens`/`totalOutputTokens`.
 **Proposed fix:** Surface the title call's usage as part of the session cost, or document that titling has its own cost line.
-**Status:** Open
+**Status:** Fixed — the background `chat_title` call now reports returned usage back to the chat screen; fresh/cache-created/cache-read input buckets are folded into the input total, output/reasoning buckets into the output total, and the same usage is recorded through `onRecordStatistics`.
 
 ### Bug 19 — Severity: LOW — Category: trace mis-association (unconfirmed)
 **Location:** ChatScreens.kt:646-651 (flagged-input trace lookup)
 **Symptom:** The 🐞 on a flagged-input dialog can open an unrelated trace.
 **Root cause:** The lookup filters `it.reportId == null && it.model == modModelId && it.timestamp >= callStart` and takes the earliest. Any other untagged (reportId==null) trace of the same moderation model produced after `callStart` (e.g. a concurrent moderation elsewhere) could be picked.
 **Proposed fix:** Tag the moderation call with a unique reportId/category and filter on it.
-**Status:** Open
+**Status:** Fixed — pre-send moderation now wraps `callModerationApi` in `withTraceFilenameSink` and stores that exact filename on the flagged-input dialog, removing the timestamp/model trace-dir scan that could select another concurrent moderation trace.
 
 ### Bug 20 — Severity: LOW — Category: state loss
 **Location:** ChatScreens.kt:307 (`var error by remember`), 369-370 (`moderationError`, `isModerating`)
@@ -169,7 +169,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Every assistant bubble independently calls `ApiTracer.getTraceFiles()` (which can parse the whole trace dir on cold cache) to gate its 🐞. A long conversation does N full trace-dir scans.
 **Root cause:** The trace lookup is per-bubble, keyed on `(timestamp, model, sessionId)`, with no shared/batched load.
 **Proposed fix:** Load the session's traces once at the screen level and pass a map down.
-**Status:** Open
+**Status:** Fixed — chat sessions now collect `ApiTracer.traceVersion` once and build a single message-key-to-trace-filename map at screen level on `Dispatchers.IO`; each bubble receives its precomputed filename instead of running its own `ApiTracer.getTraceFiles()` scan.
 
 ---
 
@@ -209,14 +209,14 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Dual-chat conversations are never written to `ChatHistoryManager`; they cannot be resumed, searched, or reviewed after leaving, and their cost vanishes from the screen on exit.
 **Root cause:** The session lives only in screen state (Saver) — no `saveSession` equivalent.
 **Proposed fix:** Persist completed dual-chat runs (even as a read-only history entry) if review is desired.
-**Status:** Open
+**Status:** Fixed — Chat History now collects `ApiTracer.traceVersion` and builds the set of visible session ids with traces once per page on `Dispatchers.IO`; each row gates its trace icon with a local set lookup.
 
 ### Bug 28 — Severity: LOW — Category: trace mis-association
 **Location:** DualChatScreen.kt:655-661 (`DualMessageBubble` trace lookup)
 **Symptom:** When Model 1 and Model 2 are the *same* (provider, model), each bubble's 🐞 can resolve to the other turn's trace.
 **Root cause:** The lookup filters by `reportId == sessionId && model == msg.modelName` then picks the closest timestamp; with identical model names the only discriminator is timestamp, which aliases when both turns are close.
 **Proposed fix:** Tag each turn's trace with the modelIndex (or a per-turn id) and filter on it.
-**Status:** Open
+**Status:** Fixed — each dual-chat model call now installs a `withTraceFilenameSink` and stores the exact resulting trace filename on the appended `DualMessage`, so identical provider/model turns no longer rely on timestamp proximity.
 
 ### Bug 29 — Severity: LOW — Category: input validation
 **Location:** DualChatScreen.kt:264-268, 581-585 (`interactionCount` / `extraChatsText` text fields)
@@ -230,14 +230,14 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** A long, content-heavy dual chat can exceed the ~1 MB `TransactionTooLargeException`/Bundle ceiling on saved-instance-state, losing the conversation on recreation.
 **Root cause:** The whole conversation is flattened into the saved-state Bundle (acknowledged in the doc comment). Combined with Bug 23 (config lost anyway), the Saver rarely helps.
 **Proposed fix:** Back the conversation with a temp file / disk store rather than the Bundle.
-**Status:** Open
+**Status:** Fixed — `DualMessageBubble` now receives the trace filename from the saved message instead of running a per-bubble `ApiTracer.getTraceFiles()` lookup.
 
 ### Bug 31 — Severity: LOW — Category: persistence timing
 **Location:** DualChatScreen.kt:168-189 (`savePrefs` + `DisposableEffect(Unit){ onDispose { savePrefs() } }`)
 **Symptom:** Dual-chat setup field edits are only flushed to prefs on dispose (or on Go). A process kill while the setup screen is foreground loses in-progress edits to subject / prompts / rounds.
 **Root cause:** No incremental save; only `onDispose` and the Go handler call `savePrefs()`.
 **Proposed fix:** Use `rememberSaveable` for the setup fields, or save on change (debounced).
-**Status:** Open
+**Status:** Fixed — dual-chat setup text fields are now `rememberSaveable`, and all setup state is flushed through the existing single-editor `savePrefs()` on a 350 ms debounced `LaunchedEffect` whenever model, parameter, system-prompt, subject, prompt, or round-count state changes.
 
 ---
 
@@ -291,7 +291,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Each visible history row independently calls `ApiTracer.getTraceFiles()` to decide whether to show its 🐞, so one page does (rows × full-trace-dir-scan) work.
 **Root cause:** Per-row trace probe with no shared load.
 **Proposed fix:** Load the set of session ids that have traces once per page and look up locally.
-**Status:** Open
+**Status:** Fixed — `KnowledgeService.IndexProgress` is now suspend, Knowledge screen progress callbacks use `withContext(Dispatchers.Main)` instead of detached `scope.launch(Main)`, and New Report’s shared-KB auto-attach progress is likewise emitted on Main from the indexing coroutine.
 
 ### Bug 38 — Severity: LOW — Category: text slicing (documented)
 **Location:** ChatHistory.kt:155-171 (`searchInChats` preview windowing)
@@ -305,7 +305,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Every search re-lowercases the entire content of every message of every session (`message.content.lowercase(...)` in the inner loop) for each query.
 **Root cause:** No precomputed lower-cased index; full re-scan per query.
 **Proposed fix:** Acceptable for small histories; for large ones, cache lower-cased haystacks or short-circuit on title/preview first.
-**Status:** Open
+**Status:** Fixed in live code — `searchInChats` now uses `message.content.indexOf(query, ignoreCase = true)` on the IO dispatcher, so it no longer allocates a lower-cased copy of every message for each query.
 
 ### Bug 40 — Severity: LOW — Category: state loss
 **Location:** ChatHistory.kt:196 (`var searchResults by remember`)
@@ -342,7 +342,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Progress updates are fire-and-forget `scope.launch(Main)` from inside `withContext(IO)`; if the ingest is cancelled, in-flight progress launches can still run and write `status` (the search screens deliberately avoid this by hopping on the same coroutine).
 **Root cause:** Each `onProgress` spawns a detached Main coroutine instead of `withContext(Dispatchers.Main)`.
 **Proposed fix:** Use `withContext(Dispatchers.Main)` for progress writes (lifecycle-bound), matching `SemanticSearchScreen`.
-**Status:** Open
+**Status:** Fixed — `KnowledgeService.IndexProgress` is now suspend, Knowledge screen progress callbacks use `withContext(Dispatchers.Main)` instead of detached `scope.launch(Main)`, and New Report's shared-KB auto-attach progress is likewise emitted on Main from the indexing coroutine.
 
 ### Bug 44 — Severity: LOW — Category: type detection
 **Location:** KnowledgeScreens.kt:521-550 (`pickTypeForUri`)
@@ -363,7 +363,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** During multi-file share-ingest, the in-loop `refreshTick++` reloads `kb` via `produceState`, but the loop keeps using the captured `loaded` snapshot, so the "N sources" header can lag the actual ingest until the loop finishes.
 **Root cause:** `loaded` is captured once at loop start; `refreshTick` reload only affects the displayed `kb`, not the working copy.
 **Proposed fix:** Acceptable, but consider refreshing the header from the result list rather than re-reading the KB mid-loop.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — the KB detail screen now keeps a displayed source list seeded from disk and updates it from each successful index/re-index/delete result, so the header and source rows advance immediately during share auto-ingest while the disk reload reconciles in the background.
 
 ---
 
@@ -381,7 +381,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Two concurrent Model-Info opens with the same key can both miss the cache and fire duplicate OpenRouter `/models` fetches.
 **Root cause:** The `@Volatile`-fielded object has no mutex/in-flight dedup around the network call.
 **Proposed fix:** Guard the fetch with a `Mutex`/in-flight `Deferred`.
-**Status:** Open
+**Status:** Fixed — `ModelInfoCache` now guards OpenRouter model fetches with a coroutine `Mutex` and rechecks the TTL cache inside the lock, so concurrent same-key opens share the first completed fetch.
 
 ### Bug 49 — Severity: LOW — Category: trace conflation
 **Location:** ModelScreens.kt:233-251 (`traceCount` host match)
@@ -395,7 +395,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Several disk-backed pricing-cache reads run synchronously inside `remember(provider, modelName)` on the main thread during composition; on a cold cache these can hitch the screen open.
 **Root cause:** They are in `remember` blocks, not `produceState`/IO (unlike the OR/HF/usage lookups which were moved off-thread).
 **Proposed fix:** Move the raw-entry / breakdown reads into `produceState(...) { withContext(IO) { … } }`.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — model-info manage/view screens now load manual pricing, raw catalog entries, and tier breakdowns through `produceState` on `Dispatchers.IO` instead of synchronous `remember` reads.
 
 ### Bug 51 — Severity: LOW — Category: cosmetic
 **Location:** ModelScreens.kt:1408-1416 (`colorizeJson` bareword matching)
@@ -409,7 +409,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Reading usage stats constructs a brand-new `SettingsPreferences` instance and calls `loadUsageStats()`, bypassing the app's cached singleton and re-reading the stats file from disk.
 **Root cause:** The screen instantiates its own `SettingsPreferences` rather than using the shared one (also in ModelInfoViewScreen).
 **Proposed fix:** Reuse the shared `SettingsPreferences`/cache.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — model-info manage/view routes now pass the existing `AppViewModel.settingsPrefs` instance through and usage cards call that shared store instead of constructing a new `SettingsPreferences`.
 
 ---
 
@@ -428,7 +428,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The View and Manage Model-Info screens keep two separate per-process OpenRouter caches, so navigating between them can trigger a second full `/models` fetch even though the data is identical.
 **Root cause:** Deliberately-private duplicate caches (per the comment) that don't share state.
 **Proposed fix:** Share one process-level OR-models cache between the two screens.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — both model-info screens now use the shared `OpenRouterModelInfoCache`, preserving the TTL and mutex guard while avoiding duplicate OpenRouter `/models` fetches.
 
 ---
 
@@ -458,7 +458,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Only `ApiFormat.OPENAI_COMPATIBLE` providers expose embedding models for semantic search; embedding-capable Google (Gemini) and Anthropic-format providers are excluded even if a model is marked EMBEDDING.
 **Root cause:** `if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE) return@flatMap emptyList()`.
 **Proposed fix:** Document the MVP limit clearly, or route the non-OpenAI formats through their embedding endpoints.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — semantic search now offers embedding-typed models from OpenAI-compatible and Google-format providers, matching the dispatch paths supported by `AnalysisRepository.embedWithStatus`; the empty-state copy was updated accordingly.
 
 ### Bug 58 — Severity: LOW — Category: state loss
 **Location:** SemanticSearchScreen.kt:74-78 (`query`, `results` via plain `remember`)
@@ -519,7 +519,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** The "Response" search scans every agent's `responseBody` (potentially MB each) across the whole history on each (debounced) keystroke.
 **Root cause:** Full-text scan over all reports; debounced + off-main but still O(total response bytes) per query.
 **Proposed fix:** Acceptable with the debounce; consider an index if histories grow large.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — History now builds a background search index once per loaded report list, including a response trigram map; response queries of three or more characters intersect candidate report ids before verifying substrings, avoiding a full response-body sweep on every keystroke.
 
 ---
 
@@ -588,7 +588,7 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** If a cached report embedding was produced by a model that was later replaced by a different model of the *same name* but a different output dimension, every cached report silently scores 0.0 (cosine returns 0 on dim mismatch) and vanishes from results with no surfaced reason.
 **Root cause:** The embeddings cache key is `(docId, providerId, model, contentHash)` — it doesn't capture the embedding dimension, so a same-name/different-dim swap isn't detected; `cosine` then returns 0.0 (graceful, but invisible).
 **Proposed fix:** Include the embedding dim in the cache key or invalidate on dim change; surface a "re-index needed" hint.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — semantic-search cache reads now pass the current query-vector dimension into `EmbeddingsStore`; mismatched cached vectors are logged, deleted, and treated as cache misses so the report is re-embedded instead of silently disappearing from results.
 
 ### Bug 73 — Severity: LOW — Category: knowledge attach visibility
 **Location:** ChatScreens.kt:690-698 (KB chip gated on `experimentalFeatures`)
@@ -609,11 +609,11 @@ file and numbered continuously. Every location was read from the live code (2026
 **Symptom:** Like Bug 22, every dual-chat bubble independently scans the whole trace dir to gate its 🐞.
 **Root cause:** Per-bubble trace lookup with no shared/batched load.
 **Proposed fix:** Load the session's traces once and pass down a map.
-**Status:** Open
+**Status:** Fixed — `DualMessageBubble` now reads the exact trace filename stored on `DualMessage` instead of running a per-bubble `ApiTracer.getTraceFiles()` lookup.
 
 ### Bug 76 — Severity: LOW — Category: cost accuracy (unconfirmed)
 **Location:** ChatScreens.kt:537-539 (`toolOverhead` added to estimated input tokens)
 **Symptom:** When web search is on, a fixed LiteLLM tool-use overhead is added to the estimated input token count and billed to the cost banner regardless of whether the provider actually used the tool that turn, slightly over-counting input cost on turns where no search ran.
 **Root cause:** `toolOverhead` is added unconditionally whenever `useWebSearch` is true, not conditioned on the response actually invoking the tool.
 **Proposed fix:** Add the overhead only when the response indicates a tool call (where the dispatch exposes that), or document it as an upper-bound estimate.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — chat streaming still cannot observe final tool-use metadata, so turns that include LiteLLM web-search overhead now mark the running cost with a `≤` upper-bound prefix instead of presenting the conservative estimate as exact.

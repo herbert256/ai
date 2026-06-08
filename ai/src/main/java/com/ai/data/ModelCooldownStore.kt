@@ -5,6 +5,7 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 /**
  * Tracks provider/model pairs that are temporarily unavailable
@@ -35,6 +36,9 @@ object ModelCooldownStore {
     private val gson = createAppGson()
     private val mapType = object : TypeToken<Map<String, Long>>() {}.type
     private val traceType = object : TypeToken<Map<String, String>>() {}.type
+    private val persistExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "ModelCooldownStore-persist").apply { isDaemon = true }
+    }
 
     /** Key → epoch-ms when the model becomes available again. */
     private val cooldownMap = ConcurrentHashMap<String, Long>()
@@ -229,11 +233,15 @@ object ModelCooldownStore {
     }
 
     private fun persist() {
-        runCatching {
-            prefs()?.edit()
-                ?.putString(KEY_MAP, gson.toJson(cooldownMap.toMap()))
-                ?.putString(KEY_TRACES, gson.toJson(traceMap.toMap()))
-                ?.apply()
+        val cooldownSnapshot = cooldownMap.toMap()
+        val traceSnapshot = traceMap.toMap()
+        persistExecutor.execute {
+            runCatching {
+                prefs()?.edit()
+                    ?.putString(KEY_MAP, gson.toJson(cooldownSnapshot))
+                    ?.putString(KEY_TRACES, gson.toJson(traceSnapshot))
+                    ?.apply()
+            }
         }
     }
 

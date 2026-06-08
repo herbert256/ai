@@ -4,6 +4,14 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class ApiModelsUsageTest {
+    private val xaiService = AppService(
+        id = "xAI",
+        baseUrl = "https://api.x.ai/",
+        adminUrl = "https://console.x.ai/",
+        defaultModel = "grok-3-mini",
+        promptTokensIncludeCachedTokens = false
+    )
+
     @Test fun openAiUsage_subtracts_cached_prompt_tokens_and_extracts_cost() {
         val usage = OpenAiUsage(
             prompt_tokens = 100,
@@ -29,6 +37,29 @@ class ApiModelsUsageTest {
 
         assertThat(usage.inputTokens).isEqualTo(5)
         assertThat(usage.cachedInputTokens).isEqualTo(95)
+    }
+
+    @Test fun xaiUsage_treats_flattened_cached_tokens_as_separate_from_prompt_tokens() {
+        val usage = OpenAiUsage(
+            prompt_tokens = 100,
+            completion_tokens = 10,
+            total_tokens = 150,
+            cached_tokens = 40
+        ).toTokenUsage(xaiService)
+
+        assertThat(usage.inputTokens).isEqualTo(100)
+        assertThat(usage.cachedInputTokens).isEqualTo(40)
+        assertThat(usage.outputTokens).isEqualTo(10)
+    }
+
+    @Test fun responsesApiUsage_extractor_uses_provider_cache_shape() {
+        val result = extractResponsesApiUsage(xaiService)(
+            "response.completed",
+            """{"response":{"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":150,"cached_tokens":40}}}"""
+        )?.first
+
+        assertThat(result?.inputTokens).isEqualTo(100)
+        assertThat(result?.cachedInputTokens).isEqualTo(40)
     }
 
     @Test fun claudeUsage_preserves_cache_creation_and_read_buckets() {

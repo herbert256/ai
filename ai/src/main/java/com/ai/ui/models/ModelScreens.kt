@@ -135,31 +135,6 @@ private data class ModelInfoData(
     val hasPricing: Boolean = false
 )
 
-private object ModelInfoCache {
-    @Volatile private var apiKey: String? = null
-    @Volatile private var openRouterModels: List<OpenRouterModelInfo>? = null
-    @Volatile private var fetchedAt: Long = 0L
-    // Refresh at most once per 6h within a process: keying solely on apiKey
-    // meant a stale catalog was served for the whole process lifetime.
-    private const val TTL_MS = 6L * 60 * 60 * 1000
-
-    suspend fun getOpenRouterModels(apiKey: String): List<OpenRouterModelInfo> {
-        if (apiKey.isBlank()) return emptyList()
-        val fresh = System.currentTimeMillis() - fetchedAt < TTL_MS
-        if (this.apiKey == apiKey && fresh) {
-            openRouterModels?.let { return it }
-        }
-        val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
-        val response = com.ai.data.withTraceCategory("info/provider") { api.listModelsDetailed("Bearer $apiKey") }
-        val models = if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
-        this.apiKey = apiKey
-        openRouterModels = models
-        fetchedAt = System.currentTimeMillis()
-        return models
-    }
-}
-
-
 // ===== Model Info Screen =====
 
 @Composable
@@ -170,6 +145,7 @@ fun ModelInfoScreen(
     huggingFaceApiKey: String,
     aiSettings: Settings,
     repository: com.ai.data.AnalysisRepository,
+    settingsPrefs: SettingsPreferences,
     onSaveSettings: (Settings) -> Unit,
     onTestAiModel: suspend (AppService, String, String) -> String?,
     onFetchModels: (AppService, String) -> Unit,
@@ -256,8 +232,7 @@ fun ModelInfoScreen(
             // A 2-part lookup never matched, so the AI Usage card always read
             // "No usage recorded yet". Aggregate across kinds via the same
             // prefix match the View screen uses.
-            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            val all = SettingsPreferences(prefs, context.filesDir).loadUsageStats()
+            val all = settingsPrefs.loadUsageStats()
             val prefix = "${provider.id}::$modelName::"
             val matching = all.filterKeys { it.startsWith(prefix) }.values
             if (matching.isEmpty()) null
@@ -323,7 +298,7 @@ fun ModelInfoScreen(
         if (openRouterApiKey.isBlank()) return@produceState
         value = withContext(Dispatchers.IO) {
             try {
-                val models = ModelInfoCache.getOpenRouterModels(openRouterApiKey)
+                val models = OpenRouterModelInfoCache.getOpenRouterModels(openRouterApiKey)
                 // Provider APIs and OpenRouter disagree on punctuation —
                 // Anthropic ships "claude-opus-4-6" while OpenRouter
                 // catalogs it as "anthropic/claude-opus-4.6". Normalize
@@ -410,7 +385,7 @@ fun ModelInfoScreen(
             .replace("@AGENT@", "${provider.id} / $modelName")
     }
     val introCacheKey = remember(introResolvedPrompt, provider, modelName) {
-        PromptCache.keyFor(introResolvedPrompt, "${provider.id}:$modelName")
+        PromptCache.keyFor(introResolvedPrompt, "${provider.id}:$modelName", variant = "params=default|systemPrompt=")
     }
     val canRequestIntro = pageApiKey.isNotBlank()
     LaunchedEffect(introCacheKey) {
@@ -487,8 +462,40 @@ fun ModelInfoScreen(
                 val hasTypeOverride = aiSettings.modelTypeOverrides.any {
                     it.providerId == provider.id && it.modelId == modelName
                 }
-                val hasCostOverride = remember(provider, modelName) {
-                    PricingCache.getManualPricing(context, provider, modelName) != null
+                val hasCostOverride by produceState(initialValue = false, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getManualPricing(context, provider, modelName) != null
+                    }
+                }
+                val liteLLMRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getLiteLLMRawEntry(context, provider, modelName)
+                    }
+                }
+                val modelsDevRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getModelsDevRawEntry(context, provider, modelName)
+                    }
+                }
+                val heliconeRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getHeliconeRawEntry(context, provider, modelName)
+                    }
+                }
+                val llmPricesRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getLLMPricesRawEntry(context, provider, modelName)
+                    }
+                }
+                val aaRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getArtificialAnalysisRawEntry(context, provider, modelName)
+                    }
+                }
+                val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getTierBreakdown(context, provider, modelName)
+                    }
                 }
                 val blockedReason = aiSettings.blockedModels
                     .firstOrNull { it.providerId == provider.id && it.model == modelName }?.reason
@@ -664,25 +671,10 @@ fun ModelInfoScreen(
                         val gson = remember { com.ai.data.createAppGson(prettyPrint = true) }
                         val hasHF = info?.huggingFaceInfo != null
                         val hasOR = info?.openRouterInfo != null
-                        val liteLLMRaw = remember(provider, modelName) {
-                            PricingCache.getLiteLLMRawEntry(context, provider, modelName)
-                        }
                         val hasLiteLLM = liteLLMRaw != null
-                        val modelsDevRaw = remember(provider, modelName) {
-                            PricingCache.getModelsDevRawEntry(context, provider, modelName)
-                        }
                         val hasModelsDev = modelsDevRaw != null
-                        val heliconeRaw = remember(provider, modelName) {
-                            PricingCache.getHeliconeRawEntry(context, provider, modelName)
-                        }
                         val hasHelicone = heliconeRaw != null
-                        val llmPricesRaw = remember(provider, modelName) {
-                            PricingCache.getLLMPricesRawEntry(context, provider, modelName)
-                        }
                         val hasLLMPrices = llmPricesRaw != null
-                        val aaRaw = remember(provider, modelName) {
-                            PricingCache.getArtificialAnalysisRawEntry(context, provider, modelName)
-                        }
                         val hasAa = aaRaw != null
                         // Two rows of buttons in their own card — first the
                         // four catalog sources, then the three additional
@@ -813,22 +805,21 @@ fun ModelInfoScreen(
                     // "no source-specific price" line so the card still
                     // explains why the cost lookup will fall back.
                     item {
-                        val breakdown = remember(provider, modelName) {
-                            PricingCache.getTierBreakdown(context, provider, modelName)
-                        }
                         val rows = listOfNotNull(
-                            breakdown.litellm?.let { "LiteLLM" to it },
-                            breakdown.modelsDev?.let { "models.dev" to it },
-                            breakdown.helicone?.let { "Helicone" to it },
-                            breakdown.llmPrices?.let { "llm-prices.com" to it },
-                            breakdown.artificialAnalysis?.let { "Artificial Analysis" to it },
-                            breakdown.openrouter?.let { "OpenRouter" to it },
-                            breakdown.override?.let { "Override" to it }
+                            tierBreakdown?.litellm?.let { "LiteLLM" to it },
+                            tierBreakdown?.modelsDev?.let { "models.dev" to it },
+                            tierBreakdown?.helicone?.let { "Helicone" to it },
+                            tierBreakdown?.llmPrices?.let { "llm-prices.com" to it },
+                            tierBreakdown?.artificialAnalysis?.let { "Artificial Analysis" to it },
+                            tierBreakdown?.openrouter?.let { "OpenRouter" to it },
+                            tierBreakdown?.override?.let { "Override" to it }
                         )
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Costs (per million tokens)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
-                                if (rows.isEmpty()) {
+                                if (tierBreakdown == null) {
+                                    Text("Loading cost sources…", fontSize = 12.sp, color = AppColors.TextTertiary)
+                                } else if (rows.isEmpty()) {
                                     Text("No LiteLLM / models.dev / OpenRouter / Override entry — lookup falls back to the built-in default.",
                                         fontSize = 12.sp, color = AppColors.TextTertiary)
                                 } else {

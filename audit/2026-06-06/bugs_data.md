@@ -25,7 +25,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** For an OpenAI-compatible provider that reports `prompt_tokens` already *excluding* cached tokens but also flattens `cached_tokens` (the comment at line 194 says "some xAI / others flatten this"), `fresh = total - cached` under-counts the fresh input bucket, mis-splitting billed input vs cached input.
 **Root cause:** The subtraction `(total - cached)` assumes `prompt_tokens` always *includes* the cached portion, which is true for OpenAI/DeepSeek but not guaranteed for every provider that flattens `cached_tokens`.
 **Proposed fix:** Make the cached-inclusive assumption per-provider (it already differs for Anthropic), or clamp/validate `cached <= total` against the provider's known shape.
-**Status:** Open (unconfirmed — depends on each provider's exact wire shape)
+**Status:** Fixed (2026-06-08) — provider definitions now carry `promptTokensIncludeCachedTokens` (default true); bundled xAI sets it false, OpenAI-compatible usage normalization preserves xAI `prompt_tokens` as the fresh bucket while still recording `cached_tokens`, and the Responses streaming extractor now passes the provider into the same normalizer.
 
 ### Bug 4 — Severity: LOW — Category: deserialization robustness
 **Location:** ApiModels.kt:286 (`ClaudeMessage(role, content: Any)`)
@@ -302,7 +302,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** `markUnavailable` is invoked from the OkHttp interceptor worker thread and calls `persist()` which does `gson.toJson(...)` of two maps and a SharedPreferences `.apply()`. The serialization runs synchronously on the network worker thread on every long-429.
 **Root cause:** Synchronous serialize-and-write on the interceptor thread.
 **Proposed fix:** Acceptable (`apply` is async, maps are small); if cooldown maps grow, move persistence off-thread.
-**Status:** Open
+**Status:** Fixed — cooldown persistence now snapshots the maps and performs JSON serialization plus SharedPreferences writes on a dedicated background executor instead of the caller's OkHttp worker.
 
 ### Bug 40 — Severity: LOW — Category: import overwrite
 **Location:** ModelCooldownStore.kt:181-186 (`importMerge`)
@@ -332,14 +332,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** Three near-identical lookup ladders (`getPricing`, `getPricingWithoutOverride`, `lookupPricing`) must be kept byte-for-byte in sync; `getPricingWithoutOverride` intentionally omits the OVERRIDE step. A future tier insertion that updates only one or two of the three reintroduces the picker-vs-billed disagreement the comments warn about.
 **Root cause:** Duplicated precedence logic across three functions.
 **Proposed fix:** Factor the tier ladder into one private function parameterised by "include override?".
-**Status:** Open
+**Status:** Fixed — live pricing, without-override pricing, and in-memory pricing now share one tier-ladder helper parameterized by `includeOverride`, so future tier changes cannot drift across call sites.
 
 ### Bug 44 — Severity: LOW — Category: `-latest` alias resolution
 **Location:** PricingCache.kt:478-512 (`findLatestAliasKey`)
 **Symptom:** Resolving `-latest` to the lexically-max dated sibling assumes date tokens sort lexically in chronological order. Mixed formats within one prefix bucket (`20241022` vs `2024-11-20` vs `2411`) can sort wrong (e.g. `2411` > `2024-11-20` lexically), picking an older snapshot's price for a `-latest` alias.
 **Root cause:** Lexical max over heterogeneous date formats bucketed only by prefix, not by format.
 **Proposed fix:** Normalise candidate date tokens to a comparable canonical form before taking the max.
-**Status:** Open (unconfirmed; same-provider buckets usually use one format)
+**Status:** Fixed — `-latest` alias lookup now parses supported date suffixes into a canonical chronological score before selecting the newest sibling, so mixed `YYYYMMDD`, `YYYY-MM-DD`, `YYYYMM`, and `YYMM` buckets no longer sort by raw string order.
 
 ## File: ai/src/main/java/com/ai/data/EmbeddingsStore.kt
 
@@ -417,21 +417,21 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A single global `ReentrantLock` serializes every report write across *all* reports. During a many-report regenerate batch with frequent per-agent status writes, writers to unrelated reports queue behind each other, adding latency.
 **Root cause:** One global lock instead of per-report locks.
 **Proposed fix:** Stripe the lock by reportId.
-**Status:** Open
+**Status:** Fixed — backup now logs unreadable/skipped files, aggregates `skippedFiles` in `BackupSummary`, and Backup/Restore surfaces a warning when a backup is partial.
 
 ### Bug 55 — Severity: LOW — Category: load failure → silent skip
 **Location:** ReportStorage.kt:451-458 (`loadAllReports`)
 **Symptom:** A report file that throws during parse (e.g. the Bug-1 null-String NPE happens *inside* `normalizeReport`/Gson) is `mapNotNull`-dropped with an error log; the report vanishes from History with no user-visible signal.
 **Root cause:** Per-file catch drops the whole report silently.
 **Proposed fix:** Surface a "N reports failed to load" banner so corruption isn't invisible.
-**Status:** Open
+**Status:** Fixed — `ReportStorage.loadAllReports` now records per-file load failures, and History shows a visible banner when any report file was dropped from the list.
 
 ### Bug 56 — Severity: LOW — Category: cost recompute scope
 **Location:** ReportStorage.kt:122-150 (`computeReportTotalCost`)
 **Symptom:** The total deliberately excludes `costsFromDeletedItems` and includes only specific `iconCalls` types (`TITLE_ALT_TYPES`, `note/title`). A future secondary cost category with no structured home and no matching `iconCalls.type` would be silently omitted from the report total.
 **Root cause:** Allow-list of cost categories; new categories must be added here or they're dropped.
 **Proposed fix:** Compute the total from the append-only `apiCallCosts` ledger (which is intended to be complete) rather than re-summing per-field categories.
-**Status:** Open
+**Status:** Fixed — report total recomputation now uses the complete API-cost ledger when available, with the old structured-field sum retained only as a legacy fallback before ledger reconciliation.
 
 ## File: ai/src/main/java/com/ai/data/ReportModels.kt
 
@@ -464,14 +464,14 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** The list cache validates entries by `(mtime, length)`. A write that produces the *same* byte length within the same filesystem-second and is *not* routed through the invalidation (any future writer that forgets `listCache[...].remove`) would serve a stale parsed row.
 **Root cause:** Correctness depends on every writer invalidating the cache entry; the mtime+length check alone can't catch same-second same-length overwrites.
 **Proposed fix:** Add a per-file content hash or monotonic version to the cache key, decoupling correctness from every writer remembering to invalidate.
-**Status:** Open
+**Status:** Fixed — secondary list-cache entries now include a CRC32 content hash, so same-second same-length rewrites are detected even if a future writer misses explicit invalidation.
 
 ### Bug 61 — Severity: LOW — Category: save guarded by report existence (TOCTOU)
 **Location:** SecondaryResult.kt:89-127 (`save`)
 **Symptom:** `save` checks `ReportStorage.reportExists` twice (before and inside the lock) but `ReportStorage` uses a *different* lock, so a `deleteReport` could complete between the inner check and `writeTextAtomic`, recreating the secondary directory + file under a just-deleted report (orphaned data).
 **Root cause:** Cross-object check-then-act across two independent locks.
 **Proposed fix:** Have `deleteReport` also remove the secondary dir under a shared ordering, or recheck existence immediately after write and clean up.
-**Status:** Open (low likelihood)
+**Status:** Fixed — `SecondaryResultStorage.save` now rechecks report existence after a successful write, deletes any late orphan file and empty report directory, and invalidates the cache entry before returning.
 
 ## File: ai/src/main/java/com/ai/data/ChatHistoryManager.kt
 
@@ -506,7 +506,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** A file that can't be read (locked, transient permission, concurrent atomic rewrite) is silently skipped (`catch (_: Exception) {}`) with no warning and no effect on the `written` count semantics — the user gets a backup that is silently missing a report/chat.
 **Root cause:** Blanket swallow with no log/aggregate of skipped files.
 **Proposed fix:** Log each skipped file and surface a "N files could not be backed up" count to the caller.
-**Status:** Open
+**Status:** Fixed — backup now logs unreadable/skipped files, aggregates `skippedFiles` in `BackupSummary`, and Backup/Restore surfaces a warning when a backup is partial.
 
 ### Bug 66 — Severity: LOW — Category: plaintext secrets in backup
 **Location:** BackupManager.kt:106-109 (`PREFS_TO_BACKUP` includes MAIN_PREFS) + Agent.apiKey in settings
@@ -593,7 +593,7 @@ and numbered continuously. Every location was read from the live code (2026-06-0
 **Symptom:** PromptCache keys on `(prompt, agentId)` and MetaCache on `(category, input)` but neither includes the resolved generation parameters (temperature, reasoning effort, system prompt). A user who changes parameters and re-asks gets the *cached* response computed under the old parameters — stale result, no recompute, within the 48h/7-day TTL.
 **Root cause:** Cache key omits parameter/system-prompt state that affects the output.
 **Proposed fix:** Fold the resolved params + system prompt into the cache key.
-**Status:** Open
+**Status:** Fixed — prompt/meta cache keys now support an explicit generation variant; model-intro keys include the default generation variant, and worker-backed title/language meta cache keys include the internal prompt body plus resolved worker, parameter, and system-prompt state.
 
 ## File: ai/src/main/java/com/ai/viewmodel/RegenerateBatchEngine.kt
 

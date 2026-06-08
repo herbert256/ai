@@ -53,7 +53,8 @@ data class ChatMessage(
     val content: String,
     val timestamp: Long = System.currentTimeMillis(),
     val imageBase64: String? = null,
-    val imageMime: String? = null
+    val imageMime: String? = null,
+    val id: String? = java.util.UUID.randomUUID().toString()
 )
 
 /**

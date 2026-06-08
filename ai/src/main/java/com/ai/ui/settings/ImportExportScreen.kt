@@ -93,6 +93,18 @@ private data class WorkerImportResult(
     fun isEmpty() = agents == 0 && flocks == 0 && swarms == 0
 }
 
+private data class SettingsImportResult(
+    val settings: Settings,
+    val imported: Int,
+    val replaced: Int
+)
+
+private fun replacementSuffix(replaced: Int): String =
+    if (replaced > 0) ", replaced $replaced" else ""
+
+private fun importPart(count: Int, label: String, replaced: Int): String =
+    "$count $label" + if (replaced > 0) " ($replaced replaced)" else ""
+
 private fun applyWorkers(root: JsonObject, working: Settings): WorkerImportResult {
     val gson = createAppGson()
     fun <T> readList(name: String, type: Class<T>): List<T> {
@@ -645,7 +657,7 @@ private fun buildParametersTree(s: Settings): JsonArray =
 
 /** Upsert by id. Bad rows are logged and skipped so a single corrupt
  *  entry doesn't take down the rest. */
-private fun applyParameters(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+private fun applyParameters(arr: JsonArray, working: Settings): SettingsImportResult {
     val gson = createAppGson()
     val incoming = mutableListOf<Parameters>()
     arr.forEach { el ->
@@ -653,14 +665,15 @@ private fun applyParameters(arr: JsonArray, working: Settings): Pair<Settings, I
         catch (e: Exception) { AppLog.w("ImportExport", "Skipped parameters entry: ${e.message}") }
     }
     val incomingIds = incoming.map { it.id }.toSet()
+    val replaced = working.parameters.count { it.id in incomingIds }
     val merged = working.parameters.filterNot { it.id in incomingIds } + incoming
-    return working.copy(parameters = merged) to incoming.size
+    return SettingsImportResult(working.copy(parameters = merged), incoming.size, replaced)
 }
 
 private fun buildModelTypeOverridesTree(s: Settings): JsonArray =
     createAppGson().toJsonTree(s.modelTypeOverrides).asJsonArray
 
-private fun applyModelTypeOverrides(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+private fun applyModelTypeOverrides(arr: JsonArray, working: Settings): SettingsImportResult {
     val gson = createAppGson()
     val incoming = mutableListOf<ModelTypeOverride>()
     arr.forEach { el ->
@@ -668,8 +681,9 @@ private fun applyModelTypeOverrides(arr: JsonArray, working: Settings): Pair<Set
         catch (e: Exception) { AppLog.w("ImportExport", "Skipped model type override entry: ${e.message}") }
     }
     val incomingIds = incoming.map { it.id }.toSet()
+    val replaced = working.modelTypeOverrides.count { it.id in incomingIds }
     val merged = working.modelTypeOverrides.filterNot { it.id in incomingIds } + incoming
-    return working.copy(modelTypeOverrides = merged) to incoming.size
+    return SettingsImportResult(working.copy(modelTypeOverrides = merged), incoming.size, replaced)
 }
 
 // Model cooldowns live in the ModelCooldownStore singleton, not in
@@ -692,7 +706,7 @@ private fun applyModelCooldowns(obj: JsonObject): Int {
 private fun buildSystemPromptsTree(s: Settings): JsonArray =
     createAppGson().toJsonTree(s.systemPrompts).asJsonArray
 
-private fun applySystemPrompts(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+private fun applySystemPrompts(arr: JsonArray, working: Settings): SettingsImportResult {
     val gson = createAppGson()
     val incoming = mutableListOf<SystemPrompt>()
     arr.forEach { el ->
@@ -700,15 +714,16 @@ private fun applySystemPrompts(arr: JsonArray, working: Settings): Pair<Settings
         catch (e: Exception) { AppLog.w("ImportExport", "Skipped system prompt entry: ${e.message}") }
     }
     val incomingIds = incoming.map { it.id }.toSet()
+    val replaced = working.systemPrompts.count { it.id in incomingIds }
     val merged = working.systemPrompts.filterNot { it.id in incomingIds } + incoming
-    return working.copy(systemPrompts = merged) to incoming.size
+    return SettingsImportResult(working.copy(systemPrompts = merged), incoming.size, replaced)
 }
 
 private fun buildBlockedModelsTree(s: Settings): JsonArray =
     createAppGson().toJsonTree(s.blockedModels).asJsonArray
 
 /** Upsert by `(providerId, model)` key. Bad rows are logged and skipped. */
-private fun applyBlockedModels(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+private fun applyBlockedModels(arr: JsonArray, working: Settings): SettingsImportResult {
     val gson = createAppGson()
     val incoming = mutableListOf<com.ai.model.BlockedModel>()
     arr.forEach { el ->
@@ -716,15 +731,16 @@ private fun applyBlockedModels(arr: JsonArray, working: Settings): Pair<Settings
         catch (e: Exception) { AppLog.w("ImportExport", "Skipped blocked model entry: ${e.message}") }
     }
     val incomingKeys = incoming.map { it.key }.toSet()
+    val replaced = working.blockedModels.count { it.key in incomingKeys }
     val merged = working.blockedModels.filterNot { it.key in incomingKeys } + incoming
-    return working.copy(blockedModels = merged) to incoming.size
+    return SettingsImportResult(working.copy(blockedModels = merged), incoming.size, replaced)
 }
 
 private fun buildTestExcludedModelsTree(s: Settings): JsonArray =
     createAppGson().toJsonTree(s.testExcludedModels).asJsonArray
 
 /** Upsert by `(providerId, model)` key. Bad rows are logged and skipped. */
-private fun applyTestExcludedModels(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+private fun applyTestExcludedModels(arr: JsonArray, working: Settings): SettingsImportResult {
     val gson = createAppGson()
     val incoming = mutableListOf<com.ai.model.TestExcludedModel>()
     arr.forEach { el ->
@@ -732,15 +748,16 @@ private fun applyTestExcludedModels(arr: JsonArray, working: Settings): Pair<Set
         catch (e: Exception) { AppLog.w("ImportExport", "Skipped test-excluded model entry: ${e.message}") }
     }
     val incomingKeys = incoming.map { it.key }.toSet()
+    val replaced = working.testExcludedModels.count { it.key in incomingKeys }
     val merged = working.testExcludedModels.filterNot { it.key in incomingKeys } + incoming
-    return working.copy(testExcludedModels = merged) to incoming.size
+    return SettingsImportResult(working.copy(testExcludedModels = merged), incoming.size, replaced)
 }
 
 private fun buildInaccessibleModelsTree(s: Settings): JsonArray =
     createAppGson().toJsonTree(s.inaccessibleModels).asJsonArray
 
 /** Upsert by `(providerId, model)` key. Bad rows are logged and skipped. */
-private fun applyInaccessibleModels(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+private fun applyInaccessibleModels(arr: JsonArray, working: Settings): SettingsImportResult {
     val gson = createAppGson()
     val incoming = mutableListOf<com.ai.model.InaccessibleModel>()
     arr.forEach { el ->
@@ -748,8 +765,9 @@ private fun applyInaccessibleModels(arr: JsonArray, working: Settings): Pair<Set
         catch (e: Exception) { AppLog.w("ImportExport", "Skipped inaccessible model entry: ${e.message}") }
     }
     val incomingKeys = incoming.map { it.key }.toSet()
+    val replaced = working.inaccessibleModels.count { it.key in incomingKeys }
     val merged = working.inaccessibleModels.filterNot { it.key in incomingKeys } + incoming
-    return working.copy(inaccessibleModels = merged) to incoming.size
+    return SettingsImportResult(working.copy(inaccessibleModels = merged), incoming.size, replaced)
 }
 
 /** Build the All-bundle JsonObject. API keys are intentionally omitted
@@ -860,6 +878,31 @@ fun ImportExportScreen(
 
     fun readFromUri(uri: Uri): String? {
         return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+    }
+
+    fun launchJsonObjectImport(uri: Uri, objectErrorMessage: String, onObject: (JsonObject) -> Unit) {
+        scope.launch {
+            val parsed = withContext(Dispatchers.IO) {
+                try {
+                    val json = readFromUri(uri)
+                    if (json.isNullOrBlank()) {
+                        null to "File is empty"
+                    } else {
+                        val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                        if (root == null) null to objectErrorMessage else root to null
+                    }
+                } catch (e: Exception) {
+                    AppLog.e("ImportExport", "Import file read error", e)
+                    null to "Import failed: ${e.message ?: e.javaClass.simpleName}"
+                }
+            }
+            val root = parsed.first
+            if (root == null) {
+                Toast.makeText(context, parsed.second ?: objectErrorMessage, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            onObject(root)
+        }
     }
 
     // Each export builds its content here and hands it to
@@ -1365,12 +1408,17 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Parameters file is not a JSON array", Toast.LENGTH_LONG).show()
                     return@rememberLauncherForActivityResult
                 }
-                val (updated, n) = applyParameters(arr, aiSettings)
-                if (n == 0) {
+                val res = applyParameters(arr, aiSettings)
+                if (res.imported == 0) {
                     Toast.makeText(context, "No parameter presets found in file", Toast.LENGTH_LONG).show()
                 } else {
-                    onSave(updated)
-                    Toast.makeText(context, "Imported $n parameter preset${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                    onSave(res.settings)
+                    Toast.makeText(
+                        context,
+                        "Imported ${res.imported} parameter preset${if (res.imported == 1) "" else "s"}" +
+                            replacementSuffix(res.replaced),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
             "systemPrompts" -> {
@@ -1381,12 +1429,17 @@ fun ImportExportScreen(
                     Toast.makeText(context, "System prompts file is not a JSON array", Toast.LENGTH_LONG).show()
                     return@rememberLauncherForActivityResult
                 }
-                val (updated, n) = applySystemPrompts(arr, aiSettings)
-                if (n == 0) {
+                val res = applySystemPrompts(arr, aiSettings)
+                if (res.imported == 0) {
                     Toast.makeText(context, "No system prompts found in file", Toast.LENGTH_LONG).show()
                 } else {
-                    onSave(updated)
-                    Toast.makeText(context, "Imported $n system prompt${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                    onSave(res.settings)
+                    Toast.makeText(
+                        context,
+                        "Imported ${res.imported} system prompt${if (res.imported == 1) "" else "s"}" +
+                            replacementSuffix(res.replaced),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
             "modelTypeOverrides" -> {
@@ -1397,12 +1450,17 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Model overrides file is not a JSON array", Toast.LENGTH_LONG).show()
                     return@rememberLauncherForActivityResult
                 }
-                val (updated, n) = applyModelTypeOverrides(arr, aiSettings)
-                if (n == 0) {
+                val res = applyModelTypeOverrides(arr, aiSettings)
+                if (res.imported == 0) {
                     Toast.makeText(context, "No model overrides found in file", Toast.LENGTH_LONG).show()
                 } else {
-                    onSave(updated)
-                    Toast.makeText(context, "Imported $n model override${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                    onSave(res.settings)
+                    Toast.makeText(
+                        context,
+                        "Imported ${res.imported} model override${if (res.imported == 1) "" else "s"}" +
+                            replacementSuffix(res.replaced),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
             "modelCooldowns" -> {
@@ -1424,12 +1482,17 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Blocked models file is not a JSON array", Toast.LENGTH_LONG).show()
                     return@rememberLauncherForActivityResult
                 }
-                val (updated, n) = applyBlockedModels(arr, aiSettings)
-                if (n == 0) {
+                val res = applyBlockedModels(arr, aiSettings)
+                if (res.imported == 0) {
                     Toast.makeText(context, "No blocked models found in file", Toast.LENGTH_LONG).show()
                 } else {
-                    onSave(updated)
-                    Toast.makeText(context, "Imported $n blocked model${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                    onSave(res.settings)
+                    Toast.makeText(
+                        context,
+                        "Imported ${res.imported} blocked model${if (res.imported == 1) "" else "s"}" +
+                            replacementSuffix(res.replaced),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
             "testExcludedModels" -> {
@@ -1440,12 +1503,17 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Test-excluded models file is not a JSON array", Toast.LENGTH_LONG).show()
                     return@rememberLauncherForActivityResult
                 }
-                val (updated, n) = applyTestExcludedModels(arr, aiSettings)
-                if (n == 0) {
+                val res = applyTestExcludedModels(arr, aiSettings)
+                if (res.imported == 0) {
                     Toast.makeText(context, "No test-excluded models found in file", Toast.LENGTH_LONG).show()
                 } else {
-                    onSave(updated)
-                    Toast.makeText(context, "Imported $n test-excluded model${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                    onSave(res.settings)
+                    Toast.makeText(
+                        context,
+                        "Imported ${res.imported} test-excluded model${if (res.imported == 1) "" else "s"}" +
+                            replacementSuffix(res.replaced),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
             "inaccessibleModels" -> {
@@ -1456,65 +1524,55 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Inaccessible models file is not a JSON array", Toast.LENGTH_LONG).show()
                     return@rememberLauncherForActivityResult
                 }
-                val (updated, n) = applyInaccessibleModels(arr, aiSettings)
-                if (n == 0) {
+                val res = applyInaccessibleModels(arr, aiSettings)
+                if (res.imported == 0) {
                     Toast.makeText(context, "No inaccessible models found in file", Toast.LENGTH_LONG).show()
                 } else {
-                    onSave(updated)
-                    Toast.makeText(context, "Imported $n inaccessible model${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                    onSave(res.settings)
+                    Toast.makeText(
+                        context,
+                        "Imported ${res.imported} inaccessible model${if (res.imported == 1) "" else "s"}" +
+                            replacementSuffix(res.replaced),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
             "runtimeReports" -> {
-                val json = readFromUri(uri)
-                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
-                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
-                if (root == null) {
-                    Toast.makeText(context, "Reports file is not a JSON object", Toast.LENGTH_LONG).show()
-                    return@rememberLauncherForActivityResult
+                launchJsonObjectImport(uri, "Reports file is not a JSON object") { root ->
+                    val res = applyRuntimeReports(context, root)
+                    val msg = buildString {
+                        append("Added ${res.added} report")
+                        if (res.added != 1) append("s")
+                        if (res.secondaries > 0) append(" + ${res.secondaries} meta-results")
+                        if (res.skipped > 0) append(" (${res.skipped} skipped, already present)")
+                    }
+                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                 }
-                val res = applyRuntimeReports(context, root)
-                val msg = buildString {
-                    append("Added ${res.added} report")
-                    if (res.added != 1) append("s")
-                    if (res.secondaries > 0) append(" + ${res.secondaries} meta-results")
-                    if (res.skipped > 0) append(" (${res.skipped} skipped, already present)")
-                }
-                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
             "runtimeChats" -> {
-                val json = readFromUri(uri)
-                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
-                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
-                if (root == null) {
-                    Toast.makeText(context, "Chats file is not a JSON object", Toast.LENGTH_LONG).show()
-                    return@rememberLauncherForActivityResult
+                launchJsonObjectImport(uri, "Chats file is not a JSON object") { root ->
+                    val res = applyRuntimeChats(root)
+                    val msg = "Added ${res.added} chat session${if (res.added == 1) "" else "s"}" +
+                        if (res.skipped > 0) " (${res.skipped} skipped, already present)" else ""
+                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                 }
-                val res = applyRuntimeChats(root)
-                val msg = "Added ${res.added} chat session${if (res.added == 1) "" else "s"}" +
-                    if (res.skipped > 0) " (${res.skipped} skipped, already present)" else ""
-                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
             "runtimeAll" -> {
-                val json = readFromUri(uri)
-                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
-                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
-                if (root == null) {
-                    Toast.makeText(context, "Runtime file is not a JSON object", Toast.LENGTH_LONG).show()
-                    return@rememberLauncherForActivityResult
-                }
-                val rRes = if (root.has("reports")) applyRuntimeReports(context, root) else ImportReportsResult(0, 0, 0)
-                val cRes = if (root.has("chats")) applyRuntimeChats(root) else ImportChatsResult(0, 0)
-                if (rRes.added == 0 && cRes.added == 0 && rRes.skipped == 0 && cRes.skipped == 0) {
-                    Toast.makeText(context, "No runtime data found in file", Toast.LENGTH_LONG).show()
-                } else {
-                    val parts = mutableListOf<String>()
-                    if (rRes.added > 0) parts += "${rRes.added} reports"
-                    if (rRes.secondaries > 0) parts += "${rRes.secondaries} meta-results"
-                    if (cRes.added > 0) parts += "${cRes.added} chats"
-                    val skipped = rRes.skipped + cRes.skipped
-                    val msg = "Added " + (if (parts.isEmpty()) "nothing new" else parts.joinToString(", ")) +
-                        if (skipped > 0) " ($skipped skipped, already present)" else ""
-                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                launchJsonObjectImport(uri, "Runtime file is not a JSON object") { root ->
+                    val rRes = if (root.has("reports")) applyRuntimeReports(context, root) else ImportReportsResult(0, 0, 0)
+                    val cRes = if (root.has("chats")) applyRuntimeChats(root) else ImportChatsResult(0, 0)
+                    if (rRes.added == 0 && cRes.added == 0 && rRes.skipped == 0 && cRes.skipped == 0) {
+                        Toast.makeText(context, "No runtime data found in file", Toast.LENGTH_LONG).show()
+                    } else {
+                        val parts = mutableListOf<String>()
+                        if (rRes.added > 0) parts += "${rRes.added} reports"
+                        if (rRes.secondaries > 0) parts += "${rRes.secondaries} meta-results"
+                        if (cRes.added > 0) parts += "${cRes.added} chats"
+                        val skipped = rRes.skipped + cRes.skipped
+                        val msg = "Added " + (if (parts.isEmpty()) "nothing new" else parts.joinToString(", ")) +
+                            if (skipped > 0) " ($skipped skipped, already present)" else ""
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    }
                 }
             }
             "all" -> {
@@ -1524,151 +1582,164 @@ fun ImportExportScreen(
                 // same logic the standalone importers use. Settings
                 // updates are folded together (keys + prompts) so the
                 // single onSave at the end carries both.
-                val json = readFromUri(uri)
-                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
-                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
-                if (root == null) {
-                    Toast.makeText(context, "Bundle is not a JSON object", Toast.LENGTH_LONG).show()
-                    return@rememberLauncherForActivityResult
-                }
-                val parts = mutableListOf<String>()
-                var working = aiSettings
-                // Fold every GeneralSettings mutation (apiKeys block +
-                // settings block) into a single onSaveGeneral call at
-                // the end so the three external-service writes don't
-                // race on Dispatchers.IO.
-                var workingGs = generalSettings
+                launchJsonObjectImport(uri, "Bundle is not a JSON object") { root ->
+                    val parts = mutableListOf<String>()
+                    var working = aiSettings
+                    // Fold every GeneralSettings mutation (apiKeys block +
+                    // settings block) into a single onSaveGeneral call at
+                    // the end so the three external-service writes don't
+                    // race on Dispatchers.IO.
+                    var workingGs = generalSettings
 
-                root.getAsJsonObject("apiKeys")?.let { keysObj ->
+                    root.getAsJsonObject("apiKeys")?.let { keysObj ->
+                        try {
+                            val res = applyApiKeysJson(keysObj.toString(), working)
+                            if (res != null) {
+                                workingGs = workingGs.copy(
+                                    huggingFaceApiKey = res.huggingFaceApiKey ?: workingGs.huggingFaceApiKey,
+                                    openRouterApiKey = res.openRouterApiKey ?: workingGs.openRouterApiKey,
+                                    artificialAnalysisApiKey = res.artificialAnalysisApiKey ?: workingGs.artificialAnalysisApiKey
+                                )
+                                working = res.settings
+                                parts.add("${res.imported} keys")
+                            }
+                        } catch (e: Exception) {
+                            AppLog.w("ImportExport", "Bundle apiKeys section failed: ${e.message}")
+                        }
+                    }
+
                     try {
-                        val res = applyApiKeysJson(keysObj.toString(), working)
-                        if (res != null) {
-                            workingGs = workingGs.copy(
-                                huggingFaceApiKey = res.huggingFaceApiKey ?: workingGs.huggingFaceApiKey,
-                                openRouterApiKey = res.openRouterApiKey ?: workingGs.openRouterApiKey,
-                                artificialAnalysisApiKey = res.artificialAnalysisApiKey ?: workingGs.artificialAnalysisApiKey
-                            )
-                            working = res.settings
-                            parts.add("${res.imported} keys")
+                        root.getAsJsonArray("costs")?.let { arr ->
+                            var imported = 0
+                            arr.forEach { el ->
+                                val o = (el as? JsonObject) ?: return@forEach
+                                val provId = o.get("provider")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
+                                val model = o.get("model")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
+                                // Guard against non-numeric primitives ("NaN", strings):
+                                // asDouble throws NumberFormatException on those and would
+                                // otherwise abort the whole bundle import mid-flight.
+                                val inp = o.get("inputPerMillion")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+                                    ?.runCatching { asDouble }?.getOrNull()?.div(1_000_000) ?: return@forEach
+                                val outp = o.get("outputPerMillion")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+                                    ?.runCatching { asDouble }?.getOrNull()?.div(1_000_000) ?: return@forEach
+                                val provider = AppService.findById(provId) ?: return@forEach
+                                if (model.isNotBlank()) {
+                                    PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
+                                }
+                            }
+                            if (imported > 0) parts.add("$imported costs")
                         }
                     } catch (e: Exception) {
-                        AppLog.w("ImportExport", "Bundle apiKeys section failed: ${e.message}")
+                        AppLog.w("ImportExport", "Bundle costs section failed: ${e.message}")
                     }
-                }
 
-                try {
-                    root.getAsJsonArray("costs")?.let { arr ->
-                        var imported = 0
-                        arr.forEach { el ->
-                            val o = (el as? JsonObject) ?: return@forEach
-                            val provId = o.get("provider")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
-                            val model = o.get("model")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
-                            // Guard against non-numeric primitives ("NaN", strings):
-                            // asDouble throws NumberFormatException on those and would
-                            // otherwise abort the whole bundle import mid-flight.
-                            val inp = o.get("inputPerMillion")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
-                                ?.runCatching { asDouble }?.getOrNull()?.div(1_000_000) ?: return@forEach
-                            val outp = o.get("outputPerMillion")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
-                                ?.runCatching { asDouble }?.getOrNull()?.div(1_000_000) ?: return@forEach
-                            val provider = AppService.findById(provId) ?: return@forEach
-                            if (model.isNotBlank()) {
-                                PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
-                            }
+                    root.getAsJsonArray("providers")?.let { arr ->
+                        val wrapped = JsonObject().apply { add("providers", arr) }
+                        val n = ProviderRegistry.upsertFromJson(wrapped.toString())
+                        if (n > 0) parts.add("$n providers")
+                    }
+
+                    root.getAsJsonArray("prompts")?.let { arr ->
+                        val pair = com.ai.data.InternalPromptSeed.upsertFromJson(arr.toString(), working.internalPrompts)
+                        if (pair != null) {
+                            working = working.copy(internalPrompts = pair.first)
+                            if (pair.second > 0) parts.add("${pair.second} prompts")
                         }
-                        if (imported > 0) parts.add("$imported costs")
                     }
-                } catch (e: Exception) {
-                    AppLog.w("ImportExport", "Bundle costs section failed: ${e.message}")
-                }
 
-                root.getAsJsonArray("providers")?.let { arr ->
-                    val wrapped = JsonObject().apply { add("providers", arr) }
-                    val n = ProviderRegistry.upsertFromJson(wrapped.toString())
-                    if (n > 0) parts.add("$n providers")
-                }
-
-                root.getAsJsonArray("prompts")?.let { arr ->
-                    val pair = com.ai.data.InternalPromptSeed.upsertFromJson(arr.toString(), working.internalPrompts)
-                    if (pair != null) {
-                        working = working.copy(internalPrompts = pair.first)
-                        if (pair.second > 0) parts.add("${pair.second} prompts")
+                    root.getAsJsonArray("examples")?.let { arr ->
+                        val pair = com.ai.data.ExamplePromptSeed.upsertFromJson(arr.toString(), working.examplePrompts)
+                        if (pair != null) {
+                            working = working.copy(examplePrompts = pair.first)
+                            if (pair.second > 0) parts.add("${pair.second} examples")
+                        }
                     }
-                }
 
-                root.getAsJsonArray("examples")?.let { arr ->
-                    val pair = com.ai.data.ExamplePromptSeed.upsertFromJson(arr.toString(), working.examplePrompts)
-                    if (pair != null) {
-                        working = working.copy(examplePrompts = pair.first)
-                        if (pair.second > 0) parts.add("${pair.second} examples")
+                    run {
+                        val w = applyWorkers(root, working)
+                        if (!w.isEmpty()) {
+                            working = w.settings
+                            if (w.agents > 0) parts.add("${w.agents} agents")
+                            if (w.flocks > 0) parts.add("${w.flocks} flocks")
+                            if (w.swarms > 0) parts.add("${w.swarms} swarms")
+                        }
                     }
-                }
 
-                run {
-                    val w = applyWorkers(root, working)
-                    if (!w.isEmpty()) {
-                        working = w.settings
-                        if (w.agents > 0) parts.add("${w.agents} agents")
-                        if (w.flocks > 0) parts.add("${w.flocks} flocks")
-                        if (w.swarms > 0) parts.add("${w.swarms} swarms")
+                    root.getAsJsonObject("settings")?.let { obj ->
+                        workingGs = applyGeneralSettings(obj, workingGs, context)
+                        parts.add("settings")
                     }
-                }
 
-                root.getAsJsonObject("settings")?.let { obj ->
-                    workingGs = applyGeneralSettings(obj, workingGs, context)
-                    parts.add("settings")
-                }
+                    root.getAsJsonObject("modelLists")?.let { obj ->
+                        val (updated, n) = applyModelLists(obj, working)
+                        if (n > 0) { working = updated; parts.add("$n model lists") }
+                    }
 
-                root.getAsJsonObject("modelLists")?.let { obj ->
-                    val (updated, n) = applyModelLists(obj, working)
-                    if (n > 0) { working = updated; parts.add("$n model lists") }
-                }
+                    root.getAsJsonObject("endpoints")?.let { obj ->
+                        val (updated, n) = applyEndpoints(obj, working)
+                        if (n > 0) { working = updated; parts.add("$n endpoints") }
+                    }
 
-                root.getAsJsonObject("endpoints")?.let { obj ->
-                    val (updated, n) = applyEndpoints(obj, working)
-                    if (n > 0) { working = updated; parts.add("$n endpoints") }
-                }
+                    root.getAsJsonArray("parameters")?.let { arr ->
+                        val res = applyParameters(arr, working)
+                        if (res.imported > 0) {
+                            working = res.settings
+                            parts.add(importPart(res.imported, "parameters", res.replaced))
+                        }
+                    }
 
-                root.getAsJsonArray("parameters")?.let { arr ->
-                    val (updated, n) = applyParameters(arr, working)
-                    if (n > 0) { working = updated; parts.add("$n parameters") }
-                }
+                    root.getAsJsonArray("systemPrompts")?.let { arr ->
+                        val res = applySystemPrompts(arr, working)
+                        if (res.imported > 0) {
+                            working = res.settings
+                            parts.add(importPart(res.imported, "system prompts", res.replaced))
+                        }
+                    }
 
-                root.getAsJsonArray("systemPrompts")?.let { arr ->
-                    val (updated, n) = applySystemPrompts(arr, working)
-                    if (n > 0) { working = updated; parts.add("$n system prompts") }
-                }
+                    root.getAsJsonArray("modelTypeOverrides")?.let { arr ->
+                        val res = applyModelTypeOverrides(arr, working)
+                        if (res.imported > 0) {
+                            working = res.settings
+                            parts.add(importPart(res.imported, "model overrides", res.replaced))
+                        }
+                    }
 
-                root.getAsJsonArray("modelTypeOverrides")?.let { arr ->
-                    val (updated, n) = applyModelTypeOverrides(arr, working)
-                    if (n > 0) { working = updated; parts.add("$n model overrides") }
-                }
+                    root.getAsJsonObject("modelCooldowns")?.let { obj ->
+                        val n = applyModelCooldowns(obj)
+                        if (n > 0) parts.add("$n model cooldowns")
+                    }
 
-                root.getAsJsonObject("modelCooldowns")?.let { obj ->
-                    val n = applyModelCooldowns(obj)
-                    if (n > 0) parts.add("$n model cooldowns")
-                }
+                    root.getAsJsonArray("blockedModels")?.let { arr ->
+                        val res = applyBlockedModels(arr, working)
+                        if (res.imported > 0) {
+                            working = res.settings
+                            parts.add(importPart(res.imported, "blocked models", res.replaced))
+                        }
+                    }
 
-                root.getAsJsonArray("blockedModels")?.let { arr ->
-                    val (updated, n) = applyBlockedModels(arr, working)
-                    if (n > 0) { working = updated; parts.add("$n blocked models") }
-                }
+                    root.getAsJsonArray("testExcludedModels")?.let { arr ->
+                        val res = applyTestExcludedModels(arr, working)
+                        if (res.imported > 0) {
+                            working = res.settings
+                            parts.add(importPart(res.imported, "test-excluded models", res.replaced))
+                        }
+                    }
 
-                root.getAsJsonArray("testExcludedModels")?.let { arr ->
-                    val (updated, n) = applyTestExcludedModels(arr, working)
-                    if (n > 0) { working = updated; parts.add("$n test-excluded models") }
-                }
+                    root.getAsJsonArray("inaccessibleModels")?.let { arr ->
+                        val res = applyInaccessibleModels(arr, working)
+                        if (res.imported > 0) {
+                            working = res.settings
+                            parts.add(importPart(res.imported, "inaccessible models", res.replaced))
+                        }
+                    }
 
-                root.getAsJsonArray("inaccessibleModels")?.let { arr ->
-                    val (updated, n) = applyInaccessibleModels(arr, working)
-                    if (n > 0) { working = updated; parts.add("$n inaccessible models") }
-                }
-
-                if (workingGs != generalSettings) onSaveGeneral(workingGs)
-                if (working != aiSettings) onSave(working)
-                if (parts.isEmpty()) {
-                    Toast.makeText(context, "Bundle had no recognised sections", Toast.LENGTH_LONG).show()
-                } else {
-                    restartMessage = "Imported: " + parts.joinToString(", ")
+                    if (workingGs != generalSettings) onSaveGeneral(workingGs)
+                    if (working != aiSettings) onSave(working)
+                    if (parts.isEmpty()) {
+                        Toast.makeText(context, "Bundle had no recognised sections", Toast.LENGTH_LONG).show()
+                    } else {
+                        restartMessage = "Imported: " + parts.joinToString(", ")
+                    }
                 }
             }
         }

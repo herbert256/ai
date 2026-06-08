@@ -183,19 +183,22 @@ fun InternalPromptEditScreen(
         mutableStateOf(internalPrompt?.modelSelection ?: com.ai.model.MODEL_SELECTION_CONFIGURED)
     }
     val showModelSelectionSwitch = internalPromptSupportsModelSelection(category, name)
-    // Per-prompt Parameters / System-prompt preset NAMES ("*NONE" = unset).
-    var selectedParametersName by remember(resetTick) { mutableStateOf(internalPrompt?.parameters ?: "*NONE") }
-    var selectedSystemPromptName by remember(resetTick) { mutableStateOf(internalPrompt?.systemPrompt ?: "*NONE") }
+    // Per-prompt Parameters / System-prompt refs ("*NONE" = unset).
+    // New edits store stable ids; legacy rows with names still resolve.
+    var selectedParametersRef by remember(resetTick) { mutableStateOf(internalPrompt?.parameters ?: "*NONE") }
+    var selectedSystemPromptRef by remember(resetTick) { mutableStateOf(internalPrompt?.systemPrompt ?: "*NONE") }
+    val selectedParametersLabel = aiSettings.getParametersByIdOrName(selectedParametersRef)?.name
+    val selectedSystemPromptLabel = aiSettings.getSystemPromptByIdOrName(selectedSystemPromptRef)?.name
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSysPromptDialog by remember { mutableStateOf(false) }
     if (showParamsDialog) {
-        // The prompt stores a single preset NAME; the multi-select
-        // screen hands back ids — take the first → its name.
+        // The prompt stores a single preset ref; the multi-select
+        // screen hands back ids — take the first and persist the id.
         com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings,
-            selectedIds = aiSettings.parameters.firstOrNull { it.name == selectedParametersName }?.id?.let { listOf(it) } ?: emptyList(),
+            selectedIds = aiSettings.getParametersByIdOrName(selectedParametersRef)?.id?.let { listOf(it) } ?: emptyList(),
             onConfirm = { ids ->
-                selectedParametersName = ids.firstNotNullOfOrNull { id -> aiSettings.parameters.firstOrNull { it.id == id }?.name } ?: "*NONE"
+                selectedParametersRef = ids.firstOrNull() ?: "*NONE"
             },
             onBack = { showParamsDialog = false }, onNavigateHome = onNavigateHome
         )
@@ -204,9 +207,9 @@ fun InternalPromptEditScreen(
     if (showSysPromptDialog) {
         com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings,
-            selectedId = aiSettings.systemPrompts.firstOrNull { it.name == selectedSystemPromptName }?.id,
+            selectedId = aiSettings.getSystemPromptByIdOrName(selectedSystemPromptRef)?.id,
             onSelect = { id ->
-                selectedSystemPromptName = id?.let { sid -> aiSettings.systemPrompts.firstOrNull { it.id == sid }?.name } ?: "*NONE"
+                selectedSystemPromptRef = id ?: "*NONE"
             },
             onBack = { showSysPromptDialog = false }, onNavigateHome = onNavigateHome
         )
@@ -269,8 +272,8 @@ fun InternalPromptEditScreen(
             text = text, title = title.trim(),
             provider = if (!isWorkers && pmActive) providerId else null,
             model = if (!isWorkers && pmActive) model else null,
-            parameters = selectedParametersName,
-            systemPrompt = selectedSystemPromptName,
+            parameters = selectedParametersRef,
+            systemPrompt = selectedSystemPromptRef,
             workers = if (isWorkers) workers else emptyList(),
             modelSelection = if (showModelSelectionSwitch) selectedModelSelection else com.ai.model.MODEL_SELECTION_CONFIGURED
         )
@@ -515,27 +518,27 @@ fun InternalPromptEditScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("${com.ai.data.MetadataIconsHolder.current.parameters} ", fontSize = 14.sp)
                     Text(
-                        if (selectedParametersName == "*NONE") "No parameters preset" else selectedParametersName,
+                        selectedParametersLabel ?: "No parameters preset",
                         modifier = Modifier.weight(1f), fontSize = 13.sp,
-                        color = if (selectedParametersName == "*NONE") AppColors.TextTertiary else AppColors.TextPrimary,
+                        color = if (selectedParametersLabel == null) AppColors.TextTertiary else AppColors.TextPrimary,
                         fontFamily = FontFamily.Monospace
                     )
-                    if (selectedParametersName != "*NONE") {
+                    if (selectedParametersRef != "*NONE") {
                         Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.DangerAccent, fontSize = 16.sp,
-                            modifier = Modifier.clickable { selectedParametersName = "*NONE" }.padding(horizontal = 8.dp))
+                            modifier = Modifier.clickable { selectedParametersRef = "*NONE" }.padding(horizontal = 8.dp))
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("${com.ai.data.MetadataIconsHolder.current.systemPrompt} ", fontSize = 14.sp)
                     Text(
-                        if (selectedSystemPromptName == "*NONE") "No system prompt" else selectedSystemPromptName,
+                        selectedSystemPromptLabel ?: "No system prompt",
                         modifier = Modifier.weight(1f), fontSize = 13.sp,
-                        color = if (selectedSystemPromptName == "*NONE") AppColors.TextTertiary else AppColors.TextPrimary,
+                        color = if (selectedSystemPromptLabel == null) AppColors.TextTertiary else AppColors.TextPrimary,
                         fontFamily = FontFamily.Monospace
                     )
-                    if (selectedSystemPromptName != "*NONE") {
+                    if (selectedSystemPromptRef != "*NONE") {
                         Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.DangerAccent, fontSize = 16.sp,
-                            modifier = Modifier.clickable { selectedSystemPromptName = "*NONE" }.padding(horizontal = 8.dp))
+                            modifier = Modifier.clickable { selectedSystemPromptRef = "*NONE" }.padding(horizontal = 8.dp))
                     }
                 }
                 Text(

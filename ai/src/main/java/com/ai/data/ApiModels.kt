@@ -848,17 +848,19 @@ data class HuggingFaceSibling(val rfilename: String? = null)
 // outputTokens) where inputTokens is the *uncached* portion only.
 // ============================================================================
 
-/** OpenAI / DeepSeek / xAI / Gemini-compat: prompt_tokens is the total and
- *  includes cached tokens. We subtract the cached count to get the fresh
- *  bucket. DeepSeek uses prompt_cache_hit_tokens / prompt_cache_miss_tokens;
- *  OpenAI uses prompt_tokens_details.cached_tokens. */
+/** OpenAI-compatible usage shapes differ by provider. Most providers report
+ *  prompt_tokens as a cached-inclusive total, so we subtract the cached count
+ *  to get the fresh bucket. Providers such as xAI flatten cached_tokens while
+ *  keeping prompt_tokens as fresh input; their provider definition sets
+ *  promptTokensIncludeCachedTokens=false so fresh input passes through. */
 fun OpenAiUsage.toTokenUsage(provider: AppService? = null): TokenUsage {
     val total = prompt_tokens ?: input_tokens ?: 0
     val cached = prompt_tokens_details?.cached_tokens
-        ?: cached_tokens
         ?: prompt_cache_hit_tokens
+        ?: cached_tokens
         ?: 0
-    val fresh = (total - cached).coerceAtLeast(0)
+    val fresh = prompt_cache_miss_tokens
+        ?: if (provider?.promptTokensIncludeCachedTokens == false) total else (total - cached).coerceAtLeast(0)
     return TokenUsage(
         inputTokens = fresh,
         outputTokens = completion_tokens ?: output_tokens ?: 0,

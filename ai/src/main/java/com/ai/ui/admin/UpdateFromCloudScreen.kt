@@ -28,14 +28,13 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
@@ -83,16 +82,10 @@ fun UpdateFromCloudScreen(
     var apkUriString by remember { mutableStateOf(prefs.getString(KEY_URI, null)) }
     var lastStatus by remember { mutableStateOf<String?>(null) }
     var isInstalling by remember { mutableStateOf(false) }
-    // 5-second polling tick — drives the Source-file card to
-    // re-query the DocumentsProvider so a freshly-synced APK
-    // surfaces its new mtime without the user touching anything.
-    var sourceTick by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(5_000L)
-            sourceTick++
-        }
-    }
+    // Bumped only when a user action can change the picked source's
+    // visible metadata. Avoids waking cloud-backed DocumentsProviders
+    // every few seconds while this screen is merely open.
+    var sourceRefreshTick by remember { mutableIntStateOf(0) }
 
     val driveInstalled = remember { isPackageInstalled(context, DRIVE_PKG) }
     val installedVersion = remember { thisAppVersion(context) }
@@ -117,6 +110,7 @@ fun UpdateFromCloudScreen(
             val str = uri.toString()
             prefs.edit().putString(KEY_URI, str).apply()
             apkUriString = str
+            sourceRefreshTick++
             lastStatus = "Source file set."
         }
     }
@@ -150,6 +144,7 @@ fun UpdateFromCloudScreen(
                     val ok = cacheFile != null && fireInstallIntent(context, cacheFile)
                     lastStatus = if (ok) "Update launched — confirm in the system dialog."
                                  else "Couldn't read the source file — re-pick required."
+                    sourceRefreshTick++
                     isInstalling = false
                 }
             },
@@ -190,9 +185,9 @@ fun UpdateFromCloudScreen(
                 }
             }
 
-            // Currently-pointed-at source file. produceState would be
-            // cleaner but the metadata is cheap — read on every recompose
-            // (re-reads are <1 ms via ContentResolver.query).
+            // Currently-pointed-at source file. Metadata is queried once
+            // per picked URI / explicit refresh on IO; no background
+            // polling against cloud DocumentsProviders.
             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Source file", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -200,18 +195,29 @@ fun UpdateFromCloudScreen(
                     if (uriStr == null) {
                         Text("(none picked yet)", color = AppColors.TextTertiary, fontSize = 13.sp)
                     } else {
-                        val info = remember(uriStr, sourceTick) { queryDocumentInfo(context, Uri.parse(uriStr)) }
-                        if (info == null) {
-                            Text(
+                        val infoState by produceState<DocInfoState>(
+                            initialValue = DocInfoState.Loading,
+                            uriStr,
+                            sourceRefreshTick
+                        ) {
+                            value = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                queryDocumentInfo(context, Uri.parse(uriStr))
+                            }?.let { DocInfoState.Loaded(it) } ?: DocInfoState.Missing
+                        }
+                        when (val state = infoState) {
+                            DocInfoState.Loading -> Text("Checking source…", color = AppColors.TextTertiary, fontSize = 13.sp)
+                            DocInfoState.Missing -> Text(
                                 "(source no longer accessible — re-pick required)",
                                 color = AppColors.WarningAccent, fontSize = 13.sp
                             )
-                        } else {
-                            Text(info.displayName, color = AppColors.TextPrimary, fontSize = 13.sp)
-                            Text(
-                                "${formatBytes(info.size)} · modified ${formatDate(info.lastModified)}",
-                                color = AppColors.TextTertiary, fontSize = 11.sp, fontFamily = FontFamily.Monospace
-                            )
+                            is DocInfoState.Loaded -> {
+                                val info = state.info
+                                Text(info.displayName, color = AppColors.TextPrimary, fontSize = 13.sp)
+                                Text(
+                                    "${formatBytes(info.size)} · modified ${formatDate(info.lastModified)}",
+                                    color = AppColors.TextTertiary, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+                                )
+                            }
                         }
                     }
                 }
@@ -291,6 +297,12 @@ fun UpdateFromCloudScreen(
 }
 
 private data class DocInfo(val displayName: String, val size: Long, val lastModified: Long)
+
+private sealed class DocInfoState {
+    data object Loading : DocInfoState()
+    data object Missing : DocInfoState()
+    data class Loaded(val info: DocInfo) : DocInfoState()
+}
 
 /** Query a SAF URI for display name + size + last-modified. Returns
  *  null when the URI is no longer accessible (provider gone, file

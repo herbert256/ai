@@ -46,6 +46,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 // ===== Parameters Screen =====
 
@@ -172,6 +173,9 @@ private data class FlaggedState(
     val img: Pair<String, String>?,
     val traceFilename: String?
 )
+
+private fun chatMessageListKey(message: ChatMessage, index: Int): String =
+    message.id ?: "legacy_${message.role}_${message.timestamp}_${message.content.hashCode()}_$index"
 
 /** Saver that lets the flagged-dialog state survive a navigation
  *  round-trip (e.g. tapping the 🐞 trace icon and pressing back).
@@ -328,6 +332,7 @@ fun ChatSessionScreen(
     }
     var totalInputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.first) }
     var totalOutputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.second) }
+    var totalCostHasUpperBoundEstimate by remember(currentSessionId) { mutableStateOf(false) }
     // (mime, base64) of an image attached to the next user message.
     // rememberSaveable via a Saver so a rotation / process-recreation
     // between picking the image and tapping Send doesn't drop it.
@@ -422,6 +427,13 @@ fun ChatSessionScreen(
         derivedStateOf {
             (totalInputTokens * pricing.promptPrice + totalOutputTokens * pricing.completionPrice) * 100
         }
+    }
+    val totalCostSubject = when {
+        totalCost <= 0.0 -> null
+        totalCostHasUpperBoundEstimate && totalCost < 0.01 -> "≤0.01c"
+        totalCostHasUpperBoundEstimate -> "≤%.2fc".format(Locale.US, totalCost)
+        totalCost < 0.01 -> "<0.01c"
+        else -> "%.2fc".format(Locale.US, totalCost)
     }
 
     // Load the persisted session record ONCE on entry rather than calling
@@ -519,6 +531,39 @@ fun ChatSessionScreen(
     // Auto-scroll — parent only reads messages.size and isStreaming (booleans); chunk updates
     // are observed via snapshotFlow so the parent doesn't recompose per chunk.
     val displayMessages = remember(messages) { messages.filter { it.role != "system" } }
+    val traceVersion by com.ai.data.ApiTracer.traceVersion.collectAsState()
+    val traceFilenameByMessageKey by produceState<Map<String, String>>(
+        initialValue = emptyMap(),
+        displayMessages,
+        model,
+        currentSessionId,
+        traceVersion
+    ) {
+        value = if (model.isBlank()) {
+            emptyMap()
+        } else {
+            withContext(Dispatchers.IO) {
+                val all = com.ai.data.ApiTracer.getTraceFiles().filter { it.model == model }
+                val scoped = all.filter { it.reportId == currentSessionId }
+                val legacy = all.filter { it.reportId == null }
+                val candidates = scoped.ifEmpty { legacy }
+                if (candidates.isEmpty()) {
+                    emptyMap()
+                } else {
+                    displayMessages.mapIndexedNotNull { index, msg ->
+                        if (msg.role == "user") {
+                            null
+                        } else {
+                            val filename = candidates
+                                .minByOrNull { kotlin.math.abs(it.timestamp - msg.timestamp) }
+                                ?.filename
+                            filename?.let { chatMessageListKey(msg, index) to it }
+                        }
+                    }.toMap()
+                }
+            }
+        }
+    }
     val bottomItemCount = displayMessages.size + (if (isStreaming) 1 else 0)
     LaunchedEffect(bottomItemCount) {
         if (bottomItemCount > 0) listState.animateScrollToItem(bottomItemCount - 1)
@@ -558,12 +603,6 @@ fun ChatSessionScreen(
         }
         saveSession(messages)
 
-        // Add LiteLLM-reported tool_use overhead when web-search is on so
-        // the client-side cost estimate isn't 5–10× under the actual bill
-        // for tool-using turns (Claude with web_search adds ~3-4k system
-        // tokens; the conversation text alone misses that).
-        val toolOverhead = if (useWebSearch) (PricingCache.liteLLMToolUseOverhead(provider, model) ?: 0) else 0
-        val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) } + toolOverhead
         // Snapshot the per-turn flags + attachments at entry. The
         // coroutine below captures these by-reference; if the user
         // toggles 🌐 / changes 📚 selection / changes 🧠 effort while
@@ -574,6 +613,15 @@ fun ChatSessionScreen(
         val sentReasoning = reasoningEffort
         val sentKbIds = attachedKnowledgeBaseIds
         val sentMessages = messages
+        // Add LiteLLM-reported tool_use overhead when web-search is on so
+        // the client-side cost estimate isn't 5–10× under the actual bill
+        // for tool-using turns (Claude with web_search adds ~3-4k system
+        // tokens; the conversation text alone misses that). Chat streaming
+        // exposes text chunks only, not a final "tool actually ran" flag, so
+        // this is an upper-bound estimate and the title cost gets a ≤ prefix.
+        val toolOverhead = if (sentWebSearch) (PricingCache.liteLLMToolUseOverhead(provider, model) ?: 0) else 0
+        val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) } + toolOverhead
+        val inputTokensAreUpperBound = toolOverhead > 0
 
         scope.launch {
             isStreaming = true; streamingContentState.value = ""
@@ -598,6 +646,7 @@ fun ChatSessionScreen(
                 val outputTokens = AppViewModel.estimateTokens(finalContent)
                 totalInputTokens += inputTokens
                 totalOutputTokens += outputTokens
+                if (inputTokensAreUpperBound) totalCostHasUpperBoundEstimate = true
                 onRecordStatistics(inputTokens, outputTokens)
                 // After the very first assistant response, kick off a
                 // background DeepSeek call (chat_title internal prompt)
@@ -616,6 +665,11 @@ fun ChatSessionScreen(
                         onTitleResolved = { newTitle ->
                             sessionTitle = newTitle
                             saveSession(messages)
+                        },
+                        onUsageResolved = { inputTokens, outputTokens ->
+                            totalInputTokens += inputTokens
+                            totalOutputTokens += outputTokens
+                            onRecordStatistics(inputTokens, outputTokens)
                         }
                     )
                 }
@@ -634,6 +688,7 @@ fun ChatSessionScreen(
                     val outputTokens = AppViewModel.estimateTokens(partialContent)
                     totalInputTokens += inputTokens
                     totalOutputTokens += outputTokens
+                    if (inputTokensAreUpperBound) totalCostHasUpperBoundEstimate = true
                     onRecordStatistics(inputTokens, outputTokens)
                 }
             } finally {
@@ -668,25 +723,17 @@ fun ChatSessionScreen(
                 com.ai.data.withTraceCategory("Chat validate input") {
                     val (modProvider, modModelId) = mod
                     val apiKey = aiSettings.getApiKey(modProvider)
-                    // Snapshot the wall clock just before the call so we can
-                    // pick out the resulting trace by "model match + timestamp
-                    // ≥ this value" — avoids grabbing an earlier trace of the
-                    // same model from a previous turn.
-                    val callStart = System.currentTimeMillis()
-                    val (results, apiResult) = com.ai.data.callModerationApi(modProvider, apiKey, modModelId, listOf(input))
+                    val traceSink = java.util.concurrent.atomic.AtomicReference<String?>()
+                    val (results, apiResult) = com.ai.data.withTraceFilenameSink(traceSink) {
+                        com.ai.data.callModerationApi(modProvider, apiKey, modModelId, listOf(input))
+                    }
                     val r = results?.firstOrNull()
                     if (apiResult.errorMessage != null || r == null) {
                         moderationError = apiResult.errorMessage ?: "No moderation result"
                         handedOffToSend = true
                         actuallySend(input, img)
                     } else if (r.flagged) {
-                        val traceFilename = withContext(Dispatchers.IO) {
-                            com.ai.data.ApiTracer.getTraceFiles()
-                                .filter { it.reportId == null && it.model == modModelId && it.timestamp >= callStart }
-                                .minByOrNull { it.timestamp }
-                                ?.filename
-                        }
-                        pendingFlagged = FlaggedState(input, r, img, traceFilename)
+                        pendingFlagged = FlaggedState(input, r, img, traceSink.get())
                     } else {
                         handedOffToSend = true
                         actuallySend(input, img)
@@ -715,9 +762,7 @@ fun ChatSessionScreen(
             // alongside the "Chat" title in BOTH mode or replaces it
             // in SUBJECT mode. Sub-cent costs render "<0.01c" so a
             // tiny cost reads differently from a literal zero.
-            subject = if (totalCost > 0) {
-                if (totalCost < 0.01) "<0.01c" else "%.2fc".format(totalCost)
-            } else null,
+            subject = totalCostSubject,
             onInfo = { navToModelInfo(provider, model) }
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -789,16 +834,19 @@ fun ChatSessionScreen(
                 ) {
                     items(
                         displayMessages.size,
-                        // Stable, non-positional key: role + timestamp + content
-                        // hash. Including the list index made the key positional,
-                        // so any insertion re-keyed every following item and forced
-                        // full re-composition. The content hash disambiguates two
-                        // messages that share role+timestamp (system + first user
-                        // seeded in the same ms).
-                        key = { "${displayMessages[it].role}_${displayMessages[it].timestamp}_${displayMessages[it].content.hashCode()}" }
+                        // New messages carry a persisted UUID. Legacy
+                        // sessions saved before that field fall back to a
+                        // composite plus index so duplicate old rows cannot
+                        // collide and crash LazyColumn.
+                        key = { chatMessageListKey(displayMessages[it], it) }
                     ) { idx ->
                         val msg = displayMessages[idx]
-                        ChatMessageBubble(msg, userName, model, onNavigateToTraceFile, currentSessionId)
+                        ChatMessageBubble(
+                            message = msg,
+                            userName = userName,
+                            traceFilename = traceFilenameByMessageKey[chatMessageListKey(msg, idx)],
+                            onNavigateToTraceFile = onNavigateToTraceFile
+                        )
                     }
                     if (isStreaming) {
                         item(key = "streaming") {
@@ -1047,27 +1095,10 @@ fun ChatSessionScreen(
 private fun ChatMessageBubble(
     message: ChatMessage,
     userName: String = "You",
-    model: String = "",
+    traceFilename: String? = null,
     onNavigateToTraceFile: (String) -> Unit = {},
-    sessionId: String = ""
 ) {
     val isUser = message.role == "user"
-    // For assistant messages, look up the trace file recorded by the
-    // OkHttp interceptor for this session's model. Match heuristic:
-    // traces are now tagged with this session's id (reportId slot), so
-    // filter on it + model, then pick the closest timestamp to the
-    // message — this keeps the match within the session instead of
-    // pulling in another session's trace for the same model. Falls back
-    // to untagged (reportId == null) traces from before this fix.
-    val traceFilenameState = if (isUser || model.isBlank()) null
-        else produceState<String?>(initialValue = null, message.timestamp, model, sessionId) {
-            value = withContext(Dispatchers.IO) {
-                val all = com.ai.data.ApiTracer.getTraceFiles().filter { it.model == model }
-                val scoped = all.filter { it.reportId == sessionId }
-                val candidates = scoped.ifEmpty { all.filter { it.reportId == null } }
-                candidates.minByOrNull { kotlin.math.abs(it.timestamp - message.timestamp) }?.filename
-            }
-        }
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
@@ -1090,7 +1121,6 @@ private fun ChatMessageBubble(
                 // suppressed wholesale when API tracing is off in
                 // Settings — old recordings stay on disk but the icons
                 // disappear.
-                val traceFilename = traceFilenameState?.value
                 if (ApiTracer.ladybugLinksEnabled && traceFilename != null) {
                     Text(
                         com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
@@ -1213,7 +1243,8 @@ private fun kickOffChatTitleGeneration(
     aiSettings: Settings,
     userPrompt: String,
     assistantResponse: String,
-    onTitleResolved: (String) -> Unit
+    onTitleResolved: (String) -> Unit,
+    onUsageResolved: suspend (Int, Int) -> Unit
 ) {
     val prompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "internal" && it.name.equals("chat-title", ignoreCase = true)
@@ -1234,6 +1265,15 @@ private fun kickOffChatTitleGeneration(
                     agent, "", resolved, AgentParameters(),
                     null, context, baseUrl
                 )
+                if (response.error == null) {
+                    response.tokenUsage?.let { usage ->
+                        val inputTokens = usage.inputTokens + usage.cachedInputTokens + usage.cacheCreationTokens
+                        val outputTokens = usage.outputTokens + usage.reasoningTokens
+                        if (inputTokens > 0 || outputTokens > 0) {
+                            withContext(Dispatchers.Main) { onUsageResolved(inputTokens, outputTokens) }
+                        }
+                    }
+                }
                 val raw = response.analysis?.trim().orEmpty()
                 if (response.error != null || raw.isEmpty()) return@runCatching
                 // Strip surrounding quotes / trailing period that some

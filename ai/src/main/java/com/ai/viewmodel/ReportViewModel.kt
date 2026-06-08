@@ -2097,11 +2097,25 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withTracerTags(reportId = reportId, category = "Report info regenerate") {
                 when (kind) {
                     MetaRegenKind.REPORT_TITLE_SHORT -> {
-                        com.ai.data.MetaCache.remove("report/title-short", report.prompt)
+                        val prompt = ai.internalPrompts.firstOrNull {
+                            it.category == "workers" && it.name == "report-title-short"
+                        }
+                        com.ai.data.MetaCache.remove(
+                            "report/title-short",
+                            report.prompt,
+                            metaCacheVariantForInternalPrompt(prompt, ai)
+                        )
                         iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = false)
                     }
                     MetaRegenKind.REPORT_TITLE_LONG -> {
-                        com.ai.data.MetaCache.remove("report/title-long", report.prompt)
+                        val prompt = ai.internalPrompts.firstOrNull {
+                            it.category == "workers" && it.name == "report-title-long"
+                        }
+                        com.ai.data.MetaCache.remove(
+                            "report/title-long",
+                            report.prompt,
+                            metaCacheVariantForInternalPrompt(prompt, ai)
+                        )
                         iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = false)
                     }
                     MetaRegenKind.REPORT_ICON ->
@@ -2109,8 +2123,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     MetaRegenKind.LANGUAGE_NAME ->
                         iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
                     MetaRegenKind.LANGUAGE_ICON -> {
-                        report.languageName?.takeIf { it.isNotBlank() }
-                            ?.let { com.ai.data.MetaCache.remove("language-icon", it) }
+                        val iconPrompt = ai.internalPrompts.firstOrNull {
+                            it.category == "workers" && it.name == "report-language-icon"
+                        }?.let {
+                            if (report.useReportModelsAsWorkers) it.copy(workers = reportModelWorkers(report)) else it
+                        }
+                        report.languageName?.takeIf { it.isNotBlank() }?.let {
+                            com.ai.data.MetaCache.remove(
+                                "language-icon",
+                                it,
+                                metaCacheVariantForInternalPrompt(iconPrompt, ai)
+                            )
+                        }
                         iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
                     }
                     MetaRegenKind.MODEL_TITLE -> {

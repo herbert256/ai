@@ -18,7 +18,8 @@ import kotlin.concurrent.withLock
  *
  * Entries expire after [EXPIRY_MS] (7 days) — meta results are cheap to
  * regenerate and model quality drifts, so a stale entry self-heals on
- * the next miss. The cache key is the MD5 of `category␟input`: MD5 keeps
+ * the next miss. The cache key is the MD5 of `category␟input` or
+ * `category␟variant␟input`: MD5 keeps
  * arbitrarily long inputs (a whole prompt body) to a fixed-size,
  * filesystem-safe key, and the category prefix keeps the title and icon
  * namespaces from colliding on the same input.
@@ -59,8 +60,8 @@ object MetaCache {
 
     /** Cached value for ([category], [input]) when present and younger
      *  than [EXPIRY_MS]; null otherwise (and an expired hit is evicted). */
-    fun get(category: String, input: String): String? = lock.withLock {
-        val key = keyOf(category, input)
+    fun get(category: String, input: String, variant: String = ""): String? = lock.withLock {
+        val key = keyOf(category, input, variant)
         val e = map[key] ?: return@withLock null
         if (System.currentTimeMillis() - e.timestamp >= EXPIRY_MS) {
             map.remove(key); saveLocked(); return@withLock null
@@ -68,10 +69,10 @@ object MetaCache {
         e.value
     }
 
-    fun put(category: String, input: String, value: String) {
+    fun put(category: String, input: String, value: String, variant: String = "") {
         if (value.isBlank()) return
         lock.withLock {
-            map[keyOf(category, input)] = Entry(value, System.currentTimeMillis())
+            map[keyOf(category, input, variant)] = Entry(value, System.currentTimeMillis())
             saveLocked()
         }
     }
@@ -81,8 +82,8 @@ object MetaCache {
      *  Report - Get info detail screens (titles + language icon are cached,
      *  so a reload must evict the entry to actually regenerate). No-op when
      *  the entry isn't present. */
-    fun remove(category: String, input: String) = lock.withLock {
-        if (map.remove(keyOf(category, input)) != null) saveLocked()
+    fun remove(category: String, input: String, variant: String = "") = lock.withLock {
+        if (map.remove(keyOf(category, input, variant)) != null) saveLocked()
     }
 
     /** One entry as shown on the Caches → Meta screen. The input text isn't
@@ -112,8 +113,9 @@ object MetaCache {
         n
     }
 
-    private fun keyOf(category: String, input: String): String {
-        val digest = MessageDigest.getInstance("MD5").digest("$category$SEP$input".toByteArray())
+    private fun keyOf(category: String, input: String, variant: String): String {
+        val raw = if (variant.isBlank()) "$category$SEP$input" else "$category$SEP$variant$SEP$input"
+        val digest = MessageDigest.getInstance("MD5").digest(raw.toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
     }
 

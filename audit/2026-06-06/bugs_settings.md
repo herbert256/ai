@@ -119,14 +119,14 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Every JSON import branch reads the picked file with `readFromUri` synchronously on the main thread inside the SAF result callback. The comment claims "tiny sync JSON reads", but the All / runtime-All / reports bundles can be large and block the UI.
 **Root cause:** Only the zip flows use `Dispatchers.IO`; the JSON branches do not.
 **Proposed fix:** Read + parse the larger bundle imports off the main thread.
-**Status:** Open
+**Status:** Fixed — runtime report/chat/all imports and the full config bundle now use a shared coroutine helper that reads and parses the picked JSON object on `Dispatchers.IO`, then resumes on main for the existing save/toast flow.
 
 ### Bug 13 — Severity: LOW — Category: silent overwrite on re-import
 **Location:** ImportExportScreen.kt:626-636 (`applyParameters`), 673-683 (`applySystemPrompts`), and the other `apply*` upsert helpers
 **Symptom:** Importing a parameters/system-prompts file upserts by `id`: a row whose id matches an existing preset **replaces** it. A user who exported, then locally edited a preset, then re-imports the old file silently loses the edit with no conflict prompt.
 **Root cause:** `merged = working.X.filterNot { it.id in incomingIds } + incoming` — incoming always wins, no merge/conflict surface.
 **Proposed fix:** Acceptable for device-sync, but consider skip-if-present (additive) or a conflict count in the toast so silent overwrite is visible.
-**Status:** Open
+**Status:** Fixed — id/key-based imports still upsert for device-sync compatibility, but parameters, system prompts, model overrides, blocked models, test-excluded models, and inaccessible models now count replaced rows and show that count in standalone import toasts and full-bundle summaries.
 
 ---
 
@@ -224,14 +224,14 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** After a long catalog fetch, the capability recompute saves `aiSettings.recomputeAllCapabilities()` where `aiSettings` is the snapshot captured at composition. Any unrelated settings change committed during the fetch window is rolled back by this save.
 **Root cause:** The lambda closes over the composition-time `aiSettings` rather than re-reading the latest.
 **Proposed fix:** Re-read the current settings inside the save, or fold the recompute into the VM with the live snapshot.
-**Status:** Open
+**Status:** Fixed — the LiteLLM and models.dev refresh callbacks now recompute capabilities from `rememberUpdatedState(aiSettings)` after the long fetch completes, avoiding saves based on the composition-time settings snapshot.
 
 ### Bug 24 — Severity: LOW — Category: non-cancelable modal / state loss
 **Location:** RefreshScreen.kt:62-73,92-98,146-317 (per-tier result vars + `showXDialog`, all plain `remember`)
 **Symptom:** (a) The in-progress `AlertDialog` has `onDismissRequest = {}` and an empty `confirmButton`, so a hung fetch leaves a non-dismissable spinner. (b) The per-tier result objects and `showXDialog` flags are plain `remember`; rotating while a result page is open loses the result and closes the page.
 **Root cause:** No cancel affordance on the progress dialog; result state isn't `rememberSaveable`.
 **Proposed fix:** Add a Cancel that cancels the task; consider saveable result state (or accept the loss, since the run state itself lives in the VM).
-**Status:** Open
+**Status:** Fixed — per-catalog refresh result/error dialogs now use `rememberSaveable`, and the in-progress refresh dialog exposes a Cancel button wired to the active coroutine job instead of being non-dismissable.
 
 ---
 
@@ -253,7 +253,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** While the screen is open it polls the source document's metadata via `ContentResolver.query` every 5 s forever. For a cloud DocumentsProvider URI this re-queries the provider indefinitely (battery / wakeups), purely to refresh the displayed mtime.
 **Root cause:** Unbounded `while(true)` ticker with no lifecycle backoff.
 **Proposed fix:** Poll only on resume / on demand, or stop the ticker after the first read; `queryDocumentInfo` itself also runs on the main thread per tick.
-**Status:** Open
+**Status:** Fixed — the cloud update screen no longer runs a five-second metadata poll; source-file metadata is loaded on `Dispatchers.IO` through `produceState` and refreshed only when the source URI is picked or an install attempt completes.
 
 ---
 
@@ -264,7 +264,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** Tapping an API-call audit line opens the trace whose timestamp is nearest within a 30 s window. Two API calls in the same report within 30 s of each other can resolve a line to the wrong trace.
 **Root cause:** Timestamp-nearest matching with a coarse 30 s window and no per-call id linkage.
 **Proposed fix:** Persist a call id / trace filename on the audit line so the link is exact.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — report API audit calls now install a trace filename sink and append `trace <filename>` to the technical audit line; the Audit detail screen prefers that exact filename and only falls back to timestamp-nearest matching for older audit files.
 
 ---
 
@@ -422,7 +422,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** In edit mode (no Save button), if a required field is temporarily invalid (e.g. the user clears the name to retype it, or a duplicate name), `current` is null so auto-save is suppressed. Edits made to *other* fields (model, API key, params) while the name is blank are not persisted, and are lost if the user leaves the screen before fixing the name.
 **Root cause:** `current` collapses to null on any validation failure, gating the whole save rather than just the invalid field.
 **Proposed fix:** Persist the last valid snapshot of the other fields, or warn on leave when there are unsaved edits behind a validation error.
-**Status:** Open
+**Status:** Fixed — the share chooser now enables New Chat for shared image URIs, and the share-to-chat route decodes the first image on `Dispatchers.IO` and stages it through the existing chat starter-image fields before navigating to the chat provider picker.
 
 ---
 
@@ -433,7 +433,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** The "New Chat" destination is `enabled = hasText` only. Sharing a file-only payload (e.g. an image with no EXTRA_TEXT) cannot be routed to Chat, even though chat supports image attachments; the user is forced to use New Report.
 **Root cause:** Enablement keyed on `hasText`, ignoring `hasUris`.
 **Proposed fix:** Allow Chat for image attachments (enable on `hasText || hasUris-with-image`), staging the file as the first turn's attachment.
-**Status:** Open
+**Status:** Fixed — the share chooser now enables New Chat for shared image URIs, and the share-to-chat route decodes the first image on `Dispatchers.IO` and stages it through the existing chat starter-image fields before navigating to the chat provider picker.
 
 ---
 
@@ -488,7 +488,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** `PricingCache` manual overrides aren't a reactive flow; the cost-override CRUD re-reads only on `refreshTrigger` / `resumeRefreshTick`. If an override is changed by another surface (e.g. Model Info's "Add manual override") while this list is open in the back-stack, the list shows stale rows until a resume.
 **Root cause:** Manual pricing lives in a non-observable store; refresh is tick-driven, not push.
 **Proposed fix:** Acceptable given the resume-tick, but a shared reactive flow would remove the staleness window. (Cooldowns, by contrast, do use a `collectAsState` flow — good.)
-**Status:** Open
+**Status:** Fixed (2026-06-08) — `PricingCache` now exposes a `manualPricingVersion` `StateFlow` bumped on manual-pricing save/clear operations, and the cost-override CRUD collects it so open lists refresh when another surface changes overrides.
 
 ---
 
@@ -499,7 +499,7 @@ reviewed and found clean enough not to surface confident bugs — they use
 **Symptom:** An internal prompt stores its Parameters / System-prompt selection by **name** (`*NONE` sentinel), not id. Renaming the referenced Parameters/System-prompt preset silently unlinks it (the name no longer resolves), and two presets with the same name are ambiguous.
 **Root cause:** Persisting a human-editable name as the foreign key instead of the stable id.
 **Proposed fix:** Store the preset id (resolve to name for display), or re-point on rename.
-**Status:** Open
+**Status:** Fixed (2026-06-08) — internal-prompt edits now persist stable Parameters/System-prompt ids, while `Settings` exposes id-or-legacy-name resolvers used by the editor, runtime secondary-parameter resolution, and prompt cache variants for backward compatibility.
 
 ---
 

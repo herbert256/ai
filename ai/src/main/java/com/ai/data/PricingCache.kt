@@ -8,6 +8,9 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import java.lang.reflect.Type
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -62,6 +65,8 @@ object PricingCache {
     private val listSupportedParamsType: Type = object : TypeToken<List<ModelSupportedParametersEntry>>() {}.type
 
     @Volatile private var manualPricing: MutableMap<String, ModelPricing>? = null
+    private val _manualPricingVersion = MutableStateFlow(0)
+    val manualPricingVersion: StateFlow<Int> = _manualPricingVersion.asStateFlow()
     @Volatile private var openRouterPricing: Map<String, ModelPricing>? = null
     @Volatile private var togetherPricing: Map<String, ModelPricing>? = null
     @Volatile private var togetherTimestamp: Long = 0
@@ -247,7 +252,10 @@ object PricingCache {
         manualPricing = pricing.toMutableMap(); saveManualPricing(context)
     }
 
-    private fun saveManualPricing(context: Context) { getPrefs(context).edit { putString(KEY_MANUAL_PRICING, gson.toJson(manualPricing)) } }
+    private fun saveManualPricing(context: Context) {
+        getPrefs(context).edit { putString(KEY_MANUAL_PRICING, gson.toJson(manualPricing)) }
+        _manualPricingVersion.value = _manualPricingVersion.value + 1
+    }
 
     private val DEFAULT_PRICING = ModelPricing("default", 25.00e-6, 75.00e-6, "DEFAULT")
 
@@ -371,29 +379,9 @@ object PricingCache {
     fun getPricing(context: Context, provider: AppService, model: String): ModelPricing {
         if (!preloadCompleted && isMainThread()) return DEFAULT_PRICING
         ensureLoaded(context)
-        val isOpenRouter = provider.crossProviderModelList
-        val isTogether = provider.pricingFromModelList
-        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return tracePricing(provider, model, "OPENROUTER-SELF", it) }
-        // Together's native pricing tier — same provider-self-report
-        // logic as OpenRouter: when the caller's provider is Together,
-        // its own /v1/models pricing block is the authoritative
-        // billing rate, more accurate than LiteLLM's community
-        // mirror.
-        if (isTogether) findTogetherPricing(provider, model)?.let { return tracePricing(provider, model, "TOGETHER-SELF", it) }
-        // User OVERRIDE wins over every curated bulk source. The
-        // previous order put OVERRIDE behind LITELLM/MODELSDEV/etc., so
-        // a user adding a manual override specifically to correct a
-        // stale catalog entry was silently ignored — exactly the
-        // opposite of what the Cost Config screen's UI suggests.
-        // Then: curated bulk sources → OPENROUTER fan-out provider
-        // fallback → HELICONE last resort → DEFAULT.
-        manualPricing?.get("${provider.id}:$model")?.let { return tracePricing(provider, model, "OVERRIDE", it) }
-        findLiteLLMPricing(provider, model)?.let { return tracePricing(provider, model, "LITELLM", it) }
-        findModelsDevPricing(provider, model)?.let { return tracePricing(provider, model, "MODELSDEV", it) }
-        findLLMPricesPricing(provider, model)?.let { return tracePricing(provider, model, "LLMPRICES", it) }
-        findArtificialAnalysisPricing(provider, model)?.let { return tracePricing(provider, model, "AA", it) }
-        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return tracePricing(provider, model, "OPENROUTER", it) }
-        findHeliconePricing(provider, model)?.let { return tracePricing(provider, model, "HELICONE", it) }
+        findPricingMatch(provider, model, includeOverride = true)?.let {
+            return tracePricing(provider, model, it.tier, it.pricing)
+        }
         AppLog.d("PricingCache", "miss ${provider.id}/$model → DEFAULT")
         return DEFAULT_PRICING
     }
@@ -410,25 +398,7 @@ object PricingCache {
 
     fun getPricingWithoutOverride(context: Context, provider: AppService, model: String): ModelPricing {
         ensureLoaded(context)
-        // Mirror getPricing's precedence exactly (provider self-report
-        // first, then curated tiers, then the OpenRouter fan out-provider
-        // fallback, then Helicone, then DEFAULT) but skip the manual
-        // override step. Used by cleanupRedundantManualOverrides to
-        // decide whether an override would still win the live lookup;
-        // the previous implementation consulted OpenRouter ahead of
-        // LiteLLM unconditionally, so cleanup deleted overrides that
-        // getPricing would never have lost to OpenRouter.
-        val isOpenRouter = provider.crossProviderModelList
-        val isTogether = provider.pricingFromModelList
-        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        if (isTogether) findTogetherPricing(provider, model)?.let { return it }
-        findLiteLLMPricing(provider, model)?.let { return it }
-        findModelsDevPricing(provider, model)?.let { return it }
-        findLLMPricesPricing(provider, model)?.let { return it }
-        findArtificialAnalysisPricing(provider, model)?.let { return it }
-        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        findHeliconePricing(provider, model)?.let { return it }
-        return DEFAULT_PRICING
+        return findPricingMatch(provider, model, includeOverride = false)?.pricing ?: DEFAULT_PRICING
     }
 
     /** Context-free, in-memory-only variant of [getPricing] used by
@@ -438,23 +408,28 @@ object PricingCache {
      *  never touches SharedPreferences or the bundled asset and never
      *  blocks. Returns DEFAULT_PRICING when catalogs aren't loaded. */
     fun lookupPricing(provider: AppService, model: String): ModelPricing {
+        return findPricingMatch(provider, model, includeOverride = true)?.pricing ?: DEFAULT_PRICING
+    }
+
+    private data class PricingMatch(val tier: String, val pricing: ModelPricing)
+
+    private fun findPricingMatch(
+        provider: AppService,
+        model: String,
+        includeOverride: Boolean
+    ): PricingMatch? {
         val isOpenRouter = provider.crossProviderModelList
         val isTogether = provider.pricingFromModelList
-        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        if (isTogether) findTogetherPricing(provider, model)?.let { return it }
-        // Mirror getPricing's precedence exactly: user OVERRIDE wins over
-        // every curated bulk source (Bug 35). The previous order put the
-        // override after LITELLM/MODELSDEV/etc., so the cached capability
-        // snapshot showed a curated price while live cost computation used
-        // the override — a persistent picker-vs-billed disagreement.
-        manualPricing?.get("${provider.id}:$model")?.let { return it }
-        findLiteLLMPricing(provider, model)?.let { return it }
-        findModelsDevPricing(provider, model)?.let { return it }
-        findLLMPricesPricing(provider, model)?.let { return it }
-        findArtificialAnalysisPricing(provider, model)?.let { return it }
-        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        findHeliconePricing(provider, model)?.let { return it }
-        return DEFAULT_PRICING
+        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER-SELF", it) }
+        if (isTogether) findTogetherPricing(provider, model)?.let { return PricingMatch("TOGETHER-SELF", it) }
+        if (includeOverride) manualPricing?.get("${provider.id}:$model")?.let { return PricingMatch("OVERRIDE", it) }
+        findLiteLLMPricing(provider, model)?.let { return PricingMatch("LITELLM", it) }
+        findModelsDevPricing(provider, model)?.let { return PricingMatch("MODELSDEV", it) }
+        findLLMPricesPricing(provider, model)?.let { return PricingMatch("LLMPRICES", it) }
+        findArtificialAnalysisPricing(provider, model)?.let { return PricingMatch("AA", it) }
+        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER", it) }
+        findHeliconePricing(provider, model)?.let { return PricingMatch("HELICONE", it) }
+        return null
     }
 
     /** OpenRouter and Anthropic disagree on punctuation — Anthropic ships
@@ -464,10 +439,9 @@ object PricingCache {
 
     /** Resolve a `-latest` rolling alias to the catalog's most recent dated
      *  snapshot. Strips the `-latest` suffix, finds every key whose
-     *  remainder after the stripped base is a date-like token (digits and
-     *  dashes only, must contain at least one digit), and picks the
-     *  lexically max — works for YYYYMMDD ("claude-3-5-sonnet-20241022"),
-     *  YYYY-MM-DD ("gpt-4o-2024-11-20"), and YYMM ("mistral-large-2411").
+     *  remainder after the stripped base is a supported date-like token,
+     *  and picks the chronologically max. Supported forms are YYYYMMDD,
+     *  YYYY-MM-DD, YYYYMM, YYYY-MM, and YYMM.
      *
      *  Candidates are bucketed by prefix so the provider's own catalog
      *  prefix wins over arbitrary other prefixes (azure/, bedrock/,
@@ -487,7 +461,7 @@ object PricingCache {
         if (base.isEmpty()) return null
         val declaredBase = declaredPrefix?.takeIf { it.isNotBlank() }?.let { "${normalizeModelId(it)}/$base" }
         val idBase = "${normalizeModelId(idLowercase)}/$base"
-        val buckets = arrayOfNulls<Pair<String, String>>(4)
+        val buckets = arrayOfNulls<Pair<String, Int>>(4)
         for (key in keys) {
             val nk = normalizeModelId(key)
             var priority = -1
@@ -505,13 +479,37 @@ object PricingCache {
                 }
             }
             if (priority < 0) continue
-            if (suffix.isEmpty()) continue
-            if (suffix.any { !it.isDigit() && it != '-' }) continue
-            if (suffix.none { it.isDigit() }) continue
+            val suffixScore = latestAliasDateScore(suffix) ?: continue
             val cur = buckets[priority]
-            if (cur == null || suffix > cur.second) buckets[priority] = key to suffix
+            if (cur == null || suffixScore > cur.second) buckets[priority] = key to suffixScore
         }
         return buckets.firstOrNull { it != null }?.first
+    }
+
+    private fun latestAliasDateScore(suffix: String): Int? {
+        if (suffix.isBlank()) return null
+        if (suffix.any { !it.isDigit() && it != '-' }) return null
+        val compact = suffix.replace("-", "")
+        if (compact.any { !it.isDigit() }) return null
+        val (year, month, day) = when {
+            suffix.contains('-') -> {
+                val parts = suffix.split('-')
+                when {
+                    parts.size == 3 && parts[0].length == 4 && parts[1].length == 2 && parts[2].length == 2 ->
+                        Triple(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
+                    parts.size == 2 && parts[0].length == 4 && parts[1].length == 2 ->
+                        Triple(parts[0].toInt(), parts[1].toInt(), 0)
+                    else -> return null
+                }
+            }
+            compact.length == 8 -> Triple(compact.take(4).toInt(), compact.substring(4, 6).toInt(), compact.takeLast(2).toInt())
+            compact.length == 6 && compact.take(4).toIntOrNull()?.let { it in 2000..2199 } == true ->
+                Triple(compact.take(4).toInt(), compact.substring(4, 6).toInt(), 0)
+            compact.length == 4 -> Triple(2000 + compact.take(2).toInt(), compact.takeLast(2).toInt(), 0)
+            else -> return null
+        }
+        if (year !in 2000..2199 || month !in 1..12 || day !in 0..31) return null
+        return year * 10_000 + month * 100 + day
     }
 
     private fun findOpenRouterPricing(provider: AppService, model: String): ModelPricing? {
@@ -1666,6 +1664,7 @@ object PricingCache {
         // In-memory: drop every loaded tier + lookup memo so the next
         // ensureLoaded call repopulates from the now-empty stores.
         manualPricing = null
+        _manualPricingVersion.value = _manualPricingVersion.value + 1
         openRouterPricing = null
         togetherPricing = null
         togetherTimestamp = 0

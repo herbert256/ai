@@ -84,7 +84,7 @@ fun SemanticSearchScreen(
 
         if (embeddingChoices.isEmpty()) {
             Text(
-                "No supported OpenAI-compatible embedding models found. Mark a compatible provider model as 'embedding' in AI Setup → Models setup → Manual model types overrides, or fetch a provider whose model list includes one (e.g. text-embedding-3-small on OpenAI).",
+                "No supported cloud embedding models found. Mark an OpenAI-compatible or Google provider model as 'embedding' in AI Setup → Models setup → Manual model types overrides, or fetch a provider whose model list includes one (e.g. text-embedding-3-small on OpenAI or text-embedding-004 on Gemini).",
                 fontSize = 13.sp, color = AppColors.TextTertiary,
                 modifier = Modifier.padding(vertical = 12.dp)
             )
@@ -205,7 +205,9 @@ fun SemanticSearchScreen(
 
 internal fun supportedEmbeddingChoices(aiSettings: Settings): List<Pair<AppService, String>> {
     return aiSettings.getActiveServices().flatMap { service ->
-        if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE) return@flatMap emptyList()
+        if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE && service.apiFormat != ApiFormat.GOOGLE) {
+            return@flatMap emptyList()
+        }
         val cfg = aiSettings.getProvider(service)
         cfg.models.mapNotNull { model ->
             if (aiSettings.getModelType(service, model) == ModelType.EMBEDDING) service to model else null
@@ -257,7 +259,7 @@ private suspend fun runEmbeddingSearch(
         val rep = "${r.title}\n${r.prompt}\n${r.agents.firstOrNull { !it.responseBody.isNullOrBlank() }?.responseBody?.take(2000) ?: ""}"
         val title = r.title.ifBlank { "(untitled)" }
         val ts = df.format(Date(r.timestamp))
-        val existing = EmbeddingsStore.get(context, r.id, service.id, model, rep)
+        val existing = EmbeddingsStore.get(context, r.id, service.id, model, rep, expectedDim = queryVec.size)
         if (existing != null) cached += CloudCachedCandidate(r.id, existing, title, ts)
         else toEmbed += CloudEmbedCandidate(r.id, rep, title, ts)
     }

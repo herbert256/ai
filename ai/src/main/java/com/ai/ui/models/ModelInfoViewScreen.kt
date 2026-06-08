@@ -111,6 +111,7 @@ fun ModelInfoViewScreen(
     huggingFaceApiKey: String,
     aiSettings: Settings,
     repository: AnalysisRepository,
+    settingsPrefs: SettingsPreferences,
     onOpenReport: (String) -> Unit,
     /** Per-row Last-Usage tap → that report's View Reports screen,
      *  pre-scrolled to the agent matching this provider/model. Wired
@@ -157,7 +158,7 @@ fun ModelInfoViewScreen(
         if (openRouterApiKey.isBlank()) return@produceState
         value = withContext(Dispatchers.IO) {
             try {
-                val models = ModelInfoLookupCache.getOpenRouterModels(openRouterApiKey)
+                val models = OpenRouterModelInfoCache.getOpenRouterModels(openRouterApiKey)
                 fun norm(s: String) = s.replace('.', '-').lowercase()
                 val targetNorm = norm(modelName)
                 val orName = provider.openRouterName
@@ -206,8 +207,7 @@ fun ModelInfoViewScreen(
     // calls — what users intuitively expect from "AI Usage".
     val usageEntry by produceState<com.ai.model.UsageStats?>(initialValue = null, provider, modelName) {
         value = withContext(Dispatchers.IO) {
-            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            val all = SettingsPreferences(prefs, context.filesDir).loadUsageStats()
+            val all = settingsPrefs.loadUsageStats()
             val prefix = "${provider.id}::$modelName::"
             val matching = all.filterKeys { it.startsWith(prefix) }.values
             if (matching.isEmpty()) null
@@ -253,7 +253,7 @@ fun ModelInfoViewScreen(
             .replace("@AGENT@", "${provider.id} / $modelName")
     }
     val introCacheKey = remember(introResolvedPrompt, provider, modelName) {
-        PromptCache.keyFor(introResolvedPrompt, "${provider.id}:$modelName")
+        PromptCache.keyFor(introResolvedPrompt, "${provider.id}:$modelName", variant = "params=default|systemPrompt=")
     }
     val canRequestIntro = pageApiKey.isNotBlank() && introTemplate.isNotBlank()
     val requestIntroduction: () -> Unit = req@{
@@ -329,23 +329,38 @@ fun ModelInfoViewScreen(
         )
 
         // Pre-compute every per-source raw JSON string + the typed-
-        // source data so the Sources card can render the seven
-        // buttons immediately.
+        // source data off the main thread so the Sources card can
+        // render without doing disk-backed catalog reads in composition.
         val gson = remember { createAppGson(prettyPrint = true) }
-        val liteLLMRaw = remember(provider, modelName) {
-            PricingCache.getLiteLLMRawEntry(context, provider, modelName)
+        val liteLLMRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getLiteLLMRawEntry(context, provider, modelName)
+            }
         }
-        val modelsDevRaw = remember(provider, modelName) {
-            PricingCache.getModelsDevRawEntry(context, provider, modelName)
+        val modelsDevRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getModelsDevRawEntry(context, provider, modelName)
+            }
         }
-        val heliconeRaw = remember(provider, modelName) {
-            PricingCache.getHeliconeRawEntry(context, provider, modelName)
+        val heliconeRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getHeliconeRawEntry(context, provider, modelName)
+            }
         }
-        val llmPricesRaw = remember(provider, modelName) {
-            PricingCache.getLLMPricesRawEntry(context, provider, modelName)
+        val llmPricesRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getLLMPricesRawEntry(context, provider, modelName)
+            }
         }
-        val aaRaw = remember(provider, modelName) {
-            PricingCache.getArtificialAnalysisRawEntry(context, provider, modelName)
+        val aaRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getArtificialAnalysisRawEntry(context, provider, modelName)
+            }
+        }
+        val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getTierBreakdown(context, provider, modelName)
+            }
         }
 
         // Workers — agents / flocks / swarms matching this model.
@@ -394,7 +409,7 @@ fun ModelInfoViewScreen(
             }
 
             // 4) Costs — per-tier rows; NO Add manual cost override.
-            item { CostsCard(provider = provider, modelName = modelName) }
+            item { CostsCard(tierBreakdown = tierBreakdown) }
 
             // (Provider card removed — provider name in HeroCard is
             // the clickable entry point to the View Provider screen.)
@@ -713,22 +728,20 @@ private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean
 }
 
 @Composable
-private fun CostsCard(provider: AppService, modelName: String) {
-    val context = LocalContext.current
-    val breakdown = remember(provider, modelName) {
-        PricingCache.getTierBreakdown(context, provider, modelName)
-    }
+private fun CostsCard(tierBreakdown: PricingCache.TierBreakdown?) {
     val rows = listOfNotNull(
-        breakdown.litellm?.let { "LiteLLM" to it },
-        breakdown.modelsDev?.let { "models.dev" to it },
-        breakdown.helicone?.let { "Helicone" to it },
-        breakdown.llmPrices?.let { "llm-prices.com" to it },
-        breakdown.artificialAnalysis?.let { "Artificial Analysis" to it },
-        breakdown.openrouter?.let { "OpenRouter" to it },
-        breakdown.override?.let { "Override" to it }
+        tierBreakdown?.litellm?.let { "LiteLLM" to it },
+        tierBreakdown?.modelsDev?.let { "models.dev" to it },
+        tierBreakdown?.helicone?.let { "Helicone" to it },
+        tierBreakdown?.llmPrices?.let { "llm-prices.com" to it },
+        tierBreakdown?.artificialAnalysis?.let { "Artificial Analysis" to it },
+        tierBreakdown?.openrouter?.let { "OpenRouter" to it },
+        tierBreakdown?.override?.let { "Override" to it }
     )
     SectionCard(title = "Costs (per million tokens)") {
-        if (rows.isEmpty()) {
+        if (tierBreakdown == null) {
+            Text("Loading cost sources…", fontSize = 12.sp, color = AppColors.TextTertiary)
+        } else if (rows.isEmpty()) {
             Text(
                 "No catalog entry — lookup falls back to the built-in default.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
@@ -1026,29 +1039,4 @@ private fun computeUsages(
         ) { onOpenReportAtAgent(report.id, matchingAgent.agentId.ifBlank { matchingAgent.agentName }) }
     }
     return out
-}
-
-/** Tiny per-process cache for the OpenRouter models list — same
- *  shape as the Manage screen's [ModelInfoCache] but kept private
- *  here so this file doesn't leak through to the Manage screen. */
-private object ModelInfoLookupCache {
-    @Volatile private var apiKey: String? = null
-    @Volatile private var openRouterModels: List<OpenRouterModelInfo>? = null
-    @Volatile private var fetchedAt: Long = 0L
-    private const val TTL_MS = 6L * 60 * 60 * 1000
-
-    suspend fun getOpenRouterModels(apiKey: String): List<OpenRouterModelInfo> {
-        if (apiKey.isBlank()) return emptyList()
-        val fresh = System.currentTimeMillis() - fetchedAt < TTL_MS
-        if (this.apiKey == apiKey && fresh) {
-            openRouterModels?.let { return it }
-        }
-        val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
-        val response = withTraceCategory("info/provider") { api.listModelsDetailed("Bearer $apiKey") }
-        val models = if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
-        this.apiKey = apiKey
-        openRouterModels = models
-        fetchedAt = System.currentTimeMillis()
-        return models
-    }
 }

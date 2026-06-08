@@ -27,6 +27,7 @@ import com.ai.data.AnalysisRepository
 import com.ai.data.AppService
 import com.ai.data.KnowledgeBase
 import com.ai.data.KnowledgeService
+import com.ai.data.KnowledgeSource
 import com.ai.data.KnowledgeSourceType
 import com.ai.data.KnowledgeStore
 import com.ai.data.local.LocalEmbedder
@@ -297,6 +298,10 @@ fun KnowledgeDetailScreen(
     val kb by produceState<KnowledgeBase?>(initialValue = null, kbId, refreshTick) {
         value = withContext(Dispatchers.IO) { KnowledgeStore.loadKnowledgeBase(context, kbId) }
     }
+    var displayedSources by remember(kbId) { mutableStateOf<List<KnowledgeSource>?>(null) }
+    LaunchedEffect(kb?.sources) {
+        displayedSources = kb?.sources
+    }
     var status by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
     var urlInput by remember { mutableStateOf("") }
@@ -330,11 +335,15 @@ fun KnowledgeDetailScreen(
                     status = "Fetching $trimmed…"
                     val result = withContext(Dispatchers.IO) {
                         KnowledgeService.indexUrl(context, repository, aiSettings, loaded.id, trimmed) { msg, _, _ ->
-                            scope.launch(Dispatchers.Main) { status = "$trimmed: $msg" }
+                            withContext(Dispatchers.Main) { status = "$trimmed: $msg" }
                         }
                     }
                     status = result.fold(
-                        onSuccess = { src -> "Indexed ${src.name} (${src.chunkCount} chunks)" },
+                        onSuccess = { src ->
+                            val current = displayedSources ?: loaded.sources
+                            displayedSources = current.filter { it.id != src.id } + src
+                            "Indexed ${src.name} (${src.chunkCount} chunks)"
+                        },
                         onFailure = { e -> "Failed: ${e.message ?: e.javaClass.simpleName}" }
                     )
                 } else {
@@ -350,11 +359,15 @@ fun KnowledgeDetailScreen(
                     status = "Reading $displayName…"
                     val result = withContext(Dispatchers.IO) {
                         KnowledgeService.indexFile(context, repository, aiSettings, loaded.id, type, uri, displayName) { msg, _, _ ->
-                            scope.launch(Dispatchers.Main) { status = "$displayName: $msg" }
+                            withContext(Dispatchers.Main) { status = "$displayName: $msg" }
                         }
                     }
                     status = result.fold(
-                        onSuccess = { src -> "Indexed ${src.name} (${src.chunkCount} chunks)" },
+                        onSuccess = { src ->
+                            val current = displayedSources ?: loaded.sources
+                            displayedSources = current.filter { it.id != src.id } + src
+                            "Indexed ${src.name} (${src.chunkCount} chunks)"
+                        },
                         onFailure = { e -> "Failed: ${e.message ?: e.javaClass.simpleName}" }
                     )
                 }
@@ -384,7 +397,11 @@ fun KnowledgeDetailScreen(
             }
             working = false
             status = result.fold(
-                onSuccess = { src -> "Indexed ${src.name} (${src.chunkCount} chunks)" },
+                onSuccess = { src ->
+                    val current = displayedSources ?: kb?.sources.orEmpty()
+                    displayedSources = current.filter { it.id != src.id } + src
+                    "Indexed ${src.name} (${src.chunkCount} chunks)"
+                },
                 onFailure = { e -> "Failed: ${e.message ?: e.javaClass.simpleName}" }
             )
             refreshTick++
@@ -392,6 +409,7 @@ fun KnowledgeDetailScreen(
     }
 
     val kbForTitle = kb
+    val sourcesForDisplay = displayedSources ?: kb?.sources.orEmpty()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "knowledge_detail",
@@ -402,7 +420,7 @@ fun KnowledgeDetailScreen(
         )
         kb?.let {
             Text(embedderLabel(it), fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-            Text("${it.sources.size} sources · ${it.totalChunks} chunks", fontSize = 11.sp, color = AppColors.TextTertiary)
+            Text("${sourcesForDisplay.size} sources · ${sourcesForDisplay.sumOf { src -> src.chunkCount }} chunks", fontSize = 11.sp, color = AppColors.TextTertiary)
         }
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -445,7 +463,11 @@ fun KnowledgeDetailScreen(
                     }
                     working = false
                     status = result.fold(
-                        onSuccess = { src -> "Indexed ${src.name} (${src.chunkCount} chunks)" },
+                        onSuccess = { src ->
+                            val current = displayedSources ?: kb?.sources.orEmpty()
+                            displayedSources = current.filter { it.id != src.id } + src
+                            "Indexed ${src.name} (${src.chunkCount} chunks)"
+                        },
                         onFailure = { e -> "Failed: ${e.message ?: e.javaClass.simpleName}" }
                     )
                     if (result.isSuccess) urlInput = ""
@@ -467,7 +489,7 @@ fun KnowledgeDetailScreen(
         Spacer(modifier = Modifier.height(4.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            kb?.sources?.forEach { src ->
+            sourcesForDisplay.forEach { src ->
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -503,7 +525,11 @@ fun KnowledgeDetailScreen(
                                     }
                                     working = false
                                     status = result.fold(
-                                        onSuccess = { s -> "Re-indexed ${s.name}" },
+                                        onSuccess = { s ->
+                                            val current = displayedSources ?: kb?.sources.orEmpty()
+                                            displayedSources = current.filter { it.id != s.id } + s
+                                            "Re-indexed ${s.name}"
+                                        },
                                         onFailure = { e -> "Failed: ${e.message ?: e.javaClass.simpleName}" }
                                     )
                                     refreshTick++
@@ -516,6 +542,8 @@ fun KnowledgeDetailScreen(
                             // chunks rewrites the KB index and would block the UI.
                             scope.launch {
                                 withContext(Dispatchers.IO) { KnowledgeStore.deleteSource(context, kbId, src.id) }
+                                val current = displayedSources ?: kb?.sources.orEmpty()
+                                displayedSources = current.filter { it.id != src.id }
                                 refreshTick++
                             }
                         }) { Text("Delete", fontSize = 11.sp, color = AppColors.DangerAccent) }

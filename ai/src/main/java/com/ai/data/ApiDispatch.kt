@@ -722,14 +722,15 @@ internal suspend fun AnalysisRepository.auditApiCall(
     val reportId = ApiTracer.currentReportId
     if (reportId == null) return block()
     val url = dispatchUrl(service, model, baseUrl)
+    val traceSink = java.util.concurrent.atomic.AtomicReference<String?>()
     try {
-        val resp = block()
-        AuditLog.appendApiCall(reportId, service, model, url, resp.tokenUsage, resp.httpStatusCode, resp.error)
+        val resp = withTraceFilenameSink(traceSink) { block() }
+        AuditLog.appendApiCall(reportId, service, model, url, resp.tokenUsage, resp.httpStatusCode, resp.error, traceSink.get())
         return resp
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Throwable) {
-        AuditLog.appendApiCall(reportId, service, model, url, null, null, e.message ?: e.javaClass.simpleName)
+        AuditLog.appendApiCall(reportId, service, model, url, null, null, e.message ?: e.javaClass.simpleName, traceSink.get())
         throw e
     }
 }
@@ -1375,7 +1376,7 @@ private suspend fun AnalysisRepository.streamResponsesApiReport(
         service,
         response,
         ::extractResponsesApiContent,
-        extractResponsesApiUsage,
+        extractResponsesApiUsage(service),
         requireTerminator = true,
         usageMergeMode = StreamingUsageMergeMode.LastComplete,
         onDelta = onDelta

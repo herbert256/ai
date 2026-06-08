@@ -27,6 +27,11 @@ data class ReportApiCallAppendResult(
     val timestamp: Long
 )
 
+data class ReportLoadFailure(
+    val filename: String,
+    val message: String
+)
+
 /**
  * Thread-safe report persistence. Stores each report as JSON file in /files/reports/.
  */
@@ -43,6 +48,7 @@ object ReportStorage {
     private val gson = createAppGson()
     private val lock = ReentrantLock()
     @Volatile private var reportsDir: File? = null
+    @Volatile private var lastLoadFailures: List<ReportLoadFailure> = emptyList()
 
     data class ApiCallCostLedgerDelta(
         val reportId: String,
@@ -114,14 +120,15 @@ object ReportStorage {
         return report
     }
 
-    /** Full cost of the report's OWN generation: primary agent calls + per-agent
-     *  icon + per-agent model-title + the report-level icon / title / language-
-     *  detect / language-icon metadata calls. (Secondary results — Rerank / Meta
-     *  / Translate — live in separate rows; the Manage screen sums those on top
-     *  of this.) Previously the recompute used only `agents.cost + agent icons`,
-     *  so the stored total under-counted every report-level metadata call.
-     *  `costsFromDeletedItems` is tracked separately and intentionally excluded. */
+    /** Full cost of the report's own generation. Current reports use the
+     *  append-only API-cost ledger as the source of truth so new call
+     *  categories cannot be silently omitted from a hard-coded allow-list.
+     *  Legacy/unreconciled reports fall back to the structured fields until
+     *  [reconcileApiCallCostLedger] rebuilds their ledger. */
     private fun computeReportTotalCost(report: Report): Double =
+        if (isApiCallCostLedgerCurrent(report)) ledgerTotalCost(report) else legacyReportTotalCost(report)
+
+    private fun legacyReportTotalCost(report: Report): Double =
         report.agents.mapNotNull { it.cost }.sum() +
             report.agents.sumOf { it.iconInputCost + it.iconOutputCost } +
             report.agents.sumOf { it.modelTitleInputCost + it.modelTitleOutputCost } +
@@ -395,6 +402,10 @@ object ReportStorage {
         return File(dir, "$reportId.json").lastModified()
     }
     fun getAllReports(context: Context): List<Report> { init(context); return lock.withLock { loadAllReports().sortedByDescending { it.timestamp } } }
+    fun getLastLoadFailures(context: Context): List<ReportLoadFailure> {
+        init(context)
+        return lastLoadFailures
+    }
     fun deleteReport(context: Context, reportId: String) {
         init(context)
         // loadReport rejects traversal markers, but loadAllReports trusts
@@ -517,11 +528,23 @@ object ReportStorage {
 
     private fun loadAllReports(): List<Report> {
         val files = reportsDir?.listFiles { f -> f.extension == "json" } ?: return emptyList()
-        return files.mapNotNull { file ->
-            try { gson.fromJson(file.readText(), Report::class.java)?.let(::normalizeReport) } catch (e: Exception) {
-                AppLog.e("ReportStorage", "Failed to load ${file.name}: ${e.message}"); null
+        val failures = mutableListOf<ReportLoadFailure>()
+        val reports = files.mapNotNull { file ->
+            try {
+                gson.fromJson(file.readText(), Report::class.java)?.let(::normalizeReport)
+                    ?: run {
+                        failures += ReportLoadFailure(file.name, "Invalid report data")
+                        null
+                    }
+            } catch (e: Exception) {
+                val message = e.message ?: e.javaClass.simpleName
+                failures += ReportLoadFailure(file.name, message)
+                AppLog.e("ReportStorage", "Failed to load ${file.name}: $message")
+                null
             }
         }
+        lastLoadFailures = failures
+        return reports
     }
 
     /** Gson instantiates via Unsafe (no constructor call), so fields

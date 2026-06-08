@@ -194,12 +194,12 @@ internal fun extractOpenAiUsage(service: AppService): (String?, String) -> Pair<
 }
 
 /** OpenAI Responses API: the `response.completed` event holds response.usage. */
-internal val extractResponsesApiUsage: (String?, String) -> Pair<TokenUsage?, String?>? = fn@{ eventType, data ->
+internal fun extractResponsesApiUsage(service: AppService): (String?, String) -> Pair<TokenUsage?, String?>? = fn@{ eventType, data ->
     if (eventType != "response.completed") return@fn null
     try {
         val usageObj = gson.fromJson(data, com.google.gson.JsonObject::class.java)
             ?.getAsJsonObject("response")?.getAsJsonObject("usage") ?: return@fn null
-        gson.fromJson(usageObj, OpenAiUsage::class.java)?.toTokenUsage() to usageObj.toString()
+        gson.fromJson(usageObj, OpenAiUsage::class.java)?.toTokenUsage(service) to usageObj.toString()
     } catch (_: Exception) { null }
 }
 

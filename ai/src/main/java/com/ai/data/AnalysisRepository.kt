@@ -22,8 +22,9 @@ import java.util.Locale
  * cacheCreationTokens (Anthropic-only, charged at the cache-write rate).
  * Each provider's extractor normalizes the response shape into these buckets:
  *
- *   • OpenAI / DeepSeek / xAI / Gemini: prompt_tokens is total and includes
- *     cached; the extractor does inputTokens = total − cached.
+ *   • OpenAI-compatible: prompt_tokens is usually total and includes cached,
+ *     so the extractor does inputTokens = total − cached; providers that
+ *     declare flattened cached_tokens keep prompt_tokens as fresh input.
  *   • Anthropic: input_tokens already excludes both cache fields; we use
  *     them as-is.
  */

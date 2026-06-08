@@ -25,6 +25,7 @@ import com.ai.ui.helpers.*
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 @Composable
 fun HistoryScreenNav(
@@ -42,6 +43,7 @@ fun HistoryScreenNav(
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
     var allReports by remember { mutableStateOf(emptyList<Report>()) }
+    var reportLoadFailures by remember { mutableStateOf(emptyList<ReportLoadFailure>()) }
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
     LaunchedEffect(refreshTick) {
         // getAllReports re-reads + parses every report JSON, including
@@ -50,6 +52,7 @@ fun HistoryScreenNav(
         // every ON_RESUME so navigating away to delete / regenerate a
         // report and coming back shows the updated list.
         allReports = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
+        reportLoadFailures = ReportStorage.getLastLoadFailures(context)
     }
     var searchTitle by remember { mutableStateOf("") }
     var searchPrompt by remember { mutableStateOf("") }
@@ -60,15 +63,19 @@ fun HistoryScreenNav(
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
     val isSearchActive = searchTitle.isNotBlank() || searchPrompt.isNotBlank() || searchReport.isNotBlank()
+    val searchIndex by produceState(initialValue = HistorySearchIndex.EMPTY, allReports) {
+        value = withContext(Dispatchers.Default) { HistorySearchIndex.build(allReports) }
+    }
     // Debounce + off-main-thread filtering: the Response filter scans every
     // agent's responseBody (potentially MB each); doing it synchronously in
     // composition per keystroke hitched the UI on large histories. While the
     // debounce is pending we keep showing the previous result.
-    val filteredReports by produceState(initialValue = allReports, allReports, searchTitle, searchPrompt, searchReport) {
+    val filteredReports by produceState(initialValue = allReports, allReports, searchIndex, searchTitle, searchPrompt, searchReport) {
         if (!isSearchActive) { value = allReports; return@produceState }
+        if (searchIndex.size != allReports.size) { value = allReports; return@produceState }
         kotlinx.coroutines.delay(250)
         value = withContext(Dispatchers.Default) {
-            allReports.filter { report -> historyMatchesSearch(report, searchTitle, searchPrompt, searchReport) }
+            searchIndex.filter(searchTitle, searchPrompt, searchReport)
         }
     }
     val visibleReports = remember(filteredReports, allReports) {
@@ -100,6 +107,21 @@ fun HistoryScreenNav(
                 onClear = if (searchExpanded) ({ searchTitle = ""; searchPrompt = ""; searchReport = "" }) else null,
                 onHousekeeping = onHousekeeping
             )
+            if (reportLoadFailures.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Text(
+                        text = "${reportLoadFailures.size} report file${if (reportLoadFailures.size == 1) "" else "s"} failed to load. Check App log for details.",
+                        modifier = Modifier.padding(12.dp),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
             // Search toggle
             if (!searchExpanded) {
@@ -205,6 +227,86 @@ private fun historyMatchesSearch(
     (searchTitle.isBlank() || report.title.contains(searchTitle, ignoreCase = true)) &&
         (searchPrompt.isBlank() || report.prompt.contains(searchPrompt, ignoreCase = true)) &&
         (searchReport.isBlank() || report.agents.any { it.responseBody?.contains(searchReport, ignoreCase = true) == true })
+
+private data class HistorySearchDoc(
+    val report: Report,
+    val title: String,
+    val prompt: String,
+    val response: String
+)
+
+private class HistorySearchIndex private constructor(
+    private val docs: List<HistorySearchDoc>,
+    private val responseTrigrams: Map<String, Set<String>>
+) {
+    val size: Int get() = docs.size
+
+    fun filter(searchTitle: String, searchPrompt: String, searchReport: String): List<Report> {
+        val titleNeedle = searchTitle.trim().lowercase(Locale.ROOT)
+        val promptNeedle = searchPrompt.trim().lowercase(Locale.ROOT)
+        val responseNeedle = searchReport.trim().lowercase(Locale.ROOT)
+        val responseCandidateIds = responseCandidates(responseNeedle)
+        return docs.asSequence()
+            .filter { doc -> titleNeedle.isBlank() || titleNeedle in doc.title }
+            .filter { doc -> promptNeedle.isBlank() || promptNeedle in doc.prompt }
+            .filter { doc ->
+                when {
+                    responseNeedle.isBlank() -> true
+                    responseCandidateIds != null && doc.report.id !in responseCandidateIds -> false
+                    else -> responseNeedle in doc.response
+                }
+            }
+            .map { it.report }
+            .toList()
+    }
+
+    private fun responseCandidates(needle: String): Set<String>? {
+        if (needle.length < 3) return null
+        val grams = trigrams(needle)
+        if (grams.isEmpty()) return null
+        var candidates: Set<String>? = null
+        for (gram in grams) {
+            val ids = responseTrigrams[gram] ?: return emptySet()
+            candidates = candidates?.intersect(ids) ?: ids
+            if (candidates.isEmpty()) return emptySet()
+        }
+        return candidates
+    }
+
+    companion object {
+        val EMPTY = HistorySearchIndex(emptyList(), emptyMap())
+
+        fun build(reports: List<Report>): HistorySearchIndex {
+            if (reports.isEmpty()) return EMPTY
+            val trigramMap = mutableMapOf<String, MutableSet<String>>()
+            val docs = reports.map { report ->
+                val response = report.agents.asSequence()
+                    .mapNotNull { it.responseBody }
+                    .joinToString("\n")
+                    .lowercase(Locale.ROOT)
+                trigrams(response).forEach { gram ->
+                    trigramMap.getOrPut(gram) { LinkedHashSet() }.add(report.id)
+                }
+                HistorySearchDoc(
+                    report = report,
+                    title = report.title.lowercase(Locale.ROOT),
+                    prompt = report.prompt.lowercase(Locale.ROOT),
+                    response = response
+                )
+            }
+            return HistorySearchIndex(docs, trigramMap)
+        }
+    }
+}
+
+private fun trigrams(text: String): Set<String> {
+    if (text.length < 3) return emptySet()
+    val out = LinkedHashSet<String>()
+    for (i in 0..(text.length - 3)) {
+        out += text.substring(i, i + 3)
+    }
+    return out
+}
 
 @Composable
 private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () -> Unit, onDeleteReport: () -> Unit) {

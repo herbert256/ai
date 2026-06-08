@@ -22,20 +22,22 @@ object PromptCache {
         cacheDir = File(context.filesDir, DIR).also { if (!it.exists()) it.mkdirs() }
     }
 
-    /** Stable SHA-256 hash of (prompt + agentId). Different agent ⇒ different key, different
-     *  resolved prompt (e.g. with @MODEL@ replaced) ⇒ different key. */
-    fun keyFor(prompt: String, agentId: String): String {
+    /** Stable SHA-256 hash of (prompt + agentId + variant). Different
+     *  agent, resolved prompt, system prompt, or parameter variant gets a
+     *  different key. */
+    fun keyFor(prompt: String, agentId: String, variant: String = ""): String {
         // Use a length-prefix scheme rather than a delimiter: agentId
         // and prompt may both contain `|`, so naively concatenating
         // with `|` collides (e.g., agentId="a", prompt="|b" hashes the
-        // same bytes as agentId="a|", prompt="b"). Prepending the
-        // agentId byte length removes the ambiguity.
+        // same bytes as agentId="a|", prompt="b"). Length-prefix each
+        // part to remove the ambiguity.
         val md = MessageDigest.getInstance("SHA-256")
-        val agentBytes = agentId.toByteArray(Charsets.UTF_8)
-        md.update(agentBytes.size.toString().toByteArray(Charsets.UTF_8))
-        md.update(":".toByteArray(Charsets.UTF_8))
-        md.update(agentBytes)
-        md.update(prompt.toByteArray(Charsets.UTF_8))
+        listOf(agentId, variant, prompt).forEach { part ->
+            val bytes = part.toByteArray(Charsets.UTF_8)
+            md.update(bytes.size.toString().toByteArray(Charsets.UTF_8))
+            md.update(":".toByteArray(Charsets.UTF_8))
+            md.update(bytes)
+        }
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 
