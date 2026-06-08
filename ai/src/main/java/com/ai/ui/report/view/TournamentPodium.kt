@@ -886,10 +886,8 @@ private fun methodLabel(method: TournamentMethod): String = when (method) {
     TournamentMethod.COPELAND -> "Copeland"
     TournamentMethod.ELO -> "Elo"
     TournamentMethod.DAVIDSON -> "Davidson"
-    TournamentMethod.TIDEMAN -> "Tideman"
     TournamentMethod.MARKOV -> "Markov"
     TournamentMethod.SCHULZE -> "Schulze"
-    TournamentMethod.MINIMAX -> "Minimax"
     TournamentMethod.COLLEY -> "Colley"
     TournamentMethod.GLICKO2 -> "Glicko-2"
     TournamentMethod.POINTS -> "Points"
@@ -973,10 +971,8 @@ private fun scoreText(score: Double?, method: TournamentMethod): String {
     return when (method) {
         TournamentMethod.COPELAND,
         TournamentMethod.DAVIDSON,
-        TournamentMethod.TIDEMAN,
         TournamentMethod.MARKOV,
         TournamentMethod.SCHULZE,
-        TournamentMethod.MINIMAX,
         TournamentMethod.COLLEY -> String.format(java.util.Locale.US, "%.1f", score)
         else -> formatRerankScore(score)
     }

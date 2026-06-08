@@ -130,7 +130,7 @@ enum class ReportTitleMode { Manual, AI }
  *  name; any key not listed defaults to 0. */
 val RANKING_WEIGHT_DEFAULTS: Map<String, Int> = mapOf(
     "rerank" to 3, "judges" to 6, "translations" to 6,
-    "ELO" to 4, "DAVIDSON" to 4, "TIDEMAN" to 4
+    "ELO" to 4, "DAVIDSON" to 4, "SCHULZE" to 4
 )
 
 /** The effective weight for [key]: the user's stored value, else the factory

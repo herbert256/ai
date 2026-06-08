@@ -16,7 +16,7 @@ import com.google.gson.JsonParser
  * (`extractTopRankedIds`).
  */
 
-enum class TournamentMethod { COPELAND, ELO, DAVIDSON, TIDEMAN, MARKOV, SCHULZE, MINIMAX, COLLEY, GLICKO2, POINTS, TRUESKILL2 }
+enum class TournamentMethod { COPELAND, ELO, DAVIDSON, MARKOV, SCHULZE, COLLEY, GLICKO2, POINTS, TRUESKILL2 }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
@@ -105,10 +105,8 @@ fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (metho
     TournamentMethod.COPELAND -> copeland(m)
     TournamentMethod.ELO -> elo(m)
     TournamentMethod.DAVIDSON -> davidson(m)
-    TournamentMethod.TIDEMAN -> tideman(m)
     TournamentMethod.MARKOV -> markov(m)
     TournamentMethod.SCHULZE -> schulze(m)
-    TournamentMethod.MINIMAX -> minimax(m)
     TournamentMethod.COLLEY -> colley(m)
     TournamentMethod.GLICKO2 -> glicko2(m)
     TournamentMethod.POINTS -> pointsRanking(m)
@@ -205,75 +203,6 @@ fun davidson(m: WinMatrix): List<RankRow> {
         )
     }
     return assignRanks(scored)
-}
-
-/** Tideman / Ranked Pairs. Each pair's ordered-match points give a directed
- *  strength; the pairwise majorities are sorted strongest-first (by margin,
- *  then winning support) and "locked in" one by one, skipping any edge that
- *  would create a cycle with the already-locked ones. The locked graph is a
- *  DAG; candidates are ordered by how many others they dominate in it (the
- *  source, which dominates all, ranks first). It's an ordering method, so
- *  the visible score is rank-based and the locked record is the reason. */
-fun tideman(m: WinMatrix): List<RankRow> {
-    val n = m.n
-    if (n == 0) return emptyList()
-    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
-
-    // Directed strength: i's total credit over j across both orientations.
-    val d = Array(n) { i ->
-        DoubleArray(n) { j ->
-            if (i == j) 0.0 else m.wins[i][j] * (m.games.getOrNull(i)?.getOrNull(j) ?: 0.0)
-        }
-    }
-    // One majority per unordered pair — winner = higher d. Skip exact ties.
-    data class Majority(val w: Int, val l: Int, val margin: Double, val support: Double)
-    val majorities = ArrayList<Majority>()
-    for (i in 0 until n) for (j in i + 1 until n) {
-        val dij = d[i][j]; val dji = d[j][i]
-        if (dij == dji) continue
-        if (dij > dji) majorities.add(Majority(i, j, dij - dji, dij))
-        else majorities.add(Majority(j, i, dji - dij, dji))
-    }
-    // Strongest first: larger margin, then larger winning support, then a
-    // deterministic id tiebreak so the lock order is reproducible.
-    majorities.sortWith(
-        compareByDescending<Majority> { it.margin }
-            .thenByDescending { it.support }
-            .thenBy { m.ids[it.w] }
-            .thenBy { m.ids[it.l] }
-    )
-    // Lock each majority unless it would close a cycle (the loser already
-    // reaches the winner). reach is the transitive closure of locked edges.
-    val reach = Array(n) { BooleanArray(n) }
-    for (mj in majorities) {
-        if (reach[mj.l][mj.w]) continue // would create a cycle → skip
-        val from = (0 until n).filter { it == mj.w || reach[it][mj.w] }
-        val to = (0 until n).filter { it == mj.l || reach[mj.l][it] }
-        for (a in from) for (b in to) reach[a][b] = true
-    }
-    // a reaches b ⇒ reachCount[a] > reachCount[b], so ordering by reach count
-    // is consistent with the locked DAG; ties (incomparable nodes) fall back
-    // to net margin then id.
-    val reachCount = IntArray(n) { i -> (0 until n).count { it != i && reach[i][it] } }
-    val marginSum = DoubleArray(n) { i -> (0 until n).sumOf { j -> d[i][j] - d[j][i] } }
-    val order = (0 until n).sortedWith(
-        compareByDescending<Int> { reachCount[it] }
-            .thenByDescending { marginSum[it] }
-            .thenBy { m.ids[it] }
-    )
-    val denom = (n - 1).coerceAtLeast(1)
-    return order.mapIndexed { rank, i ->
-        // Ranked Pairs is an ORDERING method — score by rank position so the
-        // column stays monotonic and distinct; the locked dominance is the
-        // reason for context.
-        val score = 100.0 * (n - 1 - rank) / denom
-        RankRow(
-            id = m.ids[i],
-            rank = rank + 1,
-            score = Math.round(score * 10.0) / 10.0,
-            reason = "Beats %d via locked pairs".format(reachCount[i])
-        )
-    }
 }
 
 /** Markov-chain ranking over pairwise results. From each response, the
@@ -399,33 +328,6 @@ fun schulze(m: WinMatrix): List<RankRow> {
             rank = rank + 1,
             score = Math.round(score * 10.0) / 10.0,
             reason = String.format(java.util.Locale.US, "Beats %d via strongest paths", beatWins[i])
-        )
-    }
-}
-
-/** Minimax (Simpson–Kramer). Each response's worst pairwise defeat is the
- *  largest margin by which any opponent beat it; the response whose worst
- *  defeat is smallest ranks first (a Condorcet winner's worst defeat is 0).
- *  An ordering method — rank-based score, worst-defeat margin as the reason. */
-fun minimax(m: WinMatrix): List<RankRow> {
-    val n = m.n
-    if (n == 0) return emptyList()
-    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
-    val worstDefeat = DoubleArray(n) { i ->
-        (0 until n).filter { it != i }
-            .maxOfOrNull { j -> (m.points(j, i) - m.points(i, j)).coerceAtLeast(0.0) } ?: 0.0
-    }
-    val order = (0 until n).sortedWith(
-        compareBy<Int> { worstDefeat[it] }.thenBy { m.ids[it] }
-    )
-    val denom = (n - 1).coerceAtLeast(1)
-    return order.mapIndexed { rank, i ->
-        val score = 100.0 * (n - 1 - rank) / denom
-        RankRow(
-            id = m.ids[i],
-            rank = rank + 1,
-            score = Math.round(score * 10.0) / 10.0,
-            reason = String.format(java.util.Locale.US, "Worst defeat margin %.1f", worstDefeat[i])
         )
     }
 }

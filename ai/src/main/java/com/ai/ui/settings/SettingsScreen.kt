@@ -919,7 +919,7 @@ private fun SettingsMainScreen(
             SettingsNavCard(
                 icon = com.ai.data.MetadataIconsHolder.current.gem,
                 title = "Ranking weights",
-                description = "Weight each ranking 0–10 — Rerank, Judges, Translations, and every Tournament method (Elo, Davidson, Tideman, …).",
+                description = "Weight each ranking 0–10 — Rerank, Judges, Translations, and every Tournament method (Elo, Davidson, Schulze, …).",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_RANKING_WEIGHTS) }
             )
             SettingsNavCard(
