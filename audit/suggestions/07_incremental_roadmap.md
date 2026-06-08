@@ -4,15 +4,15 @@ This roadmap is intentionally staged. The codebase does not need a rewrite; it
 needs a sequence of extractions that preserve behavior while making the next
 change easier.
 
-> **Progress (2026-06-08, merged at `27c94d192`).** Phase 1 mostly landed
-> (settings parity tests, throttle/permit tests, dispatch golden tests for
-> system-prompt placement + vision, mock-server infra). Phase 2 partially landed
-> (`SettingsPreferences` moved to `com.ai.data.preferences` as a facade; the
-> per-domain sub-split is still open). Phase 3 partially landed (the
-> `ReportExecutionPlan` object + tests; the preview UI is open). Phase 4
-> partially landed (`BatchEngine` lifecycle primitives + tests; no live engine
-> migrated yet). See the status table in `00_executive_summary.md` for the
-> per-recommendation breakdown.
+> **Progress (2026-06-08).** Phase 1 **landed** (settings parity, throttle/permit
+> tests, dispatch golden tests for request shapes AND streaming SSE, mock-server
+> infra). Phase 2 **in progress** (`SettingsPreferences` moved to
+> `com.ai.data.preferences`; first sub-store `PromptHistoryStore` extracted;
+> `GeneralSettingsStore`/`UsageStatsStore` still to split). Phase 3 **landed**
+> (`ReportExecutionPlan` + tests + a read-only preview on the select-models
+> screen). Phase 4 **in progress** (`BatchEngine` lifecycle primitives + tests;
+> `CompareEngine` migrated — 1st of 4 engines). See the status table in
+> `00_executive_summary.md` for the per-recommendation breakdown and commits.
 
 ## Phase 1 - Stabilize contracts with tests
 

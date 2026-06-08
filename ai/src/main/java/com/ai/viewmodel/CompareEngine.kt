@@ -38,7 +38,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Authoritative runtime owner for the "Compare with meta" run on every report.
@@ -66,14 +65,10 @@ class CompareEngine internal constructor(
     /** The L1 "Wait" stat — cell ids parked on a provider throttle. */
     val throttledCells: StateFlow<Set<String>> get() = appViewModel.throttledCompareCells
 
-    /** Per-cell coroutines keyed by [CompareCellState.id] (= on-disk row id). */
-    private val cellJobs = ConcurrentHashMap<String, Job>()
-
-    /** Top-level batch Job per report. */
-    private val runJobs = ConcurrentHashMap<CompareRunKey, Job>()
-
-    /** Per-report dedup for the resume scan. */
-    private val resumeScans = ConcurrentHashMap.newKeySet<CompareRunKey>()
+    // Run/cell coroutines and the resume-scan dedup now live in the shared
+    // BatchEngine base (registerRunJob / registerItemJob / beginResumeScan /
+    // runJobOf / itemJobOf / activeRunJobKeys / hasItemJob), so this engine no
+    // longer keeps its own runJobs / cellJobs / resumeScans maps.
 
     private companion object {
         const val COMPARE_CATEGORY = "meta_compare"
@@ -164,7 +159,7 @@ class CompareEngine internal constructor(
      *  the worker batch. */
     fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? {
         val rk: CompareRunKey = reportId
-        runJobs[rk]?.let { if (it.isActive) return it }
+        runJobOf(rk)?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
@@ -245,8 +240,7 @@ class CompareEngine internal constructor(
                 }
             }
         }
-        runJobs[rk] = job
-        job.invokeOnCompletion { runJobs.remove(rk, job) }
+        registerRunJob(rk, job)
         return job
     }
 
@@ -273,8 +267,7 @@ class CompareEngine internal constructor(
             onCleared = { appViewModel.updateThrottledCompareCells { s -> s - it.placeholder.id } },
             dynamicHost = true,
             register = { item, d ->
-                cellJobs[item.placeholder.id] = d
-                d.invokeOnCompletion { cellJobs.remove(item.placeholder.id, d) }
+                registerItemJob(item.placeholder.id, d)
             }
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
@@ -410,8 +403,8 @@ class CompareEngine internal constructor(
      *  or dropping the run — the keep-state counterpart of [cancelAllForReport],
      *  used by [continueBrokenBatch]. */
     private suspend fun stopInFlightKeepingState(reportId: String) {
-        runJobs[reportId]?.cancelAndJoin()
-        _runs.value[reportId]?.cells?.values?.forEach { cellJobs[it.id]?.cancelAndJoin() }
+        runJobOf(reportId)?.cancelAndJoin()
+        _runs.value[reportId]?.cells?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
     }
 
     fun rerunCell(context: Context, reportId: String, cKey: String): Job =
@@ -428,7 +421,7 @@ class CompareEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val failed = run.cells.values.filter { it.status == CompareCellStatus.ERROR }
             if (failed.isEmpty()) return@launch
-            failed.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            failed.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = failed.sumOf { it.totalCost }
             failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             val remaining = run.cells - failed.map { it.key }.toSet()
@@ -453,7 +446,7 @@ class CompareEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val stranded = run.cells.values.filter { it.status == CompareCellStatus.PENDING }
             if (stranded.isEmpty()) return@launch
-            stranded.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            stranded.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = stranded.sumOf { it.totalCost }
             stranded.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             val remaining = run.cells - stranded.map { it.key }.toSet()
@@ -474,7 +467,7 @@ class CompareEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val victims = run.cells.values.filter { it.id in rowIds }
             if (victims.isEmpty()) return@launch
-            victims.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = victims.sumOf {
                 SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
             }
@@ -542,8 +535,8 @@ class CompareEngine internal constructor(
     fun deleteRun(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[reportId] ?: return@launch
-            runJobs[reportId]?.cancelAndJoin()
-            run.cells.values.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            runJobOf(reportId)?.cancelAndJoin()
+            run.cells.values.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = run.cells.values.sumOf { it.totalCost }
             run.cells.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
@@ -554,8 +547,8 @@ class CompareEngine internal constructor(
     /** Best-effort cancel of every in-flight cell for [reportId] (called from
      *  the synchronous report-delete path). */
     fun cancelAllForReport(reportId: String) {
-        runJobs[reportId]?.cancel()
-        _runs.value[reportId]?.cells?.values?.forEach { cellJobs[it.id]?.cancel() }
+        runJobOf(reportId)?.cancel()
+        _runs.value[reportId]?.cells?.values?.forEach { itemJobOf(it.id)?.cancel() }
         _runs.update { it - reportId }
     }
 
@@ -563,12 +556,12 @@ class CompareEngine internal constructor(
      *  read-only Broken-work scan must exclude these the same way it excludes
      *  Fan Out / Tournament / Judges rows; otherwise a legitimate running
      *  Compare batch is advertised as interrupted. */
-    fun inFlightRowIds(): Set<String> = cellJobs.keys.toSet()
+    fun inFlightRowIds(): Set<String> = itemJobIds()
 
     /** Top-level Compare runs currently alive in this process. Covers rows
      *  that have been pre-created but have not yet received a per-cell Job. */
     fun activeRunKeys(): Set<CompareRunKey> =
-        runJobs.filterValues { it.isActive }.keys.toSet()
+        activeRunJobKeys()
 
     // -----------------------------------------------------------------
     // Resume on report open / app restart
@@ -587,7 +580,7 @@ class CompareEngine internal constructor(
                 AppLog.w("Compare", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
                 return@launch
             }
-            if (!resumeScans.add(reportId)) return@launch
+            if (!beginResumeScan(reportId)) return@launch
             try {
                 val run = _runs.value[reportId] ?: return@launch
                 val prompt = run.comparePrompt
@@ -596,7 +589,7 @@ class CompareEngine internal constructor(
                 val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.COMPARE)
                     .filter {
                         it.content.isNullOrBlank() && it.errorMessage == null &&
-                            it.durationMs == null && !cellJobs.containsKey(it.id)
+                            it.durationMs == null && !hasItemJob(it.id)
                     }.associateBy { it.id }
                 if (diskById.isEmpty()) return@launch
                 val staleRows = run.cells.values
@@ -627,7 +620,7 @@ class CompareEngine internal constructor(
                 // app (the background sweep only join()s this Job).
                 AppLog.w("Compare", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
             } finally {
-                resumeScans.remove(reportId)
+                endResumeScan(reportId)
             }
         }
 
@@ -636,7 +629,7 @@ class CompareEngine internal constructor(
             val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.COMPARE)
                 .filter {
                     it.content.isNullOrBlank() && it.errorMessage == null &&
-                        it.durationMs == null && !cellJobs.containsKey(it.id)
+                        it.durationMs == null && !hasItemJob(it.id)
                 }
             BatchResume.finalizeLeftover(leftover) { row ->
                 markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this cell finished")
