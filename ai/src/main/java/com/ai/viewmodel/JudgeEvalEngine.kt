@@ -44,7 +44,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Authoritative runtime owner for the "Judge the judges" batch on every
@@ -74,14 +73,9 @@ class JudgeEvalEngine internal constructor(
     /** The L1 "Wait" stat — cell ids parked on a provider throttle. */
     val throttledCells: StateFlow<Set<String>> get() = appViewModel.throttledJudgeEvalCells
 
-    /** Per-cell coroutines keyed by [JudgeCellState.id] (= on-disk row id). */
-    private val cellJobs = ConcurrentHashMap<String, Job>()
-
-    /** Top-level batch Job per report. */
-    private val runJobs = ConcurrentHashMap<JudgeEvalRunKey, Job>()
-
-    /** Per-report dedup for the resume scan. */
-    private val resumeScans = ConcurrentHashMap.newKeySet<JudgeEvalRunKey>()
+    // Run/cell coroutines + resume-scan dedup now live in the shared BatchEngine
+    // base (registerRunJob / registerItemJob / beginResumeScan / runJobOf /
+    // itemJobOf / activeRunJobKeys / hasItemJob).
 
     private companion object {
         const val WORKERS_CATEGORY = "workers"
@@ -206,7 +200,7 @@ class JudgeEvalEngine internal constructor(
      *  the verdicts into the per-judge agreement analysis. */
     fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? {
         val rk: JudgeEvalRunKey = reportId
-        runJobs[rk]?.let { if (it.isActive) return it }
+        runJobOf(rk)?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
@@ -294,8 +288,7 @@ class JudgeEvalEngine internal constructor(
                 }
             }
         }
-        runJobs[rk] = job
-        job.invokeOnCompletion { runJobs.remove(rk, job) }
+        registerRunJob(rk, job)
         return job
     }
 
@@ -315,8 +308,7 @@ class JudgeEvalEngine internal constructor(
             onThrottled = { appViewModel.updateThrottledJudgeEvalCells { s -> s + it.placeholder.id } },
             onCleared = { appViewModel.updateThrottledJudgeEvalCells { s -> s - it.placeholder.id } },
             register = { item, d ->
-                cellJobs[item.placeholder.id] = d
-                d.invokeOnCompletion { cellJobs.remove(item.placeholder.id, d) }
+                registerItemJob(item.placeholder.id, d)
             },
             // Type-A fixed-model batch: a 429/529 short-benches the judge
             // model and re-queues the cell (and parks its same-model
@@ -506,7 +498,7 @@ class JudgeEvalEngine internal constructor(
             if (cells.isEmpty()) return@launch
             val costDelta = cells.sumOf { it.totalCost }
             cells.forEach { c ->
-                cellJobs[c.id]?.cancelAndJoin()
+                itemJobOf(c.id)?.cancelAndJoin()
                 SecondaryResultStorage.delete(context, reportId, c.id)
             }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
@@ -644,8 +636,8 @@ class JudgeEvalEngine internal constructor(
      *  or dropping the run — the keep-state counterpart of [cancelAllForReport],
      *  used by [continueBrokenBatch]. */
     private suspend fun stopInFlightKeepingState(reportId: String) {
-        runJobs[reportId]?.cancelAndJoin()
-        _runs.value[reportId]?.cells?.values?.forEach { cellJobs[it.id]?.cancelAndJoin() }
+        runJobOf(reportId)?.cancelAndJoin()
+        _runs.value[reportId]?.cells?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
     }
 
     fun rerunCell(context: Context, reportId: String, cKey: String): Job =
@@ -663,7 +655,7 @@ class JudgeEvalEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val failed = run.cells.values.filter { it.status == JudgeCellStatus.ERROR }
             if (failed.isEmpty()) return@launch
-            failed.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            failed.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = failed.sumOf { it.totalCost }
             failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             val remaining = run.cells - failed.map { it.key }.toSet()
@@ -689,7 +681,7 @@ class JudgeEvalEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val stranded = run.cells.values.filter { it.status == JudgeCellStatus.PENDING }
             if (stranded.isEmpty()) return@launch
-            stranded.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            stranded.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = stranded.sumOf { it.totalCost }
             stranded.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             val remaining = run.cells - stranded.map { it.key }.toSet()
@@ -712,7 +704,7 @@ class JudgeEvalEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val victims = run.cells.values.filter { it.id in rowIds }
             if (victims.isEmpty()) return@launch
-            victims.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = victims.sumOf {
                 SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
             }
@@ -790,8 +782,8 @@ class JudgeEvalEngine internal constructor(
     fun deleteRun(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[reportId] ?: return@launch
-            runJobs[reportId]?.cancelAndJoin()
-            run.cells.values.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            runJobOf(reportId)?.cancelAndJoin()
+            run.cells.values.forEach { itemJobOf(it.id)?.cancelAndJoin() }
             val costDelta = run.cells.values.sumOf { it.totalCost }
             run.cells.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
@@ -801,8 +793,8 @@ class JudgeEvalEngine internal constructor(
         }
 
     fun cancelAllForReport(reportId: String) {
-        runJobs[reportId]?.cancel()
-        _runs.value[reportId]?.cells?.values?.forEach { cellJobs[it.id]?.cancel() }
+        runJobOf(reportId)?.cancel()
+        _runs.value[reportId]?.cells?.values?.forEach { itemJobOf(it.id)?.cancel() }
         _runs.update { it - reportId }
     }
 
@@ -813,12 +805,12 @@ class JudgeEvalEngine internal constructor(
     /** Judge-cell row ids whose worker Job is live in THIS process — the
      *  read-only broken-work scan's in-flight exclusion (parallel to
      *  [FanOutEngine.inFlightRowIds]). Empty after a process kill. */
-    fun inFlightRowIds(): Set<String> = cellJobs.keys.toSet()
+    fun inFlightRowIds(): Set<String> = itemJobIds()
 
     /** Top-level Judge-the-judges runs currently alive in this process. Covers
      *  pre-created cells that are still waiting for a per-cell Job. */
     fun activeRunKeys(): Set<JudgeEvalRunKey> =
-        runJobs.filterValues { it.isActive }.keys.toSet()
+        activeRunJobKeys()
 
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
@@ -834,7 +826,7 @@ class JudgeEvalEngine internal constructor(
                 AppLog.w("JudgeEval", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
                 return@launch
             }
-            if (!resumeScans.add(reportId)) return@launch
+            if (!beginResumeScan(reportId)) return@launch
             try {
                 val run = _runs.value[reportId] ?: return@launch
                 val prompt = run.prompt
@@ -843,7 +835,7 @@ class JudgeEvalEngine internal constructor(
                 val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.JUDGES)
                     .filter {
                         it.tournamentRole == JUDGE_ROLE_CELL && it.content.isNullOrBlank() &&
-                            it.errorMessage == null && it.durationMs == null && !cellJobs.containsKey(it.id)
+                            it.errorMessage == null && it.durationMs == null && !hasItemJob(it.id)
                     }.associateBy { it.id }
                 if (diskById.isEmpty()) return@launch
                 val staleRows = run.cells.values
@@ -872,7 +864,7 @@ class JudgeEvalEngine internal constructor(
             } catch (e: Exception) {
                 AppLog.w("JudgeEval", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
             } finally {
-                resumeScans.remove(reportId)
+                endResumeScan(reportId)
             }
         }
 
@@ -881,7 +873,7 @@ class JudgeEvalEngine internal constructor(
             val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.JUDGES)
                 .filter {
                     it.tournamentRole == JUDGE_ROLE_CELL && it.content.isNullOrBlank() &&
-                        it.errorMessage == null && it.durationMs == null && !cellJobs.containsKey(it.id)
+                        it.errorMessage == null && it.durationMs == null && !hasItemJob(it.id)
                 }
             BatchResume.finalizeLeftover(leftover) { row ->
                 markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this cell finished")

@@ -38,7 +38,6 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Runtime owner for the "Rank the translators" batch (🏅 on a Translations
@@ -58,9 +57,9 @@ class TranslatorRankEngine internal constructor(
     override fun copyWithItems(run: TransRankRunState, items: Map<String, TransRankCellState>) =
         run.copy(cells = items)
 
-    private val cellJobs = ConcurrentHashMap<String, Job>()
-    private val runJobs = ConcurrentHashMap<TransRankRunKey, Job>()
-    private val resumeScans = ConcurrentHashMap.newKeySet<TransRankRunKey>()
+    // Run/cell coroutines + resume-scan dedup now live in the shared BatchEngine
+    // base (registerRunJob / registerItemJob / beginResumeScan / runJobOf /
+    // itemJobOf / activeRunJobKeys / hasItemJob).
 
     private companion object {
         const val PROMPT_NAME = "translate-rank"
@@ -196,7 +195,7 @@ class TranslatorRankEngine internal constructor(
         buildKey: String? = null, overrideWorkers: List<Worker>? = null
     ): Job? {
         val rk = transRankRunKey(reportId, sourceTranslationRunId)
-        runJobs[rk]?.let { if (it.isActive) return it }
+        runJobOf(rk)?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
@@ -294,8 +293,7 @@ class TranslatorRankEngine internal constructor(
                 }
             }
         }
-        runJobs[rk] = job
-        job.invokeOnCompletion { runJobs.remove(rk, job) }
+        registerRunJob(rk, job)
         return job
     }
 
@@ -311,8 +309,7 @@ class TranslatorRankEngine internal constructor(
             onThrottled = { appViewModel.updateThrottledTransRankCells { s -> s + it.placeholder.id } },
             onCleared = { appViewModel.updateThrottledTransRankCells { s -> s - it.placeholder.id } },
             register = { item, d ->
-                cellJobs[item.placeholder.id] = d
-                d.invokeOnCompletion { cellJobs.remove(item.placeholder.id, d) }
+                registerItemJob(item.placeholder.id, d)
             },
             benchEnabled = com.ai.data.ModelCooldownStore.typeABenchEnabled,
             benchKey = { item -> item.judge.providerId to item.judge.model },
@@ -461,12 +458,12 @@ class TranslatorRankEngine internal constructor(
      *  broken-work scan's in-flight exclusion (parallel to the other engines).
      *  Empty after a process kill, which is exactly when leftover PENDING cells
      *  are genuinely abandoned and safe to re-dispatch. */
-    fun inFlightRowIds(): Set<String> = cellJobs.keys.toSet()
+    fun inFlightRowIds(): Set<String> = itemJobIds()
 
     /** Rank-the-translators runs (any language) alive in this process — covers
      *  pre-created cells still waiting for a per-cell Job during the build. */
     fun activeRunKeys(): Set<TransRankRunKey> =
-        runJobs.filterValues { it.isActive }.keys.toSet()
+        activeRunJobKeys()
 
     /** Re-dispatch any rank-the-translators cells a process kill left PENDING.
      *  There is one run per language, so this hydrates then sweeps every run on
@@ -489,7 +486,7 @@ class TranslatorRankEngine internal constructor(
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val aiSettings = appViewModel.uiState.value.aiSettings
             for (key in _runs.value.keys.filter { it.substringBefore("|") == reportId }) {
-                if (!resumeScans.add(key)) continue
+                if (!beginResumeScan(key)) continue
                 try {
                     val run = _runs.value[key] ?: continue
                     // Synthetic prompt (translate-rank deleted/renamed) carries
@@ -500,7 +497,7 @@ class TranslatorRankEngine internal constructor(
                             it.tournamentRole == TRANSRANK_ROLE_CELL &&
                                 it.tournamentJudgeRunId == run.runId &&
                                 it.content.isNullOrBlank() && it.errorMessage == null &&
-                                it.durationMs == null && !cellJobs.containsKey(it.id)
+                                it.durationMs == null && !hasItemJob(it.id)
                         }.associateBy { it.id }
                     if (diskById.isEmpty()) continue
                     val staleRows = run.cells.values
@@ -541,7 +538,7 @@ class TranslatorRankEngine internal constructor(
                 } catch (e: Exception) {
                     AppLog.w("TransRank", "resume stale failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
                 } finally {
-                    resumeScans.remove(key)
+                    endResumeScan(key)
                 }
             }
         }
@@ -591,8 +588,8 @@ class TranslatorRankEngine internal constructor(
      *  no in-flight write lands after we re-queue) WITHOUT deleting rows or
      *  dropping the run — keep-state counterpart used by [continueBrokenBatch]. */
     private suspend fun stopInFlightKeepingState(key: TransRankRunKey) {
-        runJobs[key]?.cancelAndJoin()
-        _runs.value[key]?.cells?.values?.forEach { cellJobs[it.id]?.cancelAndJoin() }
+        runJobOf(key)?.cancelAndJoin()
+        _runs.value[key]?.cells?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
     }
 
     /** Re-judge [victims]: clear each row back to a PENDING placeholder
@@ -666,7 +663,7 @@ class TranslatorRankEngine internal constructor(
         val victims = run.cells.values.filter(predicate)
         if (victims.isEmpty()) return
         val reportId = run.reportId
-        victims.forEach { cellJobs[it.id]?.cancelAndJoin() }
+        victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
         val costDelta = victims.sumOf {
             SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
         }
@@ -696,8 +693,8 @@ class TranslatorRankEngine internal constructor(
         // recordTournamentMatch guards `!exists`, so a late write can't recreate
         // a deleted row. Disk cleanup runs in the background.
         val run = _runs.value[key]
-        runJobs[key]?.cancel()
-        run?.cells?.values?.forEach { cellJobs[it.id]?.cancel() }
+        runJobOf(key)?.cancel()
+        run?.cells?.values?.forEach { itemJobOf(it.id)?.cancel() }
         dropRun(key)
         // key = "reportId|sourceTranslationRunId". Sweep the disk by source-run
         // id rather than the (possibly not-yet-populated) in-memory cell map, so
@@ -731,8 +728,8 @@ class TranslatorRankEngine internal constructor(
 
     fun cancelAllForReport(reportId: String) {
         _runs.value.keys.filter { it.startsWith("$reportId|") }.forEach { k ->
-            runJobs[k]?.cancel()
-            _runs.value[k]?.cells?.values?.forEach { cellJobs[it.id]?.cancel() }
+            runJobOf(k)?.cancel()
+            _runs.value[k]?.cells?.values?.forEach { itemJobOf(it.id)?.cancel() }
             _runs.update { it - k }
         }
     }
@@ -743,7 +740,7 @@ class TranslatorRankEngine internal constructor(
             run.cells.values.filter { it.status == TransRankCellStatus.PENDING || it.status == TransRankCellStatus.RUNNING }
                 .forEach { c ->
                     val cur = SecondaryResultStorage.get(context, run.reportId, c.id) ?: return@forEach
-                    if (cur.errorMessage == null && cur.content.isNullOrBlank() && cur.durationMs == null && !cellJobs.containsKey(c.id)) {
+                    if (cur.errorMessage == null && cur.content.isNullOrBlank() && cur.durationMs == null && !hasItemJob(c.id)) {
                         SecondaryResultStorage.save(context, cur.copy(errorMessage = "Interrupted — run stopped before this score finished", durationMs = 0))
                         transitionCell(key, c.key) { it.copy(status = TransRankCellStatus.ERROR, errorMessage = "Interrupted", durationMs = 0) }
                     }
