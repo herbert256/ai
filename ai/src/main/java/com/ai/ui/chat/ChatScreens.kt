@@ -378,10 +378,15 @@ fun ChatSessionScreen(
             reasoningEffort = ""
         }
     }
+    // Shared cache-refresh tick — flips when PricingCache primes. Declared above
+    // supportsReasoning so it can key on it too (see audit chat bug 6).
+    val pricingTick = com.ai.ui.shared.resumeRefreshTick()
     // Cheap layered detection — LiteLLM, then models.dev. Null from
     // both = no info; we fall back to "show the pulldown" when the
     // model id contains common reasoning-family markers, otherwise hide.
-    val supportsReasoning = remember(provider, model) {
+    // Keyed on pricingTick so a cold-cache window doesn't latch "hidden" for
+    // the screen's lifetime.
+    val supportsReasoning = remember(provider, model, pricingTick) {
         com.ai.data.PricingCache.liteLLMSupportsReasoning(provider, model)
             ?: com.ai.data.PricingCache.modelsDevSupportsReasoning(provider, model)
             ?: run {
@@ -438,7 +443,6 @@ fun ChatSessionScreen(
     // composition during the cold-load window, and chat cost banners
     // stayed at $0.00 for the entire session even after the catalog
     // finished loading. Same pattern as DualChatScreen.
-    val pricingTick = com.ai.ui.shared.resumeRefreshTick()
     val pricing = remember(provider, model, pricingTick) { PricingCache.getPricing(context, provider, model) }
     // Running cost in cents, always priced at the current tier (re-derives when
     // pricing primes or token totals change).
