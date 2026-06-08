@@ -79,7 +79,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Ranking weights",
         cards = listOf(
             HelpCard("What this is", "A weight from 0 to 10 for each ranking the app can produce: Rerank, Judge-the-judges, Translations, and every Tournament method (Copeland, Elo, Davidson, Markov, Schulze, Colley, Trueskill2). Drag a slider to set a weight."),
-            HelpCard("Defaults", "Rerank 3, Judges 6, Translations 6, Elo / Davidson / Schulze 4 each, and Colley 3; every other Tournament method starts at 0. The 🧽 in the icons bar resets all sliders to these defaults."),
+            HelpCard("Defaults", "Rerank 3, Judges 6, Translations 6, and every Tournament method 2 each. The 🧽 in the icons bar resets all sliders to these defaults."),
             HelpCard("Saving", "Changes save automatically. Weights are stored per value — a slider left at its default isn't stored, so future default changes still apply to it.")
         )
     ),
