@@ -118,8 +118,17 @@ class TournamentEngine internal constructor(
         }
         // One tournament per report — pick the newest run group.
         val (runId, group) = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }!!
+        // Keep the run visible even if the tournament prompt was deleted/renamed
+        // since it ran: fall back to a synthetic prompt from the row metadata
+        // (blank text) so matches hydrate read-only. Rerun/resume no-op on a
+        // synthetic (blank-text) prompt. See audit bug 16.
         val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
-            ?: tournamentPrompt(aiSettings) ?: run { _runs.update { it - reportId }; return }
+            ?: tournamentPrompt(aiSettings)
+            ?: InternalPrompt(
+                id = group.first().metaPromptId ?: "",
+                name = group.first().metaPromptName?.takeIf { it.isNotBlank() } ?: "(prompt unavailable)",
+                category = WORKERS_CATEGORY
+            )
         val aggRow = group.firstOrNull { it.tournamentRole == ROLE_AGGREGATE }
         val method = decodeTournamentMatrix(aggRow?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
         val currentMatches = _runs.value[reportId]?.matches
@@ -686,6 +695,7 @@ class TournamentEngine internal constructor(
             try {
                 val run = _runs.value[reportId] ?: return@launch
                 val prompt = run.tournamentPrompt
+                if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't resume
                 val report = ReportStorage.getReport(context, reportId) ?: return@launch
                 val agentsById = report.agents.associateBy { it.agentId }
                 val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
