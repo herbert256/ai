@@ -58,12 +58,15 @@ import com.ai.data.ReportStatus
 import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.TRANSRANK_ROLE_CELL
 import com.ai.data.TournamentMethod
 import com.ai.data.WinMatrix
+import com.ai.data.aggregateTranslatorRanks
 import com.ai.data.decodeTournamentMatrix
 import com.ai.data.judgesConsensusWinMatrix
 import com.ai.data.rankFor
 import com.ai.data.toJudgeCellState
+import com.ai.data.toTransRankCellState
 import com.ai.ui.helpers.RerankRow
 import com.ai.ui.helpers.parseRerankRows
 import com.ai.ui.report.view.helpers.ViewReportCache
@@ -92,6 +95,10 @@ private sealed class RankSource(val label: String) {
      *  per match (Copeland over the consensus win matrix). One source, like
      *  Rerank — sits between Rerank and the Tournament methods. */
     object Judges : RankSource("Judges")
+    /** A "Rank the translators" run — quality = each model's average score as a
+     *  translator (matched onto the report's answer models). One per language;
+     *  the chip shows the language name. Sits right after Rerank. */
+    data class TransRank(val runId: String, val language: String) : RankSource(language)
     data class Tournament(val method: TournamentMethod) :
         RankSource(method.name.lowercase().replaceFirstChar { it.uppercase() })
 }
@@ -100,8 +107,20 @@ private sealed class RankSource(val label: String) {
 private fun RankSource.key(): String = when (this) {
     is RankSource.Rerank -> "rerank"
     is RankSource.Judges -> "judges"
+    is RankSource.TransRank -> "transrank:$runId"
     is RankSource.Tournament -> "tournament:${method.name}"
 }
+
+/** A loaded "Rank the translators" run reduced to per-model quality scores. */
+private data class TransRankSource(
+    val runId: String,                       // sourceTranslationRunId
+    val language: String,                    // native name preferred
+    val scoreByModelKey: Map<String, Double> // "providerId|model" → avg score
+)
+
+/** Provider-alias-resolved model key, matching the fan-out fold-in. */
+private fun vvModelKey(provider: String, model: String): String =
+    "${(AppService.findById(provider)?.id ?: provider).lowercase()}|$model"
 
 /** One model on the cost/quality plane. [costCents] = USD×100,
  *  [quality] = the ranking's REAL score (raw, model/method-scaled — NOT
@@ -172,6 +191,9 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
         /** Consensus win matrix from the latest Judge-the-judges run, or null
          *  when none (or too few resolvable answers). */
         val judgesMatrix: WinMatrix?,
+        /** Every "Rank the translators" run (one per language), each reduced to
+         *  per-model average scores — added as ranking sources after Rerank. */
+        val transRankRuns: List<TransRankSource>,
         val reportTitle: String?,
         /** Extra fan-out RESPONSE spend (USD) to fold into each agent's cost,
          *  keyed by agentId. Non-empty only when this report's fan-out
@@ -183,7 +205,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
         val includesFanOut: Boolean
     )
     val loadedState = produceState(
-        Loaded(null, emptyList(), null, null, null, null, null, emptyMap(), false),
+        Loaded(null, emptyList(), null, null, null, null, emptyList(), null, emptyMap(), false),
         reportId, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
@@ -219,6 +241,25 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                     ?.mapIndexed { idx, a -> a.agentId to (idx + 1) }?.toMap() ?: emptyMap()
                 judgesConsensusWinMatrix(cells) { successIds[it] }.takeIf { it.n >= 2 }
             }
+            // Every "Rank the translators" run → per-translator-model average
+            // scores. Grouped by the source translation run (one per language).
+            val transRankRuns: List<TransRankSource> = run {
+                val cellRows = rows.filter {
+                    it.kind == SecondaryKind.TRANSRANK && it.tournamentRole == TRANSRANK_ROLE_CELL
+                }
+                if (cellRows.isEmpty()) return@run emptyList()
+                cellRows.groupBy { it.translationRunId.orEmpty() }
+                    .filterKeys { it.isNotBlank() }
+                    .map { (srcRunId, group) ->
+                        val ranking = aggregateTranslatorRanks(group.mapNotNull { it.toTransRankCellState() })
+                        val first = group.first()
+                        val lang = first.targetLanguageNative?.takeIf { it.isNotBlank() }
+                            ?: first.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
+                        TransRankSource(srcRunId, lang, ranking.associate { vvModelKey(it.providerId, it.model) to it.avgScore })
+                    }
+                    .filter { it.scoreByModelKey.isNotEmpty() }
+                    .sortedBy { it.language.lowercase() }
+            }
             // Fan-out cost fold-in. Only when the report's own models were ALSO
             // the fan-out answerers — i.e. the answerer model set equals the
             // report's success-model set — does it make sense to add each
@@ -253,6 +294,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 tournamentMatrix = decoded?.first,
                 tournamentDefaultMethod = decoded?.second,
                 judgesMatrix = judgesMatrix,
+                transRankRuns = transRankRuns,
                 reportTitle = report?.barTitle,
                 fanOutCostByAgentId = fanOutCostByAgentId,
                 includesFanOut = fanOutCostByAgentId.isNotEmpty()
@@ -266,7 +308,10 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     val sources = remember(loaded) {
         buildList {
             if (loaded.rerankRows.isNotEmpty()) add(RankSource.Rerank)
-            // Judges sits right after Rerank, before the Tournament methods.
+            // Every "Rank the translators" run sits right after Rerank, labelled
+            // with its language.
+            loaded.transRankRuns.forEach { add(RankSource.TransRank(it.runId, it.language)) }
+            // Judges sits after those, before the Tournament methods.
             if (loaded.judgesMatrix != null) add(RankSource.Judges)
             if (loaded.tournamentMatrix != null) {
                 TournamentMethod.values().forEach { add(RankSource.Tournament(it)) }
@@ -294,6 +339,17 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 // interpretable default for a plurality-of-judges ranking.
                 rankFor(TournamentMethod.COPELAND, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
             } ?: emptyList()
+            is RankSource.TransRank -> {
+                // Map each model's translator average score onto the report's
+                // SUCCESS answer models (by provider/model); models that weren't
+                // translators get no row and drop off the plot.
+                val scoreByKey = loaded.transRankRuns.firstOrNull { it.runId == s.runId }?.scoreByModelKey ?: emptyMap()
+                report.agents
+                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    .mapIndexedNotNull { idx, a ->
+                        scoreByKey[vvModelKey(a.provider, a.model)]?.let { RerankRow(idx + 1, null, it, null) }
+                    }
+            }
             is RankSource.Tournament -> loaded.tournamentMatrix?.let { m ->
                 rankFor(s.method, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
             } ?: emptyList()
@@ -306,6 +362,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     val subject = when (val s = selected) {
         is RankSource.Rerank -> loaded.rerankModel?.let { "ranked by $it" }
         is RankSource.Judges -> "Judge the judges · consensus"
+        is RankSource.TransRank -> "Rank the translators · ${s.language}"
         is RankSource.Tournament -> "Tournament · ${s.label}"
         null -> null
     }
