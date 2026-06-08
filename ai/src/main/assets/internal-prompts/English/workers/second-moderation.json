@@ -5,10 +5,10 @@
   "workers": [
     {
       "agent": "*N/A",
-      "provider": "*N/A",
-      "model": "*N/A",
+      "provider": "Mistral",
+      "model": "mistral-moderation-latest",
       "flock": "*N/A",
-      "swarm": "workers"
+      "swarm": "*N/A"
     }
   ],
   "parameters": "*NONE",
