@@ -20,10 +20,10 @@ have format-specific code.
 | UI | Jetpack Compose, Compose BOM 2026.05.01, Material 3 dark |
 | Build | AGP 9.2.1, Gradle 9.5.1, build-tools 37.0.0, Java 25, JVM target 25 |
 | SDK | `namespace = com.ai`, `minSdk = 36`, `compileSdk = 37`, `targetSdk = 36` |
-| Persistence | SharedPreferences + JSON files in `<filesDir>` + Jetpack DataStore |
+| Persistence | SharedPreferences + JSON files in `<filesDir>` |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |
-| Size | ~143,236 LOC across 374 Kotlin files (84 data, 265 ui, 22 viewmodel, 2 model, 1 entry) |
+| Size | ~153,520 LOC across 388 Kotlin files (88 data, 273 ui, 24 viewmodel, 2 model, 1 entry) |
 
 ## Documentation
 
@@ -117,7 +117,7 @@ explicit request**. The full procedures live in
 
 Top-level under `ai/src/main/java/com/ai/`:
 
-- `data/` (84 files) — provider model (`AppService`,
+- `data/` (88 files) — provider model (`AppService`,
   `ApiFormat`), dispatch (`ApiDispatch`, `ApiStreaming`,
   `ApiClient`), tracing (`ApiTracer` + the in-memory
   `cachedTraceFiles` cache), retry interceptor, repository
@@ -127,16 +127,16 @@ Top-level under `ai/src/main/java/com/ai/`:
   `SecondaryResultStorage`, `PromptCache`, `ModelListCache`,
   `EmbeddingsStore`, `ApiTracer`), RAG layer (`Knowledge*`,
   `KnowledgeService`, `KnowledgeExtractors`), on-device runtime
-  (`LocalLlm`, `LocalEmbedder`), `BackupManager`, `AppDataStore`,
+  (`LocalLlm`, `LocalEmbedder`), `BackupManager`,
   `SharedContent`.
 - `model/` (2 files) — settings data classes.
-- `viewmodel/` (22 files) — `AppViewModel`, `ChatViewModel`,
+- `viewmodel/` (24 files) — `AppViewModel`, `ChatViewModel`,
   `ReportViewModel` plus extracted engines/managers
   (`RegenerateBatchEngine`, `SecondaryRunManager`,
   `IconGenerationManager`, …). Other view models delegate state to
   `AppViewModel`.
-- `ui/` (265 files) — Compose screens grouped by domain
-  (`report/` ×93, `cruds/` ×48, `admin/` ×34, `settings/` ×22,
+- `ui/` (273 files) — Compose screens grouped by domain
+  (`report/` ×98, `cruds/` ×48, `admin/` ×35, `settings/` ×22,
   `helpers/`, `shared/`, `navigation/`, `other/`, `chat/`,
   `search/`, `hub/`, `history/`, `share/`, `models/`,
   `knowledge/`, `theme/`).

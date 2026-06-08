@@ -6,8 +6,11 @@ Worktree audited: `/Users/herbert/ai-codex`
 
 Branch observed: `codex`
 
-Status: static functional audit complete, 74 observations across seven
-files. No build, deploy, unit tests, or instrumented tests were run.
+Re-verified: 2026-06-08 on `master` at `c30226a5b` — all counts still hold.
+
+Status: static functional audit complete, 74 observations across six
+view files plus this summary. No build, deploy, unit tests, or
+instrumented tests were run.
 
 ## Executive View
 
@@ -108,11 +111,29 @@ files. No build, deploy, unit tests, or instrumented tests were run.
 
 ## Documentation Alignment Note
 
-The source is the authority. During this audit, one documentation caveat
-in `doc/persistent.md` and `doc/value-view.md` still described
-`rankingWeights` and `showLadybugIcons` as session-only. Current source
-in `SettingsPreferences.kt` reads and writes both settings. This audit
-treats the source behavior as current.
+The source is the authority. At audit time, `doc/persistent.md` and
+`doc/value-view.md` still described `rankingWeights` and
+`showLadybugIcons` as session-only, while `SettingsPreferences.kt`
+already read and wrote both. That gap has since been closed: commit
+`fb64c9052` updated both docs to describe the settings as persisted, so
+source and docs now agree. Retained here as a record of the finding, not
+an open discrepancy.
+
+## Actionable Follow-ups
+
+This audit is a map, not a bug queue, but two items are concrete enough
+to act on:
+
+1. **Unused DataStore dependency.** `androidx.datastore.preferences` is
+   declared (`ai/build.gradle.kts`, `gradle/libs.versions.toml`), and the
+   versions-catalog comment frames it as a SharedPreferences replacement,
+   but it has zero runtime usage — no `AppDataStore`, no
+   `androidx.datastore` import anywhere in source. Either remove the
+   dependency or follow through on the migration it implies. (Code change,
+   deferred.)
+2. **`CLAUDE.md` drift.** The root `CLAUDE.md` file/LOC counts trailed the
+   source (374 vs 388 files) and listed an `AppDataStore` that does not
+   exist. Refreshed alongside this audit.
 
 ## Recommended Review Questions
 

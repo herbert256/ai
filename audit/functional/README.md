@@ -62,3 +62,9 @@ Head observed: `89a07fd1e Fix four audit findings: persist settings, drop dead p
 
 Date: 2026-06-08
 
+Merged to `master` and re-verified on 2026-06-08 at `c30226a5b`; all
+file, folder, test, and provider counts in this pack still hold. Counts
+are a point-in-time snapshot — to re-check, run
+`find ai/src/main/java/com/ai -name '*.kt' | wc -l` plus the per-folder
+equivalents.
+
