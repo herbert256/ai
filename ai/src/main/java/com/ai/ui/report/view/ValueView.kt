@@ -279,9 +279,14 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null
             }
             val answererKeys = fanOutPairs.map { modelKey(it.providerId, it.model) }.toSet()
-            val successKeys = successAgents.map { modelKey(it.provider, it.model) }.toSet()
+            val successKeyList = successAgents.map { modelKey(it.provider, it.model) }
+            val successKeys = successKeyList.toSet()
+            // Skip the fold-in when two success agents share a provider/model key:
+            // they collapse to one key, so the per-key fan-out total would be
+            // double-assigned to both agents. See audit bug 11.
+            val noDuplicateModels = successKeyList.size == successKeys.size
             val fanOutCostByAgentId: Map<String, Double> =
-                if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && answererKeys == successKeys) {
+                if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && noDuplicateModels && answererKeys == successKeys) {
                     val costByKey = fanOutPairs
                         .groupBy { modelKey(it.providerId, it.model) }
                         .mapValues { (_, list) -> list.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } }
