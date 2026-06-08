@@ -71,6 +71,7 @@ import com.ai.data.aggregateTranslatorRanks
 import com.ai.data.decodeTournamentMatrix
 import com.ai.data.judgesConsensusWinMatrix
 import com.ai.data.rankFor
+import com.ai.data.toCompareCellState
 import com.ai.data.toJudgeCellState
 import com.ai.viewmodel.rankingWeight
 import com.ai.data.toTransRankCellState
@@ -111,6 +112,9 @@ private sealed class RankSource(val label: String) {
      *  translator (matched onto the report's answer models). One per language;
      *  the chip shows the language name. Sits right after Rerank. */
     data class TransRank(val runId: String, val language: String) : RankSource(language)
+    /** Compare with meta: quality = each answer's mean match % against the chosen
+     *  meta result(s) (the result screen's first column). Sits after Judges. */
+    object Compare : RankSource("Compare")
     /** The Tournament "Total" — quality is the inverse of each model's AVERAGE
      *  position across every method (the Tournament Total grid's ordering).
      *  Sits just before the individual Tournament methods. */
@@ -124,6 +128,7 @@ private fun RankSource.key(): String = when (this) {
     is RankSource.Combined -> "combined"
     is RankSource.Rerank -> "rerank"
     is RankSource.Judges -> "judges"
+    is RankSource.Compare -> "compare"
     is RankSource.TransRank -> "transrank:$runId"
     is RankSource.TournamentTotal -> "tournament:total"
     is RankSource.Tournament -> "tournament:${method.name}"
@@ -226,6 +231,7 @@ private fun buildCombinedRows(
     judgesMatrix: WinMatrix?,
     transRankRuns: List<TransRankSource>,
     tournamentMatrix: WinMatrix?,
+    compareScoreByAgentId: Map<String, Int>,
     weightOf: (String) -> Int
 ): List<RerankRow> {
     val success = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
@@ -250,6 +256,15 @@ private fun buildCombinedRows(
                 val key = vvModelKey(a.provider, a.model)
                 val vs = transRankRuns.mapNotNull { it.scoreByModelKey[key] }
                 if (vs.isNotEmpty()) sc[idx + 1] = vs.average()
+            }
+            if (sc.isNotEmpty()) rankings.add(w to sc)
+        }
+    }
+    weightOf("compare").takeIf { it > 0 }?.let { w ->
+        if (compareScoreByAgentId.isNotEmpty()) {
+            val sc = HashMap<Int, Double>()
+            success.forEachIndexed { idx, a ->
+                compareScoreByAgentId[a.agentId]?.let { sc[idx + 1] = it.toDouble() }
             }
             if (sc.isNotEmpty()) rankings.add(w to sc)
         }
@@ -302,10 +317,13 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
         val fanOutCostByAgentId: Map<String, Double>,
         /** True when [fanOutCostByAgentId] is folding fan-out cost in — drives
          *  the caption note so the higher numbers aren't a mystery. */
-        val includesFanOut: Boolean
+        val includesFanOut: Boolean,
+        /** Compare-with-meta: agentId → mean match % (0..100) over the latest
+         *  run — the result screen's first column, used as a quality source. */
+        val compareScoreByAgentId: Map<String, Int>
     )
     val loadedState = produceState(
-        Loaded(null, emptyList(), null, null, null, null, emptyList(), null, emptyMap(), false),
+        Loaded(null, emptyList(), null, null, null, null, emptyList(), null, emptyMap(), false, emptyMap()),
         reportId, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
@@ -385,6 +403,18 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             // they collapse to one key, so the per-key fan-out total would be
             // double-assigned to both agents. See audit bug 11.
             val noDuplicateModels = successKeyList.size == successKeys.size
+            // Compare-with-meta: reduce the latest run's CELL rows to each
+            // answer's mean match % (agentId → 0..100), the result screen's
+            // first column. No AGGREGATE row exists, so average the cells here.
+            val compareScoreByAgentId: Map<String, Int> = run {
+                val byRun = rows.filter { it.kind == SecondaryKind.COMPARE && !it.compareRunId.isNullOrBlank() }
+                    .groupBy { it.compareRunId!! }
+                val group = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }?.value ?: return@run emptyMap()
+                group.mapNotNull { it.toCompareCellState() }
+                    .filter { it.percent != null }
+                    .groupBy { it.agentId }
+                    .mapValues { (_, cs) -> cs.sumOf { it.percent!! } / cs.size }
+            }
             val fanOutCostByAgentId: Map<String, Double> =
                 if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && noDuplicateModels && answererKeys == successKeys) {
                     val costByKey = fanOutPairs
@@ -402,7 +432,8 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 transRankRuns = transRankRuns,
                 reportTitle = report?.barTitle,
                 fanOutCostByAgentId = fanOutCostByAgentId,
-                includesFanOut = fanOutCostByAgentId.isNotEmpty()
+                includesFanOut = fanOutCostByAgentId.isNotEmpty(),
+                compareScoreByAgentId = compareScoreByAgentId
             )
         }
     }
@@ -420,7 +451,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     }
     val combinedRows = remember(loaded, generalSettings) {
         loaded.report?.let {
-            buildCombinedRows(it, loaded.rerankRows, loaded.judgesMatrix, loaded.transRankRuns, loaded.tournamentMatrix, weightOf)
+            buildCombinedRows(it, loaded.rerankRows, loaded.judgesMatrix, loaded.transRankRuns, loaded.tournamentMatrix, loaded.compareScoreByAgentId, weightOf)
         } ?: emptyList()
     }
 
@@ -436,6 +467,8 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             loaded.transRankRuns.forEach { add(RankSource.TransRank(it.runId, it.language)) }
             // Judges sits after those, before the Tournament methods.
             if (loaded.judgesMatrix != null) add(RankSource.Judges)
+            // Compare with meta (match %) — after Judges.
+            if (loaded.compareScoreByAgentId.isNotEmpty()) add(RankSource.Compare)
             if (loaded.tournamentMatrix != null) {
                 add(RankSource.TournamentTotal)   // before the first method
                 TournamentMethod.values().forEach { add(RankSource.Tournament(it)) }
@@ -465,6 +498,14 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 // interpretable default for a plurality-of-judges ranking.
                 rankFor(TournamentMethod.COPELAND, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
             } ?: emptyList()
+            is RankSource.Compare -> {
+                // Each SUCCESS answer's mean match % (0..100) against the meta.
+                report.agents
+                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    .mapIndexedNotNull { idx, a ->
+                        loaded.compareScoreByAgentId[a.agentId]?.let { RerankRow(idx + 1, null, it.toDouble(), null) }
+                    }
+            }
             is RankSource.TransRank -> {
                 // Map each model's translator average score onto the report's
                 // SUCCESS answer models (by provider/model); models that weren't
@@ -489,6 +530,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
         is RankSource.Combined -> "Combined · weighted 0–1000"
         is RankSource.Rerank -> loaded.rerankModel?.let { "ranked by $it" }
         is RankSource.Judges -> "Judge the judges · consensus"
+        is RankSource.Compare -> "Compare with meta · match %"
         is RankSource.TransRank -> "Rank the translators · ${s.language}"
         is RankSource.TournamentTotal -> "Tournament · total of all methods"
         is RankSource.Tournament -> "Tournament · ${s.label}"
@@ -553,7 +595,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
 
         if (points.isEmpty()) {
             Text(
-                "No ranking to compare. Run a Rerank, Tournament, or Judge-the-judges on this report first.",
+                "No ranking yet. Run a Rerank, Tournament, Judge-the-judges, Rank-the-translators, or Compare-with-meta on this report first.",
                 color = AppColors.TextSecondary, fontSize = 13.sp,
                 modifier = Modifier.padding(top = 16.dp)
             )

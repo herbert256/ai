@@ -1939,7 +1939,7 @@ private fun RankingWeightsSubScreen(
     onNavigateHome: () -> Unit
 ) {
     // One card for the three named rankings, one for every Tournament method.
-    val coreEntries = listOf("rerank" to "Rerank", "judges" to "Judges", "translations" to "Translations")
+    val coreEntries = listOf("rerank" to "Rerank", "judges" to "Judges", "translations" to "Translations", "compare" to "Compare")
     val tournamentEntries = remember {
         com.ai.data.TournamentMethod.values().map { m -> m.name to m.name.lowercase().replaceFirstChar { it.uppercase() } }
     }
@@ -1967,7 +1967,7 @@ private fun RankingWeightsSubScreen(
                 fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 8.dp)
             )
             val setWeight: (String, Int) -> Unit = { key, v -> weights = weights + (key to v) }
-            RankingWeightCard("Rerank · Judges · Translations", coreEntries, weights, setWeight)
+            RankingWeightCard("Rerank · Judges · Translations · Compare", coreEntries, weights, setWeight)
             RankingWeightCard("Tournament rankings", tournamentEntries, weights, setWeight)
             Spacer(Modifier.height(24.dp))
         }
