@@ -171,6 +171,10 @@ class TranslatorRankEngine internal constructor(
 
     fun runByKey(key: TransRankRunKey): TransRankRunState? = _runs.value[key]
 
+    /** Cell row ids currently parked on a provider rate/concurrency gate — the
+     *  L1 "Wait" counter, so throttled cells don't look like a stuck Queue. */
+    val throttledCells: kotlinx.coroutines.flow.StateFlow<Set<String>> get() = appViewModel.throttledTransRankCells
+
     // -----------------------------------------------------------------
     // Launch
     // -----------------------------------------------------------------
@@ -293,6 +297,8 @@ class TranslatorRankEngine internal constructor(
             items = items,
             hostOf = { AppService.findById(it.judge.providerId)?.let { s -> providerHost(s) } },
             subCap = ApiCallCaps.workers,
+            onThrottled = { appViewModel.updateThrottledTransRankCells { s -> s + it.placeholder.id } },
+            onCleared = { appViewModel.updateThrottledTransRankCells { s -> s - it.placeholder.id } },
             register = { item, d ->
                 cellJobs[item.placeholder.id] = d
                 d.invokeOnCompletion { cellJobs.remove(item.placeholder.id, d) }
@@ -302,7 +308,11 @@ class TranslatorRankEngine internal constructor(
             onBenchRetry = { item -> restoreBenchedCellForRequeue(context, key, item) }
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
-            runOneCell(context, key, prompt, item)
+            try {
+                runOneCell(context, key, prompt, item)
+            } finally {
+                appViewModel.updateThrottledTransRankCells { it - item.placeholder.id }
+            }
         }
     }
 

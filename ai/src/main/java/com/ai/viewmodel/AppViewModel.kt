@@ -171,6 +171,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledJudgeEvalCells.update(block)
     }
 
+    /** Translator-rank cell row ids parked on a provider's rate/concurrency gate
+     *  — the TRANSRANK L1 "Wait" counter (parallel to [throttledJudgeEvalCells]). */
+    private val _throttledTransRankCells = MutableStateFlow<Set<String>>(emptySet())
+    val throttledTransRankCells: StateFlow<Set<String>> = _throttledTransRankCells.asStateFlow()
+    internal fun updateThrottledTransRankCells(block: (Set<String>) -> Set<String>) {
+        _throttledTransRankCells.update(block)
+    }
+
     /** Compare cell row ids parked on a provider's rate/concurrency gate —
      *  the batch L1 "Wait" counter (parallel to [throttledTournamentMatches]). */
     private val _throttledCompareCells = MutableStateFlow<Set<String>>(emptySet())

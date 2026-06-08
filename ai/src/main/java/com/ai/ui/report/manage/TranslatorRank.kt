@@ -161,6 +161,7 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
     val scope = rememberCoroutineScope()
     val reportId = runKey.substringBefore("|")
     val runs by engine.runs.collectAsState()
+    val throttled by engine.throttledCells.collectAsState()
     val run = runs[runKey]
 
     LaunchedEffect(reportId) {
@@ -209,7 +210,7 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
     }
 
     TranslatorRankL1(
-        run = run, reportTitle = reportTitle, reportIcon = reportIcon,
+        run = run, throttled = throttled, reportTitle = reportTitle, reportIcon = reportIcon,
         openTranslator = { openTranslatorKey = it },
         onOpenWorkers = { showWorkers = true },
         onRestartFailed = { scope.launch { engine.restartFailedCells(context, runKey) } },
@@ -226,6 +227,7 @@ private fun LocalContextSafe() = androidx.compose.ui.platform.LocalContext.curre
 @Composable
 private fun TranslatorRankL1(
     run: TransRankRunState,
+    throttled: Set<String>,
     reportTitle: String,
     reportIcon: String,
     openTranslator: (String) -> Unit,
@@ -237,9 +239,24 @@ private fun TranslatorRankL1(
     val cells = run.cells.values
     val total = cells.size
     val done = cells.count { it.status == TransRankCellStatus.DONE }
-    val error = cells.count { it.status == TransRankCellStatus.ERROR }
-    val running = cells.count { it.status == TransRankCellStatus.RUNNING }
-    val queued = cells.count { it.status == TransRankCellStatus.PENDING }
+    // Each cell is a FIXED-MODEL judge call: a short-benched judge parks its
+    // cells in Bench, and rate-gated cells in Wait — without those buckets the
+    // queue looked stuck. Same carve as Judge-the-judges.
+    val shortBenches by com.ai.data.ModelCooldownStore.shortBenches.collectAsState()
+    fun shortBenched(p: String, m: String) = (shortBenches["$p:$m"] ?: 0L) > System.currentTimeMillis()
+    val summary = deriveBatchSummary(
+        items = cells,
+        idOf = { it.id },
+        statusOf = { it.status },
+        throttledIds = throttled,
+        family = BatchFamily.FIXED_MODEL,
+        benchedOf = { shortBenched(it.judgeProviderId, it.judgeModel) },
+    )
+    val error = summary.displayError
+    val running = summary.counts.running
+    val benchCount = summary.counts.bench
+    val throttledCount = summary.counts.wait
+    val queued = summary.counts.queued
     val allTerminal = total > 0 && (done + error) == total
     val ranking = aggregateTranslatorRanks(cells)
 
@@ -265,6 +282,8 @@ private fun TranslatorRankL1(
                 add(Triple("Done", done.toString(), AppColors.SuccessAccent))
                 add(Triple("Error", error.toString(), AppColors.DangerAccent))
                 add(Triple("Run", running.toString(), AppColors.WarningAccent))
+                if (summary.showBenchColumn) add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
+                add(Triple("Wait", throttledCount.toString(), AppColors.CautionAccent))
                 add(Triple("Queue", queued.toString(), AppColors.QueueAccent))
                 add(Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent))
             })
