@@ -431,6 +431,14 @@ fun ReportsScreen(
     // land back at the report root instead of the overlay they came
     // from. rememberSaveable persists through the back-stack.
     val st = rememberReportsScreenState(initialModels)
+    // After starting a secondary (Meta/Rerank/Moderation), surface the
+    // "Report - second results" screen — closing Get-info if it was open — so the
+    // newly-running result is visible instead of staying on the overview.
+    val showSecondResultsLayer = com.ai.ui.shared.LocalShowSecondResults.current
+    val goToSecondResults: () -> Unit = {
+        st.showGetInfo.value = false
+        showSecondResultsLayer?.value = true
+    }
     var openMetaResultId by st.openMetaResultId
     var openTranslationRunId by st.openTranslationRunId
 
@@ -1127,10 +1135,10 @@ fun ReportsScreen(
             if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
                 st.runtimeWorkerPick.value = RuntimeWorkerPick(
                     titleText = "Meta — pick workers", initial = driver.workers,
-                    onConfirm = { picked -> onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, picked) },
+                    onConfirm = { picked -> onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, picked); goToSecondResults() },
                     onCancel = {}
                 )
-            } else onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, null)
+            } else { onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, null); goToSecondResults() }
         }
         return
     }
@@ -1225,10 +1233,10 @@ fun ReportsScreen(
             if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
                 st.runtimeWorkerPick.value = RuntimeWorkerPick(
                     titleText = "Rerank — pick workers", initial = driver.workers,
-                    onConfirm = { picked -> onRunRerank(rid, ls, emptyList(), null, picked) },
+                    onConfirm = { picked -> onRunRerank(rid, ls, emptyList(), null, picked); goToSecondResults() },
                     onCancel = {}
                 )
-            } else onRunRerank(rid, ls, emptyList(), null, null)
+            } else { onRunRerank(rid, ls, emptyList(), null, null); goToSecondResults() }
         }
         return
     }
@@ -1250,10 +1258,10 @@ fun ReportsScreen(
             if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
                 st.runtimeWorkerPick.value = RuntimeWorkerPick(
                     titleText = "Moderation — pick workers", initial = driver.workers,
-                    onConfirm = { picked -> onRunModeration(rid, ls, picked) },
+                    onConfirm = { picked -> onRunModeration(rid, ls, picked); goToSecondResults() },
                     onCancel = {}
                 )
-            } else onRunModeration(rid, ls, null)
+            } else { onRunModeration(rid, ls, null); goToSecondResults() }
         }
         return
     }
