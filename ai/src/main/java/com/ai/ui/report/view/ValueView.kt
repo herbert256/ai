@@ -697,57 +697,101 @@ private fun ValueScatterCanvas(
                 else -> drawCircle(regC, radius = 9f, center = o)
             }
         }
-        // Model-name labels with greedy collision avoidance: each label takes its
-        // default spot (right of the dot) then tries up / down / left / above /
-        // below until it clears every already-placed label + dot; a thin leader
-        // line links a moved label back to its dot. Stops names overwriting.
+        // Model-name labels. Dots that sit almost on top of one another are
+        // grouped and their labels FANNED OUT symmetrically around the cluster
+        // (each with its own leader line) — so when two dots coincide, one label
+        // goes a little up and the other a little down instead of one staying put
+        // and the other jumping far. An isolated dot keeps the plain right-of-dot
+        // spot and only moves (with a line) when it would overlap something.
         val labelPaint = android.graphics.Paint().apply {
             color = labelArgb; textSize = (if (fullScreen) 27f else 22f) * labelScale; isAntiAlias = true
         }
         val fm = labelPaint.fontMetrics
         val ascent = -fm.ascent; val descent = fm.descent; val lineH = ascent + descent
         val gap = 8f
+        val canvasW = size.width; val canvasH = size.height
+        val os = points.map { px(it) }
+        val rs = points.map { dotRadius(it) }
+        val names = points.map { if (fullModelNames) it.modelShort else it.modelShort.take(14) }
+        val ws = names.map { labelPaint.measureText(it) }
         val placed = ArrayList<android.graphics.RectF>()
         // Seed with the dots so labels dodge every marker, not just each other.
-        points.forEach { p -> val o = px(p); val r = dotRadius(p); placed.add(android.graphics.RectF(o.x - r, o.y - r, o.x + r, o.y + r)) }
-        val ordered = points.sortedWith(
-            compareByDescending<ValuePoint> { it.bestValue }.thenBy { it.dominated }.thenBy { px(it).x }
-        )
-        ordered.forEach { p ->
-            val o = px(p)
-            val R = dotRadius(p)
-            val name = if (fullModelNames) p.modelShort else p.modelShort.take(14)
-            val w = labelPaint.measureText(name)
-            val baseY = o.y + ascent * 0.35f
-            val cands = listOf(
-                o.x + R + gap to baseY,                  // right (default)
-                o.x + R + gap to o.y - lineH * 0.7f,     // right-up
-                o.x + R + gap to o.y + lineH * 1.0f,     // right-down
-                o.x + R + gap to o.y - lineH * 1.8f,     // right-up2
-                o.x + R + gap to o.y + lineH * 2.1f,     // right-down2
-                o.x - R - gap - w to baseY,              // left
-                o.x - R - gap - w to o.y - lineH * 0.7f, // left-up
-                o.x - R - gap - w to o.y + lineH * 1.0f, // left-down
-                o.x - w * 0.5f to o.y - R - gap,         // above
-                o.x - w * 0.5f to o.y + R + gap + ascent // below
-            )
-            var idx = -1
-            for ((i, c) in cands.withIndex()) {
+        os.forEachIndexed { i, o -> val r = rs[i]; placed.add(android.graphics.RectF(o.x - r, o.y - r, o.x + r, o.y + r)) }
+        val finalX = FloatArray(points.size); val finalY = FloatArray(points.size); val finalLeader = BooleanArray(points.size)
+        // First free candidate that stays on-canvas and clears every placed rect.
+        fun choose(cands: List<Pair<Float, Float>>, w: Float): Int {
+            for ((ci, c) in cands.withIndex()) {
                 val r = android.graphics.RectF(c.first, c.second - ascent, c.first + w, c.second + descent)
-                if (r.left < 2f || r.top < 2f || r.right > size.width - 2f || r.bottom > size.height - 2f) continue
-                if (placed.none { android.graphics.RectF.intersects(it, r) }) { idx = i; break }
+                if (r.left < 2f || r.top < 2f || r.right > canvasW - 2f || r.bottom > canvasH - 2f) continue
+                if (placed.none { android.graphics.RectF.intersects(it, r) }) return ci
             }
-            if (idx == -1) idx = 0  // nothing clear — fall back to the default spot
-            val (lx, ly) = cands[idx]
-            placed.add(android.graphics.RectF(lx, ly - ascent, lx + w, ly + descent))
-            if (idx != 0) {
-                // Moved off its default spot → connect it back to the dot.
-                val target = Offset(lx, ly - ascent + lineH / 2f)
-                val dir = target - o; val len = dir.getDistance()
-                val startPt = if (len > R) o + dir * (R / len) else o
+            return -1
+        }
+        fun commit(i: Int, lx: Float, ly: Float, leader: Boolean) {
+            finalX[i] = lx; finalY[i] = ly; finalLeader[i] = leader
+            placed.add(android.graphics.RectF(lx, ly - ascent, lx + ws[i], ly + descent))
+        }
+        // Union near-coincident dots into clusters.
+        val clusterRadius = lineH * 1.4f
+        val parent = IntArray(points.size) { it }
+        fun root(a: Int): Int { var x = a; while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x] }; return x }
+        for (i in points.indices) for (j in i + 1 until points.size) {
+            if ((os[i] - os[j]).getDistance() < clusterRadius) parent[root(i)] = root(j)
+        }
+        // Larger clusters first so their fanned slots claim space before singletons.
+        val groups = points.indices.groupBy { root(it) }.values.sortedByDescending { it.size }
+        groups.forEach { idxs ->
+            if (idxs.size == 1) {
+                val i = idxs[0]; val o = os[i]; val R = rs[i]; val w = ws[i]; val baseY = o.y + ascent * 0.35f
+                val cands = listOf(
+                    o.x + R + gap to baseY,                  // right (default)
+                    o.x + R + gap to o.y - lineH * 0.7f,     // right-up
+                    o.x + R + gap to o.y + lineH * 1.0f,     // right-down
+                    o.x + R + gap to o.y - lineH * 1.8f,     // right-up2
+                    o.x + R + gap to o.y + lineH * 2.1f,     // right-down2
+                    o.x - R - gap - w to baseY,              // left
+                    o.x - R - gap - w to o.y - lineH * 0.7f, // left-up
+                    o.x - R - gap - w to o.y + lineH * 1.0f, // left-down
+                    o.x - w * 0.5f to o.y - R - gap,         // above
+                    o.x - w * 0.5f to o.y + R + gap + ascent // below
+                )
+                val ci = choose(cands, w)
+                val c = if (ci < 0) cands[0] else cands[ci]
+                commit(i, c.first, c.second, leader = ci != 0)   // moved or fallback → line
+            } else {
+                // Fan the cluster's labels vertically, centered on the centroid,
+                // to the right of the rightmost dot; top dot → top label. Every
+                // clustered label gets a leader line.
+                val members = idxs.sortedBy { os[it].y }
+                val k = members.size
+                val cy = members.map { os[it].y }.average().toFloat()
+                val anchorX = members.maxOf { os[it].x + rs[it] } + gap
+                val spacing = lineH * 1.05f
+                members.forEachIndexed { slot, i ->
+                    val w = ws[i]
+                    val targetY = cy + (slot - (k - 1) / 2.0f) * spacing + ascent * 0.35f
+                    val cands = listOf(
+                        anchorX to targetY,
+                        anchorX to targetY - spacing * 0.5f,
+                        anchorX to targetY + spacing * 0.5f,
+                        anchorX + w * 0.25f to targetY,
+                        os[i].x - rs[i] - gap - w to targetY   // left fallback
+                    )
+                    val ci = choose(cands, w)
+                    val c = if (ci < 0) cands[0] else cands[ci]
+                    commit(i, c.first, c.second, leader = true)
+                }
+            }
+        }
+        // Draw the leader lines + names (dots are already down, so labels sit on top).
+        points.indices.forEach { i ->
+            if (finalLeader[i]) {
+                val target = Offset(finalX[i], finalY[i] - ascent + lineH / 2f)
+                val dir = target - os[i]; val len = dir.getDistance()
+                val startPt = if (len > rs[i]) os[i] + dir * (rs[i] / len) else os[i]
                 drawLine(leaderColor, startPt, target, strokeWidth = 1.5f)
             }
-            nc.drawText(name, lx, ly, labelPaint)
+            nc.drawText(names[i], finalX[i], finalY[i], labelPaint)
         }
 
         // --- X-axis numeric ticks (cost) at left / mid / right ---
