@@ -97,8 +97,11 @@ internal fun SecondaryScopeScreen(
     // set per SecondaryLanguageScope's doc comment.
     var allLanguages by remember { mutableStateOf(true) }
     var pickedOriginal by remember { mutableStateOf(true) }
-    val pickedLanguages = remember { mutableStateMapOf<String, Boolean>().apply {
-        languages.forEach { (lang, _) -> put(lang, true) }
+    // Keyed on the language names so a change to the available translations
+    // re-seeds the map instead of leaving stale entries. See audit bug 22.
+    val languageKeys = languages.map { it.first }
+    val pickedLanguages = remember(languageKeys) { mutableStateMapOf<String, Boolean>().apply {
+        languageKeys.forEach { put(it, true) }
     } }
     // Fan-out / rerank / moderation are single-language: they each
     // operate on one (source body, prompt) set at a time. Empty
@@ -151,7 +154,11 @@ internal fun SecondaryScopeScreen(
                         // The set holds English-name keys for translations
                         // and "" (the empty string) for the original — see
                         // SecondaryLanguageScope.Selected's doc comment.
-                        val picked = pickedLanguages.filterValues { it }.keys.toMutableSet()
+                        // Intersect with the languages still present so a stale
+                        // toggle can't submit a removed language. See audit bug 22.
+                        val present = languages.mapTo(HashSet()) { it.first }
+                        val picked = pickedLanguages.filterValues { it }.keys
+                            .filterTo(mutableSetOf()) { it in present }
                         if (pickedOriginal) picked.add("")
                         SecondaryLanguageScope.Selected(picked)
                     }
