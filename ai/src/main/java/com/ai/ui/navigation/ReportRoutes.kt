@@ -676,7 +676,8 @@ internal fun NavGraphBuilder.reportRoutes(
         // single-result overlay (real route, opened from a Manage 'report' row).
         composable(NavRoutes.AI_REPORT_MODEL) { entry ->
             val rid = entry.arguments?.getString("reportId") ?: ""
-            val aid = entry.arguments?.getString("agentId") ?: ""
+            // Encoded in NavRoutes.aiReportModel (swarm/fan-out ids carry '/').
+            val aid = try { java.net.URLDecoder.decode(entry.arguments?.getString("agentId") ?: "", "UTF-8") } catch (_: Exception) { entry.arguments?.getString("agentId") ?: "" }
             val rmContext = LocalContext.current
             val rmScope = rememberCoroutineScope()
             val temperatureSweepStates by reportViewModel.temperatureSweepStates.collectAsState()
