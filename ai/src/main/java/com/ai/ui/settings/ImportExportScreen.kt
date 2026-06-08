@@ -1208,21 +1208,30 @@ fun ImportExportScreen(
                 // rows.
                 val currentAgentIds = aiSettings.agents.map { it.id }.toSet()
                 scope.launch {
+                    // Mint the import id up front so a spinning "Loading file X
+                    // of Y" row shows on the Reports hub the instant work
+                    // starts — the import is slow (one atomic write per trace +
+                    // secondary) and otherwise looks like nothing is happening.
+                    // The id doubles as the new report id (see readReportZip).
+                    val importId = java.util.UUID.randomUUID().toString()
+                    com.ai.data.ReportImportProgress.start(importId, "report")
                     val result = withContext(Dispatchers.IO) {
-                        runCatching {
-                            val summary = context.contentResolver.openInputStream(uri)?.use { input ->
-                                com.ai.data.readReportZip(context, input)
-                            } ?: error("Could not open input stream")
-                            // Re-read the freshly-imported Report
-                            // off disk so the missing-entity counts
-                            // reflect what's actually persisted.
-                            val saved = com.ai.data.ReportStorage.getReport(context, summary.newReportId)
-                            val agents = saved?.agents.orEmpty()
-                            val missingProviders = agents.map { it.provider }.distinct()
-                                .count { com.ai.data.AppService.findById(it) == null }
-                            val missingAgents = agents.count { it.agentId !in currentAgentIds }
-                            Triple(summary, missingProviders, missingAgents)
-                        }
+                        try {
+                            runCatching {
+                                val summary = context.contentResolver.openInputStream(uri)?.use { input ->
+                                    com.ai.data.readReportZip(context, input, importId)
+                                } ?: error("Could not open input stream")
+                                // Re-read the freshly-imported Report
+                                // off disk so the missing-entity counts
+                                // reflect what's actually persisted.
+                                val saved = com.ai.data.ReportStorage.getReport(context, summary.newReportId)
+                                val agents = saved?.agents.orEmpty()
+                                val missingProviders = agents.map { it.provider }.distinct()
+                                    .count { com.ai.data.AppService.findById(it) == null }
+                                val missingAgents = agents.count { it.agentId !in currentAgentIds }
+                                Triple(summary, missingProviders, missingAgents)
+                            }
+                        } finally { com.ai.data.ReportImportProgress.finish(importId) }
                     }
                     result.fold(
                         onSuccess = { (s, missingProviders, missingAgents) ->
