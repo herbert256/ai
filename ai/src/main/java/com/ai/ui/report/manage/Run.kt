@@ -292,7 +292,7 @@ internal fun ReportRunScreen(
     }
     // 👯 duplicate-report tap shows a yes/no first so an accidental
     // hit on the bottom bar doesn't silently spawn a "(Copy)" report.
-    var showCopyConfirm by remember { mutableStateOf(false) }
+    var showCopyConfirm by rememberSaveable(currentReportId) { mutableStateOf(false) }
     if (showCopyConfirm) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showCopyConfirm = false },
