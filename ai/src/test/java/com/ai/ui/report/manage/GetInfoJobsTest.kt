@@ -131,7 +131,7 @@ class GetInfoJobsTest {
     }
 
     @Test
-    fun successfulModelTitleAttemptWithoutTitleIsTerminalDone() {
+    fun successfulModelTitleAttemptWithoutTitleIsTerminalEmpty() {
         val report = report(
             completedAt = 2_000L,
             agents = mutableListOf(
@@ -155,7 +155,9 @@ class GetInfoJobsTest {
 
         assertThat(jobs).hasSize(1)
         assertThat(jobs.single().type).isEqualTo("model-title")
-        assertThat(jobs.single().state).isEqualTo(InfoJobState.DONE)
+        // A concluded title call that yielded no title and no error is terminal
+        // "but not a success" → EMPTY (GetInfo.kt titleStateFor), not DONE.
+        assertThat(jobs.single().state).isEqualTo(InfoJobState.EMPTY)
         assertThat(jobs.single().pending).isFalse()
         assertThat(jobs.single().cost).isWithin(0.000001).of(0.03)
     }

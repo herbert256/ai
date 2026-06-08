@@ -11,7 +11,7 @@ import com.ai.data.*
 import com.ai.data.local.LocalEmbedder
 import com.ai.data.local.LocalLlm
 import com.ai.model.*
-import com.ai.ui.settings.SettingsPreferences
+import com.ai.data.preferences.SettingsPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -183,7 +183,7 @@ data class GeneralSettings(
      *  per-model token counts and costs surfaced under AI Usage / Statistics
      *  and the Live Dashboard — are accumulated on every API call. Turn off
      *  to stop all usage-stat recording. Mirrors to
-     *  [com.ai.ui.settings.SettingsPreferences.usageStatsEnabled]. */
+     *  [com.ai.data.preferences.SettingsPreferences.usageStatsEnabled]. */
     val usageStatsEnabled: Boolean = true,
     /** When true hides the Android status bar — clock, signal,
      *  battery — so the app gets the full screen height. Reads via

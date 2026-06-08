@@ -39,7 +39,7 @@ import com.ai.model.Settings
 import com.ai.ui.knowledge.displayNameForUri
 import com.ai.ui.knowledge.pickTypeForUri
 import com.ai.ui.search.supportedEmbeddingChoices
-import com.ai.ui.settings.SettingsPreferences
+import com.ai.data.preferences.SettingsPreferences
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.AppViewModel

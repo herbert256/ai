@@ -1,4 +1,4 @@
-package com.ai.ui.settings
+package com.ai.data.preferences
 
 import android.content.SharedPreferences
 import androidx.core.content.edit

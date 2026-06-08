@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.model.*
-import com.ai.ui.settings.SettingsPreferences
+import com.ai.data.preferences.SettingsPreferences
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

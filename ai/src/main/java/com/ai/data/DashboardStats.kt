@@ -7,7 +7,7 @@ import com.ai.model.UsageReportStats
 import com.ai.ui.admin.ProviderCostGroup
 import com.ai.ui.admin.buildProviderCostGroups
 import com.ai.ui.hub.reportIsRunning
-import com.ai.ui.settings.SettingsPreferences
+import com.ai.data.preferences.SettingsPreferences
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.providerHost
 import kotlinx.coroutines.Dispatchers

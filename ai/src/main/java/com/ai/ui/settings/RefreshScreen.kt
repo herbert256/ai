@@ -1,5 +1,7 @@
 package com.ai.ui.settings
 
+import com.ai.data.preferences.SettingsPreferences
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*

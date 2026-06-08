@@ -93,16 +93,10 @@ class SettingsAiSetupGraphTest {
         assertThat(s.isBlocked("UNIT_PA", "m")).isFalse()
     }
 
-    @Test fun sync_blocked_from_test_run_unblocks_passes_keeps_untested_records_fails() {
-        val s = Settings(
-            blockedModels = listOf(BlockedModel("UNIT_PA", "m1", "old"), BlockedModel("UNIT_PA", "m2", "keep"))
-        ).syncBlockedModelsFromTestRun(
-            failures = listOf(BlockedModel("UNIT_PA", "m1", "still failing")),
-            testedKeys = setOf("UNIT_PA:m1")   // m1 tested → old dropped; m2 untested → kept
-        )
-        assertThat(s.blockedModels.first { it.model == "m1" }.reason).isEqualTo("still failing")
-        assertThat(s.isBlocked("UNIT_PA", "m2")).isTrue()
-    }
+    // NOTE: the former `sync_blocked_from_test_run_*` case was removed — its
+    // subject `Settings.syncBlockedModelsFromTestRun` was deleted as dead code
+    // in 89a07fd1e (the live path is now AppViewModel.applyTestItemIncrement).
+    // The merge from codex re-introduced this stale test; dropped here.
 
     // ---- worker expansion / resolution ----
 

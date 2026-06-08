@@ -11,17 +11,18 @@ class AnswerMatrixHelpersTest {
 
     // ---- formatCentsValue ----
 
-    @Test fun cents_zero_or_negative_is_dash() {
-        assertThat(formatCentsValue(0.0)).isEqualTo("-")
-        assertThat(formatCentsValue(-1.0)).isEqualTo("-")
+    @Test fun cents_uses_fixed_four_decimals_by_default() {
+        // formatCentsValue is a plain fixed-decimals primitive (default 4). The
+        // zero/negative → "-" rule lives at the call sites (e.g. AnswerMatrix's
+        // `if (cost > 0.0) formatCentsValue(..) else "-"`), not in this helper.
+        assertThat(formatCentsValue(0.0)).isEqualTo("0.0000 ¢")
+        assertThat(formatCentsValue(12.5)).isEqualTo("12.5000 ¢")
     }
 
-    @Test fun cents_decimals_scale_with_magnitude() {
-        assertThat(formatCentsValue(12.5)).isEqualTo("12.50 ¢")   // >= 10 → 2 dp
-        assertThat(formatCentsValue(2.5)).isEqualTo("2.500 ¢")    // >= 1  → 3 dp
-        assertThat(formatCentsValue(0.5)).isEqualTo("0.5000 ¢")   // < 1   → 4 dp
-        assertThat(formatCentsValue(10.0)).isEqualTo("10.00 ¢")
-        assertThat(formatCentsValue(1.0)).isEqualTo("1.000 ¢")
+    @Test fun cents_decimals_param_controls_precision() {
+        assertThat(formatCentsValue(12.5, decimals = 2)).isEqualTo("12.50 ¢")
+        assertThat(formatCentsValue(2.5, decimals = 3)).isEqualTo("2.500 ¢")
+        assertThat(formatCentsValue(0.5, decimals = 4)).isEqualTo("0.5000 ¢")
     }
 
     // ---- formatDuration ----

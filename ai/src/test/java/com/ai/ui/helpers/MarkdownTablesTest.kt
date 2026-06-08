@@ -45,9 +45,12 @@ class MarkdownTablesTest {
     }
 
     @Test fun ragged_rows_are_padded_and_truncated_to_header_width() {
-        val md = "| A | B | C |\n|---|---|---|\n| 1 |\n| 1 | 2 | 3 | 4 |"
+        // A line needs >1 cell to count as a table row (so prose lines with a
+        // stray pipe aren't swallowed), so the short row here is 2 cells. Short
+        // rows pad with empty cells to header width; over-long rows truncate.
+        val md = "| A | B | C |\n|---|---|---|\n| 1 | 2 |\n| 1 | 2 | 3 | 4 |"
         val t = parseGfmTables(md).second.single()
-        assertThat(t.rows[0]).containsExactly("1", "", "").inOrder()
+        assertThat(t.rows[0]).containsExactly("1", "2", "").inOrder()
         assertThat(t.rows[1]).containsExactly("1", "2", "3").inOrder()
     }
 
