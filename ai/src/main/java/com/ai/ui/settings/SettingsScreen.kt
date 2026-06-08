@@ -71,7 +71,8 @@ enum class SettingsSubScreen {
     SETTINGS_OTHER,
     SETTINGS_METADATA,
     SETTINGS_AUTOSTART,
-    SETTINGS_DEFAULT_ICONS
+    SETTINGS_DEFAULT_ICONS,
+    SETTINGS_RANKING_WEIGHTS
 }
 
 @Composable
@@ -285,6 +286,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_DEFAULT_META_ITEMS -> currentSubScreen = defaultMetaItemsParent
             SettingsSubScreen.SETTINGS_METADATA -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_DEFAULT_ICONS -> currentSubScreen = SettingsSubScreen.MAIN
+            SettingsSubScreen.SETTINGS_RANKING_WEIGHTS -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_NETWORK_API_CALLS,
             SettingsSubScreen.SETTINGS_NETWORK_PER_PROVIDER ->
                 currentSubScreen = SettingsSubScreen.SETTINGS_NETWORK
@@ -317,7 +319,8 @@ fun SettingsScreen(
         SettingsSubScreen.SETTINGS_LOGGING,
         SettingsSubScreen.SETTINGS_OTHER,
         SettingsSubScreen.SETTINGS_METADATA,
-        SettingsSubScreen.SETTINGS_DEFAULT_ICONS
+        SettingsSubScreen.SETTINGS_DEFAULT_ICONS,
+        SettingsSubScreen.SETTINGS_RANKING_WEIGHTS
     )
     val sectionMain = if (inSettingsSubtree) SettingsSubScreen.MAIN else SettingsSubScreen.AI_SETUP
     androidx.compose.runtime.CompositionLocalProvider(
@@ -851,6 +854,12 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.SETTINGS_RANKING_WEIGHTS -> {
+            RankingWeightsSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
     }
     }
 }
@@ -906,6 +915,12 @@ private fun SettingsMainScreen(
                 title = "Metadata & icons",
                 description = "Master switch for all optional metadata — report icon / language / title, per-model icons / titles, fan & meta icons.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_METADATA) }
+            )
+            SettingsNavCard(
+                icon = com.ai.data.MetadataIconsHolder.current.gem,
+                title = "Ranking weights",
+                description = "Weight each ranking 0–10 — Rerank, Judges, Translations, and every Tournament method (Elo, Davidson, Tideman, …).",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_RANKING_WEIGHTS) }
             )
             SettingsNavCard(
                 icon = MetadataDefaults.REPEAT,
@@ -1913,6 +1928,90 @@ private fun ColorUsageScreen(title: String, keys: List<String>, onBack: () -> Un
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RankingWeightsSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    // One card for the three named rankings, one for every Tournament method.
+    val coreEntries = listOf("rerank" to "Rerank", "judges" to "Judges", "translations" to "Translations")
+    val tournamentEntries = remember {
+        com.ai.data.TournamentMethod.values().map { m -> m.name to m.name.lowercase().replaceFirstChar { it.uppercase() } }
+    }
+    var weights by remember { mutableStateOf(generalSettings.rankingWeights) }
+    fun build(): GeneralSettings = generalSettings.copy(rankingWeights = weights)
+    LaunchedEffect(weights) {
+        val updated = build()
+        if (updated != generalSettings) { kotlinx.coroutines.delay(400); onSave(updated) }
+    }
+    DisposableEffect(Unit) {
+        onDispose { val u = build(); if (u != generalSettings) onSave(u) }
+    }
+    Column(
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "settings_ranking_weights", title = "Ranking weights",
+            subject = "Weight each ranking 0–10", onBackClick = onBack,
+            // Title-bar clear → factory defaults (an empty map resolves to them).
+            onClear = { weights = emptyMap() }
+        )
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "Each ranking gets a weight from 0 to 10. The title-bar clear resets every slider to its default.",
+                fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 8.dp)
+            )
+            val setWeight: (String, Int) -> Unit = { key, v -> weights = weights + (key to v) }
+            RankingWeightCard("Rerank · Judges · Translations", coreEntries, weights, setWeight)
+            RankingWeightCard("Tournament rankings", tournamentEntries, weights, setWeight)
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun RankingWeightCard(
+    title: String,
+    entries: List<Pair<String, String>>,
+    weights: Map<String, Int>,
+    onChange: (String, Int) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
+            entries.forEach { (key, label) ->
+                val value = weights[key] ?: (com.ai.viewmodel.RANKING_WEIGHT_DEFAULTS[key] ?: 0)
+                RankingWeightSlider(label, value) { v -> onChange(key, v) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RankingWeightSlider(label: String, value: Int, onValueChange: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.width(112.dp))
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.toInt().coerceIn(0, 10)) },
+            valueRange = 0f..10f,
+            steps = 9,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            value.toString().padStart(2, ' '), fontSize = 14.sp, color = AppColors.TextSecondary,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            modifier = Modifier.width(28.dp).padding(start = 6.dp)
+        )
     }
 }
 

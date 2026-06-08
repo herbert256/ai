@@ -119,6 +119,19 @@ enum class AppHomeMode { HOME_SCREEN, HOME_BAR }
  *  main "Manage report" screen. */
 enum class ReportTitleMode { Manual, AI }
 
+/** Factory defaults for the "Ranking weights" screen (sliders 0–10). Key =
+ *  "rerank" / "judges" / "translations" or a [com.ai.data.TournamentMethod]
+ *  name; any key not listed defaults to 0. */
+val RANKING_WEIGHT_DEFAULTS: Map<String, Int> = mapOf(
+    "rerank" to 3, "judges" to 6, "translations" to 6,
+    "ELO" to 4, "DAVIDSON" to 4, "TIDEMAN" to 4
+)
+
+/** The effective weight for [key]: the user's stored value, else the factory
+ *  default, else 0. */
+fun GeneralSettings.rankingWeight(key: String): Int =
+    rankingWeights[key] ?: (RANKING_WEIGHT_DEFAULTS[key] ?: 0)
+
 data class GeneralSettings(
     val userName: String = "user",
     val huggingFaceApiKey: String = "",
@@ -186,6 +199,11 @@ data class GeneralSettings(
      *  without Compose/UI types in the view-model layer. */
     val uiCardBackgroundArgb: Int = DEFAULT_UI_CARD_BACKGROUND_ARGB,
     val uiButtonBackgroundArgb: Int = DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
+    /** Ranking weights (0–10) edited on the "Ranking weights" screen. Key =
+     *  "rerank" / "judges" / "translations" or a [com.ai.data.TournamentMethod]
+     *  name. Stored sparsely — a missing key resolves to [RANKING_WEIGHT_DEFAULTS]
+     *  (else 0) via [GeneralSettings.rankingWeight]. */
+    val rankingWeights: Map<String, Int> = emptyMap(),
     /** The Night colour set's per-key overrides (the app's original
      *  palette). Empty keys fall back to the dark factory defaults. */
     val uiColorOverrides: Map<String, Int> = emptyMap(),

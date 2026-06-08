@@ -75,6 +75,14 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Default meta items", "Opens the list of meta prompts that auto-run when a report finishes. Add or remove entries there; each runs as soon as the report's models complete."),
         )
     ),
+    "settings_ranking_weights" to HelpContent(
+        title = "Help - Ranking weights",
+        cards = listOf(
+            HelpCard("What this is", "A weight from 0 to 10 for each ranking the app can produce: Rerank, Judge-the-judges, Translations, and every Tournament method (Elo, Davidson, Tideman, Copeland, Markov, Schulze, Minimax, Colley, Glicko2, Points, Trueskill2). Drag a slider to set a weight."),
+            HelpCard("Defaults", "Rerank 3, Judges 6, Translations 6, and Elo / Davidson / Tideman 4 each; every other Tournament method starts at 0. The title-bar clear resets all sliders to these defaults."),
+            HelpCard("Saving", "Changes save automatically. Weights are stored per value — a slider left at its default isn't stored, so future default changes still apply to it.")
+        )
+    ),
     "settings_metadata" to HelpContent(
         title = "Help - Metadata & icons",
         cards = listOf(
