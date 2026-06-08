@@ -134,4 +134,23 @@ abstract class BatchEngine<RunKey, ItemKey, ItemState : BatchItem<ItemKey>, RunS
         val run = _runs.value[runKey] ?: return false
         return run.runningCount + run.queuedCount > 0
     }
+
+    // Read-only views into the registries, for engines that need the raw Job
+    // (e.g. to `cancelAndJoin()` in a suspend delete/resume path, or to report
+    // which rows are live in-process for the broken-work scan).
+
+    /** The registered run coroutine for [runKey], or null. */
+    protected fun runJobOf(runKey: RunKey): Job? = runJobs[runKey]
+
+    /** The registered coroutine for item [itemId] (its [BatchItem.id]), or null. */
+    protected fun itemJobOf(itemId: String): Job? = itemJobs[itemId]
+
+    /** Whether an item coroutine is currently registered for [itemId]. */
+    protected fun hasItemJob(itemId: String): Boolean = itemJobs.containsKey(itemId)
+
+    /** Ids of every currently-registered item coroutine. */
+    protected fun itemJobIds(): Set<String> = itemJobs.keys.toSet()
+
+    /** Run keys whose registered run coroutine is still active. */
+    protected fun activeRunJobKeys(): Set<RunKey> = runJobs.filterValues { it.isActive }.keys.toSet()
 }

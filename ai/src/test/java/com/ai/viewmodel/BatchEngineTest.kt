@@ -41,6 +41,11 @@ class BatchEngineTest {
         fun begin(k: String) = beginResumeScan(k)
         fun end(k: String) = endResumeScan(k)
         fun unfinished(k: String) = hasUnfinishedItems(k)
+        fun jobOf(k: String) = runJobOf(k)
+        fun itemOf(id: String) = itemJobOf(id)
+        fun hasItem(id: String) = hasItemJob(id)
+        fun itemIds() = itemJobIds()
+        fun activeKeys() = activeRunJobKeys()
     }
 
     @Test fun runJob_isActive_until_cancelled() {
@@ -125,6 +130,24 @@ class BatchEngineTest {
         assertThat(e.begin("r")).isFalse()  // concurrent scan blocked
         e.end("r")
         assertThat(e.begin("r")).isTrue()    // released → claimable again
+    }
+
+    @Test fun job_accessors_expose_registered_jobs_and_clear_on_completion() {
+        val e = TestEngine()
+        val run = Job(); val item = Job()
+        e.regRun("r", run)
+        e.regItem("i", item)
+
+        assertThat(e.jobOf("r")).isSameInstanceAs(run)
+        assertThat(e.itemOf("i")).isSameInstanceAs(item)
+        assertThat(e.hasItem("i")).isTrue()
+        assertThat(e.hasItem("nope")).isFalse()
+        assertThat(e.itemIds()).containsExactly("i")
+        assertThat(e.activeKeys()).containsExactly("r")
+
+        run.cancel()
+        assertThat(e.activeKeys()).isEmpty()   // a cancelled run is no longer active
+        assertThat(e.jobOf("r")).isNull()       // and self-removed from the registry
     }
 
     @Test fun hasUnfinishedItems_reflects_item_statuses() {
