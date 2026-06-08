@@ -4,6 +4,16 @@ This roadmap is intentionally staged. The codebase does not need a rewrite; it
 needs a sequence of extractions that preserve behavior while making the next
 change easier.
 
+> **Progress (2026-06-08, merged at `27c94d192`).** Phase 1 mostly landed
+> (settings parity tests, throttle/permit tests, dispatch golden tests for
+> system-prompt placement + vision, mock-server infra). Phase 2 partially landed
+> (`SettingsPreferences` moved to `com.ai.data.preferences` as a facade; the
+> per-domain sub-split is still open). Phase 3 partially landed (the
+> `ReportExecutionPlan` object + tests; the preview UI is open). Phase 4
+> partially landed (`BatchEngine` lifecycle primitives + tests; no live engine
+> migrated yet). See the status table in `00_executive_summary.md` for the
+> per-recommendation breakdown.
+
 ## Phase 1 - Stabilize contracts with tests
 
 Goal: add tests before moving ownership.

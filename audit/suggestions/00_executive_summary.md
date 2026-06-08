@@ -40,6 +40,35 @@ extraction around the behavior that already exists.
 | U05 | P1 | Add an execution plan preview before expensive runs | Improves user control over cost, provider caps, and call volume. |
 | T04 | P1 | Add provider dispatch golden tests | Protects OpenAI-compatible, Anthropic, Google, streaming, vision, and usage parsing. |
 
+## Implementation status
+
+A first slice was implemented on branch `worktree-feedback` and merged to
+`master` at `27c94d192` (2026-06-08): +40 JVM unit tests (349 → 389, suite
+green). IDs below are the canonical per-detail-file recommendation IDs — note
+the "Top recommendations" table above uses an older, inconsistent labelling
+(its `D01` ≈ this audit's A03+D01, its `D02` ≈ D03, its `T01` ≈ D02/T01, its
+`T04` ≈ P03/T04). ✅ done · ◑ partial · ☐ deferred.
+
+| ID | Recommendation | Status | Commit |
+|---|---|---|---|
+| D02 / T01 | `GeneralSettings` load/save parity tests | ✅ | `293102d8` |
+| T03 | `runThrottledBatch` / `PermitHold` / `BatchResume` tests | ✅ | `f5083e38` |
+| P03 / T04 | provider-dispatch golden tests | ◑ system-prompt placement + vision done; streaming SSE deferred | `448dde10` |
+| T11 / P10 | fake-provider / mock-server test infra | ✅ reused + extended the existing MockWebServer harness | `448dde10` |
+| A03 | move `SettingsPreferences` below UI (→ `com.ai.data.preferences`) | ✅ | `61375de7` |
+| D01 | split settings persistence by domain | ◑ moved as a cohesive facade; per-domain sub-split (GeneralSettingsStore / UsageStatsStore / PromptHistoryStore) deferred | `61375de7` |
+| D11 | extract `UsageStatsRecorder` | ☐ part of the D01 sub-split | — |
+| R10 / T05 | `ReportExecutionPlan` + planner + tests | ✅ | `c5ee76e2` |
+| U05 | execution-plan preview UI | ☐ overlay-back-stack risk in the New-Report screens; `summaryLines()` bridge ready | — |
+| R01 / T02 | `BatchEngine` lifecycle primitives + tests | ◑ primitives added + tested; live-engine migration (CompareEngine first) deferred | `5ef0a8d3` |
+| P06 | wrap `PermitHold.yieldFor` behind an interface | ◑ tests done (T03); interface wrapper deferred | `f5083e38` |
+
+Delivered alongside (tracked in `audit/functional/`): removed three unused
+dependencies (DataStore, retrofit-scalars, okhttp-logging) and fixed six latent
+JVM-suite failures that surfaced once the suite compiled again. Everything else
+here remains open by design — deferred until the pain is felt, or skipped (e.g.
+D12's migration registry conflicts with the project's no-backwards-compat rule).
+
 ## Strengths found in source
 
 - The code is defensively engineered around known runtime hazards. Examples:
