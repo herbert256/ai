@@ -176,6 +176,9 @@ internal fun AgentChatScreen(
                 throw e
             } catch (_: Exception) {
                 messages.add(ChatMessage(role = "assistant", content = "${com.ai.data.MetadataIconsHolder.current.statusWarning} The model call failed. Try again."))
+                // Persist the failure bubble too (the success path does), so it
+                // survives reopening the chat. See audit bug 19.
+                withContext(Dispatchers.IO) { onSaveMessages(messages.toList()) }
             } finally {
                 isStreaming = false; streamingText = ""; streamJob = null
             }
