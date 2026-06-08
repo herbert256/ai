@@ -467,7 +467,11 @@ fun ChatSessionScreen(
     }
     var showKbDialog by remember { mutableStateOf(false) }
     val kbRefreshTick = com.ai.ui.shared.resumeRefreshTick()
-    val availableKbs = remember(kbRefreshTick) { com.ai.data.KnowledgeStore.listKnowledgeBases(context) }
+    // Off-main: the KB directory scan + per-KB manifest parse shouldn't block
+    // composition. Empty until the IO load resolves. See audit chat bug 3.
+    val availableKbs by produceState(emptyList(), kbRefreshTick) {
+        value = withContext(Dispatchers.IO) { com.ai.data.KnowledgeStore.listKnowledgeBases(context) }
+    }
 
     // Display title. Seeded from a previously persisted value so a
     // resumed session keeps whatever title the AI generated last
