@@ -2,7 +2,7 @@
 
 ## R01 - Expand `BatchEngine` into a complete lifecycle base
 
-> **Status (2026-06-08): ◑ partial** — base lifecycle primitives + tests added; 4 of 5 engines migrated (Compare / Tournament / Judges / TransRank). Only `FanOutEngine` remains. (`5ef0a8d3`, `ef60fb4e`, `ea9e0ba2`, `270321ff`)
+> **Status (2026-06-08): ✅ done** — base lifecycle primitives + tests added, and ALL 5 engines migrated onto them: Compare / Tournament / Judges / TransRank / FanOut. (`5ef0a8d3`, `ef60fb4e`, `ea9e0ba2`, `270321ff`, `dd775eae3`)
 
 Priority: P0
 

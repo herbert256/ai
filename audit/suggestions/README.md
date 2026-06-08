@@ -67,16 +67,17 @@ recommendation that was acted on now carries an inline `> **Status …**` marker
 Shipped: all the tests the audit asked for (parity, throttle/permit, dispatch
 golden + streaming SSE, batch lifecycle, execution-plan), plus `ApiDispatch.kt`
 split (P01), `SettingsPreferences` moved below UI (A03) + first sub-store
-extracted (D01), `ReportExecutionPlan` + preview (R10/U05), and 4 of 5 batch
-engines migrated onto the shared base (R01). +~50 unit tests; suite 405/0.
+extracted (D01), `ReportExecutionPlan` + preview (R10/U05), and ALL 5 batch
+engines migrated onto the shared base — R01 complete. +~50 unit tests; suite
+405/0, and the new instrumented `ReportStorage` tests run-verified.
 
 Everything **without** a Status marker is open **by design** — large
 opportunistic file splits (A01/A06/U01/R05, the 2k–3k-LOC files), product
 features (job center / presets / lineage — U06–U10, R12), or deliberately
 skipped/low-value for a single-user app (D12 migration registry, D04 scoped
-ticks, T12 perf, R02's deadlock-nuance unify). The remaining "finish for
-consistency" items are `FanOutEngine` (last R01 engine) and the
-`GeneralSettingsStore` / `UsageStatsStore` splits (D01/D11).
+ticks, T12 perf, R02's deadlock-nuance unify). The one remaining "finish for
+consistency" item is the `GeneralSettingsStore` / `UsageStatsStore` split
+(D01/D11) — a focused refactor of the largest SettingsPreferences surface.
 
 ## Overall conclusion
 
