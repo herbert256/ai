@@ -23,17 +23,34 @@ object PromptTranslationStore {
     private fun rootDir(context: Context) = File(context.filesDir, ROOT)
     private fun langDir(context: Context, language: String) = File(rootDir(context), language)
 
+    /** Reject path-escaping segments so language/category/name can't read or
+     *  write outside the translation root. See audit data bug 7. */
+    private fun safeSeg(s: String): String? =
+        s.takeIf { it.isNotBlank() && it != "." && it != ".." && !it.contains('/') && !it.contains('\\') }
+
+    private fun File.isUnder(root: File): Boolean =
+        canonicalPath.startsWith(root.canonicalPath + File.separator)
+
     /** Generated-translation body for one prompt, or null when this
      *  language has no stored translation of `<category>/<name>`. */
     fun body(context: Context, language: String, category: String, name: String): String? {
-        val f = File(File(langDir(context, language), category), "$name.txt")
+        val lang = safeSeg(language) ?: return null
+        val cat = safeSeg(category) ?: return null
+        val nm = safeSeg(name) ?: return null
+        val f = File(File(langDir(context, lang), cat), "$nm.txt")
+        if (!f.isUnder(rootDir(context))) return null
         return if (f.exists()) try { f.readText() } catch (_: Exception) { null } else null
     }
 
     fun put(context: Context, language: String, category: String, name: String, text: String) {
-        val dir = File(langDir(context, language), category)
+        val lang = safeSeg(language) ?: return
+        val cat = safeSeg(category) ?: return
+        val nm = safeSeg(name) ?: return
+        val dir = File(langDir(context, lang), cat)
+        val target = File(dir, "$nm.txt")
+        if (!target.isUnder(rootDir(context))) return
         if (!dir.exists()) dir.mkdirs()
-        try { File(dir, "$name.txt").writeTextAtomic(text) }
+        try { target.writeTextAtomic(text) }
         catch (e: Exception) { AppLog.w("PromptTranslationStore", "put failed: ${e.message}") }
     }
 
@@ -47,7 +64,8 @@ object PromptTranslationStore {
 
     /** Number of stored `.txt` translation files for [language]. */
     fun count(context: Context, language: String): Int {
-        val dir = langDir(context, language)
+        val lang = safeSeg(language) ?: return 0
+        val dir = langDir(context, lang)
         if (!dir.exists()) return 0
         return dir.walkTopDown().count { it.isFile && it.extension == "txt" }
     }
@@ -55,10 +73,12 @@ object PromptTranslationStore {
     /** Remove every stored translation for [language]. Returns the file
      *  count removed. Bundled (asset) translations are untouched. */
     fun deleteLanguage(context: Context, language: String): Int {
-        val dir = langDir(context, language)
-        val n = count(context, language)
+        val lang = safeSeg(language) ?: return 0
+        val dir = langDir(context, lang)
+        if (!dir.isUnder(rootDir(context))) return 0
+        val n = count(context, lang)
         try { dir.deleteRecursively() } catch (_: Exception) {}
-        AppLog.i("PromptTranslationStore", "deleted $n files for $language")
+        AppLog.i("PromptTranslationStore", "deleted $n files for $lang")
         return n
     }
 
