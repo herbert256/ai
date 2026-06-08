@@ -22,7 +22,7 @@
       "provider": "DeepSeek"
     },
     {
-      "model": "gemini-2.0-flash",
+      "model": "gemini-3.5-flash",
       "provider": "Google"
     },
     {
@@ -42,11 +42,11 @@
       "provider": "DeepInfra"
     },
     {
-      "model": "Qwen3-32B",
-      "provider": "SambaNova"
+      "model": "accounts/fireworks/models/kimi-k2p6",
+      "provider": "Fireworks"
     },
     {
-      "model": "meta-llama/Llama-4-Scout-17B-16E-Instruct-FP8-Lora",
+      "model": "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
       "provider": "Together"
     },
     {
