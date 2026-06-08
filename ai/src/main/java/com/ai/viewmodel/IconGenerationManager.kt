@@ -745,13 +745,19 @@ class IconGenerationManager(
         if (agentResponse.isBlank()) return
         val resolved = titlePrompt.text.replace("@RESPONSE@", agentResponse)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            // ♻️ Models-as-workers: have THIS model write its own response's
+            // title — a one-worker swarm of the answer's own provider/model,
+            // not the configured model-titles swarm.
+            val mawReport = ReportStorage.getReport(context, reportId)
+            val effTitlePrompt = if (mawReport?.useReportModelsAsWorkers == true)
+                titlePrompt.copy(workers = singleModelWorker(ra.provider, ra.model)) else titlePrompt
             var generatedTitle: String? = null
             withTracerTags(reportId = reportId, category = "model/titles") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
                     // No non-blank title line → logical miss → next worker.
-                    rvm.workerRunner.run(titlePrompt, resolved, aiSettings, context) { resp ->
+                    rvm.workerRunner.run(effTitlePrompt, resolved, aiSettings, context) { resp ->
                         (resp.analysis ?: "").lineSequence().map { cleanTitleLine(it) }.any { it.isNotBlank() }
                     }
                 }
@@ -845,10 +851,11 @@ class IconGenerationManager(
         return withTracerTags(reportId = reportId, category = "model/icons") {
             val started = System.currentTimeMillis()
             val resolved = prompt.text.replace("@TITLE@", title)
-            // ♻️ report flag → the agent icon is retrieved from a report-model.
+            // ♻️ Models-as-workers: THIS model retrieves its own response's icon
+            // (a one-worker swarm of the answer's provider/model), not the swarm.
             val report = ReportStorage.getReport(context, reportId)
             val effPrompt = if (report?.useReportModelsAsWorkers == true)
-                prompt.copy(workers = reportModelWorkers(report)) else prompt
+                prompt.copy(workers = singleModelWorker(ra.provider, ra.model)) else prompt
             // Capture the trace filename of the winning icon call so the
             // Model-response screen's 🐞 next to the big icon can deep-link
             // to the exact call that decided this icon (the worker runs on
@@ -2746,12 +2753,14 @@ class IconGenerationManager(
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
                 val aiSettings = appViewModel.uiState.value.aiSettings
-                // ♻️ Models-as-workers: swap the fan-meta swarm for this report's
-                // own answer models, like every other secondary path does.
+                // ♻️ Models-as-workers: each fan-out pair's icon/title is written
+                // by the model that produced THAT fan-out answer (resolved per
+                // pair, below). Here we only need the prompt template to exist;
+                // the per-pair model is always resolvable when the flag is on.
                 val report = ReportStorage.getReport(context, reportId)
-                val effFanMetaPrompt = if (report?.useReportModelsAsWorkers == true && fanMetaPrompt != null)
-                    fanMetaPrompt.copy(workers = reportModelWorkers(report)) else fanMetaPrompt
-                if (effFanMetaPrompt == null || effFanMetaPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+                val mawOn = report?.useReportModelsAsWorkers == true
+                if (fanMetaPrompt == null ||
+                    (!mawOn && fanMetaPrompt.workers.none { aiSettings.resolveWorker(it) != null })) {
                     AppLog.w("FanMeta", "fan/meta not configured — skipping")
                     buildKey?.let { appViewModel.finishBuild(it) }
                     return@launch
@@ -2798,7 +2807,7 @@ class IconGenerationManager(
                         if (!SecondaryResultStorage.exists(context, reportId, pair.id)) return@runThrottledBatch
                         appViewModel.updateRunningFanMetaPairs { it + pair.id }
                         try {
-                            runFanMetaForPair(context, reportId, pair, effFanMetaPrompt, aiSettings, fanRunId)
+                            runFanMetaForPair(context, reportId, pair, fanMetaPrompt, aiSettings, fanRunId, mawOn)
                         } finally {
                             appViewModel.updateRunningFanMetaPairs { it - pair.id }
                             // acquireOrWait clears its own wait notification, but
@@ -2846,10 +2855,15 @@ class IconGenerationManager(
      *  reply and stores BOTH. Worker engine handles random pick + 429. */
     private suspend fun runFanMetaForPair(
         context: Context, reportId: String, pair: SecondaryResult,
-        fanMetaPrompt: InternalPrompt, aiSettings: Settings, fanRunId: String
+        fanMetaPrompt: InternalPrompt, aiSettings: Settings, fanRunId: String,
+        useReportModelsAsWorkers: Boolean = false
     ) {
         val started = System.currentTimeMillis()
-        val resolved = fanMetaPrompt.text.replace("@PROMPT@", pair.content.orEmpty())
+        // ♻️ Models-as-workers: the fan-out answer's OWN model writes its
+        // icon/title (a one-worker swarm of pair.providerId/model).
+        val effPrompt = if (useReportModelsAsWorkers)
+            fanMetaPrompt.copy(workers = singleModelWorker(pair.providerId, pair.model)) else fanMetaPrompt
+        val resolved = effPrompt.text.replace("@PROMPT@", pair.content.orEmpty())
         // A fan-meta reply is usable when it yields at least a title or an
         // emoji; an empty/garbage 200 is a logical miss → next worker.
         // Surface real provider throttling to the L1 "Throttled" counter:
@@ -2867,7 +2881,7 @@ class IconGenerationManager(
         val outcome = withContext(
             ProviderThrottle.throttleWaitObserver.asContextElement(throttleObserver)
         ) {
-            rvm.workerRunner.run(fanMetaPrompt, resolved, aiSettings, context) { resp ->
+            rvm.workerRunner.run(effPrompt, resolved, aiSettings, context) { resp ->
                 val a = resp.analysis
                 val titleRaw = a?.lineSequence()
                     ?.firstOrNull { it.trim().startsWith("title", ignoreCase = true) }

@@ -160,6 +160,14 @@ internal fun reportModelWorkers(report: Report): List<Worker> =
         .distinctBy { "${it.provider}:${it.model}" }
         .map { Worker(agent = "*N/A", provider = it.provider, model = it.model) }
 
+/** A single answer model as a one-element worker list. Used when ♻️
+ *  models-as-workers wants THAT model — not the whole report-model swarm —
+ *  to generate its own response's per-model icon / title (report answers and
+ *  fan-out answers alike). Resolves via [Settings.resolveWorker] like the
+ *  swarm entries. */
+internal fun singleModelWorker(provider: String, model: String): List<Worker> =
+    listOf(Worker(agent = "*N/A", provider = provider, model = model))
+
 /** Extract the host from a provider's baseUrl so the fan-out
  *  pre-acquire path can call [PricingCache] er, [com.ai.data.ProviderThrottle.acquire]
  *  with the same host the OkHttp interceptor would see. Returns

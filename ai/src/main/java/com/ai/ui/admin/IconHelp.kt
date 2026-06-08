@@ -436,7 +436,7 @@ internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
     "🧽" to ("Clear" to "Clear the form."),
     "📎" to ("Attach" to "Attach an image."),
     "🚩" to ("Validate" to "Validate the prompt with a moderation model."),
-    "♻️" to ("Report-models as workers" to "When on, Meta / Fan-in / Tournament / Judges / Compare / Translation and automatic icon retrieval draw their workers from this report's own answer models (Rerank and Moderation are unaffected)."),
+    "♻️" to ("Report-models as workers" to "When on, Meta / Fan-in / Tournament / Judges / Compare / Translation draw their workers from this report's own answer models. Per-model titles and icons — including fan-out answers' — are written by the answer's OWN model (not the whole swarm); the report icon and language detection still use the report-model swarm. (Rerank and Moderation are unaffected.)"),
     "📋" to ("Copy" to "Copy to the clipboard."),
     "📌" to ("Pin" to "Pin to the top of the lists."),
     "📤" to ("Export" to "Export or share."),
