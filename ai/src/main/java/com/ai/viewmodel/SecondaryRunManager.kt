@@ -824,12 +824,25 @@ class SecondaryRunManager(
         val metaPrompt = aiSettings.internalPrompts.firstOrNull { it.id == promptId } ?: run {
             rvm.resumingMetaIds.remove(placeholder.id); return null
         }
-        val provider = AppService.findById(placeholder.providerId) ?: run {
-            rvm.resumingMetaIds.remove(placeholder.id); return null
-        }
-        val model = placeholder.model
-        val scope = com.ai.data.SecondaryScope.decodeOrAllReports(placeholder.secondaryScope)
         val kind = placeholder.kind
+        // Rerank & Moderation re-resolve their worker from the CURRENT prompt on
+        // every restart — the user may have changed the second-rerank /
+        // second-moderation worker since this row was first created. Every other
+        // kind keeps the provider/model recorded on the row.
+        val freshWorker = if (kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION) {
+            metaPrompt.workers.asSequence()
+                .flatMap { aiSettings.expandWorker(it).asSequence() }
+                .mapNotNull { w ->
+                    aiSettings.resolveWorker(w)?.let { a -> a.provider to aiSettings.getEffectiveModelForAgent(a) }
+                }
+                .firstOrNull()
+        } else null
+        val provider = freshWorker?.first
+            ?: AppService.findById(placeholder.providerId) ?: run {
+                rvm.resumingMetaIds.remove(placeholder.id); return null
+            }
+        val model = freshWorker?.second ?: placeholder.model
+        val scope = com.ai.data.SecondaryScope.decodeOrAllReports(placeholder.secondaryScope)
         val lang = placeholder.targetLanguage
         val langNative = placeholder.targetLanguageNative
         val cat = "${metaPrompt.category}/${metaPrompt.name}"
