@@ -437,6 +437,13 @@ class TranslatorRankEngine internal constructor(
             if (run.prompt.text.isBlank()) return@launch
             val report = ReportStorage.getReport(context, run.reportId) ?: return@launch
             val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
+            // Recover each judge's ORIGINAL worker (parameter presets, system
+            // prompt, flock/swarm/agent refs) from the run's prompt rather than a
+            // minimal provider/model-only Worker, so the retry replays the same
+            // call shape as the first run. Fall back to the minimal worker only
+            // when the judge is no longer resolvable in the swarm. See audit bug 2.
+            val aiSettings = appViewModel.uiState.value.aiSettings
+            val judgesByKey = resolveJudges(aiSettings, run.prompt).associateBy { it.key }
             val failed = run.cells.values.filter { it.status == TransRankCellStatus.ERROR }
             val resets = failed.mapNotNull { c ->
                 val sc = items[c.translationRowId] ?: return@mapNotNull null
@@ -449,7 +456,9 @@ class TranslatorRankEngine internal constructor(
                     it.copy(status = TransRankCellStatus.PENDING, content = null, score = null, reason = null,
                         errorMessage = null, inputCost = null, outputCost = null, durationMs = null, tokenUsage = null)
                 }
-                PendingCell(Judge(Worker(provider = c.judgeProviderId, model = c.judgeModel), c.judgeProviderId, c.judgeModel), sc, cleared)
+                val judge = judgesByKey["${c.judgeProviderId}/${c.judgeModel}"]
+                    ?: Judge(Worker(provider = c.judgeProviderId, model = c.judgeModel), c.judgeProviderId, c.judgeModel)
+                PendingCell(judge, sc, cleared)
             }
             if (resets.isEmpty()) return@launch
             withTracerTags(reportId = run.reportId, category = "transrank/rank") {
