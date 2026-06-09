@@ -2371,6 +2371,7 @@ private val DEFAULT_ICON_SECTIONS: List<Pair<String, List<IconRowSpec>>> = run {
         ),
         "Navigation" to listOf(
             IconRowSpec("Pick report", "pickReport", { it.pickReport }, { m, v -> m.copy(pickReport = v) }, d.PICK_REPORT),
+            IconRowSpec("Import report", "importReport", { it.importReport }, { m, v -> m.copy(importReport = v) }, d.IMPORT),
             IconRowSpec("Open manage", "openManage", { it.openManage }, { m, v -> m.copy(openManage = v) }, d.OPEN_MANAGE),
             IconRowSpec("Housekeeping", "housekeeping", { it.housekeeping }, { m, v -> m.copy(housekeeping = v) }, d.HOUSEKEEPING),
             IconRowSpec("Settings", "settings", { it.settings }, { m, v -> m.copy(settings = v) }, d.SETTINGS),
