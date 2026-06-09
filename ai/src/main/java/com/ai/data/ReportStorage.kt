@@ -15,10 +15,40 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.withLock
 
+/** Monotonic counter bumped on every report write / delete. Compose screens
+ *  fold it into their produceState key so an open report refreshes in place as
+ *  its agents/cost/metadata complete.
+ *
+ *  The legacy [version] flow is kept for callers that do not know their report
+ *  scope. A screen that knows its report should observe [versionFor], so a large
+ *  batch on one report does not recompute unrelated report screens on every
+ *  write. Mirrors [SecondaryDataVersion] (audit D03). */
 object ReportDataVersion {
+    private val lock = Any()
     private val _version = MutableStateFlow(0L)
     val version: StateFlow<Long> = _version.asStateFlow()
+    private val reportVersions = HashMap<String, MutableStateFlow<Long>>()
+
+    /** Scoped flow for [reportId]; falls back to the global [version] when the
+     *  id is null/blank. Lazily created on first observe, like
+     *  [SecondaryDataVersion.versionFor]. */
+    fun versionFor(reportId: String?): StateFlow<Long> {
+        val id = reportId?.takeIf { it.isNotBlank() } ?: return version
+        return synchronized(lock) { reportVersions.getOrPut(id) { MutableStateFlow(0L) } }
+    }
+
+    /** Global bump — for callers that touch many/unknown reports (e.g. a bulk
+     *  delete). */
     fun bump() { _version.update { it + 1 } }
+
+    /** Scoped bump: ticks [reportId]'s flow (if a screen subscribed) AND the
+     *  global flow, so screens still on [version] keep refreshing while screens
+     *  on [versionFor] react only to their own report's writes. */
+    fun bump(reportId: String?) {
+        val id = reportId?.takeIf { it.isNotBlank() } ?: return bump()
+        synchronized(lock) { reportVersions[id]?.update { it + 1 } }
+        _version.update { it + 1 }
+    }
 }
 
 data class ReportApiCallAppendResult(
@@ -468,7 +498,7 @@ object ReportStorage {
         // kept (a trailing line records the deletion). The Monitor → Audit
         // list is sourced from these files, so the report still shows there.
         AuditLog.append(reportId, "Report deleted")
-        ReportDataVersion.bump()
+        ReportDataVersion.bump(reportId)
     }
     fun deleteAllReports(context: Context): Int {
         init(context)
@@ -691,7 +721,7 @@ object ReportStorage {
             // would silently hand back the pre-update report.
             AppLog.e("ReportStorage", "Failed to save report ${report.id} (writeTextAtomic returned false)")
         } else {
-            ReportDataVersion.bump()
+            ReportDataVersion.bump(report.id)
         }
     }
 

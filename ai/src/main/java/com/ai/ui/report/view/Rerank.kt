@@ -98,7 +98,7 @@ fun RerankViewScreen(
         val reportTitle: String?
     )
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
     val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.RERANK).collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), null),

@@ -60,7 +60,7 @@ response. Re-verification date: 2026-06-09.
 | R09 | Still valid — dispatch+cost+storage combined | DEFER | — |
 | D01 | Partially done — `PromptHistoryStore` extracted; ~1124 LOC | DEFER (re-estimated LARGE) | deferred — same SettingsPreferences cost-accounting cluster as D10 |
 | D02 | Still valid — 7 stores duplicate lock/atomic-write | DEFER | — |
-| D03 | Still valid — `ReportDataVersion` global | DEFER | — |
+| D03 | **DONE** — secondary side via master's `SecondaryDataVersion.versionFor`; report side finished this session (`ReportDataVersion.versionFor(reportId)` + scoped bumps at saveReport/deleteReport; all 28 consumers migrated) | ✅ DO | done |
 | D04 | Still valid — many specialized mutators | DEFER | — |
 | D05 | Still valid — ledger reconciliation coupled across 2 files | DEFER (re-estimated LARGE) | deferred — `reconcileReportCostLedgers` is the seam D10 shares; do together |
 | D06 | Still valid — no `ApiCallRecord` | SKIP | — |

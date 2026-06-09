@@ -196,7 +196,7 @@ internal fun ModerationDetailScreen(
         }
         return
     }
-    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val noteDataVersion by ReportDataVersion.versionFor(result.reportId).collectAsState()
     val secondaryNotes by produceState(emptyList<UserNote>(), result.reportId, result.id, noteDataVersion) {
         value = withContext(Dispatchers.IO) {
             ReportStorage.getReport(context, result.reportId)?.notesFor("SECONDARY", result.id) ?: emptyList()

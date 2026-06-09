@@ -295,7 +295,7 @@ private fun buildCombinedRows(
 fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
     val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
 
     data class Loaded(

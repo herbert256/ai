@@ -196,7 +196,7 @@ internal fun FanOutL3Screen(
         UserNoteEditorOverlay(run.reportId, "SECONDARY", pair.id, noteEdit!!) { noteEdit = null }
         return
     }
-    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val noteDataVersion by ReportDataVersion.versionFor(run.reportId).collectAsState()
     val pairNotes by produceState(emptyList<UserNote>(), run.reportId, pair.id, noteDataVersion) {
         value = withContext(Dispatchers.IO) {
             ReportStorage.getReport(context, run.reportId)?.notesFor("SECONDARY", pair.id) ?: emptyList()

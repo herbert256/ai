@@ -86,7 +86,7 @@ fun CostsViewScreen(
     var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
     val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
     val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
     val reportState = produceState<Report?>(initialValue = null, currentReportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId) }
     }

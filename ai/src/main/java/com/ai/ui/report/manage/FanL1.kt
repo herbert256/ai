@@ -96,7 +96,7 @@ internal fun FanOutL1Screen(
         UserNoteEditorOverlay(run.reportId, "FANOUT_RUN", run.key, noteEdit!!) { noteEdit = null }
         return
     }
-    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val noteDataVersion by ReportDataVersion.versionFor(run.reportId).collectAsState()
     val fanRunNotes by produceState(emptyList<UserNote>(), run.reportId, run.key, noteDataVersion) {
         value = withContext(Dispatchers.IO) {
             ReportStorage.getReport(notesContext, run.reportId)?.notesFor("FANOUT_RUN", run.key) ?: emptyList()

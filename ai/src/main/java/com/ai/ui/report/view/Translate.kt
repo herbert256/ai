@@ -87,7 +87,7 @@ fun TranslateViewScreen(
         val metaSources: Map<String, SecondaryResult>
     )
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
     val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TRANSLATE).collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(emptyList(), null, emptyMap()),

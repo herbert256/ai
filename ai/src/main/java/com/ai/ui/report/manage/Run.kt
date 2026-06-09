@@ -289,7 +289,7 @@ internal fun ReportRunScreen(
         UserNoteEditorOverlay(currentReportId, "REPORT", currentReportId, noteEdit!!) { noteEdit = null }
         return
     }
-    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val noteDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
     val reportNotes by produceState(emptyList<UserNote>(), currentReportId, noteDataVersion) {
         value = currentReportId?.let { rid ->
             withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.notesFor("REPORT", rid) ?: emptyList() }

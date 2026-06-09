@@ -147,7 +147,7 @@ internal fun UserNoteCards(
 @Composable
 internal fun ViewUserNotes(reportId: String, targetKind: String, targetId: String) {
     val context = LocalContext.current
-    val dv by ReportDataVersion.version.collectAsState()
+    val dv by ReportDataVersion.versionFor(reportId).collectAsState()
     val notes by produceState(emptyList<UserNote>(), reportId, targetKind, targetId, dv) {
         value = withContext(Dispatchers.IO) {
             ReportStorage.getUserNotesForTarget(context, reportId, targetKind, targetId)
@@ -254,7 +254,7 @@ internal fun ReportNotesListScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val dv by ReportDataVersion.version.collectAsState()
+    val dv by ReportDataVersion.versionFor(reportId).collectAsState()
 
     var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
     noteEdit?.let { ne ->
