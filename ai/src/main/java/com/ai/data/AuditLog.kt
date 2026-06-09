@@ -11,6 +11,12 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** One row of metadata for an audit file under `<filesDir>/audit/`.
  *  Drives the Monitor → Audit list. */
@@ -46,12 +52,17 @@ object AuditLog {
     private const val FILE_SUFFIX = ".log"
     private const val MAX_AUDIT_FILES = 1_000
     private const val MAX_AUDIT_BYTES = 20L * 1024L * 1024L
+    private const val API_FLUSH_DELAY_MS = 750L
+    private const val API_FLUSH_MAX_LINES_PER_REPORT = 64
     private val LINE_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
         .withZone(ZoneId.systemDefault())
 
     private var auditDir: File? = null
     @Volatile private var appContext: Context? = null
     private val lock = ReentrantLock()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val pendingApiLines = LinkedHashMap<String, MutableList<String>>()
+    private var pendingFlushJob: Job? = null
 
     /** User toggle (Settings → Logging → "Audit log", default true). When
      *  false every audit write is dropped — [append] is the single sink all
@@ -80,12 +91,8 @@ object AuditLog {
         lock.withLock {
             try {
                 if (!dir.exists()) dir.mkdirs()
-                val file = File(dir, safeName(reportId))
-                FileOutputStream(file, /* append = */ true).bufferedWriter().use { w ->
-                    val ts = LINE_TIMESTAMP_FORMAT.format(Instant.now())
-                    w.write("$ts ${redactSecret(message)}")
-                    w.newLine()
-                }
+                flushPendingApiLocked(dir, reportId)
+                writeLinesLocked(dir, reportId, listOf(formatLine(message)))
                 pruneRetentionLocked(dir)
             } catch (e: Exception) {
                 // Bury — auditing must never throw into caller code.
@@ -121,7 +128,7 @@ object AuditLog {
             val outN = outTokens ?: 0
             "API $method $hostPath · in $inN out $outN · ${fmtCost(costUsd)}$tracePart"
         }
-        append(reportId, line)
+        appendBufferedApi(reportId, line)
     }
 
     /**
@@ -166,6 +173,7 @@ object AuditLog {
     /** All audit lines for [reportId], oldest-first (file order). */
     fun lines(reportId: String): List<String> = lock.withLock {
         val dir = auditDir ?: return emptyList()
+        flushPendingApiLocked(dir, reportId)
         val file = File(dir, safeName(reportId))
         if (!file.exists()) return emptyList()
         return try {
@@ -176,6 +184,7 @@ object AuditLog {
     /** Metadata for every report that has an audit file, newest-activity-first. */
     fun auditReports(): List<AuditFileInfo> = lock.withLock {
         val dir = auditDir ?: return emptyList()
+        flushPendingApiLocked(dir, null)
         if (!dir.exists()) return emptyList()
         return dir.listFiles()
             ?.filter { it.isFile && it.name.endsWith(FILE_SUFFIX) }
@@ -193,6 +202,7 @@ object AuditLog {
     /** Delete one report's audit file. Returns true on success. */
     fun deleteAudit(reportId: String): Boolean = lock.withLock {
         val dir = auditDir ?: return false
+        pendingApiLines.remove(reportId)
         val file = File(dir, safeName(reportId))
         if (!file.exists()) return false
         return try { file.delete() } catch (_: Exception) { false }
@@ -201,6 +211,9 @@ object AuditLog {
     /** Delete every audit file. Returns the count removed. */
     fun clearAll(): Int = lock.withLock {
         val dir = auditDir ?: return 0
+        pendingApiLines.clear()
+        pendingFlushJob?.cancel()
+        pendingFlushJob = null
         if (!dir.exists()) return 0
         var n = 0
         dir.listFiles()?.forEach { f ->
@@ -213,11 +226,87 @@ object AuditLog {
      *  for the Monitor hub card. */
     fun hasAny(): Boolean = lock.withLock {
         val dir = auditDir ?: return false
+        flushPendingApiLocked(dir, null)
         if (!dir.exists()) return false
         dir.listFiles()?.any { it.isFile && it.name.endsWith(FILE_SUFFIX) } == true
     }
 
     // ===== Helpers =====
+
+    private fun appendBufferedApi(reportId: String, message: String) {
+        if (!enabled) return
+        if (reportId.isBlank()) return
+        val dir = auditDir ?: return
+        lock.withLock {
+            try {
+                if (!dir.exists()) dir.mkdirs()
+                val pending = pendingApiLines.getOrPut(reportId) { mutableListOf() }
+                pending += formatLine(message)
+                if (pending.size >= API_FLUSH_MAX_LINES_PER_REPORT) {
+                    flushPendingApiLocked(dir, reportId)
+                } else {
+                    schedulePendingFlushLocked()
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("AuditLog", "buffered append failed: ${e.message}")
+            }
+        }
+    }
+
+    private fun schedulePendingFlushLocked() {
+        if (pendingFlushJob?.isActive == true) return
+        pendingFlushJob = scope.launch {
+            delay(API_FLUSH_DELAY_MS)
+            val dir = auditDir ?: return@launch
+            lock.withLock {
+                pendingFlushJob = null
+                flushPendingApiLocked(dir, null)
+            }
+        }
+    }
+
+    private fun flushPendingApiLocked(dir: File, reportId: String?) {
+        if (pendingApiLines.isEmpty()) return
+        val selected = if (reportId == null) {
+            pendingApiLines.keys.toList()
+        } else {
+            listOf(reportId)
+        }
+        var wroteAny = false
+        for (id in selected) {
+            val lines = pendingApiLines[id]?.toList().orEmpty()
+            if (lines.isEmpty()) continue
+            try {
+                writeLinesLocked(dir, id, lines)
+                pendingApiLines.remove(id)
+                wroteAny = true
+            } catch (e: Exception) {
+                android.util.Log.w("AuditLog", "flush failed: ${e.message}")
+            }
+        }
+        if (wroteAny) pruneRetentionLocked(dir)
+        if (pendingApiLines.isEmpty()) {
+            pendingFlushJob?.cancel()
+            pendingFlushJob = null
+        }
+    }
+
+    private fun formatLine(message: String): String {
+        val ts = LINE_TIMESTAMP_FORMAT.format(Instant.now())
+        return "$ts ${redactSecret(message)}"
+    }
+
+    private fun writeLinesLocked(dir: File, reportId: String, lines: List<String>) {
+        if (lines.isEmpty()) return
+        if (!dir.exists()) dir.mkdirs()
+        val file = File(dir, safeName(reportId))
+        FileOutputStream(file, /* append = */ true).bufferedWriter().use { w ->
+            lines.forEach { line ->
+                w.write(line)
+                w.newLine()
+            }
+        }
+    }
 
     private fun safeName(reportId: String): String =
         reportId.replace(Regex("[^A-Za-z0-9._-]"), "_") + FILE_SUFFIX
