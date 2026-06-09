@@ -113,13 +113,6 @@ class FanOutEngine internal constructor(
     private val _promptEditReplayStates = MutableStateFlow<Map<String, PromptEditReplayState>>(emptyMap())
     val promptEditReplayStates: StateFlow<Map<String, PromptEditReplayState>> = _promptEditReplayStates.asStateFlow()
 
-    /** Runs whose delete has started but whose disk work is still finishing in
-     *  the background. The Second-results list filters these out immediately so
-     *  the row vanishes the moment the user confirms, even though the (slow)
-     *  per-pair file deletes for a big run are still in flight. */
-    private val _deletingRuns = MutableStateFlow<Set<FanOutRunKey>>(emptySet())
-    val deletingRuns: StateFlow<Set<FanOutRunKey>> = _deletingRuns.asStateFlow()
-
     // Pair (item) coroutines, the top-level run Job per FanOutRunKey, and the
     // resume-scan dedup now live in the shared BatchEngine base (registerItemJob
     // / registerRunJob / beginResumeScan + itemJobOf / runJobOf / runJobKeys /
@@ -1811,47 +1804,27 @@ class FanOutEngine internal constructor(
     fun deleteRun(context: Context, runKey: FanOutRunKey): Job {
         val run = _runs.value[runKey]
             ?: return appViewModel.viewModelScope.launch { }
-        // Capture the live coroutines before we drop the run from the registry.
+        // Capture the live coroutines before the deferred delete drops the run.
         val runJob = runJobOf(runKey)
         val pairJobs = run.pairs.values.mapNotNull { itemJobOf(it.id) }
-        // ── Immediate (synchronous) ──
-        // 1) Hide the run from the Second-results list right away.
-        _deletingRuns.update { it + runKey }
-        // 2) Stop the batch — cancel (not join; the join happens off-thread
-        //    below so this call returns instantly).
-        runJob?.cancel()
-        pairJobs.forEach { it.cancel() }
-        // 3) Drop the in-memory run so the L1 screen empties.
-        dropRun(runKey)
-        // ── Background (slow) ──
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // Join the cancelled coroutines first so no zombie write can
-                // resurrect a row after we delete it.
-                runJob?.join()
-                pairJobs.forEach { it.join() }
-                // Roll the whole run's spend into the report's Deleted-items
-                // tally before the disk deletes — pair totalCost (in/out +
-                // Fan-Meta icon + title) plus each combined fan-in row. Without
-                // this, trashing an entire fan-out run erased all of its API
-                // spend from the lifetime cost view.
-                val costDelta = run.pairs.values.sumOf { it.totalCost } +
-                    run.combinedReports.sumOf { it.totalCost }
-                val pairIds = run.pairs.values.map { it.id }.toSet()
-                run.pairs.values.forEach { pair ->
-                    SecondaryResultStorage.delete(context, run.reportId, pair.id)
-                }
-                run.combinedReports.forEach { cr ->
-                    SecondaryResultStorage.delete(context, run.reportId, cr.id)
-                }
-                ReportStorage.removeFanOutIconCalls(context, run.reportId, pairIds)
-                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
-                ReportStorage.bumpReportTimestamp(context, run.reportId)
-            } finally {
-                // Disk rows are gone now, so the row stays gone without the
-                // hide; clear the marker so the set doesn't leak.
-                _deletingRuns.update { it - runKey }
+        return deleteRunDeferred(appViewModel.viewModelScope, runKey, runJob, pairJobs) {
+            // Roll the whole run's spend into the report's Deleted-items tally
+            // before the disk deletes — pair totalCost (in/out + Fan-Meta icon +
+            // title) plus each combined fan-in row. Without this, trashing an
+            // entire fan-out run erased all of its API spend from the lifetime
+            // cost view.
+            val costDelta = run.pairs.values.sumOf { it.totalCost } +
+                run.combinedReports.sumOf { it.totalCost }
+            val pairIds = run.pairs.values.map { it.id }.toSet()
+            run.pairs.values.forEach { pair ->
+                SecondaryResultStorage.delete(context, run.reportId, pair.id)
             }
+            run.combinedReports.forEach { cr ->
+                SecondaryResultStorage.delete(context, run.reportId, cr.id)
+            }
+            ReportStorage.removeFanOutIconCalls(context, run.reportId, pairIds)
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, run.reportId)
         }
     }
 

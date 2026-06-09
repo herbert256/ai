@@ -142,7 +142,9 @@ class TournamentEngine internal constructor(
             aggregateRowId = aggRow?.id,
             selectedMethod = method
         )
-        _runs.update { it + (reportId to run) }
+        // Don't re-publish a run whose delete is mid-flight: its rows are still
+        // on disk but the user already dropped it.
+        _runs.update { if (isDeleting(reportId)) it else it + (reportId to run) }
     }
 
     fun runByKey(key: TournamentRunKey): TournamentRunState? = _runs.value[key]
@@ -623,18 +625,19 @@ class TournamentEngine internal constructor(
 
     /** Cancel + delete the whole run (matches + aggregate), rolling the spend
      *  into the report's deleted-items tally. */
-    fun deleteRun(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            runJobOf(reportId)?.cancelAndJoin()
-            run.matches.values.forEach { itemJobOf(it.id)?.cancelAndJoin() }
+    fun deleteRun(context: Context, reportId: String): Job {
+        val run = _runs.value[reportId] ?: return appViewModel.viewModelScope.launch { }
+        // Capture the live coroutines before the deferred delete drops the run.
+        val runJob = runJobOf(reportId)
+        val itemJobs = run.matches.values.mapNotNull { itemJobOf(it.id) }
+        return deleteRunDeferred(appViewModel.viewModelScope, reportId, runJob, itemJobs) {
             val costDelta = run.matches.values.sumOf { it.totalCost }
             run.matches.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            dropRun(reportId)
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
+    }
 
     /** Delete the current tournament and immediately start a fresh one — the
      *  L1 🔄 redo. */

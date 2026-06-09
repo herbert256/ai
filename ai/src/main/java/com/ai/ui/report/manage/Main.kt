@@ -263,6 +263,7 @@ fun ReportsScreen(
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
     translationRuns: List<com.ai.viewmodel.TranslationRunState> = emptyList(),
+    deletingTranslationRunIds: Set<String> = emptySet(),
     /** Item ids currently parked on a provider rate / concurrency gate;
      *  feeds the translation L1 "Throttled" stat. */
     throttledTranslationItems: Set<String> = emptySet(),
@@ -366,6 +367,7 @@ fun ReportsScreen(
         isComplete = isComplete,
         iconGenEnabled = iconGenEnabled,
         translationRuns = translationRuns,
+        deletingTranslationRunIds = deletingTranslationRunIds,
         fanRuntime = fanRuntime,
         fanOutEngine = fanOutEngine,
         translationLifecycle = translationLifecycle,

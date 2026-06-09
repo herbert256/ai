@@ -125,7 +125,8 @@ class CompareEngine internal constructor(
             comparePrompt = prompt,
             cells = cells
         )
-        _runs.update { it + (reportId to run) }
+        // Don't re-publish a run whose delete is mid-flight (rows still on disk).
+        _runs.update { if (isDeleting(reportId)) it else it + (reportId to run) }
     }
 
     fun runByKey(key: CompareRunKey): CompareRunState? = _runs.value[key]
@@ -532,17 +533,18 @@ class CompareEngine internal constructor(
 
     /** Cancel + delete the whole run, rolling the spend into the report's
      *  deleted-items tally. */
-    fun deleteRun(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            runJobOf(reportId)?.cancelAndJoin()
-            run.cells.values.forEach { itemJobOf(it.id)?.cancelAndJoin() }
+    fun deleteRun(context: Context, reportId: String): Job {
+        val run = _runs.value[reportId] ?: return appViewModel.viewModelScope.launch { }
+        // Capture the live coroutines before the deferred delete drops the run.
+        val runJob = runJobOf(reportId)
+        val itemJobs = run.cells.values.mapNotNull { itemJobOf(it.id) }
+        return deleteRunDeferred(appViewModel.viewModelScope, reportId, runJob, itemJobs) {
             val costDelta = run.cells.values.sumOf { it.totalCost }
             run.cells.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            dropRun(reportId)
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
+    }
 
     /** Best-effort cancel of every in-flight cell for [reportId] (called from
      *  the synchronous report-delete path). */
