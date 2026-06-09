@@ -47,7 +47,7 @@ response. Re-verification date: 2026-06-09.
 | A05 | Still valid — Settings 3227 / Icon 3096 / ReportVM 2993 / Dashboard 2976 / ReportStorage 2620 | DEFER (opportunistic) | — |
 | A06 | Still valid — `createReport` 20 args, `updateAgentStatus` 20, `SettingsScreen` 44 | **DO** (storage fns only) | pending |
 | A07 | Still valid — `GlobalScope+NonCancellable` in `onCleared` | **DO** | pending |
-| A08 | Partially done — residual `Phase E/F` comments | **DO** (finish) | pending |
+| A08 | Partially done — residual `Phase E/F` comments | **DO** (finish) | done |
 | A09 | Still valid — no boundary tests | DEFER | — |
 | R01 | Partially done — `acquireThrottledPermits` helper, not `runThrottledBatch` | DEFER | — |
 | R02 | Partially done — `ReplayTrack` used only in `MetaEditManager` | **DO** | pending |

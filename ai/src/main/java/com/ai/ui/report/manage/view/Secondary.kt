@@ -65,10 +65,8 @@ internal fun SecondaryResultsScreen(
     isFanMetaDrillIn: Boolean = false,
     /** Authoritative Fan Out runtime. When non-null and the screen
      *  is in fan-out drill-in mode, the redesigned FanOutScreen
-     *  takes over; legacy FanOutDrillInView remains only for the
-     *  edge case where the engine isn't wired (back-compat for
-     *  legacy callers that haven't been migrated). Phase F removes
-     *  the legacy path entirely. */
+     *  takes over; legacy FanOutDrillInView remains only as a
+     *  fallback for the edge case where the engine isn't wired. */
     fanOutEngine: com.ai.viewmodel.FanOutEngine? = null,
     fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanOutPrompt: com.ai.model.InternalPrompt? = null,
@@ -716,9 +714,8 @@ internal fun SecondaryResultsScreen(
             return@Column
         }
         if (isFanOutDrillIn) {
-            // Legacy path — kept only for callers that haven't been
-            // migrated to pass `fanOutEngine`. Phase F deletes both
-            // the call and the FanOutDrillInView Composable.
+            // Fallback path — used only when `fanOutEngine` isn't
+            // wired by the caller.
             FanOutDrillInView(
                 reportId = reportId,
                 results = fanOutRowsAll,
