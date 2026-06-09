@@ -203,23 +203,31 @@ class CompareEngine internal constructor(
                     var built = 0
                     for (agent in successful) {
                         for (metaRow in metaRows) {
-                            val placeholder = SecondaryResultStorage.create(
-                                context, reportId, SecondaryKind.COMPARE,
-                                COMPARE_PENDING_PROVIDER, COMPARE_PENDING_MODEL, "Compare cell"
-                            ) {
-                                it.copy(
-                                    compareRunId = runId,
-                                    compareAgentId = agent.agentId,
-                                    compareToResultId = metaRow.id,
-                                    metaPromptId = prompt.id, metaPromptName = prompt.name,
-                                    runId = runId, secondaryScope = scopeEncoded
-                                )
-                            }
+                            val placeholder = SecondaryResult(
+                                id = java.util.UUID.randomUUID().toString(),
+                                reportId = reportId,
+                                kind = SecondaryKind.COMPARE,
+                                providerId = COMPARE_PENDING_PROVIDER,
+                                model = COMPARE_PENDING_MODEL,
+                                agentName = "Compare cell",
+                                timestamp = System.currentTimeMillis(),
+                                content = null,
+                                compareRunId = runId,
+                                compareAgentId = agent.agentId,
+                                compareToResultId = metaRow.id,
+                                metaPromptId = prompt.id,
+                                metaPromptName = prompt.name,
+                                runId = runId,
+                                secondaryScope = scopeEncoded
+                            )
                             pending.add(PendingCell(agent.agentId, metaRow.id, placeholder))
-                            placeholder.toCompareCellState()?.let { newCells[it.key] = it }
                             if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                         }
                     }
+                    val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
+                        .mapTo(HashSet()) { it.id }
+                    pending.removeAll { it.placeholder.id !in savedIds }
+                    pending.forEach { item -> item.placeholder.toCompareCellState()?.let { newCells[it.key] = it } }
                     if (buildKey != null) appViewModel.finishBuild(buildKey)
 
                     _runs.update { runs ->

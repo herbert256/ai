@@ -1084,8 +1084,8 @@ class FanOutEngine internal constructor(
                     data class PendingPair(val answerer: ReportAgent, val source: ReportAgent, val placeholder: SecondaryResult)
                     val pending = mutableListOf<PendingPair>()
                     val newPairs = mutableMapOf<PairKey, PairState>()
-                    // Build stage: this nested loop is the disk-heavy phase the
-                    // "Preparing N / M…" popup covers (one create() per pair).
+                    // Build stage: construct every row first, then persist the
+                    // full placeholder set with one data-version bump.
                     val totalPairs = answerers.filter { AppService.findById(it.provider) != null }
                         .sumOf { a -> sources.count { s -> includeSelfResponses || s.agentId != a.agentId } }
                     if (buildKey != null) appViewModel.beginBuild(buildKey, totalPairs, "Building fan-out")
@@ -1095,25 +1095,34 @@ class FanOutEngine internal constructor(
                         for (source in sources) {
                             if (source.agentId == answerer.agentId && !includeSelfResponses) continue
                             val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
-                            val placeholder = SecondaryResultStorage.create(
-                                context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
-                            ) {
-                                it.copy(
-                                    metaPromptId = metaPrompt.id,
-                                    metaPromptName = metaPrompt.name,
-                                    fanOutSourceAgentId = source.agentId,
-                                    runId = runId,
-                                    targetLanguage = sourceLanguage,
-                                    targetLanguageNative = langCtx?.native,
-                                    secondaryScope = scopeEncoded,
-                                    secondaryParameterPresetIds = paramsIds,
-                                    secondarySystemPromptId = systemPromptId
-                                )
-                            }
+                            val placeholder = SecondaryResult(
+                                id = java.util.UUID.randomUUID().toString(),
+                                reportId = reportId,
+                                kind = SecondaryKind.META,
+                                providerId = provider.id,
+                                model = answerer.model,
+                                agentName = agentName,
+                                timestamp = System.currentTimeMillis(),
+                                content = null,
+                                metaPromptId = metaPrompt.id,
+                                metaPromptName = metaPrompt.name,
+                                fanOutSourceAgentId = source.agentId,
+                                runId = runId,
+                                targetLanguage = sourceLanguage,
+                                targetLanguageNative = langCtx?.native,
+                                secondaryScope = scopeEncoded,
+                                secondaryParameterPresetIds = paramsIds,
+                                secondarySystemPromptId = systemPromptId
+                            )
                             pending.add(PendingPair(answerer, source, placeholder))
-                            placeholder.toPairState(answerer.agentId)?.let { newPairs[it.key] = it }
                             if (buildKey != null) { built++; if (built % 10 == 0) appViewModel.updateBuild(buildKey, built) }
                         }
+                    }
+                    val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
+                        .mapTo(HashSet()) { it.id }
+                    pending.removeAll { it.placeholder.id !in savedIds }
+                    pending.forEach { item ->
+                        item.placeholder.toPairState(item.answerer.agentId)?.let { newPairs[it.key] = it }
                     }
                     if (buildKey != null) appViewModel.finishBuild(buildKey)
                     // Publish the run state — preserve any existing

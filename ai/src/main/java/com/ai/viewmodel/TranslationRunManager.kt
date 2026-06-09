@@ -258,20 +258,20 @@ class TranslationRunManager(
             // against THIS set rather than recomputing from current
             // report state, so items added to the report AFTER this
             // run completes don't get spuriously translated.
-            val itemsWithIds = items.map {
+            var itemsWithIds = items.map {
                 it.copy(
                     persistedRowId = java.util.UUID.randomUUID().toString(),
                     traceType = traceTypeFor(it, secondaries)
                 )
             }
-            // Build stage: persist one placeholder per item up front. This
-            // is the disk-heavy phase the "Preparing N / M…" popup covers.
+            // Build stage: persist one placeholder per item up front. Use a
+            // batched save so large translation runs bump storage observers once.
             if (buildKey != null) appViewModel.beginBuild(buildKey, itemsWithIds.size, "Translating to $targetLanguageName")
-            itemsWithIds.forEachIndexed { idx, item ->
-                val rowId = item.persistedRowId ?: return@forEachIndexed
+            val placeholderRows = itemsWithIds.map { item ->
+                val rowId = item.persistedRowId ?: java.util.UUID.randomUUID().toString()
                 val srcKind = translateSrcKindOf(item.kind)
                 val srcTargetId = translateSrcTargetIdOf(item)
-                SecondaryResultStorage.save(context, SecondaryResult(
+                SecondaryResult(
                     id = rowId,
                     reportId = sourceReportId,
                     kind = SecondaryKind.TRANSLATE,
@@ -287,14 +287,15 @@ class TranslationRunManager(
                     targetLanguageNative = targetLanguageNative,
                     translationRunId = runId,
                     runId = runId,
-                ))
-                // Emit every 5th + on the last row to avoid a recomposition
-                // storm on large runs.
-                if (buildKey != null && (idx % 5 == 0 || idx == itemsWithIds.lastIndex)) {
-                    appViewModel.updateBuild(buildKey, idx + 1)
-                }
+                )
+            }
+            val savedIds = SecondaryResultStorage.saveAll(context, placeholderRows).mapTo(HashSet()) { it.id }
+            itemsWithIds = itemsWithIds.filter { it.persistedRowId in savedIds }
+            if (buildKey != null) {
+                appViewModel.updateBuild(buildKey, itemsWithIds.size)
             }
             if (buildKey != null) appViewModel.finishBuild(buildKey)
+            if (itemsWithIds.isEmpty()) return@launch
             _runs.update { it + (runId to TranslationRunState(
                 runId = runId,
                 sourceReportId = sourceReportId,
@@ -1373,7 +1374,7 @@ class TranslationRunManager(
         val report = ReportStorage.getReport(context, sourceReportId) ?: return
         val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
 
-        val items = targetKindPairs.mapNotNull { (targetId, kind) ->
+        var items = targetKindPairs.mapNotNull { (targetId, kind) ->
             // Reuse the existing row's id as the item's persistedRowId
             // so the re-dispatch's save overwrites the placeholder
             // (or the prior failed row, in the restart-failed flow)
@@ -1479,11 +1480,9 @@ class TranslationRunManager(
         // Build stage: re-persisting each PENDING placeholder is the
         // "Preparing N / M…" phase the Broken-work Continue popup covers.
         if (buildKey != null) appViewModel.beginBuild(buildKey, items.size, "Re-queuing translation")
-        var rebuilt = 0
-        items.forEach { item ->
-            if (buildKey != null) { rebuilt++; appViewModel.updateBuild(buildKey, rebuilt) }
-            val pid = item.persistedRowId ?: return@forEach
-            SecondaryResultStorage.save(context, SecondaryResult(
+        val placeholderRows = items.mapNotNull { item ->
+            val pid = item.persistedRowId ?: return@mapNotNull null
+            SecondaryResult(
                 id = pid,
                 reportId = sourceReportId,
                 kind = SecondaryKind.TRANSLATE,
@@ -1499,11 +1498,17 @@ class TranslationRunManager(
                 targetLanguageNative = targetLanguageNative,
                 translationRunId = runId,
                 runId = runId,
-            ))
+            )
+        }
+        val savedIds = SecondaryResultStorage.saveAll(context, placeholderRows).mapTo(HashSet()) { it.id }
+        items = items.filter { it.persistedRowId in savedIds }
+        if (buildKey != null) {
+            appViewModel.updateBuild(buildKey, items.size)
         }
         // Build phase complete — release the popup so the UI navigates to the
         // batch screen while the dispatch below keeps running in the background.
         if (buildKey != null) appViewModel.finishBuild(buildKey)
+        if (items.isEmpty()) return
 
         val aiSettings = appViewModel.uiState.value.aiSettings
         val textPrompt = workerTranslatePrompt(aiSettings, title = false)
@@ -1620,13 +1625,13 @@ class TranslationRunManager(
         // mid-cross-translate leaves rows that startMissingTranslations
         // can pick up on resume — same pattern as startTranslation's
         // up-front placeholder persistence.
-        val placeholders = sourceMetas.map { meta ->
+        val placeholderRows = sourceMetas.map { meta ->
             val prov = AppService.findById(meta.providerId)?.id ?: meta.providerId
             val name = meta.metaPromptName?.takeIf { it.isNotBlank() }
                 ?: com.ai.data.legacyKindDisplayName(meta.kind)
             val label = "$name: $prov / ${shortModelName(meta.model)}"
             val placeholderId = java.util.UUID.randomUUID().toString()
-            SecondaryResultStorage.save(context, SecondaryResult(
+            SecondaryResult(
                 id = placeholderId,
                 reportId = reportId,
                 kind = SecondaryKind.TRANSLATE,
@@ -1642,9 +1647,13 @@ class TranslationRunManager(
                 targetLanguageNative = targetLanguageNative,
                 translationRunId = runId,
                 runId = runId,
-            ))
-            meta.id
+            )
         }
+        val savedIds = SecondaryResultStorage.saveAll(context, placeholderRows).mapTo(HashSet()) { it.id }
+        val placeholders = sourceMetas.zip(placeholderRows)
+            .filter { (_, row) -> row.id in savedIds }
+            .map { (meta, _) -> meta.id }
+        if (placeholders.isEmpty()) return
 
         // Reopen the run: flip `finished` to false so the manage screen
         // (which filters by !it.isFinished && !it.cancelled) surfaces
@@ -1720,8 +1729,8 @@ class TranslationRunManager(
             // back to the placeholder row id so runTranslationSubset's
             // rowByKindTarget lookup picks it up and saveOneTranslationItem
             // overwrites this row in place.
-            items.forEach { item ->
-                SecondaryResultStorage.save(context, SecondaryResult(
+            val placeholderRows = items.map { item ->
+                SecondaryResult(
                     id = java.util.UUID.randomUUID().toString(),
                     reportId = reportId,
                     kind = SecondaryKind.TRANSLATE,
@@ -1737,8 +1746,13 @@ class TranslationRunManager(
                     targetLanguageNative = targetLanguageNative,
                     translationRunId = runId,
                     runId = runId,
-                ))
+                )
             }
+            val savedIds = SecondaryResultStorage.saveAll(context, placeholderRows).mapTo(HashSet()) { it.id }
+            val savedItems = items.zip(placeholderRows)
+                .filter { (_, row) -> row.id in savedIds }
+                .map { (item, _) -> item }
+            if (savedItems.isEmpty()) return@launch
 
             // Reopen the run so the live row reverts to ⏳ while the
             // new items dispatch. Rebuild from disk if the run was
@@ -1764,8 +1778,8 @@ class TranslationRunManager(
             // Dispatch via runTranslationSubset with per-item source
             // overrides — passes our caller-resolved sourceText instead
             // of the default Original-derivation.
-            val pairs = items.map { it.targetId to it.sourceKind }
-            val overrides: Map<Pair<String, String>, String> = items.associate {
+            val pairs = savedItems.map { it.targetId to it.sourceKind }
+            val overrides: Map<Pair<String, String>, String> = savedItems.associate {
                 (it.sourceKind to it.targetId) to it.sourceText
             }
             runTranslationSubset(

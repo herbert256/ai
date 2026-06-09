@@ -40,6 +40,23 @@ class SecondaryRunManager(
     private val appViewModel: AppViewModel,
     private val rvm: ReportViewModel
 ) {
+    private var brokenRefreshJob: Job? = null
+
+    private fun requestBrokenBatchesRefresh(context: Context, delayMs: Long = 2_000L) {
+        val appContext = context.applicationContext
+        brokenRefreshJob?.cancel()
+        brokenRefreshJob = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            delay(delayMs)
+            try {
+                refreshBrokenBatches(appContext)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("BrokenScan", "debounced refresh failed: ${e.javaClass.simpleName}: ${e.message}")
+            }
+        }
+    }
+
     // ===== Worker-swarm dispatch for single-result secondaries =====
     //
     // Rerank / Moderation / Meta / Fan-in no longer take a user-picked
@@ -1696,13 +1713,11 @@ class SecondaryRunManager(
         } finally {
             appViewModel.updateRunningSingleSecondaries { it - placeholder.id }
             // A single secondary (Moderation / Rerank / single Meta) just landed
-            // its result — re-scan broken work NOW so a fix clears the ⚠️ badge +
-            // the Broken-work screen immediately, instead of waiting up to 30s for
-            // the sweep (and a fresh error lights it at once too). NonCancellable
-            // so it still runs when the run was cancelled; best-effort.
-            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                try { refreshBrokenBatches(context) } catch (_: Exception) {}
-            }
+            // its result, so request a short-delay broken-work refresh. During
+            // large Fan Out runs this finally path is hit once per pair, so the
+            // app-wide recent-report scan is debounced instead of re-reading
+            // every report N times as rows finish.
+            requestBrokenBatchesRefresh(context)
         }
     }
 

@@ -1466,8 +1466,17 @@ object ReportStorage {
      *  called from SettingsPreferences, the same low-level persistence
      *  layer that owns the global usage ledger. */
     fun appendApiCallCost(filesDir: File?, reportId: String?, record: ReportApiCallCost): ReportApiCallAppendResult? {
+        return appendApiCallCosts(filesDir, reportId, listOf(record))
+    }
+
+    /** Append one or more API-cost ledger rows with a single report JSON
+     *  rewrite. SettingsPreferences batches high-volume report-scoped API
+     *  calls through this path so large worker batches do not rewrite the
+     *  parent report once per cell. */
+    fun appendApiCallCosts(filesDir: File?, reportId: String?, records: List<ReportApiCallCost>): ReportApiCallAppendResult? {
         val root = filesDir ?: return null
         val id = reportId?.takeIf { isSafeFlatId(it) } ?: return null
+        if (records.isEmpty()) return null
         initFromFilesDir(root)
         return lock.withLock {
             val report = loadReport(id) ?: return@withLock null
@@ -1476,9 +1485,11 @@ object ReportStorage {
             // doesn't bump the per-report usage stats for a row that wasn't
             // actually added — a non-null return here double-counted callCount/
             // tokens/cost on any retry/replay carrying a stable id.
-            if (report.apiCallCosts.any { it.id == record.id }) return@withLock null
+            val seen = report.apiCallCosts.mapTo(HashSet()) { it.id }
+            val toAppend = records.filter { seen.add(it.id) }
+            if (toAppend.isEmpty()) return@withLock null
             val updated = report.copy(
-                apiCallCosts = (report.apiCallCosts + record).toMutableList(),
+                apiCallCosts = (report.apiCallCosts + toAppend).toMutableList(),
                 timestamp = System.currentTimeMillis()
             )
             if (updated.apiCallCostsComplete) {

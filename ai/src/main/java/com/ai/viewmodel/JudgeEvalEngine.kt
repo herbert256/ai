@@ -234,15 +234,22 @@ class JudgeEvalEngine internal constructor(
                     AuditLog.append(reportId, "Start Judge-the-judges — ${judges.size} judges × ${chosen.size} matches")
                     val scopeEncoded = SecondaryScope.AllReports.encode()
 
-                    val aggregate = SecondaryResultStorage.create(
-                        context, reportId, SecondaryKind.JUDGES, AGG_PROVIDER, AGG_MODEL, "Judge the judges"
-                    ) {
-                        it.copy(
-                            tournamentRole = JUDGE_ROLE_AGGREGATE, tournamentJudgeRunId = runId,
-                            metaPromptId = prompt.id, metaPromptName = prompt.name,
-                            runId = runId, secondaryScope = scopeEncoded
-                        )
-                    }
+                    val aggregate = SecondaryResult(
+                        id = java.util.UUID.randomUUID().toString(),
+                        reportId = reportId,
+                        kind = SecondaryKind.JUDGES,
+                        providerId = AGG_PROVIDER,
+                        model = AGG_MODEL,
+                        agentName = "Judge the judges",
+                        timestamp = System.currentTimeMillis(),
+                        content = null,
+                        tournamentRole = JUDGE_ROLE_AGGREGATE,
+                        tournamentJudgeRunId = runId,
+                        metaPromptId = prompt.id,
+                        metaPromptName = prompt.name,
+                        runId = runId,
+                        secondaryScope = scopeEncoded
+                    )
 
                     val pending = mutableListOf<PendingCell>()
                     val newCells = LinkedHashMap<String, JudgeCellState>()
@@ -251,22 +258,34 @@ class JudgeEvalEngine internal constructor(
                     var built = 0
                     for ((aId, bId, orient) in chosen) {
                         for (judge in judges) {
-                            val placeholder = SecondaryResultStorage.create(
-                                context, reportId, SecondaryKind.JUDGES,
-                                judge.providerId, judge.model, "${judge.providerId} / ${judge.model}"
-                            ) {
-                                it.copy(
-                                    tournamentRole = JUDGE_ROLE_CELL, tournamentJudgeRunId = runId,
-                                    matchResponseAId = aId, matchResponseBId = bId, matchOrientation = orient,
-                                    metaPromptId = prompt.id, metaPromptName = prompt.name,
-                                    runId = runId, secondaryScope = scopeEncoded
-                                )
-                            }
+                            val placeholder = SecondaryResult(
+                                id = java.util.UUID.randomUUID().toString(),
+                                reportId = reportId,
+                                kind = SecondaryKind.JUDGES,
+                                providerId = judge.providerId,
+                                model = judge.model,
+                                agentName = "${judge.providerId} / ${judge.model}",
+                                timestamp = System.currentTimeMillis(),
+                                content = null,
+                                tournamentRole = JUDGE_ROLE_CELL,
+                                tournamentJudgeRunId = runId,
+                                matchResponseAId = aId,
+                                matchResponseBId = bId,
+                                matchOrientation = orient,
+                                metaPromptId = prompt.id,
+                                metaPromptName = prompt.name,
+                                runId = runId,
+                                secondaryScope = scopeEncoded
+                            )
                             pending.add(PendingCell(judge, aId, bId, orient, placeholder))
-                            placeholder.toJudgeCellState()?.let { newCells[it.key] = it }
                             if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                         }
                     }
+                    val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
+                        .mapTo(HashSet()) { it.id }
+                    if (aggregate.id !in savedIds) return@withTracerTags
+                    pending.removeAll { it.placeholder.id !in savedIds }
+                    pending.forEach { item -> item.placeholder.toJudgeCellState()?.let { newCells[it.key] = it } }
                     if (buildKey != null) appViewModel.finishBuild(buildKey)
 
                     _runs.update { runs ->

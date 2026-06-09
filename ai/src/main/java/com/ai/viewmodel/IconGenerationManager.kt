@@ -2783,13 +2783,10 @@ class IconGenerationManager(
                 // Build stage: marking each pending pair "started" is the
                 // "Preparing N / M…" phase the Broken-work Continue popup covers.
                 if (buildKey != null) appViewModel.beginBuild(buildKey, pending.size, "Re-queuing fan meta")
-                pending.forEachIndexed { idx, pair ->
-                    SecondaryResultStorage.markFanOutFanMetaStarted(
-                        context, reportId, pair.id, fanRunId, promptUsed = "fan-meta"
-                    )
-                    rvm.fanOutEngine.refreshPairFromDisk(context, reportId, pair.id)
-                    if (buildKey != null) appViewModel.updateBuild(buildKey, idx + 1)
-                }
+                SecondaryResultStorage.markFanOutFanMetaStartedBatch(
+                    context, reportId, pending.map { it.id }, fanRunId, promptUsed = "fan-meta"
+                )
+                if (buildKey != null) appViewModel.updateBuild(buildKey, pending.size)
                 if (buildKey != null) appViewModel.finishBuild(buildKey)
                 AppLog.i("FanMeta", "→ start (report=$reportId, ${pending.size} pairs)")
                 withTracerTags(reportId = reportId, category = "fan/meta", runId = fanRunId) {
@@ -2903,52 +2900,58 @@ class IconGenerationManager(
                 }
                 val titleModel = winAgent?.let { "${it.provider.id}/${it.model}" }
                 val tu = outcome.response.tokenUsage
-                val inT = tu?.inputTokens ?: 0
-                val outT = tu?.outputTokens ?: 0
-                if ((inT > 0 || outT > 0) && winAgent != null && tu != null) {
+                var inT = 0
+                var outT = 0
+                var inC = 0.0
+                var outC = 0.0
+                if (winAgent != null && tu != null && (tu.inputTokens > 0 || tu.outputTokens > 0)) {
+                    inT = tu.inputTokens
+                    outT = tu.outputTokens
                     val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
-                    val (inC, outC) = costSplit(tu, pricing)
-                    SecondaryResultStorage.bumpFanOutTitleCost(
-                        context, reportId, pair.id,
-                        inputTokens = inT, outputTokens = outT,
-                        inputCost = inC, outputCost = outC,
-                        model = titleModel
-                    )
+                    val split = costSplit(tu, pricing)
+                    inC = split.first
+                    outC = split.second
                     appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = "title")
                 }
-                if (title.isNotBlank()) {
-                    SecondaryResultStorage.setFanOutTitle(
-                        context, reportId, pair.id, title,
-                        titleRunId = fanRunId, promptUsed = "fan-meta",
-                        durationMs = System.currentTimeMillis() - started,
-                        model = titleModel
-                    )
-                } else {
-                    SecondaryResultStorage.setFanOutTitleError(
-                        context, reportId, pair.id, "no title in reply",
-                        titleRunId = fanRunId,
-                        promptUsed = "fan-meta",
-                        model = titleModel
-                    )
-                }
-                SecondaryResultStorage.setFanOutIconAndTier(
-                    context, reportId, pair.id, emoji, winningTier = null,
-                    iconRunId = fanRunId, promptUsed = "fan-meta"
+                SecondaryResultStorage.recordFanMetaResult(
+                    context = context,
+                    reportId = reportId,
+                    resultId = pair.id,
+                    title = title,
+                    icon = emoji,
+                    inputTokens = inT,
+                    outputTokens = outT,
+                    inputCost = inC,
+                    outputCost = outC,
+                    titleRunId = fanRunId,
+                    iconRunId = fanRunId,
+                    promptUsed = "fan-meta",
+                    durationMs = System.currentTimeMillis() - started,
+                    titleModel = titleModel,
+                    titleErrorMessage = if (title.isBlank()) "no title in reply" else null,
+                    iconErrorMessage = null
                 )
                 appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             }
             else -> {
                 val msg = if (outcome is WorkerOutcome.AllRateLimited) "fan-meta: all workers rate-limited"
                           else "fan-meta: no worker produced a result"
-                SecondaryResultStorage.setFanOutTitleError(
-                    context, reportId, pair.id, msg,
+                SecondaryResultStorage.recordFanMetaResult(
+                    context = context,
+                    reportId = reportId,
+                    resultId = pair.id,
+                    title = null,
+                    icon = null,
+                    inputTokens = 0,
+                    outputTokens = 0,
+                    inputCost = 0.0,
+                    outputCost = 0.0,
                     titleRunId = fanRunId,
-                    promptUsed = "fan-meta"
-                )
-                SecondaryResultStorage.setFanOutIconError(
-                    context, reportId, pair.id, msg,
                     iconRunId = fanRunId,
-                    promptUsed = "fan-meta"
+                    promptUsed = "fan-meta",
+                    durationMs = System.currentTimeMillis() - started,
+                    titleErrorMessage = msg,
+                    iconErrorMessage = msg
                 )
                 appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             }

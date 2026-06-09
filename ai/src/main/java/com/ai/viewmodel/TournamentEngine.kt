@@ -206,15 +206,22 @@ class TournamentEngine internal constructor(
                     AuditLog.append(reportId, "Start Tournament — ${successful.size} responses, ${matchCountFor(successful.size)} matches (worker-judged)")
                     val scopeEncoded = SecondaryScope.AllReports.encode()
 
-                    val aggregate = SecondaryResultStorage.create(
-                        context, reportId, SecondaryKind.TOURNAMENT, AGG_PROVIDER, AGG_MODEL, "Tournament"
-                    ) {
-                        it.copy(
-                            tournamentRole = ROLE_AGGREGATE, tournamentJudgeRunId = runId,
-                            metaPromptId = prompt.id, metaPromptName = prompt.name,
-                            runId = runId, secondaryScope = scopeEncoded
-                        )
-                    }
+                    val aggregate = SecondaryResult(
+                        id = java.util.UUID.randomUUID().toString(),
+                        reportId = reportId,
+                        kind = SecondaryKind.TOURNAMENT,
+                        providerId = AGG_PROVIDER,
+                        model = AGG_MODEL,
+                        agentName = "Tournament",
+                        timestamp = System.currentTimeMillis(),
+                        content = null,
+                        tournamentRole = ROLE_AGGREGATE,
+                        tournamentJudgeRunId = runId,
+                        metaPromptId = prompt.id,
+                        metaPromptName = prompt.name,
+                        runId = runId,
+                        secondaryScope = scopeEncoded
+                    )
 
                     val pending = mutableListOf<PendingMatch>()
                     val newMatches = LinkedHashMap<String, MatchState>()
@@ -225,24 +232,35 @@ class TournamentEngine internal constructor(
                         for (j in i + 1 until successful.size) {
                             val a = successful[i]; val b = successful[j]
                             for ((aa, bb, orient) in listOf(Triple(a, b, 0), Triple(b, a, 1))) {
-                                val placeholder = SecondaryResultStorage.create(
-                                    context, reportId, SecondaryKind.TOURNAMENT,
-                                    TOURNAMENT_PENDING_PROVIDER, TOURNAMENT_PENDING_MODEL, "Tournament match"
-                                ) {
-                                    it.copy(
-                                        tournamentRole = ROLE_MATCH, tournamentJudgeRunId = runId,
-                                        matchResponseAId = aa.agentId, matchResponseBId = bb.agentId,
-                                        matchOrientation = orient,
-                                        metaPromptId = prompt.id, metaPromptName = prompt.name,
-                                        runId = runId, secondaryScope = scopeEncoded
-                                    )
-                                }
+                                val placeholder = SecondaryResult(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    reportId = reportId,
+                                    kind = SecondaryKind.TOURNAMENT,
+                                    providerId = TOURNAMENT_PENDING_PROVIDER,
+                                    model = TOURNAMENT_PENDING_MODEL,
+                                    agentName = "Tournament match",
+                                    timestamp = System.currentTimeMillis(),
+                                    content = null,
+                                    tournamentRole = ROLE_MATCH,
+                                    tournamentJudgeRunId = runId,
+                                    matchResponseAId = aa.agentId,
+                                    matchResponseBId = bb.agentId,
+                                    matchOrientation = orient,
+                                    metaPromptId = prompt.id,
+                                    metaPromptName = prompt.name,
+                                    runId = runId,
+                                    secondaryScope = scopeEncoded
+                                )
                                 pending.add(PendingMatch(aa, bb, orient, placeholder))
-                                placeholder.toMatchState()?.let { newMatches[it.key] = it }
                                 if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                             }
                         }
                     }
+                    val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
+                        .mapTo(HashSet()) { it.id }
+                    if (aggregate.id !in savedIds) return@withTracerTags
+                    pending.removeAll { it.placeholder.id !in savedIds }
+                    pending.forEach { item -> item.placeholder.toMatchState()?.let { newMatches[it.key] = it } }
                     if (buildKey != null) appViewModel.finishBuild(buildKey)
 
                     _runs.update { runs ->

@@ -4,7 +4,6 @@ import android.content.Context
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
-import java.util.zip.CRC32
 import kotlin.concurrent.withLock
 
 /**
@@ -19,21 +18,20 @@ object SecondaryResultStorage {
     @Volatile private var rootDir: File? = null
 
     /** Per-file cache of parsed [SecondaryResult] rows. Keyed by
-     *  reportId → filename → (mtime, length, content hash, parsed). Each save /
+     *  reportId → filename → (mtime, length, parsed). Each save /
      *  delete invalidates only the affected filename's entry, so the
      *  next [listForReport] only re-parses the changed file instead
      *  of re-parsing the entire report directory. For a 56-pair
      *  fan-out at steady state, this turns ~56 redundant parses per
      *  pair completion into 1.
      *
-     *  Coarse-mtime collisions (two saves to the same file landing
-     *  in the same filesystem second with identical content length)
-     *  are handled by the content hash even if a future writer forgets
-     *  to invalidate its cache entry. */
+     *  All in-app writers invalidate their row before the next read.
+     *  On process start the cache is empty, so a pure mtime/length
+     *  fingerprint is enough for the hot path and avoids re-reading
+     *  every cached file just to compute a CRC during large batches. */
     private data class CachedEntry(
         val mtime: Long,
         val length: Long,
-        val contentHash: Long,
         val parsed: SecondaryResult
     )
     @Volatile private var listCache: HashMap<String, HashMap<String, CachedEntry>> = HashMap()
@@ -142,6 +140,45 @@ object SecondaryResultStorage {
         return result
     }
 
+    /** Persist many rows under the same storage lock and bump
+     *  [SecondaryDataVersion] once. Used by large batch build phases
+     *  that create hundreds of placeholders up front. */
+    fun saveAll(context: Context, results: List<SecondaryResult>): List<SecondaryResult> {
+        if (results.isEmpty()) return emptyList()
+        init(context)
+        val safeResults = results.filter { result ->
+            result.id.isNotBlank() && !result.id.contains('/') && !result.id.contains('\\') &&
+                result.id != "." && result.id != ".."
+        }
+        if (safeResults.isEmpty()) return emptyList()
+        val reportIds = safeResults.map { it.reportId }.distinct()
+        val existingReports = reportIds.filter { ReportStorage.reportExists(context, it) }.toSet()
+        if (existingReports.isEmpty()) return emptyList()
+        var savedAny = false
+        val saved = mutableListOf<SecondaryResult>()
+        lock.withLock {
+            val liveReports = existingReports.filter { ReportStorage.reportExists(context, it) }.toSet()
+            for (result in safeResults) {
+                if (result.reportId !in liveReports) continue
+                val dir = reportDir(result.reportId) ?: continue
+                val target = File(dir, "${result.id}.json")
+                if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
+                    AppLog.e("SecondaryResultStorage", "Refusing to save result that escapes report dir: ${result.id}")
+                    continue
+                }
+                if (!target.writeTextAtomic(gson.toJson(result))) {
+                    AppLog.e("SecondaryResultStorage", "Failed to save result ${result.id}")
+                    continue
+                }
+                listCache[result.reportId]?.remove(target.name)
+                saved += result
+                savedAny = true
+            }
+        }
+        if (savedAny) SecondaryDataVersion.bump()
+        return saved
+    }
+
     /** Construct a placeholder row and persist it. [extras] runs on the
      *  freshly-constructed [SecondaryResult] before it hits disk, so
      *  callers that need to seed `metaPromptName` / `fanOutSourceAgentId` /
@@ -177,10 +214,8 @@ object SecondaryResultStorage {
                 seenFilenames.add(name)
                 val mtime = file.lastModified()
                 val length = file.length()
-                val contentHash = file.crc32OrNull()
                 val cached = cacheForReport[name]
-                if (cached != null && contentHash != null &&
-                    cached.mtime == mtime && cached.length == length && cached.contentHash == contentHash) {
+                if (cached != null && cached.mtime == mtime && cached.length == length) {
                     rows.add(cached.parsed)
                     continue
                 }
@@ -190,11 +225,7 @@ object SecondaryResultStorage {
                     null
                 }
                 if (parsed != null) {
-                    if (contentHash != null) {
-                        cacheForReport[name] = CachedEntry(mtime, length, contentHash, parsed)
-                    } else {
-                        cacheForReport.remove(name)
-                    }
+                    cacheForReport[name] = CachedEntry(mtime, length, parsed)
                     rows.add(parsed)
                 } else {
                     cacheForReport.remove(name)
@@ -211,21 +242,6 @@ object SecondaryResultStorage {
             rows.sortWith(compareBy({ it.timestamp }, { it.id }))
             if (kind != null) rows.filter { it.kind == kind } else rows
         }
-    }
-
-    private fun File.crc32OrNull(): Long? = try {
-        val crc = CRC32()
-        inputStream().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val read = input.read(buffer)
-                if (read < 0) break
-                crc.update(buffer, 0, read)
-            }
-        }
-        crc.value
-    } catch (_: Exception) {
-        null
     }
 
     /** Reject a result id that could escape the report dir (separators, `.`,
@@ -245,22 +261,21 @@ object SecondaryResultStorage {
             if (!file.exists()) return@withLock null
             // Reuse the same fingerprint-validated parse cache listForReport
             // populates, so repeated get() calls on heavy screens don't reparse
-            // unchanged JSON. Same (mtime, length, crc) validation → no staleness.
+            // unchanged JSON. Same in-process invalidation + mtime/length
+            // validation as listForReport.
             // See audit data bug 14.
             val name = file.name
             val mtime = file.lastModified()
             val length = file.length()
-            val contentHash = file.crc32OrNull()
             val cacheForReport = listCache.getOrPut(reportId) { HashMap(16) }
             val cached = cacheForReport[name]
-            if (cached != null && contentHash != null &&
-                cached.mtime == mtime && cached.length == length && cached.contentHash == contentHash) {
+            if (cached != null && cached.mtime == mtime && cached.length == length) {
                 return@withLock cached.parsed
             }
             val parsed = try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
-            if (parsed != null && contentHash != null) {
-                cacheForReport[name] = CachedEntry(mtime, length, contentHash, parsed)
-            } else if (parsed == null) {
+            if (parsed != null) {
+                cacheForReport[name] = CachedEntry(mtime, length, parsed)
+            } else {
                 cacheForReport.remove(name)
             }
             parsed
@@ -828,6 +843,94 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)
         }
+    }
+
+    /** Commit one Fan Meta worker result in a single row rewrite. The
+     *  legacy path wrote cost, title, and icon/error as separate atomic
+     *  writes per pair; large Fan Meta batches spent most of their time
+     *  fsyncing those transitions. */
+    fun recordFanMetaResult(
+        context: Context,
+        reportId: String,
+        resultId: String,
+        title: String?,
+        icon: String?,
+        inputTokens: Int,
+        outputTokens: Int,
+        inputCost: Double,
+        outputCost: Double,
+        titleRunId: String,
+        iconRunId: String,
+        promptUsed: String,
+        durationMs: Long,
+        titleModel: String? = null,
+        titleErrorMessage: String? = null,
+        iconErrorMessage: String? = null
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = resolveReportDirForRead(reportId) ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                title = title?.takeIf { it.isNotBlank() },
+                titleErrorMessage = titleErrorMessage,
+                titleRunId = titleRunId,
+                titlePromptUsed = promptUsed,
+                titleDurationMs = durationMs,
+                titleModel = titleModel ?: current.titleModel,
+                titleInputTokens = current.titleInputTokens + inputTokens,
+                titleOutputTokens = current.titleOutputTokens + outputTokens,
+                titleInputCost = current.titleInputCost + inputCost,
+                titleOutputCost = current.titleOutputCost + outputCost,
+                icon = icon?.takeIf { it.isNotBlank() },
+                iconWinningTier = null,
+                iconErrorMessage = iconErrorMessage,
+                iconRunId = iconRunId,
+                iconPromptUsed = promptUsed
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+        SecondaryDataVersion.bump()
+    }
+
+    /** Mark many fan-out rows as having a Fan Meta pass in progress.
+     *  Writes still happen per row for crash visibility, but the lock
+     *  acquisition and data-version notification are batched. */
+    fun markFanOutFanMetaStartedBatch(
+        context: Context,
+        reportId: String,
+        resultIds: Collection<String>,
+        fanMetaRunId: String,
+        promptUsed: String = "fan-meta"
+    ) {
+        if (resultIds.isEmpty()) return
+        init(context)
+        var changed = false
+        lock.withLock {
+            val dir = resolveReportDirForRead(reportId) ?: return
+            for (resultId in resultIds) {
+                if (!isSafeResultId(resultId)) continue
+                val target = File(dir, "$resultId.json")
+                if (!target.exists()) continue
+                val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                    catch (_: Exception) { continue }
+                val updated = current.copy(
+                    titleRunId = current.titleRunId ?: fanMetaRunId,
+                    iconRunId = current.iconRunId ?: fanMetaRunId,
+                    titlePromptUsed = current.titlePromptUsed ?: promptUsed,
+                    iconPromptUsed = current.iconPromptUsed ?: promptUsed,
+                    timestamp = System.currentTimeMillis()
+                )
+                target.writeTextAtomic(gson.toJson(updated))
+                listCache[reportId]?.remove(target.name)
+                changed = true
+            }
+        }
+        if (changed) SecondaryDataVersion.bump()
     }
 
     /** Regenerate variant — clears [title] + [titleErrorMessage] but
