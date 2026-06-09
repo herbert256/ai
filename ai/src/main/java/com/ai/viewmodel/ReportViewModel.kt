@@ -189,18 +189,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  stranded (interrupted). See [isReportGenerating]. */
     @Volatile private var activeGenerationReportId: String? = null
     @Volatile private var reportRunningInBackground = false
-    private val temperatureSweepJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    private val _temperatureSweepStates = MutableStateFlow<Map<String, TemperatureSweepState>>(emptyMap())
-    val temperatureSweepStates: StateFlow<Map<String, TemperatureSweepState>> = _temperatureSweepStates.asStateFlow()
-    private val reasoningEffortSweepJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    private val _reasoningEffortSweepStates = MutableStateFlow<Map<String, ReasoningEffortSweepState>>(emptyMap())
-    val reasoningEffortSweepStates: StateFlow<Map<String, ReasoningEffortSweepState>> = _reasoningEffortSweepStates.asStateFlow()
-    private val webSearchReplayJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    private val _webSearchReplayStates = MutableStateFlow<Map<String, WebSearchReplayState>>(emptyMap())
-    val webSearchReplayStates: StateFlow<Map<String, WebSearchReplayState>> = _webSearchReplayStates.asStateFlow()
-    private val promptEditReplayJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    private val _promptEditReplayStates = MutableStateFlow<Map<String, PromptEditReplayState>>(emptyMap())
-    val promptEditReplayStates: StateFlow<Map<String, PromptEditReplayState>> = _promptEditReplayStates.asStateFlow()
+    // Variation-replay tracks: each owns its StateFlow<Map<String,S>> + per-key
+    // job map + register/set/update/cancel/prefix-clear plumbing (see ReplayTrack).
+    private val temperatureSweep = ReplayTrack<TemperatureSweepState>()
+    val temperatureSweepStates: StateFlow<Map<String, TemperatureSweepState>> = temperatureSweep.states
+    private val reasoningEffortSweep = ReplayTrack<ReasoningEffortSweepState>()
+    val reasoningEffortSweepStates: StateFlow<Map<String, ReasoningEffortSweepState>> = reasoningEffortSweep.states
+    private val webSearchReplay = ReplayTrack<WebSearchReplayState>()
+    val webSearchReplayStates: StateFlow<Map<String, WebSearchReplayState>> = webSearchReplay.states
+    private val promptEditReplay = ReplayTrack<PromptEditReplayState>()
+    val promptEditReplayStates: StateFlow<Map<String, PromptEditReplayState>> = promptEditReplay.states
 
     /** In-flight regenerate jobs (single-agent regenerateAgent +
      *  forceRegenerateAllAgents), keyed by reportId, so deleteReport can
@@ -971,12 +969,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         )
     }
 
-    private fun updateTemperatureSweepState(key: String, transform: (TemperatureSweepState) -> TemperatureSweepState) {
-        _temperatureSweepStates.update { current ->
-            val existing = current[key] ?: return@update current
-            current + (key to transform(existing))
-        }
-    }
+    private fun updateTemperatureSweepState(key: String, transform: (TemperatureSweepState) -> TemperatureSweepState) =
+        temperatureSweep.update(key, transform)
 
     private fun setTemperatureSweepCandidate(
         key: String,
@@ -989,14 +983,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     fun clearTemperatureSweep(reportId: String, agentId: String) {
-        val key = TemperatureSweepState.key(reportId, agentId)
-        temperatureSweepJobs.remove(key)?.cancel()
-        _temperatureSweepStates.update { it - key }
+        temperatureSweep.cancel(TemperatureSweepState.key(reportId, agentId))
     }
 
     fun applyTemperatureCandidate(context: Context, reportId: String, agentId: String, candidateIndex: Int) {
         val key = TemperatureSweepState.key(reportId, agentId)
-        val candidate = _temperatureSweepStates.value[key]?.candidates
+        val candidate = temperatureSweep.get(key)?.candidates
             ?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             ReportStorage.applyAgentChatResponse(
@@ -1007,7 +999,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 changeSource = RESPONSE_CHANGE_SOURCE_TEMPERATURE,
                 changeValue = formatSweepTemperature(candidate.temperature)
             )
-            _temperatureSweepStates.update { it - key }
+            temperatureSweep.drop(key)
         }
     }
 
@@ -1019,15 +1011,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job {
         val key = TemperatureSweepState.key(reportId, agentId)
         val temps = temperatures.take(3)
-        temperatureSweepJobs.remove(key)?.cancel()
-        _temperatureSweepStates.update {
-            it + (key to TemperatureSweepState(
-                reportId = reportId,
-                agentId = agentId,
-                candidates = temps.map { temp -> TemperatureSweepCandidate.Pending(temp) },
-                isRunning = true
-            ))
-        }
+        temperatureSweep.cancelJob(key)
+        temperatureSweep.set(key, TemperatureSweepState(
+            reportId = reportId,
+            agentId = agentId,
+            candidates = temps.map { temp -> TemperatureSweepCandidate.Pending(temp) },
+            isRunning = true
+        ))
         val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             try {
                 val report = ReportStorage.getReport(context, reportId) ?: run {
@@ -1174,17 +1164,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             }
         }
-        temperatureSweepJobs[key] = job
-        job.invokeOnCompletion { temperatureSweepJobs.remove(key, job) }
+        temperatureSweep.registerJob(key, job)
         return job
     }
 
-    private fun updateReasoningEffortSweepState(key: String, transform: (ReasoningEffortSweepState) -> ReasoningEffortSweepState) {
-        _reasoningEffortSweepStates.update { current ->
-            val existing = current[key] ?: return@update current
-            current + (key to transform(existing))
-        }
-    }
+    private fun updateReasoningEffortSweepState(key: String, transform: (ReasoningEffortSweepState) -> ReasoningEffortSweepState) =
+        reasoningEffortSweep.update(key, transform)
 
     private fun setReasoningEffortCandidate(
         key: String,
@@ -1197,14 +1182,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     fun clearReasoningEffortSweep(reportId: String, agentId: String) {
-        val key = ReasoningEffortSweepState.key(reportId, agentId)
-        reasoningEffortSweepJobs.remove(key)?.cancel()
-        _reasoningEffortSweepStates.update { it - key }
+        reasoningEffortSweep.cancel(ReasoningEffortSweepState.key(reportId, agentId))
     }
 
     fun applyReasoningEffortCandidate(context: Context, reportId: String, agentId: String, candidateIndex: Int) {
         val key = ReasoningEffortSweepState.key(reportId, agentId)
-        val candidate = _reasoningEffortSweepStates.value[key]?.candidates
+        val candidate = reasoningEffortSweep.get(key)?.candidates
             ?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             ReportStorage.applyAgentChatResponse(
@@ -1215,7 +1198,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 changeSource = RESPONSE_CHANGE_SOURCE_REASONING_EFFORT,
                 changeValue = formatSweepReasoningEffort(candidate.effort)
             )
-            _reasoningEffortSweepStates.update { it - key }
+            reasoningEffortSweep.drop(key)
         }
     }
 
@@ -1230,15 +1213,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val requestedEfforts = efforts.take(4).map { raw ->
             raw?.trim()?.lowercase(Locale.US)?.takeIf { it in supportedFixedEfforts }
         }.ifEmpty { listOf("low", "high") }
-        reasoningEffortSweepJobs.remove(key)?.cancel()
-        _reasoningEffortSweepStates.update {
-            it + (key to ReasoningEffortSweepState(
-                reportId = reportId,
-                agentId = agentId,
-                candidates = requestedEfforts.map { effort -> ReasoningEffortCandidate.Pending(effort) },
-                isRunning = true
-            ))
-        }
+        reasoningEffortSweep.cancelJob(key)
+        reasoningEffortSweep.set(key, ReasoningEffortSweepState(
+            reportId = reportId,
+            agentId = agentId,
+            candidates = requestedEfforts.map { effort -> ReasoningEffortCandidate.Pending(effort) },
+            isRunning = true
+        ))
         val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             try {
                 val report = ReportStorage.getReport(context, reportId) ?: run {
@@ -1378,27 +1359,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             }
         }
-        reasoningEffortSweepJobs[key] = job
-        job.invokeOnCompletion { reasoningEffortSweepJobs.remove(key, job) }
+        reasoningEffortSweep.registerJob(key, job)
         return job
     }
 
-    private fun updateWebSearchReplayState(key: String, transform: (WebSearchReplayState) -> WebSearchReplayState) {
-        _webSearchReplayStates.update { current ->
-            val existing = current[key] ?: return@update current
-            current + (key to transform(existing))
-        }
-    }
+    private fun updateWebSearchReplayState(key: String, transform: (WebSearchReplayState) -> WebSearchReplayState) =
+        webSearchReplay.update(key, transform)
 
     fun clearWebSearchReplay(reportId: String, agentId: String) {
-        val key = WebSearchReplayState.key(reportId, agentId)
-        webSearchReplayJobs.remove(key)?.cancel()
-        _webSearchReplayStates.update { it - key }
+        webSearchReplay.cancel(WebSearchReplayState.key(reportId, agentId))
     }
 
     fun applyWebSearchReplay(context: Context, reportId: String, agentId: String) {
         val key = WebSearchReplayState.key(reportId, agentId)
-        val result = _webSearchReplayStates.value[key]?.result as? WebSearchReplayResult.Success ?: return
+        val result = webSearchReplay.get(key)?.result as? WebSearchReplayResult.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             ReportStorage.applyAgentChatResponse(
                 context = context,
@@ -1407,7 +1381,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 body = result.response,
                 changeSource = RESPONSE_CHANGE_SOURCE_WEB_SEARCH
             )
-            _webSearchReplayStates.update { it - key }
+            webSearchReplay.drop(key)
         }
     }
 
@@ -1417,15 +1391,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         agentId: String
     ): Job {
         val key = WebSearchReplayState.key(reportId, agentId)
-        webSearchReplayJobs.remove(key)?.cancel()
-        _webSearchReplayStates.update {
-            it + (key to WebSearchReplayState(
-                reportId = reportId,
-                agentId = agentId,
-                result = WebSearchReplayResult.Running,
-                isRunning = true
-            ))
-        }
+        webSearchReplay.cancelJob(key)
+        webSearchReplay.set(key, WebSearchReplayState(
+            reportId = reportId,
+            agentId = agentId,
+            result = WebSearchReplayResult.Running,
+            isRunning = true
+        ))
         val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             try {
                 val report = ReportStorage.getReport(context, reportId) ?: run {
@@ -1562,27 +1534,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             }
         }
-        webSearchReplayJobs[key] = job
-        job.invokeOnCompletion { webSearchReplayJobs.remove(key, job) }
+        webSearchReplay.registerJob(key, job)
         return job
     }
 
-    private fun updatePromptEditReplayState(key: String, transform: (PromptEditReplayState) -> PromptEditReplayState) {
-        _promptEditReplayStates.update { current ->
-            val existing = current[key] ?: return@update current
-            current + (key to transform(existing))
-        }
-    }
+    private fun updatePromptEditReplayState(key: String, transform: (PromptEditReplayState) -> PromptEditReplayState) =
+        promptEditReplay.update(key, transform)
 
     fun clearPromptEditReplay(reportId: String, agentId: String) {
-        val key = PromptEditReplayState.key(reportId, agentId)
-        promptEditReplayJobs.remove(key)?.cancel()
-        _promptEditReplayStates.update { it - key }
+        promptEditReplay.cancel(PromptEditReplayState.key(reportId, agentId))
     }
 
     fun applyPromptEditReplay(context: Context, reportId: String, agentId: String) {
         val key = PromptEditReplayState.key(reportId, agentId)
-        val result = _promptEditReplayStates.value[key]?.result as? PromptEditReplayResult.Success ?: return
+        val result = promptEditReplay.get(key)?.result as? PromptEditReplayResult.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             ReportStorage.applyAgentChatResponse(
                 context = context,
@@ -1591,7 +1556,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 body = result.response,
                 changeSource = RESPONSE_CHANGE_SOURCE_EDIT
             )
-            _promptEditReplayStates.update { it - key }
+            promptEditReplay.drop(key)
         }
     }
 
@@ -1605,15 +1570,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job {
         val key = PromptEditReplayState.key(reportId, agentId)
         val editedPrompt = prompt.trim()
-        promptEditReplayJobs.remove(key)?.cancel()
-        _promptEditReplayStates.update {
-            it + (key to PromptEditReplayState(
-                reportId = reportId,
-                agentId = agentId,
-                result = PromptEditReplayResult.Running,
-                isRunning = true
-            ))
-        }
+        promptEditReplay.cancelJob(key)
+        promptEditReplay.set(key, PromptEditReplayState(
+            reportId = reportId,
+            agentId = agentId,
+            result = PromptEditReplayResult.Running,
+            isRunning = true
+        ))
         val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             try {
                 if (editedPrompt.isBlank()) {
@@ -1762,8 +1725,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             }
         }
-        promptEditReplayJobs[key] = job
-        job.invokeOnCompletion { promptEditReplayJobs.remove(key, job) }
+        promptEditReplay.registerJob(key, job)
         return job
     }
 
@@ -2556,18 +2518,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // zombie report), and a regenerate batch would keep dispatching
         // agent calls against a gone report.
         translation.cancelAllForReport(reportId)
-        temperatureSweepJobs.entries
-            .filter { it.key.startsWith(fanOutPrefix) }
-            .forEach { it.value.cancel() }
-        _temperatureSweepStates.update { states ->
-            states.filterKeys { !it.startsWith(fanOutPrefix) }
-        }
-        reasoningEffortSweepJobs.entries
-            .filter { it.key.startsWith(fanOutPrefix) }
-            .forEach { it.value.cancel() }
-        _reasoningEffortSweepStates.update { states ->
-            states.filterKeys { !it.startsWith(fanOutPrefix) }
-        }
+        temperatureSweep.cancelByPrefix(fanOutPrefix)
+        reasoningEffortSweep.cancelByPrefix(fanOutPrefix)
         // Synchronous: the async cancel() returns before its launch body
         // cancels the orchestrator, so the batch could still be dispatching
         // when we delete below.

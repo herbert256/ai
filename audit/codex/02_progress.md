@@ -50,7 +50,7 @@ response. Re-verification date: 2026-06-09.
 | A08 | Partially done — residual `Phase E/F` comments | **DO** (finish) | done |
 | A09 | Still valid — no boundary tests | DEFER | — |
 | R01 | Partially done — `acquireThrottledPermits` helper, not `runThrottledBatch` | DEFER | — |
-| R02 | Partially done — `ReplayTrack` used only in `MetaEditManager` | **DO** | pending |
+| R02 | Partially done — `ReplayTrack` used only in `MetaEditManager` | **DO** | done (ReportViewModel's 4 flows migrated; FanOutEngine's parallel set is follow-up) |
 | R03 | Already done — formal run-state shape exists | DONE | — |
 | R04 | Still valid — `IconGenerationManager` 3096 LOC | DEFER | — |
 | R05 | Still valid — `rememberReportRuntimeState` holds derived state | DEFER | — |
