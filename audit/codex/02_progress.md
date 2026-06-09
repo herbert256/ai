@@ -45,7 +45,7 @@ response. Re-verification date: 2026-06-09.
 | A03 | Still valid — 4 static `SettingsHolder` reads | DEFER | — |
 | A04 | Still valid — multiple owners, no map | **DO** | done (doc/ownership.md) |
 | A05 | Still valid — Settings 3227 / Icon 3096 / ReportVM 2993 / Dashboard 2976 / ReportStorage 2620 | DEFER (opportunistic) | — |
-| A06 | Still valid — `createReport` 20 args, `updateAgentStatus` 20, `SettingsScreen` 44 | **DO** (storage fns only) | pending |
+| A06 | Still valid — `createReport` 20 args, `updateAgentStatus` 20, `SettingsScreen` 44 | **DO** (storage fns only) | done (CreateReportConfig + AgentStatusPatch; SettingsScreen 44-arg left as DEFER) |
 | A07 | Still valid — `GlobalScope+NonCancellable` in `onCleared` | DEFER (rides on D10) | deferred — pairs with the UsageStatsRecorder extraction |
 | A08 | Partially done — residual `Phase E/F` comments | **DO** (finish) | done |
 | A09 | Still valid — no boundary tests | DEFER | — |
@@ -95,7 +95,7 @@ response. Re-verification date: 2026-06-09.
 | T03 | Partially done — component tests, no nav contracts | DEFER | — |
 | T04 | Still valid — no boundary tests | DEFER | — |
 | T05 | Still valid — no perf tests | SKIP | — |
-| T06 | Partially done — idempotent-dup + removed-cost cases | **DO** (broaden) | pending |
+| T06 | Partially done — idempotent-dup + removed-cost cases | **DO** (broaden) | done (+6 cases: retry idempotent/additive, in/out-only, error-preserves, ledger accumulate, reconcile no-op) |
 
 ## This session — the DO items, one commit each
 
@@ -110,10 +110,15 @@ Landed:
 4. `COD-R07` — `BatchBuildScope.run(...)` helper. ✅
 5. `COD-U14` — extract `ExternalAppCommandParser` + command objects. ✅
 6. `COD-T02` — JVM tests for the external/share parser. ✅
-7. `COD-P02` — `ModelCapabilityResolver` (value + source/reason).
-8. `COD-R02` — migrate replay maps onto `ReplayTrack`.
-9. `COD-A06` — `CreateReportRequest` / `AgentStatusPatch` command objects.
-10. `COD-T06` — broaden cost-accounting mutation tests.
+7. `COD-P02` — `ModelCapabilityResolver` (value + source/reason). ✅
+8. `COD-R02` — migrate replay maps onto `ReplayTrack`. ✅
+9. `COD-A06` — `CreateReportConfig` / `AgentStatusPatch` command objects. ✅
+10. `COD-T06` — broaden cost-accounting mutation tests. ✅
+
+All ten landed as one commit each, plus the tracker commits. Build cadence:
+each commit compile-verified (`compileDebugKotlin`, or
+`compileDebugAndroidTestKotlin` for the test commits); full `assembleDebug` +
+deploy to both targets + launch run once at the end.
 
 ### Deferred this session — re-estimated LARGE (cost-accounting cluster)
 

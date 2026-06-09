@@ -33,6 +33,60 @@ data class ReportLoadFailure(
 )
 
 /**
+ * Optional generation-config tail for [ReportStorage.createReport] /
+ * [ReportStorage.createReportAsync]. The required identity (title, prompt,
+ * agents) stays positional; everything else — replay/regenerate config, image,
+ * knowledge bases, lineage — rides here so the call site reads as a labeled
+ * bundle instead of a 17-deep positional tail (audit A06).
+ */
+data class CreateReportConfig(
+    val rapportText: String? = null,
+    val reportType: ReportType = ReportType.CLASSIC,
+    val closeText: String? = null,
+    val imageBase64: String? = null,
+    val imageMime: String? = null,
+    val webSearchTool: Boolean = false,
+    val reasoningEffort: String? = null,
+    val useReportModelsAsWorkers: Boolean = false,
+    // Explicit id — used by the translation flow so the new report's UUID can
+    // be reserved up front and threaded into ApiTracer.currentReportId before
+    // any translation API call runs (otherwise those traces carry no report id).
+    val explicitId: String? = null,
+    val sourceReportId: String? = null,
+    val knowledgeBaseIds: List<String> = emptyList(),
+    val runId: String? = null,
+    val parameterPresetIds: List<String> = emptyList(),
+    val advancedParameters: AgentParameters? = null,
+    val selectionParamsById: Map<String, List<String>> = emptyMap(),
+    val reportSystemPromptId: String? = null
+)
+
+/**
+ * The optional fields applied by [ReportStorage.updateAgentStatus] — the call's
+ * HTTP echo, response payload, token/cost numbers, and result metadata. Bundled
+ * so the one writer and its `markAgent*` wrappers pass a labeled patch instead
+ * of a 16-deep positional argument list (audit A06).
+ */
+data class AgentStatusPatch(
+    val httpStatus: Int? = null,
+    val requestHeaders: String? = null,
+    val requestBody: String? = null,
+    val responseHeaders: String? = null,
+    val responseBody: String? = null,
+    val errorMessage: String? = null,
+    val tokenUsage: TokenUsage? = null,
+    val cost: Double? = null,
+    val inputCost: Double? = null,
+    val outputCost: Double? = null,
+    val citations: List<String>? = null,
+    val searchResults: List<SearchResult>? = null,
+    val relatedQuestions: List<String>? = null,
+    val rawUsageJson: String? = null,
+    val durationMs: Long? = null,
+    val traceFile: String? = null
+)
+
+/**
  * Thread-safe report persistence. Stores each report as JSON file in /files/reports/.
  */
 object ReportStorage {
@@ -80,26 +134,8 @@ object ReportStorage {
 
     fun createReport(
         context: Context, title: String, prompt: String, agents: List<ReportAgent>,
-        rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null,
-        imageBase64: String? = null, imageMime: String? = null,
-        webSearchTool: Boolean = false,
-        reasoningEffort: String? = null,
-        useReportModelsAsWorkers: Boolean = false,
-        // Optional explicit id — used by the translation flow so the new
-        // report's UUID can be reserved up front and threaded into
-        // ApiTracer.currentReportId before any translation API calls run.
-        // Without this the translation traces end up tagged with no
-        // report id and don't surface on either report's trace screen.
-        explicitId: String? = null,
-        sourceReportId: String? = null,
-        knowledgeBaseIds: List<String> = emptyList(),
-        runId: String? = null,
-        // Generation config captured for Regenerate replay (see Report).
-        parameterPresetIds: List<String> = emptyList(),
-        advancedParameters: AgentParameters? = null,
-        selectionParamsById: Map<String, List<String>> = emptyMap(),
-        reportSystemPromptId: String? = null
-    ): Report {
+        config: CreateReportConfig = CreateReportConfig()
+    ): Report = with(config) {
         init(context)
         val now = System.currentTimeMillis()
         val report = Report(explicitId ?: UUID.randomUUID().toString(), now, createdAt = now, title = title, prompt = prompt,
@@ -117,7 +153,7 @@ object ReportStorage {
             append("Created report '${report.title}' with ${agents.size} model(s)")
             if (sourceReportId != null) append(" (from report $sourceReportId)")
         })
-        return report
+        report
     }
 
     /** Full cost of the report's own generation. Current reports use the
@@ -160,16 +196,12 @@ object ReportStorage {
 
     fun updateAgentStatus(
         context: Context, reportId: String, agentId: String, status: ReportStatus,
-        httpStatus: Int? = null, requestHeaders: String? = null, requestBody: String? = null,
-        responseHeaders: String? = null, responseBody: String? = null, errorMessage: String? = null,
-        tokenUsage: TokenUsage? = null, cost: Double? = null,
-        inputCost: Double? = null, outputCost: Double? = null,
-        citations: List<String>? = null,
-        searchResults: List<SearchResult>? = null, relatedQuestions: List<String>? = null,
-        rawUsageJson: String? = null, durationMs: Long? = null, traceFile: String? = null
+        patch: AgentStatusPatch = AgentStatusPatch()
     ): Boolean {
         init(context)
-        return lock.withLock {
+        // with(patch) lets the body keep referencing httpStatus / responseBody /
+        // cost / … by their bare names — the patch fields shadow nothing else here.
+        return lock.withLock { with(patch) {
             val report = loadReport(reportId) ?: return@withLock false
             val agent = report.agents.find { it.agentId == agentId } ?: return@withLock false
             val duplicateSuccessForTrace = status == ReportStatus.SUCCESS &&
@@ -246,11 +278,12 @@ object ReportStorage {
                 AuditLog.append(reportId, "Response received for report model ${agent.provider}/${agent.model}")
             }
             true
-        }
+        } }
     }
 
     fun markAgentRunning(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
-        updateAgentStatus(context, reportId, agentId, ReportStatus.RUNNING, requestHeaders = requestHeaders, requestBody = requestBody)
+        updateAgentStatus(context, reportId, agentId, ReportStatus.RUNNING,
+            AgentStatusPatch(requestHeaders = requestHeaders, requestBody = requestBody))
 
     fun markAgentSuccess(
         context: Context, reportId: String, agentId: String, httpStatus: Int,
@@ -259,12 +292,14 @@ object ReportStorage {
         citations: List<String>? = null, searchResults: List<SearchResult>? = null,
         relatedQuestions: List<String>? = null, rawUsageJson: String? = null, durationMs: Long? = null,
         traceFile: String? = null
-    ) = updateAgentStatus(context, reportId, agentId, ReportStatus.SUCCESS, httpStatus,
-        responseHeaders = responseHeaders, responseBody = responseBody, tokenUsage = tokenUsage,
-        cost = cost, inputCost = inputCost, outputCost = outputCost,
-        citations = citations, searchResults = searchResults,
-        relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, durationMs = durationMs,
-        traceFile = traceFile)
+    ) = updateAgentStatus(context, reportId, agentId, ReportStatus.SUCCESS,
+        AgentStatusPatch(
+            httpStatus = httpStatus,
+            responseHeaders = responseHeaders, responseBody = responseBody, tokenUsage = tokenUsage,
+            cost = cost, inputCost = inputCost, outputCost = outputCost,
+            citations = citations, searchResults = searchResults,
+            relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, durationMs = durationMs,
+            traceFile = traceFile))
 
     /** Persist the in-report "refine" chat conversation for one agent.
      *  Replaces [ReportAgent.chatMessages] wholesale (the screen owns the
@@ -315,30 +350,21 @@ object ReportStorage {
         context: Context, reportId: String, agentId: String, httpStatus: Int?,
         errorMessage: String?, responseHeaders: String? = null, responseBody: String? = null, durationMs: Long? = null,
         traceFile: String? = null
-    ) = updateAgentStatus(context, reportId, agentId, ReportStatus.ERROR, httpStatus,
-        errorMessage = errorMessage, responseHeaders = responseHeaders, responseBody = responseBody, durationMs = durationMs,
-        traceFile = traceFile)
+    ) = updateAgentStatus(context, reportId, agentId, ReportStatus.ERROR,
+        AgentStatusPatch(
+            httpStatus = httpStatus,
+            errorMessage = errorMessage, responseHeaders = responseHeaders, responseBody = responseBody, durationMs = durationMs,
+            traceFile = traceFile))
 
     fun markAgentStopped(context: Context, reportId: String, agentId: String) =
-        updateAgentStatus(context, reportId, agentId, ReportStatus.STOPPED, errorMessage = "Stopped by user")
+        updateAgentStatus(context, reportId, agentId, ReportStatus.STOPPED,
+            AgentStatusPatch(errorMessage = "Stopped by user"))
 
     // Async variants
     suspend fun createReportAsync(
         context: Context, title: String, prompt: String, agents: List<ReportAgent>,
-        rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null,
-        imageBase64: String? = null, imageMime: String? = null,
-        webSearchTool: Boolean = false,
-        reasoningEffort: String? = null,
-        useReportModelsAsWorkers: Boolean = false,
-        explicitId: String? = null,
-        sourceReportId: String? = null,
-        knowledgeBaseIds: List<String> = emptyList(),
-        runId: String? = null,
-        parameterPresetIds: List<String> = emptyList(),
-        advancedParameters: AgentParameters? = null,
-        selectionParamsById: Map<String, List<String>> = emptyMap(),
-        reportSystemPromptId: String? = null
-    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, useReportModelsAsWorkers, explicitId, sourceReportId, knowledgeBaseIds, runId, parameterPresetIds, advancedParameters, selectionParamsById, reportSystemPromptId) }
+        config: CreateReportConfig = CreateReportConfig()
+    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, config) }
 
     suspend fun markAgentRunningAsync(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
         withContext(Dispatchers.IO) { markAgentRunning(context, reportId, agentId, requestHeaders, requestBody) }
