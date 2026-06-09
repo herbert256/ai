@@ -79,10 +79,9 @@ private const val FAN_OUT_WEB_SEARCH_PROMPT_SUFFIX =
  * permit acquired, HTTP completed, error stamped, row deleted) is
  * an atomic update to that flow.
  *
- * Phase C scope: engine compiles + builds the StateFlow + owns
- * the runner; the existing UI does NOT yet read from it. Phases
- * D / E switch the UI and report-result page over to the engine
- * and delete the duplicate code in ReportViewModel.
+ * The UI subscribes to this engine's flow directly; the legacy
+ * per-pair maps and polling loop ReportViewModel used to own for
+ * fan-out have been removed.
  *
  * The engine delegates the actual HTTP call + disk persistence
  * to [ReportViewModel.executeSecondaryTask] — that function
@@ -90,10 +89,7 @@ private const val FAN_OUT_WEB_SEARCH_PROMPT_SUFFIX =
  * the engine just brackets it with state-flow transitions plus
  * per-pair Job bookkeeping.
  *
- * Co-existence rules during the transition window:
- * - The engine uses the shared BatchEngine job registries,
- *   independent of the existing [ReportViewModel] maps (which
- *   stay alive until Phase E deletes them).
+ * - The engine uses the shared BatchEngine job registries.
  * - The engine hydrates from disk on demand via [hydrate]; the
  *   UI's `LaunchedEffect(currentReportId)` calls it on report
  *   open so the flow is populated before any drill-in.
@@ -2026,8 +2022,7 @@ class FanOutEngine internal constructor(
         }
 
     // -----------------------------------------------------------------
-    // Fan-in passthrough — delegate to ReportViewModel for Phase C.
-    // Phase E inlines if useful.
+    // Fan-in passthrough — delegates to ReportViewModel.
     // -----------------------------------------------------------------
 
     /** Standard fan-in: combine the whole run via the picked prompt.

@@ -287,12 +287,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     internal val _agentResults = MutableStateFlow<Map<String, AnalysisResponse>>(emptyMap())
     val agentResults: StateFlow<Map<String, AnalysisResponse>> = _agentResults.asStateFlow()
 
-    /** Authoritative Fan Out runtime state. Phase C of the fan-out
-     *  redesign creates this engine alongside the existing
-     *  fan-out paths in this ViewModel; Phase E wires the UI to it
-     *  and removes the duplicate paths. Phase F deletes the
-     *  legacy `runningFanOutPairs`, `fanOutPairJobs`, and the 500 ms
-     *  polling loop. */
+    /** Authoritative Fan Out runtime state. The UI subscribes to this
+     *  engine directly; the old per-pair maps and polling loop this
+     *  ViewModel used to own for fan-out have been removed. */
     val fanOutEngine: FanOutEngine = FanOutEngine(appViewModel, this)
 
     /** Runtime owner for pairwise Tournament runs (head-to-head judging
