@@ -102,6 +102,9 @@ fun ViewTitleBar(
     /** Optional left-aligned 🗂️ bottom-bar icon → pick-a-report-to-view
      *  (View hub only). */
     onViewList: (() -> Unit)? = null,
+    /** Optional right-aligned 📤 bottom-bar icon (left of the ❓) —
+     *  exports this screen as a shareable file. */
+    onExport: (() -> Unit)? = null,
     /** When set together with a non-blank [activeLanguage], the orange
      *  report title swaps to its translated variant for that language —
      *  the report long title's TITLE_LONG translation (when the report
@@ -126,7 +129,7 @@ fun ViewTitleBar(
         // SideEffect, so an unconditional null would wipe the new screen's
         // spec and the bar would vanish. We only null it when we still own it.
         val ownerToken = remember { Any() }
-        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, onViewList = onViewList, helpTopic = helpTopic, owner = ownerToken, reportView = true) }
+        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, onViewList = onViewList, helpTopic = helpTopic, onExport = onExport, owner = ownerToken, reportView = true) }
         DisposableEffect(viewBottomBarState) {
             onDispose { if (viewBottomBarState.value?.owner === ownerToken) viewBottomBarState.value = null }
         }

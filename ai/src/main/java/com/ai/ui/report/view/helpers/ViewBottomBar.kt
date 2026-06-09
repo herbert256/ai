@@ -2,6 +2,7 @@ package com.ai.ui.report.view.helpers
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -37,6 +38,10 @@ data class ViewBottomBarSpec(
     /** When non-null, a right-aligned ❓ help icon is shown, opening this
      *  screen's help topic. The View top bar moved help down here. */
     val helpTopic: String? = null,
+    /** When non-null, a right-aligned 📤 icon is shown left of the ❓ —
+     *  exports the current screen as a shareable file (Value view's
+     *  single-page HTML export). */
+    val onExport: (() -> Unit)? = null,
     /** Identity token of the title-bar instance that published this spec.
      *  A leaving screen clears the shared state only when it still owns it
      *  — without this, the leaving screen's onDispose can null the spec the
@@ -109,17 +114,32 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                     .padding(8.dp)
             )
         }
-        // Right-aligned ❓ help — moved here from the View top bar.
-        if (spec.helpTopic != null) {
-            Text(
-                text = mi.help,
-                fontSize = 28.sp,
-                color = AppColors.InfoAccent,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .clickable { navigateHelp(spec.helpTopic) }
-                    .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
-            )
+        // Right-aligned cluster: optional 📤 export, then the ❓ help —
+        // moved here from the View top bar.
+        Row(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (spec.onExport != null) {
+                Text(
+                    text = mi.share,
+                    fontSize = 27.sp,
+                    color = AppColors.TextPrimary,
+                    modifier = Modifier
+                        .clickable(onClick = spec.onExport)
+                        .padding(8.dp)
+                )
+            }
+            if (spec.helpTopic != null) {
+                Text(
+                    text = mi.help,
+                    fontSize = 28.sp,
+                    color = AppColors.InfoAccent,
+                    modifier = Modifier
+                        .clickable { navigateHelp(spec.helpTopic) }
+                        .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
+                )
+            }
         }
     }
 }
