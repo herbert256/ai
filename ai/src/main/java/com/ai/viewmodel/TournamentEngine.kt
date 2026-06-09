@@ -564,6 +564,11 @@ class TournamentEngine internal constructor(
     override suspend fun redispatchRows(context: Context, runKey: TournamentRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
         val report = ReportStorage.getReport(context, runKey) ?: return
+        // ♻️ Models-as-workers must hold on resume / Broken-work restart /
+        // regenerate too — the hydrated prompt carries the CONFIGURED swarm,
+        // so re-judging without the swap would pull in foreign workers.
+        val prompt = if (report.useReportModelsAsWorkers)
+            run.tournamentPrompt.copy(workers = reportModelWorkers(report)) else run.tournamentPrompt
         val agentsById = report.agents.associateBy { it.agentId }
         val pending = rows.mapNotNull { row ->
             val m = run.matches.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
@@ -573,7 +578,7 @@ class TournamentEngine internal constructor(
         }
         if (pending.isEmpty()) return
         withTracerTags(reportId = runKey, category = "after/tournament") {
-            dispatchMatches(context, runKey, run.tournamentPrompt, report.prompt, report.title, pending)
+            dispatchMatches(context, runKey, prompt, report.prompt, report.title, pending)
         }
     }
 }

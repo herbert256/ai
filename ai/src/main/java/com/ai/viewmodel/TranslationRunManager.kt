@@ -1510,8 +1510,14 @@ class TranslationRunManager(
         if (items.isEmpty()) return
 
         val aiSettings = appViewModel.uiState.value.aiSettings
+        // ♻️ Models-as-workers must hold on restart / resume too — mirror
+        // startTranslation's swap, or the re-dispatch would translate with
+        // the CONFIGURED swarm instead of the report's own models.
+        val reportSwarm = if (report.useReportModelsAsWorkers) reportModelWorkers(report) else null
         val textPrompt = workerTranslatePrompt(aiSettings, title = false)
+            ?.let { p -> reportSwarm?.let { p.copy(workers = it) } ?: p }
         val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
+            ?.let { p -> reportSwarm?.let { p.copy(workers = it) } ?: p }
 
         // When the in-memory run state is gone (post-kill resume or
         // manual reload on a finished run), seed the fresh state with

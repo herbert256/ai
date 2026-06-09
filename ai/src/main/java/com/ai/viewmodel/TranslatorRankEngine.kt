@@ -87,8 +87,14 @@ class TranslatorRankEngine internal constructor(
         val run = _runs.value[runKey] ?: return
         val report = ReportStorage.getReport(context, run.reportId) ?: return
         val aiSettings = appViewModel.uiState.value.aiSettings
+        // ♻️ Models-as-workers: resolve the judges' original worker shape
+        // against the report-model panel (what startRun dispatched with),
+        // not the configured swarm — otherwise every pinned judge misses
+        // the lookup and falls back to a bare provider/model worker.
+        val effPrompt = if (report.useReportModelsAsWorkers)
+            run.prompt.copy(workers = reportModelWorkers(report)) else run.prompt
         val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
-        val judgesByKey = resolveJudges(aiSettings, run.prompt).associateBy { it.key }
+        val judgesByKey = resolveJudges(aiSettings, effPrompt).associateBy { it.key }
         val pending = rows.mapNotNull { row ->
             val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
             val sc = items[c.translationRowId] ?: return@mapNotNull null
@@ -98,7 +104,7 @@ class TranslatorRankEngine internal constructor(
         }
         if (pending.isEmpty()) return
         withTracerTags(reportId = run.reportId, category = "transrank/rank", runId = run.runId) {
-            dispatchCells(context, runKey, run.prompt, pending)
+            dispatchCells(context, runKey, effPrompt, pending)
         }
     }
 

@@ -89,13 +89,18 @@ class CompareEngine internal constructor(
     override suspend fun redispatchRows(context: Context, runKey: CompareRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
         val report = ReportStorage.getReport(context, runKey) ?: return
+        // ♻️ Models-as-workers must hold on resume / Broken-work restart too —
+        // the hydrated prompt carries the CONFIGURED swarm, so re-scoring
+        // without the swap would pull in foreign workers.
+        val prompt = if (report.useReportModelsAsWorkers)
+            run.comparePrompt.copy(workers = reportModelWorkers(report)) else run.comparePrompt
         val pending = rows.mapNotNull { row ->
             val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
             PendingCell(c.agentId, c.metaResultId, row)
         }
         if (pending.isEmpty()) return
         withTracerTags(reportId = runKey, category = TRACE_CATEGORY) {
-            dispatchCells(context, runKey, run.comparePrompt, report.prompt, report.title, pending)
+            dispatchCells(context, runKey, prompt, report.prompt, report.title, pending)
         }
     }
 
