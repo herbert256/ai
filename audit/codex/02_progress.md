@@ -86,7 +86,7 @@ response. Re-verification date: 2026-06-09.
 | U08 | Still valid — no lineage graph | SKIP | — |
 | U09 | Partially done — `ReportBundle` exports subset | PRODUCT | — |
 | U10 | Partially done — separate `FindAlternative*` screens | DEFER | — |
-| U11 | Partially done — `ModelAdvisory` exists, no central icon wrapper | **DO** | pending |
+| U11 | Partially done — `ModelAdvisory` exists, no central icon wrapper | **DO** | done (IconActionButton/StatusIcon; bar strip labeled) |
 | U12 | Still valid — `produceState` ticks | DEFER | — |
 | U13 | Partially done — `ModelAdvisory` only | DEFER | — |
 | U14 | Still valid — inline tag parsing in `AppNavHost` | **DO** | pending |
