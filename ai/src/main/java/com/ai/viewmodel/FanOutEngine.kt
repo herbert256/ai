@@ -1088,34 +1088,33 @@ class FanOutEngine internal constructor(
                     // "Preparing N / M…" popup covers (one create() per pair).
                     val totalPairs = answerers.filter { AppService.findById(it.provider) != null }
                         .sumOf { a -> sources.count { s -> includeSelfResponses || s.agentId != a.agentId } }
-                    if (buildKey != null) appViewModel.beginBuild(buildKey, totalPairs, "Building fan-out")
-                    var built = 0
-                    for (answerer in answerers) {
-                        val provider = AppService.findById(answerer.provider) ?: continue
-                        for (source in sources) {
-                            if (source.agentId == answerer.agentId && !includeSelfResponses) continue
-                            val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
-                            val placeholder = SecondaryResultStorage.create(
-                                context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
-                            ) {
-                                it.copy(
-                                    metaPromptId = metaPrompt.id,
-                                    metaPromptName = metaPrompt.name,
-                                    fanOutSourceAgentId = source.agentId,
-                                    runId = runId,
-                                    targetLanguage = sourceLanguage,
-                                    targetLanguageNative = langCtx?.native,
-                                    secondaryScope = scopeEncoded,
-                                    secondaryParameterPresetIds = paramsIds,
-                                    secondarySystemPromptId = systemPromptId
-                                )
+                    appViewModel.runBatchBuild(buildKey, totalPairs, "Building fan-out", updateEvery = 10) {
+                        for (answerer in answerers) {
+                            val provider = AppService.findById(answerer.provider) ?: continue
+                            for (source in sources) {
+                                if (source.agentId == answerer.agentId && !includeSelfResponses) continue
+                                val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
+                                val placeholder = SecondaryResultStorage.create(
+                                    context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
+                                ) {
+                                    it.copy(
+                                        metaPromptId = metaPrompt.id,
+                                        metaPromptName = metaPrompt.name,
+                                        fanOutSourceAgentId = source.agentId,
+                                        runId = runId,
+                                        targetLanguage = sourceLanguage,
+                                        targetLanguageNative = langCtx?.native,
+                                        secondaryScope = scopeEncoded,
+                                        secondaryParameterPresetIds = paramsIds,
+                                        secondarySystemPromptId = systemPromptId
+                                    )
+                                }
+                                pending.add(PendingPair(answerer, source, placeholder))
+                                placeholder.toPairState(answerer.agentId)?.let { newPairs[it.key] = it }
+                                advance()
                             }
-                            pending.add(PendingPair(answerer, source, placeholder))
-                            placeholder.toPairState(answerer.agentId)?.let { newPairs[it.key] = it }
-                            if (buildKey != null) { built++; if (built % 10 == 0) appViewModel.updateBuild(buildKey, built) }
                         }
                     }
-                    if (buildKey != null) appViewModel.finishBuild(buildKey)
                     // Publish the run state — preserve any existing
                     // combined-report rows already attached to this run.
                     val existingCombined = _runs.value[rk]?.combinedReports.orEmpty()

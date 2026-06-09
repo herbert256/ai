@@ -24,6 +24,28 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 
+/** Progress cursor handed to [AppViewModel.runBatchBuild]'s block. Engines call
+ *  [advance] once per placeholder created (or [set] when they already track an
+ *  index); the begin/finish bracketing lives in [AppViewModel.runBatchBuild]. */
+class BatchBuildScope internal constructor(
+    private val app: AppViewModel,
+    private val key: String?,
+    private val updateEvery: Int
+) {
+    private var built = 0
+    /** Advance the built count by [by]; publishes only on a stride boundary so
+     *  a tight create() loop doesn't spam the progress flow. */
+    fun advance(by: Int = 1) {
+        built += by
+        if (key != null && built % updateEvery == 0) app.updateBuild(key, built)
+    }
+    /** Publish an absolute built count — for sites that already track an index. */
+    fun set(count: Int) {
+        built = count
+        if (key != null) app.updateBuild(key, count)
+    }
+}
+
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal val repository = AnalysisRepository()
     internal val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -110,6 +132,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun clearBuild(key: String) {
         _batchBuildProgress.update { it - key }
+    }
+
+    /**
+     * Scoped wrapper over [beginBuild]/[updateBuild]/[finishBuild] for the
+     * build-placeholder phase of a batch. Brackets [block] with begin + finish
+     * — and finish runs even if [block] throws, so the build popup can't wedge
+     * on an error. The scope's [BatchBuildScope.advance]/[BatchBuildScope.set]
+     * publish progress, throttled by [updateEvery]. A null [key] makes every
+     * call a no-op (the same `if (buildKey != null)` guard the engines hand-roll
+     * today). Teardown ([clearBuild]) deliberately stays with the caller: it
+     * fires after navigation or on abort, outside this build loop.
+     */
+    fun <T> runBatchBuild(
+        key: String?,
+        total: Int,
+        label: String,
+        updateEvery: Int = 1,
+        block: BatchBuildScope.() -> T
+    ): T {
+        if (key != null) beginBuild(key, total, label)
+        val scope = BatchBuildScope(this, key, updateEvery)
+        try {
+            return scope.block()
+        } finally {
+            if (key != null) finishBuild(key)
+        }
     }
 
     /** Pair ids currently mid-fan-meta call. Parallel to

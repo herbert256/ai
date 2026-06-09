@@ -266,35 +266,33 @@ class TranslationRunManager(
             }
             // Build stage: persist one placeholder per item up front. This
             // is the disk-heavy phase the "Preparing N / M…" popup covers.
-            if (buildKey != null) appViewModel.beginBuild(buildKey, itemsWithIds.size, "Translating to $targetLanguageName")
-            itemsWithIds.forEachIndexed { idx, item ->
-                val rowId = item.persistedRowId ?: return@forEachIndexed
-                val srcKind = translateSrcKindOf(item.kind)
-                val srcTargetId = translateSrcTargetIdOf(item)
-                SecondaryResultStorage.save(context, SecondaryResult(
-                    id = rowId,
-                    reportId = sourceReportId,
-                    kind = SecondaryKind.TRANSLATE,
-                    providerId = "",
-                    model = "",
-                    agentName = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}",
-                    timestamp = System.currentTimeMillis(),
-                    content = null,
-                    errorMessage = null,
-                    translateSourceKind = srcKind,
-                    translateSourceTargetId = srcTargetId,
-                    targetLanguage = targetLanguageName,
-                    targetLanguageNative = targetLanguageNative,
-                    translationRunId = runId,
-                    runId = runId,
-                ))
-                // Emit every 5th + on the last row to avoid a recomposition
-                // storm on large runs.
-                if (buildKey != null && (idx % 5 == 0 || idx == itemsWithIds.lastIndex)) {
-                    appViewModel.updateBuild(buildKey, idx + 1)
+            appViewModel.runBatchBuild(buildKey, itemsWithIds.size, "Translating to $targetLanguageName") {
+                itemsWithIds.forEachIndexed { idx, item ->
+                    val rowId = item.persistedRowId ?: return@forEachIndexed
+                    val srcKind = translateSrcKindOf(item.kind)
+                    val srcTargetId = translateSrcTargetIdOf(item)
+                    SecondaryResultStorage.save(context, SecondaryResult(
+                        id = rowId,
+                        reportId = sourceReportId,
+                        kind = SecondaryKind.TRANSLATE,
+                        providerId = "",
+                        model = "",
+                        agentName = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}",
+                        timestamp = System.currentTimeMillis(),
+                        content = null,
+                        errorMessage = null,
+                        translateSourceKind = srcKind,
+                        translateSourceTargetId = srcTargetId,
+                        targetLanguage = targetLanguageName,
+                        targetLanguageNative = targetLanguageNative,
+                        translationRunId = runId,
+                        runId = runId,
+                    ))
+                    // Emit every 5th + on the last row to avoid a recomposition
+                    // storm on large runs.
+                    if (idx % 5 == 0 || idx == itemsWithIds.lastIndex) set(idx + 1)
                 }
             }
-            if (buildKey != null) appViewModel.finishBuild(buildKey)
             _runs.update { it + (runId to TranslationRunState(
                 runId = runId,
                 sourceReportId = sourceReportId,

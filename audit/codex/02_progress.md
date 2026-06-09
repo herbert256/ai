@@ -55,7 +55,7 @@ response. Re-verification date: 2026-06-09.
 | R04 | Still valid — `IconGenerationManager` 3096 LOC | DEFER | — |
 | R05 | Still valid — `rememberReportRuntimeState` holds derived state | DEFER | — |
 | R06 | Still valid — broken-work spread across 3 owners | DEFER | — |
-| R07 | Still valid — `begin/update/finish/clearBuild` called manually | **DO** | pending |
+| R07 | Still valid — `begin/update/finish/clearBuild` called manually | **DO** | done (runBatchBuild + BatchBuildScope; 2 engines adopted, rest incremental) |
 | R08 | Fields already exist on `SecondaryResult` | SKIP | — |
 | R09 | Still valid — dispatch+cost+storage combined | DEFER | — |
 | D01 | Partially done — `PromptHistoryStore` extracted; ~1124 LOC | **DO** (continue) | pending |
