@@ -3,6 +3,8 @@ package com.ai.viewmodel
 import android.content.Context
 import androidx.lifecycle.viewModelScope
 import com.ai.data.AppLog
+import com.ai.data.ReportStorage
+import com.ai.data.fullCost
 import com.ai.data.BatchItem
 import com.ai.data.BatchItemStatus
 import com.ai.data.BatchRun
@@ -74,6 +76,10 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  from `finally` / NonCancellable paths where a throw would escape the
      *  coroutine and crash the app. */
     protected open fun recomputeAggregate(context: Context, runKey: RunKey) {}
+
+    /** [SecondaryResult.id] of [run]'s AGGREGATE row, or null for engines
+     *  without one (Compare). Deleted alongside the last item. */
+    protected open fun aggregateRowIdOf(run: RunState): String? = null
 
     /** Rebuild this engine's run(s) for [reportId] from disk and publish them
      *  — already public on every engine; the resume template calls it before
@@ -204,6 +210,39 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
                 }
             }
         }
+
+    /** Delete every item matching [predicate] without re-firing — the
+     *  Broken-work "delete errored / unfinished / picked rows" actions.
+     *  Cancels + joins the victims' coroutines, deletes their rows (spend
+     *  rolled into the report's deleted-items tally, read from the disk row's
+     *  fullCost with the in-memory cost as fallback), then either recomputes
+     *  the aggregate over what's left or — when nothing is left — deletes the
+     *  aggregate row and drops the whole run (an empty run would otherwise
+     *  read as never-terminal). */
+    protected suspend fun removeItemsMatching(context: Context, runKey: RunKey, predicate: (ItemState) -> Boolean) {
+        val run = _runs.value[runKey] ?: return
+        val victims = run.items.values.filter(predicate)
+        if (victims.isEmpty()) return
+        val reportId = reportIdOf(runKey)
+        victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
+        val costDelta = victims.sumOf {
+            SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+        }
+        victims.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+        val victimKeys = victims.map { it.key }.toSet()
+        if ((run.items - victimKeys).isEmpty()) {
+            aggregateRowIdOf(run)?.let { SecondaryResultStorage.delete(context, reportId, it) }
+            dropRun(runKey)
+        } else {
+            _runs.update { runs ->
+                val cur = runs[runKey] ?: return@update runs
+                runs + (runKey to copyWithItems(cur, cur.items - victimKeys))
+            }
+            recomputeAggregate(context, runKey)
+        }
+        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+        ReportStorage.bumpReportTimestamp(context, reportId)
+    }
 
     /** Run-end finalizer for startRun's `finally`: stamp every leftover stale
      *  row "Interrupted" (disk + in-memory), clear its [BatchResume] attempt

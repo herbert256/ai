@@ -81,6 +81,7 @@ class TournamentEngine internal constructor(
         item.copy(status = MatchStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun isItemRow(run: TournamentRunState?, row: SecondaryResult) =
         row.tournamentRole == ROLE_MATCH
+    override fun aggregateRowIdOf(run: TournamentRunState) = run.aggregateRowId
     override fun canRedispatch(context: Context, run: TournamentRunState) =
         run.tournamentPrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 16
 
@@ -513,81 +514,22 @@ class TournamentEngine internal constructor(
         }
 
     /** Drop every errored match without re-firing — clears a permanently-dead
-     *  failure so the run can settle. Rolls the spend into deleted-items and
-     *  recomputes the ranking; if nothing is left, drops the whole run (an
-     *  empty run would otherwise read as never-terminal). */
+     *  failure so the run can settle. */
     fun removeFailedMatches(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val failed = run.matches.values.filter { it.status == MatchStatus.ERROR }
-            if (failed.isEmpty()) return@launch
-            failed.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-            val costDelta = failed.sumOf { it.totalCost }
-            failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            val remaining = run.matches - failed.map { it.key }.toSet()
-            if (remaining.isEmpty()) {
-                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
-                dropRun(reportId)
-            } else {
-                _runs.update { runs ->
-                    val cur = runs[reportId] ?: return@update runs
-                    runs + (reportId to cur.copy(matches = remaining))
-                }
-                recomputeAggregate(context, reportId)
-            }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, reportId)
+            removeItemsMatching(context, reportId) { it.status == MatchStatus.ERROR }
         }
 
     /** Drop every unfinished (stranded, never-ran) match without re-firing
-     *  — the Broken-work "delete unfinished" action. Mirror of
-     *  [removeFailedMatches], narrowed to PENDING rows. */
+     *  — the Broken-work "delete unfinished" action. */
     fun removeUnfinishedMatches(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val stranded = run.matches.values.filter { it.status == MatchStatus.PENDING }
-            if (stranded.isEmpty()) return@launch
-            stranded.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-            val costDelta = stranded.sumOf { it.totalCost }
-            stranded.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            val remaining = run.matches - stranded.map { it.key }.toSet()
-            if (remaining.isEmpty()) {
-                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
-                dropRun(reportId)
-            } else {
-                _runs.update { runs ->
-                    val cur = runs[reportId] ?: return@update runs
-                    runs + (reportId to cur.copy(matches = remaining))
-                }
-                recomputeAggregate(context, reportId)
-            }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, reportId)
+            removeItemsMatching(context, reportId) { it.status == MatchStatus.PENDING }
         }
 
     fun removeMatchesByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val victims = run.matches.values.filter { it.id in rowIds }
-            if (victims.isEmpty()) return@launch
-            victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-            val costDelta = victims.sumOf {
-                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
-            }
-            victims.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            val remaining = run.matches - victims.map { it.key }.toSet()
-            if (remaining.isEmpty()) {
-                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
-                dropRun(reportId)
-            } else {
-                _runs.update { runs ->
-                    val cur = runs[reportId] ?: return@update runs
-                    runs + (reportId to cur.copy(matches = remaining))
-                }
-                recomputeAggregate(context, reportId)
-            }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, reportId)
+            removeItemsMatching(context, reportId) { it.id in rowIds }
         }
 
     fun restartMatchesByIds(context: Context, reportId: String, rowIds: Set<String>): Job =

@@ -68,6 +68,7 @@ class TranslatorRankEngine internal constructor(
     override fun isItemRow(run: TransRankRunState?, row: SecondaryResult) =
         run != null && row.tournamentRole == TRANSRANK_ROLE_CELL &&
             row.tournamentJudgeRunId == run.runId
+    override fun aggregateRowIdOf(run: TransRankRunState) = run.aggregateRowId
     override fun canRedispatch(context: Context, run: TransRankRunState) =
         run.prompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 4
 
@@ -601,50 +602,20 @@ class TranslatorRankEngine internal constructor(
     /** Broken-work "delete errored": drop every errored cell without re-firing. */
     fun removeFailedCells(context: Context, key: TransRankRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            removeCellsMatching(context, key) { it.status == TransRankCellStatus.ERROR }
+            removeItemsMatching(context, key) { it.status == TransRankCellStatus.ERROR }
         }
 
     /** Broken-work "delete unfinished": drop every stranded PENDING cell. */
     fun removeUnfinishedCells(context: Context, key: TransRankRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            removeCellsMatching(context, key) { it.status == TransRankCellStatus.PENDING }
+            removeItemsMatching(context, key) { it.status == TransRankCellStatus.PENDING }
         }
 
     /** Broken-work per-row delete. */
     fun removeCellsByIds(context: Context, key: TransRankRunKey, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            removeCellsMatching(context, key) { it.id in rowIds }
+            removeItemsMatching(context, key) { it.id in rowIds }
         }
-
-    /** Delete the cells matching [predicate]: cancel their jobs, drop the rows,
-     *  roll the spend into deleted-items, and either recompute the aggregate or
-     *  drop the whole run when nothing is left. */
-    private suspend fun removeCellsMatching(
-        context: Context, key: TransRankRunKey, predicate: (TransRankCellState) -> Boolean
-    ) {
-        val run = _runs.value[key] ?: return
-        val victims = run.cells.values.filter(predicate)
-        if (victims.isEmpty()) return
-        val reportId = run.reportId
-        victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-        val costDelta = victims.sumOf {
-            SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
-        }
-        victims.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-        val remaining = run.cells - victims.map { it.key }.toSet()
-        if (remaining.isEmpty()) {
-            run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
-            dropRun(key)
-        } else {
-            _runs.update { runs ->
-                val cur = runs[key] ?: return@update runs
-                runs + (key to cur.copy(cells = remaining))
-            }
-            recomputeAggregate(context, key)
-        }
-        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-        ReportStorage.bumpReportTimestamp(context, reportId)
-    }
 
     fun deleteRun(context: Context, key: TransRankRunKey): Job {
         // deleteRunDeferred stops the UI FIRST: it drops the run from the flow
