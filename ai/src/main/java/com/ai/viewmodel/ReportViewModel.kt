@@ -472,19 +472,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val report = ReportStorage.createReportAsync(
                 context = context, title = title.ifBlank { "AI Report" },
                 prompt = aiPrompt, agents = reportTasks.map { it.reportAgent },
-                rapportText = rapportText, reportType = reportType, closeText = state.externalCloseHtml,
-                imageBase64 = imageBase64, imageMime = imageMime,
-                webSearchTool = state.reportWebSearchTool,
-                reasoningEffort = state.reportReasoningEffort,
-                useReportModelsAsWorkers = state.reportUseReportModelsAsWorkers,
-                knowledgeBaseIds = state.attachedKnowledgeBaseIds,
-                runId = runId,
-                // Capture the generation config so Regenerate replays these
-                // exact selections instead of the live UiState/Settings.
-                parameterPresetIds = parametersIds,
-                advancedParameters = state.reportAdvancedParameters,
-                selectionParamsById = selectionParamsById,
-                reportSystemPromptId = state.reportSystemPromptId
+                config = CreateReportConfig(
+                    rapportText = rapportText, reportType = reportType, closeText = state.externalCloseHtml,
+                    imageBase64 = imageBase64, imageMime = imageMime,
+                    webSearchTool = state.reportWebSearchTool,
+                    reasoningEffort = state.reportReasoningEffort,
+                    useReportModelsAsWorkers = state.reportUseReportModelsAsWorkers,
+                    knowledgeBaseIds = state.attachedKnowledgeBaseIds,
+                    runId = runId,
+                    // Capture the generation config so Regenerate replays these
+                    // exact selections instead of the live UiState/Settings.
+                    parameterPresetIds = parametersIds,
+                    advancedParameters = state.reportAdvancedParameters,
+                    selectionParamsById = selectionParamsById,
+                    reportSystemPromptId = state.reportSystemPromptId
+                )
             )
             val reportId = report.id
             // Mark this report as the one being generated, so the Broken-work
@@ -1813,7 +1815,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val report = ReportStorage.createReportAsync(
                 context = context, title = title.ifBlank { "AI Report" },
                 prompt = prompt, agents = reportTasks.map { it.reportAgent },
-                reportType = ReportType.CLASSIC, runId = runId
+                config = CreateReportConfig(reportType = ReportType.CLASSIC, runId = runId)
             )
             val reportId = report.id
             onReportCreated?.invoke(reportId)

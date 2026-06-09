@@ -58,7 +58,7 @@ class ReportStorageInstrumentedTest {
         val explicit = "fixed-uuid-1"
         val report = ReportStorage.createReport(
             context = context, title = "x", prompt = "y",
-            agents = listOf(agent("a")), explicitId = explicit
+            agents = listOf(agent("a")), config = CreateReportConfig(explicitId = explicit)
         )
         assertThat(report.id).isEqualTo(explicit)
         assertThat(ReportStorage.getReport(context, explicit)).isNotNull()
@@ -70,7 +70,7 @@ class ReportStorageInstrumentedTest {
         )
         val copy = ReportStorage.createReport(
             context = context, title = "[NL] src", prompt = "p",
-            agents = listOf(agent("a")), sourceReportId = src.id
+            agents = listOf(agent("a")), config = CreateReportConfig(sourceReportId = src.id)
         )
         assertThat(ReportStorage.getReport(context, copy.id)?.sourceReportId).isEqualTo(src.id)
         assertThat(ReportStorage.getReport(context, src.id)?.sourceReportId).isNull()

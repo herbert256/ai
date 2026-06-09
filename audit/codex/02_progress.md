@@ -45,7 +45,7 @@ response. Re-verification date: 2026-06-09.
 | A03 | Still valid — 4 static `SettingsHolder` reads | DEFER | — |
 | A04 | Still valid — multiple owners, no map | **DO** | done (doc/ownership.md) |
 | A05 | Still valid — Settings 3227 / Icon 3096 / ReportVM 2993 / Dashboard 2976 / ReportStorage 2620 | DEFER (opportunistic) | — |
-| A06 | Still valid — `createReport` 20 args, `updateAgentStatus` 20, `SettingsScreen` 44 | **DO** (storage fns only) | pending |
+| A06 | Still valid — `createReport` 20 args, `updateAgentStatus` 20, `SettingsScreen` 44 | **DO** (storage fns only) | done (CreateReportConfig + AgentStatusPatch; SettingsScreen 44-arg left as DEFER) |
 | A07 | Still valid — `GlobalScope+NonCancellable` in `onCleared` | DEFER (rides on D10) | deferred — pairs with the UsageStatsRecorder extraction |
 | A08 | Partially done — residual `Phase E/F` comments | **DO** (finish) | done |
 | A09 | Still valid — no boundary tests | DEFER | — |
