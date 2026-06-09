@@ -170,7 +170,8 @@ class JudgeEvalEngine internal constructor(
             cells = cells,
             aggregateRowId = aggRow?.id
         )
-        _runs.update { it + (reportId to run) }
+        // Don't re-publish a run whose delete is mid-flight (rows still on disk).
+        _runs.update { if (isDeleting(reportId)) it else it + (reportId to run) }
     }
 
     fun runByKey(key: JudgeEvalRunKey): JudgeEvalRunState? = _runs.value[key]
@@ -779,18 +780,19 @@ class JudgeEvalEngine internal constructor(
         return cleared
     }
 
-    fun deleteRun(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            runJobOf(reportId)?.cancelAndJoin()
-            run.cells.values.forEach { itemJobOf(it.id)?.cancelAndJoin() }
+    fun deleteRun(context: Context, reportId: String): Job {
+        val run = _runs.value[reportId] ?: return appViewModel.viewModelScope.launch { }
+        // Capture the live coroutines before the deferred delete drops the run.
+        val runJob = runJobOf(reportId)
+        val itemJobs = run.cells.values.mapNotNull { itemJobOf(it.id) }
+        return deleteRunDeferred(appViewModel.viewModelScope, reportId, runJob, itemJobs) {
             val costDelta = run.cells.values.sumOf { it.totalCost }
             run.cells.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            dropRun(reportId)
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
+    }
 
     fun cancelAllForReport(reportId: String) {
         runJobOf(reportId)?.cancel()

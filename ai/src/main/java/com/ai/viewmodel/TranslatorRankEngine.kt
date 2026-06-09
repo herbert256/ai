@@ -438,8 +438,9 @@ class TranslatorRankEngine internal constructor(
                 name = anchor.metaPromptName?.takeIf { it.isNotBlank() } ?: PROMPT_NAME,
                 category = "workers"
             )
+            // Don't re-publish a run whose delete is mid-flight (rows still on disk).
             _runs.update {
-                it + (key to TransRankRunState(
+                if (isDeleting(key)) it else it + (key to TransRankRunState(
                     key = key, reportId = reportId, runId = anchor.tournamentJudgeRunId!!,
                     sourceTranslationRunId = sourceRunId,
                     targetLanguageName = anchor.targetLanguage ?: "",
@@ -684,18 +685,16 @@ class TranslatorRankEngine internal constructor(
     }
 
     fun deleteRun(context: Context, key: TransRankRunKey): Job {
-        // Stop the UI updating FIRST: cancel the build/dispatch job and drop the
-        // run from the flow synchronously. The live screen + the Manage row both
-        // read _runs, so they stop rendering this run immediately — and the
-        // per-cell finally `transitionCell` calls + finalizeLeftoverCells now
-        // no-op (run gone), so we skip the drive-everything-to-ERROR re-render
-        // storm that made delete feel slow. Cancel (no join) the cell jobs;
-        // recordTournamentMatch guards `!exists`, so a late write can't recreate
-        // a deleted row. Disk cleanup runs in the background.
+        // deleteRunDeferred stops the UI FIRST: it drops the run from the flow
+        // synchronously (the live screen + the Manage row read _runs, so they
+        // stop rendering at once — and the per-cell finally `transitionCell`
+        // calls + finalizeLeftoverCells then no-op, skipping the
+        // drive-everything-to-ERROR re-render storm that made delete feel slow)
+        // and marks it deleting so hydrate won't re-publish it. The disk sweep
+        // runs in the background.
         val run = _runs.value[key]
-        runJobOf(key)?.cancel()
-        run?.cells?.values?.forEach { itemJobOf(it.id)?.cancel() }
-        dropRun(key)
+        val runJob = runJobOf(key)
+        val cellJobs = run?.cells?.values?.mapNotNull { itemJobOf(it.id) } ?: emptyList()
         // key = "reportId|sourceTranslationRunId". Sweep the disk by source-run
         // id rather than the (possibly not-yet-populated) in-memory cell map, so
         // a mid-build cancel — where startRun already wrote the aggregate but
@@ -712,13 +711,13 @@ class TranslatorRankEngine internal constructor(
         // narrowed victim set, so the report total is adjusted by exactly what
         // was deleted.
         val victimRunId = run?.runId
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return deleteRunDeferred(appViewModel.viewModelScope, key, runJob, cellJobs) {
             val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSRANK)
                 .filter {
                     it.translationRunId == sourceRunId &&
                         (victimRunId == null || it.tournamentJudgeRunId == victimRunId)
                 }
-            if (rows.isEmpty()) return@launch
+            if (rows.isEmpty()) return@deleteRunDeferred
             val costDelta = rows.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
             rows.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)

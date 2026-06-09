@@ -2,11 +2,14 @@ package com.ai.viewmodel
 
 import com.ai.data.BatchItem
 import com.ai.data.BatchRun
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
 /** Shared base for the four batch engines — Fan Out, Tournament, Judges,
@@ -64,6 +67,51 @@ abstract class BatchEngine<RunKey : Any, ItemKey, ItemState : BatchItem<ItemKey>
     /** Remove an entire run from the flow. */
     protected fun dropRun(runKey: RunKey) {
         _runs.update { it - runKey }
+    }
+
+    // ===== Deferred delete =====
+    //
+    // Deleting a big run is dominated by per-item file deletes. Splitting the
+    // delete lets the UI react at once: the cheap part (stop the batch, drop the
+    // in-memory run, mark it deleting) runs synchronously; the slow disk work
+    // runs in the background. [deletingRuns] lets list/hydrate code hide a run
+    // whose rows are still on disk so the row vanishes the instant the user
+    // confirms.
+
+    private val _deletingRuns = MutableStateFlow<Set<RunKey>>(emptySet())
+    val deletingRuns: StateFlow<Set<RunKey>> = _deletingRuns.asStateFlow()
+
+    /** True while [runKey]'s delete is mid-flight (disk work still finishing).
+     *  Hydrate paths consult this so they don't re-publish a run from rows
+     *  that haven't been deleted off disk yet. */
+    protected fun isDeleting(runKey: RunKey): Boolean = runKey in _deletingRuns.value
+
+    /** Split a run delete: do the cheap, user-visible part synchronously before
+     *  returning — mark the run deleting, cancel the batch coroutines, drop the
+     *  in-memory run — then run the slow [diskWork] on [scope] (after joining the
+     *  cancelled coroutines so no late write resurrects a deleted row). The
+     *  returned Job completes when the background work is done. [runJob] /
+     *  [itemJobs] must be captured by the caller before this runs. */
+    protected fun deleteRunDeferred(
+        scope: CoroutineScope,
+        runKey: RunKey,
+        runJob: Job?,
+        itemJobs: List<Job>,
+        diskWork: suspend () -> Unit,
+    ): Job {
+        _deletingRuns.update { it + runKey }
+        runJob?.cancel()
+        itemJobs.forEach { it.cancel() }
+        dropRun(runKey)
+        return scope.launch(Dispatchers.IO) {
+            try {
+                runJob?.join()
+                itemJobs.forEach { it.join() }
+                diskWork()
+            } finally {
+                _deletingRuns.update { it - runKey }
+            }
+        }
     }
 
     // ===== Shared job lifecycle (audit R01) =====
