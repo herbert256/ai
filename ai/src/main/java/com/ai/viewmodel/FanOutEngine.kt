@@ -1263,7 +1263,11 @@ class FanOutEngine internal constructor(
      *  in-flight subset. */
     suspend fun joinActiveRunsForReport(reportId: String) {
         val prefix = "$reportId|"
-        runJobKeys().filter { it.startsWith(prefix) }.forEach { runJobOf(it)?.join() }
+        // Exclude the fan-meta batch jobs (namespaced "|meta|") — fan-in
+        // combines the fan-out RESPONSES and must not block on the title/icon
+        // pass, which can run long after the responses have landed.
+        runJobKeys().filter { it.startsWith(prefix) && !it.contains("|meta|") }
+            .forEach { runJobOf(it)?.join() }
     }
 
     // -----------------------------------------------------------------
@@ -1908,9 +1912,45 @@ class FanOutEngine internal constructor(
     fun inFlightRowIds(): Set<String> = itemJobIds()
 
     /** Top-level Fan Out runs currently alive in this process. Covers rows
-     *  created during the build stage before their per-pair Job is registered. */
+     *  created during the build stage before their per-pair Job is registered.
+     *  Excludes the fan-meta batch jobs (see [registerFanMetaJob]) which share
+     *  this run-job registry under a namespaced "|meta|" key. */
     fun activeRunKeys(): Set<FanOutRunKey> =
-        activeRunJobKeys()
+        activeRunJobKeys().filterNot { it.contains("|meta|") }.toSet()
+
+    // ===== Fan-meta batch job (the title/icon pass over this run's pairs) =====
+    //
+    // Fan Meta has no run-state of its own — it decorates the fan-out pairs in
+    // place. Its single per-(report, metaPrompt) batch job lives in the shared
+    // BatchEngine run-job registry under a namespaced key so it reuses the base
+    // register/auto-clean/cancel machinery without colliding with the fan-out
+    // response run job ("$reportId|$metaPromptId" vs "$reportId|meta|…"). The
+    // namespaced key is filtered out of [activeRunKeys] and
+    // [joinActiveRunsForReport] so the broken-work scan and fan-in don't see it;
+    // [cancelAllForReport] intentionally DOES cancel it (report delete).
+
+    private fun fanMetaRunKey(reportId: String, metaPromptId: String): FanOutRunKey =
+        "$reportId|meta|$metaPromptId"
+
+    /** Register the fan-meta batch job; supersedes any prior job for the same
+     *  (report, metaPrompt) and self-cleans on completion. */
+    fun registerFanMetaJob(reportId: String, metaPromptId: String, job: Job) =
+        registerRunJob(fanMetaRunKey(reportId, metaPromptId), job)
+
+    /** The live fan-meta batch job for this (report, metaPrompt), or null. */
+    fun fanMetaJobOf(reportId: String, metaPromptId: String): Job? =
+        runJobOf(fanMetaRunKey(reportId, metaPromptId))
+
+    /** Fan-meta batches alive in this process for [reportId], mapped back to the
+     *  fan-out run-key form ("$reportId|$metaPromptId") the broken-work scan
+     *  uses to exclude in-flight fan-meta from the stranded/errored tally. */
+    fun activeFanMetaRunKeys(reportId: String): Set<String> {
+        val marker = "$reportId|meta|"
+        return activeRunJobKeys()
+            .filter { it.startsWith(marker) }
+            .map { "$reportId|${it.removePrefix(marker)}" }
+            .toSet()
+    }
 
     /** Resume every stale fan-out pair (a blank placeholder on disk with
      *  no live per-pair Job) across every run on this report — the

@@ -224,17 +224,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             regenerateJobs[reportId]?.any { it.isActive } == true ||
             regenerateBatchEngine.isActivelyRunning(reportId)
 
-    /** Tracks in-flight fan-meta batches keyed by
-     *  (reportId, metaPromptId). Separate map from [fanOutJobs] so
-     *  a launched fan-meta batch on the same fan-out doesn't get
-     *  cancelled by deleteFanOutModel etc. */
-    internal val fanMetaJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    internal fun fanMetaJobKey(reportId: String, metaPromptId: String) = "$reportId|meta|$metaPromptId"
-    internal fun registerFanMetaJob(reportId: String, metaPromptId: String, job: Job) {
-        val key = fanMetaJobKey(reportId, metaPromptId)
-        fanMetaJobs[key] = job
-        job.invokeOnCompletion { fanMetaJobs.remove(key, job) }
-    }
+    // The in-flight fan-meta batch job now lives in the FanOutEngine run-job
+    // registry under a namespaced "|meta|" key (FanOutEngine.registerFanMetaJob)
+    // — it's a decorator pass over that engine's pairs, so it belongs there.
+    // Kept out of the fan-out pair operations (deleteFanOutModel etc.) the same
+    // way as before: those cancel per-pair ITEM jobs, never the run job.
 
     /** Coroutine context for a report-section launch: `Dispatchers.IO`
      *  plus the [com.ai.data.CrashReporter] handler. Drop-in for

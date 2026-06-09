@@ -656,14 +656,7 @@ class SecondaryRunManager(
             rvm.compareEngine.inFlightRowIds() +
             rvm.translatorRankEngine.inFlightRowIds() +
             rvm.resumingMetaIds
-        val activeFanMetaRunKeys = rvm.fanMetaJobs
-            .filterValues { it.isActive }
-            .keys
-            .mapNotNull { key ->
-                val marker = "$reportId|meta|"
-                if (key.startsWith(marker)) "$reportId|${key.removePrefix(marker)}" else null
-            }
-            .toSet()
+        val activeFanMetaRunKeys = rvm.fanOutEngine.activeFanMetaRunKeys(reportId)
         val activeTranslationRunIds = rvm.translation.translationRuns.value.values
             .filter { !it.isFinished && !it.cancelled }
             .map { it.runId }

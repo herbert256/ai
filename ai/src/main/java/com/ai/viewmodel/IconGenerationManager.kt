@@ -2742,7 +2742,7 @@ class IconGenerationManager(
         buildKey: String? = null
     ): Job? {
         if (!appViewModel.uiState.value.generalSettings.fanMetaOn()) return null
-        rvm.fanMetaJobs[rvm.fanMetaJobKey(reportId, metaPromptId)]?.let { existing ->
+        rvm.fanOutEngine.fanMetaJobOf(reportId, metaPromptId)?.let { existing ->
             if (existing.isActive) return existing
         }
         val fanMetaPrompt = appViewModel.uiState.value.aiSettings.internalPrompts.firstOrNull {
@@ -2847,7 +2847,7 @@ class IconGenerationManager(
                 }
             }
         }
-        rvm.registerFanMetaJob(reportId, metaPromptId, job)
+        rvm.fanOutEngine.registerFanMetaJob(reportId, metaPromptId, job)
         return job
     }
 
@@ -2986,7 +2986,7 @@ class IconGenerationManager(
         }
 
     fun cancelFanMetaBatch(reportId: String, metaPromptId: String): Job? =
-        rvm.fanMetaJobs[rvm.fanMetaJobKey(reportId, metaPromptId)]?.also { it.cancel() }
+        rvm.fanOutEngine.fanMetaJobOf(reportId, metaPromptId)?.also { it.cancel() }
 
     private fun isFanMetaError(sr: SecondaryResult): Boolean =
         !sr.titleErrorMessage.isNullOrBlank() || !sr.iconErrorMessage.isNullOrBlank()
