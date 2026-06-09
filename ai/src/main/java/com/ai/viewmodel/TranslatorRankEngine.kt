@@ -421,9 +421,17 @@ class TranslatorRankEngine internal constructor(
     private fun recomputeAndPersistAggregate(context: Context, key: TransRankRunKey) {
         val run = _runs.value[key] ?: return
         val aggId = run.aggregateRowId ?: return
-        val rows = aggregateTranslatorRanks(run.cells.values)
-        val row = SecondaryResultStorage.get(context, run.reportId, aggId) ?: return
-        SecondaryResultStorage.save(context, row.copy(content = rows.toTransRankJson(), durationMs = row.durationMs ?: 0))
+        // The aggregation math + JSON encode must never take the app down —
+        // this runs from finalize/`finally` paths where a throw would escape
+        // the coroutine. Swallow + log; a failed recompute just leaves the
+        // previous aggregate in place (same guard as Tournament / JudgeEval).
+        try {
+            val rows = aggregateTranslatorRanks(run.cells.values)
+            val row = SecondaryResultStorage.get(context, run.reportId, aggId) ?: return
+            SecondaryResultStorage.save(context, row.copy(content = rows.toTransRankJson(), durationMs = row.durationMs ?: 0))
+        } catch (e: Exception) {
+            AppLog.w("TransRank", "recompute aggregate failed report=${run.reportId}: ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     // -----------------------------------------------------------------
