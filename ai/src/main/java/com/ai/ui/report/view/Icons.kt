@@ -97,7 +97,7 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
     )
 
     val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId).collectAsState()
     val loadedState = produceState(
         initialValue = Loaded(null, emptyList()),
         currentReportId, reportDataVersion, secondaryDataVersion

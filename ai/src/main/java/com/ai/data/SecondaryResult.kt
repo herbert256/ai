@@ -197,7 +197,7 @@ object SecondaryResultStorage {
             rememberCachedResult(result.reportId, target, result)
             saved = true
         }
-        if (saved) SecondaryDataVersion.bump()
+        if (saved) SecondaryDataVersion.bump(result.reportId, result.kind)
         return result
     }
 
@@ -236,7 +236,7 @@ object SecondaryResultStorage {
                 savedAny = true
             }
         }
-        if (savedAny) SecondaryDataVersion.bump()
+        if (savedAny) SecondaryDataVersion.bumpMany(saved.map { it.reportId to it.kind })
         return saved
     }
 
@@ -353,7 +353,7 @@ object SecondaryResultStorage {
             rememberCachedResult(reportId, target, next)
             next
         } ?: return null
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(updated.reportId, updated.kind)
         return updated
     }
 
@@ -501,7 +501,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(toWrite))
             rememberCachedResult(result.reportId, target, toWrite)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(result.reportId, result.kind)
         return true
     }
 
@@ -704,7 +704,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.META)
     }
 
     /** Set just the [icon] field on any SecondaryResult row by
@@ -931,7 +931,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.META)
     }
 
     /** Mark many fan-out rows as having a Fan Meta pass in progress.
@@ -967,7 +967,7 @@ object SecondaryResultStorage {
                 changed = true
             }
         }
-        if (changed) SecondaryDataVersion.bump()
+        if (changed) SecondaryDataVersion.bump(reportId, SecondaryKind.META)
     }
 
     /** Regenerate variant — clears [title] + [titleErrorMessage] but
@@ -1093,7 +1093,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.TOURNAMENT)
     }
 
     /** Commit a "Compare with meta" CELL worker call: overwrite the row's
@@ -1131,7 +1131,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.COMPARE)
     }
 
     /** Reset a Compare CELL row back to its pre-judge placeholder shape
@@ -1160,7 +1160,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.COMPARE)
     }
 
     /** Reset a tournament MATCH row back to its pre-judge placeholder shape
@@ -1189,7 +1189,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.TOURNAMENT)
     }
 
     fun delete(context: Context, reportId: String, resultId: String) {
@@ -1203,7 +1203,7 @@ object SecondaryResultStorage {
             // for the report stay parsed and ready for the next read.
             forgetCachedResult(reportId, target.name)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bumpReport(reportId)
     }
 
     fun deleteAllForReport(context: Context, reportId: String) {
@@ -1215,7 +1215,7 @@ object SecondaryResultStorage {
             // Whole report gone — drop the entire per-report bucket.
             reportCaches.remove(reportId)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bumpReport(reportId)
     }
 
     /** Counts persisted across all kinds for a report. Used by the Report

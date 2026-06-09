@@ -90,7 +90,7 @@ fun TournamentViewScreen(
         val reportTitle: String?
     )
 
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId, SecondaryKind.TOURNAMENT).collectAsState()
     val state = produceState(
         initialValue = Loaded(null, emptyMap(), emptyList(), 0, 0, null),
         reportId, resultId, secondaryDataVersion

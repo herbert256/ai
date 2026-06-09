@@ -165,7 +165,7 @@ fun ReportsViewScreen(
     )
 
     val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TRANSLATE).collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), emptyMap(), emptyMap()),
         currentReportId, reportDataVersion, secondaryDataVersion
