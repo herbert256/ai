@@ -785,6 +785,10 @@ class TournamentEngine internal constructor(
                     }
                 }
             }
+            // The AGGREGATE ranking was last computed from the pre-interrupt
+            // match set — recompute it from the settled matches so it doesn't
+            // stay stale (the judge-eval finalize does the same).
+            recomputeAndPersistAggregate(context, reportId)
         }
     }
 

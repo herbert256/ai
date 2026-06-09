@@ -453,12 +453,20 @@ class JudgeEvalEngine internal constructor(
     private fun recomputeAndPersistAggregate(context: Context, reportId: String) {
         val run = _runs.value[reportId] ?: return
         val aggId = run.aggregateRowId ?: return
-        val stats = analyzeJudges(run.cells.values.toList())
-        val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return
-        SecondaryResultStorage.save(context, row.copy(
-            content = stats.toJudgesJson(),
-            durationMs = row.durationMs ?: 0
-        ))
+        // The aggregation math + JSON encode must never take the app down —
+        // this runs from startRun's `finally` (where a throw would escape the
+        // coroutine) and the background resume sweep. Swallow + log; a failed
+        // recompute just leaves the previous aggregate in place.
+        try {
+            val stats = analyzeJudges(run.cells.values.toList())
+            val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return
+            SecondaryResultStorage.save(context, row.copy(
+                content = stats.toJudgesJson(),
+                durationMs = row.durationMs ?: 0
+            ))
+        } catch (e: Exception) {
+            AppLog.w("JudgeEval", "recompute aggregate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     // -----------------------------------------------------------------
