@@ -68,7 +68,7 @@ fun ReportInfoScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
     val report by produceState<Report?>(initialValue = null, reportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
     }

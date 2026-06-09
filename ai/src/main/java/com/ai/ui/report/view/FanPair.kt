@@ -86,7 +86,7 @@ fun FanOutPairViewScreen(
         val pairs: List<SecondaryResult>
     )
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
     val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId, SecondaryKind.META).collectAsState()
     val loadedState = produceState(
         initialValue = Loaded(null, emptyList()),

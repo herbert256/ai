@@ -86,7 +86,7 @@ fun PromptViewScreen(
 
     data class Loaded(val report: Report?, val translatedByLang: Map<String, String>)
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
     val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TRANSLATE).collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap()),

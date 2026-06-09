@@ -90,7 +90,7 @@ fun ModerationViewScreen(
         val reportTitle: String?
     )
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
     val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.MODERATION).collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), emptyMap(), 0, null),

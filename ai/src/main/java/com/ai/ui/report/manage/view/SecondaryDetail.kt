@@ -119,7 +119,7 @@ internal fun SecondaryResultDetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmLangChoice by remember { mutableStateOf(false) }
     val traceDataVersion by ApiTracer.traceVersion.collectAsState()
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(result.reportId).collectAsState()
 
     // Find the trace file for this meta call: same report, same model,
     // and timestamp closest to the result. Multiple meta runs of the

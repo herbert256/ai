@@ -60,7 +60,7 @@ response. Re-verification date: 2026-06-09.
 | R09 | Still valid — dispatch+cost+storage combined | DEFER | — |
 | D01 | Partially done — `PromptHistoryStore` extracted; ~1124 LOC | DEFER (re-estimated LARGE) | deferred — same SettingsPreferences cost-accounting cluster as D10 |
 | D02 | Still valid — 7 stores duplicate lock/atomic-write | DEFER | — |
-| D03 | Still valid — `ReportDataVersion` global | DEFER | — |
+| D03 | **DONE** — secondary side via master's `SecondaryDataVersion.versionFor`; report side finished this session (`ReportDataVersion.versionFor(reportId)` + scoped bumps at saveReport/deleteReport; all 28 consumers migrated) | ✅ DO | done |
 | D04 | Still valid — many specialized mutators | DEFER | — |
 | D05 | Still valid — ledger reconciliation coupled across 2 files | DEFER (re-estimated LARGE) | deferred — `reconcileReportCostLedgers` is the seam D10 shares; do together |
 | D06 | Still valid — no `ApiCallRecord` | SKIP | — |
@@ -87,7 +87,7 @@ response. Re-verification date: 2026-06-09.
 | U09 | Partially done — `ReportBundle` exports subset | PRODUCT | — |
 | U10 | Partially done — separate `FindAlternative*` screens | DEFER | — |
 | U11 | Partially done — `ModelAdvisory` exists, no central icon wrapper | **DO** | done (IconActionButton/StatusIcon; bar strip labeled) |
-| U12 | Still valid — `produceState` ticks | DEFER | — |
+| U12 | **DONE** (the dashboard half) — master added `ApiTracer.bumpTraceVersionDebounced`; this session wired the dashboard to it: report-stat card → `ReportDataVersion`/`SecondaryDataVersion` flows, trace-count → debounced `traceVersion`; only `disk` keeps a periodic sample; elapsed-time ticks kept | ✅ DO | done |
 | U13 | Partially done — `ModelAdvisory` only | DEFER | — |
 | U14 | Still valid — inline tag parsing in `AppNavHost` | **DO** | done (ExternalAppCommandParser + ExternalReportCommand) |
 | T01 | Partially done — single-kind export tests | DEFER | — |

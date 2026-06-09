@@ -155,7 +155,7 @@ fun ReportModelScreen(
     // Apply, regenerate, icon/title write) re-reads the report and the
     // body / chatMessages refresh. ViewReportCache is mtime-staleness-safe,
     // so the re-read returns the fresh parse.
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
     // Loaded asynchronously: getReport reads + parses the report JSON
     // (which can be MB-sized for image-attached reports). The Loading
     // → Loaded transition keeps the UI thread free while reading.
@@ -490,7 +490,7 @@ fun ReportModelScreen(
         UserNoteEditorOverlay(reportId, "AGENT", currentAgentId, noteEdit!!) { noteEdit = null }
         return
     }
-    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val noteDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
     val agentNotes by produceState(emptyList<UserNote>(), reportId, currentAgentId, noteDataVersion) {
         value = withContext(Dispatchers.IO) {
             ReportStorage.getReport(context, reportId)?.notesFor("AGENT", currentAgentId) ?: emptyList()
