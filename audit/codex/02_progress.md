@@ -87,7 +87,7 @@ response. Re-verification date: 2026-06-09.
 | U09 | Partially done — `ReportBundle` exports subset | PRODUCT | — |
 | U10 | Partially done — separate `FindAlternative*` screens | DEFER | — |
 | U11 | Partially done — `ModelAdvisory` exists, no central icon wrapper | **DO** | done (IconActionButton/StatusIcon; bar strip labeled) |
-| U12 | Still valid — `produceState` ticks | DEFER | — |
+| U12 | **DONE** (the dashboard half) — master added `ApiTracer.bumpTraceVersionDebounced`; this session wired the dashboard to it: report-stat card → `ReportDataVersion`/`SecondaryDataVersion` flows, trace-count → debounced `traceVersion`; only `disk` keeps a periodic sample; elapsed-time ticks kept | ✅ DO | done |
 | U13 | Partially done — `ModelAdvisory` only | DEFER | — |
 | U14 | Still valid — inline tag parsing in `AppNavHost` | **DO** | done (ExternalAppCommandParser + ExternalReportCommand) |
 | T01 | Partially done — single-kind export tests | DEFER | — |

@@ -769,14 +769,18 @@ fun AiStatReportsScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val refreshTick = resumeRefreshTick()
-    val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
+    // Report-stat card refreshes when reports / secondaries actually change,
+    // not on a blind 10s timer (audit U12). translationRuns + problemReportIds
+    // below already cover the live-run deltas.
+    val reportDataVersion by com.ai.data.ReportDataVersion.version.collectAsState()
+    val secondaryDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
     val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
     // Problems stat derives from the same Broken-work scan that drives the
     // hub card + the ⚠️ badge, so the three never disagree.
     val brokenBatches by reportViewModel.brokenBatches.collectAsState()
     val problemReportIds = remember(brokenBatches) { brokenBatches.mapTo(HashSet()) { it.reportId } }
     LaunchedEffect(refreshTick) { reportViewModel.secondary.refreshBrokenBatches(context) }
-    val data by produceState<ReportSectionData?>(null, refreshTick, slowTick, translationRuns, problemReportIds) {
+    val data by produceState<ReportSectionData?>(null, refreshTick, reportDataVersion, secondaryDataVersion, translationRuns, problemReportIds) {
         value = computeReportStats(context, translationRuns, problemReportIds)
     }
 
@@ -2607,10 +2611,15 @@ private fun HealthBody(context: android.content.Context) {
     val busy = remember(tick) { ApiCallCaps.snapshot().globalInFlight > 0 }
     // Disk + trace count are IO — slow 10 s tick (computed only while this
     // card is open).
-    val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
-    val traceCount by produceState(0, slowTick) {
+    // Trace count tracks the debounced trace-version flow — refreshes when
+    // traces are actually written, not on a blind 10s timer (audit U12).
+    val traceVersion by ApiTracer.traceVersion.collectAsState()
+    val traceCount by produceState(0, traceVersion) {
         value = withContext(Dispatchers.IO) { ApiTracer.getTraceCount() }
     }
+    // Disk usage has no single change-flow (traces + embeddings + knowledge),
+    // so keep a slow periodic sample while this card is open.
+    val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
     val disk by produceState(DiskUsageStats.Snapshot(), slowTick) {
         value = withContext(Dispatchers.IO) { DiskUsageStats.snapshot(context) }
     }
