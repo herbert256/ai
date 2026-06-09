@@ -110,10 +110,15 @@ Landed:
 4. `COD-R07` — `BatchBuildScope.run(...)` helper. ✅
 5. `COD-U14` — extract `ExternalAppCommandParser` + command objects. ✅
 6. `COD-T02` — JVM tests for the external/share parser. ✅
-7. `COD-P02` — `ModelCapabilityResolver` (value + source/reason).
-8. `COD-R02` — migrate replay maps onto `ReplayTrack`.
-9. `COD-A06` — `CreateReportRequest` / `AgentStatusPatch` command objects.
-10. `COD-T06` — broaden cost-accounting mutation tests.
+7. `COD-P02` — `ModelCapabilityResolver` (value + source/reason). ✅
+8. `COD-R02` — migrate replay maps onto `ReplayTrack`. ✅
+9. `COD-A06` — `CreateReportConfig` / `AgentStatusPatch` command objects. ✅
+10. `COD-T06` — broaden cost-accounting mutation tests. ✅
+
+All ten landed as one commit each, plus the tracker commits. Build cadence:
+each commit compile-verified (`compileDebugKotlin`, or
+`compileDebugAndroidTestKotlin` for the test commits); full `assembleDebug` +
+deploy to both targets + launch run once at the end.
 
 ### Deferred this session — re-estimated LARGE (cost-accounting cluster)
 
