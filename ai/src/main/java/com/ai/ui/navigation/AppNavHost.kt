@@ -468,7 +468,11 @@ fun AppNavHost(
     ) {
     androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize()) {
-    if (homeBarEnabled) {
+    // Report View screens (the report/view family's ViewTitleBar) own their
+    // full-width title bar and suppress the persistent Home icon bar — they
+    // signal themselves by publishing a reportView=true bottom-bar spec.
+    val onReportViewScreen = viewBottomBarState.value?.reportView == true
+    if (homeBarEnabled && !onReportViewScreen) {
         com.ai.ui.shared.HomeIconBar(
             icons = bottomBarIconState.value,
             onReports = { navigateHomeBarRoute(NavRoutes.AI_REPORTS_HUB) },

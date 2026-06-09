@@ -42,7 +42,12 @@ data class ViewBottomBarSpec(
      *  — without this, the leaving screen's onDispose can null the spec the
      *  *entering* screen just published when navigating between View screens
      *  on different Navigation routes (the bottom bar then vanishes). */
-    val owner: Any? = null
+    val owner: Any? = null,
+    /** True when published by the report View family ([ViewTitleBar]); false
+     *  for the entity-info View bars ([com.ai.ui.shared.ViewScreenTitleBar] —
+     *  Model Info / provider / flock / swarm / HTML preview). AppNavHost
+     *  suppresses the persistent Home icon bar only on report View screens. */
+    val reportView: Boolean = false
 )
 
 /** Set by AppNavHost; written by [ViewTitleBar] while a View screen is

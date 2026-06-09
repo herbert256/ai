@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -124,7 +126,7 @@ fun ViewTitleBar(
         // SideEffect, so an unconditional null would wipe the new screen's
         // spec and the bar would vanish. We only null it when we still own it.
         val ownerToken = remember { Any() }
-        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, onViewList = onViewList, helpTopic = helpTopic, owner = ownerToken) }
+        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, onViewList = onViewList, helpTopic = helpTopic, owner = ownerToken, reportView = true) }
         DisposableEffect(viewBottomBarState) {
             onDispose { if (viewBottomBarState.value?.owner === ownerToken) viewBottomBarState.value = null }
         }
@@ -157,9 +159,20 @@ fun ViewTitleBar(
         } else null
     }
     val effectiveReportTitle = translatedTitle ?: reportTitle
+    // Full screen hides the status bar and the Home icon bar is suppressed on
+    // report View screens, so this title bar is the topmost element. Push it
+    // below any top camera punch-hole so the title never sits on the cutout —
+    // same platform DisplayCutout inset the Home icon bar uses; 0 when there's
+    // no top cutout. No effect when the status bar is visible (the Scaffold
+    // already insets content below it).
+    val fullScreen = com.ai.ui.shared.LocalGeneralSettings.current?.fullScreen == true
+    val density = LocalDensity.current
+    val cutoutTopPx = WindowInsets.displayCutout.getTop(density)
+    val cutoutTopPad = if (fullScreen && cutoutTopPx > 0) with(density) { cutoutTopPx.toDp() } else 0.dp
     // The single shared chrome: report glyph left, white screen title /
     // orange report title / green subject centre, AI logo right.
     com.ai.ui.shared.AppTopBarChrome(
+        modifier = Modifier.padding(top = cutoutTopPad),
         screenTitle = screenTitle,
         secondLine = effectiveReportTitle,
         thirdLine = subject,
