@@ -1088,43 +1088,44 @@ class FanOutEngine internal constructor(
                     // full placeholder set with one data-version bump.
                     val totalPairs = answerers.filter { AppService.findById(it.provider) != null }
                         .sumOf { a -> sources.count { s -> includeSelfResponses || s.agentId != a.agentId } }
-                    if (buildKey != null) appViewModel.beginBuild(buildKey, totalPairs, "Building fan-out")
-                    var built = 0
-                    for (answerer in answerers) {
-                        val provider = AppService.findById(answerer.provider) ?: continue
-                        for (source in sources) {
-                            if (source.agentId == answerer.agentId && !includeSelfResponses) continue
-                            val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
-                            val placeholder = SecondaryResult(
-                                id = java.util.UUID.randomUUID().toString(),
-                                reportId = reportId,
-                                kind = SecondaryKind.META,
-                                providerId = provider.id,
-                                model = answerer.model,
-                                agentName = agentName,
-                                timestamp = System.currentTimeMillis(),
-                                content = null,
-                                metaPromptId = metaPrompt.id,
-                                metaPromptName = metaPrompt.name,
-                                fanOutSourceAgentId = source.agentId,
-                                runId = runId,
-                                targetLanguage = sourceLanguage,
-                                targetLanguageNative = langCtx?.native,
-                                secondaryScope = scopeEncoded,
-                                secondaryParameterPresetIds = paramsIds,
-                                secondarySystemPromptId = systemPromptId
-                            )
-                            pending.add(PendingPair(answerer, source, placeholder))
-                            if (buildKey != null) { built++; if (built % 10 == 0) appViewModel.updateBuild(buildKey, built) }
+                    appViewModel.runBatchBuild(buildKey, totalPairs, "Building fan-out", updateEvery = 10) {
+                        for (answerer in answerers) {
+                            val provider = AppService.findById(answerer.provider) ?: continue
+                            for (source in sources) {
+                                if (source.agentId == answerer.agentId && !includeSelfResponses) continue
+                                val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
+                                val placeholder = SecondaryResult(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    reportId = reportId,
+                                    kind = SecondaryKind.META,
+                                    providerId = provider.id,
+                                    model = answerer.model,
+                                    agentName = agentName,
+                                    timestamp = System.currentTimeMillis(),
+                                    content = null,
+                                    metaPromptId = metaPrompt.id,
+                                    metaPromptName = metaPrompt.name,
+                                    fanOutSourceAgentId = source.agentId,
+                                    runId = runId,
+                                    targetLanguage = sourceLanguage,
+                                    targetLanguageNative = langCtx?.native,
+                                    secondaryScope = scopeEncoded,
+                                    secondaryParameterPresetIds = paramsIds,
+                                    secondarySystemPromptId = systemPromptId
+                                )
+                                pending.add(PendingPair(answerer, source, placeholder))
+                                advance()
+                            }
+                        }
+                        // Batched save so a large fan-out bumps storage observers
+                        // once; drop any row that failed to persist.
+                        val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
+                            .mapTo(HashSet()) { it.id }
+                        pending.removeAll { it.placeholder.id !in savedIds }
+                        pending.forEach { item ->
+                            item.placeholder.toPairState(item.answerer.agentId)?.let { newPairs[it.key] = it }
                         }
                     }
-                    val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
-                        .mapTo(HashSet()) { it.id }
-                    pending.removeAll { it.placeholder.id !in savedIds }
-                    pending.forEach { item ->
-                        item.placeholder.toPairState(item.answerer.agentId)?.let { newPairs[it.key] = it }
-                    }
-                    if (buildKey != null) appViewModel.finishBuild(buildKey)
                     // Publish the run state — preserve any existing
                     // combined-report rows already attached to this run.
                     val existingCombined = _runs.value[rk]?.combinedReports.orEmpty()

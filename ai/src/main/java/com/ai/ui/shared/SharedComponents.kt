@@ -31,6 +31,11 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -2194,27 +2199,27 @@ fun HomeIconBar(
         // portrait glyph. Nudged up (y 0) and slightly right (x -2, was -4) so
         // there's a little less space after it (toward Reports).
         add { AiLogoButton(onClick = onAbout, modifier = Modifier.offset(x = (-2).dp, y = 0.dp), size = 44.dp, width = 32.dp, contentDescription = "About") }
-        add { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs) }
-        add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs) }
-        add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs) }
-        add { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs) }
+        add { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs, contentDescription = "Reports") }
+        add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs, contentDescription = "Chat") }
+        add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs, contentDescription = "Monitor") }
+        add { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs, contentDescription = "Housekeeping") }
         // 📜 Application log — sits before 🐞 Traces (the two were swapped).
-        add { TitleBarIcon(mi.appLog, Color.Unspecified, onAppLog, width = w, heightDp = h, fontSize = fs) }
+        add { TitleBarIcon(mi.appLog, Color.Unspecified, onAppLog, width = w, heightDp = h, fontSize = fs, contentDescription = "Application log") }
         // Traces: always present; grayed + inert when the "Show Ladybug icons"
         // setting is off, active (→ this screen's traces or the list) when on.
         add {
             val tracesActive = com.ai.data.ApiTracer.ladybugLinksEnabled
             TitleBarIcon(mi.traces, Color.Unspecified, if (tracesActive) traceAction else ({}), width = w, heightDp = h, fontSize = fs,
-                alpha = if (tracesActive) 1f else 0.35f)
+                alpha = if (tracesActive) 1f else 0.35f, contentDescription = "API traces")
         }
         // AI Setup sits right before Settings.
-        add { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs) }
-        add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs) }
+        add { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs, contentDescription = "AI setup") }
+        add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs, contentDescription = "Settings") }
         // ❓ help (trailing): shifted left so there's MORE space after it
         // (before the right edge) and LESS space before it (next to Settings).
         add {
             androidx.compose.foundation.layout.Box(modifier = Modifier.offset(x = (-7).dp)) {
-                TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 26.dp, heightDp = h, fontSize = fs)
+                TitleBarIcon(mi.help, AppColors.DangerAccent, helpAction, width = 26.dp, heightDp = h, fontSize = fs, contentDescription = "Help")
             }
         }
     }
@@ -2301,9 +2306,68 @@ private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp, 
         horizontalArrangement = Arrangement.spacedBy(gap)
     ) {
         specs.forEach {
-            TitleBarIcon(it.emoji, it.tint, it.onClick, width = (cellWidthDp ?: it.widthDp).dp, heightDp = cellHeightDp, scale = scale, alpha = it.alpha, fontSize = it.fontSize)
+            // Resolve a human label from the stable factory glyph (legendKey)
+            // so a screen reader announces "Reload" rather than the 🔄 emoji.
+            val desc = com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[it.legendKey]?.first ?: it.emoji
+            TitleBarIcon(it.emoji, it.tint, it.onClick, width = (cellWidthDp ?: it.widthDp).dp, heightDp = cellHeightDp, scale = scale, alpha = it.alpha, fontSize = it.fontSize, contentDescription = desc)
         }
     }
+}
+
+/**
+ * The central clickable-emoji action button. Every compact icon action in the
+ * app should go through this (or [TitleBarIcon], which delegates here) so the
+ * glyph carries a screen-reader [contentDescription] and a Button role instead
+ * of announcing the raw emoji. The emoji's own text node is cleared from the
+ * semantics tree, so TalkBack speaks [contentDescription] and nothing else.
+ */
+@Composable
+fun IconActionButton(
+    emoji: String,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = Color.Unspecified,
+    width: Dp = 28.dp,
+    heightDp: Int = 32,
+    scale: Float = 1f,
+    alpha: Float = 1f,
+    fontSize: TextUnit = 16.sp
+) {
+    Box(
+        modifier = modifier.size(width = width * scale, height = heightDp.dp * scale)
+            .clickable(onClick = onClick)
+            .alpha(alpha)
+            .semantics(mergeDescendants = true) {
+                this.contentDescription = contentDescription
+                this.role = Role.Button
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = emoji, fontSize = fontSize * scale,
+            color = if (tint == Color.Unspecified) AppColors.TextPrimary else tint,
+            modifier = Modifier.clearAndSetSemantics {}
+        )
+    }
+}
+
+/** Non-interactive labeled glyph — an emoji that conveys state (cooldown,
+ *  blocked, …). Carries a [contentDescription] so screen readers announce the
+ *  meaning instead of the raw emoji. */
+@Composable
+fun StatusIcon(
+    emoji: String,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    tint: Color = Color.Unspecified,
+    fontSize: TextUnit = 16.sp
+) {
+    Text(
+        text = emoji, fontSize = fontSize,
+        color = if (tint == Color.Unspecified) AppColors.TextPrimary else tint,
+        modifier = modifier.semantics { this.contentDescription = contentDescription }
+    )
 }
 
 @Composable
@@ -2324,20 +2388,22 @@ private fun TitleBarIcon(
     /** Glyph point size before scaling. Defaults to the strip's
      *  standard 16 sp; callers that need a slightly larger icon
      *  (👁 view) can bump it. */
-    fontSize: androidx.compose.ui.unit.TextUnit = 16.sp
-) {
-    Box(
-        modifier = Modifier.size(width = width * scale, height = heightDp.dp * scale)
-            .clickable(onClick = onClick)
-            .alpha(alpha),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = emoji, fontSize = fontSize * scale,
-            color = if (tint == Color.Unspecified) AppColors.TextPrimary else tint
-        )
-    }
-}
+    fontSize: TextUnit = 16.sp,
+    /** Screen-reader label. Defaults to the emoji when a caller has no
+     *  better name; the bottom bar resolves the legend name from
+     *  [com.ai.ui.admin.DEFAULT_BAR_ICON_HELP]. */
+    contentDescription: String? = null
+) = IconActionButton(
+    emoji = emoji,
+    contentDescription = contentDescription ?: emoji,
+    onClick = onClick,
+    tint = tint,
+    width = width,
+    heightDp = heightDp,
+    scale = scale,
+    alpha = alpha,
+    fontSize = fontSize
+)
 
 /** Fixed-position bottom bar that mirrors the active TitleBar's
  *  action icons. The per-screen actions (chat / info / copy / share /
@@ -2539,15 +2605,15 @@ fun BottomIconBar(
                     if (isLast) {
                         if (showLegendHelp) {
                             // White ❔ → live "<screen> - icons" overlay.
-                            TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale)
+                            TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale, contentDescription = "Icon legend")
                         } else if (showIconPageHelp) {
                             // White ❔ → static icon-table help page.
-                            TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
+                            TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale, contentDescription = "Icon help")
                         }
                         // Red ❓ → the screen's help page. Home bar mode
                         // moves this action to the persistent top bar.
                         if (showScreenHelp) {
-                            TitleBarIcon(barIcons.help, AppColors.InfoAccent, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
+                            TitleBarIcon(barIcons.help, AppColors.InfoAccent, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale, contentDescription = "Help")
                         }
                     }
                 }
@@ -2693,7 +2759,7 @@ private fun IconLegendOverlay(
                     TitleBarIcon(mi.help, AppColors.DangerAccent, {
                         onClose()
                         navigateHelp(icons.helpTopic)
-                    }, width = 18.dp, heightDp = 32, scale = 2.1f)
+                    }, width = 18.dp, heightDp = 32, scale = 2.1f, contentDescription = "Help")
                 }
             }
         }

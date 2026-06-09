@@ -265,8 +265,9 @@ class TranslationRunManager(
                 )
             }
             // Build stage: persist one placeholder per item up front. Use a
-            // batched save so large translation runs bump storage observers once.
-            if (buildKey != null) appViewModel.beginBuild(buildKey, itemsWithIds.size, "Translating to $targetLanguageName")
+            // batched save so large translation runs bump storage observers
+            // once; runBatchBuild brackets the "Preparing N / M…" popup (begin
+            // + finish-on-exit) around the disk-heavy save.
             val placeholderRows = itemsWithIds.map { item ->
                 val rowId = item.persistedRowId ?: java.util.UUID.randomUUID().toString()
                 val srcKind = translateSrcKindOf(item.kind)
@@ -289,12 +290,10 @@ class TranslationRunManager(
                     runId = runId,
                 )
             }
-            val savedIds = SecondaryResultStorage.saveAll(context, placeholderRows).mapTo(HashSet()) { it.id }
-            itemsWithIds = itemsWithIds.filter { it.persistedRowId in savedIds }
-            if (buildKey != null) {
-                appViewModel.updateBuild(buildKey, itemsWithIds.size)
+            val savedIds = appViewModel.runBatchBuild(buildKey, itemsWithIds.size, "Translating to $targetLanguageName") {
+                SecondaryResultStorage.saveAll(context, placeholderRows).mapTo(HashSet()) { it.id }
             }
-            if (buildKey != null) appViewModel.finishBuild(buildKey)
+            itemsWithIds = itemsWithIds.filter { it.persistedRowId in savedIds }
             if (itemsWithIds.isEmpty()) return@launch
             _runs.update { it + (runId to TranslationRunState(
                 runId = runId,
