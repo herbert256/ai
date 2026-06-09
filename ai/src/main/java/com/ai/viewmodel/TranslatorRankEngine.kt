@@ -68,6 +68,32 @@ class TranslatorRankEngine internal constructor(
     override fun isItemRow(run: TransRankRunState?, row: SecondaryResult) =
         run != null && row.tournamentRole == TRANSRANK_ROLE_CELL &&
             row.tournamentJudgeRunId == run.runId
+    override fun canRedispatch(context: Context, run: TransRankRunState) =
+        run.prompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 4
+
+    /** Map rows back to (judge × scorable-item) cells, recovering each judge's
+     *  ORIGINAL worker from the run's prompt — parameter presets / system
+     *  prompt / flock-swarm refs — so a retry replays the same call shape,
+     *  falling back to a minimal provider/model Worker only when the judge is
+     *  no longer in the swarm (audit bug 2). */
+    override suspend fun redispatchRows(context: Context, runKey: TransRankRunKey, rows: List<SecondaryResult>) {
+        val run = _runs.value[runKey] ?: return
+        val report = ReportStorage.getReport(context, run.reportId) ?: return
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
+        val judgesByKey = resolveJudges(aiSettings, run.prompt).associateBy { it.key }
+        val pending = rows.mapNotNull { row ->
+            val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+            val sc = items[c.translationRowId] ?: return@mapNotNull null
+            val judge = judgesByKey["${c.judgeProviderId}/${c.judgeModel}"]
+                ?: Judge(Worker(provider = c.judgeProviderId, model = c.judgeModel), c.judgeProviderId, c.judgeModel)
+            PendingCell(judge, sc, row)
+        }
+        if (pending.isEmpty()) return
+        withTracerTags(reportId = run.reportId, category = "transrank/rank", runId = run.runId) {
+            dispatchCells(context, runKey, run.prompt, pending)
+        }
+    }
 
     // Run/cell coroutines + resume-scan dedup now live in the shared BatchEngine
     // base (registerRunJob / registerItemJob / beginResumeScan / runJobOf /
@@ -448,7 +474,7 @@ class TranslatorRankEngine internal constructor(
     // Hydration / lifecycle
     // -----------------------------------------------------------------
 
-    suspend fun hydrate(context: Context, reportId: String) {
+    override suspend fun hydrate(context: Context, reportId: String) {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val rows = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSRANK)
@@ -487,86 +513,6 @@ class TranslatorRankEngine internal constructor(
             }
         }
     }
-
-    // -----------------------------------------------------------------
-    // Resume on report open / app restart
-    // -----------------------------------------------------------------
-
-    /** Re-dispatch any rank-the-translators cells a process kill left PENDING.
-     *  There is one run per language, so this hydrates then sweeps every run on
-     *  the report. Mirrors [JudgeEvalEngine.resumeStaleRunsForReport]; bounded
-     *  by [BatchResume] so a cell that can never complete is terminalized after
-     *  MAX_ATTEMPTS instead of re-dispatching forever on each Manage open. */
-    fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            // hydrate before the per-run guard so a fresh process sees the runs;
-            // guard it separately — an uncaught throw on this scope crashes (no
-            // global handler) and the startup sweep only join()s this Job.
-            try {
-                hydrate(context, reportId)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("TransRank", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-                return@launch
-            }
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
-            val aiSettings = appViewModel.uiState.value.aiSettings
-            for (key in _runs.value.keys.filter { it.substringBefore("|") == reportId }) {
-                if (!beginResumeScan(key)) continue
-                try {
-                    val run = _runs.value[key] ?: continue
-                    // Synthetic prompt (translate-rank deleted/renamed) carries
-                    // blank text — it can't be re-run. See audit bug 4.
-                    if (run.prompt.text.isBlank()) continue
-                    val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSRANK)
-                        .filter {
-                            it.tournamentRole == TRANSRANK_ROLE_CELL &&
-                                it.tournamentJudgeRunId == run.runId && isStaleRow(it)
-                        }.associateBy { it.id }
-                    if (diskById.isEmpty()) continue
-                    val staleRows = run.cells.values
-                        .filter { it.status == TransRankCellStatus.PENDING && it.id in diskById }
-                        .mapNotNull { diskById[it.id] }
-                    if (staleRows.isEmpty()) continue
-                    if (resetAttempts) BatchResume.resetAttempts(staleRows.map { it.id })
-                    val items = scorableItems(context, report, run.sourceTranslationRunId)
-                        .associateBy { it.translationRowId }
-                    val judgesByKey = resolveJudges(aiSettings, run.prompt).associateBy { it.key }
-                    val retryRows = BatchResume.capForRetry(staleRows) { row ->
-                        SecondaryResultStorage.get(context, reportId, row.id)?.let {
-                            SecondaryResultStorage.save(context, it.copy(
-                                errorMessage = "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts",
-                                durationMs = 0))
-                        }
-                        run.cells.values.firstOrNull { it.id == row.id }?.let { c ->
-                            transitionItem(key, c.key) {
-                                it.copy(status = TransRankCellStatus.ERROR,
-                                    errorMessage = "Interrupted — no result after resume attempts", durationMs = 0)
-                            }
-                        }
-                    }
-                    val pending = retryRows.mapNotNull { row ->
-                        val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
-                        val sc = items[c.translationRowId] ?: return@mapNotNull null
-                        val judge = judgesByKey["${c.judgeProviderId}/${c.judgeModel}"]
-                            ?: Judge(Worker(provider = c.judgeProviderId, model = c.judgeModel), c.judgeProviderId, c.judgeModel)
-                        PendingCell(judge, sc, row)
-                    }
-                    if (pending.isEmpty()) continue
-                    withTracerTags(reportId = reportId, category = "transrank/rank", runId = run.runId) {
-                        dispatchCells(context, key, run.prompt, pending)
-                    }
-                    recomputeAggregate(context, key)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    AppLog.w("TransRank", "resume stale failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-                } finally {
-                    endResumeScan(key)
-                }
-            }
-        }
 
     fun restartFailedCells(context: Context, key: TransRankRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {

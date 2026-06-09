@@ -69,6 +69,21 @@ class CompareEngine internal constructor(
     override fun runKeysForReport(reportId: String) = listOf(reportId)
     override fun terminalizeItem(item: CompareCellState, message: String) =
         item.copy(status = CompareCellStatus.ERROR, errorMessage = message, durationMs = 0)
+    override fun canRedispatch(context: Context, run: CompareRunState) =
+        run.comparePrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 15
+
+    override suspend fun redispatchRows(context: Context, runKey: CompareRunKey, rows: List<SecondaryResult>) {
+        val run = _runs.value[runKey] ?: return
+        val report = ReportStorage.getReport(context, runKey) ?: return
+        val pending = rows.mapNotNull { row ->
+            val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+            PendingCell(c.agentId, c.metaResultId, row)
+        }
+        if (pending.isEmpty()) return
+        withTracerTags(reportId = runKey, category = TRACE_CATEGORY) {
+            dispatchCells(context, runKey, run.comparePrompt, report.prompt, report.title, pending)
+        }
+    }
 
     /** The L1 "Wait" stat — cell ids parked on a provider throttle. */
     val throttledCells: StateFlow<Set<String>> get() = appViewModel.throttledCompareCells
@@ -94,7 +109,7 @@ class CompareEngine internal constructor(
     // Hydration — disk → StateFlow
     // -----------------------------------------------------------------
 
-    suspend fun hydrate(context: Context, reportId: String) {
+    override suspend fun hydrate(context: Context, reportId: String) {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val rows = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.COMPARE)
@@ -543,64 +558,5 @@ class CompareEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
     }
-
-    // -----------------------------------------------------------------
-    // Resume on report open / app restart
-    // -----------------------------------------------------------------
-
-    fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            // hydrate runs before the scan guard, so it needs its own guard —
-            // this launch is a direct child of viewModelScope, so an uncaught
-            // throw here reaches the global handler and crashes the app.
-            try {
-                hydrate(context, reportId)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Compare", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-                return@launch
-            }
-            if (!beginResumeScan(reportId)) return@launch
-            try {
-                val run = _runs.value[reportId] ?: return@launch
-                val prompt = run.comparePrompt
-                if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't resume
-                val report = ReportStorage.getReport(context, reportId) ?: return@launch
-                val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.COMPARE)
-                    .filter { isStaleRow(it) }
-                    .associateBy { it.id }
-                if (diskById.isEmpty()) return@launch
-                val staleRows = run.cells.values
-                    .filter { it.status == CompareCellStatus.PENDING && it.id in diskById }
-                    .mapNotNull { diskById[it.id] }
-                if (resetAttempts) BatchResume.resetAttempts(staleRows.map { it.id })
-                val retryRows = BatchResume.capForRetry(staleRows) { row ->
-                    markRowInterrupted(context, reportId, row.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
-                    run.cells.values.firstOrNull { it.id == row.id }?.let { c ->
-                        transitionItem(reportId, c.key) {
-                            it.copy(status = CompareCellStatus.ERROR, errorMessage = "Interrupted — no result after resume attempts", durationMs = 0)
-                        }
-                    }
-                }
-                val pending = retryRows.mapNotNull { row ->
-                    val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
-                    PendingCell(c.agentId, c.metaResultId, row)
-                }
-                if (pending.isEmpty()) return@launch
-                withTracerTags(reportId = reportId, category = TRACE_CATEGORY) {
-                    dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // Direct child of viewModelScope — contain the throw so a
-                // failed resume leaves the run as-is instead of crashing the
-                // app (the background sweep only join()s this Job).
-                AppLog.w("Compare", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-            } finally {
-                endResumeScan(reportId)
-            }
-        }
 
 }

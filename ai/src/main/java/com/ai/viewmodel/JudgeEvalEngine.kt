@@ -79,6 +79,21 @@ class JudgeEvalEngine internal constructor(
         item.copy(status = JudgeCellStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun isItemRow(run: JudgeEvalRunState?, row: SecondaryResult) =
         row.tournamentRole == JUDGE_ROLE_CELL
+    override fun canRedispatch(context: Context, run: JudgeEvalRunState) =
+        run.prompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 17
+
+    override suspend fun redispatchRows(context: Context, runKey: JudgeEvalRunKey, rows: List<SecondaryResult>) {
+        val run = _runs.value[runKey] ?: return
+        val report = ReportStorage.getReport(context, runKey) ?: return
+        val pending = rows.mapNotNull { row ->
+            val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+            PendingCell(judgeFromRow(row), c.responseAId, c.responseBId, c.orientation, row)
+        }
+        if (pending.isEmpty()) return
+        withTracerTags(reportId = runKey, category = "after/judges") {
+            dispatchCells(context, runKey, run.prompt, report.prompt, report.title, pending)
+        }
+    }
 
     /** The L1 "Wait" stat — cell ids parked on a provider throttle. */
     val throttledCells: StateFlow<Set<String>> get() = appViewModel.throttledJudgeEvalCells
@@ -140,7 +155,7 @@ class JudgeEvalEngine internal constructor(
     // Hydration — disk → StateFlow
     // -----------------------------------------------------------------
 
-    suspend fun hydrate(context: Context, reportId: String) {
+    override suspend fun hydrate(context: Context, reportId: String) {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val rows = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.JUDGES)
@@ -813,63 +828,5 @@ class JudgeEvalEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
     }
-
-    // -----------------------------------------------------------------
-    // Resume on report open / app restart
-    // -----------------------------------------------------------------
-
-    fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            // No global coroutine exception handler exists, so an uncaught
-            // throw on this viewModelScope launch crashes the app (the startup
-            // resume sweep only join()s it). hydrate runs before the scan
-            // guard, so guard it on its own; the body try below covers the rest.
-            try {
-                hydrate(context, reportId)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("JudgeEval", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-                return@launch
-            }
-            if (!beginResumeScan(reportId)) return@launch
-            try {
-                val run = _runs.value[reportId] ?: return@launch
-                val prompt = run.prompt
-                if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't resume
-                val report = ReportStorage.getReport(context, reportId) ?: return@launch
-                val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.JUDGES)
-                    .filter { it.tournamentRole == JUDGE_ROLE_CELL && isStaleRow(it) }
-                    .associateBy { it.id }
-                if (diskById.isEmpty()) return@launch
-                val staleRows = run.cells.values
-                    .filter { it.status == JudgeCellStatus.PENDING && it.id in diskById }
-                    .mapNotNull { diskById[it.id] }
-                if (resetAttempts) BatchResume.resetAttempts(staleRows.map { it.id })
-                val retryRows = BatchResume.capForRetry(staleRows) { row ->
-                    markRowInterrupted(context, reportId, row.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
-                    run.cells.values.firstOrNull { it.id == row.id }?.let { c ->
-                        transitionItem(reportId, c.key) {
-                            it.copy(status = JudgeCellStatus.ERROR, errorMessage = "Interrupted — no result after resume attempts", durationMs = 0)
-                        }
-                    }
-                }
-                val pending = retryRows.mapNotNull { row ->
-                    val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
-                    PendingCell(judgeFromRow(row), c.responseAId, c.responseBId, c.orientation, row)
-                }
-                if (pending.isEmpty()) return@launch
-                withTracerTags(reportId = reportId, category = "after/judges") {
-                    dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
-                }
-                recomputeAggregate(context, reportId)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("JudgeEval", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-            } finally {
-                endResumeScan(reportId)
-            }
-        }
 
 }

@@ -1,15 +1,21 @@
 package com.ai.viewmodel
 
 import android.content.Context
+import androidx.lifecycle.viewModelScope
+import com.ai.data.AppLog
 import com.ai.data.BatchItem
 import com.ai.data.BatchItemStatus
 import com.ai.data.BatchRun
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -69,6 +75,27 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  coroutine and crash the app. */
     protected open fun recomputeAggregate(context: Context, runKey: RunKey) {}
 
+    /** Rebuild this engine's run(s) for [reportId] from disk and publish them
+     *  — already public on every engine; the resume template calls it before
+     *  scanning. */
+    abstract suspend fun hydrate(context: Context, reportId: String)
+
+    /** Whether [run] can be re-dispatched at all. False for a synthetic
+     *  (prompt-unavailable, blank-text) run, which hydrates read-only —
+     *  re-running it would fire empty prompts. Checked BEFORE any row is
+     *  cleared, so an unresumable run never strands cleared rows. */
+    protected abstract fun canRedispatch(context: Context, run: RunState): Boolean
+
+    /** Engine-specific repair when a resume scan finds no stale rows at all
+     *  (e.g. Tournament's truncated-matrix re-sync). Default no-op. */
+    protected open fun onNoStaleRows(context: Context, runKey: RunKey) {}
+
+    /** Map stale / freshly-cleared [rows] back to the engine's pending items
+     *  and dispatch them — own tracer tags + throttled batch. Rows whose
+     *  context no longer resolves (agent gone, translation row gone) are
+     *  silently skipped. Shared by the resume scan and the rerun paths. */
+    protected abstract suspend fun redispatchRows(context: Context, runKey: RunKey, rows: List<SecondaryResult>)
+
     // ===== Promoted flows (byte-identical across the four engines) =====
 
     /** Stamp an "interrupted" error on a row — unless it already reached a
@@ -115,6 +142,68 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
             _runs.update { it - k }
         }
     }
+
+    /** Re-dispatch every stale row a process kill left PENDING (blank
+     *  placeholder on disk, no live Job) — the app-kill recovery and the
+     *  regenerate-batch path, one scan per run key of [reportId]. Bounded by
+     *  [BatchResume]: a row that can never complete is terminalized after
+     *  [BatchResume.MAX_ATTEMPTS] instead of re-dispatching (and re-billing)
+     *  forever; [resetAttempts] grants an explicit user re-fire a fresh
+     *  budget. The stale filter is sentinel-independent (content blank + no
+     *  duration), so an interrupted-after-worker row is still found. */
+    fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            // hydrate runs before the scan guard, so it needs its own guard —
+            // this launch is a direct child of viewModelScope and no global
+            // coroutine exception handler exists, so an uncaught throw here
+            // would crash the app (the background resume sweep only join()s
+            // this Job, it can't catch it).
+            try {
+                hydrate(context, reportId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(logTag, "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+                return@launch
+            }
+            for (runKey in runKeysForReport(reportId)) {
+                if (!beginResumeScan(runKey)) continue
+                try {
+                    val run = _runs.value[runKey] ?: continue
+                    if (!canRedispatch(context, run)) continue
+                    val diskById = SecondaryResultStorage.listForReport(context, reportId, secondaryKind)
+                        .filter { isItemRow(run, it) && isStaleRow(it) }
+                        .associateBy { it.id }
+                    if (diskById.isEmpty()) {
+                        onNoStaleRows(context, runKey)
+                        continue
+                    }
+                    val staleRows = run.items.values
+                        .filter { it.status == BatchItemStatus.PENDING && it.id in diskById }
+                        .mapNotNull { diskById[it.id] }
+                    if (resetAttempts) BatchResume.resetAttempts(staleRows.map { it.id })
+                    val retryRows = BatchResume.capForRetry(staleRows) { row ->
+                        markRowInterrupted(context, reportId, row.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
+                        run.items.values.firstOrNull { it.id == row.id }?.let { item ->
+                            transitionItem(runKey, item.key) {
+                                terminalizeItem(it, "Interrupted — no result after resume attempts")
+                            }
+                        }
+                    }
+                    if (retryRows.isEmpty()) continue
+                    redispatchRows(context, runKey, retryRows)
+                    recomputeAggregate(context, runKey)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Contain the throw — a failed resume just leaves the run
+                    // as-is until the next open / sweep.
+                    AppLog.w(logTag, "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+                } finally {
+                    endResumeScan(runKey)
+                }
+            }
+        }
 
     /** Run-end finalizer for startRun's `finally`: stamp every leftover stale
      *  row "Interrupted" (disk + in-memory), clear its [BatchResume] attempt

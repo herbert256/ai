@@ -81,6 +81,8 @@ class TournamentEngine internal constructor(
         item.copy(status = MatchStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun isItemRow(run: TournamentRunState?, row: SecondaryResult) =
         row.tournamentRole == ROLE_MATCH
+    override fun canRedispatch(context: Context, run: TournamentRunState) =
+        run.tournamentPrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 16
 
     /** The L1 "Throttled" stat — match ids parked on a provider throttle. */
     val throttledMatches: StateFlow<Set<String>> get() = appViewModel.throttledTournamentMatches
@@ -109,7 +111,7 @@ class TournamentEngine internal constructor(
      *  [TournamentRunState] (one tournament per report — newest run wins if
      *  legacy multi-run rows are present), and publish it. Preserves a live
      *  RUNNING match status the disk placeholder can't yet show. */
-    suspend fun hydrate(context: Context, reportId: String) {
+    override suspend fun hydrate(context: Context, reportId: String) {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val rows = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
@@ -662,83 +664,35 @@ class TournamentEngine internal constructor(
     // Resume on report open / regenerate
     // -----------------------------------------------------------------
 
-    /** Re-dispatch every stale match (blank placeholder on disk, no live Job)
-     *  — the app-kill recovery + RegeneratePhase.TOURNAMENT path. Bounded by
-     *  [BatchResume]. The stale filter is sentinel-independent (content blank
-     *  + no duration), so an interrupted-after-worker row is still found. */
-    fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            // hydrate runs before the scan guard (so the body try's finally
-            // only fires for the invocation that added the marker), so it
-            // needs its own guard — an uncaught throw here would crash the app.
-            try {
-                hydrate(context, reportId)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Tournament", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-                return@launch
-            }
-            if (!beginResumeScan(reportId)) return@launch
-            try {
-                val run = _runs.value[reportId] ?: return@launch
-                val prompt = run.tournamentPrompt
-                if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't resume
-                val report = ReportStorage.getReport(context, reportId) ?: return@launch
-                val agentsById = report.agents.associateBy { it.agentId }
-                val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
-                    .filter { it.tournamentRole == ROLE_MATCH && isStaleRow(it) }
-                    .associateBy { it.id }
-                if (diskById.isEmpty()) {
-                    // No stale matches left, but the aggregate matrix may be
-                    // truncated (an old recompute ran during a partial-SUCCESS
-                    // window). Re-sync once if it covers fewer responses than
-                    // the run's participants. Guarded so it can't loop.
-                    val participants = run.matches.values
-                        .flatMapTo(HashSet()) { listOf(it.responseAId, it.responseBId) }.size
-                    val storedN = run.aggregateRowId
-                        ?.let { SecondaryResultStorage.get(context, reportId, it)?.tournamentMatrix }
-                        ?.let { decodeTournamentMatrix(it)?.first?.ids?.size } ?: 0
-                    if (participants >= 2 && storedN < participants) {
-                        recomputeAggregate(context, reportId)
-                    }
-                    return@launch
-                }
-                val staleRows = run.matches.values
-                    .filter { it.status == MatchStatus.PENDING && it.id in diskById }
-                    .mapNotNull { diskById[it.id] }
-                if (resetAttempts) BatchResume.resetAttempts(staleRows.map { it.id })
-                val retryRows = BatchResume.capForRetry(staleRows) { row ->
-                    markRowInterrupted(context, reportId, row.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
-                    run.matches.values.firstOrNull { it.id == row.id }?.let { m ->
-                        transitionItem(reportId, m.key) {
-                            it.copy(status = MatchStatus.ERROR, errorMessage = "Interrupted — no result after resume attempts", durationMs = 0)
-                        }
-                    }
-                }
-                val pending = retryRows.mapNotNull { row ->
-                    val m = run.matches.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
-                    val a = agentsById[m.responseAId] ?: return@mapNotNull null
-                    val b = agentsById[m.responseBId] ?: return@mapNotNull null
-                    PendingMatch(a, b, m.orientation, row)
-                }
-                if (pending.isEmpty()) return@launch
-                withTracerTags(reportId = reportId, category = "after/tournament") {
-                    dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
-                }
-                recomputeAggregate(context, reportId)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // This launch is a direct child of viewModelScope, so an
-                // uncaught throw here reaches the global handler and crashes
-                // the app (the background resume sweep only join()s this Job,
-                // it can't catch it). Contain it — a failed resume just leaves
-                // the run as-is until the next open / sweep.
-                AppLog.w("Tournament", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-            } finally {
-                endResumeScan(reportId)
-            }
+    /** No stale matches left, but the aggregate matrix may be truncated (an
+     *  old recompute ran during a partial-SUCCESS window). Re-sync once if it
+     *  covers fewer responses than the run's participants. Guarded so it
+     *  can't loop. */
+    override fun onNoStaleRows(context: Context, runKey: TournamentRunKey) {
+        val run = _runs.value[runKey] ?: return
+        val participants = run.matches.values
+            .flatMapTo(HashSet()) { listOf(it.responseAId, it.responseBId) }.size
+        val storedN = run.aggregateRowId
+            ?.let { SecondaryResultStorage.get(context, runKey, it)?.tournamentMatrix }
+            ?.let { decodeTournamentMatrix(it)?.first?.ids?.size } ?: 0
+        if (participants >= 2 && storedN < participants) {
+            recomputeAggregate(context, runKey)
         }
+    }
 
+    override suspend fun redispatchRows(context: Context, runKey: TournamentRunKey, rows: List<SecondaryResult>) {
+        val run = _runs.value[runKey] ?: return
+        val report = ReportStorage.getReport(context, runKey) ?: return
+        val agentsById = report.agents.associateBy { it.agentId }
+        val pending = rows.mapNotNull { row ->
+            val m = run.matches.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+            val a = agentsById[m.responseAId] ?: return@mapNotNull null
+            val b = agentsById[m.responseBId] ?: return@mapNotNull null
+            PendingMatch(a, b, m.orientation, row)
+        }
+        if (pending.isEmpty()) return
+        withTracerTags(reportId = runKey, category = "after/tournament") {
+            dispatchMatches(context, runKey, run.tournamentPrompt, report.prompt, report.title, pending)
+        }
+    }
 }
