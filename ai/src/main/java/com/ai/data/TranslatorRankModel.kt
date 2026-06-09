@@ -188,15 +188,21 @@ data class TranslatorRankRow(
 /** Average each translator's scores (over cells where judge ≠ translator),
  *  sorted best-first. */
 fun aggregateTranslatorRanks(cells: Collection<TransRankCellState>): List<TranslatorRankRow> =
-    cells.filter { it.score != null && it.judgeKey != it.translatorKey }
-        .groupBy { it.translatorKey }
-        .map { (_, cs) ->
+    cells.groupBy { it.translatorKey }
+        .mapNotNull { (_, cs) ->
+            // Scores come only from OTHER models scoring this translator's items.
+            val scores = cs.filter { it.judgeKey != it.translatorKey }.mapNotNull { it.score }
+            // No usable score yet → no rank to show for this translator.
+            if (scores.isEmpty()) return@mapNotNull null
             val first = cs.first()
-            val scores = cs.mapNotNull { it.score }
             TranslatorRankRow(
                 providerId = first.translatorProviderId,
                 model = first.translatorModel,
-                avgScore = if (scores.isNotEmpty()) scores.average() else 0.0,
+                avgScore = scores.average(),
+                // Distinct translated items this model produced — counted over
+                // ALL its cells (matching the L2 "Item N" list), not just the
+                // ones already carrying a parsed score, so the count doesn't
+                // dip while a judge cell is pending or errored.
                 itemCount = cs.map { it.translationRowId }.distinct().size,
                 judgedCount = scores.size
             )
