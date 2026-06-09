@@ -100,7 +100,7 @@ internal fun AnswerMatrixViewScreen(
     val reportId = report?.id
     val activeLanguage = if (selectedLangKey == LangTab.ORIGINAL_KEY) ""
         else langTabs.firstOrNull { it.key == selectedLangKey }?.displayName ?: ""
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
     val rerankState = produceState(MatrixRerank(emptyMap(), null), reportId, secondaryDataVersion) {
         value = if (reportId == null) MatrixRerank(emptyMap(), null)
         else withContext(Dispatchers.IO) {

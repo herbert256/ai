@@ -179,6 +179,8 @@ fun findAltTranslationModels(aiSettings: Settings): List<ReportModel> {
  *  job maps + their register/key helpers stay on [rvm] (shared with
  *  report generation + cancellation) and are reached via rvm.* ;
  *  [appViewModel] supplies settings / storage / scope. */
+private const val FAN_META_ICON_REFRESH_COALESCE_MS = 750L
+
 class IconGenerationManager(
     private val appViewModel: AppViewModel,
     private val rvm: ReportViewModel
@@ -189,6 +191,37 @@ class IconGenerationManager(
     ): Pair<Double, Double> =
         if (usage != null && pricing != null) PricingCache.computeInOutCost(usage, pricing)
         else 0.0 to 0.0
+
+    private fun bumpIconRefreshTick() {
+        appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+    }
+
+    private inner class FanMetaIconRefreshCoalescer {
+        private val dirty = java.util.concurrent.atomic.AtomicBoolean(false)
+        private val scheduled = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        fun request() {
+            dirty.set(true)
+            schedule()
+        }
+
+        fun flush() {
+            if (dirty.getAndSet(false)) bumpIconRefreshTick()
+        }
+
+        private fun schedule() {
+            if (!scheduled.compareAndSet(false, true)) return
+            appViewModel.viewModelScope.launch {
+                try {
+                    delay(FAN_META_ICON_REFRESH_COALESCE_MS)
+                    flush()
+                } finally {
+                    scheduled.set(false)
+                    if (dirty.get()) schedule()
+                }
+            }
+        }
+    }
 
     // ===== Find-alternative: pre-pick "Edit prompt" support =====
     // The user edits the resolved alt prompt BEFORE picking models. The
@@ -2750,6 +2783,7 @@ class IconGenerationManager(
         }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val fanRunId = java.util.UUID.randomUUID().toString()
+        val iconRefreshCoalescer = FanMetaIconRefreshCoalescer()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
                 val aiSettings = appViewModel.uiState.value.aiSettings
@@ -2804,7 +2838,7 @@ class IconGenerationManager(
                         if (!SecondaryResultStorage.exists(context, reportId, pair.id)) return@runThrottledBatch
                         appViewModel.updateRunningFanMetaPairs { it + pair.id }
                         try {
-                            runFanMetaForPair(context, reportId, pair, fanMetaPrompt, aiSettings, fanRunId, mawOn)
+                            runFanMetaForPair(context, reportId, pair, fanMetaPrompt, aiSettings, fanRunId, iconRefreshCoalescer, mawOn)
                         } finally {
                             appViewModel.updateRunningFanMetaPairs { it - pair.id }
                             // acquireOrWait clears its own wait notification, but
@@ -2841,6 +2875,8 @@ class IconGenerationManager(
                     // Mirror the interrupted-error rows into memory so the L1
                     // counters settle live now that the 3s re-hydrate is gone.
                     leftover.forEach { rvm.fanOutEngine.refreshPairFromDisk(context, reportId, it.id) }
+                    if (leftover.isNotEmpty()) iconRefreshCoalescer.request()
+                    iconRefreshCoalescer.flush()
                 }
             }
         }
@@ -2853,6 +2889,7 @@ class IconGenerationManager(
     private suspend fun runFanMetaForPair(
         context: Context, reportId: String, pair: SecondaryResult,
         fanMetaPrompt: InternalPrompt, aiSettings: Settings, fanRunId: String,
+        iconRefreshCoalescer: FanMetaIconRefreshCoalescer,
         useReportModelsAsWorkers: Boolean = false
     ) {
         val started = System.currentTimeMillis()
@@ -2931,7 +2968,7 @@ class IconGenerationManager(
                     titleErrorMessage = if (title.isBlank()) "no title in reply" else null,
                     iconErrorMessage = null
                 )
-                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+                iconRefreshCoalescer.request()
             }
             else -> {
                 val msg = if (outcome is WorkerOutcome.AllRateLimited) "fan-meta: all workers rate-limited"
@@ -2953,7 +2990,7 @@ class IconGenerationManager(
                     titleErrorMessage = msg,
                     iconErrorMessage = msg
                 )
-                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+                iconRefreshCoalescer.request()
             }
         }
         // Mirror the just-persisted title / icon / cost into the

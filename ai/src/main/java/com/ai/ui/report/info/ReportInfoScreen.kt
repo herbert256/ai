@@ -74,7 +74,7 @@ fun ReportInfoScreen(
     }
     // Refresh the secondary summary + total-API-time when a secondary
     // completes / is deleted while the info screen stays open.
-    val secDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
     val secondaries by produceState(initialValue = emptyList<SecondaryResult>(), reportId, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, reportId) }
     }

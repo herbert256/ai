@@ -296,7 +296,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
 
     data class Loaded(
         val report: Report?,

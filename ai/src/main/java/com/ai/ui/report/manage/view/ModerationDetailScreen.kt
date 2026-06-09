@@ -83,7 +83,7 @@ internal fun ModerationDetailScreen(
 
     // Fresh on-disk row so a re-run reflects here even though `result`
     // arrives stale from the list mount.
-    val secDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
+    val secDataVersion by com.ai.data.SecondaryDataVersion.versionFor(result.reportId, result.kind).collectAsState()
     val resultFresh by produceState<SecondaryResult?>(null, result.id, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, result.reportId, result.id) }
     }

@@ -143,7 +143,7 @@ internal fun SecondaryResultDetailScreen(
     // Re-read the TRANSLATE rows on secondary-data changes too, not just on
     // reportId — else the language tabs go stale when a translation is added or
     // deleted while this screen is open (resultFresh below already does this).
-    val secDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
+    val secDataVersion by com.ai.data.SecondaryDataVersion.versionFor(result.reportId).collectAsState()
     val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), result.reportId, secDataVersion) {
         value = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, result.reportId, SecondaryKind.TRANSLATE)

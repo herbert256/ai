@@ -197,7 +197,7 @@ object SecondaryResultStorage {
             rememberCachedResult(result.reportId, target, result)
             saved = true
         }
-        if (saved) SecondaryDataVersion.bump()
+        if (saved) SecondaryDataVersion.bump(result.reportId, result.kind)
         return result
     }
 
@@ -236,7 +236,7 @@ object SecondaryResultStorage {
                 savedAny = true
             }
         }
-        if (savedAny) SecondaryDataVersion.bump()
+        if (savedAny) SecondaryDataVersion.bumpMany(saved.map { it.reportId to it.kind })
         return saved
     }
 
@@ -319,6 +319,32 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Lock-held read path for row updates. It reuses the parsed row when
+     *  our cache fingerprint still matches the file, avoiding the
+     *  read+parse half of read-modify-write for hot batch rows that this
+     *  process just created or updated. */
+    private fun readCachedOrDisk(reportId: String, file: File): SecondaryResult? {
+        val name = file.name
+        val mtime = file.lastModified()
+        val length = file.length()
+        val cache = cacheForReport(reportId)
+        val cached = cache.byFilename[name]
+        if (cached != null && cached.mtime == mtime && cached.length == length) {
+            return cached.parsed
+        }
+        val parsed = try {
+            gson.fromJson(file.readText(), SecondaryResult::class.java)
+        } catch (_: Exception) {
+            null
+        }
+        if (parsed != null) {
+            cache.put(name, CachedEntry(mtime, length, parsed))
+        } else {
+            cache.remove(name)
+        }
+        return parsed
+    }
+
     /** Compound read-modify-write under one lock acquisition. Use this
      *  instead of get()+save() for field-scoped edits so concurrent cost/icon
      *  bumps cannot be overwritten by a stale full-row snapshot. */
@@ -343,17 +369,13 @@ object SecondaryResultStorage {
                 AppLog.e("SecondaryResultStorage", "Refusing to update result that escapes report dir: $resultId")
                 return@withLock null
             }
-            val current = try {
-                gson.fromJson(target.readText(), SecondaryResult::class.java)
-            } catch (_: Exception) {
-                return@withLock null
-            }
+            val current = readCachedOrDisk(reportId, target) ?: return@withLock null
             val next = mutator(current)
             target.writeTextAtomic(gson.toJson(next))
             rememberCachedResult(reportId, target, next)
             next
         } ?: return null
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(updated.reportId, updated.kind)
         return updated
     }
 
@@ -497,21 +519,19 @@ object SecondaryResultStorage {
             // expenditure, so the saved row reflects (prior + new).
             // Caller-controlled overwrites that don't want
             // accumulation should write via [save] instead.
-            val toWrite = mergeCostFromDisk(target, result)
+            val toWrite = mergeCostFromCurrent(readCachedOrDisk(result.reportId, target), result)
             target.writeTextAtomic(gson.toJson(toWrite))
             rememberCachedResult(result.reportId, target, toWrite)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(result.reportId, result.kind)
         return true
     }
 
-    /** Re-reads the existing on-disk row and adds its prior cost
-     *  counters onto [incoming]. The result's other fields win.
-     *  Returns [incoming] unchanged when the disk row can't be
-     *  read or has no prior cost. */
-    private fun mergeCostFromDisk(target: File, incoming: SecondaryResult): SecondaryResult {
-        val existing = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-            catch (_: Exception) { return incoming }
+    /** Adds prior cost counters from [existing] onto [incoming]. The result's
+     *  other fields win. Returns [incoming] unchanged when no cached/disk row
+     *  was available or it has no prior cost. */
+    private fun mergeCostFromCurrent(existing: SecondaryResult?, incoming: SecondaryResult): SecondaryResult {
+        if (existing == null) return incoming
         val priorIn = existing.inputCost ?: 0.0
         val priorOut = existing.outputCost ?: 0.0
         val priorUsage = existing.tokenUsage
@@ -565,8 +585,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             // tokenUsage carries the row's main input/output tokens
             // for display; we update both that and the (inputCost,
             // outputCost) USD fields the cost table reads from.
@@ -603,8 +622,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 iconInputTokens = current.iconInputTokens + inputTokens,
                 iconOutputTokens = current.iconOutputTokens + outputTokens,
@@ -634,8 +652,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 icon = icon,
                 iconWinningTier = winningTier,
@@ -664,8 +681,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 iconErrorMessage = errorMessage,
                 iconRunId = iconRunId ?: current.iconRunId,
@@ -692,8 +708,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 titleRunId = current.titleRunId ?: fanMetaRunId,
                 iconRunId = current.iconRunId ?: fanMetaRunId,
@@ -704,7 +719,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.META)
     }
 
     /** Set just the [icon] field on any SecondaryResult row by
@@ -723,8 +738,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(icon = icon)
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
@@ -745,8 +759,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 icon = null,
                 iconWinningTier = null,
@@ -773,8 +786,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 icon = null,
                 iconWinningTier = null,
@@ -812,8 +824,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 titleInputTokens = current.titleInputTokens + inputTokens,
                 titleOutputTokens = current.titleOutputTokens + outputTokens,
@@ -840,8 +851,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 title = title,
                 titleErrorMessage = null,
@@ -869,8 +879,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 titleErrorMessage = errorMessage,
                 titleRunId = titleRunId ?: current.titleRunId,
@@ -909,8 +918,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 title = title?.takeIf { it.isNotBlank() },
                 titleErrorMessage = titleErrorMessage,
@@ -931,7 +939,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.META)
     }
 
     /** Mark many fan-out rows as having a Fan Meta pass in progress.
@@ -953,8 +961,7 @@ object SecondaryResultStorage {
                 if (!isSafeResultId(resultId)) continue
                 val target = File(dir, "$resultId.json")
                 if (!target.exists()) continue
-                val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                    catch (_: Exception) { continue }
+                val current = readCachedOrDisk(reportId, target) ?: continue
                 val updated = current.copy(
                     titleRunId = current.titleRunId ?: fanMetaRunId,
                     iconRunId = current.iconRunId ?: fanMetaRunId,
@@ -967,7 +974,7 @@ object SecondaryResultStorage {
                 changed = true
             }
         }
-        if (changed) SecondaryDataVersion.bump()
+        if (changed) SecondaryDataVersion.bump(reportId, SecondaryKind.META)
     }
 
     /** Regenerate variant — clears [title] + [titleErrorMessage] but
@@ -981,8 +988,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             // Clear titleRunId too (like clearFanOutTitleState): a non-null
             // titleRunId is read by the report-open + 30 s resume detectors as
             // "a titles batch was started here", resurrecting a deleted/
@@ -1003,8 +1009,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 title = null,
                 titleErrorMessage = null,
@@ -1040,8 +1045,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 content = null,
                 errorMessage = null,
@@ -1076,8 +1080,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 providerId = providerId,
                 model = model,
@@ -1093,7 +1096,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.TOURNAMENT)
     }
 
     /** Commit a "Compare with meta" CELL worker call: overwrite the row's
@@ -1114,8 +1117,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 providerId = providerId,
                 model = model,
@@ -1131,7 +1133,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.COMPARE)
     }
 
     /** Reset a Compare CELL row back to its pre-judge placeholder shape
@@ -1143,8 +1145,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 providerId = COMPARE_PENDING_PROVIDER,
                 model = COMPARE_PENDING_MODEL,
@@ -1160,7 +1161,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.COMPARE)
     }
 
     /** Reset a tournament MATCH row back to its pre-judge placeholder shape
@@ -1172,8 +1173,7 @@ object SecondaryResultStorage {
             val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
+            val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(
                 providerId = TOURNAMENT_PENDING_PROVIDER,
                 model = TOURNAMENT_PENDING_MODEL,
@@ -1189,7 +1189,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(updated))
             rememberCachedResult(reportId, target, updated)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bump(reportId, SecondaryKind.TOURNAMENT)
     }
 
     fun delete(context: Context, reportId: String, resultId: String) {
@@ -1203,7 +1203,7 @@ object SecondaryResultStorage {
             // for the report stay parsed and ready for the next read.
             forgetCachedResult(reportId, target.name)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bumpReport(reportId)
     }
 
     fun deleteAllForReport(context: Context, reportId: String) {
@@ -1215,7 +1215,7 @@ object SecondaryResultStorage {
             // Whole report gone — drop the entire per-report bucket.
             reportCaches.remove(reportId)
         }
-        SecondaryDataVersion.bump()
+        SecondaryDataVersion.bumpReport(reportId)
     }
 
     /** Counts persisted across all kinds for a report. Used by the Report

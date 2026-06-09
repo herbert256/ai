@@ -144,7 +144,7 @@ fun ViewTitleBar(
     // context or no translation row.
     val context = LocalContext.current
     val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId, SecondaryKind.TRANSLATE).collectAsState()
     val translatedTitle by produceState<String?>(null, reportId, activeLanguage, reportDataVersion, secondaryDataVersion) {
         value = if (reportId != null && !activeLanguage.isNullOrBlank()) {
             withContext(Dispatchers.IO) {

@@ -267,7 +267,7 @@ private fun ReportsViewerScreenLoaded(
     // Key on SecondaryDataVersion too so a translation finishing or
     // being deleted while this screen stays mounted re-reads from disk
     // instead of leaving the tabs stale until a remount.
-    val secDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secDataVersion by SecondaryDataVersion.versionFor(report.id, SecondaryKind.TRANSLATE).collectAsState()
     val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), report.id, secDataVersion) {
         value = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, report.id, SecondaryKind.TRANSLATE)
@@ -623,7 +623,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     // Re-read when a secondary completes / is deleted while a cost view
     // (this is shared by Report-Manage, Report-Info and the Costs screen)
     // stays mounted — otherwise the breakdown / totals went stale.
-    val secDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secDataVersion by SecondaryDataVersion.versionFor(report.id).collectAsState()
     val secondaryState = produceState(initialValue = emptyList<SecondaryResult>(), report.id, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, report.id) }
     }

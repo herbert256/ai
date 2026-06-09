@@ -88,7 +88,7 @@ fun TranslateViewScreen(
     )
 
     val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TRANSLATE).collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(emptyList(), null, emptyMap()),
         currentReportId, currentTranslationRunId, reportDataVersion, secondaryDataVersion

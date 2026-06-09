@@ -118,7 +118,7 @@ fun FanOutViewScreen(
     )
 
     val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId).collectAsState()
     val loadedState = produceState(
         initialValue = Loaded(null, emptyList(), emptyList()),
         currentReportId, currentPromptName, reportDataVersion, secondaryDataVersion
