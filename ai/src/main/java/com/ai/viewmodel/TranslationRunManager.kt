@@ -92,6 +92,13 @@ class TranslationRunManager(
     val translationRuns: StateFlow<Map<String, TranslationRunState>> = _translationRuns.asStateFlow()
     internal val translationJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
+    /** Runs whose delete has started but whose (slow) per-row disk deletes are
+     *  still finishing in the background. The Second-results list filters these
+     *  out of the persisted-run summaries so the row vanishes the moment the
+     *  user confirms. */
+    private val _deletingTranslationRuns = MutableStateFlow<Set<String>>(emptySet())
+    val deletingTranslationRuns: StateFlow<Set<String>> = _deletingTranslationRuns.asStateFlow()
+
     /** The "workers"-category translate prompt — body uses
      *  `translate-text` (`@TEXT@`), the four title kinds use
      *  `translate-title` (`@TITLE@`). Both carry their own worker
@@ -860,21 +867,30 @@ class TranslationRunManager(
      *  delete every one. Returns the Job so the caller can await it
      *  behind a "Deleting…" popup before navigating back. */
     fun deleteTranslationRun(context: Context, sourceReportId: String, runId: String): Job {
-        cancelTranslation(runId)   // request cancel + flag the live run
+        // ── Immediate (synchronous) ──
+        cancelTranslation(runId)                          // stop the batch + flag the live run
+        val job = translationJobs[runId]
+        _deletingTranslationRuns.update { it + runId }    // hide the persisted-run row
+        _translationRuns.update { it - runId }            // drop the live run + empty the L1 screen
+        // ── Background (slow) ──
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
-            translationJobs[runId]?.cancelAndJoin()
-            val rows = SecondaryResultStorage
-                .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-                .filter { translationRunGroupingId(it) == runId }
-            var costDelta = 0.0
-            rows.forEach {
-                costDelta += (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0)
-                SecondaryResultStorage.delete(context, sourceReportId, it.id)
+            try {
+                // Join the cancelled job first so no late write resurrects a row.
+                job?.cancelAndJoin()
+                val rows = SecondaryResultStorage
+                    .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+                    .filter { translationRunGroupingId(it) == runId }
+                var costDelta = 0.0
+                rows.forEach {
+                    costDelta += (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0)
+                    SecondaryResultStorage.delete(context, sourceReportId, it.id)
+                }
+                ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, rows.map { it.id }.toSet())
+                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
+                ReportStorage.bumpReportTimestamp(context, sourceReportId)
+            } finally {
+                _deletingTranslationRuns.update { it - runId }
             }
-            ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, rows.map { it.id }.toSet())
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, sourceReportId)
-            _translationRuns.update { it - runId }
         }
     }
 

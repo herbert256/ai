@@ -21,7 +21,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -33,7 +32,6 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.FanOutRunKey
 import com.ai.data.PairStatus
 import com.ai.data.titleStatus
-import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
@@ -169,10 +167,8 @@ fun FanMetaScreen(
     // Reload / delete / trace fire from both L1 and the 🐜 workers screen,
     // so they (and their confirm dialogs) are owned here at the router and
     // rendered regardless of which sub-screen is active.
-    val scope = rememberCoroutineScope()
     var confirmRelaunchMeta by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
     val l1RunId = runState.pairs.values.firstNotNullOfOrNull { it.titleRunId ?: it.iconRunId }
     val onReloadMeta: () -> Unit = { confirmRelaunchMeta = true }
     val onDeleteMeta: () -> Unit = { confirmDelete = true }
@@ -272,31 +268,17 @@ fun FanMetaScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    deleting = true
-                    scope.launch {
-                        actions.onClearFanMeta(runState.key)?.join()
-                        deleting = false
-                        onBack()
-                    }
+                    // Fire-and-forget: clearFanMeta runs on the engine's scope
+                    // (cancels the fan-meta batch, clears the title/icon state and
+                    // re-hydrates). Leave at once — no blocking popup; the fan-out
+                    // L1 drops the icons when the background clear lands.
+                    actions.onClearFanMeta(runState.key)
+                    onBack()
                 }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
             }
-        )
-    }
-    if (deleting) {
-        AlertDialog(
-            onDismissRequest = { },
-            title = { Text("Deleting Fan Meta") },
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AnimatedHourglass(fontSize = 18.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Clearing the Fan Meta — this can take a moment.", fontSize = 13.sp)
-                }
-            },
-            confirmButton = { }
         )
     }
 }

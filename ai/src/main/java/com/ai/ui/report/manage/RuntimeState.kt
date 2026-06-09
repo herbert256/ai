@@ -106,6 +106,7 @@ internal fun rememberReportRuntimeState(
     isComplete: Boolean,
     iconGenEnabled: Boolean,
     translationRuns: List<com.ai.viewmodel.TranslationRunState>,
+    deletingTranslationRunIds: Set<String> = emptySet(),
     fanRuntime: FanRuntimeBundle,
     fanOutEngine: com.ai.viewmodel.FanOutEngine?,
     translationLifecycle: TranslationLifecycleCallbacks,
@@ -264,7 +265,7 @@ internal fun rememberReportRuntimeState(
     // reloads secondaryRuns from disk; without it the in-memory list
     // keeps the old SecondaryResult.icon value and the View tile +
     // Manage row never reflect the user's pick.
-    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick, uiState.iconRefreshTick, deletingFanOutRuns) {
+    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick, uiState.iconRefreshTick, deletingFanOutRuns, deletingTranslationRunIds) {
         val rid = currentReportId ?: run {
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0)
             secondaryRuns = emptyList()
@@ -304,6 +305,8 @@ internal fun rememberReportRuntimeState(
                     .sortedByDescending { it.timestamp }
                 translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }
                 translationRunSummaries = buildTranslationRunSummaries(translateRows)
+                    // Hide runs whose delete is in flight (rows still on disk).
+                    .filter { it.runId !in deletingTranslationRunIds }
                 fanOutSummaries = buildFanOutSummaries(
                     all.filter { row ->
                         if (row.fanOutSourceAgentId == null) return@filter false

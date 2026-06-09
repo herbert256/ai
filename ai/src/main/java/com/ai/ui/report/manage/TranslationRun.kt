@@ -20,7 +20,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -31,7 +30,6 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.SecondaryResult
-import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
@@ -262,14 +260,9 @@ internal fun TranslationRunScreen(
     // Reload / delete / trace / view fire from both L1 and the 🐜 workers
     // screen, so they (and their confirm dialogs) are owned here at the
     // router and rendered regardless of which sub-screen is active.
-    val scope = rememberCoroutineScope()
-    // Saveable so the confirm dialogs survive a config change. `deleting` stays
-    // plain remember on purpose: its coroutine is tied to this composition and
-    // is cancelled on recreation, so a restored true would strand the spinner.
-    // See audit bug 25.
+    // Saveable so the confirm dialogs survive a config change.
     var confirmReload by rememberSaveable(run.runId) { mutableStateOf(false) }
     var confirmDelete by rememberSaveable(run.runId) { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
     val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
     val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
         { holder.value = com.ai.ui.shared.ViewJump.TranslationRun(run.runId) }
@@ -360,29 +353,15 @@ internal fun TranslationRunScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    deleting = true
-                    scope.launch {
-                        actions.onDeleteRun(reportId, runId)?.join()
-                        deleting = false
-                        onBack()
-                    }
+                    // Fire-and-forget: the manager stops the batch, hides the
+                    // Second-results row and drops the live run immediately, then
+                    // deletes the rows in the background. Leave at once — no
+                    // blocking popup.
+                    actions.onDeleteRun(reportId, runId)
+                    onBack()
                 }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
-        )
-    }
-    if (deleting) {
-        AlertDialog(
-            onDismissRequest = { },
-            title = { Text("Deleting translation") },
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AnimatedHourglass(fontSize = 18.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Cancelling the run and removing every row — this can take a moment.", fontSize = 13.sp)
-                }
-            },
-            confirmButton = { }
         )
     }
     } // close CompositionLocalProvider
