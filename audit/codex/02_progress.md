@@ -46,7 +46,7 @@ response. Re-verification date: 2026-06-09.
 | A04 | Still valid — multiple owners, no map | **DO** | done (doc/ownership.md) |
 | A05 | Still valid — Settings 3227 / Icon 3096 / ReportVM 2993 / Dashboard 2976 / ReportStorage 2620 | DEFER (opportunistic) | — |
 | A06 | Still valid — `createReport` 20 args, `updateAgentStatus` 20, `SettingsScreen` 44 | **DO** (storage fns only) | pending |
-| A07 | Still valid — `GlobalScope+NonCancellable` in `onCleared` | **DO** | pending |
+| A07 | Still valid — `GlobalScope+NonCancellable` in `onCleared` | DEFER (rides on D10) | deferred — pairs with the UsageStatsRecorder extraction |
 | A08 | Partially done — residual `Phase E/F` comments | **DO** (finish) | done |
 | A09 | Still valid — no boundary tests | DEFER | — |
 | R01 | Partially done — `acquireThrottledPermits` helper, not `runThrottledBatch` | DEFER | — |
@@ -58,16 +58,16 @@ response. Re-verification date: 2026-06-09.
 | R07 | Still valid — `begin/update/finish/clearBuild` called manually | **DO** | done (runBatchBuild + BatchBuildScope; 2 engines adopted, rest incremental) |
 | R08 | Fields already exist on `SecondaryResult` | SKIP | — |
 | R09 | Still valid — dispatch+cost+storage combined | DEFER | — |
-| D01 | Partially done — `PromptHistoryStore` extracted; ~1124 LOC | **DO** (continue) | pending |
+| D01 | Partially done — `PromptHistoryStore` extracted; ~1124 LOC | DEFER (re-estimated LARGE) | deferred — same SettingsPreferences cost-accounting cluster as D10 |
 | D02 | Still valid — 7 stores duplicate lock/atomic-write | DEFER | — |
 | D03 | Still valid — `ReportDataVersion` global | DEFER | — |
 | D04 | Still valid — many specialized mutators | DEFER | — |
-| D05 | Still valid — ledger reconciliation coupled across 2 files | **DO** | pending |
+| D05 | Still valid — ledger reconciliation coupled across 2 files | DEFER (re-estimated LARGE) | deferred — `reconcileReportCostLedgers` is the seam D10 shares; do together |
 | D06 | Still valid — no `ApiCallRecord` | SKIP | — |
 | D07 | Still valid — edit targets as screen-level state | DEFER | — |
 | D08 | Still valid — ad-hoc safe-id helpers | DEFER | — |
 | D09 | Still valid — one round-trip test only | DEFER | — |
-| D10 | Still valid — usage stats static under `SettingsPreferences` | **DO** | pending |
+| D10 | Still valid — usage stats static under `SettingsPreferences` | DEFER (re-estimated LARGE) | deferred — see re-estimate note below |
 | D11 | Still valid — no migration registry | SKIP (conflicts with no-backcompat rule) | — |
 | P01 | Still valid — params passed separately | DEFER | — |
 | P02 | Still valid — capability checks scattered + `SettingsHolder` fallback | **DO** | pending |
@@ -99,20 +99,38 @@ response. Re-verification date: 2026-06-09.
 
 ## This session — the DO items, one commit each
 
-Order is dependency-driven. Build cadence: compile-verify each commit;
-full `assembleDebug` + deploy to both targets + launch once at the end.
+Build cadence: compile-verify each commit; full `assembleDebug` + deploy to
+both targets + launch once at the end.
 
-1. `COD-A08` — finish removing stale phase comments.
-2. `COD-A04` — write the runtime ownership map (`doc/ownership.md`).
-3. `COD-U11` — `IconActionButton`/`StatusIcon` accessibility wrapper.
-4. `COD-R07` — `BatchBuildScope.run(...)` helper.
-5. `COD-U14` — extract `ExternalAppCommandParser` + command objects.
-6. `COD-T02` — JVM tests for the external/share parser.
-7. `COD-D10` — extract `UsageStatsRecorder` from `SettingsPreferences`.
-8. `COD-A07` — route shutdown flush through `UsageStatsRecorder`.
-9. `COD-D01` — extract `GeneralSettingsStore` from `SettingsPreferences`.
-10. `COD-D05` — extract `ReportCostLedgerService`.
-11. `COD-T06` — broaden cost-accounting mutation tests.
-12. `COD-P02` — `ModelCapabilityResolver` (value + source/reason).
-13. `COD-R02` — migrate replay maps onto `ReplayTrack`.
-14. `COD-A06` — `CreateReportRequest` / `AgentStatusPatch` command objects.
+Landed:
+
+1. `COD-A08` — finish removing stale phase comments. ✅
+2. `COD-A04` — write the runtime ownership map (`doc/ownership.md`). ✅
+3. `COD-U11` — `IconActionButton`/`StatusIcon` accessibility wrapper. ✅
+4. `COD-R07` — `BatchBuildScope.run(...)` helper. ✅
+5. `COD-U14` — extract `ExternalAppCommandParser` + command objects. ✅
+6. `COD-T02` — JVM tests for the external/share parser. ✅
+7. `COD-P02` — `ModelCapabilityResolver` (value + source/reason).
+8. `COD-R02` — migrate replay maps onto `ReplayTrack`.
+9. `COD-A06` — `CreateReportRequest` / `AgentStatusPatch` command objects.
+10. `COD-T06` — broaden cost-accounting mutation tests.
+
+### Deferred this session — re-estimated LARGE (cost-accounting cluster)
+
+`COD-D10`, `COD-D05`, `COD-A07`, and `COD-D01` were planned as MEDIUM but,
+read against the real code, they form one ~500-line tightly-coupled cluster in
+`SettingsPreferences`:
+
+- Three caches — token (`usageStatsCache`), category (`usageCategoryStatsCache`),
+  report (`usageReportStatsCache`) — that **share a single `usageStatsLock`**,
+  so they can't be split cleanly one at a time.
+- `reconcileReportCostLedgers` (D05's subject) mutates all three and is the seam
+  D10 also depends on — they must move together.
+- Recording chokepoints couple to `ApiTracer`, `ApiUsageRates`, `PricingCache`,
+  and `ReportStorage.appendApiCallCost`.
+- JVM coverage is thin (one flush test in `SettingsPreferencesUsageStatsTest`).
+
+A pure relocate-and-delegate is behaviorally low-risk (bodies unchanged,
+compiler-checked) but high edit-volume on the cost ledger. Deferred to a
+dedicated session, ideally after the cost test net is broadened, so the move
+has a regression net. Do D10 + D05 + A07 + D01 as one focused unit.
