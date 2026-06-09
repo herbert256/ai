@@ -89,7 +89,7 @@ response. Re-verification date: 2026-06-09.
 | U11 | Partially done — `ModelAdvisory` exists, no central icon wrapper | **DO** | done (IconActionButton/StatusIcon; bar strip labeled) |
 | U12 | Still valid — `produceState` ticks | DEFER | — |
 | U13 | Partially done — `ModelAdvisory` only | DEFER | — |
-| U14 | Still valid — inline tag parsing in `AppNavHost` | **DO** | pending |
+| U14 | Still valid — inline tag parsing in `AppNavHost` | **DO** | done (ExternalAppCommandParser + ExternalReportCommand) |
 | T01 | Partially done — single-kind export tests | DEFER | — |
 | T02 | Still valid — no parser tests | **DO** | pending |
 | T03 | Partially done — component tests, no nav contracts | DEFER | — |

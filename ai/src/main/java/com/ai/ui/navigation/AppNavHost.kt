@@ -121,44 +121,23 @@ fun AppNavHost(
     }
     LaunchedEffect(externalPrompt) {
         if (externalPrompt != null) {
-            fun extractTag(tag: String, text: String): String? =
-                Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL).find(text)?.groupValues?.get(1)?.trim()
-            fun extractAllTags(tag: String, text: String): List<String> =
-                Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL).findAll(text).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.toList()
-
-            val marker = "-- end prompt --"
-            val aiPrompt: String
-            val instructions: String
-
-            if (externalInstructions != null) {
-                aiPrompt = externalPrompt.trim(); instructions = externalInstructions
-            } else if (externalPrompt.contains(marker)) {
-                val parts = externalPrompt.split(marker, limit = 2)
-                aiPrompt = parts[0].trim(); instructions = parts.getOrElse(1) { "" }
-            } else {
-                navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", externalPrompt)) {
-                    popUpTo(NavRoutes.AI) { inclusive = false }
-                }
-                onExternalIntentHandled(); return@LaunchedEffect
+            when (
+                val cmd = com.ai.ui.share.ExternalAppCommandParser.parse(
+                    prompt = externalPrompt,
+                    instructions = externalInstructions,
+                    title = externalTitle,
+                    systemPrompt = externalSystem
+                )
+            ) {
+                // Bare prompt — pre-fill the editor, no side effects.
+                is com.ai.ui.share.ExternalReportCommand.Prefill ->
+                    navController.navigate(NavRoutes.aiNewReportWithParams(cmd.title, cmd.prompt)) {
+                        popUpTo(NavRoutes.AI) { inclusive = false }
+                    }
+                // Instruction-bearing — stage the confirmation overlay.
+                is com.ai.ui.share.ExternalReportCommand.Confirm ->
+                    pendingExternalReport.value = cmd.staged
             }
-
-            pendingExternalReport.value = com.ai.ui.share.PendingExternalReport(
-                title = externalTitle,
-                systemPrompt = externalSystem,
-                aiPrompt = aiPrompt,
-                openHtml = extractTag("open", instructions),
-                closeHtml = extractTag("close", instructions),
-                reportType = extractTag("type", instructions),
-                email = extractTag("email", instructions),
-                nextAction = extractTag("next", instructions),
-                hasReturn = Regex("<return>", RegexOption.IGNORE_CASE).containsMatchIn(instructions),
-                hasEdit = Regex("<edit>", RegexOption.IGNORE_CASE).containsMatchIn(instructions),
-                hasSelect = Regex("<select>", RegexOption.IGNORE_CASE).containsMatchIn(instructions),
-                agentNames = extractAllTags("agent", instructions),
-                flockNames = extractAllTags("flock", instructions),
-                swarmNames = extractAllTags("swarm", instructions),
-                modelSpecs = extractAllTags("model", instructions)
-            )
             // Clear the source-of-truth extras so a configuration
             // change doesn't re-stage the confirmation after the user
             // has cancelled or confirmed it.
