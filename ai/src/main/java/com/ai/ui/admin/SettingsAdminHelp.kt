@@ -511,6 +511,16 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Feeding a legacy full-config bundle to API Keys import throws ConfigBundleMistakenForKeysException — the toast clarifies the file shape isn't a keys file. Costs CSV importer skips malformed rows silently. Settings import leaves missing fields untouched (partial files are fine)."),
         )
     ),
+    "report_export" to HelpContent(
+        title = "Help - Export reports",
+        cards = listOf(
+            HelpCard("Overview", "Opened from the Export button on the Reports card (Housekeeping → Export & Import). Lists every report stored on this device with a checkbox so you can export several at once."),
+            HelpCard("Selecting", "Tap a row (or its checkbox) to toggle it. Select all / Clear all at the top flips the whole list. The Export button at the top shows how many are ticked and stays disabled until at least one is."),
+            HelpCard("Export", "Tap Export, then pick a destination folder in the system picker. One zip per selected report is written into that folder — each carries the report JSON plus every linked secondary result and trace, the same bundle the per-report Import reads back."),
+            HelpCard("File names", "Files are named ai_report_<title>_<timestamp>.zip. Two reports with the same title don't clobber — the folder provider auto-suffixes the second copy."),
+            HelpCard("Pitfalls", "Knowledge-base attachments are stripped from the bundle (the KB blobs aren't packed), so a regenerate on the importing install runs without that context. A report that fails to write is logged and skipped; the toast reports how many succeeded and how many failed."),
+        )
+    ),
     "setup_models" to HelpContent(
         title = "Help - Models setup",
         cards = listOf(

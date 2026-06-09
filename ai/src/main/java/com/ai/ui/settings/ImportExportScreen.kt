@@ -39,7 +39,6 @@ import com.ai.ui.shared.restartApp
 import com.ai.ui.shared.csvField
 import com.ai.ui.shared.exportTimestamp
 import com.ai.ui.shared.parseCsvRow
-import com.ai.ui.shared.shareExport
 import com.ai.ui.shared.shareExportText
 import com.ai.viewmodel.AppHomeMode
 import com.ai.viewmodel.GeneralSettings
@@ -869,6 +868,11 @@ fun ImportExportScreen(
     // modal — they can scroll, navigate, or import more without
     // dismissing it first.
     var keysImportedActions by remember { mutableStateOf(false) }
+    // Full-screen overlay (full-screen overlay pattern): the Reports
+    // card's Export button opens a multi-select report exporter. The
+    // early `return` below the `if` preserves this screen's remember
+    // state (importType, launchers) for when the overlay closes.
+    var showExportReports by remember { mutableStateOf(false) }
 
     // Rendered as a banner inside the page Column below — see the
     // `restartMessage?.let` call right under the TitleBar.
@@ -920,40 +924,6 @@ fun ImportExportScreen(
         val count = JsonParser.parseString(json).asJsonObject.size()
         shareExportText(context, "ai_keys-${exportTimestamp()}.json", "application/json", "Share API keys", json)
         Toast.makeText(context, "$count API keys ready to share", Toast.LENGTH_SHORT).show()
-    }
-
-    fun exportAiReport(reportId: String) {
-        // Off-thread: ReportStorage.getReport + the whole zip
-        // (report JSON + every secondary + every trace) is enough
-        // disk work to warrant Dispatchers.IO. shareExport itself
-        // stages atomically into cacheDir/exports and fires the
-        // share-chooser intent — same path BackupRestore uses.
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
-                    val report = ReportStorage.getReport(context, reportId)
-                        ?: error("Report not found")
-                    val tsLabel = exportTimestamp()
-                    val safeTitle = report.title.replace(Regex("[^A-Za-z0-9._-]+"), "_")
-                        .take(40)
-                        // An all-non-ASCII title (CJK / emoji) collapses to
-                        // a string of separators, not blank — treat that as
-                        // blank so we fall back to "report".
-                        .trim('_', '.', '-')
-                        .ifBlank { "report" }
-                    com.ai.ui.shared.shareExport(
-                        context = context,
-                        fileName = "ai_report_${safeTitle}_$tsLabel.zip",
-                        mimeType = "application/zip",
-                        chooserTitle = "Share AI Report"
-                    ) { out -> com.ai.data.writeReportZip(context, reportId, out) }
-                }
-            }
-            result.fold(
-                onSuccess = { Toast.makeText(context, "Report ready to share", Toast.LENGTH_SHORT).show() },
-                onFailure = { Toast.makeText(context, "Export failed: ${it.message}", Toast.LENGTH_LONG).show() }
-            )
-        }
     }
 
     fun exportProvidersJson() {
@@ -1756,6 +1726,11 @@ fun ImportExportScreen(
         }
     }
 
+    if (showExportReports) {
+        ReportExportScreen(onBack = { showExportReports = false })
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "import_export",
@@ -1846,64 +1821,25 @@ fun ImportExportScreen(
                 expanded = openCard == "ai_reports",
                 onToggle = { toggle("ai_reports") }
             ) {
-                val allReports by produceState(initialValue = emptyList<Report>()) {
-                    value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
-                }
-                var selectedReportId by rememberSaveable { mutableStateOf<String?>(null) }
-                var pickerOpen by remember { mutableStateOf(false) }
-                Column {
-                    // Full-width OutlinedButton acts as a dropdown
-                    // trigger; tapping opens a DropdownMenu listing
-                    // every persisted report by title. Selected
-                    // title shows in the button label.
-                    Box {
+                // Export opens a dedicated full screen where the user
+                // multi-selects reports and picks a destination folder;
+                // Import reads a single per-report zip as before.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!importOnly) {
                         OutlinedButton(
-                            onClick = { pickerOpen = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = AppColors.outlinedButtonColors()
-                        ) {
-                            val selected = allReports.firstOrNull { it.id == selectedReportId }
-                            Text(
-                                text = selected?.title?.ifBlank { "(untitled)" } ?: "Pick a report…",
-                                fontSize = 12.sp, maxLines = 1, softWrap = false
-                            )
-                        }
-                        DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
-                            if (allReports.isEmpty()) {
-                                DropdownMenuItem(
-                                    text = { Text("(no reports on this device)", fontSize = 12.sp) },
-                                    onClick = { pickerOpen = false },
-                                    enabled = false
-                                )
-                            } else {
-                                allReports.forEach { r ->
-                                    DropdownMenuItem(
-                                        text = { Text(r.title.ifBlank { "(untitled)" }, fontSize = 12.sp, maxLines = 1) },
-                                        onClick = { selectedReportId = r.id; pickerOpen = false }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (!importOnly) {
-                            OutlinedButton(
-                                onClick = { selectedReportId?.let { exportAiReport(it) } },
-                                enabled = selectedReportId != null,
-                                modifier = Modifier.weight(1f),
-                                colors = AppColors.outlinedButtonColors()
-                            ) { Text("Export", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                importType = "ai_report"
-                                importFileLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
-                            },
+                            onClick = { showExportReports = true },
                             modifier = Modifier.weight(1f),
                             colors = AppColors.outlinedButtonColors()
-                        ) { Text("Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        ) { Text("Export", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
+                    OutlinedButton(
+                        onClick = {
+                            importType = "ai_report"
+                            importFileLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
 

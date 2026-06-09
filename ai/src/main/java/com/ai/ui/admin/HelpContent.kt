@@ -263,6 +263,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "reset_assets" to listOf("help_privacy"),
     "reset_application" to listOf("help_backup", "help_privacy"),
     "import_export" to listOf("help_backup", "help_privacy"),
+    "report_export" to listOf("help_backup", "help_privacy"),
 
     // ===== Refresh / Update =====
     "refresh" to listOf("help_home_info_providers", "help_home_ai_providers", "help_getting_started"),
