@@ -2,12 +2,15 @@ package com.ai.viewmodel
 
 import android.content.Context
 import com.ai.data.BatchItem
+import com.ai.data.BatchItemStatus
 import com.ai.data.BatchRun
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 
 /**
  * Shared template for the four sibling batch engines whose items are
@@ -53,6 +56,19 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  the in-memory mirror of [markRowInterrupted]. */
     protected abstract fun terminalizeItem(item: ItemState, message: String): ItemState
 
+    /** True when [row] is one of [run]'s items — the per-engine role / run-id
+     *  filter in front of [isStaleRow] (MATCH role for Tournament, CELL role
+     *  for Judges, CELL role + matching run id for TransRank). Default: every
+     *  row of [secondaryKind] (Compare, whose rows are all cells). */
+    protected open fun isItemRow(run: RunState?, row: SecondaryResult): Boolean = true
+
+    /** Recompute + persist the run's AGGREGATE row from the settled items.
+     *  Default no-op for engines without an aggregate row (Compare).
+     *  Implementations must swallow their own exceptions — this is called
+     *  from `finally` / NonCancellable paths where a throw would escape the
+     *  coroutine and crash the app. */
+    protected open fun recomputeAggregate(context: Context, runKey: RunKey) {}
+
     // ===== Promoted flows (byte-identical across the four engines) =====
 
     /** Stamp an "interrupted" error on a row — unless it already reached a
@@ -97,6 +113,31 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
             runJobOf(k)?.cancel()
             _runs.value[k]?.items?.values?.forEach { itemJobOf(it.id)?.cancel() }
             _runs.update { it - k }
+        }
+    }
+
+    /** Run-end finalizer for startRun's `finally`: stamp every leftover stale
+     *  row "Interrupted" (disk + in-memory), clear its [BatchResume] attempt
+     *  counter, and recompute the aggregate from the settled items so an
+     *  interrupted run doesn't leave a stale ranking. NonCancellable — it runs
+     *  while the launching coroutine is being cancelled. */
+    protected suspend fun finalizeLeftoverItems(context: Context, runKey: RunKey) {
+        withContext(NonCancellable) {
+            val reportId = reportIdOf(runKey)
+            val run = _runs.value[runKey]
+            val leftover = SecondaryResultStorage.listForReport(context, reportId, secondaryKind)
+                .filter { isItemRow(run, it) && isStaleRow(it) }
+            BatchResume.finalizeLeftover(leftover) { row ->
+                markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this $itemNoun finished")
+                _runs.value[runKey]?.items?.values?.firstOrNull { it.id == row.id }?.let { item ->
+                    transitionItem(runKey, item.key) {
+                        if (it.status == BatchItemStatus.PENDING || it.status == BatchItemStatus.RUNNING)
+                            terminalizeItem(it, "Interrupted")
+                        else it
+                    }
+                }
+            }
+            recomputeAggregate(context, runKey)
         }
     }
 }

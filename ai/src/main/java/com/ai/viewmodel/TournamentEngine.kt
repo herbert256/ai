@@ -79,6 +79,8 @@ class TournamentEngine internal constructor(
     override fun runKeysForReport(reportId: String) = listOf(reportId)
     override fun terminalizeItem(item: MatchState, message: String) =
         item.copy(status = MatchStatus.ERROR, errorMessage = message, durationMs = 0)
+    override fun isItemRow(run: TournamentRunState?, row: SecondaryResult) =
+        row.tournamentRole == ROLE_MATCH
 
     /** The L1 "Throttled" stat — match ids parked on a provider throttle. */
     val throttledMatches: StateFlow<Set<String>> get() = appViewModel.throttledTournamentMatches
@@ -271,12 +273,12 @@ class TournamentEngine internal constructor(
                     }
 
                     dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
-                    recomputeAndPersistAggregate(context, reportId)
+                    recomputeAggregate(context, reportId)
                     AuditLog.append(reportId, "End Tournament")
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverMatches(context, reportId)
+                finalizeLeftoverItems(context, reportId)
                 if (buildKey != null) {
                     val p = appViewModel.batchBuildProgress.value[buildKey]
                     if (p != null && !p.done) appViewModel.clearBuild(buildKey)
@@ -401,7 +403,8 @@ class TournamentEngine internal constructor(
     // Aggregation
     // -----------------------------------------------------------------
 
-    private fun recomputeAndPersistAggregate(context: Context, reportId: String) {
+    override fun recomputeAggregate(context: Context, runKey: TournamentRunKey) {
+        val reportId = runKey
         val run = _runs.value[reportId] ?: return
         val aggId = run.aggregateRowId ?: return
         val report = ReportStorage.getReport(context, reportId) ?: return
@@ -455,7 +458,7 @@ class TournamentEngine internal constructor(
                     content = ranks.toRerankJson(), tournamentMatrix = decoded.first.encode(method)
                 ))
             } else {
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             }
         }
 
@@ -468,7 +471,7 @@ class TournamentEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val keys = run.matches.values.filter { it.status == MatchStatus.ERROR }.map { it.key }
             rerunMatchesBlocking(context, reportId, keys)
-            recomputeAndPersistAggregate(context, reportId)
+            recomputeAggregate(context, reportId)
         }
 
     /** Broken-work "Continue": stop this run's in-flight matches (keeping the
@@ -485,7 +488,7 @@ class TournamentEngine internal constructor(
                         it.status == MatchStatus.PENDING || it.status == MatchStatus.ERROR
                     }.map { it.key }
                     rerunMatchesBlocking(context, reportId, keys, buildKey)
-                    recomputeAndPersistAggregate(context, reportId)
+                    recomputeAggregate(context, reportId)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 buildKey?.let { appViewModel.clearBuild(it) }
@@ -504,7 +507,7 @@ class TournamentEngine internal constructor(
     fun rerunMatch(context: Context, reportId: String, mKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             rerunMatchesBlocking(context, reportId, listOf(mKey))
-            recomputeAndPersistAggregate(context, reportId)
+            recomputeAggregate(context, reportId)
         }
 
     /** Drop every errored match without re-firing — clears a permanently-dead
@@ -528,7 +531,7 @@ class TournamentEngine internal constructor(
                     val cur = runs[reportId] ?: return@update runs
                     runs + (reportId to cur.copy(matches = remaining))
                 }
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
@@ -554,7 +557,7 @@ class TournamentEngine internal constructor(
                     val cur = runs[reportId] ?: return@update runs
                     runs + (reportId to cur.copy(matches = remaining))
                 }
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
@@ -579,7 +582,7 @@ class TournamentEngine internal constructor(
                     val cur = runs[reportId] ?: return@update runs
                     runs + (reportId to cur.copy(matches = remaining))
                 }
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
@@ -590,7 +593,7 @@ class TournamentEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val keys = run.matches.values.filter { it.id in rowIds }.map { it.key }
             rerunMatchesBlocking(context, reportId, keys)
-            recomputeAndPersistAggregate(context, reportId)
+            recomputeAggregate(context, reportId)
         }
 
     private suspend fun rerunMatchesBlocking(context: Context, reportId: String, mKeys: List<String>, buildKey: String? = null) {
@@ -697,7 +700,7 @@ class TournamentEngine internal constructor(
                         ?.let { SecondaryResultStorage.get(context, reportId, it)?.tournamentMatrix }
                         ?.let { decodeTournamentMatrix(it)?.first?.ids?.size } ?: 0
                     if (participants >= 2 && storedN < participants) {
-                        recomputeAndPersistAggregate(context, reportId)
+                        recomputeAggregate(context, reportId)
                     }
                     return@launch
                 }
@@ -723,7 +726,7 @@ class TournamentEngine internal constructor(
                 withTracerTags(reportId = reportId, category = "after/tournament") {
                     dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
                 }
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -738,24 +741,4 @@ class TournamentEngine internal constructor(
             }
         }
 
-    private suspend fun finalizeLeftoverMatches(context: Context, reportId: String) {
-        withContext(kotlinx.coroutines.NonCancellable) {
-            val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
-                .filter { it.tournamentRole == ROLE_MATCH && isStaleRow(it) }
-            BatchResume.finalizeLeftover(leftover) { row ->
-                markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this match finished")
-                _runs.value[reportId]?.matches?.values?.firstOrNull { it.id == row.id }?.let { m ->
-                    transitionItem(reportId, m.key) {
-                        if (it.status == MatchStatus.PENDING || it.status == MatchStatus.RUNNING)
-                            it.copy(status = MatchStatus.ERROR, errorMessage = "Interrupted", durationMs = 0)
-                        else it
-                    }
-                }
-            }
-            // The AGGREGATE ranking was last computed from the pre-interrupt
-            // match set — recompute it from the settled matches so it doesn't
-            // stay stale (the judge-eval finalize does the same).
-            recomputeAndPersistAggregate(context, reportId)
-        }
-    }
 }

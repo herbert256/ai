@@ -65,6 +65,9 @@ class TranslatorRankEngine internal constructor(
         _runs.value.keys.filter { it.startsWith("$reportId|") }
     override fun terminalizeItem(item: TransRankCellState, message: String) =
         item.copy(status = TransRankCellStatus.ERROR, errorMessage = message, durationMs = 0)
+    override fun isItemRow(run: TransRankRunState?, row: SecondaryResult) =
+        run != null && row.tournamentRole == TRANSRANK_ROLE_CELL &&
+            row.tournamentJudgeRunId == run.runId
 
     // Run/cell coroutines + resume-scan dedup now live in the shared BatchEngine
     // base (registerRunJob / registerItemJob / beginResumeScan / runJobOf /
@@ -306,12 +309,12 @@ class TranslatorRankEngine internal constructor(
                     }
 
                     dispatchCells(context, rk, prompt, pending)
-                    recomputeAndPersistAggregate(context, rk)
+                    recomputeAggregate(context, rk)
                     AuditLog.append(reportId, "End Rank-the-translators ($langName)")
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverCells(context, rk)
+                finalizeLeftoverItems(context, rk)
                 if (buildKey != null) {
                     val p = appViewModel.batchBuildProgress.value[buildKey]
                     if (p != null && !p.done) appViewModel.clearBuild(buildKey)
@@ -424,7 +427,8 @@ class TranslatorRankEngine internal constructor(
         SecondaryResultStorage.save(context, cur.copy(errorMessage = message, durationMs = System.currentTimeMillis() - started))
     }
 
-    private fun recomputeAndPersistAggregate(context: Context, key: TransRankRunKey) {
+    override fun recomputeAggregate(context: Context, runKey: TransRankRunKey) {
+        val key = runKey
         val run = _runs.value[key] ?: return
         val aggId = run.aggregateRowId ?: return
         // The aggregation math + JSON encode must never take the app down —
@@ -553,7 +557,7 @@ class TranslatorRankEngine internal constructor(
                     withTracerTags(reportId = reportId, category = "transrank/rank", runId = run.runId) {
                         dispatchCells(context, key, run.prompt, pending)
                     }
-                    recomputeAndPersistAggregate(context, key)
+                    recomputeAggregate(context, key)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -645,7 +649,7 @@ class TranslatorRankEngine internal constructor(
         withTracerTags(reportId = run.reportId, category = "transrank/rank", runId = run.runId) {
             dispatchCells(context, key, run.prompt, resets)
         }
-        recomputeAndPersistAggregate(context, key)
+        recomputeAggregate(context, key)
     }
 
     /** Broken-work "delete errored": drop every errored cell without re-firing. */
@@ -690,7 +694,7 @@ class TranslatorRankEngine internal constructor(
                 val cur = runs[key] ?: return@update runs
                 runs + (key to cur.copy(cells = remaining))
             }
-            recomputeAndPersistAggregate(context, key)
+            recomputeAggregate(context, key)
         }
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
         ReportStorage.bumpReportTimestamp(context, reportId)
@@ -700,7 +704,7 @@ class TranslatorRankEngine internal constructor(
         // deleteRunDeferred stops the UI FIRST: it drops the run from the flow
         // synchronously (the live screen + the Manage row read _runs, so they
         // stop rendering at once — and the per-cell finally `transitionCell`
-        // calls + finalizeLeftoverCells then no-op, skipping the
+        // calls + finalizeLeftoverItems then no-op, skipping the
         // drive-everything-to-ERROR re-render storm that made delete feel slow)
         // and marks it deleting so hydrate won't re-publish it. The disk sweep
         // runs in the background.
@@ -737,18 +741,4 @@ class TranslatorRankEngine internal constructor(
         }
     }
 
-    private suspend fun finalizeLeftoverCells(context: Context, key: TransRankRunKey) {
-        withContext(kotlinx.coroutines.NonCancellable) {
-            val run = _runs.value[key] ?: return@withContext
-            run.cells.values.filter { it.status == TransRankCellStatus.PENDING || it.status == TransRankCellStatus.RUNNING }
-                .forEach { c ->
-                    val cur = SecondaryResultStorage.get(context, run.reportId, c.id) ?: return@forEach
-                    if (cur.errorMessage == null && cur.content.isNullOrBlank() && cur.durationMs == null && !hasItemJob(c.id)) {
-                        SecondaryResultStorage.save(context, cur.copy(errorMessage = "Interrupted — run stopped before this score finished", durationMs = 0))
-                        transitionItem(key, c.key) { it.copy(status = TransRankCellStatus.ERROR, errorMessage = "Interrupted", durationMs = 0) }
-                    }
-                }
-            recomputeAndPersistAggregate(context, key)
-        }
-    }
 }

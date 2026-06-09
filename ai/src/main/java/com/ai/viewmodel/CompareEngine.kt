@@ -241,7 +241,7 @@ class CompareEngine internal constructor(
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverCells(context, reportId)
+                finalizeLeftoverItems(context, reportId)
                 if (buildKey != null) {
                     val p = appViewModel.batchBuildProgress.value[buildKey]
                     if (p != null && !p.done) appViewModel.clearBuild(buildKey)
@@ -603,20 +603,4 @@ class CompareEngine internal constructor(
             }
         }
 
-    private suspend fun finalizeLeftoverCells(context: Context, reportId: String) {
-        withContext(kotlinx.coroutines.NonCancellable) {
-            val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.COMPARE)
-                .filter { isStaleRow(it) }
-            BatchResume.finalizeLeftover(leftover) { row ->
-                markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this cell finished")
-                _runs.value[reportId]?.cells?.values?.firstOrNull { it.id == row.id }?.let { c ->
-                    transitionItem(reportId, c.key) {
-                        if (it.status == CompareCellStatus.PENDING || it.status == CompareCellStatus.RUNNING)
-                            it.copy(status = CompareCellStatus.ERROR, errorMessage = "Interrupted", durationMs = 0)
-                        else it
-                    }
-                }
-            }
-        }
-    }
 }

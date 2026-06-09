@@ -77,6 +77,8 @@ class JudgeEvalEngine internal constructor(
     override fun runKeysForReport(reportId: String) = listOf(reportId)
     override fun terminalizeItem(item: JudgeCellState, message: String) =
         item.copy(status = JudgeCellStatus.ERROR, errorMessage = message, durationMs = 0)
+    override fun isItemRow(run: JudgeEvalRunState?, row: SecondaryResult) =
+        row.tournamentRole == JUDGE_ROLE_CELL
 
     /** The L1 "Wait" stat — cell ids parked on a provider throttle. */
     val throttledCells: StateFlow<Set<String>> get() = appViewModel.throttledJudgeEvalCells
@@ -295,12 +297,12 @@ class JudgeEvalEngine internal constructor(
                     }
 
                     dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
-                    recomputeAndPersistAggregate(context, reportId)
+                    recomputeAggregate(context, reportId)
                     AuditLog.append(reportId, "End Judge-the-judges")
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverCells(context, reportId)
+                finalizeLeftoverItems(context, reportId)
                 if (buildKey != null) {
                     val p = appViewModel.batchBuildProgress.value[buildKey]
                     if (p != null && !p.done) appViewModel.clearBuild(buildKey)
@@ -449,7 +451,8 @@ class JudgeEvalEngine internal constructor(
     // Aggregation
     // -----------------------------------------------------------------
 
-    private fun recomputeAndPersistAggregate(context: Context, reportId: String) {
+    override fun recomputeAggregate(context: Context, runKey: JudgeEvalRunKey) {
+        val reportId = runKey
         val run = _runs.value[reportId] ?: return
         val aggId = run.aggregateRowId ?: return
         // The aggregation math + JSON encode must never take the app down —
@@ -533,7 +536,7 @@ class JudgeEvalEngine internal constructor(
                 val r = runs[reportId] ?: return@update runs
                 runs + (reportId to r.copy(cells = r.cells.filterValues { it.judgeKey != judgeKey }))
             }
-            recomputeAndPersistAggregate(context, reportId)
+            recomputeAggregate(context, reportId)
             ReportStorage.bumpReportTimestamp(context, reportId)
             AppLog.i("JudgeEval", "Removed judge $judgeKey from run on $reportId (${cells.size} cells)")
         }
@@ -612,7 +615,7 @@ class JudgeEvalEngine internal constructor(
                 withTracerTags(reportId = reportId, category = "after/judges", runId = runId) {
                     dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
                 }
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
@@ -627,7 +630,7 @@ class JudgeEvalEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val keys = run.cells.values.filter { it.status == JudgeCellStatus.ERROR }.map { it.key }
             rerunCellsBlocking(context, reportId, keys)
-            recomputeAndPersistAggregate(context, reportId)
+            recomputeAggregate(context, reportId)
         }
 
     /** Broken-work "Continue": stop this run's in-flight cells (keeping the
@@ -644,7 +647,7 @@ class JudgeEvalEngine internal constructor(
                         it.status == JudgeCellStatus.PENDING || it.status == JudgeCellStatus.ERROR
                     }.map { it.key }
                     rerunCellsBlocking(context, reportId, keys, buildKey)
-                    recomputeAndPersistAggregate(context, reportId)
+                    recomputeAggregate(context, reportId)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 buildKey?.let { appViewModel.clearBuild(it) }
@@ -661,7 +664,7 @@ class JudgeEvalEngine internal constructor(
     fun rerunCell(context: Context, reportId: String, cKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             rerunCellsBlocking(context, reportId, listOf(cKey))
-            recomputeAndPersistAggregate(context, reportId)
+            recomputeAggregate(context, reportId)
         }
 
     /** Drop every errored judge cell without re-firing — clears a
@@ -685,7 +688,7 @@ class JudgeEvalEngine internal constructor(
                     val cur = runs[reportId] ?: return@update runs
                     runs + (reportId to cur.copy(cells = remaining))
                 }
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
@@ -711,7 +714,7 @@ class JudgeEvalEngine internal constructor(
                     val cur = runs[reportId] ?: return@update runs
                     runs + (reportId to cur.copy(cells = remaining))
                 }
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
@@ -736,7 +739,7 @@ class JudgeEvalEngine internal constructor(
                     val cur = runs[reportId] ?: return@update runs
                     runs + (reportId to cur.copy(cells = remaining))
                 }
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
@@ -747,7 +750,7 @@ class JudgeEvalEngine internal constructor(
             val run = _runs.value[reportId] ?: return@launch
             val keys = run.cells.values.filter { it.id in rowIds }.map { it.key }
             rerunCellsBlocking(context, reportId, keys)
-            recomputeAndPersistAggregate(context, reportId)
+            recomputeAggregate(context, reportId)
         }
 
     private suspend fun rerunCellsBlocking(context: Context, reportId: String, cKeys: List<String>, buildKey: String? = null) {
@@ -859,7 +862,7 @@ class JudgeEvalEngine internal constructor(
                 withTracerTags(reportId = reportId, category = "after/judges") {
                     dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
                 }
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -869,21 +872,4 @@ class JudgeEvalEngine internal constructor(
             }
         }
 
-    private suspend fun finalizeLeftoverCells(context: Context, reportId: String) {
-        withContext(kotlinx.coroutines.NonCancellable) {
-            val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.JUDGES)
-                .filter { it.tournamentRole == JUDGE_ROLE_CELL && isStaleRow(it) }
-            BatchResume.finalizeLeftover(leftover) { row ->
-                markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this cell finished")
-                _runs.value[reportId]?.cells?.values?.firstOrNull { it.id == row.id }?.let { c ->
-                    transitionItem(reportId, c.key) {
-                        if (it.status == JudgeCellStatus.PENDING || it.status == JudgeCellStatus.RUNNING)
-                            it.copy(status = JudgeCellStatus.ERROR, errorMessage = "Interrupted", durationMs = 0)
-                        else it
-                    }
-                }
-            }
-            recomputeAndPersistAggregate(context, reportId)
-        }
-    }
 }
