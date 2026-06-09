@@ -43,7 +43,7 @@ response. Re-verification date: 2026-06-09.
 | A01 | Still valid — `AppViewModel` owns ~10 domains | DEFER (carve cheap pieces only) | — |
 | A02 | Still valid — imperative `bootstrap()` | SKIP | — |
 | A03 | Still valid — 4 static `SettingsHolder` reads | DEFER | — |
-| A04 | Still valid — multiple owners, no map | **DO** | pending |
+| A04 | Still valid — multiple owners, no map | **DO** | done (doc/ownership.md) |
 | A05 | Still valid — Settings 3227 / Icon 3096 / ReportVM 2993 / Dashboard 2976 / ReportStorage 2620 | DEFER (opportunistic) | — |
 | A06 | Still valid — `createReport` 20 args, `updateAgentStatus` 20, `SettingsScreen` 44 | **DO** (storage fns only) | pending |
 | A07 | Still valid — `GlobalScope+NonCancellable` in `onCleared` | **DO** | pending |
