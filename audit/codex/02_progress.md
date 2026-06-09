@@ -91,7 +91,7 @@ response. Re-verification date: 2026-06-09.
 | U13 | Partially done — `ModelAdvisory` only | DEFER | — |
 | U14 | Still valid — inline tag parsing in `AppNavHost` | **DO** | done (ExternalAppCommandParser + ExternalReportCommand) |
 | T01 | Partially done — single-kind export tests | DEFER | — |
-| T02 | Still valid — no parser tests | **DO** | pending |
+| T02 | Still valid — no parser tests | **DO** | done (ExternalAppCommandParserTest, 13 cases) |
 | T03 | Partially done — component tests, no nav contracts | DEFER | — |
 | T04 | Still valid — no boundary tests | DEFER | — |
 | T05 | Still valid — no perf tests | SKIP | — |
