@@ -44,7 +44,8 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 │  └── ReportViewModel    — plain class wrapping AppViewModel; report │
 │       │                   + secondary-result generation, language   │
 │       │                   fan-out, translation, Fan-out/Fan-in      │
-│       └── 21 extracted helpers — BatchEngine base + 8 engines:      │
+│       └── 22 extracted helpers — BatchEngine + SecondaryBatch-      │
+│            Engine bases + 8 engines:                                │
 │            Compare, FanOut, JudgeEval, ModelTest, RegenerateBatch,  │
 │            StressTest, Tournament, TranslatorRank; 5 managers:      │
 │            IconGeneration, MetaEdit, SecondaryModelSwitch,          │
@@ -111,15 +112,22 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
   classes — `ProviderConfig`, `Agent`, `Flock`, `Swarm`,
   `SwarmMember`, `Parameters`, `SystemPrompt`, `BlockedModel`, …) and
   `SettingsHolder.kt` (`object SettingsHolder`).
-- **`viewmodel/` — 24 files.** Three top-level VMs — `AppViewModel`,
-  `ChatViewModel`, and `ReportViewModel` — plus 21 extracted helper /
+- **`viewmodel/` — 25 files.** Three top-level VMs — `AppViewModel`,
+  `ChatViewModel`, and `ReportViewModel` — plus 22 extracted helper /
   support files:
-  - an abstract `BatchEngine` base shared by the batch engines;
+  - an abstract `BatchEngine` base (run/item job registries, deferred
+    delete, resume-scan dedup) plus `SecondaryBatchEngine`, the
+    template layer for the four sibling engines whose items are
+    `SecondaryResult` rows — it owns the shared finalize / resume /
+    remove / rerun / continue-broken flows behind small per-engine
+    hooks (`isItemRow`, `canRedispatch`, `redispatchRows`,
+    `recomputeAggregate`, `clearRowForRerun`, …);
   - **8 engines** (`CompareEngine`, `FanOutEngine`, `JudgeEvalEngine`,
     `ModelTestEngine`, `RegenerateBatchEngine`, `StressTestEngine`,
     `TournamentEngine`, `TranslatorRankEngine`); of these `Compare` /
-    `FanOut` / `JudgeEval` / `Tournament` / `TranslatorRank` extend
-    `BatchEngine`;
+    `JudgeEval` / `Tournament` / `TranslatorRank` extend
+    `SecondaryBatchEngine`, while `FanOut` (and
+    `TranslationRunManager`) extend `BatchEngine` directly;
   - **5 managers** (`IconGenerationManager`, `MetaEditManager`,
     `SecondaryModelSwitchManager`, `SecondaryRunManager`,
     `TranslationRunManager`);
