@@ -70,6 +70,31 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  row of [secondaryKind] (Compare, whose rows are all cells). */
     protected open fun isItemRow(run: RunState?, row: SecondaryResult): Boolean = true
 
+    /** [item] reset to a blank PENDING placeholder — the in-memory mirror of
+     *  [clearRowForRerun]. */
+    protected abstract fun resetItemToPending(item: ItemState): ItemState
+
+    /** [row] cleared back to a blank placeholder for a re-judge. The default
+     *  keeps the row's provider/model (the fixed-judge engines, where the
+     *  retry must go to the same judge); the dynamic-host engines override to
+     *  also restore their pre-judge sentinel provider/model/agentName. */
+    protected open fun clearRowForRerun(row: SecondaryResult): SecondaryResult =
+        row.copy(
+            content = null, errorMessage = null,
+            inputCost = null, outputCost = null, tokenUsage = null, durationMs = null,
+            timestamp = System.currentTimeMillis()
+        )
+
+    /** Which items the Broken-work "Continue" re-queues — stranded PENDING +
+     *  errored. Open so a future adopter can exclude e.g. cooldown-benched
+     *  rows (FanOut). */
+    protected open fun isBrokenForContinue(item: ItemState): Boolean =
+        item.status == BatchItemStatus.PENDING || item.status == BatchItemStatus.ERROR
+
+    /** The Broken-work Continue popup's build-stage label, e.g.
+     *  "Re-queuing tournament". */
+    protected abstract val requeueBuildLabel: String
+
     /** Recompute + persist the run's AGGREGATE row from the settled items.
      *  Default no-op for engines without an aggregate row (Compare).
      *  Implementations must swallow their own exceptions — this is called
@@ -207,6 +232,78 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
                     AppLog.w(logTag, "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
                 } finally {
                     endResumeScan(runKey)
+                }
+            }
+        }
+
+    /** Reset the items behind [itemKeys] to blank PENDING placeholders (one
+     *  disk read per item feeds both the cost rollup and the clear, one save
+     *  writes it back), roll the cleared spend into deleted-items, then
+     *  re-dispatch them via [redispatchRows]. The build popup (when
+     *  [buildKey] is set) covers the reset phase and is released before the
+     *  dispatch, which keeps running in the background. */
+    protected suspend fun rerunItemsBlocking(context: Context, runKey: RunKey, itemKeys: List<String>, buildKey: String? = null) {
+        if (itemKeys.isEmpty()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
+        val run = _runs.value[runKey] ?: return
+        // A synthetic (prompt-unavailable) run can't be re-run — checked
+        // BEFORE any row is cleared so it never strands cleared rows.
+        if (!canRedispatch(context, run)) { buildKey?.let { appViewModel.finishBuild(it) }; return }
+        val reportId = reportIdOf(runKey)
+        var clearedCostDelta = 0.0
+        val clearedRows = mutableListOf<SecondaryResult>()
+        // Build stage: resetting each broken item to a PENDING placeholder is
+        // the "Preparing N / M…" phase the Broken-work Continue popup covers.
+        if (buildKey != null) appViewModel.beginBuild(buildKey, itemKeys.size, requeueBuildLabel)
+        for (k in itemKeys) {
+            val item = run.items[k] ?: continue
+            val cur = SecondaryResultStorage.get(context, reportId, item.id) ?: continue
+            clearedCostDelta += cur.fullCost()
+            val cleared = clearRowForRerun(cur)
+            SecondaryResultStorage.save(context, cleared)
+            transitionItem(runKey, k) { resetItemToPending(it) }
+            clearedRows.add(cleared)
+            if (buildKey != null) appViewModel.updateBuild(buildKey, clearedRows.size)
+        }
+        if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
+        // Build phase complete — release the popup so the UI navigates to the
+        // batch screen while the dispatch below keeps running in the background.
+        if (buildKey != null) appViewModel.finishBuild(buildKey)
+        if (clearedRows.isEmpty()) return
+        redispatchRows(context, runKey, clearedRows)
+    }
+
+    /** Rerun the items matching [predicate] — clear → PENDING → re-dispatch —
+     *  then recompute the aggregate from the fresh results. */
+    protected suspend fun restartItemsWhere(context: Context, runKey: RunKey, predicate: (ItemState) -> Boolean) {
+        val run = _runs.value[runKey] ?: return
+        rerunItemsBlocking(context, runKey, run.items.values.filter(predicate).map { it.key })
+        recomputeAggregate(context, runKey)
+    }
+
+    /** Broken-work "Continue": stop this run's in-flight items (keeping the
+     *  run + its finished items), then re-queue every broken item (stranded
+     *  PENDING + errored) in one batch, driving the build-stage popup off
+     *  [buildKey]. Finished items are untouched. */
+    fun continueBrokenBatch(context: Context, runKey: RunKey, buildKey: String?): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                stopInFlightKeepingState(runKey)
+                hydrate(context, reportIdOf(runKey))
+                _runs.value[runKey]?.let { run ->
+                    val keys = run.items.values.filter { isBrokenForContinue(it) }.map { it.key }
+                    rerunItemsBlocking(context, runKey, keys, buildKey)
+                    recomputeAggregate(context, runKey)
+                }
+            } catch (e: CancellationException) {
+                buildKey?.let { appViewModel.clearBuild(it) }
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(logTag, "continue broken batch failed report=${reportIdOf(runKey)}: ${e.javaClass.simpleName}: ${e.message}")
+            } finally {
+                // Release the popup so the overlay still opens when there was
+                // nothing to re-queue (the normal path finishes it before dispatch).
+                buildKey?.let {
+                    if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
                 }
             }
         }

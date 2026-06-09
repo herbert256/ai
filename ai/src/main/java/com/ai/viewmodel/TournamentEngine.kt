@@ -23,7 +23,6 @@ import com.ai.data.TournamentRunState
 import com.ai.data.computeWinMatrix
 import com.ai.data.decodeTournamentMatrix
 import com.ai.data.encode
-import com.ai.data.fullCost
 import com.ai.data.matchKey
 import com.ai.data.parseMatchVerdict
 import com.ai.data.rankFor
@@ -38,10 +37,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asContextElement
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -84,6 +80,24 @@ class TournamentEngine internal constructor(
     override fun aggregateRowIdOf(run: TournamentRunState) = run.aggregateRowId
     override fun canRedispatch(context: Context, run: TournamentRunState) =
         run.tournamentPrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 16
+    override val requeueBuildLabel = "Re-queuing tournament"
+    override fun resetItemToPending(item: MatchState) =
+        item.copy(
+            status = MatchStatus.PENDING, judgeModel = null, content = null, verdict = null,
+            confidence = null, reason = null, errorMessage = null,
+            inputCost = null, outputCost = null, durationMs = null, tokenUsage = null
+        )
+    /** Restore the pre-judge sentinel too — the next judge is unknown until
+     *  the worker chain settles (dynamic-host). */
+    override fun clearRowForRerun(row: SecondaryResult) =
+        row.copy(
+            providerId = TOURNAMENT_PENDING_PROVIDER,
+            model = TOURNAMENT_PENDING_MODEL,
+            agentName = "$TOURNAMENT_PENDING_PROVIDER / $TOURNAMENT_PENDING_MODEL",
+            content = null, errorMessage = null,
+            inputCost = null, outputCost = null, tokenUsage = null, durationMs = null,
+            timestamp = System.currentTimeMillis()
+        )
 
     /** The L1 "Throttled" stat — match ids parked on a provider throttle. */
     val throttledMatches: StateFlow<Set<String>> get() = appViewModel.throttledTournamentMatches
@@ -471,46 +485,12 @@ class TournamentEngine internal constructor(
 
     fun restartFailedMatches(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val keys = run.matches.values.filter { it.status == MatchStatus.ERROR }.map { it.key }
-            rerunMatchesBlocking(context, reportId, keys)
-            recomputeAggregate(context, reportId)
-        }
-
-    /** Broken-work "Continue": stop this run's in-flight matches (keeping the
-     *  run + its finished matches), then re-queue every broken match
-     *  (stranded PENDING + errored) and re-judge in one batch, driving the
-     *  build-stage popup off [buildKey]. Finished matches are untouched. */
-    fun continueBrokenBatch(context: Context, reportId: String, buildKey: String?): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            try {
-                stopInFlightKeepingState(reportId)
-                hydrate(context, reportId)
-                _runs.value[reportId]?.let { run ->
-                    val keys = run.matches.values.filter {
-                        it.status == MatchStatus.PENDING || it.status == MatchStatus.ERROR
-                    }.map { it.key }
-                    rerunMatchesBlocking(context, reportId, keys, buildKey)
-                    recomputeAggregate(context, reportId)
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                buildKey?.let { appViewModel.clearBuild(it) }
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Tournament", "continue broken batch failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-            } finally {
-                // Release the popup so the overlay still opens when there was
-                // nothing to re-queue (the normal path finishes it before dispatch).
-                buildKey?.let {
-                    if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
-                }
-            }
+            restartItemsWhere(context, reportId) { it.status == MatchStatus.ERROR }
         }
 
     fun rerunMatch(context: Context, reportId: String, mKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            rerunMatchesBlocking(context, reportId, listOf(mKey))
-            recomputeAggregate(context, reportId)
+            restartItemsWhere(context, reportId) { it.key == mKey }
         }
 
     /** Drop every errored match without re-firing — clears a permanently-dead
@@ -534,49 +514,8 @@ class TournamentEngine internal constructor(
 
     fun restartMatchesByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val keys = run.matches.values.filter { it.id in rowIds }.map { it.key }
-            rerunMatchesBlocking(context, reportId, keys)
-            recomputeAggregate(context, reportId)
+            restartItemsWhere(context, reportId) { it.id in rowIds }
         }
-
-    private suspend fun rerunMatchesBlocking(context: Context, reportId: String, mKeys: List<String>, buildKey: String? = null) {
-        if (mKeys.isEmpty()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
-        val run = _runs.value[reportId] ?: return
-        val report = ReportStorage.getReport(context, reportId) ?: return
-        val prompt = tournamentPrompt(appViewModel.uiState.value.aiSettings) ?: return
-        val agentsById = report.agents.associateBy { it.agentId }
-        val resets = mutableListOf<PendingMatch>()
-        var clearedCostDelta = 0.0
-        // Build stage: resetting each broken match to a PENDING placeholder is
-        // the "Preparing N / M…" phase the Broken-work Continue popup covers.
-        if (buildKey != null) appViewModel.beginBuild(buildKey, mKeys.size, "Re-queuing tournament")
-        for (k in mKeys) {
-            val m = run.matches[k] ?: continue
-            val a = agentsById[m.responseAId] ?: continue
-            val b = agentsById[m.responseBId] ?: continue
-            SecondaryResultStorage.get(context, reportId, m.id)?.let { clearedCostDelta += it.fullCost() }
-            SecondaryResultStorage.resetTournamentMatch(context, reportId, m.id)
-            val cleared = SecondaryResultStorage.get(context, reportId, m.id) ?: continue
-            transitionItem(reportId, k) {
-                it.copy(
-                    status = MatchStatus.PENDING, judgeModel = null, content = null, verdict = null,
-                    confidence = null, reason = null, errorMessage = null,
-                    inputCost = null, outputCost = null, durationMs = null, tokenUsage = null
-                )
-            }
-            resets.add(PendingMatch(a, b, m.orientation, cleared))
-            if (buildKey != null) appViewModel.updateBuild(buildKey, resets.size)
-        }
-        if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
-        // Build phase complete — release the popup so the UI navigates to the
-        // batch screen while the dispatch below keeps running in the background.
-        if (buildKey != null) appViewModel.finishBuild(buildKey)
-        if (resets.isEmpty()) return
-        withTracerTags(reportId = reportId, category = "after/tournament") {
-            dispatchMatches(context, reportId, prompt, report.prompt, report.title, resets)
-        }
-    }
 
     /** Cancel + delete the whole run (matches + aggregate), rolling the spend
      *  into the report's deleted-items tally. */

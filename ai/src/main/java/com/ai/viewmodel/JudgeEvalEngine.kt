@@ -23,7 +23,6 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.SecondaryScope
 import com.ai.data.analyzeJudges
-import com.ai.data.fullCost
 import com.ai.data.judgeCellKey
 import com.ai.data.matchKey
 import com.ai.data.parseMatchVerdict
@@ -38,9 +37,7 @@ import com.ai.model.Worker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -82,6 +79,15 @@ class JudgeEvalEngine internal constructor(
     override fun aggregateRowIdOf(run: JudgeEvalRunState) = run.aggregateRowId
     override fun canRedispatch(context: Context, run: JudgeEvalRunState) =
         run.prompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 17
+    override val requeueBuildLabel = "Re-queuing judges"
+    // The base clearRowForRerun keeps the row's (providerId, model) — the
+    // re-judge must go to the same judge.
+    override fun resetItemToPending(item: JudgeCellState) =
+        item.copy(
+            status = JudgeCellStatus.PENDING, content = null, verdict = null,
+            confidence = null, reason = null, errorMessage = null,
+            inputCost = null, outputCost = null, durationMs = null, tokenUsage = null
+        )
 
     override suspend fun redispatchRows(context: Context, runKey: JudgeEvalRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
@@ -643,44 +649,12 @@ class JudgeEvalEngine internal constructor(
 
     fun restartFailedCells(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val keys = run.cells.values.filter { it.status == JudgeCellStatus.ERROR }.map { it.key }
-            rerunCellsBlocking(context, reportId, keys)
-            recomputeAggregate(context, reportId)
-        }
-
-    /** Broken-work "Continue": stop this run's in-flight cells (keeping the
-     *  run + its finished cells), then re-queue every broken cell (stranded
-     *  PENDING + errored) and re-judge in one batch, driving the build-stage
-     *  popup off [buildKey]. Finished cells are untouched. */
-    fun continueBrokenBatch(context: Context, reportId: String, buildKey: String?): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            try {
-                stopInFlightKeepingState(reportId)
-                hydrate(context, reportId)
-                _runs.value[reportId]?.let { run ->
-                    val keys = run.cells.values.filter {
-                        it.status == JudgeCellStatus.PENDING || it.status == JudgeCellStatus.ERROR
-                    }.map { it.key }
-                    rerunCellsBlocking(context, reportId, keys, buildKey)
-                    recomputeAggregate(context, reportId)
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                buildKey?.let { appViewModel.clearBuild(it) }
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("JudgeEval", "continue broken batch failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-            } finally {
-                buildKey?.let {
-                    if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
-                }
-            }
+            restartItemsWhere(context, reportId) { it.status == JudgeCellStatus.ERROR }
         }
 
     fun rerunCell(context: Context, reportId: String, cKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            rerunCellsBlocking(context, reportId, listOf(cKey))
-            recomputeAggregate(context, reportId)
+            restartItemsWhere(context, reportId) { it.key == cKey }
         }
 
     /** Drop every errored judge cell without re-firing — clears a
@@ -704,58 +678,8 @@ class JudgeEvalEngine internal constructor(
 
     fun restartCellsByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val keys = run.cells.values.filter { it.id in rowIds }.map { it.key }
-            rerunCellsBlocking(context, reportId, keys)
-            recomputeAggregate(context, reportId)
+            restartItemsWhere(context, reportId) { it.id in rowIds }
         }
-
-    private suspend fun rerunCellsBlocking(context: Context, reportId: String, cKeys: List<String>, buildKey: String? = null) {
-        if (cKeys.isEmpty()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
-        val run = _runs.value[reportId] ?: return
-        val report = ReportStorage.getReport(context, reportId) ?: return
-        val prompt = judgePrompt(appViewModel.uiState.value.aiSettings) ?: return
-        val resets = mutableListOf<PendingCell>()
-        var clearedCostDelta = 0.0
-        // Build stage: resetting each broken cell to a PENDING placeholder is
-        // the "Preparing N / M…" phase the Broken-work Continue popup covers.
-        if (buildKey != null) appViewModel.beginBuild(buildKey, cKeys.size, "Re-queuing judges")
-        for (k in cKeys) {
-            val c = run.cells[k] ?: continue
-            SecondaryResultStorage.get(context, reportId, c.id)?.let { clearedCostDelta += it.fullCost() }
-            val cleared = clearCellRow(context, reportId, c.id) ?: continue
-            transitionItem(reportId, k) {
-                it.copy(
-                    status = JudgeCellStatus.PENDING, content = null, verdict = null,
-                    confidence = null, reason = null, errorMessage = null,
-                    inputCost = null, outputCost = null, durationMs = null, tokenUsage = null
-                )
-            }
-            resets.add(PendingCell(judgeFromRow(cleared), c.responseAId, c.responseBId, c.orientation, cleared))
-            if (buildKey != null) appViewModel.updateBuild(buildKey, resets.size)
-        }
-        if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
-        // Build phase complete — release the popup so the UI navigates to the
-        // batch screen while the dispatch below keeps running in the background.
-        if (buildKey != null) appViewModel.finishBuild(buildKey)
-        if (resets.isEmpty()) return
-        withTracerTags(reportId = reportId, category = "after/judges") {
-            dispatchCells(context, reportId, prompt, report.prompt, report.title, resets)
-        }
-    }
-
-    /** Reset a CELL row back to a blank placeholder, keeping its judge
-     *  (providerId/model) so the re-judge goes to the same judge. */
-    private fun clearCellRow(context: Context, reportId: String, rowId: String): SecondaryResult? {
-        val cur = SecondaryResultStorage.get(context, reportId, rowId) ?: return null
-        val cleared = cur.copy(
-            content = null, errorMessage = null,
-            inputCost = null, outputCost = null, tokenUsage = null, durationMs = null,
-            timestamp = System.currentTimeMillis()
-        )
-        SecondaryResultStorage.save(context, cleared)
-        return cleared
-    }
 
     fun deleteRun(context: Context, reportId: String): Job {
         val run = _runs.value[reportId] ?: return appViewModel.viewModelScope.launch { }

@@ -19,7 +19,6 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.SecondaryScope
 import com.ai.data.compareCellKey
-import com.ai.data.fullCost
 import com.ai.data.parseSimilarityScore
 import com.ai.data.resolveSecondaryPrompt
 import com.ai.data.stripMetaReferenceLegend
@@ -31,10 +30,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asContextElement
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,6 +67,24 @@ class CompareEngine internal constructor(
         item.copy(status = CompareCellStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun canRedispatch(context: Context, run: CompareRunState) =
         run.comparePrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 15
+    override val requeueBuildLabel = "Re-queuing compare"
+    override fun resetItemToPending(item: CompareCellState) =
+        item.copy(
+            status = CompareCellStatus.PENDING, judgeModel = null, content = null, percent = null,
+            reason = null, errorMessage = null,
+            inputCost = null, outputCost = null, durationMs = null, tokenUsage = null
+        )
+    /** Restore the pre-score sentinel too — the next scoring worker is
+     *  unknown until the worker chain settles (dynamic-host). */
+    override fun clearRowForRerun(row: SecondaryResult) =
+        row.copy(
+            providerId = COMPARE_PENDING_PROVIDER,
+            model = COMPARE_PENDING_MODEL,
+            agentName = "$COMPARE_PENDING_PROVIDER / $COMPARE_PENDING_MODEL",
+            content = null, errorMessage = null,
+            inputCost = null, outputCost = null, tokenUsage = null, durationMs = null,
+            timestamp = System.currentTimeMillis()
+        )
 
     override suspend fun redispatchRows(context: Context, runKey: CompareRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
@@ -387,43 +401,12 @@ class CompareEngine internal constructor(
 
     fun restartFailedCells(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val keys = run.cells.values.filter { it.status == CompareCellStatus.ERROR }.map { it.key }
-            rerunCellsBlocking(context, reportId, keys)
-        }
-
-    /** Broken-work "Continue": stop this run's in-flight cells (keeping the
-     *  run + its finished cells), then re-queue every broken cell (stranded
-     *  PENDING + errored) and re-compare in one batch, driving the build-stage
-     *  popup off [buildKey]. Finished cells are untouched. Compare has no
-     *  aggregate row, so (unlike Tournament / Judges) there is nothing to
-     *  recompute. */
-    fun continueBrokenBatch(context: Context, reportId: String, buildKey: String?): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            try {
-                stopInFlightKeepingState(reportId)
-                hydrate(context, reportId)
-                _runs.value[reportId]?.let { run ->
-                    val keys = run.cells.values.filter {
-                        it.status == CompareCellStatus.PENDING || it.status == CompareCellStatus.ERROR
-                    }.map { it.key }
-                    rerunCellsBlocking(context, reportId, keys, buildKey)
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                buildKey?.let { appViewModel.clearBuild(it) }
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Compare", "continue broken batch failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-            } finally {
-                buildKey?.let {
-                    if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
-                }
-            }
+            restartItemsWhere(context, reportId) { it.status == CompareCellStatus.ERROR }
         }
 
     fun rerunCell(context: Context, reportId: String, cKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            rerunCellsBlocking(context, reportId, listOf(cKey))
+            restartItemsWhere(context, reportId) { it.key == cKey }
         }
 
     /** Drop every errored compare cell without re-firing — clears a
@@ -448,48 +431,8 @@ class CompareEngine internal constructor(
 
     fun restartCellsByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val keys = run.cells.values.filter { it.id in rowIds }.map { it.key }
-            rerunCellsBlocking(context, reportId, keys)
+            restartItemsWhere(context, reportId) { it.id in rowIds }
         }
-
-    private suspend fun rerunCellsBlocking(context: Context, reportId: String, cKeys: List<String>, buildKey: String? = null) {
-        if (cKeys.isEmpty()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
-        val run = _runs.value[reportId] ?: return
-        val report = ReportStorage.getReport(context, reportId) ?: return
-        val prompt = run.comparePrompt
-        // A synthetic (prompt-unavailable) run carries blank prompt text and
-        // can't be re-run. See audit bug 15.
-        if (prompt.text.isBlank()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
-        val resets = mutableListOf<PendingCell>()
-        var clearedCostDelta = 0.0
-        // Build stage: resetting each broken cell to a PENDING placeholder is
-        // the "Preparing N / M…" phase the Broken-work Continue popup covers.
-        if (buildKey != null) appViewModel.beginBuild(buildKey, cKeys.size, "Re-queuing compare")
-        for (k in cKeys) {
-            val c = run.cells[k] ?: continue
-            SecondaryResultStorage.get(context, reportId, c.id)?.let { clearedCostDelta += it.fullCost() }
-            SecondaryResultStorage.resetCompareCell(context, reportId, c.id)
-            val cleared = SecondaryResultStorage.get(context, reportId, c.id) ?: continue
-            transitionItem(reportId, k) {
-                it.copy(
-                    status = CompareCellStatus.PENDING, judgeModel = null, content = null, percent = null,
-                    reason = null, errorMessage = null,
-                    inputCost = null, outputCost = null, durationMs = null, tokenUsage = null
-                )
-            }
-            resets.add(PendingCell(c.agentId, c.metaResultId, cleared))
-            if (buildKey != null) appViewModel.updateBuild(buildKey, resets.size)
-        }
-        if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
-        // Build phase complete — release the popup so the UI navigates to the
-        // batch screen while the dispatch below keeps running in the background.
-        if (buildKey != null) appViewModel.finishBuild(buildKey)
-        if (resets.isEmpty()) return
-        withTracerTags(reportId = reportId, category = TRACE_CATEGORY) {
-            dispatchCells(context, reportId, prompt, report.prompt, report.title, resets)
-        }
-    }
 
     /** Cancel + delete the whole run, rolling the spend into the report's
      *  deleted-items tally. */

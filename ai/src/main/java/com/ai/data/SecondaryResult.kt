@@ -1136,62 +1136,6 @@ object SecondaryResultStorage {
         SecondaryDataVersion.bump(reportId, SecondaryKind.COMPARE)
     }
 
-    /** Reset a Compare CELL row back to its pre-judge placeholder shape
-     *  (sentinel provider/model, blank content/cost) so a re-score starts
-     *  clean. No-op when the row is gone. */
-    fun resetCompareCell(context: Context, reportId: String, resultId: String) {
-        init(context)
-        lock.withLock {
-            val dir = resolveReportDirForRead(reportId) ?: return
-            val target = File(dir, "$resultId.json")
-            if (!target.exists()) return
-            val current = readCachedOrDisk(reportId, target) ?: return
-            val updated = current.copy(
-                providerId = COMPARE_PENDING_PROVIDER,
-                model = COMPARE_PENDING_MODEL,
-                agentName = "$COMPARE_PENDING_PROVIDER / $COMPARE_PENDING_MODEL",
-                content = null,
-                errorMessage = null,
-                inputCost = null,
-                outputCost = null,
-                tokenUsage = null,
-                durationMs = null,
-                timestamp = System.currentTimeMillis()
-            )
-            target.writeTextAtomic(gson.toJson(updated))
-            rememberCachedResult(reportId, target, updated)
-        }
-        SecondaryDataVersion.bump(reportId, SecondaryKind.COMPARE)
-    }
-
-    /** Reset a tournament MATCH row back to its pre-judge placeholder shape
-     *  (sentinel provider/model, blank content/cost) so a re-judge starts
-     *  clean. No-op when the row is gone. */
-    fun resetTournamentMatch(context: Context, reportId: String, resultId: String) {
-        init(context)
-        lock.withLock {
-            val dir = resolveReportDirForRead(reportId) ?: return
-            val target = File(dir, "$resultId.json")
-            if (!target.exists()) return
-            val current = readCachedOrDisk(reportId, target) ?: return
-            val updated = current.copy(
-                providerId = TOURNAMENT_PENDING_PROVIDER,
-                model = TOURNAMENT_PENDING_MODEL,
-                agentName = "$TOURNAMENT_PENDING_PROVIDER / $TOURNAMENT_PENDING_MODEL",
-                content = null,
-                errorMessage = null,
-                inputCost = null,
-                outputCost = null,
-                tokenUsage = null,
-                durationMs = null,
-                timestamp = System.currentTimeMillis()
-            )
-            target.writeTextAtomic(gson.toJson(updated))
-            rememberCachedResult(reportId, target, updated)
-        }
-        SecondaryDataVersion.bump(reportId, SecondaryKind.TOURNAMENT)
-    }
-
     fun delete(context: Context, reportId: String, resultId: String) {
         init(context)
         if (!isSafeResultId(resultId)) return
