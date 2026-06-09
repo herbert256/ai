@@ -302,6 +302,22 @@ fun ReportsHubScreen(
     onHousekeeping: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // 📥 import (bottom bar): straight to the system file picker for a report
+    // .zip, then the shared importReportFromUri flow — which posts the spinning
+    // "Loading file X of Y" placeholder on the Latest card and toasts the
+    // result. Same handler the Housekeeping → Export & Import card drives.
+    val importReportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching { com.ai.data.importReportFromUri(context, uri) }.fold(
+                onSuccess = { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() },
+                onFailure = { android.widget.Toast.makeText(context, "Import failed: ${it.message}", android.widget.Toast.LENGTH_LONG).show() }
+            )
+        }
+    }
     // Re-fetch on every ON_RESUME — without this, navigating into a
     // detail screen and popping back left a stale cached list (the
     // composable is preserved across the trip and remember{} would
@@ -373,7 +389,10 @@ fun ReportsHubScreen(
             onBackClick = onNavigateBack,
             onNewReport = onNavigateToNewAiReport,
             onSearchReports = onNavigateToSearchAiReports,
-            onAllReports = onNavigateToAllReports
+            onAllReports = onNavigateToAllReports,
+            onImportReport = {
+                importReportLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
+            }
         )
         // Pinned leads when there are any pinned reports (hidden otherwise);
         // Latest always follows. Examples stays last.

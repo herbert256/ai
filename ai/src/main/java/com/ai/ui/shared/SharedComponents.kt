@@ -1035,10 +1035,12 @@ data class TitleBarIcons(
      *  glyph hidden. */
     val onListNotes: (() -> Unit)? = null,
     /** Reports-hub nav actions surfaced as leading bottom-bar icons — 🆕 New,
-     *  🔍 Search, 🗂️ All — which replaced the former top buttons. Null → hidden. */
+     *  🔍 Search, 🗂️ All, 📥 Import — which replaced the former top buttons.
+     *  Null → hidden. */
     val onNewReport: (() -> Unit)? = null,
     val onSearchReports: (() -> Unit)? = null,
     val onAllReports: (() -> Unit)? = null,
+    val onImportReport: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Screens with a clear
      *  counterpart Housekeeping screen (e.g. AI Setup → Costs ↔
      *  Housekeeping → Costs) publish it to navigate there. Null →
@@ -1394,10 +1396,12 @@ fun TitleBar(
     onClear: (() -> Unit)? = null,
     onAttach: (() -> Unit)? = null,
     onValidatePrompt: (() -> Unit)? = null,
-    /** Reports-hub leading bottom-bar actions (🆕 New / 🔍 Search / 🗂️ All). */
+    /** Reports-hub leading bottom-bar actions (🆕 New / 🔍 Search / 🗂️ All /
+     *  📥 Import). */
     onNewReport: (() -> Unit)? = null,
     onSearchReports: (() -> Unit)? = null,
     onAllReports: (() -> Unit)? = null,
+    onImportReport: (() -> Unit)? = null,
     validatePromptActive: Boolean = false,
     /** ♻️ use-report-models-as-workers toggle (New AI Report + Manage
      *  report). reportModelsActive grays the glyph until activated. */
@@ -1500,6 +1504,7 @@ fun TitleBar(
         onNewReport = onNewReport,
         onSearchReports = onSearchReports,
         onAllReports = onAllReports,
+        onImportReport = onImportReport,
         onParameters = onParameters,
         onSystemPrompt = onSystemPrompt,
         onClear = onClear,
@@ -2046,6 +2051,7 @@ private fun buildBottomBarIcons(
     icons.onNewReport?.let { add(BottomBarIcon(mi.add, Color.Unspecified, it, 28, legendKey = D.ADD)) }
     icons.onSearchReports?.let { add(BottomBarIcon(mi.search, Color.Unspecified, it, 28, legendKey = D.SEARCH)) }
     icons.onAllReports?.let { add(BottomBarIcon(mi.pickReport, Color.Unspecified, it, 28, legendKey = D.PICK_REPORT)) }
+    icons.onImportReport?.let { add(BottomBarIcon(mi.importReport, Color.Unspecified, it, 28, legendKey = D.IMPORT)) }
     // Glyph for the add slot: the screen's per-screen override (e.g. 🔗 Meta on
     // Manage report) when set, else the user's Default-icons 🆕. legendKey =
     // that same glyph so the legend can name it.

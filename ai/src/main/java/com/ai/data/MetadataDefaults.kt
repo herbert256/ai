@@ -67,6 +67,7 @@ object MetadataDefaults {
     const val PIN = "📌"
     const val TOGGLE_LABELS = "🔤"
     const val SHARE = "📤"
+    const val IMPORT = "📥"
     const val DUPLICATE = "👯"
     // Per-item actions.
     const val VIEW = "👁"
@@ -258,6 +259,7 @@ data class MetadataIcons(
     val webSearchReplay: String = MetadataDefaults.WEB_SEARCH_REPLAY,
     // Bottom-bar: navigation jumps.
     val pickReport: String = MetadataDefaults.PICK_REPORT,
+    val importReport: String = MetadataDefaults.IMPORT,
     val openManage: String = MetadataDefaults.OPEN_MANAGE,
     val housekeeping: String = MetadataDefaults.HOUSEKEEPING,
     val settings: String = MetadataDefaults.SETTINGS,
@@ -497,6 +499,7 @@ data class MetadataIcons(
             reasoningSweep = f(reasoningSweep, MetadataDefaults.REASONING_SWEEP),
             webSearchReplay = f(webSearchReplay, MetadataDefaults.WEB_SEARCH_REPLAY),
             pickReport = f(pickReport, MetadataDefaults.PICK_REPORT),
+            importReport = f(importReport, MetadataDefaults.IMPORT),
             openManage = f(openManage, MetadataDefaults.OPEN_MANAGE),
             housekeeping = f(housekeeping, MetadataDefaults.HOUSEKEEPING),
             settings = f(settings, MetadataDefaults.SETTINGS),

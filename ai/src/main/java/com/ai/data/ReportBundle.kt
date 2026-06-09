@@ -1,12 +1,16 @@
 package com.ai.data
 
 import android.content.Context
+import android.net.Uri
+import com.ai.data.preferences.SettingsPreferences
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
@@ -87,6 +91,50 @@ object ReportImportProgress {
     }
 
     fun finish(id: String) = _active.update { list -> list.filterNot { it.id == id } }
+}
+
+/** End-to-end report import from a content [uri]. Brackets the whole
+ *  thing with a [ReportImportProgress] placeholder row (so the spinning
+ *  "Loading file X of Y" row shows on the Reports hub the instant the
+ *  user taps Import, before any slow per-trace / per-secondary write),
+ *  inflates the zip onto a fresh report id, then counts the entities the
+ *  imported report references that aren't configured locally — providers
+ *  and worker (Agent) ids — so the returned toast can warn that a later
+ *  Regenerate / "Run a new …" might silently skip those rows. The import
+ *  id doubles as the new report id (see [readReportZip]). Returns the
+ *  ready-to-toast success message; throws on a malformed bundle (the
+ *  caller toasts the failure). Shared by the Housekeeping Export & Import
+ *  card and the Reports hub's 📥 import icon. */
+suspend fun importReportFromUri(context: Context, uri: Uri): String {
+    val importId = UUID.randomUUID().toString()
+    ReportImportProgress.start(importId, "report")
+    try {
+        return withContext(Dispatchers.IO) {
+            val summary = context.contentResolver.openInputStream(uri)?.use { input ->
+                readReportZip(context, input, importId)
+            } ?: error("Could not open input stream")
+            // Re-read the freshly-imported Report off disk so the missing-
+            // entity counts reflect what's actually persisted.
+            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+            val currentAgentIds = SettingsPreferences(prefs, context.filesDir)
+                .loadSettings().agents.map { it.id }.toSet()
+            val saved = ReportStorage.getReport(context, summary.newReportId)
+            val agents = saved?.agents.orEmpty()
+            val missingProviders = agents.map { it.provider }.distinct()
+                .count { AppService.findById(it) == null }
+            val missingAgents = agents.count { it.agentId !in currentAgentIds }
+            val base = "Imported AI Report \"${summary.title}\" (${summary.secondaryCount} secondaries, ${summary.traceCount} traces)"
+            base + buildString {
+                if (missingProviders > 0) append(" · $missingProviders providers missing")
+                if (missingAgents > 0) append(" · $missingAgents agents missing")
+                if (missingProviders > 0 || missingAgents > 0) {
+                    append(" — Regenerate / new sub-runs against them will be skipped")
+                }
+            }
+        }
+    } finally {
+        ReportImportProgress.finish(importId)
+    }
 }
 
 private const val EXPORT_VERSION = 1

@@ -31,6 +31,12 @@ private val ICON_LOOKUP_ROWS = listOf(
 internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>> = mapOf(
 
     // ===== Report flow (top level) =====
+    "reports_hub" to listOf(
+        Triple("🆕", "New report", "Start a new AI report."),
+        Triple("🔍", "Search reports", "Search across all your reports."),
+        Triple("🗂️", "All reports", "Browse the full list of reports."),
+        Triple("📥", "Import report", "Pick a report .zip and import it as a new report."),
+    ),
     "report_run" to listOf(
         Triple("🔗", "Meta", "Add a meta analysis to this report: a Meta prompt over the answers, or Compare with meta."),
         Triple("🔱", "Fan Out", "Open this report's Fan Out, or start a new one when none exists yet."),
@@ -440,6 +446,7 @@ internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
     "📋" to ("Copy" to "Copy to the clipboard."),
     "📌" to ("Pin" to "Pin to the top of the lists."),
     "📤" to ("Export" to "Export or share."),
+    "📥" to ("Import" to "Import a report from a file."),
     "👯" to ("Duplicate" to "Make a copy."),
     "👁" to ("View" to "Open the View screen."),
     "🌐" to ("Compare" to "Open the translation compare view."),

@@ -255,12 +255,16 @@ internal fun rememberReportRuntimeState(
     }
 
     val finishedSignature = translationRuns.filter { it.isFinished }.map { it.runId }.toSet()
+    // Fan-out runs whose delete is mid-flight — filtered out of the summaries
+    // below so the row disappears the instant the user confirms, before the
+    // (slow) per-pair disk deletes finish.
+    val deletingFanOutRuns = fanOutEngine?.deletingRuns?.collectAsState()?.value ?: emptySet()
     // iconRefreshTick is in the key set so a per-row icon pick
     // (pickMetaRowIcon → setRowIcon writes to disk + bumps the tick)
     // reloads secondaryRuns from disk; without it the in-memory list
     // keeps the old SecondaryResult.icon value and the View tile +
     // Manage row never reflect the user's pick.
-    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick, uiState.iconRefreshTick) {
+    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick, uiState.iconRefreshTick, deletingFanOutRuns) {
         val rid = currentReportId ?: run {
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0)
             secondaryRuns = emptyList()
@@ -301,7 +305,12 @@ internal fun rememberReportRuntimeState(
                 translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }
                 translationRunSummaries = buildTranslationRunSummaries(translateRows)
                 fanOutSummaries = buildFanOutSummaries(
-                    all.filter { it.fanOutSourceAgentId != null }
+                    all.filter { row ->
+                        if (row.fanOutSourceAgentId == null) return@filter false
+                        // Hide runs whose delete is in flight (rows still on disk).
+                        val pid = row.metaPromptId
+                        pid == null || com.ai.data.runKey(rid, pid) !in deletingFanOutRuns
+                    }
                 )
                 secondaryCounts = SecondaryResultStorage.Counts(
                     rerank = all.count { it.kind == SecondaryKind.RERANK },
