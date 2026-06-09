@@ -467,6 +467,19 @@ object ReportStorage {
         return lock.withLock { loadReport(reportId) != null }
     }
 
+    /** Cheap existence guard for write paths that only need to know whether
+     *  the parent report file is still present. Unlike [reportExists], this
+     *  does not parse or normalize the full report JSON; large secondary
+     *  batches call it per row to avoid repeatedly reading the parent report. */
+    fun reportFileExists(context: Context, reportId: String): Boolean {
+        init(context)
+        if (!isSafeFlatId(reportId)) return false
+        val dir = reportsDir ?: return false
+        val target = File(dir, "$reportId.json")
+        if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) return false
+        return target.exists()
+    }
+
     private fun loadReport(reportId: String): Report? {
         // Defence in depth: every internal caller passes UUIDs but
         // deep-link entry points (intent extras, share-target, etc.)

@@ -17,24 +17,40 @@ object SecondaryResultStorage {
     private val lock = ReentrantLock()
     @Volatile private var rootDir: File? = null
 
-    /** Per-file cache of parsed [SecondaryResult] rows. Keyed by
-     *  reportId → filename → (mtime, length, parsed). Each save /
-     *  delete invalidates only the affected filename's entry, so the
-     *  next [listForReport] only re-parses the changed file instead
-     *  of re-parsing the entire report directory. For a 56-pair
-     *  fan-out at steady state, this turns ~56 redundant parses per
-     *  pair completion into 1.
-     *
-     *  All in-app writers invalidate their row before the next read.
-     *  On process start the cache is empty, so a pure mtime/length
-     *  fingerprint is enough for the hot path and avoids re-reading
-     *  every cached file just to compute a CRC during large batches. */
+    /** Per-report cache of parsed [SecondaryResult] rows plus lookup indexes.
+     *  The first read of a report scans its flat secondary directory; in-app
+     *  writes then update the affected row in memory, so later kind-specific
+     *  reads can return from `kind -> filenames` without rescanning every row
+     *  from unrelated batch families. On process start the cache is empty. */
     private data class CachedEntry(
         val mtime: Long,
         val length: Long,
         val parsed: SecondaryResult
     )
-    @Volatile private var listCache: HashMap<String, HashMap<String, CachedEntry>> = HashMap()
+    private class ReportCache(initialCapacity: Int = 16) {
+        val byFilename = HashMap<String, CachedEntry>(initialCapacity)
+        val filenameById = HashMap<String, String>(initialCapacity)
+        val filenamesByKind = HashMap<SecondaryKind, LinkedHashSet<String>>()
+        var loaded: Boolean = false
+        var dirMtime: Long = 0L
+
+        fun put(filename: String, entry: CachedEntry) {
+            remove(filename)
+            byFilename[filename] = entry
+            filenameById[entry.parsed.id] = filename
+            filenamesByKind.getOrPut(entry.parsed.kind) { LinkedHashSet() }.add(filename)
+        }
+
+        fun remove(filename: String) {
+            val old = byFilename.remove(filename) ?: return
+            filenameById.remove(old.parsed.id)
+            filenamesByKind[old.parsed.kind]?.let { names ->
+                names.remove(filename)
+                if (names.isEmpty()) filenamesByKind.remove(old.parsed.kind)
+            }
+        }
+    }
+    @Volatile private var reportCaches: HashMap<String, ReportCache> = HashMap()
 
     fun init(context: Context) {
         if (rootDir == null) lock.withLock {
@@ -88,9 +104,60 @@ object SecondaryResultStorage {
         return dir
     }
 
+    private fun cacheForReport(reportId: String, capacity: Int = 16): ReportCache =
+        reportCaches.getOrPut(reportId) { ReportCache(capacity) }
+
+    private fun rememberCachedResult(reportId: String, file: File, result: SecondaryResult) {
+        val cache = cacheForReport(reportId)
+        cache.put(file.name, CachedEntry(file.lastModified(), file.length(), result))
+        if (cache.loaded) cache.dirMtime = file.parentFile?.lastModified() ?: cache.dirMtime
+    }
+
+    private fun forgetCachedResult(reportId: String, filename: String) {
+        val cache = reportCaches[reportId] ?: return
+        cache.remove(filename)
+    }
+
+    private fun refreshReportCacheFromDisk(dir: File, cache: ReportCache) {
+        val files = dir.listFiles { f -> f.extension == "json" }.orEmpty()
+        val seenFilenames = HashSet<String>(files.size)
+        for (file in files) {
+            val name = file.name
+            seenFilenames.add(name)
+            val mtime = file.lastModified()
+            val length = file.length()
+            val cached = cache.byFilename[name]
+            if (cached != null && cached.mtime == mtime && cached.length == length) {
+                continue
+            }
+            val parsed = try {
+                gson.fromJson(file.readText(), SecondaryResult::class.java)
+            } catch (_: Exception) {
+                null
+            }
+            if (parsed != null) {
+                cache.put(name, CachedEntry(mtime, length, parsed))
+            } else {
+                cache.remove(name)
+            }
+        }
+        cache.byFilename.keys.filter { it !in seenFilenames }.toList().forEach(cache::remove)
+        cache.loaded = true
+        cache.dirMtime = dir.lastModified()
+    }
+
+    private fun rowsFromCache(cache: ReportCache, kind: SecondaryKind?): List<SecondaryResult> {
+        val rows = if (kind == null) {
+            cache.byFilename.values.map { it.parsed }
+        } else {
+            cache.filenamesByKind[kind].orEmpty().mapNotNull { cache.byFilename[it]?.parsed }
+        }
+        return rows.sortedWith(compareBy({ it.timestamp }, { it.id }))
+    }
+
     fun save(context: Context, result: SecondaryResult): SecondaryResult {
         init(context)
-        if (!ReportStorage.reportExists(context, result.reportId)) {
+        if (!ReportStorage.reportFileExists(context, result.reportId)) {
             AppLog.w("SecondaryResultStorage", "Skipping save for deleted report ${result.reportId}")
             return result
         }
@@ -106,7 +173,7 @@ object SecondaryResultStorage {
         }
         var saved = false
         lock.withLock {
-            if (!ReportStorage.reportExists(context, result.reportId)) {
+            if (!ReportStorage.reportFileExists(context, result.reportId)) {
                 AppLog.w("SecondaryResultStorage", "Skipping save for deleted report ${result.reportId}")
                 return result
             }
@@ -120,20 +187,14 @@ object SecondaryResultStorage {
                 AppLog.e("SecondaryResultStorage", "Failed to save result ${result.id}")
                 return result
             }
-            if (!ReportStorage.reportExists(context, result.reportId)) {
+            if (!ReportStorage.reportFileExists(context, result.reportId)) {
                 target.delete()
                 if (dir.listFiles()?.isEmpty() == true) dir.delete()
                 AppLog.w("SecondaryResultStorage", "Removed late save for deleted report ${result.reportId}")
-                listCache[result.reportId]?.remove(target.name)
+                forgetCachedResult(result.reportId, target.name)
                 return result
             }
-            // Invalidate only this file's cache entry — other files in
-            // the report directory stay cached, so the next
-            // listForReport only re-parses what changed. Coarse-mtime
-            // collisions (same-second overwrite, same content length)
-            // can't bite here because the entry is removed BEFORE the
-            // next listForReport re-reads it.
-            listCache[result.reportId]?.remove(target.name)
+            rememberCachedResult(result.reportId, target, result)
             saved = true
         }
         if (saved) SecondaryDataVersion.bump()
@@ -152,12 +213,12 @@ object SecondaryResultStorage {
         }
         if (safeResults.isEmpty()) return emptyList()
         val reportIds = safeResults.map { it.reportId }.distinct()
-        val existingReports = reportIds.filter { ReportStorage.reportExists(context, it) }.toSet()
+        val existingReports = reportIds.filter { ReportStorage.reportFileExists(context, it) }.toSet()
         if (existingReports.isEmpty()) return emptyList()
         var savedAny = false
         val saved = mutableListOf<SecondaryResult>()
         lock.withLock {
-            val liveReports = existingReports.filter { ReportStorage.reportExists(context, it) }.toSet()
+            val liveReports = existingReports.filter { ReportStorage.reportFileExists(context, it) }.toSet()
             for (result in safeResults) {
                 if (result.reportId !in liveReports) continue
                 val dir = reportDir(result.reportId) ?: continue
@@ -170,7 +231,7 @@ object SecondaryResultStorage {
                     AppLog.e("SecondaryResultStorage", "Failed to save result ${result.id}")
                     continue
                 }
-                listCache[result.reportId]?.remove(target.name)
+                rememberCachedResult(result.reportId, target, result)
                 saved += result
                 savedAny = true
             }
@@ -205,42 +266,12 @@ object SecondaryResultStorage {
         return lock.withLock {
             val dir = resolveReportDirForRead(reportId) ?: return@withLock emptyList()
             if (!dir.exists()) return@withLock emptyList()
-            val files = dir.listFiles { f -> f.extension == "json" } ?: return@withLock emptyList()
-            val cacheForReport = listCache.getOrPut(reportId) { HashMap(files.size.coerceAtLeast(16)) }
-            val rows = ArrayList<SecondaryResult>(files.size)
-            val seenFilenames = HashSet<String>(files.size)
-            for (file in files) {
-                val name = file.name
-                seenFilenames.add(name)
-                val mtime = file.lastModified()
-                val length = file.length()
-                val cached = cacheForReport[name]
-                if (cached != null && cached.mtime == mtime && cached.length == length) {
-                    rows.add(cached.parsed)
-                    continue
-                }
-                val parsed = try {
-                    gson.fromJson(file.readText(), SecondaryResult::class.java)
-                } catch (_: Exception) {
-                    null
-                }
-                if (parsed != null) {
-                    cacheForReport[name] = CachedEntry(mtime, length, parsed)
-                    rows.add(parsed)
-                } else {
-                    cacheForReport.remove(name)
-                }
+            val cache = cacheForReport(reportId)
+            val dirMtime = dir.lastModified()
+            if (!cache.loaded || cache.dirMtime != dirMtime) {
+                refreshReportCacheFromDisk(dir, cache)
             }
-            // Drop cache entries for files that have been deleted
-            // since the last call — keeps the cache bounded to the
-            // current on-disk set.
-            cacheForReport.keys.retainAll(seenFilenames)
-            // Tiebreaker on collision — burst-saved rows can share a
-            // millisecond timestamp; sort-by-timestamp alone produced
-            // an unstable order across listFiles calls. Adding the id
-            // as a secondary key gives deterministic ordering.
-            rows.sortWith(compareBy({ it.timestamp }, { it.id }))
-            if (kind != null) rows.filter { it.kind == kind } else rows
+            rowsFromCache(cache, kind)
         }
     }
 
@@ -257,26 +288,32 @@ object SecondaryResultStorage {
         if (!isSafeResultId(resultId)) return null
         return lock.withLock {
             val dir = resolveReportDirForRead(reportId) ?: return@withLock null
-            val file = File(dir, "$resultId.json")
+            val cache = cacheForReport(reportId)
+            val indexedName = cache.filenameById[resultId]
+            var name = indexedName ?: "$resultId.json"
+            var file = File(dir, name)
+            if (!file.exists() && indexedName != null) {
+                cache.remove(indexedName)
+                name = "$resultId.json"
+                file = File(dir, name)
+            }
             if (!file.exists()) return@withLock null
             // Reuse the same fingerprint-validated parse cache listForReport
             // populates, so repeated get() calls on heavy screens don't reparse
             // unchanged JSON. Same in-process invalidation + mtime/length
             // validation as listForReport.
             // See audit data bug 14.
-            val name = file.name
             val mtime = file.lastModified()
             val length = file.length()
-            val cacheForReport = listCache.getOrPut(reportId) { HashMap(16) }
-            val cached = cacheForReport[name]
+            val cached = cache.byFilename[name]
             if (cached != null && cached.mtime == mtime && cached.length == length) {
                 return@withLock cached.parsed
             }
             val parsed = try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
             if (parsed != null) {
-                cacheForReport[name] = CachedEntry(mtime, length, parsed)
+                cache.put(name, CachedEntry(mtime, length, parsed))
             } else {
-                cacheForReport.remove(name)
+                cache.remove(name)
             }
             parsed
         }
@@ -292,13 +329,13 @@ object SecondaryResultStorage {
         mutator: (SecondaryResult) -> SecondaryResult
     ): SecondaryResult? {
         init(context)
-        if (!ReportStorage.reportExists(context, reportId)) return null
+        if (!ReportStorage.reportFileExists(context, reportId)) return null
         if (!isSafeResultId(resultId)) {
             AppLog.e("SecondaryResultStorage", "Refusing to update result with suspect id $resultId")
             return null
         }
         val updated = lock.withLock {
-            if (!ReportStorage.reportExists(context, reportId)) return@withLock null
+            if (!ReportStorage.reportFileExists(context, reportId)) return@withLock null
             val dir = resolveReportDirForRead(reportId) ?: return@withLock null
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return@withLock null
@@ -313,7 +350,7 @@ object SecondaryResultStorage {
             }
             val next = mutator(current)
             target.writeTextAtomic(gson.toJson(next))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, next)
             next
         } ?: return null
         SecondaryDataVersion.bump()
@@ -430,14 +467,14 @@ object SecondaryResultStorage {
      *  [delete] / [deleteAllForReport] can't race in between. */
     fun saveIfStillPresent(context: Context, result: SecondaryResult): Boolean {
         init(context)
-        if (!ReportStorage.reportExists(context, result.reportId)) return false
+        if (!ReportStorage.reportFileExists(context, result.reportId)) return false
         if (result.id.isBlank() || result.id.contains('/') || result.id.contains('\\')
                 || result.id == "." || result.id == "..") {
             AppLog.e("SecondaryResultStorage", "Refusing to save result with suspect id ${result.id}")
             return false
         }
         lock.withLock {
-            if (!ReportStorage.reportExists(context, result.reportId)) return false
+            if (!ReportStorage.reportFileExists(context, result.reportId)) return false
             val dir = resolveReportDirForRead(result.reportId) ?: return false
             val target = File(dir, "${result.id}.json")
             if (!target.exists()) {
@@ -462,7 +499,7 @@ object SecondaryResultStorage {
             // accumulation should write via [save] instead.
             val toWrite = mergeCostFromDisk(target, result)
             target.writeTextAtomic(gson.toJson(toWrite))
-            listCache[result.reportId]?.remove(target.name)
+            rememberCachedResult(result.reportId, target, toWrite)
         }
         SecondaryDataVersion.bump()
         return true
@@ -546,7 +583,7 @@ object SecondaryResultStorage {
                 outputCost = (current.outputCost ?: 0.0) + outputCost
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -575,7 +612,7 @@ object SecondaryResultStorage {
                 iconOutputCost = current.iconOutputCost + outputCost
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -607,7 +644,7 @@ object SecondaryResultStorage {
                 iconPromptUsed = promptUsed ?: current.iconPromptUsed
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -635,7 +672,7 @@ object SecondaryResultStorage {
                 iconPromptUsed = promptUsed ?: current.iconPromptUsed
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -665,7 +702,7 @@ object SecondaryResultStorage {
                 timestamp = System.currentTimeMillis()
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump()
     }
@@ -690,7 +727,7 @@ object SecondaryResultStorage {
                 catch (_: Exception) { return }
             val updated = current.copy(icon = icon)
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -721,7 +758,7 @@ object SecondaryResultStorage {
                 iconRunId = null
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -754,7 +791,7 @@ object SecondaryResultStorage {
                 iconOutputCost = 0.0
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -785,7 +822,7 @@ object SecondaryResultStorage {
                 titleModel = model ?: current.titleModel
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -814,7 +851,7 @@ object SecondaryResultStorage {
                 titleModel = model ?: current.titleModel
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -841,7 +878,7 @@ object SecondaryResultStorage {
                 titleModel = model ?: current.titleModel
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -892,7 +929,7 @@ object SecondaryResultStorage {
                 iconPromptUsed = promptUsed
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump()
     }
@@ -926,7 +963,7 @@ object SecondaryResultStorage {
                     timestamp = System.currentTimeMillis()
                 )
                 target.writeTextAtomic(gson.toJson(updated))
-                listCache[reportId]?.remove(target.name)
+                rememberCachedResult(reportId, target, updated)
                 changed = true
             }
         }
@@ -952,7 +989,7 @@ object SecondaryResultStorage {
             // regenerated Fan Meta title.
             val updated = current.copy(title = null, titleErrorMessage = null, titleRunId = null)
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -984,7 +1021,7 @@ object SecondaryResultStorage {
                 titleModel = null
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -1013,7 +1050,7 @@ object SecondaryResultStorage {
                 timestamp = System.currentTimeMillis()
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
     }
 
@@ -1054,7 +1091,7 @@ object SecondaryResultStorage {
                 traceFile = traceFile ?: current.traceFile
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump()
     }
@@ -1092,7 +1129,7 @@ object SecondaryResultStorage {
                 traceFile = traceFile ?: current.traceFile
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump()
     }
@@ -1121,7 +1158,7 @@ object SecondaryResultStorage {
                 timestamp = System.currentTimeMillis()
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump()
     }
@@ -1150,7 +1187,7 @@ object SecondaryResultStorage {
                 timestamp = System.currentTimeMillis()
             )
             target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
+            rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump()
     }
@@ -1164,7 +1201,7 @@ object SecondaryResultStorage {
             target.delete()
             // Drop only this file's cache entry — the remaining files
             // for the report stay parsed and ready for the next read.
-            listCache[reportId]?.remove(target.name)
+            forgetCachedResult(reportId, target.name)
         }
         SecondaryDataVersion.bump()
     }
@@ -1176,7 +1213,7 @@ object SecondaryResultStorage {
             dir.listFiles()?.forEach { it.delete() }
             dir.delete()
             // Whole report gone — drop the entire per-report bucket.
-            listCache.remove(reportId)
+            reportCaches.remove(reportId)
         }
         SecondaryDataVersion.bump()
     }
