@@ -51,11 +51,20 @@ import kotlinx.coroutines.withContext
  * ranking. Run key is per LANGUAGE: `"$reportId|$sourceTranslationRunId"`.
  */
 class TranslatorRankEngine internal constructor(
-    private val appViewModel: AppViewModel,
+    override val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel
-) : BatchEngine<TransRankRunKey, String, TransRankCellState, TransRankRunState>() {
+) : SecondaryBatchEngine<TransRankRunKey, TransRankCellState, TransRankRunState>() {
     override fun copyWithItems(run: TransRankRunState, items: Map<String, TransRankCellState>) =
         run.copy(cells = items)
+
+    override val secondaryKind = SecondaryKind.TRANSRANK
+    override val logTag = "TransRank"
+    override val itemNoun = "score"
+    override fun reportIdOf(runKey: TransRankRunKey) = runKey.substringBefore("|")
+    override fun runKeysForReport(reportId: String) =
+        _runs.value.keys.filter { it.startsWith("$reportId|") }
+    override fun terminalizeItem(item: TransRankCellState, message: String) =
+        item.copy(status = TransRankCellStatus.ERROR, errorMessage = message, durationMs = 0)
 
     // Run/cell coroutines + resume-scan dedup now live in the shared BatchEngine
     // base (registerRunJob / registerItemJob / beginResumeScan / runJobOf /
@@ -175,9 +184,6 @@ class TranslatorRankEngine internal constructor(
     private data class PendingCell(
         val judge: Judge, val item: ScorableItem, val placeholder: SecondaryResult
     )
-
-    private fun transitionCell(key: TransRankRunKey, cKey: String, update: (TransRankCellState) -> TransRankCellState) =
-        transitionItem(key, cKey, update)
 
     fun runByKey(key: TransRankRunKey): TransRankRunState? = _runs.value[key]
 
@@ -349,7 +355,7 @@ class TranslatorRankEngine internal constructor(
         SecondaryResultStorage.get(context, reportId, item.placeholder.id)?.let { saved ->
             SecondaryResultStorage.save(context, saved.copy(content = null, errorMessage = null, durationMs = null, tokenUsage = null))
         }
-        transitionCell(key, cKey) {
+        transitionItem(key, cKey) {
             it.copy(status = TransRankCellStatus.PENDING, content = null, errorMessage = null, durationMs = null)
         }
     }
@@ -358,7 +364,7 @@ class TranslatorRankEngine internal constructor(
         val reportId = _runs.value[key]?.reportId ?: return
         val cKey = transRankCellKey(item.judge.providerId, item.judge.model, item.item.translationRowId)
         val rowId = item.placeholder.id
-        transitionCell(key, cKey) { it.copy(status = TransRankCellStatus.RUNNING) }
+        transitionItem(key, cKey) { it.copy(status = TransRankCellStatus.RUNNING) }
         val started = System.currentTimeMillis()
         val aiSettings = appViewModel.uiState.value.aiSettings
         val resolved = prompt.text
@@ -406,7 +412,7 @@ class TranslatorRankEngine internal constructor(
             withContext(kotlinx.coroutines.NonCancellable) {
                 val saved = SecondaryResultStorage.get(context, reportId, rowId)
                 if (saved == null) dropItem(key, cKey)
-                else transitionCell(key, cKey) {
+                else transitionItem(key, cKey) {
                     saved.toTransRankCellState() ?: it.copy(status = TransRankCellStatus.ERROR, errorMessage = "Cell row could not be parsed")
                 }
             }
@@ -482,17 +488,6 @@ class TranslatorRankEngine internal constructor(
     // Resume on report open / app restart
     // -----------------------------------------------------------------
 
-    /** Cell row ids whose scoring Job is live in THIS process — the read-only
-     *  broken-work scan's in-flight exclusion (parallel to the other engines).
-     *  Empty after a process kill, which is exactly when leftover PENDING cells
-     *  are genuinely abandoned and safe to re-dispatch. */
-    fun inFlightRowIds(): Set<String> = itemJobIds()
-
-    /** Rank-the-translators runs (any language) alive in this process — covers
-     *  pre-created cells still waiting for a per-cell Job during the build. */
-    fun activeRunKeys(): Set<TransRankRunKey> =
-        activeRunJobKeys()
-
     /** Re-dispatch any rank-the-translators cells a process kill left PENDING.
      *  There is one run per language, so this hydrates then sweeps every run on
      *  the report. Mirrors [JudgeEvalEngine.resumeStaleRunsForReport]; bounded
@@ -523,9 +518,7 @@ class TranslatorRankEngine internal constructor(
                     val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSRANK)
                         .filter {
                             it.tournamentRole == TRANSRANK_ROLE_CELL &&
-                                it.tournamentJudgeRunId == run.runId &&
-                                it.content.isNullOrBlank() && it.errorMessage == null &&
-                                it.durationMs == null && !hasItemJob(it.id)
+                                it.tournamentJudgeRunId == run.runId && isStaleRow(it)
                         }.associateBy { it.id }
                     if (diskById.isEmpty()) continue
                     val staleRows = run.cells.values
@@ -543,7 +536,7 @@ class TranslatorRankEngine internal constructor(
                                 durationMs = 0))
                         }
                         run.cells.values.firstOrNull { it.id == row.id }?.let { c ->
-                            transitionCell(key, c.key) {
+                            transitionItem(key, c.key) {
                                 it.copy(status = TransRankCellStatus.ERROR,
                                     errorMessage = "Interrupted — no result after resume attempts", durationMs = 0)
                             }
@@ -612,14 +605,6 @@ class TranslatorRankEngine internal constructor(
             }
         }
 
-    /** Cancel this run's outer Job + every per-cell coroutine and JOIN them (so
-     *  no in-flight write lands after we re-queue) WITHOUT deleting rows or
-     *  dropping the run — keep-state counterpart used by [continueBrokenBatch]. */
-    private suspend fun stopInFlightKeepingState(key: TransRankRunKey) {
-        runJobOf(key)?.cancelAndJoin()
-        _runs.value[key]?.cells?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-    }
-
     /** Re-judge [victims]: clear each row back to a PENDING placeholder
      *  (recovering its judge's ORIGINAL worker from the run's prompt — parameter
      *  presets / system prompt / flock-swarm refs — so the retry replays the
@@ -646,7 +631,7 @@ class TranslatorRankEngine internal constructor(
                 tokenUsage = null, durationMs = null, timestamp = System.currentTimeMillis()
             ) ?: return@mapNotNull null
             SecondaryResultStorage.save(context, cleared)
-            transitionCell(key, c.key) {
+            transitionItem(key, c.key) {
                 it.copy(status = TransRankCellStatus.PENDING, content = null, score = null, reason = null,
                     errorMessage = null, inputCost = null, outputCost = null, durationMs = null, tokenUsage = null)
             }
@@ -752,14 +737,6 @@ class TranslatorRankEngine internal constructor(
         }
     }
 
-    fun cancelAllForReport(reportId: String) {
-        _runs.value.keys.filter { it.startsWith("$reportId|") }.forEach { k ->
-            runJobOf(k)?.cancel()
-            _runs.value[k]?.cells?.values?.forEach { itemJobOf(it.id)?.cancel() }
-            _runs.update { it - k }
-        }
-    }
-
     private suspend fun finalizeLeftoverCells(context: Context, key: TransRankRunKey) {
         withContext(kotlinx.coroutines.NonCancellable) {
             val run = _runs.value[key] ?: return@withContext
@@ -768,7 +745,7 @@ class TranslatorRankEngine internal constructor(
                     val cur = SecondaryResultStorage.get(context, run.reportId, c.id) ?: return@forEach
                     if (cur.errorMessage == null && cur.content.isNullOrBlank() && cur.durationMs == null && !hasItemJob(c.id)) {
                         SecondaryResultStorage.save(context, cur.copy(errorMessage = "Interrupted — run stopped before this score finished", durationMs = 0))
-                        transitionCell(key, c.key) { it.copy(status = TransRankCellStatus.ERROR, errorMessage = "Interrupted", durationMs = 0) }
+                        transitionItem(key, c.key) { it.copy(status = TransRankCellStatus.ERROR, errorMessage = "Interrupted", durationMs = 0) }
                     }
                 }
             recomputeAndPersistAggregate(context, key)

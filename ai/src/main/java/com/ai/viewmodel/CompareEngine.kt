@@ -56,11 +56,19 @@ import kotlinx.coroutines.withContext
  * UI computes per-agent / per-meta averages from the cells.
  */
 class CompareEngine internal constructor(
-    private val appViewModel: AppViewModel,
+    override val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel
-) : BatchEngine<CompareRunKey, String, CompareCellState, CompareRunState>() {
+) : SecondaryBatchEngine<CompareRunKey, CompareCellState, CompareRunState>() {
     override fun copyWithItems(run: CompareRunState, items: Map<String, CompareCellState>) =
         run.copy(cells = items)
+
+    override val secondaryKind = SecondaryKind.COMPARE
+    override val logTag = "Compare"
+    override val itemNoun = "cell"
+    override fun reportIdOf(runKey: CompareRunKey) = runKey
+    override fun runKeysForReport(reportId: String) = listOf(reportId)
+    override fun terminalizeItem(item: CompareCellState, message: String) =
+        item.copy(status = CompareCellStatus.ERROR, errorMessage = message, durationMs = 0)
 
     /** The L1 "Wait" stat — cell ids parked on a provider throttle. */
     val throttledCells: StateFlow<Set<String>> get() = appViewModel.throttledCompareCells
@@ -130,15 +138,6 @@ class CompareEngine internal constructor(
     }
 
     fun runByKey(key: CompareRunKey): CompareRunState? = _runs.value[key]
-
-    // -----------------------------------------------------------------
-    // State-flow transition helpers
-    // -----------------------------------------------------------------
-
-    private fun transitionCell(reportId: String, cKey: String, update: (CompareCellState) -> CompareCellState) =
-        transitionItem(reportId, cKey, update)
-
-    private fun dropCell(reportId: String, cKey: String) = dropItem(reportId, cKey)
 
     // -----------------------------------------------------------------
     // Run launch
@@ -300,7 +299,7 @@ class CompareEngine internal constructor(
     ) {
         val cKey = compareCellKey(item.agentId, item.metaResultId)
         val rowId = item.placeholder.id
-        transitionCell(reportId, cKey) { it.copy(status = CompareCellStatus.RUNNING) }
+        transitionItem(reportId, cKey) { it.copy(status = CompareCellStatus.RUNNING) }
         val started = System.currentTimeMillis()
         val aiSettings = appViewModel.uiState.value.aiSettings
         val resolvedBase = resolveSecondaryPrompt(prompt.text, question = question, results = "", count = 1, title = title)
@@ -359,8 +358,8 @@ class CompareEngine internal constructor(
             // 3s re-hydrate that used to recover that case has been removed.
             withContext(kotlinx.coroutines.NonCancellable) {
                 val saved = SecondaryResultStorage.get(context, reportId, rowId)
-                if (saved == null) dropCell(reportId, cKey)
-                else transitionCell(reportId, cKey) {
+                if (saved == null) dropItem(reportId, cKey)
+                else transitionItem(reportId, cKey) {
                     saved.toCompareCellState() ?: it.copy(status = CompareCellStatus.ERROR, errorMessage = "Cell row could not be parsed")
                 }
             }
@@ -406,15 +405,6 @@ class CompareEngine internal constructor(
                 }
             }
         }
-
-    /** Cancel this run's outer Job + every per-cell coroutine and JOIN them
-     *  (so no in-flight write lands after we re-queue) WITHOUT deleting rows
-     *  or dropping the run — the keep-state counterpart of [cancelAllForReport],
-     *  used by [continueBrokenBatch]. */
-    private suspend fun stopInFlightKeepingState(reportId: String) {
-        runJobOf(reportId)?.cancelAndJoin()
-        _runs.value[reportId]?.cells?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-    }
 
     fun rerunCell(context: Context, reportId: String, cKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
@@ -519,7 +509,7 @@ class CompareEngine internal constructor(
             SecondaryResultStorage.get(context, reportId, c.id)?.let { clearedCostDelta += it.fullCost() }
             SecondaryResultStorage.resetCompareCell(context, reportId, c.id)
             val cleared = SecondaryResultStorage.get(context, reportId, c.id) ?: continue
-            transitionCell(reportId, k) {
+            transitionItem(reportId, k) {
                 it.copy(
                     status = CompareCellStatus.PENDING, judgeModel = null, content = null, percent = null,
                     reason = null, errorMessage = null,
@@ -554,25 +544,6 @@ class CompareEngine internal constructor(
         }
     }
 
-    /** Best-effort cancel of every in-flight cell for [reportId] (called from
-     *  the synchronous report-delete path). */
-    fun cancelAllForReport(reportId: String) {
-        runJobOf(reportId)?.cancel()
-        _runs.value[reportId]?.cells?.values?.forEach { itemJobOf(it.id)?.cancel() }
-        _runs.update { it - reportId }
-    }
-
-    /** Compare cell row ids whose worker Job is live in THIS process. The
-     *  read-only Broken-work scan must exclude these the same way it excludes
-     *  Fan Out / Tournament / Judges rows; otherwise a legitimate running
-     *  Compare batch is advertised as interrupted. */
-    fun inFlightRowIds(): Set<String> = itemJobIds()
-
-    /** Top-level Compare runs currently alive in this process. Covers rows
-     *  that have been pre-created but have not yet received a per-cell Job. */
-    fun activeRunKeys(): Set<CompareRunKey> =
-        activeRunJobKeys()
-
     // -----------------------------------------------------------------
     // Resume on report open / app restart
     // -----------------------------------------------------------------
@@ -597,10 +568,8 @@ class CompareEngine internal constructor(
                 if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't resume
                 val report = ReportStorage.getReport(context, reportId) ?: return@launch
                 val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.COMPARE)
-                    .filter {
-                        it.content.isNullOrBlank() && it.errorMessage == null &&
-                            it.durationMs == null && !hasItemJob(it.id)
-                    }.associateBy { it.id }
+                    .filter { isStaleRow(it) }
+                    .associateBy { it.id }
                 if (diskById.isEmpty()) return@launch
                 val staleRows = run.cells.values
                     .filter { it.status == CompareCellStatus.PENDING && it.id in diskById }
@@ -609,7 +578,7 @@ class CompareEngine internal constructor(
                 val retryRows = BatchResume.capForRetry(staleRows) { row ->
                     markRowInterrupted(context, reportId, row.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
                     run.cells.values.firstOrNull { it.id == row.id }?.let { c ->
-                        transitionCell(reportId, c.key) {
+                        transitionItem(reportId, c.key) {
                             it.copy(status = CompareCellStatus.ERROR, errorMessage = "Interrupted — no result after resume attempts", durationMs = 0)
                         }
                     }
@@ -637,14 +606,11 @@ class CompareEngine internal constructor(
     private suspend fun finalizeLeftoverCells(context: Context, reportId: String) {
         withContext(kotlinx.coroutines.NonCancellable) {
             val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.COMPARE)
-                .filter {
-                    it.content.isNullOrBlank() && it.errorMessage == null &&
-                        it.durationMs == null && !hasItemJob(it.id)
-                }
+                .filter { isStaleRow(it) }
             BatchResume.finalizeLeftover(leftover) { row ->
                 markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this cell finished")
                 _runs.value[reportId]?.cells?.values?.firstOrNull { it.id == row.id }?.let { c ->
-                    transitionCell(reportId, c.key) {
+                    transitionItem(reportId, c.key) {
                         if (it.status == CompareCellStatus.PENDING || it.status == CompareCellStatus.RUNNING)
                             it.copy(status = CompareCellStatus.ERROR, errorMessage = "Interrupted", durationMs = 0)
                         else it
@@ -652,11 +618,5 @@ class CompareEngine internal constructor(
                 }
             }
         }
-    }
-
-    private fun markRowInterrupted(context: Context, reportId: String, rowId: String, message: String) {
-        val current = SecondaryResultStorage.get(context, reportId, rowId) ?: return
-        if (current.errorMessage != null || !current.content.isNullOrBlank() || current.durationMs != null) return
-        SecondaryResultStorage.save(context, current.copy(errorMessage = message, durationMs = 0))
     }
 }

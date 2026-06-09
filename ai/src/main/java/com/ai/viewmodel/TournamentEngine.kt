@@ -66,11 +66,19 @@ import kotlinx.coroutines.withContext
  * and app-kill resume.
  */
 class TournamentEngine internal constructor(
-    private val appViewModel: AppViewModel,
+    override val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel
-) : BatchEngine<TournamentRunKey, String, MatchState, TournamentRunState>() {
+) : SecondaryBatchEngine<TournamentRunKey, MatchState, TournamentRunState>() {
     override fun copyWithItems(run: TournamentRunState, items: Map<String, MatchState>) =
         run.copy(matches = items)
+
+    override val secondaryKind = SecondaryKind.TOURNAMENT
+    override val logTag = "Tournament"
+    override val itemNoun = "match"
+    override fun reportIdOf(runKey: TournamentRunKey) = runKey
+    override fun runKeysForReport(reportId: String) = listOf(reportId)
+    override fun terminalizeItem(item: MatchState, message: String) =
+        item.copy(status = MatchStatus.ERROR, errorMessage = message, durationMs = 0)
 
     /** The L1 "Throttled" stat — match ids parked on a provider throttle. */
     val throttledMatches: StateFlow<Set<String>> get() = appViewModel.throttledTournamentMatches
@@ -148,15 +156,6 @@ class TournamentEngine internal constructor(
     }
 
     fun runByKey(key: TournamentRunKey): TournamentRunState? = _runs.value[key]
-
-    // -----------------------------------------------------------------
-    // State-flow transition helpers
-    // -----------------------------------------------------------------
-
-    private fun transitionMatch(reportId: String, mKey: String, update: (MatchState) -> MatchState) =
-        transitionItem(reportId, mKey, update)
-
-    private fun dropMatch(reportId: String, mKey: String) = dropItem(reportId, mKey)
 
     // -----------------------------------------------------------------
     // Run launch
@@ -326,7 +325,7 @@ class TournamentEngine internal constructor(
     ) {
         val mKey = matchKey(item.aAgent.agentId, item.bAgent.agentId, item.orientation)
         val rowId = item.placeholder.id
-        transitionMatch(reportId, mKey) { it.copy(status = MatchStatus.RUNNING) }
+        transitionItem(reportId, mKey) { it.copy(status = MatchStatus.RUNNING) }
         val started = System.currentTimeMillis()
         val aiSettings = appViewModel.uiState.value.aiSettings
         val resolvedBase = resolveSecondaryPrompt(prompt.text, question = question, results = "", count = 2, title = title)
@@ -390,8 +389,8 @@ class TournamentEngine internal constructor(
             // 3s re-hydrate that used to recover that case has been removed.
             withContext(kotlinx.coroutines.NonCancellable) {
                 val saved = SecondaryResultStorage.get(context, reportId, rowId)
-                if (saved == null) dropMatch(reportId, mKey)
-                else transitionMatch(reportId, mKey) {
+                if (saved == null) dropItem(reportId, mKey)
+                else transitionItem(reportId, mKey) {
                     saved.toMatchState() ?: it.copy(status = MatchStatus.ERROR, errorMessage = "Match row could not be parsed")
                 }
             }
@@ -501,15 +500,6 @@ class TournamentEngine internal constructor(
                 }
             }
         }
-
-    /** Cancel this run's outer Job + every per-match coroutine and JOIN them
-     *  (so no in-flight write lands after we re-queue) WITHOUT deleting rows
-     *  or dropping the run — the keep-state counterpart of [cancelAllForReport],
-     *  used by [continueBrokenBatch]. */
-    private suspend fun stopInFlightKeepingState(reportId: String) {
-        runJobOf(reportId)?.cancelAndJoin()
-        _runs.value[reportId]?.matches?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-    }
 
     fun rerunMatch(context: Context, reportId: String, mKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
@@ -621,7 +611,7 @@ class TournamentEngine internal constructor(
             SecondaryResultStorage.get(context, reportId, m.id)?.let { clearedCostDelta += it.fullCost() }
             SecondaryResultStorage.resetTournamentMatch(context, reportId, m.id)
             val cleared = SecondaryResultStorage.get(context, reportId, m.id) ?: continue
-            transitionMatch(reportId, k) {
+            transitionItem(reportId, k) {
                 it.copy(
                     status = MatchStatus.PENDING, judgeModel = null, content = null, verdict = null,
                     confidence = null, reason = null, errorMessage = null,
@@ -665,27 +655,9 @@ class TournamentEngine internal constructor(
             startRun(context, reportId)
         }
 
-    /** Best-effort cancel of every in-flight match for [reportId] (called
-     *  from the synchronous report-delete path). */
-    fun cancelAllForReport(reportId: String) {
-        runJobOf(reportId)?.cancel()
-        _runs.value[reportId]?.matches?.values?.forEach { itemJobOf(it.id)?.cancel() }
-        _runs.update { it - reportId }
-    }
-
     // -----------------------------------------------------------------
     // Resume on report open / regenerate
     // -----------------------------------------------------------------
-
-    /** Match row ids whose worker Job is live in THIS process — the
-     *  read-only broken-work scan's in-flight exclusion (parallel to
-     *  [FanOutEngine.inFlightRowIds]). Empty after a process kill. */
-    fun inFlightRowIds(): Set<String> = itemJobIds()
-
-    /** Top-level Tournament runs currently alive in this process. Covers
-     *  pre-created match rows that are still waiting for a per-match Job. */
-    fun activeRunKeys(): Set<TournamentRunKey> =
-        activeRunJobKeys()
 
     /** Re-dispatch every stale match (blank placeholder on disk, no live Job)
      *  — the app-kill recovery + RegeneratePhase.TOURNAMENT path. Bounded by
@@ -712,10 +684,8 @@ class TournamentEngine internal constructor(
                 val report = ReportStorage.getReport(context, reportId) ?: return@launch
                 val agentsById = report.agents.associateBy { it.agentId }
                 val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
-                    .filter {
-                        it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
-                            it.errorMessage == null && it.durationMs == null && !hasItemJob(it.id)
-                    }.associateBy { it.id }
+                    .filter { it.tournamentRole == ROLE_MATCH && isStaleRow(it) }
+                    .associateBy { it.id }
                 if (diskById.isEmpty()) {
                     // No stale matches left, but the aggregate matrix may be
                     // truncated (an old recompute ran during a partial-SUCCESS
@@ -738,7 +708,7 @@ class TournamentEngine internal constructor(
                 val retryRows = BatchResume.capForRetry(staleRows) { row ->
                     markRowInterrupted(context, reportId, row.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
                     run.matches.values.firstOrNull { it.id == row.id }?.let { m ->
-                        transitionMatch(reportId, m.key) {
+                        transitionItem(reportId, m.key) {
                             it.copy(status = MatchStatus.ERROR, errorMessage = "Interrupted — no result after resume attempts", durationMs = 0)
                         }
                     }
@@ -771,14 +741,11 @@ class TournamentEngine internal constructor(
     private suspend fun finalizeLeftoverMatches(context: Context, reportId: String) {
         withContext(kotlinx.coroutines.NonCancellable) {
             val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
-                .filter {
-                    it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
-                        it.errorMessage == null && it.durationMs == null && !hasItemJob(it.id)
-                }
+                .filter { it.tournamentRole == ROLE_MATCH && isStaleRow(it) }
             BatchResume.finalizeLeftover(leftover) { row ->
                 markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this match finished")
                 _runs.value[reportId]?.matches?.values?.firstOrNull { it.id == row.id }?.let { m ->
-                    transitionMatch(reportId, m.key) {
+                    transitionItem(reportId, m.key) {
                         if (it.status == MatchStatus.PENDING || it.status == MatchStatus.RUNNING)
                             it.copy(status = MatchStatus.ERROR, errorMessage = "Interrupted", durationMs = 0)
                         else it
@@ -790,11 +757,5 @@ class TournamentEngine internal constructor(
             // stay stale (the judge-eval finalize does the same).
             recomputeAndPersistAggregate(context, reportId)
         }
-    }
-
-    private fun markRowInterrupted(context: Context, reportId: String, rowId: String, message: String) {
-        val current = SecondaryResultStorage.get(context, reportId, rowId) ?: return
-        if (current.errorMessage != null || !current.content.isNullOrBlank() || current.durationMs != null) return
-        SecondaryResultStorage.save(context, current.copy(errorMessage = message, durationMs = 0))
     }
 }
