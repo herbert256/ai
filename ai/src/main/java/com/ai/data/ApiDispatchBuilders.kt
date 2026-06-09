@@ -206,21 +206,11 @@ internal fun ChatMessage.toClaudeMessage(): ClaudeMessage {
  *  [com.ai.model.Settings.isReasoningCapable] — the badge concept; xAI
  *  ships always-on reasoning models that reason but reject the
  *  `reasoning_effort` parameter, and dispatch must skip the parameter
- *  there even though the badge stays on. Delegates to
- *  [com.ai.model.Settings.acceptsReasoningEffortParam] when a Settings
- *  reference is published in [com.ai.model.SettingsHolder]; falls back
- *  to a catalog-only chain (with the same xAI gate inlined) when no
- *  Settings reference is available (early startup, unit tests). */
-internal fun isReasoningCapableForDispatch(service: AppService, model: String): Boolean {
-    com.ai.model.SettingsHolder.current?.let { return it.acceptsReasoningEffortParam(service, model) }
-    val capable = PricingCache.liteLLMSupportsReasoning(service, model)
-        ?: PricingCache.modelsDevSupportsReasoning(service, model)
-        ?: ModelType.inferReasoning(service, model)
-    if (!capable) return false
-    if (ModelType.externalReasoningSignalUntrusted(service))
-        return ModelType.inferAcceptsReasoningEffortParam(service, model)
-    return true
-}
+ *  there even though the badge stays on. The resolution chain (Settings
+ *  reference if published, else catalog-only fallback with the xAI gate)
+ *  and the deciding layer now live in [ModelCapabilityResolver]. */
+internal fun isReasoningCapableForDispatch(service: AppService, model: String): Boolean =
+    ModelCapabilityResolver.acceptsReasoningEffortParam(service, model)
 
 /** True when [model] requires the adaptive-thinking request shape
  *  (`thinking.type:"adaptive"` + `output_config.effort`) per the

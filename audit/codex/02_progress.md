@@ -70,7 +70,7 @@ response. Re-verification date: 2026-06-09.
 | D10 | Still valid — usage stats static under `SettingsPreferences` | DEFER (re-estimated LARGE) | deferred — see re-estimate note below |
 | D11 | Still valid — no migration registry | SKIP (conflicts with no-backcompat rule) | — |
 | P01 | Still valid — params passed separately | DEFER | — |
-| P02 | Still valid — capability checks scattered + `SettingsHolder` fallback | **DO** | pending |
+| P02 | Still valid — capability checks scattered + `SettingsHolder` fallback | **DO** | done (ModelCapabilityResolver: value + source; dispatch delegates) |
 | P03 | Partially done — snapshots exist, strings remain | DEFER | — |
 | P04 | Still valid — `Thread.sleep` in `PermitHold.yieldFor` | SKIP (audit's own low priority) | — |
 | P05 | Still valid — no `ModelBackend` | SKIP | — |
