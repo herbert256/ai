@@ -338,7 +338,7 @@ internal fun TranslationRunScreen(
         )
     }
     if (confirmDelete) {
-        val pendingCount = run.items.count {
+        val pendingCount = run.items.values.count {
             it.status == TranslationStatus.PENDING || it.status == TranslationStatus.RUNNING
         }
         val pendingNote = if (pendingCount > 0)

@@ -30,7 +30,7 @@ val TranslationKind.isTitle: Boolean
  *  used so the per-language overlay can re-attach the translated
  *  content to the right meta result. */
 data class TranslationItem(
-    val id: String,
+    override val id: String,
     val label: String,
     val kind: TranslationKind,
     val sourceText: String,
@@ -42,7 +42,7 @@ data class TranslationItem(
      *  wraps the call in `withTraceCategory(traceType)` and the usage ledger
      *  posts under this kind. Default is the generic fallback. */
     val traceType: String = "translate/translate",
-    val status: TranslationStatus = TranslationStatus.PENDING,
+    override val status: TranslationStatus = TranslationStatus.PENDING,
     val translatedText: String? = null,
     val errorMessage: String? = null,
     val costDollars: Double = 0.0,
@@ -73,15 +73,19 @@ data class TranslationItem(
      *  straight to the translation's trace. Null until the call
      *  returns; stays null when tracing is disabled. */
     val traceFile: String? = null
-)
+) : com.ai.data.BatchItem<String> {
+    /** Map key == the logical id (unique within a run). */
+    override val key: String get() = id
+    /** BatchItem cost spine — backed by [costDollars]. */
+    override val totalCost: Double get() = costDollars
+}
 
 data class TranslationRunState(
     val runId: String,
     val sourceReportId: String,
     val targetLanguageName: String,
     val targetLanguageNative: String,
-    val items: List<TranslationItem>,
-    val totalCostDollars: Double = 0.0,
+    override val items: Map<String, TranslationItem>,
     val finished: Boolean = false,
     val cancelled: Boolean = false,
     /** The run's intended (provider, model) set — strings in the
@@ -92,9 +96,13 @@ data class TranslationRunState(
      *  expensive models invisible for the first few seconds.
      *  Populated at every TranslationRunState construction site. */
     val models: List<String> = emptyList()
-) {
-    val total: Int get() = items.size
-    val completed: Int get() = items.count { it.status == TranslationStatus.DONE || it.status == TranslationStatus.ERROR }
+) : com.ai.data.BatchRun<String, TranslationItem> {
+    override val reportId: String get() = sourceReportId
+    /** Σ per-item cost — backed by the inherited [totalCost]. Kept under the
+     *  old name so the cost-table consumers don't churn. */
+    val totalCostDollars: Double get() = totalCost
+    // `total` is inherited from BatchRun (== items.size).
+    val completed: Int get() = doneCount + errorCount
     val isRunning: Boolean get() = !finished && !cancelled && completed < total
     val isFinished: Boolean get() = finished
 }

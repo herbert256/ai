@@ -84,7 +84,7 @@ internal fun TranslationL1Screen(
     onBack: () -> Unit
 ) {
     val subject = run.targetLanguageName
-    val items = run.items
+    val items = run.items.values
     val total = items.size
     // Worker-pool batch (category B): no Bench bucket. Failed worker-pool
     // items stay normal failed rows and can be removed or restarted.
@@ -222,7 +222,7 @@ internal fun TranslationWorkersScreen(
     onBack: () -> Unit
 ) {
     val subject = run.targetLanguageName
-    val items = run.items
+    val items = run.items.values
     val total = items.size
     // Worker-pool batch (category B): no Bench bucket — same lens as L1.
     val summary = deriveBatchSummary(

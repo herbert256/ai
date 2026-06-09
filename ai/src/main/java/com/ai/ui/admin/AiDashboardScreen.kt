@@ -2231,8 +2231,8 @@ private fun ActiveRunsBody(appViewModel: AppViewModel, reportViewModel: ReportVi
         translationRuns.values.forEach { r ->
             if (!r.cancelled && !r.finished && r.completed < r.total) add(
                 DashRun("🌐", "→ ${r.targetLanguageName}", r.completed, r.total,
-                    r.items.count { it.status == com.ai.viewmodel.TranslationStatus.RUNNING },
-                    r.items.count { it.status == com.ai.viewmodel.TranslationStatus.PENDING })
+                    r.items.values.count { it.status == com.ai.viewmodel.TranslationStatus.RUNNING },
+                    r.items.values.count { it.status == com.ai.viewmodel.TranslationStatus.PENDING })
             )
         }
         fanOutRuns.values.forEach { r ->

@@ -813,7 +813,7 @@ fun ReportsScreenNav(
         translationRuns = reportViewModel.translation.translationRuns.collectAsState().value.values
             .filter { it.sourceReportId == uiState.currentReportId }
             .toList(),
-        deletingTranslationRunIds = reportViewModel.translation.deletingTranslationRuns.collectAsState().value,
+        deletingTranslationRunIds = reportViewModel.translation.deletingRuns.collectAsState().value,
         throttledTranslationItems = throttledTranslationItems,
         onStartTranslation = { sourceId, langName, langNative, buildKey, overrideWorkers ->
             // Returns the new run's id so Manage can land on the Translation

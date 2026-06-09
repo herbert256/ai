@@ -80,24 +80,35 @@ private const val DEFAULT_TRANSLATE_TITLE_TEMPLATE =
 class TranslationRunManager(
     private val appViewModel: AppViewModel,
     private val rvm: ReportViewModel
-) {
+) : BatchEngine<String, String, TranslationItem, TranslationRunState>() {
     // ===== Translate =====
 
+    override fun copyWithItems(
+        run: TranslationRunState,
+        items: Map<String, TranslationItem>
+    ): TranslationRunState = run.copy(items = items)
 
-    // Multiple concurrent translation runs: each Translate click
-    // allocates a fresh runId and runs in parallel with any others
-    // already in flight. Map keyed by runId so the UI can render one
-    // live row per run and Cancel can target a specific one.
-    private val _translationRuns = MutableStateFlow<Map<String, TranslationRunState>>(emptyMap())
-    val translationRuns: StateFlow<Map<String, TranslationRunState>> = _translationRuns.asStateFlow()
-    internal val translationJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    // Multiple concurrent translation runs: each Translate click allocates a
+    // fresh runId and runs in parallel with any others already in flight. The
+    // runId-keyed run map (`runs`/`_runs`), the per-run / per-item Job
+    // registries, and the deleting-run set all live in the BatchEngine base.
 
-    /** Runs whose delete has started but whose (slow) per-row disk deletes are
-     *  still finishing in the background. The Second-results list filters these
-     *  out of the persisted-run summaries so the row vanishes the moment the
-     *  user confirms. */
-    private val _deletingTranslationRuns = MutableStateFlow<Set<String>>(emptySet())
-    val deletingTranslationRuns: StateFlow<Set<String>> = _deletingTranslationRuns.asStateFlow()
+    /** Alias of the base [runs] flow under the historical name so the UI /
+     *  view-model consumers keep using `translation.translationRuns`. */
+    val translationRuns: StateFlow<Map<String, TranslationRunState>> get() = runs
+
+    /** True while [runId]'s run job is still alive in this process. */
+    fun hasActiveRunJob(runId: String): Boolean = runJobOf(runId)?.isActive == true
+
+    /** Mutate the item whose DISK row id is [rowId] (vs its logical map key) —
+     *  the resume terminalize only has the persisted row id in hand. */
+    private fun transitionItemByRowId(runId: String, rowId: String, update: (TranslationItem) -> TranslationItem) {
+        _runs.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            val t = cur.items.values.firstOrNull { it.persistedRowId == rowId } ?: return@update runs
+            runs + (runId to copyWithItems(cur, cur.items + (t.key to update(t))))
+        }
+    }
 
     /** The "workers"-category translate prompt — body uses
      *  `translate-text` (`@TEXT@`), the four title kinds use
@@ -142,7 +153,7 @@ class TranslationRunManager(
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
-                _translationRuns.update { it - runId }
+                _runs.update { it - runId }
                 if (buildKey != null) appViewModel.clearBuild(buildKey)  // dismiss the build popup (no run to open)
                 return@launch
             }
@@ -284,12 +295,12 @@ class TranslationRunManager(
                 }
             }
             if (buildKey != null) appViewModel.finishBuild(buildKey)
-            _translationRuns.update { it + (runId to TranslationRunState(
+            _runs.update { it + (runId to TranslationRunState(
                 runId = runId,
                 sourceReportId = sourceReportId,
                 targetLanguageName = targetLanguageName,
                 targetLanguageNative = targetLanguageNative,
-                items = itemsWithIds
+                items = itemsWithIds.associateBy { i -> i.id }
             )) }
             AuditLog.append(sourceReportId, "Start Translation to $targetLanguageName ($targetLanguageNative) — ${itemsWithIds.size} item(s) via worker swarm")
 
@@ -313,7 +324,7 @@ class TranslationRunManager(
                 itemsWithIds.forEach {
                     finalizeTranslationError(context, runId, it, "translate worker prompt missing — add it under AI Setup → Prompt management → Worker prompts")
                 }
-                _translationRuns.update { runs ->
+                _runs.update { runs ->
                     val cur = runs[runId] ?: return@update runs
                     runs + (runId to cur.copy(finished = true))
                 }
@@ -332,6 +343,10 @@ class TranslationRunManager(
                     hostOf = { null },
                     subCap = ApiCallCaps.translation,
                     dynamicHost = true,
+                    // Hook each item's coroutine into the base per-item Job
+                    // registry (keyed by the disk row id) so cancel / delete /
+                    // the resume `!hasItemJob` guard see exactly what's live.
+                    register = { item, d -> item.persistedRowId?.let { registerItemJob(it, d) } },
                 ) { item ->
                     // Skip if the report / placeholder row was deleted mid-run.
                     if (!SecondaryResultStorage.exists(context, sourceReportId, item.persistedRowId ?: "")) {
@@ -350,23 +365,22 @@ class TranslationRunManager(
                 // survives a redeploy / OS kill mid-run. Just bump the
                 // parent report's timestamp once at the end so History
                 // resorts. Skipped on cancel.
-                val finalState = _translationRuns.value[runId] ?: return@withTracerTags
+                val finalState = _runs.value[runId] ?: return@withTracerTags
                 if (finalState.cancelled) {
                     AppLog.i("Translation", "← cancelled $targetLanguageName for report=$sourceReportId")
                     return@withTracerTags
                 }
                 ReportStorage.bumpReportTimestamp(context, sourceReportId)
-                _translationRuns.update { runs ->
+                _runs.update { runs ->
                     val cur = runs[runId] ?: return@update runs
                     runs + (runId to cur.copy(finished = true))
                 }
-                val okCount = finalState.items.count { it.translatedText?.isNotBlank() == true }
-                val failCount = finalState.items.count { it.errorMessage != null }
+                val okCount = finalState.items.values.count { it.translatedText?.isNotBlank() == true }
+                val failCount = finalState.items.values.count { it.errorMessage != null }
                 AuditLog.append(sourceReportId, "End Translation to $targetLanguageName — ok=$okCount fail=$failCount")
             }
         }
-        translationJobs[runId] = job
-        job.invokeOnCompletion { translationJobs.remove(runId) }
+        registerRunJob(runId, job)
         return runId to job
     }
 
@@ -392,19 +406,11 @@ class TranslationRunManager(
         item: TranslationItem,
         message: String
     ) {
-        _translationRuns.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            runs + (runId to cur.copy(items = cur.items.map {
-                if (it.id == item.id) it.copy(
-                    status = TranslationStatus.ERROR,
-                    errorMessage = message,
-                    providerId = null,
-                    model = null
-                ) else it
-            }))
+        transitionItem(runId, item.id) {
+            it.copy(status = TranslationStatus.ERROR, errorMessage = message, providerId = null, model = null)
         }
-        val freshRun = _translationRuns.value[runId]
-        val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
+        val freshRun = _runs.value[runId]
+        val freshItem = freshRun?.items?.get(item.id)
         if (freshRun != null && freshItem != null) {
             saveOneTranslationItem(context, runId, freshRun, freshItem, null, "", null)
         }
@@ -433,13 +439,8 @@ class TranslationRunManager(
             return TranslationOutcome.Failed("translate prompt '${prompt.name}' has no workers configured")
 
         // RUNNING; provider/model stay null until a worker wins it.
-        _translationRuns.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            runs + (runId to cur.copy(items = cur.items.map {
-                if (it.id == item.id) it.copy(
-                    status = TranslationStatus.RUNNING, providerId = null, model = null
-                ) else it
-            }))
+        transitionItem(runId, item.id) {
+            it.copy(status = TranslationStatus.RUNNING, providerId = null, model = null)
         }
         // Demote RUNNING → PENDING on cancellation so the item isn't
         // stranded in the in-memory state; a resume/reload re-picks it.
@@ -489,27 +490,22 @@ class TranslationRunManager(
             val pricing = if (model.isNotBlank()) PricingCache.getPricing(context, provider, model) else null
             val costDollars = if (tu != null && pricing != null) PricingCache.computeCost(tu, pricing) else 0.0
 
-            _translationRuns.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                val updated = cur.items.map {
-                    if (it.id != item.id) it
-                    else it.copy(
-                        status = TranslationStatus.DONE,
-                        translatedText = outcome.response.analysis,
-                        costDollars = costDollars,
-                        tokenUsage = tu,
-                        durationMs = callDurationMs,
-                        providerId = provider.id,
-                        model = model,
-                        traceFile = traceSink.get()
-                    )
-                }
-                runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
+            transitionItem(runId, item.id) {
+                it.copy(
+                    status = TranslationStatus.DONE,
+                    translatedText = outcome.response.analysis,
+                    costDollars = costDollars,
+                    tokenUsage = tu,
+                    durationMs = callDurationMs,
+                    providerId = provider.id,
+                    model = model,
+                    traceFile = traceSink.get()
+                )
             }
             // Persist as soon as the call settles so a process kill mid-batch
             // keeps the rows that did complete.
-            val freshRun = _translationRuns.value[runId]
-            val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
+            val freshRun = _runs.value[runId]
+            val freshItem = freshRun?.items?.get(item.id)
             if (freshRun != null && freshItem != null) {
                 saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
             }
@@ -526,13 +522,10 @@ class TranslationRunManager(
             )
             return TranslationOutcome.Success(costDollars)
         } catch (t: Throwable) {
-            _translationRuns.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                runs + (runId to cur.copy(items = cur.items.map {
-                    if (it.id == item.id && it.status == TranslationStatus.RUNNING) it.copy(
-                        status = TranslationStatus.PENDING, providerId = null, model = null
-                    ) else it
-                }))
+            transitionItem(runId, item.id) {
+                if (it.status == TranslationStatus.RUNNING)
+                    it.copy(status = TranslationStatus.PENDING, providerId = null, model = null)
+                else it
             }
             throw t
         }
@@ -745,21 +738,16 @@ class TranslationRunManager(
                 }
             }
             // Update the live run (if any) so an in-flight L3 reflects it.
-            _translationRuns.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                val updated = cur.items.map {
-                    if (it.id != itemId) it
-                    else it.copy(
-                        status = TranslationStatus.DONE,
-                        translatedText = candidate.text,
-                        providerId = candidate.provider.id,
-                        model = candidate.model,
-                        costDollars = candidate.cost,
-                        tokenUsage = tu,
-                        errorMessage = null
-                    )
-                }
-                runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
+            transitionItem(runId, itemId) {
+                it.copy(
+                    status = TranslationStatus.DONE,
+                    translatedText = candidate.text,
+                    providerId = candidate.provider.id,
+                    model = candidate.model,
+                    costDollars = candidate.cost,
+                    tokenUsage = tu,
+                    errorMessage = null
+                )
             }
             appViewModel.clearAltTranslationFanOut(itemId)
             ReportStorage.bumpReportTimestamp(context, reportId)
@@ -767,8 +755,8 @@ class TranslationRunManager(
     }
 
     fun cancelTranslation(runId: String) {
-        translationJobs[runId]?.cancel()
-        _translationRuns.update { runs ->
+        cancelRun(runId)   // cancels the run job; its item-async children cascade
+        _runs.update { runs ->
             val cur = runs[runId] ?: return@update runs
             runs + (runId to cur.copy(cancelled = true))
         }
@@ -779,7 +767,7 @@ class TranslationRunManager(
      *  translation can't write a secondary row — and resurrect the
      *  just-deleted report's storage dir — after the report is gone. */
     fun cancelAllForReport(reportId: String) {
-        _translationRuns.value
+        _runs.value
             .filterValues { it.sourceReportId == reportId && !it.isFinished && !it.cancelled }
             .keys
             .toList()
@@ -792,7 +780,7 @@ class TranslationRunManager(
      *
      *  Why it exists: certain failure modes (an `addCrossTranslationItems`
      *  / `startMissingTranslations` coroutine cancelled mid-dispatch)
-     *  leave `_translationRuns[runId]` with `finished = false`,
+     *  leave `_runs[runId]` with `finished = false`,
      *  `completed == total` in its items list, but on-disk rows that
      *  never got their `saveOneTranslationItem` update — so the
      *  manage screen's animated hourglass keeps spinning over a row
@@ -813,7 +801,7 @@ class TranslationRunManager(
         sourceReportId: String,
         runId: String
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
-        if (translationJobs[runId]?.isActive == true) {
+        if (runJobOf(runId)?.isActive == true) {
             AppLog.d("Translation", "reconcile skipped — runId=$runId has active dispatch job")
             return@launch
         }
@@ -826,7 +814,7 @@ class TranslationRunManager(
         if (translateRows.isEmpty()) {
             // No rows on disk for this runId — the run is gone. Drop
             // the stale in-memory entry so the hourglass stops.
-            _translationRuns.update { it - runId }
+            _runs.update { it - runId }
             return@launch
         }
         val hasPlaceholders = translateRows.any {
@@ -840,7 +828,7 @@ class TranslationRunManager(
             // then flips finished=true at the end so the hourglass
             // clears once the placeholders settle.
             AppLog.i("Translation", "reconcile runId=$runId — placeholders present, re-dispatching via startMissingTranslations")
-            _translationRuns.update { it - runId }
+            _runs.update { it - runId }
             startMissingTranslations(context, sourceReportId, runId)
         } else {
             // No placeholders on disk — nothing to dispatch. Just
@@ -848,54 +836,42 @@ class TranslationRunManager(
             // clears immediately.
             val rebuilt = buildPersistedTranslationRunState(context, sourceReportId, runId)
                 ?: return@launch
-            _translationRuns.update { it + (runId to rebuilt) }
+            _runs.update { it + (runId to rebuilt) }
         }
     }
 
     fun consumeTranslationRun(runId: String) {
-        _translationRuns.update { it - runId }
+        _runs.update { it - runId }
     }
 
-    /** Delete a whole translation run. Cancels the in-flight job and
-     *  **joins** it before touching disk — `cancel()` alone is
-     *  fire-and-forget, so the old per-row delete raced the runner:
-     *  in-flight per-item coroutines wrote fresh rows *after* the
-     *  delete pass, leaving zombie rows behind and the run's summary
-     *  row still on the report page. Joining first guarantees the
-     *  runner is fully dead; then we list the run's TRANSLATE rows
-     *  from disk (catching any that landed during the cancel) and
-     *  delete every one. Returns the Job so the caller can await it
-     *  behind a "Deleting…" popup before navigating back. */
+    /** Delete a whole translation run. Routed through the shared
+     *  [deleteRunDeferred]: the cheap part (mark the run deleting, cancel the
+     *  run + per-item jobs, drop the in-memory run) runs synchronously so the
+     *  UI can leave at once; the per-row disk sweep runs in the background after
+     *  the cancelled coroutines are joined (so no late `saveOneTranslationItem`
+     *  resurrects a deleted row). The Second-results list hides the row via the
+     *  base [deletingRuns] set. */
     fun deleteTranslationRun(context: Context, sourceReportId: String, runId: String): Job {
-        // ── Immediate (synchronous) ──
-        cancelTranslation(runId)                          // stop the batch + flag the live run
-        val job = translationJobs[runId]
-        _deletingTranslationRuns.update { it + runId }    // hide the persisted-run row
-        _translationRuns.update { it - runId }            // drop the live run + empty the L1 screen
-        // ── Background (slow) ──
-        return appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
-            try {
-                // Join the cancelled job first so no late write resurrects a row.
-                job?.cancelAndJoin()
-                val rows = SecondaryResultStorage
-                    .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-                    .filter { translationRunGroupingId(it) == runId }
-                var costDelta = 0.0
-                rows.forEach {
-                    costDelta += (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0)
-                    SecondaryResultStorage.delete(context, sourceReportId, it.id)
-                }
-                ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, rows.map { it.id }.toSet())
-                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
-                ReportStorage.bumpReportTimestamp(context, sourceReportId)
-            } finally {
-                _deletingTranslationRuns.update { it - runId }
+        val runJob = runJobOf(runId)
+        val itemJobs = _runs.value[runId]?.items?.values
+            ?.mapNotNull { it.persistedRowId?.let(::itemJobOf) } ?: emptyList()
+        return deleteRunDeferred(appViewModel.viewModelScope, runId, runJob, itemJobs) {
+            val rows = SecondaryResultStorage
+                .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+                .filter { translationRunGroupingId(it) == runId }
+            var costDelta = 0.0
+            rows.forEach {
+                costDelta += (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0)
+                SecondaryResultStorage.delete(context, sourceReportId, it.id)
             }
+            ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, rows.map { it.id }.toSet())
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, sourceReportId)
         }
     }
 
     /** Drop one pending/running item from an in-flight translation
-     *  run. Removes the item from [_translationRuns] so its row
+     *  run. Removes the item from [_runs] so its row
      *  disappears on the detail screen; the [saveOneTranslationItem]
      *  guard inside [runOneTranslation] will then skip the disk
      *  write for any call that lands after this point (the guard
@@ -903,15 +879,7 @@ class TranslationRunManager(
      *  in-flight call itself is allowed to finish — there's no
      *  per-item Job to cancel — but its result is discarded. */
     fun cancelTranslationItem(runId: String, itemId: String) {
-        _translationRuns.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            val filtered = cur.items.filter { it.id != itemId }
-            if (filtered.size == cur.items.size) return@update runs
-            runs + (runId to cur.copy(
-                items = filtered,
-                totalCostDollars = filtered.sumOf { it.costDollars }
-            ))
-        }
+        dropItem(runId, itemId)
     }
 
     /** Re-run every errored translation row in [runId]: deletes the
@@ -960,20 +928,15 @@ class TranslationRunManager(
         // Also drop the items from any live state so the detail
         // screen's row count updates immediately instead of waiting
         // for the next list refresh.
-        _translationRuns.update { runs ->
+        val failedTargetKeys = failed
+            .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
+            .toSet()
+        _runs.update { runs ->
             val cur = runs[runId] ?: return@update runs
-            val failedTargetKeys = failed
-                .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
-                .toSet()
-            val filtered = cur.items.filterNot { item ->
-                val srcKind = translateSrcKindOf(item.kind)
-                val srcId = translateSrcTargetIdOf(item)
-                item.status == TranslationStatus.ERROR && "$srcKind:$srcId" in failedTargetKeys
-            }
-            runs + (runId to cur.copy(
-                items = filtered,
-                totalCostDollars = filtered.sumOf { it.costDollars }
-            ))
+            runs + (runId to copyWithItems(cur, cur.items.filterValues { item ->
+                !(item.status == TranslationStatus.ERROR &&
+                    "${translateSrcKindOf(item.kind)}:${translateSrcTargetIdOf(item)}" in failedTargetKeys)
+            }))
         }
         ReportStorage.bumpReportTimestamp(context, sourceReportId)
     }
@@ -998,20 +961,15 @@ class TranslationRunManager(
         stranded.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
         ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, stranded.map { it.id }.toSet())
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
-        _translationRuns.update { runs ->
+        val strandedKeys = stranded
+            .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
+            .toSet()
+        _runs.update { runs ->
             val cur = runs[runId] ?: return@update runs
-            val strandedKeys = stranded
-                .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
-                .toSet()
-            val filtered = cur.items.filterNot { item ->
-                val srcKind = translateSrcKindOf(item.kind)
-                val srcId = translateSrcTargetIdOf(item)
-                item.status == TranslationStatus.PENDING && "$srcKind:$srcId" in strandedKeys
-            }
-            runs + (runId to cur.copy(
-                items = filtered,
-                totalCostDollars = filtered.sumOf { it.costDollars }
-            ))
+            runs + (runId to copyWithItems(cur, cur.items.filterValues { item ->
+                !(item.status == TranslationStatus.PENDING &&
+                    "${translateSrcKindOf(item.kind)}:${translateSrcTargetIdOf(item)}" in strandedKeys)
+            }))
         }
         ReportStorage.bumpReportTimestamp(context, sourceReportId)
     }
@@ -1049,17 +1007,11 @@ class TranslationRunManager(
         ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, rows.map { it.id }.toSet())
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
         val rowKeys = rows.map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }.toSet()
-        _translationRuns.update { runs ->
+        _runs.update { runs ->
             val cur = runs[runId] ?: return@update runs
-            val filtered = cur.items.filterNot { item ->
-                val srcKind = translateSrcKindOf(item.kind)
-                val srcId = translateSrcTargetIdOf(item)
-                "$srcKind:$srcId" in rowKeys
-            }
-            runs + (runId to cur.copy(
-                items = filtered,
-                totalCostDollars = filtered.sumOf { it.costDollars }
-            ))
+            runs + (runId to copyWithItems(cur, cur.items.filterValues { item ->
+                "${translateSrcKindOf(item.kind)}:${translateSrcTargetIdOf(item)}" !in rowKeys
+            }))
         }
         ReportStorage.bumpReportTimestamp(context, sourceReportId)
     }
@@ -1079,9 +1031,9 @@ class TranslationRunManager(
         // dispatched coroutines don't keep writing fresh rows under
         // the about-to-be-restarted runId. Cancellation is co-operative;
         // in-flight API calls finish but the post-call writes are
-        // gated by translationJobs[runId] cancellation.
+        // gated by the run/item Job cancellation (BatchEngine cancelRun).
         cancelTranslation(runId)
-        _translationRuns.update { it - runId }
+        _runs.update { it - runId }
 
         val existing = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
@@ -1133,7 +1085,7 @@ class TranslationRunManager(
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
         try {
             cancelTranslation(runId)
-            _translationRuns.update { it - runId }
+            _runs.update { it - runId }
             val rows = SecondaryResultStorage
                 .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
                 .filter { translationRunGroupingId(it) == runId }
@@ -1177,21 +1129,28 @@ class TranslationRunManager(
         sourceReportId: String,
         runId: String
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+        // Dedupe the 30s background sweep racing a screen-reopen relaunch
+        // (replaces the old activeTranslationRunIds snapshot guard).
+        if (!beginResumeScan(runId)) return@launch
+        try {
         val existing = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId }
         // Only placeholders need re-dispatch — completed (has content)
         // and errored (errorMessage non-null) rows are terminal. The
         // ERROR rows are addressed separately by
-        // restartFailedTranslations when the user opts in.
+        // restartFailedTranslations when the user opts in. Skip rows whose
+        // worker is still live in THIS process (hasItemJob) so a sweep that
+        // fires while a run is in flight doesn't double-dispatch them.
         val placeholders = existing.filter {
-            it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null
+            it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null &&
+                !hasItemJob(it.id)
         }
         if (placeholders.isEmpty()) {
             // Nothing to dispatch but the in-memory state may still
             // be flagged in-flight from an earlier partial pass.
             // Flip finished=true so the manage hourglass clears.
-            _translationRuns.update { runs ->
+            _runs.update { runs ->
                 val cur = runs[runId] ?: return@update runs
                 if (cur.finished) return@update runs
                 runs + (runId to cur.copy(finished = true))
@@ -1208,17 +1167,12 @@ class TranslationRunManager(
         val retryRows = BatchResume.capForRetry(placeholders) { row ->
             val msg = "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts"
             SecondaryResultStorage.saveIfStillPresent(context, row.copy(errorMessage = msg, durationMs = 0L))
-            _translationRuns.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                runs + (runId to cur.copy(items = cur.items.map {
-                    if (it.persistedRowId == row.id)
-                        it.copy(status = TranslationStatus.ERROR, errorMessage = msg)
-                    else it
-                }))
+            transitionItemByRowId(runId, row.id) {
+                it.copy(status = TranslationStatus.ERROR, errorMessage = msg)
             }
         }
         if (retryRows.isEmpty()) {
-            _translationRuns.update { runs ->
+            _runs.update { runs ->
                 val cur = runs[runId] ?: return@update runs
                 if (cur.finished) return@update runs
                 runs + (runId to cur.copy(finished = true))
@@ -1233,11 +1187,12 @@ class TranslationRunManager(
         // item has settled (DONE or ERROR). Flip finished=true so
         // the manage hourglass clears and the next reconcile
         // doesn't re-fire us pointlessly.
-        _translationRuns.update { runs ->
+        _runs.update { runs ->
             val cur = runs[runId] ?: return@update runs
             if (cur.finished) return@update runs
             runs + (runId to cur.copy(finished = true))
         }
+        } finally { endResumeScan(runId) }
     }
 
     /** Rebuild [TranslationItem]s from the persisted TRANSLATE rows of
@@ -1358,8 +1313,7 @@ class TranslationRunManager(
             sourceReportId = reportId,
             targetLanguageName = anchor.targetLanguage ?: "",
             targetLanguageNative = anchor.targetLanguageNative ?: anchor.targetLanguage ?: "",
-            items = items,
-            totalCostDollars = items.sumOf { it.costDollars },
+            items = items.associateBy { it.id },
             finished = true,
             cancelled = false,
             // Distinct (providerId, model) tuples from the disk rows
@@ -1377,7 +1331,7 @@ class TranslationRunManager(
      *  pick up provider / model / language, deletes any rows in
      *  [deleteRowIds] (used by the restart path so failed rows
      *  don't double up), builds [TranslationItem]s for each
-     *  (target, kind) pair, populates [_translationRuns] under
+     *  (target, kind) pair, populates [_runs] under
      *  [runId], and dispatches via [runOneTranslation]. */
     private suspend fun runTranslationSubset(
         context: Context,
@@ -1561,13 +1515,13 @@ class TranslationRunManager(
         // every entry — the done + the about-to-retry — not just the
         // ones currently being re-dispatched.
         val deleteSet = deleteRowIds.toSet()
-        val persistedItems: List<TranslationItem> = if (_translationRuns.value[runId] == null) {
+        val persistedItems: List<TranslationItem> = if (_runs.value[runId] == null) {
             reconstructTranslationItemsFromDisk(translateRows, report, secondaries, deleteSet)
         } else emptyList()
 
-        // Merge our items into _translationRuns under this runId so
+        // Merge our items into _runs under this runId so
         // runOneTranslation can read the active TranslationRunState.
-        _translationRuns.update { runs ->
+        _runs.update { runs ->
             val cur = runs[runId]
             // Dedupe by persistedRowId — if cur.items already has an
             // entry for the same disk row (typical after the reconcile
@@ -1578,22 +1532,21 @@ class TranslationRunManager(
             // (`finished = false`) because the append is new work.
             val merged = if (cur != null) {
                 val newIds = items.mapNotNull { it.persistedRowId }.toSet()
-                val keptOld = cur.items.filter { it.persistedRowId !in newIds }
-                cur.copy(items = keptOld + items, finished = false)
+                val keptOld = cur.items.filterValues { it.persistedRowId !in newIds }
+                cur.copy(items = keptOld + items.associateBy { it.id }, finished = false)
             } else TranslationRunState(
                 runId = runId,
                 sourceReportId = sourceReportId,
                 targetLanguageName = targetLanguageName,
                 targetLanguageNative = targetLanguageNative,
-                items = persistedItems + items,
-                totalCostDollars = persistedItems.sumOf { it.costDollars }
+                items = (persistedItems + items).associateBy { it.id }
             )
             runs + (runId to merged)
         }
 
         if (textPrompt == null && titlePrompt == null) {
             items.forEach { finalizeTranslationError(context, runId, it, "translate worker prompt missing — add it under AI Setup → Prompt management → Worker prompts") }
-            _translationRuns.update { runs ->
+            _runs.update { runs ->
                 val cur = runs[runId] ?: return@update runs
                 runs + (runId to cur.copy(finished = true))
             }
@@ -1612,6 +1565,7 @@ class TranslationRunManager(
                     hostOf = { null },
                     subCap = ApiCallCaps.translation,
                     dynamicHost = true,
+                    register = { item, d -> item.persistedRowId?.let { registerItemJob(it, d) } },
                 ) { item ->
                     val outcome = kotlinx.coroutines.withTimeoutOrNull(180_000) {
                         runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
@@ -1697,9 +1651,9 @@ class TranslationRunManager(
         // the live ⏳ row again. Rebuild from disk if the run was
         // already evicted from memory (consumeTranslationRun after the
         // original run completed).
-        val current = _translationRuns.value[runId]
+        val current = _runs.value[runId]
         if (current != null) {
-            _translationRuns.update { runs ->
+            _runs.update { runs ->
                 val c = runs[runId] ?: return@update runs
                 runs + (runId to c.copy(finished = false))
             }
@@ -1708,12 +1662,12 @@ class TranslationRunManager(
                 AppLog.w("Meta-xlate", "Could not rebuild persisted state for run $runId — aborting cross-translate")
                 return
             }
-            _translationRuns.update { it + (runId to rebuilt.copy(finished = false)) }
+            _runs.update { it + (runId to rebuilt.copy(finished = false)) }
         }
 
         // runTranslationSubset reads the placeholders (rowByKindTarget
         // lookup), builds the TranslationItems from the seed metas in
-        // `secondaries`, merges them into _translationRuns, and
+        // `secondaries`, merges them into _runs, and
         // dispatches. It awaits all items before returning.
         runTranslationSubset(
             context = context,
@@ -1725,7 +1679,7 @@ class TranslationRunManager(
 
         // All cross-translate items have settled — close the run again
         // so the manage row reverts from live ⏳ to summary.
-        _translationRuns.update { runs ->
+        _runs.update { runs ->
             val cur = runs[runId] ?: return@update runs
             runs + (runId to cur.copy(finished = true))
         }
@@ -1790,11 +1744,11 @@ class TranslationRunManager(
             // new items dispatch. Rebuild from disk if the run was
             // evicted from memory after the original finished. For
             // a brand-new (bootstrapped) run we let
-            // runTranslationSubset seed _translationRuns on first
+            // runTranslationSubset seed _runs on first
             // touch — no pre-flip needed.
             if (existingRunId != null) {
-                if (_translationRuns.value[runId] != null) {
-                    _translationRuns.update { runs ->
+                if (_runs.value[runId] != null) {
+                    _runs.update { runs ->
                         val c = runs[runId] ?: return@update runs
                         runs + (runId to c.copy(finished = false))
                     }
@@ -1803,7 +1757,7 @@ class TranslationRunManager(
                         AppLog.w("Translate-missing", "Could not rebuild persisted state for run $runId — aborting")
                         return@launch
                     }
-                    _translationRuns.update { it + (runId to rebuilt.copy(finished = false)) }
+                    _runs.update { it + (runId to rebuilt.copy(finished = false)) }
                 }
             }
 
@@ -1823,7 +1777,7 @@ class TranslationRunManager(
                 sourceTextOverrides = overrides
             )
 
-            _translationRuns.update { runs ->
+            _runs.update { runs ->
                 val cur = runs[runId] ?: return@update runs
                 runs + (runId to cur.copy(finished = true))
             }

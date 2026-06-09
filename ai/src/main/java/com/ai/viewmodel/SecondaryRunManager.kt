@@ -444,7 +444,7 @@ class SecondaryRunManager(
             .filter {
                 it.sourceReportId == reportId &&
                     !it.isFinished && !it.cancelled &&
-                    rvm.translation.translationJobs[it.runId]?.isActive != true
+                    !rvm.translation.hasActiveRunJob(it.runId)
             }
             .forEach { rvm.translation.reconcileStalledTranslationRun(context, reportId, it.runId) }
 

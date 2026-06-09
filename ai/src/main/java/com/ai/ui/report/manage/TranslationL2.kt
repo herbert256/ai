@@ -64,7 +64,7 @@ internal fun TranslationL2Screen(
 
     // Items in this group, ordered running/pending → error → done.
     val rows = remember(run.items, mode, groupKey) {
-        run.items.filter { translationGroupKey(it, mode) == groupKey }
+        run.items.values.filter { translationGroupKey(it, mode) == groupKey }
             .sortedWith(
                 compareBy(
                     { item ->

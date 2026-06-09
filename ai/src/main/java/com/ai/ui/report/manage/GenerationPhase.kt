@@ -573,7 +573,7 @@ internal fun ColumnScope.GenerationPhase(
         translationRuns.forEach { run ->
             if (run.isFinished || run.runId in persistedRunIds) return@forEach
             cost += run.totalCostDollars
-            run.items.forEach { item ->
+            run.items.values.forEach { item ->
                 item.tokenUsage?.let {
                     input += it.inputTokens; output += it.outputTokens
                 }

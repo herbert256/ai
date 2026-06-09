@@ -84,7 +84,7 @@ internal fun TranslationL3Screen(
     BackHandler { onBack() }
     val context = LocalContext.current
 
-    val item = run.items.firstOrNull { it.id == itemId }
+    val item = run.items[itemId]
     if (item == null) {
         Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(helpTopic = "translation_run_l3", title = "Translation call", subject = "Source text and its translation", onBackClick = onBack)
@@ -97,7 +97,7 @@ internal fun TranslationL3Screen(
     // mode this steps through the type's entries; in Models mode the
     // model's.
     val siblings = remember(run.items, mode, groupKey) {
-        run.items.filter { translationGroupKey(it, mode) == groupKey }
+        run.items.values.filter { translationGroupKey(it, mode) == groupKey }
             .sortedWith(
                 compareBy(
                     { sib ->
