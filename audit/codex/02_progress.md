@@ -95,7 +95,7 @@ response. Re-verification date: 2026-06-09.
 | T03 | Partially done — component tests, no nav contracts | DEFER | — |
 | T04 | Still valid — no boundary tests | DEFER | — |
 | T05 | Still valid — no perf tests | SKIP | — |
-| T06 | Partially done — idempotent-dup + removed-cost cases | **DO** (broaden) | pending |
+| T06 | Partially done — idempotent-dup + removed-cost cases | **DO** (broaden) | done (+6 cases: retry idempotent/additive, in/out-only, error-preserves, ledger accumulate, reconcile no-op) |
 
 ## This session — the DO items, one commit each
 
