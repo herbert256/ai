@@ -1171,7 +1171,7 @@ class TranslationRunManager(
         val missing = retryRows.map {
             (it.translateSourceTargetId.orEmpty()) to (it.translateSourceKind.orEmpty())
         }
-        runTranslationSubset(context, sourceReportId, runId, missing, deleteRowIds = emptyList())
+        runTranslationSubset(context, sourceReportId, runId, missing, deleteRowIds = emptyList(), preloadedRunRows = existing)
         // After the subset's awaitAll() returns, every dispatched
         // item has settled (DONE or ERROR). Flip finished=true so
         // the manage hourglass clears and the next reconcile
@@ -1206,7 +1206,10 @@ class TranslationRunManager(
          *  fresh items runTranslationSubset is about to build for
          *  them. */
         includePlaceholders: Boolean = false
-    ): List<TranslationItem> = translateRows
+    ): List<TranslationItem> {
+        val agentsById = report.agents.associateBy { it.agentId }
+        val secondariesById = secondaries.associateBy { it.id }
+        return translateRows
         .filter { it.id !in deleteSet }
         .mapNotNull { row ->
             val kind = translateKindOf(row.translateSourceKind) ?: return@mapNotNull null
@@ -1216,24 +1219,24 @@ class TranslationRunManager(
                 TranslationKind.TITLE_LONG -> "titleLong" to "Report long title"
                 TranslationKind.PROMPT -> "prompt" to "Report prompt"
                 TranslationKind.AGENT_RESPONSE -> {
-                    val ag = report.agents.firstOrNull { it.agentId == targetId }
+                    val ag = agentsById[targetId]
                     val prov = AppService.findById(ag?.provider.orEmpty())?.id ?: ag?.provider.orEmpty()
                     "agent:$targetId" to "$prov / ${ag?.model.orEmpty()}"
                 }
                 TranslationKind.AGENT_TITLE -> {
-                    val ag = report.agents.firstOrNull { it.agentId == targetId }
+                    val ag = agentsById[targetId]
                     val prov = AppService.findById(ag?.provider.orEmpty())?.id ?: ag?.provider.orEmpty()
                     "agentTitle:$targetId" to "Title: $prov / ${ag?.model.orEmpty()}"
                 }
                 TranslationKind.META -> {
-                    val s = secondaries.firstOrNull { it.id == targetId }
+                    val s = secondariesById[targetId]
                     val prov = AppService.findById(s?.providerId.orEmpty())?.id ?: s?.providerId.orEmpty()
                     val name = s?.metaPromptName?.takeIf { it.isNotBlank() }
                         ?: s?.let { com.ai.data.legacyKindDisplayName(it.kind) } ?: ""
                     "meta:$targetId" to "$name: $prov / ${s?.model.orEmpty()}"
                 }
                 TranslationKind.FANOUT_TITLE -> {
-                    val s = secondaries.firstOrNull { it.id == targetId }
+                    val s = secondariesById[targetId]
                     val prov = AppService.findById(s?.providerId.orEmpty())?.id ?: s?.providerId.orEmpty()
                     "fanoutTitle:$targetId" to "Fan title: $prov / ${s?.model.orEmpty()}"
                 }
@@ -1273,6 +1276,7 @@ class TranslationRunManager(
         // class default ("translate/translate") and Types collapses to a
         // single "translate" row.
         .map { it.copy(traceType = traceTypeFor(it, secondaries)) }
+    }
 
     /** Reconstruct a finished / persisted translation run as a
      *  [TranslationRunState] so the 3-level run screen can render it
@@ -1338,10 +1342,13 @@ class TranslationRunManager(
          *  Null preserves the original behavior for the failed-
          *  restart and start-missing callers. */
         sourceTextOverrides: Map<Pair<String, String>, String>? = null,
-        buildKey: String? = null
+        buildKey: String? = null,
+        /** This run's TRANSLATE rows when the caller already listed them
+         *  ([startMissingTranslations] does) — skips a second disk scan. */
+        preloadedRunRows: List<SecondaryResult>? = null
     ) {
         if (targetKindPairs.isEmpty()) return
-        val translateRows = SecondaryResultStorage
+        val translateRows = preloadedRunRows ?: SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId }
         val anchor = translateRows.firstOrNull() ?: return
@@ -1361,6 +1368,8 @@ class TranslationRunManager(
 
         val report = ReportStorage.getReport(context, sourceReportId) ?: return
         val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
+        val agentsById = report.agents.associateBy { it.agentId }
+        val secondariesById = secondaries.associateBy { it.id }
 
         var items = targetKindPairs.mapNotNull { (targetId, kind) ->
             // Reuse the existing row's id as the item's persistedRowId
@@ -1392,7 +1401,7 @@ class TranslationRunManager(
                     persistedRowId = rowId
                 )
                 "AGENT" -> {
-                    val ag = report.agents.firstOrNull { it.agentId == targetId } ?: return@mapNotNull null
+                    val ag = agentsById[targetId] ?: return@mapNotNull null
                     val prov = AppService.findById(ag.provider)?.id ?: ag.provider
                     TranslationItem(
                         id = "agent:${ag.agentId}",
@@ -1404,7 +1413,7 @@ class TranslationRunManager(
                     )
                 }
                 "AGENT_TITLE" -> {
-                    val ag = report.agents.firstOrNull { it.agentId == targetId } ?: return@mapNotNull null
+                    val ag = agentsById[targetId] ?: return@mapNotNull null
                     val prov = AppService.findById(ag.provider)?.id ?: ag.provider
                     TranslationItem(
                         id = "agentTitle:${ag.agentId}",
@@ -1416,7 +1425,7 @@ class TranslationRunManager(
                     )
                 }
                 "META" -> {
-                    val s = secondaries.firstOrNull { it.id == targetId } ?: return@mapNotNull null
+                    val s = secondariesById[targetId] ?: return@mapNotNull null
                     val prov = AppService.findById(s.providerId)?.id ?: s.providerId
                     val name = s.metaPromptName?.takeIf { it.isNotBlank() }
                         ?: com.ai.data.legacyKindDisplayName(s.kind)
@@ -1429,7 +1438,7 @@ class TranslationRunManager(
                     )
                 }
                 "FANOUT_TITLE" -> {
-                    val s = secondaries.firstOrNull { it.id == targetId } ?: return@mapNotNull null
+                    val s = secondariesById[targetId] ?: return@mapNotNull null
                     val prov = AppService.findById(s.providerId)?.id ?: s.providerId
                     TranslationItem(
                         id = "fanoutTitle:${s.id}",

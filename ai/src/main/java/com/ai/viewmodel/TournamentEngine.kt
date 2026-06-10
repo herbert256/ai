@@ -477,8 +477,9 @@ class TournamentEngine internal constructor(
         // so re-judging without the swap would pull in foreign workers.
         val prompt = run.tournamentPrompt.withWorkerOverrides(report)
         val agentsById = report.agents.associateBy { it.agentId }
+        val matchesById = run.matches.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
-            val m = run.matches.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+            val m = matchesById[row.id] ?: return@mapNotNull null
             val a = agentsById[m.responseAId] ?: return@mapNotNull null
             val b = agentsById[m.responseBId] ?: return@mapNotNull null
             PendingMatch(a, b, m.orientation, row)

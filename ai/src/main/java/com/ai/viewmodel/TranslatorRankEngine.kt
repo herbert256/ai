@@ -94,8 +94,9 @@ class TranslatorRankEngine internal constructor(
         val effPrompt = run.prompt.withWorkerOverrides(report)
         val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
         val judgesByKey = resolveJudges(aiSettings, effPrompt).associateBy { it.key }
+        val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
-            val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+            val c = cellsById[row.id] ?: return@mapNotNull null
             val sc = items[c.translationRowId] ?: return@mapNotNull null
             val judge = judgesByKey["${c.judgeProviderId}/${c.judgeModel}"]
                 ?: ResolvedJudge(Worker(provider = c.judgeProviderId, model = c.judgeModel), c.judgeProviderId, c.judgeModel)

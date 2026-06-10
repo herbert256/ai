@@ -91,8 +91,9 @@ class CompareEngine internal constructor(
         // the hydrated prompt carries the CONFIGURED swarm, so re-scoring
         // without the swap would pull in foreign workers.
         val prompt = run.comparePrompt.withWorkerOverrides(report)
+        val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
-            val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+            val c = cellsById[row.id] ?: return@mapNotNull null
             PendingCell(c.agentId, c.metaResultId, row)
         }
         if (pending.isEmpty()) return

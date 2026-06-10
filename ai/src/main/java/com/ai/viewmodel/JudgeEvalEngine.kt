@@ -93,8 +93,9 @@ class JudgeEvalEngine internal constructor(
     override suspend fun redispatchRows(context: Context, runKey: JudgeEvalRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
         val report = ReportStorage.getReport(context, runKey) ?: return
+        val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
-            val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+            val c = cellsById[row.id] ?: return@mapNotNull null
             PendingCell(judgeFromRow(row), c.responseAId, c.responseBId, c.orientation, row)
         }
         if (pending.isEmpty()) return
@@ -517,21 +518,28 @@ class JudgeEvalEngine internal constructor(
             try {
                 val pending = mutableListOf<PendingCell>()
                 val newCells = LinkedHashMap<String, JudgeCellState>()
+                // One batched save (like startRun) instead of a disk write per cell.
                 for ((aId, bId, orient) in matches) {
-                    val placeholder = SecondaryResultStorage.create(
-                        context, reportId, SecondaryKind.JUDGES,
-                        judge.providerId, judge.model, "${judge.providerId} / ${judge.model}"
-                    ) {
-                        it.copy(
-                            tournamentRole = JUDGE_ROLE_CELL, tournamentJudgeRunId = runId,
-                            matchResponseAId = aId, matchResponseBId = bId, matchOrientation = orient,
-                            metaPromptId = prompt.id, metaPromptName = prompt.name,
-                            runId = runId, secondaryScope = scopeEncoded
-                        )
-                    }
+                    val placeholder = SecondaryResult(
+                        id = java.util.UUID.randomUUID().toString(),
+                        reportId = reportId,
+                        kind = SecondaryKind.JUDGES,
+                        providerId = judge.providerId,
+                        model = judge.model,
+                        agentName = "${judge.providerId} / ${judge.model}",
+                        timestamp = System.currentTimeMillis(),
+                        content = null,
+                        tournamentRole = JUDGE_ROLE_CELL, tournamentJudgeRunId = runId,
+                        matchResponseAId = aId, matchResponseBId = bId, matchOrientation = orient,
+                        metaPromptId = prompt.id, metaPromptName = prompt.name,
+                        runId = runId, secondaryScope = scopeEncoded
+                    )
                     pending.add(PendingCell(judge, aId, bId, orient, placeholder))
-                    placeholder.toJudgeCellState()?.let { newCells[it.key] = it }
                 }
+                val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
+                    .mapTo(HashSet()) { it.id }
+                pending.removeAll { it.placeholder.id !in savedIds }
+                pending.forEach { item -> item.placeholder.toJudgeCellState()?.let { newCells[it.key] = it } }
                 _runs.update { runs ->
                     val r = runs[reportId] ?: return@update runs
                     runs + (reportId to r.copy(cells = r.cells + newCells))

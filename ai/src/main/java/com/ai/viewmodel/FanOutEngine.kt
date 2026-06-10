@@ -1718,12 +1718,13 @@ class FanOutEngine internal constructor(
         data class Reset(val pair: PairState, val cleared: SecondaryResult, val body: String)
         val resets = mutableListOf<Reset>()
         var clearedCostDelta = 0.0
+        val agentsById = report.agents.associateBy { it.agentId }
         // Build stage: clearing each broken row to a PENDING placeholder is
         // the "Preparing N / M…" phase the Broken-work Continue popup covers.
         if (buildKey != null) appViewModel.beginBuild(buildKey, pairKeys.size, "Re-queuing fan-out")
         for (pk in pairKeys) {
             val pair = run.pairs[pk] ?: continue
-            val source = report.agents.firstOrNull { it.agentId == pair.sourceAgentId } ?: continue
+            val source = agentsById[pair.sourceAgentId] ?: continue
             val current = SecondaryResultStorage.get(context, run.reportId, pair.id) ?: continue
             clearedCostDelta += current.fullCost()
             val cleared = current.copy(

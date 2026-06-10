@@ -351,13 +351,14 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
                         onNoStaleRows(context, runKey)
                         continue
                     }
+                    val itemsById = run.items.values.associateBy { it.id }
                     val staleRows = run.items.values
                         .filter { it.status == BatchItemStatus.PENDING && it.id in diskById }
                         .mapNotNull { diskById[it.id] }
                     if (resetAttempts) BatchResume.resetAttempts(staleRows.map { it.id })
                     val retryRows = BatchResume.capForRetry(staleRows) { row ->
                         markRowInterrupted(context, reportId, row.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
-                        run.items.values.firstOrNull { it.id == row.id }?.let { item ->
+                        itemsById[row.id]?.let { item ->
                             transitionItem(runKey, item.key) {
                                 terminalizeItem(it, "Interrupted — no result after resume attempts")
                             }
@@ -495,9 +496,10 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
             val run = _runs.value[runKey]
             val leftover = SecondaryResultStorage.listForReport(context, reportId, secondaryKind)
                 .filter { isItemRow(run, it) && isStaleRow(it) }
+            val itemsById = _runs.value[runKey]?.items?.values?.associateBy { it.id }.orEmpty()
             BatchResume.finalizeLeftover(leftover) { row ->
                 markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this $itemNoun finished")
-                _runs.value[runKey]?.items?.values?.firstOrNull { it.id == row.id }?.let { item ->
+                itemsById[row.id]?.let { item ->
                     transitionItem(runKey, item.key) {
                         if (it.status == BatchItemStatus.PENDING || it.status == BatchItemStatus.RUNNING)
                             terminalizeItem(it, "Interrupted")
