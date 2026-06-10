@@ -204,7 +204,7 @@ private fun jsonEsc(s: String): String = buildString(s.length) {
         c == '\n' -> append("\\n")
         c == '\r' -> append("\\r")
         c == '\t' -> append("\\t")
-        c < ' ' -> append("\\u%04X".format(c.code))
+        c < ' ' -> append(String.format(Locale.US, "\\u%04X", c.code))
         else -> append(c)
     }
 }
