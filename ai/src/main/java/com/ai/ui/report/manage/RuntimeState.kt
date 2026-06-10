@@ -340,7 +340,13 @@ internal fun rememberReportRuntimeState(
                 secondEnabled = all.isNotEmpty()
                 secondTotal = secondaryTotals.inputCost + secondaryTotals.outputCost +
                     secondaryTotals.fanOutMetaCost
-                secondState = secondAggregate(all, liveTranslations = false)
+                // A live (unfinished) translation run keeps the row at ⏳ even
+                // in the windows where its rows aren't blank placeholders yet
+                // (mid-build, or a restart about to clear errored rows).
+                secondState = secondAggregate(
+                    all,
+                    liveTranslations = translationRuns.any { it.sourceReportId == rid && !it.isFinished }
+                )
             }
         }
         reload()
