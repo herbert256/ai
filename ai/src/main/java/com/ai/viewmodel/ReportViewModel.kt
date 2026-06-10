@@ -933,7 +933,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (response.error == null && response.tokenUsage != null) {
             val usage = response.tokenUsage
             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                task.runtimeAgent.provider, task.runtimeAgent.model, usage
+                task.runtimeAgent.provider, task.runtimeAgent.model, usage, durationMs = durationMs
             )
         }
 
@@ -1141,7 +1141,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             appViewModel.settingsPrefs.updateUsageStatsAsync(
                                 task.runtimeAgent.provider, task.runtimeAgent.model,
                                 usage,
-                                kind = MODEL_TEMPERATURE_CALL_KIND
+                                kind = MODEL_TEMPERATURE_CALL_KIND,
+                                durationMs = durationMs
                             )
                         }
                         val candidate = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
@@ -1345,7 +1346,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             appViewModel.settingsPrefs.updateUsageStatsAsync(
                                 task.runtimeAgent.provider, task.runtimeAgent.model,
                                 usage,
-                                kind = MODEL_REASONING_CALL_KIND
+                                kind = MODEL_REASONING_CALL_KIND,
+                                durationMs = durationMs
                             )
                         }
                         val candidate = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
@@ -1528,7 +1530,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         appViewModel.settingsPrefs.updateUsageStatsAsync(
                             task.runtimeAgent.provider, task.runtimeAgent.model,
                             usage,
-                            kind = MODEL_WEB_SEARCH_CALL_KIND
+                            kind = MODEL_WEB_SEARCH_CALL_KIND,
+                            durationMs = durationMs
                         )
                     }
                     val result = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
@@ -1728,7 +1731,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             task.runtimeAgent.provider,
                             task.runtimeAgent.model,
                             usage,
-                            kind = MODEL_PROMPT_EDIT_CALL_KIND
+                            kind = MODEL_PROMPT_EDIT_CALL_KIND,
+                            durationMs = durationMs
                         )
                     }
                     val result = if (response.isSuccess && !response.analysis.isNullOrBlank()) {

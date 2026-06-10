@@ -1535,7 +1535,7 @@ class SecondaryRunManager(
             // the per-provider token counters for it either.
             if (saved && r.errorMessage == null && tu != null) {
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, tu, kind = "moderation"
+                    provider, model, tu, kind = "moderation", durationMs = r.durationMs
                 )
             }
             return
@@ -1601,7 +1601,7 @@ class SecondaryRunManager(
             ))
             if (saved && r.errorMessage == null) {
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, estInputTokens, 0, estInputTokens, kind = "rerank", searchUnits = units
+                    provider, model, estInputTokens, 0, estInputTokens, kind = "rerank", searchUnits = units, durationMs = r.durationMs
                 )
             }
             return
@@ -1690,7 +1690,8 @@ class SecondaryRunManager(
                     SecondaryKind.JUDGES -> "judges"
                     SecondaryKind.COMPARE -> "compare"
                     SecondaryKind.TRANSRANK -> "transrank"
-                }
+                },
+                durationMs = duration
             )
         }
         } finally {

@@ -328,7 +328,7 @@ class CompareEngine internal constructor(
                         val split = PricingCache.computeInOutCost(tu, pricing)
                         inCost = split.first
                         outCost = split.second
-                        appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = USAGE_KIND)
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = USAGE_KIND, durationMs = System.currentTimeMillis() - started)
                     }
                     SecondaryResultStorage.recordCompareCell(
                         context, reportId, rowId, provId, mdl,

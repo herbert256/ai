@@ -570,7 +570,8 @@ class FanOutEngine internal constructor(
                 task.provider,
                 task.model,
                 usage,
-                kind = kind
+                kind = kind,
+                durationMs = durationMs
             )
         }
         FanOutVariationCallResult(response, cost, durationMs, traceSink.get())

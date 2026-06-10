@@ -846,7 +846,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             providerDisplay = provider?.id ?: parts?.firstOrNull() ?: "",
             model = model,
             tier = pricing?.source ?: "",
-            durationMs = null,
+            durationMs = agent.modelTitleDurationMs,
             inputTokens = agent.modelTitleInputTokens,
             outputTokens = agent.modelTitleOutputTokens,
             inputCents = agent.modelTitleInputCost * 100,

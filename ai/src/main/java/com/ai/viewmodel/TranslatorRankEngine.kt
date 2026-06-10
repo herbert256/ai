@@ -370,7 +370,7 @@ class TranslatorRankEngine internal constructor(
                         val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
                         val split = PricingCache.computeInOutCost(tu, pricing)
                         inCost = split.first; outCost = split.second
-                        appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, tu, kind = "transrank")
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, tu, kind = "transrank", durationMs = System.currentTimeMillis() - started)
                     }
                     SecondaryResultStorage.recordTournamentMatch(
                         context, reportId, rowId, item.judge.providerId, item.judge.model,

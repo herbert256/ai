@@ -512,7 +512,7 @@ class TranslationRunManager(
             // Roll the winning worker's spend into AI Usage under this
             // item's per-kind translate/* type.
             if (tu != null && model.isNotBlank()) {
-                appViewModel.settingsPrefs.updateUsageStatsAsync(provider, model, tu, kind = item.traceType)
+                appViewModel.settingsPrefs.updateUsageStatsAsync(provider, model, tu, kind = item.traceType, durationMs = callDurationMs)
             }
             AppLog.d(
                 "Translation",
@@ -682,7 +682,7 @@ class TranslationRunManager(
                             // cost table only gains the picked candidate's
                             // cost (written in applyAltTranslation).
                             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                item.provider, item.model, tu, kind = traceType
+                                item.provider, item.model, tu, kind = traceType, durationMs = callDurationMs
                             )
                         }
                         val text = response.analysis.orEmpty()

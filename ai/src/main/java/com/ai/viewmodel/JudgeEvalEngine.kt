@@ -391,7 +391,7 @@ class JudgeEvalEngine internal constructor(
                         val split = PricingCache.computeInOutCost(tu, pricing)
                         inCost = split.first
                         outCost = split.second
-                        appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, tu, kind = "judges")
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, tu, kind = "judges", durationMs = System.currentTimeMillis() - started)
                     }
                     SecondaryResultStorage.recordTournamentMatch(
                         context, reportId, rowId, item.judge.providerId, item.judge.model,

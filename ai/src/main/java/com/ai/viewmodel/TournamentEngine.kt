@@ -349,7 +349,7 @@ class TournamentEngine internal constructor(
                         val split = PricingCache.computeInOutCost(tu, pricing)
                         inCost = split.first
                         outCost = split.second
-                        appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = "tournament")
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = "tournament", durationMs = System.currentTimeMillis() - started)
                     }
                     SecondaryResultStorage.recordTournamentMatch(
                         context, reportId, rowId, provId, mdl,

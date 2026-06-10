@@ -645,11 +645,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
      * allocated a new Map-of-all-stats per token-usage event. Now we keep stats in an in-memory
      * ConcurrentHashMap and debounce disk writes to once per USAGE_STATS_FLUSH_MS window.
      */
-    fun updateUsageStats(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report", searchUnits: Int = 0) {
-        updateUsageStats(provider, model, TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens), kind, searchUnits)
+    fun updateUsageStats(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report", searchUnits: Int = 0, durationMs: Long? = null) {
+        updateUsageStats(provider, model, TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens), kind, searchUnits, durationMs)
     }
 
-    fun updateUsageStats(provider: AppService, model: String, usage: TokenUsage, kind: String = "report", searchUnits: Int = 0) {
+    fun updateUsageStats(provider: AppService, model: String, usage: TokenUsage, kind: String = "report", searchUnits: Int = 0, durationMs: Long? = null) {
         // Master usage-statistics switch (Settings → Log/trace/audit/statistics).
         // Off → record nothing: no rolling-rate sample, no persisted token/cost
         // rows. Guarding this single chokepoint covers every token call site.
@@ -681,7 +681,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             )
         }
         recordUsageCategoryStats(category, inputTokens, outputTokens, searchUnits, costs)
-        recordReportApiCallCost(provider, model, inputTokens, outputTokens, category, searchUnits, costs)
+        recordReportApiCallCost(provider, model, inputTokens, outputTokens, category, searchUnits, costs, durationMs)
         scheduleUsageStatsFlush()
     }
 
@@ -713,7 +713,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         outputTokens: Int,
         category: String,
         searchUnits: Int,
-        costs: UsageCostSnapshot
+        costs: UsageCostSnapshot,
+        durationMs: Long? = null
     ) {
         val reportId = ApiTracer.currentReportId?.takeIf { it.isNotBlank() } ?: return
         if (inputTokens <= 0 && outputTokens <= 0 && searchUnits <= 0) return
@@ -729,7 +730,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 outputTokens = outputTokens,
                 inputCost = costs.inputCost,
                 outputCost = costs.outputCost,
-                searchUnits = searchUnits
+                searchUnits = searchUnits,
+                durationMs = durationMs
             )
         ) ?: return
         val reports = ensureUsageReportStatsCache()
@@ -937,11 +939,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
-    suspend fun updateUsageStatsAsync(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report", searchUnits: Int = 0) =
-        withContext(Dispatchers.IO) { updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens, kind, searchUnits) }
+    suspend fun updateUsageStatsAsync(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report", searchUnits: Int = 0, durationMs: Long? = null) =
+        withContext(Dispatchers.IO) { updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens, kind, searchUnits, durationMs) }
 
-    suspend fun updateUsageStatsAsync(provider: AppService, model: String, usage: TokenUsage, kind: String = "report", searchUnits: Int = 0) =
-        withContext(Dispatchers.IO) { updateUsageStats(provider, model, usage, kind, searchUnits) }
+    suspend fun updateUsageStatsAsync(provider: AppService, model: String, usage: TokenUsage, kind: String = "report", searchUnits: Int = 0, durationMs: Long? = null) =
+        withContext(Dispatchers.IO) { updateUsageStats(provider, model, usage, kind, searchUnits, durationMs) }
 
     fun clearUsageStats() = synchronized(usageStatsLock) {
         usageStatsCache?.clear()

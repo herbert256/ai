@@ -196,7 +196,7 @@ class SecondaryModelSwitchManager internal constructor(
         }
         val pricing = PricingCache.getPricing(context, provider, model)
         val (inCost, outCost) = r.tokenUsage?.let { PricingCache.computeInOutCost(it, pricing) } ?: (null to null)
-        r.tokenUsage?.let { appViewModel.settingsPrefs.updateUsageStatsAsync(provider, model, it, kind = "moderation") }
+        r.tokenUsage?.let { appViewModel.settingsPrefs.updateUsageStatsAsync(provider, model, it, kind = "moderation", durationMs = r.durationMs) }
         return ModelSwitchResult.Success(r.content, r.tokenUsage, inCost, outCost, r.durationMs, traceSink.get())
     }
 
@@ -228,7 +228,7 @@ class SecondaryModelSwitchManager internal constructor(
             else -> null
         }
         val tu = if (estInputTokens > 0) TokenUsage(inputTokens = estInputTokens, outputTokens = 0) else null
-        if (estInputTokens > 0) appViewModel.settingsPrefs.updateUsageStatsAsync(provider, model, estInputTokens, 0, estInputTokens, kind = "rerank", searchUnits = units)
+        if (estInputTokens > 0) appViewModel.settingsPrefs.updateUsageStatsAsync(provider, model, estInputTokens, 0, estInputTokens, kind = "rerank", searchUnits = units, durationMs = r.durationMs)
         return ModelSwitchResult.Success(r.content, tu, rerankCost, null, r.durationMs, traceSink.get())
     }
 

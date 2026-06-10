@@ -408,7 +408,7 @@ class IconGenerationManager(
                         )
                         if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
                             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                winAgent.provider, winAgent.model, tu, kind = "icon"
+                                winAgent.provider, winAgent.model, tu, kind = "icon", durationMs = durationMs
                             )
                         }
                     }
@@ -534,7 +534,7 @@ class IconGenerationManager(
         val (inC, outC) = costSplit(tu, pricing)
         if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                winAgent.provider, winAgent.model, tu, kind = "title"
+                winAgent.provider, winAgent.model, tu, kind = "title", durationMs = durationMs
             )
         }
         return TitleGenResult(
@@ -805,7 +805,7 @@ class IconGenerationManager(
                             }
                             if ((inT > 0 || outT > 0) && winAgent != null && tu != null) {
                                 appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                    winAgent.provider, winAgent.model, tu, kind = "title"
+                                    winAgent.provider, winAgent.model, tu, kind = "title", durationMs = durationMs
                                 )
                             }
                         }
@@ -976,7 +976,7 @@ class IconGenerationManager(
                                 )
                                 if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
                                     appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                        winAgent.provider, winAgent.model, tu, kind = "language"
+                                        winAgent.provider, winAgent.model, tu, kind = "language", durationMs = durationMs
                                     )
                                 }
                                 name
@@ -1053,7 +1053,7 @@ class IconGenerationManager(
                                 )
                                 if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
                                     appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                        winAgent.provider, winAgent.model, tu, kind = "language-icon"
+                                        winAgent.provider, winAgent.model, tu, kind = "language-icon", durationMs = durationMs
                                     )
                                 }
                             } else {
@@ -1278,10 +1278,12 @@ class IconGenerationManager(
                         )
                         val baseUrl = aiSettings.getEffectiveEndpointUrl(item.provider)
                         runCatching {
+                            val callStart = System.currentTimeMillis()
                             val response = appViewModel.repository.analyzeWithAgent(
                                 agent, "", resolved, altSecondaryParams,
                                 null, context, baseUrl
                             )
+                            val callDurationMs = System.currentTimeMillis() - callStart
                             val tu = response.tokenUsage
                             val pricing = PricingCache.getPricing(context, item.provider, item.model)
                             val inT = tu?.inputTokens ?: 0
@@ -1293,7 +1295,7 @@ class IconGenerationManager(
                                 )
                                 tu?.let {
                                     appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                        item.provider, item.model, it, kind = "icon"
+                                        item.provider, item.model, it, kind = "icon", durationMs = callDurationMs
                                     )
                                 }
                                 // Per-report attribution: bump the SR's
@@ -1316,6 +1318,7 @@ class IconGenerationManager(
                                         pricingTier = pricing.source,
                                         inputTokens = inT, outputTokens = outT,
                                         inputCost = inC, outputCost = outC,
+                                        durationMs = callDurationMs,
                                         success = response.error == null,
                                         type = "alt/meta",
                                         attributedToSecondaryId = attributedSecondaryId
@@ -1501,10 +1504,12 @@ class IconGenerationManager(
                                         apiKey = aiSettings.getApiKey(item.provider)
                                     )
                                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val callStart = System.currentTimeMillis()
                                     val response = appViewModel.repository.analyzeWithAgent(
                                         syntheticAgent, "", resolved, AgentParameters(),
                                         null, context, baseUrl
                                     )
+                                    val callDurationMs = System.currentTimeMillis() - callStart
                                     val tu = response.tokenUsage
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
@@ -1522,7 +1527,7 @@ class IconGenerationManager(
                                         )
                                         tu?.let {
                                             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                                item.provider, item.model, it, kind = "icon"
+                                                item.provider, item.model, it, kind = "icon", durationMs = callDurationMs
                                             )
                                         }
                                         // Per-call audit row labelled
@@ -1536,6 +1541,7 @@ class IconGenerationManager(
                                             pricingTier = pricing.source,
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
+                                            durationMs = callDurationMs,
                                             success = response.error == null,
                                             type = "alt/fan_out",
                                             attributedToSecondaryId = pairId
@@ -1667,9 +1673,11 @@ class IconGenerationManager(
                                     val params = resolveSecondaryParams(
                                         appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, altPrompt
                                     )
+                                    val callStart = System.currentTimeMillis()
                                     val response = appViewModel.repository.analyzeWithAgent(
                                         syntheticAgent, "", resolved, params, null, context, baseUrl
                                     )
+                                    val callDurationMs = System.currentTimeMillis() - callStart
                                     val tu = response.tokenUsage
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
@@ -1684,7 +1692,7 @@ class IconGenerationManager(
                                         )
                                         tu?.let {
                                             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                                item.provider, item.model, it, kind = "title"
+                                                item.provider, item.model, it, kind = "title", durationMs = callDurationMs
                                             )
                                         }
                                         ReportStorage.appendIconCall(context, reportId, IconCallRecord(
@@ -1693,6 +1701,7 @@ class IconGenerationManager(
                                             pricingTier = pricing.source,
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
+                                            durationMs = callDurationMs,
                                             success = response.error == null,
                                             type = "alt/model_title",
                                             attributedToSecondaryId = pairId
@@ -1883,10 +1892,12 @@ class IconGenerationManager(
                         )
                         val baseUrl = aiSettings.getEffectiveEndpointUrl(item.provider)
                         runCatching {
+                            val callStart = System.currentTimeMillis()
                             val response = appViewModel.repository.analyzeWithAgent(
                                 agent, "", resolved, AgentParameters(),
                                 null, context, baseUrl
                             )
+                            val callDurationMs = System.currentTimeMillis() - callStart
                             val tu = response.tokenUsage
                             val pricing = PricingCache.getPricing(context, item.provider, item.model)
                             val inT = tu?.inputTokens ?: 0
@@ -1898,7 +1909,7 @@ class IconGenerationManager(
                                 )
                                 tu?.let {
                                     appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                        item.provider, item.model, it, kind = "icon"
+                                        item.provider, item.model, it, kind = "icon", durationMs = callDurationMs
                                     )
                                 }
                                 // Per-report attribution: bump the first
@@ -1921,6 +1932,7 @@ class IconGenerationManager(
                                         pricingTier = pricing.source,
                                         inputTokens = inT, outputTokens = outT,
                                         inputCost = inC, outputCost = outC,
+                                        durationMs = callDurationMs,
                                         success = response.error == null,
                                         type = "alt/translation",
                                         attributedToSecondaryId = attributedSecondaryId
@@ -2067,10 +2079,12 @@ class IconGenerationManager(
                                         apiKey = aiSettings.getApiKey(item.provider)
                                     )
                                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val callStart = System.currentTimeMillis()
                                     val response = appViewModel.repository.analyzeWithAgent(
                                         syntheticAgent, "", resolved, AgentParameters(),
                                         null, context, baseUrl
                                     )
+                                    val callDurationMs = System.currentTimeMillis() - callStart
                                     // Extract just the emoji glyph (every other
                                     // icon path does); take(8) wrote raw UTF-16
                                     // prose / a sliced multi-codepoint emoji to
@@ -2101,12 +2115,13 @@ class IconGenerationManager(
                                             pricingTier = pricing.source,
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
+                                            durationMs = callDurationMs,
                                             success = response.error == null,
                                             type = "alt/main"
                                         ))
                                         tu?.let {
                                             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                                item.provider, item.model, it, kind = "icon"
+                                                item.provider, item.model, it, kind = "icon", durationMs = callDurationMs
                                             )
                                         }
                                     }
@@ -2248,9 +2263,11 @@ class IconGenerationManager(
                         val titleParams = resolveSecondaryParams(
                             appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, prompt
                         )
+                        val callStart = System.currentTimeMillis()
                         val response = appViewModel.repository.analyzeWithAgent(
                             syntheticAgent, "", resolved, titleParams, null, context, baseUrl
                         )
+                        val callDurationMs = System.currentTimeMillis() - callStart
                         val tu = response.tokenUsage
                         val pricing = PricingCache.getPricing(context, item.provider, item.model)
                         val inT = tu?.inputTokens ?: 0
@@ -2259,7 +2276,7 @@ class IconGenerationManager(
                         val cost = inC + outC
                         if (inT > 0 || outT > 0) {
                             tu?.let {
-                                appViewModel.settingsPrefs.updateUsageStatsAsync(item.provider, item.model, it, kind = "title")
+                                appViewModel.settingsPrefs.updateUsageStatsAsync(item.provider, item.model, it, kind = "title", durationMs = callDurationMs)
                             }
                             // Per-call audit row so this alternative-title
                             // spend shows in the report cost table + totals
@@ -2274,6 +2291,7 @@ class IconGenerationManager(
                                 pricingTier = pricing.source,
                                 inputTokens = inT, outputTokens = outT,
                                 inputCost = inC, outputCost = outC,
+                                durationMs = callDurationMs,
                                 success = response.error == null,
                                 type = category
                             ))
@@ -2357,10 +2375,12 @@ class IconGenerationManager(
                                         apiKey = aiSettings.getApiKey(item.provider)
                                     )
                                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val callStart = System.currentTimeMillis()
                                     val response = appViewModel.repository.analyzeWithAgent(
                                         syntheticAgent, "", resolved, AgentParameters(),
                                         null, context, baseUrl
                                     )
+                                    val callDurationMs = System.currentTimeMillis() - callStart
                                     // The alt template outputs a single
                                     // emoji directly — language name was
                                     // fixed by the detection call, the
@@ -2393,12 +2413,13 @@ class IconGenerationManager(
                                             pricingTier = pricing.source,
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
+                                            durationMs = callDurationMs,
                                             success = response.error == null,
                                             type = "alt/language"
                                         ))
                                         tu?.let {
                                             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                                item.provider, item.model, it, kind = "icon"
+                                                item.provider, item.model, it, kind = "icon", durationMs = callDurationMs
                                             )
                                         }
                                     }
@@ -2502,10 +2523,12 @@ class IconGenerationManager(
                                         apiKey = aiSettings.getApiKey(item.provider)
                                     )
                                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val callStart = System.currentTimeMillis()
                                     val response = appViewModel.repository.analyzeWithAgent(
                                         syntheticAgent, "", resolved, AgentParameters(),
                                         null, context, baseUrl
                                     )
+                                    val callDurationMs = System.currentTimeMillis() - callStart
                                     val tu = response.tokenUsage
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
@@ -2536,12 +2559,13 @@ class IconGenerationManager(
                                             pricingTier = pricing.source,
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
+                                            durationMs = callDurationMs,
                                             success = response.error == null,
                                             type = "alt/report"
                                         ))
                                         tu?.let {
                                             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                                item.provider, item.model, it, kind = "icon"
+                                                item.provider, item.model, it, kind = "icon", durationMs = callDurationMs
                                             )
                                         }
                                     }
@@ -2677,7 +2701,7 @@ class IconGenerationManager(
                 inputCost = inC, outputCost = outC
             )
             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                provider, model, tokenUsage ?: TokenUsage(inT, outT), kind = "icon"
+                provider, model, tokenUsage ?: TokenUsage(inT, outT), kind = "icon", durationMs = durationMs
             )
         }
         ReportStorage.appendIconCall(
@@ -2914,7 +2938,7 @@ class IconGenerationManager(
                         inputCost = inC, outputCost = outC,
                         model = titleModel
                     )
-                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = "title")
+                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = "title", durationMs = System.currentTimeMillis() - started)
                 }
                 if (title.isNotBlank()) {
                     SecondaryResultStorage.setFanOutTitle(

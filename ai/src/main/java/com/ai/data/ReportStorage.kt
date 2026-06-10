@@ -1690,6 +1690,7 @@ object ReportStorage {
                 outputTokens = agent.modelTitleOutputTokens,
                 inputCost = agent.modelTitleInputCost,
                 outputCost = agent.modelTitleOutputCost,
+                durationMs = agent.modelTitleDurationMs,
                 traceFile = agent.modelTitleTraceFile
             )
         }
