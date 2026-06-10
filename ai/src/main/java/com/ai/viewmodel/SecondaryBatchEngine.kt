@@ -244,7 +244,8 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  dispatch, which keeps running in the background. */
     protected suspend fun rerunItemsBlocking(context: Context, runKey: RunKey, itemKeys: List<String>, buildKey: String? = null) {
         if (itemKeys.isEmpty()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
-        val run = _runs.value[runKey] ?: return
+        val run = _runs.value[runKey]
+            ?: run { buildKey?.let { appViewModel.finishBuild(it) }; return }
         // A synthetic (prompt-unavailable) run can't be re-run — checked
         // BEFORE any row is cleared so it never strands cleared rows.
         if (!canRedispatch(context, run)) { buildKey?.let { appViewModel.finishBuild(it) }; return }
