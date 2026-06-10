@@ -18,6 +18,7 @@ import com.ai.data.PairKey
 import com.ai.data.PairState
 import com.ai.data.PairStatus
 import com.ai.data.PricingCache
+import com.ai.data.NetworkSettings
 import com.ai.data.ProviderThrottle
 import com.ai.data.ModelCooldownStore
 import com.ai.data.RESPONSE_CHANGE_SOURCE_EDIT
@@ -1377,16 +1378,19 @@ class FanOutEngine internal constructor(
                             title = report.title
                         )
                         val resolved = resolvedBase.replace("@RESPONSE@", sourceBody)
-                        // Per-pair 60s ceiling — same cap the
-                        // Test-all-models engine uses. Stops a single
-                        // runaway model (the Qwen2.5-7B word-salad case
-                        // that produced 4096 tokens of nonsense in
+                        // Per-pair wall-clock ceiling (the user-tunable
+                        // "Batch item" timeout, default 180 s). Stops a
+                        // single runaway model (the Qwen2.5-7B word-salad
+                        // case that produced 4096 tokens of nonsense in
                         // ~108s) from pinning its per-host slot for
-                        // most of the wall clock. On timeout we persist
-                        // an errorMessage so the row counts as ERROR
-                        // for the progress bar.
+                        // most of the wall clock, while leaving slow
+                        // reasoning answerers room to finish a long
+                        // legitimate reply. On timeout we persist an
+                        // errorMessage so the row counts as ERROR for
+                        // the progress bar.
+                        val ceilingSec = NetworkSettings.batchItemTimeoutSec
                         try {
-                            withTimeout(60_000) {
+                            withTimeout(NetworkSettings.batchItemTimeoutMs) {
                                 reportViewModel.secondary.executeSecondaryTask(
                                     context, report.id, SecondaryKind.META, metaPrompt,
                                     provider, answererModel, resolved, aiSettings, report,
@@ -1403,11 +1407,11 @@ class FanOutEngine internal constructor(
                             // progress bar advances.
                             val timedOut = (SecondaryResultStorage.get(context, report.id, placeholderId) ?: placeholder)
                                 .copy(
-                                    errorMessage = "Fan-out pair timed out after 60s",
+                                    errorMessage = "Fan-out pair timed out after ${ceilingSec}s",
                                     durationMs = System.currentTimeMillis() - pairStart
                                 )
                             SecondaryResultStorage.save(context, timedOut)
-                            AppLog.w("FanOut", "pair ans=$answererAgentId src=$sourceAgentId timed out after 60s")
+                            AppLog.w("FanOut", "pair ans=$answererAgentId src=$sourceAgentId timed out after ${ceilingSec}s")
                         }
                     } finally {
                         // Re-read the now-persisted row + mirror it into the
@@ -1733,7 +1737,6 @@ class FanOutEngine internal constructor(
                 responseChangeSource = null,
                 responseChangeValue = null
             )
-            SecondaryResultStorage.save(context, cleared)
             transitionPair(runKey, pk) {
                 it.copy(
                     status = PairStatus.PENDING, content = null, errorMessage = null,
@@ -1747,6 +1750,10 @@ class FanOutEngine internal constructor(
             resets.add(Reset(pair, cleared, body))
             if (buildKey != null) appViewModel.updateBuild(buildKey, resets.size)
         }
+        // One batched write for all cleared rows (single storage lock +
+        // data-version bump) — a restart over hundreds of pairs otherwise
+        // pays a save round-trip and observer wake-up per row.
+        if (resets.isNotEmpty()) SecondaryResultStorage.saveAll(context, resets.map { it.cleared })
         if (clearedCostDelta > 0.0) {
             ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, clearedCostDelta)
         }

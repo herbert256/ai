@@ -606,6 +606,14 @@ object ApiCallCaps {
 object NetworkSettings {
     @Volatile var streamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC
     @Volatile var nonStreamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC
+    /** Wall-clock ceiling for one batch item (fan-out pair, translation
+     *  item, tournament match, judge / compare / transrank cell) — the
+     *  whole per-item call including worker-chain fallbacks and retries,
+     *  not a single HTTP attempt. The engines read it live per item. */
+    @Volatile var batchItemTimeoutSec: Int = com.ai.BuildConfig.BATCH_ITEM_TIMEOUT_SEC
+    /** [batchItemTimeoutSec] in ms, floored at 1 s — what the engines'
+     *  per-item `withTimeout` actually takes. */
+    val batchItemTimeoutMs: Long get() = batchItemTimeoutSec.coerceAtLeast(1) * 1000L
     /** Global per-provider sliding-window rate limit. Each provider
      *  hostname tracks the timestamps of its recent calls; once the
      *  count in the last 60 s hits this value, the next call waits

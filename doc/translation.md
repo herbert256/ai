@@ -86,9 +86,10 @@ model and no per-model work queue:
 - `dynamicHost = true` means each worker call self-throttles its own
   provider host through `ProviderThrottleInterceptor` (sub → global
   → host order), so a swarm spanning several providers isn't
-  bottlenecked on one host's rate limit. A per-item 180 s ceiling
-  (`withTimeoutOrNull`) bounds a whole chain so a wedged call can't
-  strand the run.
+  bottlenecked on one host's rate limit. The per-item "Batch item"
+  ceiling (`withTimeoutOrNull`, `NetworkSettings.batchItemTimeoutSec`,
+  default 180 s, Settings → Network) bounds a whole chain so a wedged
+  call can't strand the run.
 - The winning worker's `(provider, model)` is recorded on the
   `SecondaryResult` (and the live `TranslationItem`) for cost
   attribution and the 🐜 Translation-workers per-model grouping;

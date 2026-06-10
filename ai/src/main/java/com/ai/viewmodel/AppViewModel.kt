@@ -516,6 +516,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.d(startTag, "  AnalysisRepository.TEST_PROMPT=${com.ai.data.AnalysisRepository.TEST_PROMPT}")
             NetworkSettings.streamingReadTimeoutSec = bs.first.streamingReadTimeoutSec
             NetworkSettings.nonStreamingReadTimeoutSec = bs.first.nonStreamingReadTimeoutSec
+            NetworkSettings.batchItemTimeoutSec = bs.first.batchItemTimeoutSec
             NetworkSettings.maxCallsPerProviderPerMinute = bs.first.maxCallsPerProviderPerMinute
             NetworkSettings.maxConcurrentCallsPerProvider = bs.first.maxConcurrentCallsPerProvider
             NetworkSettings.maxRetriesOn429 = bs.first.maxRetriesOn429
@@ -529,6 +530,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.d(
                 startTag,
                 "  NetworkSettings: streamRT=${bs.first.streamingReadTimeoutSec}s nonStreamRT=${bs.first.nonStreamingReadTimeoutSec}s " +
+                    "batchItemTO=${bs.first.batchItemTimeoutSec}s " +
                     "maxPerMin=${bs.first.maxCallsPerProviderPerMinute} maxConc=${bs.first.maxConcurrentCallsPerProvider} " +
                     "maxRetries429=${bs.first.maxRetriesOn429} retryBackoff=${bs.first.retryBackoffMs429}ms " +
                     "maxRetries529=${bs.first.maxRetriesOn529} retryBackoff529=${bs.first.retryBackoffMs529}ms"
@@ -1222,6 +1224,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         SettingsPreferences.usageStatsEnabled = settings.effectiveUsageStatsEnabled()
         NetworkSettings.streamingReadTimeoutSec = settings.streamingReadTimeoutSec
         NetworkSettings.nonStreamingReadTimeoutSec = settings.nonStreamingReadTimeoutSec
+        NetworkSettings.batchItemTimeoutSec = settings.batchItemTimeoutSec
         NetworkSettings.maxCallsPerProviderPerMinute = settings.maxCallsPerProviderPerMinute
         NetworkSettings.maxConcurrentCallsPerProvider = settings.maxConcurrentCallsPerProvider
         NetworkSettings.maxRetriesOn429 = settings.maxRetriesOn429

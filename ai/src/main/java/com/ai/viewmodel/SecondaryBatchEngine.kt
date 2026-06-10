@@ -380,11 +380,13 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         }
 
     /** Reset the items behind [itemKeys] to blank PENDING placeholders (one
-     *  disk read per item feeds both the cost rollup and the clear, one save
-     *  writes it back), roll the cleared spend into deleted-items, then
-     *  re-dispatch them via [redispatchRows]. The build popup (when
-     *  [buildKey] is set) covers the reset phase and is released before the
-     *  dispatch, which keeps running in the background. */
+     *  disk read per item feeds both the cost rollup and the clear; the
+     *  cleared rows are written back in ONE batched [SecondaryResultStorage.saveAll]
+     *  — single storage lock + data-version bump instead of a save per row),
+     *  roll the cleared spend into deleted-items, then re-dispatch them via
+     *  [redispatchRows]. The build popup (when [buildKey] is set) covers the
+     *  reset phase and is released before the dispatch, which keeps running
+     *  in the background. */
     protected suspend fun rerunItemsBlocking(context: Context, runKey: RunKey, itemKeys: List<String>, buildKey: String? = null) {
         if (itemKeys.isEmpty()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
         val run = _runs.value[runKey]
@@ -403,11 +405,11 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
             val cur = SecondaryResultStorage.get(context, reportId, item.id) ?: continue
             clearedCostDelta += cur.fullCost()
             val cleared = clearRowForRerun(cur)
-            SecondaryResultStorage.save(context, cleared)
             transitionItem(runKey, k) { resetItemToPending(it) }
             clearedRows.add(cleared)
             if (buildKey != null) appViewModel.updateBuild(buildKey, clearedRows.size)
         }
+        if (clearedRows.isNotEmpty()) SecondaryResultStorage.saveAll(context, clearedRows)
         if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
         // Build phase complete — release the popup so the UI navigates to the
         // batch screen while the dispatch below keeps running in the background.

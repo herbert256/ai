@@ -82,6 +82,13 @@ android {
         buildConfigField("int", "NETWORK_READ_TIMEOUT_SEC", "240")
         buildConfigField("int", "NETWORK_NONSTREAMING_READ_TIMEOUT_SEC", "120")
         buildConfigField("int", "NETWORK_WRITE_TIMEOUT_SEC", "30")
+        // Wall-clock ceiling for ONE batch item — a fan-out pair, a
+        // translation item, a tournament match, a judge / compare /
+        // transrank cell. Bounds the whole per-item call (worker-chain
+        // fallbacks, pool-cooling waits, in-line 429 retries included) so
+        // a wedged call can't pin its permits and host slot forever.
+        // First-run default for GeneralSettings.batchItemTimeoutSec.
+        buildConfigField("int", "BATCH_ITEM_TIMEOUT_SEC", "180")
         // Provider-test calls (Refresh-all per-provider tests, the
         // per-provider Test button, the Developer screen's raw-JSON
         // submit) get this read timeout instead of the 10-minute

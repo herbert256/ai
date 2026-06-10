@@ -2632,6 +2632,7 @@ private fun HealthBody(context: android.content.Context) {
     KeyVal("API activity", if (busy) "active" else "idle", if (busy) AppColors.SuccessAccent else AppColors.TextDim)
     KeyVal("Streaming timeout", "${NetworkSettings.streamingReadTimeoutSec} s")
     KeyVal("Non-streaming timeout", "${NetworkSettings.nonStreamingReadTimeoutSec} s")
+    KeyVal("Batch item timeout", "${NetworkSettings.batchItemTimeoutSec} s")
     KeyVal("Per-minute cap / host", "${NetworkSettings.maxCallsPerProviderPerMinute}")
 }
 

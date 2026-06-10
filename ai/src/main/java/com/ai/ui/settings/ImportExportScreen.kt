@@ -377,6 +377,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     // Network / throttle / retry tuning.
     addProperty("streamingReadTimeoutSec", g.streamingReadTimeoutSec)
     addProperty("nonStreamingReadTimeoutSec", g.nonStreamingReadTimeoutSec)
+    addProperty("batchItemTimeoutSec", g.batchItemTimeoutSec)
     addProperty("maxCallsPerProviderPerMinute", g.maxCallsPerProviderPerMinute)
     addProperty("maxConcurrentCallsPerProvider", g.maxConcurrentCallsPerProvider)
     addProperty("maxConcurrentApiCalls", g.maxConcurrentApiCalls)
@@ -495,6 +496,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         recentReportModels = strList("recentReportModels") ?: current.recentReportModels,
         streamingReadTimeoutSec = int("streamingReadTimeoutSec") ?: current.streamingReadTimeoutSec,
         nonStreamingReadTimeoutSec = int("nonStreamingReadTimeoutSec") ?: current.nonStreamingReadTimeoutSec,
+        batchItemTimeoutSec = int("batchItemTimeoutSec") ?: current.batchItemTimeoutSec,
         maxCallsPerProviderPerMinute = int("maxCallsPerProviderPerMinute") ?: current.maxCallsPerProviderPerMinute,
         maxConcurrentCallsPerProvider = int("maxConcurrentCallsPerProvider") ?: current.maxConcurrentCallsPerProvider,
         maxConcurrentApiCalls = int("maxConcurrentApiCalls") ?: current.maxConcurrentApiCalls,

@@ -6,6 +6,7 @@ import com.ai.data.AppLog
 import com.ai.data.AuditLog
 import com.ai.data.MatchState
 import com.ai.data.MatchStatus
+import com.ai.data.NetworkSettings
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
@@ -34,9 +35,11 @@ import com.ai.model.Settings
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 /**
  * Authoritative runtime owner for the Tournament run on every report.
@@ -306,13 +309,18 @@ class TournamentEngine internal constructor(
             .replace("@RESPONSE_A@", item.aAgent.responseBody.orEmpty())
             .replace("@RESPONSE_B@", item.bAgent.responseBody.orEmpty())
         try {
-            val call = runPooledWorkerCall(
-                reportViewModel.workerRunner, aiSettings, context, prompt, resolved,
-                onThrottleWait = { waiting ->
-                    if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
-                    else appViewModel.updateThrottledTournamentMatches { it - rowId }
-                }
-            ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }
+            // Per-match wall-clock ceiling (the user-tunable "Batch item"
+            // timeout) over the whole worker chain — caught locally so a
+            // wedged match fails just this item, not the batch.
+            val call = withTimeout(NetworkSettings.batchItemTimeoutMs) {
+                runPooledWorkerCall(
+                    reportViewModel.workerRunner, aiSettings, context, prompt, resolved,
+                    onThrottleWait = { waiting ->
+                        if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
+                        else appViewModel.updateThrottledTournamentMatches { it - rowId }
+                    }
+                ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }
+            }
             when (val outcome = call.outcome) {
                 is WorkerOutcome.Success -> {
                     val win = resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind = "tournament", durationMs = call.durationMs)
@@ -332,6 +340,11 @@ class TournamentEngine internal constructor(
                     recordItemCallError(context, reportId, rowId, item.placeholder, msg, started)
                 }
             }
+        } catch (e: TimeoutCancellationException) {
+            recordItemCallError(
+                context, reportId, rowId, item.placeholder,
+                "tournament: match timed out after ${NetworkSettings.batchItemTimeoutSec}s", started
+            )
         } finally {
             settleItemFromDisk(context, reportId, mKey, rowId)
         }

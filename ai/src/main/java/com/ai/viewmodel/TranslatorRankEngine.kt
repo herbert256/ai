@@ -6,6 +6,7 @@ import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
 import com.ai.data.AppService
 import com.ai.data.AuditLog
+import com.ai.data.NetworkSettings
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
@@ -31,9 +32,11 @@ import com.ai.model.Worker
 import com.ai.ui.helpers.translationRunGroupingId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 /**
  * Runtime owner for the "Rank the translators" batch (🏅 on a Translations
@@ -376,10 +379,16 @@ class TranslatorRankEngine internal constructor(
             .replace("@ORIGINAL@", item.item.originalText)
             .replace("@TRANSLATION@", item.item.translatedText)
         try {
-            val res = runFixedJudgeCall(
-                appViewModel, context, aiSettings, item.judge, resolved,
-                usageKind = "transrank", noArtifactMessage = "judge produced no score"
-            ) { resp -> parseScoreAndReason(resp.analysis)?.first != null }
+            // Per-cell wall-clock ceiling (the user-tunable "Batch item"
+            // timeout) — caught locally so a wedged judge fails just this
+            // cell, not the batch. Each bench-requeue attempt re-enters
+            // this body, so every attempt gets a fresh ceiling.
+            val res = withTimeout(NetworkSettings.batchItemTimeoutMs) {
+                runFixedJudgeCall(
+                    appViewModel, context, aiSettings, item.judge, resolved,
+                    usageKind = "transrank", noArtifactMessage = "judge produced no score"
+                ) { resp -> parseScoreAndReason(resp.analysis)?.first != null }
+            }
             when (res) {
                 is FixedJudgeOutcome.Accepted -> SecondaryResultStorage.recordTournamentMatch(
                     context, reportId, rowId, item.judge.providerId, item.judge.model,
@@ -391,6 +400,11 @@ class TranslatorRankEngine internal constructor(
                 is FixedJudgeOutcome.Rejected ->
                     recordItemCallError(context, reportId, rowId, item.placeholder, res.message, started)
             }
+        } catch (e: TimeoutCancellationException) {
+            recordItemCallError(
+                context, reportId, rowId, item.placeholder,
+                "judge timed out after ${NetworkSettings.batchItemTimeoutSec}s", started
+            )
         } finally {
             settleItemFromDisk(context, key, cKey, rowId)
         }

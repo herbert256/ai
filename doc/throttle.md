@@ -44,6 +44,7 @@ have to thread a `Settings` reference through their constructors.
 |---|---|---|
 | `streamingReadTimeoutSec` | `BuildConfig.NETWORK_READ_TIMEOUT_SEC` = **240 s** | SSE chat / report streams |
 | `nonStreamingReadTimeoutSec` | `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC` = **120 s** | analyze, meta, rerank, translate, model-list calls |
+| `batchItemTimeoutSec` | `BuildConfig.BATCH_ITEM_TIMEOUT_SEC` = **180 s** | wall-clock ceiling for ONE batch item (fan-out pair, translation item, tournament match, judge / compare / transrank cell) — the whole per-item call incl. worker-chain fallbacks and retries, enforced by the engines' own `withTimeout`, not OkHttp |
 | `maxCallsPerProviderPerMinute` | 60 | per-host sliding-window rate cap |
 | `maxConcurrentCallsPerProvider` | 5 | per-host concurrency cap |
 | `maxRetriesOn429` | 3 | in-line 429 retries |

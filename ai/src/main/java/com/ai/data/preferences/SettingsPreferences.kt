@@ -151,6 +151,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             nonStreamingReadTimeoutSec = prefs.getInt(
                 KEY_NONSTREAMING_READ_TIMEOUT_SEC, com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC
             ),
+            batchItemTimeoutSec = prefs.getInt(
+                KEY_BATCH_ITEM_TIMEOUT_SEC, com.ai.BuildConfig.BATCH_ITEM_TIMEOUT_SEC
+            ),
             maxCallsPerProviderPerMinute = prefs.getInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, defaults.maxCallsPerProviderPerMinute),
             maxConcurrentCallsPerProvider = prefs.getInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, defaults.maxConcurrentCallsPerProvider),
             maxConcurrentApiCalls = prefs.getInt(KEY_MAX_CONCURRENT_API_CALLS, defaults.maxConcurrentApiCalls),
@@ -228,6 +231,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_RECENT_REPORT_MODELS, settings.recentReportModels.joinToString("\n"))
             putInt(KEY_STREAMING_READ_TIMEOUT_SEC, settings.streamingReadTimeoutSec)
             putInt(KEY_NONSTREAMING_READ_TIMEOUT_SEC, settings.nonStreamingReadTimeoutSec)
+            putInt(KEY_BATCH_ITEM_TIMEOUT_SEC, settings.batchItemTimeoutSec)
             putInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, settings.maxCallsPerProviderPerMinute)
             putInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, settings.maxConcurrentCallsPerProvider)
             putInt(KEY_MAX_CONCURRENT_API_CALLS, settings.maxConcurrentApiCalls)
@@ -1106,6 +1110,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"
         private const val KEY_STREAMING_READ_TIMEOUT_SEC = "streaming_read_timeout_sec"
         private const val KEY_NONSTREAMING_READ_TIMEOUT_SEC = "nonstreaming_read_timeout_sec"
+        private const val KEY_BATCH_ITEM_TIMEOUT_SEC = "batch_item_timeout_sec"
         private const val KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE = "max_calls_per_provider_per_minute"
         private const val KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER = "max_concurrent_calls_per_provider"
         private const val KEY_MAX_CONCURRENT_API_CALLS = "max_concurrent_api_calls"

@@ -10,6 +10,7 @@ import com.ai.data.CompareCellState
 import com.ai.data.CompareCellStatus
 import com.ai.data.CompareRunKey
 import com.ai.data.CompareRunState
+import com.ai.data.NetworkSettings
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
@@ -27,9 +28,11 @@ import com.ai.model.Settings
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 /**
  * Authoritative runtime owner for the "Compare with meta" run on every report.
@@ -296,13 +299,18 @@ class CompareEngine internal constructor(
             .replace("@RESPONSE@", agentBodyById[item.agentId].orEmpty())
             .replace("@META_RESPONSE@", metaContentById[item.metaResultId].orEmpty())
         try {
-            val call = runPooledWorkerCall(
-                reportViewModel.workerRunner, aiSettings, context, prompt, resolved,
-                onThrottleWait = { waiting ->
-                    if (waiting) appViewModel.updateThrottledCompareCells { it + rowId }
-                    else appViewModel.updateThrottledCompareCells { it - rowId }
-                }
-            ) { resp -> parseSimilarityScore(resp.analysis) != null }
+            // Per-cell wall-clock ceiling (the user-tunable "Batch item"
+            // timeout) over the whole worker chain — caught locally so a
+            // wedged cell fails just this item, not the batch.
+            val call = withTimeout(NetworkSettings.batchItemTimeoutMs) {
+                runPooledWorkerCall(
+                    reportViewModel.workerRunner, aiSettings, context, prompt, resolved,
+                    onThrottleWait = { waiting ->
+                        if (waiting) appViewModel.updateThrottledCompareCells { it + rowId }
+                        else appViewModel.updateThrottledCompareCells { it - rowId }
+                    }
+                ) { resp -> parseSimilarityScore(resp.analysis) != null }
+            }
             when (val outcome = call.outcome) {
                 is WorkerOutcome.Success -> {
                     val win = resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind = USAGE_KIND, durationMs = call.durationMs)
@@ -322,6 +330,11 @@ class CompareEngine internal constructor(
                     recordItemCallError(context, reportId, rowId, item.placeholder, msg, started)
                 }
             }
+        } catch (e: TimeoutCancellationException) {
+            recordItemCallError(
+                context, reportId, rowId, item.placeholder,
+                "compare: cell timed out after ${NetworkSettings.batchItemTimeoutSec}s", started
+            )
         } finally {
             settleItemFromDisk(context, reportId, cKey, rowId)
         }

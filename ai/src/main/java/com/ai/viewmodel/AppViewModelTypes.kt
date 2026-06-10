@@ -347,6 +347,15 @@ data class GeneralSettings(
      *  shorter than the streaming timeout by default so a hung
      *  provider can't gate a whole batch for 10 minutes. */
     val nonStreamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC,
+    /** Wall-clock ceiling (seconds) for ONE batch item — a fan-out pair,
+     *  a translation item, a tournament match, a judge / compare /
+     *  transrank cell. Unlike the two read timeouts above (single HTTP
+     *  attempts) this bounds the whole per-item call: worker-chain
+     *  fallbacks, pool-cooling waits and in-line 429 retries included.
+     *  On timeout the item is stamped ERROR (restartable) instead of
+     *  pinning its batch permits and provider slot. Mirrored to
+     *  [com.ai.data.NetworkSettings.batchItemTimeoutSec]. */
+    val batchItemTimeoutSec: Int = com.ai.BuildConfig.BATCH_ITEM_TIMEOUT_SEC,
     /** Sliding-window rate cap per provider hostname. The OkHttp
      *  interceptor [com.ai.data.ProviderThrottleInterceptor] consults
      *  [com.ai.data.NetworkSettings.maxCallsPerProviderPerMinute] —

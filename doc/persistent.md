@@ -84,6 +84,7 @@ default; the value applied to a missing key is the one shown here.)
 | `recent_report_models` | String (newline-separated) | last **3** `(provider, model)` picks from the Report section's model pickers, most-recent first, encoded as `"providerId\|model"` |
 | `streaming_read_timeout_sec` | Int | read timeout for streaming SSE calls. Read-fallback `BuildConfig.NETWORK_READ_TIMEOUT_SEC` (240) |
 | `nonstreaming_read_timeout_sec` | Int | read timeout for non-streaming calls. Read-fallback `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC` (120) |
+| `batch_item_timeout_sec` | Int | wall-clock ceiling for ONE batch item (fan-out pair, translation item, tournament match, judge / compare / transrank cell), worker fallbacks + retries included. Read-fallback `BuildConfig.BATCH_ITEM_TIMEOUT_SEC` (180) |
 | `max_calls_per_provider_per_minute` | Int | per-host sliding-window rate cap mirrored to `NetworkSettings.maxCallsPerProviderPerMinute` (read-fallback 30; `GeneralSettings` field default 60). See [throttle.md](throttle.md) |
 | `max_concurrent_calls_per_provider` | Int | per-host concurrency cap (read-fallback 3; field default 5) |
 | `max_concurrent_api_calls` | Int | global flow-level cap, `ApiCallCaps.global` (read-fallback 50; field default 100). The per-kind caps (report / translation / fan-out / fan-meta / workers) are **not** separately persisted — they derive from this global at runtime |

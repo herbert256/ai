@@ -13,6 +13,7 @@ import com.ai.data.JudgeCellState
 import com.ai.data.JudgeCellStatus
 import com.ai.data.JudgeEvalRunKey
 import com.ai.data.JudgeEvalRunState
+import com.ai.data.NetworkSettings
 import com.ai.data.Report
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
@@ -36,10 +37,12 @@ import com.ai.model.SwarmMember
 import com.ai.model.Worker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 /**
  * Authoritative runtime owner for the "Judge the judges" batch on every
@@ -351,10 +354,16 @@ class JudgeEvalEngine internal constructor(
             .replace("@RESPONSE_B@", bBody)
 
         try {
-            val res = runFixedJudgeCall(
-                appViewModel, context, aiSettings, item.judge, resolved,
-                usageKind = "judges", noArtifactMessage = "judge produced no verdict"
-            ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }
+            // Per-cell wall-clock ceiling (the user-tunable "Batch item"
+            // timeout) — caught locally so a wedged judge fails just this
+            // cell, not the batch. Each bench-requeue attempt re-enters
+            // this body, so every attempt gets a fresh ceiling.
+            val res = withTimeout(NetworkSettings.batchItemTimeoutMs) {
+                runFixedJudgeCall(
+                    appViewModel, context, aiSettings, item.judge, resolved,
+                    usageKind = "judges", noArtifactMessage = "judge produced no verdict"
+                ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }
+            }
             when (res) {
                 is FixedJudgeOutcome.Accepted -> SecondaryResultStorage.recordTournamentMatch(
                     context, reportId, rowId, item.judge.providerId, item.judge.model,
@@ -366,6 +375,11 @@ class JudgeEvalEngine internal constructor(
                 is FixedJudgeOutcome.Rejected ->
                     recordItemCallError(context, reportId, rowId, item.placeholder, res.message, started)
             }
+        } catch (e: TimeoutCancellationException) {
+            recordItemCallError(
+                context, reportId, rowId, item.placeholder,
+                "judge timed out after ${NetworkSettings.batchItemTimeoutSec}s", started
+            )
         } finally {
             settleItemFromDisk(context, reportId, cKey, rowId)
         }

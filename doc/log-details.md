@@ -462,7 +462,7 @@ captured crash report — the message is the `report` string, not a literal.
 
 ### `viewmodel/FanOutEngine.kt`
 
-- **L1402** `"FanOut"` — "pair ans=$answererAgentId src=$sourceAgentId timed out after 60s"
+- **L1402** `"FanOut"` — "pair ans=$answererAgentId src=$sourceAgentId timed out after ${ceilingSec}s" (the "Batch item" timeout setting, default 180 s)
 - **L1588** `"FanOut"` — "continue broken batch failed runKey=$runKey: ${e.javaClass.simpleName}: ${e.message}"
 - **L1990** `"FanOut"` — "rerun pairs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"
 - **L2004** `"FanOut"` — "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"

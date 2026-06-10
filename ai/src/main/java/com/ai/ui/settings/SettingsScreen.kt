@@ -1034,6 +1034,9 @@ private fun NetworkSettingsSubScreen(
     var nonStreamingReadTimeoutText by remember {
         mutableStateOf(generalSettings.nonStreamingReadTimeoutSec.toString())
     }
+    var batchItemTimeoutText by remember {
+        mutableStateOf(generalSettings.batchItemTimeoutSec.toString())
+    }
     var maxCallsPerMinuteText by remember {
         mutableStateOf(generalSettings.maxCallsPerProviderPerMinute.toString())
     }
@@ -1061,6 +1064,8 @@ private fun NetworkSettingsSubScreen(
             ?: generalSettings.streamingReadTimeoutSec,
         nonStreamingReadTimeoutSec = nonStreamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
             ?: generalSettings.nonStreamingReadTimeoutSec,
+        batchItemTimeoutSec = batchItemTimeoutText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.batchItemTimeoutSec,
         maxCallsPerProviderPerMinute = maxCallsPerMinuteText.toIntOrNull()?.coerceAtLeast(1)
             ?: generalSettings.maxCallsPerProviderPerMinute,
         maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
@@ -1148,7 +1153,7 @@ private fun NetworkSettingsSubScreen(
             }
             SettingCard(
                 "Network read timeouts",
-                "How long the app waits for an API response before giving up. Streaming applies to chat / report SSE streams (the timeout is the gap between chunks, so the long default is normal). Non-streaming applies to analyze, meta, rerank, fetch-models, translate — everything that blocks for the full response body. Provider-test calls always cap at 30 s regardless.",
+                "How long the app waits for an API response before giving up. Streaming applies to chat / report SSE streams (the timeout is the gap between chunks, so the long default is normal). Non-streaming applies to analyze, meta, rerank, fetch-models, translate — everything that blocks for the full response body. Batch item is the wall-clock ceiling for one batch item (a fan-out pair, translation item, tournament match, judge / compare / translator-rank cell) including worker fallbacks and retries — a timed-out item is stamped as a restartable error. Provider-test calls always cap at 30 s regardless.",
                 MetadataDefaults.STATUS_ALARM
             ) {
                 OutlinedTextField(
@@ -1162,6 +1167,13 @@ private fun NetworkSettingsSubScreen(
                     value = nonStreamingReadTimeoutText,
                     onValueChange = { nonStreamingReadTimeoutText = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Non-streaming (seconds)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = batchItemTimeoutText,
+                    onValueChange = { batchItemTimeoutText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Batch item (seconds)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )

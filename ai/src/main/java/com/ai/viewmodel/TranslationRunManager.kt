@@ -333,9 +333,9 @@ class TranslationRunManager(
             // Per-item dispatch under the translation flow cap in
             // dynamic-host mode — each worker call self-throttles its
             // own provider host (the chain spans providers and changes
-            // on 429-fallback). A per-item 180s ceiling bounds a whole
-            // chain so a wedged call can't strand the run; a timeout
-            // finalizes that item as ERROR.
+            // on 429-fallback). The per-item "Batch item" ceiling bounds
+            // a whole chain so a wedged call can't strand the run; a
+            // timeout finalizes that item as ERROR.
             withTracerTags(reportId = sourceReportId, runId = runId) {
                 runThrottledBatch(
                     items = itemsWithIds,
@@ -351,9 +351,9 @@ class TranslationRunManager(
                     if (!SecondaryResultStorage.exists(context, sourceReportId, item.persistedRowId ?: "")) {
                         return@runThrottledBatch
                     }
-                    val outcome = kotlinx.coroutines.withTimeoutOrNull(180_000) {
+                    val outcome = kotlinx.coroutines.withTimeoutOrNull(NetworkSettings.batchItemTimeoutMs) {
                         runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
-                    } ?: TranslationOutcome.Failed("translation timed out after 180s")
+                    } ?: TranslationOutcome.Failed("translation timed out after ${NetworkSettings.batchItemTimeoutSec}s")
                     if (outcome is TranslationOutcome.Failed) {
                         finalizeTranslationError(context, runId, item, outcome.message)
                     }
@@ -1562,8 +1562,9 @@ class TranslationRunManager(
         try {
             // Per-item dispatch through the translate worker swarm under
             // the translation flow cap (dynamic host — each worker call
-            // self-throttles its own provider). A per-item 180s ceiling
-            // bounds a whole chain; a timeout finalizes that item ERROR.
+            // self-throttles its own provider). The per-item "Batch item"
+            // ceiling bounds a whole chain; a timeout finalizes that item
+            // ERROR.
             withTracerTags(reportId = sourceReportId, runId = runId) {
                 runThrottledBatch(
                     items = items,
@@ -1572,9 +1573,9 @@ class TranslationRunManager(
                     dynamicHost = true,
                     register = { item, d -> item.persistedRowId?.let { registerItemJob(it, d) } },
                 ) { item ->
-                    val outcome = kotlinx.coroutines.withTimeoutOrNull(180_000) {
+                    val outcome = kotlinx.coroutines.withTimeoutOrNull(NetworkSettings.batchItemTimeoutMs) {
                         runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
-                    } ?: TranslationOutcome.Failed("translation timed out after 180s")
+                    } ?: TranslationOutcome.Failed("translation timed out after ${NetworkSettings.batchItemTimeoutSec}s")
                     if (outcome is TranslationOutcome.Failed) {
                         finalizeTranslationError(context, runId, item, outcome.message)
                     }

@@ -757,8 +757,13 @@ Subject "Timeouts, throttling and retry rules", grouped into cards:
   gap *between* chunks, so a long default is normal).
   **Non-streaming (seconds)** is the read timeout for analyze / meta /
   rerank / translate / model-list calls (default 120 s, much shorter
-  so a hung provider can't gate a whole batch). Provider-test calls
-  always cap at 30 s regardless.
+  so a hung provider can't gate a whole batch). **Batch item
+  (seconds)** is the wall-clock ceiling for one batch item — a
+  fan-out pair, translation item, tournament match, judge / compare /
+  translator-rank cell — including worker fallbacks and retries
+  (default 180 s); a timed-out item becomes a restartable error
+  instead of stalling the batch. Provider-test calls always cap at
+  30 s regardless.
 - **Per-provider throttling** — **Max calls per provider per minute**
   (default **60**, a sliding 60 s rate cap per provider hostname) and
   **Max concurrent calls per provider** (default **5**, concurrency
