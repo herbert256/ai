@@ -365,9 +365,13 @@ private fun AgentModerationCard(
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }
-        if (row.flagged && row.firedCategories.isNotEmpty()) {
+        if (row.flagged) {
+            // A model can flag without a per-category breakdown — still show
+            // the flagged marker instead of silently hiding it.
+            val fired = row.firedCategories.takeIf { it.isNotEmpty() }
+                ?.joinToString(", ") ?: "(no categories reported)"
             Text(
-                text = "${com.ai.data.MetadataIconsHolder.current.validatePrompt} Fired: ${row.firedCategories.joinToString(", ")}",
+                text = "${com.ai.data.MetadataIconsHolder.current.validatePrompt} Fired: $fired",
                 color = AppColors.DangerAccent, fontSize = 12.sp, fontWeight = FontWeight.Medium
             )
         }
