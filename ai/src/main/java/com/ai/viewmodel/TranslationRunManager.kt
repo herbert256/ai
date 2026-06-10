@@ -110,6 +110,17 @@ class TranslationRunManager(
         }
     }
 
+    /** Flip [runId]'s in-memory run to finished — the manage screen's
+     *  hourglass gate. No-op when the run isn't loaded or is already
+     *  finished. Every run-completion path funnels through here. */
+    private fun markRunFinished(runId: String) {
+        _runs.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            if (cur.finished) return@update runs
+            runs + (runId to cur.copy(finished = true))
+        }
+    }
+
     /** The "workers"-category translate prompt — body uses
      *  `translate-text` (`@TEXT@`), the four title kinds use
      *  `translate-title` (`@TITLE@`). Both carry their own worker
@@ -150,8 +161,6 @@ class TranslationRunManager(
     ): Pair<String, Job> {
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
-            val state = appViewModel.uiState.value
-            val aiSettings = state.aiSettings
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
                 _runs.update { it - runId }
                 if (buildKey != null) appViewModel.clearBuild(buildKey)  // dismiss the build popup (no run to open)
@@ -305,84 +314,99 @@ class TranslationRunManager(
             )) }
             AuditLog.append(sourceReportId, "Start Translation to $targetLanguageName ($targetLanguageNative) — ${itemsWithIds.size} item(s) via worker swarm")
 
-            // Translation now runs through the WorkerRunner swarm — the
-            // same Mode-B fallback chain tournament / fan-meta use. No
-            // user-picked model: each item is handed to the
-            // workers/translate-text (body) or workers/translate-title
-            // (title) prompt, which shuffles its swarm and falls back
-            // on a 429 / miss. An item only ERRORs when the whole chain
-            // is exhausted.
-            // ♻️ When the source report's flag is on, the whole translation runs
-            // against its own answer models (winning over a *SELECT pick); the
-            // swarm spreads across every report-model.
-            val textPrompt = workerTranslatePrompt(aiSettings, title = false)
-                ?.withWorkerOverrides(sourceReport, overrideWorkers)
-            val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
-                ?.withWorkerOverrides(sourceReport, overrideWorkers)
-            if (textPrompt == null && titlePrompt == null) {
-                AppLog.w("Translation", "no workers/translate-text|title prompt — marking all items error")
-                itemsWithIds.forEach {
-                    finalizeTranslationError(context, runId, it, "translate worker prompt missing — add it under AI Setup → Prompt management → Worker prompts")
-                }
-                _runs.update { runs ->
-                    val cur = runs[runId] ?: return@update runs
-                    runs + (runId to cur.copy(finished = true))
-                }
+            // Translation runs through the WorkerRunner swarm — the same
+            // Mode-B fallback chain tournament / fan-meta use; see
+            // dispatchTranslationItems for the prompt resolution + batch.
+            // ♻️ When the source report's flag is on, the whole translation
+            // runs against its own answer models (winning over a *SELECT
+            // pick); the swarm spreads across every report-model.
+            if (!dispatchTranslationItems(
+                    context, sourceReportId, runId, sourceReport, itemsWithIds,
+                    targetLanguageName, overrideWorkers
+                )
+            ) return@launch
+
+            // Per-item rows were already persisted inside
+            // runOneTranslation as each call settled, so the batch
+            // survives a redeploy / OS kill mid-run. Just bump the
+            // parent report's timestamp once at the end so History
+            // resorts. Skipped on cancel.
+            val finalState = _runs.value[runId] ?: return@launch
+            if (finalState.cancelled) {
+                AppLog.i("Translation", "← cancelled $targetLanguageName for report=$sourceReportId")
                 return@launch
             }
-
-            // Per-item dispatch under the translation flow cap in
-            // dynamic-host mode — each worker call self-throttles its
-            // own provider host (the chain spans providers and changes
-            // on 429-fallback). The per-item "Batch item" ceiling bounds
-            // a whole chain so a wedged call can't strand the run; a
-            // timeout finalizes that item as ERROR.
-            withTracerTags(reportId = sourceReportId, runId = runId) {
-                runThrottledBatch(
-                    items = itemsWithIds,
-                    hostOf = { null },
-                    subCap = ApiCallCaps.translation,
-                    dynamicHost = true,
-                    // Hook each item's coroutine into the base per-item Job
-                    // registry (keyed by the disk row id) so cancel / delete /
-                    // the resume `!hasItemJob` guard see exactly what's live.
-                    register = { item, d -> item.persistedRowId?.let { registerItemJob(it, d) } },
-                ) { item ->
-                    // Skip if the report / placeholder row was deleted mid-run.
-                    if (!SecondaryResultStorage.exists(context, sourceReportId, item.persistedRowId ?: "")) {
-                        return@runThrottledBatch
-                    }
-                    // The per-item "Batch item" ceiling lives inside
-                    // runOneTranslation's pooled call; a timeout comes
-                    // back as a Failed outcome like any other miss.
-                    val outcome = runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
-                    if (outcome is TranslationOutcome.Failed) {
-                        finalizeTranslationError(context, runId, item, outcome.message, outcome.rateLimited)
-                    }
-                }
-
-                // Per-item rows were already persisted inside
-                // runOneTranslation as each call settled, so the batch
-                // survives a redeploy / OS kill mid-run. Just bump the
-                // parent report's timestamp once at the end so History
-                // resorts. Skipped on cancel.
-                val finalState = _runs.value[runId] ?: return@withTracerTags
-                if (finalState.cancelled) {
-                    AppLog.i("Translation", "← cancelled $targetLanguageName for report=$sourceReportId")
-                    return@withTracerTags
-                }
-                ReportStorage.bumpReportTimestamp(context, sourceReportId)
-                _runs.update { runs ->
-                    val cur = runs[runId] ?: return@update runs
-                    runs + (runId to cur.copy(finished = true))
-                }
-                val okCount = finalState.items.values.count { it.translatedText?.isNotBlank() == true }
-                val failCount = finalState.items.values.count { it.errorMessage != null }
-                AuditLog.append(sourceReportId, "End Translation to $targetLanguageName — ok=$okCount fail=$failCount")
-            }
+            ReportStorage.bumpReportTimestamp(context, sourceReportId)
+            markRunFinished(runId)
+            val okCount = finalState.items.values.count { it.translatedText?.isNotBlank() == true }
+            val failCount = finalState.items.values.count { it.errorMessage != null }
+            AuditLog.append(sourceReportId, "End Translation to $targetLanguageName — ok=$okCount fail=$failCount")
         }
         registerRunJob(runId, job)
         return runId to job
+    }
+
+    /** Resolve the translate worker prompts and dispatch [items] through
+     *  the swarm under the translation flow cap — the shared core of
+     *  [startTranslation] and [runTranslationSubset].
+     *
+     *  Each item goes to the workers/translate-text (body) or
+     *  workers/translate-title (title) chain, which shuffles its swarm
+     *  and falls back on a 429 / miss — an item only ERRORs when the
+     *  whole chain is exhausted or its "Batch item" ceiling fires
+     *  (inside [runOneTranslation]'s pooled call). ♻️ Models-as-workers
+     *  and [overrideWorkers] are applied to both prompts. When NEITHER
+     *  prompt exists every item is finalized as ERROR, the run is
+     *  closed, and false is returned; true means the dispatch ran to
+     *  completion (each item settled DONE or ERROR). Dynamic-host mode:
+     *  each worker call self-throttles its own provider host. */
+    private suspend fun dispatchTranslationItems(
+        context: Context,
+        sourceReportId: String,
+        runId: String,
+        sourceReport: Report,
+        items: List<TranslationItem>,
+        targetLanguageName: String,
+        overrideWorkers: List<com.ai.model.Worker>? = null
+    ): Boolean {
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val textPrompt = workerTranslatePrompt(aiSettings, title = false)
+            ?.withWorkerOverrides(sourceReport, overrideWorkers)
+        val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
+            ?.withWorkerOverrides(sourceReport, overrideWorkers)
+        if (textPrompt == null && titlePrompt == null) {
+            AppLog.w("Translation", "no workers/translate-text|title prompt — marking all items error")
+            items.forEach {
+                finalizeTranslationError(context, runId, it, "translate worker prompt missing — add it under AI Setup → Prompt management → Worker prompts")
+            }
+            markRunFinished(runId)
+            return false
+        }
+        withTracerTags(reportId = sourceReportId, runId = runId) {
+            runThrottledBatch(
+                items = items,
+                hostOf = { null },
+                subCap = ApiCallCaps.translation,
+                dynamicHost = true,
+                // Hook each item's coroutine into the base per-item Job
+                // registry (keyed by the disk row id) so cancel / delete /
+                // the resume `!hasItemJob` guard see exactly what's live.
+                register = { item, d -> item.persistedRowId?.let { registerItemJob(it, d) } },
+            ) { item ->
+                // Skip if the report / placeholder row was deleted mid-run.
+                if (!SecondaryResultStorage.exists(context, sourceReportId, item.persistedRowId ?: "")) {
+                    return@runThrottledBatch
+                }
+                // The per-item "Batch item" ceiling lives inside
+                // runOneTranslation's pooled call; a timeout comes back
+                // as a Failed outcome like any other miss.
+                val outcome = runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
+                if (outcome is TranslationOutcome.Failed) {
+                    finalizeTranslationError(context, runId, item, outcome.message, outcome.rateLimited)
+                }
+            }
+        }
+        return true
     }
 
     /** Result of a single translation call. A [Failed] is non-terminal
@@ -1129,11 +1153,7 @@ class TranslationRunManager(
             // Nothing to dispatch but the in-memory state may still
             // be flagged in-flight from an earlier partial pass.
             // Flip finished=true so the manage hourglass clears.
-            _runs.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                if (cur.finished) return@update runs
-                runs + (runId to cur.copy(finished = true))
-            }
+            markRunFinished(runId)
             return@launch
         }
         // Bound auto-resume: a placeholder that never settles (repeated
@@ -1151,11 +1171,7 @@ class TranslationRunManager(
             }
         }
         if (retryRows.isEmpty()) {
-            _runs.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                if (cur.finished) return@update runs
-                runs + (runId to cur.copy(finished = true))
-            }
+            markRunFinished(runId)
             return@launch
         }
         val missing = retryRows.map {
@@ -1166,11 +1182,7 @@ class TranslationRunManager(
         // item has settled (DONE or ERROR). Flip finished=true so
         // the manage hourglass clears and the next reconcile
         // doesn't re-fire us pointlessly.
-        _runs.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            if (cur.finished) return@update runs
-            runs + (runId to cur.copy(finished = true))
-        }
+        markRunFinished(runId)
         } finally { endResumeScan(runId) }
     }
 
@@ -1499,13 +1511,6 @@ class TranslationRunManager(
         if (buildKey != null) appViewModel.finishBuild(buildKey)
         if (items.isEmpty()) return
 
-        val aiSettings = appViewModel.uiState.value.aiSettings
-        // ♻️ Models-as-workers must hold on restart / resume too — mirror
-        // startTranslation's swap, or the re-dispatch would translate with
-        // the CONFIGURED swarm instead of the report's own models.
-        val textPrompt = workerTranslatePrompt(aiSettings, title = false)?.withWorkerOverrides(report)
-        val titlePrompt = workerTranslatePrompt(aiSettings, title = true)?.withWorkerOverrides(report)
-
         // When the in-memory run state is gone (post-kill resume or
         // manual reload on a finished run), seed the fresh state with
         // already-settled rows from disk so the detail screen shows
@@ -1541,40 +1546,16 @@ class TranslationRunManager(
             runs + (runId to merged)
         }
 
-        if (textPrompt == null && titlePrompt == null) {
-            items.forEach { finalizeTranslationError(context, runId, it, "translate worker prompt missing — add it under AI Setup → Prompt management → Worker prompts") }
-            _runs.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                runs + (runId to cur.copy(finished = true))
-            }
-            return
-        }
-
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         try {
-            // Per-item dispatch through the translate worker swarm under
-            // the translation flow cap (dynamic host — each worker call
-            // self-throttles its own provider). The per-item "Batch item"
-            // ceiling bounds a whole chain; a timeout finalizes that item
-            // ERROR.
-            withTracerTags(reportId = sourceReportId, runId = runId) {
-                runThrottledBatch(
-                    items = items,
-                    hostOf = { null },
-                    subCap = ApiCallCaps.translation,
-                    dynamicHost = true,
-                    register = { item, d -> item.persistedRowId?.let { registerItemJob(it, d) } },
-                ) { item ->
-                    // The per-item "Batch item" ceiling lives inside
-                    // runOneTranslation's pooled call; a timeout comes
-                    // back as a Failed outcome like any other miss.
-                    val outcome = runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
-                    if (outcome is TranslationOutcome.Failed) {
-                        finalizeTranslationError(context, runId, item, outcome.message, outcome.rateLimited)
-                    }
-                }
+            // ♻️ Models-as-workers must hold on restart / resume too — the
+            // helper re-applies the report's swap, or the re-dispatch would
+            // translate with the CONFIGURED swarm instead of the report's
+            // own models. A missing worker prompt finalizes the items and
+            // closes the run inside the helper (false → no timestamp bump).
+            if (dispatchTranslationItems(context, sourceReportId, runId, report, items, targetLanguageName)) {
+                ReportStorage.bumpReportTimestamp(context, sourceReportId)
             }
-            ReportStorage.bumpReportTimestamp(context, sourceReportId)
         } finally {
             appViewModel.updateUiState {
                 it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
@@ -1682,10 +1663,7 @@ class TranslationRunManager(
 
         // All cross-translate items have settled — close the run again
         // so the manage row reverts from live ⏳ to summary.
-        _runs.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            runs + (runId to cur.copy(finished = true))
-        }
+        markRunFinished(runId)
         ReportStorage.bumpReportTimestamp(context, reportId)
     }
 
@@ -1795,10 +1773,7 @@ class TranslationRunManager(
                 sourceTextOverrides = overrides
             )
 
-            _runs.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                runs + (runId to cur.copy(finished = true))
-            }
+            markRunFinished(runId)
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
     }
