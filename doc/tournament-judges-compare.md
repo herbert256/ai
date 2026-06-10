@@ -263,9 +263,9 @@ There is **no separate prompt-selection step** any more — the former
 `CompareSelectPromptScreen` was removed. Instead the launch (`Run.kt`)
 auto-resolves the `meta_compare` prompt whose **name matches the picked meta
 item's `metaPromptName`** (case-insensitive); the bundled prompt is
-`meta_compare/summarize` (it pairs with the bundled `Summarize` meta). If the
-resolved prompt's `modelSelection` is `*SELECT` (and report-models-as-workers is
-off), a worker picker pops first. The run then creates:
+`meta_compare/summarize` (it pairs with the bundled `Summarize` meta). When the
+report's Worker-batches mode (or the resolved prompt's `*SELECT` under `PROMPT`
+mode) calls for a picker (`workerPlanFor`), it pops first. The run then creates:
 
 ```
 successful answers × 1 (the one chosen meta row)

@@ -65,11 +65,13 @@ internal fun ColumnScope.SelectionPhase(
 ) {
     val context = LocalContext.current
 
-    // Primary CTA hoisted to the top of SelectionPhase — Generate
-    // for a fresh report, Update model list when entered via Edit /
-    // Models on a finished report. Gated on `models.isNotEmpty()`,
-    // same behaviour as the previous bottom-of-page version. Clear
-    // stays at the bottom as a disposal action.
+    // Primary CTA hoisted to the top of SelectionPhase — Next
+    // (advances to "Report - select workers", where Generate report
+    // fires) for a fresh report, Update model list when entered via
+    // Edit / Models on a finished report. Gated on
+    // `models.isNotEmpty()`, same behaviour as the previous
+    // bottom-of-page version. Clear stays at the bottom as a
+    // disposal action.
     if (editModeReportId != null) {
         OutlinedButton(
             onClick = onUpdateModelList,
@@ -83,7 +85,7 @@ internal fun ColumnScope.SelectionPhase(
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
-        ) { Text("Generate", maxLines = 1, softWrap = false) }
+        ) { Text("Next", maxLines = 1, softWrap = false) }
     }
     Spacer(modifier = Modifier.height(8.dp))
 

@@ -84,10 +84,6 @@ internal data class ReportRuntimeState(
     val loadedReportPrompt: String,
     val loadedReportTitle: String?,
     val loadedReportTimestamp: Long,
-    /** ♻️ Report.useReportModelsAsWorkers — read so the Manage bottom-bar
-     *  toggle can reflect/flip it and the secondary launch sites can skip
-     *  the *SELECT worker-picker when it's on. */
-    val loadedReportUseReportModelsAsWorkers: Boolean,
     val effectiveReportIcon: String?,
     /** True once the report's disk read has completed for the current
      *  report id. Lets status rows tell "data not read yet" apart from
@@ -146,7 +142,6 @@ internal fun rememberReportRuntimeState(
     var loadedReportPrompt by remember { mutableStateOf("") }
     var loadedReportTitle by remember { mutableStateOf<String?>(null) }
     var loadedReportTimestamp by remember { mutableStateOf(0L) }
-    var loadedReportUseReportModelsAsWorkers by remember { mutableStateOf(false) }
     // Report id whose disk read has completed. Keyed to the id (not a
     // bool) so a report switch re-arms the "loading" state while an
     // iconRefreshTick re-run keeps it loaded → no hourglass flash.
@@ -174,7 +169,6 @@ internal fun rememberReportRuntimeState(
             loadedReportPrompt = ""
             loadedReportTitle = null
             loadedReportTimestamp = 0L
-            loadedReportUseReportModelsAsWorkers = false
         } else {
             val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
             reportIcon = r?.icon
@@ -226,7 +220,6 @@ internal fun rememberReportRuntimeState(
             loadedReportPrompt = r?.prompt.orEmpty()
             loadedReportTitle = r?.barTitle
             loadedReportTimestamp = r?.timestamp ?: 0L
-            loadedReportUseReportModelsAsWorkers = r?.useReportModelsAsWorkers ?: false
             loadedReportId = rid
         }
     }
@@ -400,7 +393,6 @@ internal fun rememberReportRuntimeState(
         loadedReportPrompt = loadedReportPrompt,
         loadedReportTitle = loadedReportTitle,
         loadedReportTimestamp = loadedReportTimestamp,
-        loadedReportUseReportModelsAsWorkers = loadedReportUseReportModelsAsWorkers,
         effectiveReportIcon = effectiveReportIcon,
         loaded = currentReportId != null && loadedReportId == currentReportId,
         onSecondaryRefresh = onSecondaryRefresh,
@@ -423,7 +415,7 @@ internal fun HandleExternalReportInstructions(
     models: List<ReportModel>,
     selectedParametersIds: List<String>,
     onModelsChange: (List<ReportModel>) -> Unit,
-    onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
+    onGenerate: (List<ReportModel>, List<String>, ReportType, ReportWorkerConfig) -> Unit,
     onOpenView: () -> Unit,
     onClearExternalInstructions: () -> Unit
 ) {
@@ -477,7 +469,9 @@ internal fun HandleExternalReportInstructions(
             val updatedModels = deduplicateModels(models + externalModels)
             onModelsChange(updatedModels)
             val type = if (uiState.externalReportType.equals("table", ignoreCase = true)) ReportType.TABLE else ReportType.CLASSIC
-            onGenerate(updatedModels, selectedParametersIds, type)
+            // External-intent reports auto-generate and skip the
+            // select-workers step — they run with the default config.
+            onGenerate(updatedModels, selectedParametersIds, type, ReportWorkerConfig())
         }
     }
 

@@ -202,8 +202,9 @@ class JudgeEvalEngine internal constructor(
         launchRun(context, reportId, buildKey, "after/judges") { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
-            // ♻️ report-models become the judge pool, winning over a *SELECT pick.
-            val prompt = judgePrompt(aiSettings)?.withWorkerOverrides(report, overrideWorkers)
+            // Worker-batches precedence decides the judge pool (REPORT_MODELS >
+            // runtime pick > stored SELECT_ONCE pick > configured chain).
+            val prompt = judgePrompt(aiSettings)?.withBatchWorkers(report, overrideWorkers)
             if (prompt == null) {
                 AppLog.w("JudgeEval", "workers/tournament prompt not configured — aborting")
                 return@launchRun

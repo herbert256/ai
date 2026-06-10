@@ -1,5 +1,6 @@
 package com.ai.ui.report.manage
 
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,11 +22,75 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.ReportStorage
+import com.ai.data.ReportWorkerConfig
+import com.ai.model.InternalPrompt
 import com.ai.model.Settings
 import com.ai.model.Worker
 import com.ai.ui.settings.WorkerRowEditor
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.viewmodel.WorkerPlan
+import com.ai.viewmodel.workerPlanFor
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * Type-B batch launch gate shared by every launch site (Meta, Fan-in,
+ * Translate, Rerank, Moderation, Tournament, Judges, Compare, TransRank):
+ * maps the report's Worker-batches mode (+ the driving prompt's own
+ * *SELECT setting) onto either the runtime worker picker or a straight
+ * dispatch, via [com.ai.viewmodel.workerPlanFor].
+ *
+ * The config is read FRESH from disk on every launch — never from a
+ * composition-cached snapshot — so a SELECT_ONCE group persisted by an
+ * earlier batch (from any screen) is always seen and the picker is not
+ * re-opened. [scope] must be a screen-level scope that outlives the
+ * picker overlay (the overlay's early return unmounts ReportRunScreen,
+ * so a scope remembered there would be cancelled before the user
+ * confirms — pass [ReportsScreenState.screenScope]).
+ *
+ * SELECT_ONCE first pick: the group is persisted via
+ * [ReportStorage.setBatchWorkersIfEmpty] BEFORE the dispatch, and [run]
+ * receives the setter's return value — first write wins, so two
+ * concurrent first launches can never run two different groups. A
+ * [WorkerPlan.Resolved] dispatches with null override — the engine-side
+ * withBatchWorkers resolves the pool.
+ */
+internal fun launchWithWorkerPlan(
+    runtimeWorkerPick: MutableState<RuntimeWorkerPick?>,
+    context: Context,
+    scope: CoroutineScope,
+    reportId: String,
+    driver: InternalPrompt?,
+    pickTitle: String,
+    run: (List<Worker>?) -> Unit
+) {
+    scope.launch(Dispatchers.IO) {
+        val cfg = ReportStorage.getReport(context, reportId)?.workerConfig ?: ReportWorkerConfig()
+        val plan = workerPlanFor(cfg, driver)
+        withContext(Dispatchers.Main) {
+            when (plan) {
+                is WorkerPlan.NeedsPick -> runtimeWorkerPick.value = RuntimeWorkerPick(
+                    titleText = if (plan.persistOnPick) "$pickTitle — used for every batch" else pickTitle,
+                    initial = plan.initial,
+                    onConfirm = { picked ->
+                        if (plan.persistOnPick) {
+                            scope.launch(Dispatchers.IO) {
+                                val effective = ReportStorage.setBatchWorkersIfEmpty(context, reportId, picked)
+                                withContext(Dispatchers.Main) { run(effective) }
+                            }
+                        } else run(picked)
+                    },
+                    onCancel = {}
+                )
+                WorkerPlan.Resolved -> run(null)
+            }
+        }
+    }
+}
 
 /**
  * Run-time worker picker shown (full-screen) when a *SELECT Internal Prompt is

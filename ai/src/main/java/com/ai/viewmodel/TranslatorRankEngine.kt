@@ -91,11 +91,11 @@ class TranslatorRankEngine internal constructor(
         val run = _runs.value[runKey] ?: return
         val report = ReportStorage.getReport(context, run.reportId) ?: return
         val aiSettings = appViewModel.uiState.value.aiSettings
-        // ♻️ Models-as-workers: resolve the judges' original worker shape
+        // Worker-batches mode: resolve the judges' original worker shape
         // against the report-model panel (what startRun dispatched with),
         // not the configured swarm — otherwise every pinned judge misses
         // the lookup and falls back to a bare provider/model worker.
-        val effPrompt = run.prompt.withWorkerOverrides(report)
+        val effPrompt = run.prompt.withBatchWorkers(report)
         val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
         val judgesByKey = resolveJudges(aiSettings, effPrompt).associateBy { it.key }
         val cellsById = run.cells.values.associateBy { it.id }
@@ -206,7 +206,7 @@ class TranslatorRankEngine internal constructor(
     ): Int = withContext(Dispatchers.IO) {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val report = ReportStorage.getReport(context, reportId) ?: return@withContext 0
-        val prompt = rankPrompt(aiSettings)?.withWorkerOverrides(report, overrideWorkers) ?: return@withContext 0
+        val prompt = rankPrompt(aiSettings)?.withBatchWorkers(report, overrideWorkers) ?: return@withContext 0
         val judges = resolveJudges(aiSettings, prompt)
         if (judges.isEmpty()) return@withContext 0
         cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges, sourceTranslationRunId).size
@@ -235,8 +235,9 @@ class TranslatorRankEngine internal constructor(
         return launchRun(context, rk, buildKey, "transrank/rank") { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
-            // ♻️ report-models become the judge panel, winning over a *SELECT pick.
-            val prompt = rankPrompt(aiSettings)?.withWorkerOverrides(report, overrideWorkers)
+            // Worker-batches precedence decides the judge panel (REPORT_MODELS >
+            // runtime pick > stored SELECT_ONCE pick > configured chain).
+            val prompt = rankPrompt(aiSettings)?.withBatchWorkers(report, overrideWorkers)
             if (prompt == null) {
                 AppLog.w("TransRank", "workers/translate-rank prompt not configured — aborting")
                 return@launchRun

@@ -237,9 +237,10 @@ Moderation takes no params and no system prompt at all
 (`SecondaryRunManager.runModeration` → `executeSecondaryTask` short-circuits on
 `kind == MODERATION` and calls `callModerationApi` directly).
 
-> **`useReportModelsAsWorkers` (♻️) does not touch system-prompt resolution.**
-> When the report flag is set, the worker-driven kinds swap the prompt's
-> `workers` for the report's own models (`it.copy(workers = reportModelWorkers(report))`)
+> **`Report.workerConfig` does not touch system-prompt resolution.**
+> The per-report worker config (Report info / Model info / Worker batches —
+> see [workers.md](workers.md)) swaps the prompts' `workers` for other pools
+> (`withBatchWorkers` / `withReportInfoWorkers` / `withOwnModelWorker`)
 > — i.e. it changes *which* models run, not how (or whether) a system prompt is
 > resolved. For Families 2 & 3 that is still "no system prompt"; for Family 1
 > the runtime → prompt → agent → app-wide chain is unchanged.

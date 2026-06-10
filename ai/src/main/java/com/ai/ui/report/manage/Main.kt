@@ -177,7 +177,7 @@ fun ReportsScreen(
     hasPrevReport: Boolean = false,
     hasNextReport: Boolean = false,
     initialModels: List<ReportModel> = emptyList(),
-    onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
+    onGenerate: (List<ReportModel>, List<String>, ReportType, ReportWorkerConfig) -> Unit,
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit = onDismiss,
     advancedParameters: AgentParameters? = null,
@@ -413,13 +413,16 @@ fun ReportsScreen(
     val loadedReportPrompt = runtime.loadedReportPrompt
     val loadedReportTitle = runtime.loadedReportTitle
     val loadedReportTimestamp = runtime.loadedReportTimestamp
-    // ♻️ When on, covered secondary launch sites skip the *SELECT worker
-    // picker (the engines substitute the report's own models instead).
-    val useReportModelsAsWorkers = runtime.loadedReportUseReportModelsAsWorkers
     // 🏅 Rank-the-translators launch from the Translation run screens.
     val transRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
     val rankPending = rememberSaveable(currentReportId, stateSaver = com.ai.ui.report.manage.PendingRankRequestSaver) {
+        mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null)
+    }
+    // Sibling of rankPending for the Manage-hub 🏅 flow (ReportRunScreen's
+    // onRankMedal) — hoisted HERE because the runtime worker picker's
+    // early-return overlay unmounts ReportRunScreen mid-flow.
+    val manageRankPending = rememberSaveable(currentReportId, stateSaver = com.ai.ui.report.manage.PendingRankRequestSaver) {
         mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null)
     }
     val effectiveReportIcon = runtime.effectiveReportIcon
@@ -1136,14 +1139,10 @@ fun ReportsScreen(
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            val driver = aiSettings.workerPromptByName("meta")
-            if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                    titleText = "Meta — pick workers", initial = driver.workers,
-                    onConfirm = { picked -> onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, picked); goToSecondResults() },
-                    onCancel = {}
-                )
-            } else { onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, null); goToSecondResults() }
+            launchWithWorkerPlan(
+                st.runtimeWorkerPick, context, st.screenScope, rid,
+                aiSettings.workerPromptByName("meta"), "Meta — pick workers"
+            ) { picked -> onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, picked); goToSecondResults() }
         }
         return
     }
@@ -1158,14 +1157,10 @@ fun ReportsScreen(
         LaunchedEffect(fanInPicker) {
             fanInPickerPrompt = null
             fanInPickerSourceLanguage = null
-            val driver = aiSettings.workerPromptByName("fan-in")
-            if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                    titleText = "Fan-in — pick workers", initial = driver.workers,
-                    onConfirm = { picked -> onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, picked) },
-                    onCancel = {}
-                )
-            } else onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, null)
+            launchWithWorkerPlan(
+                st.runtimeWorkerPick, context, st.screenScope, rid,
+                aiSettings.workerPromptByName("fan-in"), "Fan-in — pick workers"
+            ) { picked -> onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, picked) }
         }
         return
     }
@@ -1206,13 +1201,13 @@ fun ReportsScreen(
                                 }
                             }
                         }
-                        // *SELECT on the driving translate-text prompt → pick the
-                        // workers once for the whole run; else run straight.
-                        val driver = aiSettings.workerPromptByName("translate-text")
-                        if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                            st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                                "Translate — pick workers", driver.workers, { picked -> startWith(picked) }, {})
-                        } else startWith(null)
+                        // Picker (per the report's Worker-batches mode / the
+                        // driving translate-text prompt's *SELECT) applies to
+                        // the whole run; else run straight.
+                        launchWithWorkerPlan(
+                            st.runtimeWorkerPick, context, st.screenScope, rid,
+                            aiSettings.workerPromptByName("translate-text"), "Translate — pick workers"
+                        ) { picked -> startWith(picked) }
                     }
                 },
                 onBack = { showTranslateLanguagePicker = false },
@@ -1234,14 +1229,12 @@ fun ReportsScreen(
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            val driver = aiSettings.workerPromptByName("second-rerank")
-            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                    titleText = "Rerank — pick workers", initial = driver.workers,
-                    onConfirm = { picked -> onRunRerank(rid, ls, emptyList(), null, picked); goToSecondResults() },
-                    onCancel = {}
-                )
-            } else { onRunRerank(rid, ls, emptyList(), null, null); goToSecondResults() }
+            // Rerank now follows the full Worker-batches plan (its old
+            // exemption from report-models-as-workers is dropped).
+            launchWithWorkerPlan(
+                st.runtimeWorkerPick, context, st.screenScope, rid,
+                aiSettings.workerPromptByName("second-rerank"), "Rerank — pick workers"
+            ) { picked -> onRunRerank(rid, ls, emptyList(), null, picked); goToSecondResults() }
         }
         return
     }
@@ -1259,14 +1252,12 @@ fun ReportsScreen(
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            val driver = aiSettings.workerPromptByName("second-moderation")
-            if (driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                    titleText = "Moderation — pick workers", initial = driver.workers,
-                    onConfirm = { picked -> onRunModeration(rid, ls, picked); goToSecondResults() },
-                    onCancel = {}
-                )
-            } else { onRunModeration(rid, ls, null); goToSecondResults() }
+            // Moderation now follows the full Worker-batches plan (its old
+            // exemption from report-models-as-workers is dropped).
+            launchWithWorkerPlan(
+                st.runtimeWorkerPick, context, st.screenScope, rid,
+                aiSettings.workerPromptByName("second-moderation"), "Moderation — pick workers"
+            ) { picked -> onRunModeration(rid, ls, picked); goToSecondResults() }
         }
         return
     }
@@ -1435,14 +1426,13 @@ fun ReportsScreen(
                     val key = com.ai.data.transRankRunKey(rid, runId)
                     if (transRankEngine?.runByKey(key) != null) transRankOpenState?.value = key
                     else {
-                        // *SELECT swarm: pick workers BEFORE the confirm so its
+                        // Any worker pick runs BEFORE the confirm so its
                         // count matches the run (audit bug 6).
-                        val driver = aiSettings.workerPromptByName("translate-rank")
-                        if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                            st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                                "Rank translators — pick workers", driver.workers,
-                                { picked -> rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }, {})
-                        } else rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+                        launchWithWorkerPlan(
+                            st.runtimeWorkerPick, context, st.screenScope, rid,
+                            aiSettings.workerPromptByName("translate-rank"),
+                            "Rank translators — pick workers"
+                        ) { picked -> rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }
                     }
                 },
                 onBack = { openTranslationRunId = null }
@@ -1678,6 +1668,22 @@ fun ReportsScreen(
         onNextReport = onNextReport
     )
     if (!isGenerating) {
+        if (st.showSelectWorkers.value) {
+            // Step between select-models and Generate: pick the workers for
+            // report info / model info / batches. Back clears exactly this
+            // flag, so the model selection underneath returns intact.
+            com.ai.ui.report.start.ReportSelectWorkersScreen(
+                aiSettings = uiState.aiSettings,
+                config = st.workerConfig.value,
+                onConfigChange = { st.workerConfig.value = it },
+                onGenerate = {
+                    st.showSelectWorkers.value = false
+                    onGenerate(models, selectedParametersIds, st.pendingReportType.value, st.workerConfig.value)
+                },
+                onSave = null,
+                onDismiss = { st.showSelectWorkers.value = false }
+            )
+        } else {
         com.ai.ui.report.start.ReportSelectModelsScreen(
             uiState = uiState,
             models = models,
@@ -1694,11 +1700,18 @@ fun ReportsScreen(
             onClearAllModels = { models = emptyList() },
             onAdvancedParams = { showAdvancedParameters = true },
             onParametersChange = { selectedParametersIds = it },
-            onGenerate = { type -> if (models.isNotEmpty()) onGenerate(models, selectedParametersIds, type) },
+            // Advances to "Report - select workers"; the dispatch fires there.
+            onGenerate = { type ->
+                if (models.isNotEmpty()) {
+                    st.pendingReportType.value = type
+                    st.showSelectWorkers.value = true
+                }
+            },
             onUpdateModelList = { uiState.editModeReportId?.let { onUpdateModelList(it, models) } },
             onAttachKnowledgeBases = onAttachKnowledgeBases,
             onSystemPromptChange = onSystemPromptChange
         )
+        }
     } else {
         ReportRunScreen(
             uiState = uiState,
@@ -1753,7 +1766,8 @@ fun ReportsScreen(
             onRunJudgeJudges = onRunJudgeJudges,
             onArmBuildStage = armBuildStage,
             onDeleteTournamentRun = onDeleteTournamentRun,
-            onDeleteJudgeRun = onDeleteJudgeRun
+            onDeleteJudgeRun = onDeleteJudgeRun,
+            pendingRank = manageRankPending
         )
     }
 }

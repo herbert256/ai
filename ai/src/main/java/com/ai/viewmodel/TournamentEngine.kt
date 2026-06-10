@@ -178,8 +178,9 @@ class TournamentEngine internal constructor(
         launchRun(context, tournamentRunKey(reportId), buildKey, "after/tournament") { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
-            // ♻️ report-models as the worker pool wins over a *SELECT pick.
-            val prompt = tournamentPrompt(aiSettings)?.withWorkerOverrides(report, overrideWorkers)
+            // Worker-batches precedence: REPORT_MODELS > runtime pick > stored
+            // SELECT_ONCE pick > configured chain.
+            val prompt = tournamentPrompt(aiSettings)?.withBatchWorkers(report, overrideWorkers)
             if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                 AppLog.w("Tournament", "workers/tournament not configured — aborting")
                 return@launchRun
@@ -257,17 +258,19 @@ class TournamentEngine internal constructor(
                 ))
             }
 
-            dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
+            dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending, workerScheduleFor(report))
             recomputeAggregate(context, reportId)
             AuditLog.append(reportId, "End Tournament")
         }
 
     /** Worker-batch dispatch shared by [startRun] and the rerun/resume paths
      *  — dynamic-host (each worker call self-throttles its provider) under
-     *  the shared workers cap. */
+     *  the shared workers cap. [schedule] is the report's Worker-selection
+     *  mode (round robin deals matches across the REPORT_MODELS pool). */
     private suspend fun dispatchMatches(
         context: Context, reportId: String, prompt: InternalPrompt,
-        question: String, title: String, items: List<PendingMatch>
+        question: String, title: String, items: List<PendingMatch>,
+        schedule: WorkerSchedule = WorkerSchedule.Random
     ) {
         if (items.isEmpty()) return
         runThrottledBatch(
@@ -283,7 +286,7 @@ class TournamentEngine internal constructor(
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
             try {
-                runOneMatch(context, reportId, prompt, question, title, item)
+                runOneMatch(context, reportId, prompt, question, title, item, schedule)
             } finally {
                 appViewModel.updateThrottledTournamentMatches { it - item.placeholder.id }
             }
@@ -296,7 +299,8 @@ class TournamentEngine internal constructor(
 
     private suspend fun runOneMatch(
         context: Context, reportId: String, prompt: InternalPrompt,
-        question: String, title: String, item: PendingMatch
+        question: String, title: String, item: PendingMatch,
+        schedule: WorkerSchedule = WorkerSchedule.Random
     ) {
         val mKey = matchKey(item.aAgent.agentId, item.bAgent.agentId, item.orientation)
         val rowId = item.placeholder.id
@@ -320,7 +324,8 @@ class TournamentEngine internal constructor(
                 onThrottleWait = { waiting ->
                     if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
                     else appViewModel.updateThrottledTournamentMatches { it - rowId }
-                }
+                },
+                schedule = schedule
             ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }) {
                 is PooledItemOutcome.Success -> SecondaryResultStorage.recordTournamentMatch(
                     context, reportId, rowId,
@@ -487,10 +492,11 @@ class TournamentEngine internal constructor(
     override suspend fun redispatchRows(context: Context, runKey: TournamentRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
         val report = ReportStorage.getReport(context, runKey) ?: return
-        // ♻️ Models-as-workers must hold on resume / Broken-work restart /
-        // regenerate too — the hydrated prompt carries the CONFIGURED swarm,
-        // so re-judging without the swap would pull in foreign workers.
-        val prompt = run.tournamentPrompt.withWorkerOverrides(report)
+        // The report's Worker-batches mode must hold on resume / Broken-work
+        // restart / regenerate too — the hydrated prompt carries the
+        // CONFIGURED swarm, so re-judging without the swap would pull in
+        // foreign workers under REPORT_MODELS / a stored SELECT_ONCE pick.
+        val prompt = run.tournamentPrompt.withBatchWorkers(report)
         val agentsById = report.agents.associateBy { it.agentId }
         val matchesById = run.matches.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
@@ -501,7 +507,7 @@ class TournamentEngine internal constructor(
         }
         if (pending.isEmpty()) return
         withTracerTags(reportId = runKey, category = "after/tournament") {
-            dispatchMatches(context, runKey, prompt, report.prompt, report.title, pending)
+            dispatchMatches(context, runKey, prompt, report.prompt, report.title, pending, workerScheduleFor(report))
         }
     }
 }

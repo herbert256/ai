@@ -1094,11 +1094,10 @@ data class TitleBarIcons(
      *  [validatePromptActive] is false. Null → glyph hidden. */
     val onValidatePrompt: (() -> Unit)? = null,
     val validatePromptActive: Boolean = false,
-    /** Optional ♻️ use-report-models-as-workers toggle (New AI Report +
-     *  Manage report). Grayed when [reportModelsActive] is false.
+    /** Optional 👷 open-worker-configuration hook (Manage report) —
+     *  re-opens "Report - select workers" without the Generate button.
      *  Null → glyph hidden. */
-    val onReportModels: (() -> Unit)? = null,
-    val reportModelsActive: Boolean = false,
+    val onWorkerConfig: (() -> Unit)? = null,
     /** When non-null, the four "jump to a Monitor part" actions captured
      *  from [LocalMonitorNav] — rendered as 📡 🐞 📜 📊 at the START of the
      *  bottom icon row on every screen in the Monitor subtree. Null on
@@ -1408,10 +1407,9 @@ fun TitleBar(
     onAllReports: (() -> Unit)? = null,
     onImportReport: (() -> Unit)? = null,
     validatePromptActive: Boolean = false,
-    /** ♻️ use-report-models-as-workers toggle (New AI Report + Manage
-     *  report). reportModelsActive grays the glyph until activated. */
-    onReportModels: (() -> Unit)? = null,
-    reportModelsActive: Boolean = false,
+    /** 👷 open-worker-configuration hook (Manage report) — re-opens
+     *  "Report - select workers" without the Generate button. */
+    onWorkerConfig: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Null → glyph hidden. */
     onHousekeeping: (() -> Unit)? = null,
     /** Optional ⚙️ jump-to-AI-Setup/Settings hook. Null → glyph hidden. */
@@ -1516,8 +1514,7 @@ fun TitleBar(
         onAttach = onAttach,
         onValidatePrompt = onValidatePrompt,
         validatePromptActive = validatePromptActive,
-        onReportModels = onReportModels,
-        reportModelsActive = reportModelsActive,
+        onWorkerConfig = onWorkerConfig,
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
         onStats = onStats,
@@ -2117,9 +2114,9 @@ private fun buildBottomBarIcons(
     // 🚩 validate prompt — grayed until the user activates it (picks a
     // moderation model), mirroring the 📌 pin alpha treatment.
     icons.onValidatePrompt?.let { add(BottomBarIcon(mi.validatePrompt, Color.Unspecified, it, 28, alpha = if (icons.validatePromptActive) 1f else 0.35f, legendKey = D.VALIDATE_PROMPT)) }
-    // ♻️ use report-models as workers — grayed until activated, same alpha
+    // 👷 worker configuration — opens Report - select workers in edit mode.
     // treatment as 🚩 / 📌.
-    icons.onReportModels?.let { add(BottomBarIcon(mi.reportModels, Color.Unspecified, it, 28, alpha = if (icons.reportModelsActive) 1f else 0.35f, legendKey = D.REPORT_MODELS)) }
+    icons.onWorkerConfig?.let { add(BottomBarIcon(mi.worker, Color.Unspecified, it, 28, legendKey = D.WORKER)) }
     icons.onCopy?.let { add(BottomBarIcon(mi.copy, Color.Unspecified, it, 28, legendKey = D.COPY)) }
     icons.onPin?.let { add(BottomBarIcon(mi.pin, Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f, legendKey = D.PIN)) }
     icons.onToggleModelRowLabels?.let {

@@ -135,8 +135,24 @@ Tapping **AI Reports** lands on a hub screen with several cards:
    [parameters.md](parameters.md) for how presets resolve.
 4. Optionally attach a vision image (📎), toggle web-search 🌐, or
    pick a reasoning level 🧠.
-5. Type your prompt and tap **Generate** (the button is pinned to the
-   top of the selection screen).
+5. Tap **Next** (pinned to the top of the selection screen) to reach
+   **Report - select workers** — three cards that decide who handles
+   the worker jobs for this report:
+   - **Report info** (icon, titles, language): the worker prompts'
+     configured chains, or a custom Model / Agent / Flock / Swarm
+     fallback chain you compose inline.
+   - **Model info** (icons & titles): the configured chains, or
+     **Own model** — each answer model writes its own title and icon.
+   - **Worker batches** (Fan Meta, Translation, Tournament, Judges,
+     Compare, Rerank, Moderation, Meta, Fan-in): each prompt's
+     configured chain, the report's own models (**Report models**,
+     with a **When available** / **Round robin** worker-selection
+     sub-choice), a picker on every batch start, or a one-time picker
+     whose group is reused for every later batch.
+   Leave everything on **Prompt configuration** for the default
+   behaviour, then tap **Generate report**. The same screen reopens
+   later from the 👷 icon on Manage a report (without the Generate
+   button).
 
 ### Generation phase
 
@@ -199,8 +215,10 @@ actions — **Rerank**, **Moderation**, **🌐 Translate**, **Fan out**, and
 the head-to-head **Tournament** tools — alongside 👁 View, ✏️ Edit,
 🆕 Create, 💬 Chat (starts a new chat pre-populated with the report's
 prompt), 📋 Copy, 📤 Share, 🔄 Regenerate, 🐞 Trace, 🗑 Delete,
-📌 Pin, ℹ️ report info, ✍️ add note / 📒 notes list, and the ♻️
-"use report models as workers" toggle. Single-shot kinds (Rerank,
+📌 Pin, ℹ️ report info, ✍️ add note / 📒 notes list, and 👷
+**Select workers** (re-opens "Report - select workers" to change who
+handles report info, model info and the worker batches — without the
+Generate button). Single-shot kinds (Rerank,
 Moderation) jump straight to the existing result if one exists;
 otherwise they open the picker. The footer row mirrors the agent-row
 layout and shows the report's total cost on the right; a **Costs from

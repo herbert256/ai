@@ -90,13 +90,15 @@ icon/title flows (e.g. the per-pair Fan-Meta batch,
 own sub-cap (`ApiCallCaps.fanMeta`) rather than going through
 `runWorkerBatch`.
 
-**The ♻️ report flag** — when a report's
-`useReportModelsAsWorkers` is on, the per-report icon, per-model
-icon, and language flows swap the bundled `workers` swarm for the
-report's **own** models (`reportModelWorkers`) before the run, so
-the metadata is produced by the same models that wrote the report.
-The `WorkerRunner` shuffle still applies, so it lands on a random
-report model. See [datastructures.md](datastructures.md).
+**Per-report worker config** — the report's `workerConfig` (picked
+on "Report - select workers", see [workers.md](workers.md)) reroutes
+the metadata flows: Report info = `CUSTOM` swaps the report icon /
+short+long title / language prompts' chains for the per-report group
+(`withReportInfoWorkers`); Model info = `OWN_MODEL` has each answer
+model write its own title + icon (`withOwnModelWorker` →
+`singleModelWorker`). The `WorkerRunner` shuffle still applies
+within a multi-member group. See
+[datastructures.md](datastructures.md).
 
 ## The bundled worker swarm
 

@@ -24,11 +24,38 @@ sealed class WorkerOutcome {
     data object Failed : WorkerOutcome()
 }
 
+/** How a worker-pool call picks its primary worker (and the fallback
+ *  order after a miss): [Random] shuffles per call — the historical
+ *  "when available" behaviour where fast models absorb more work —
+ *  while [RoundRobin] deals consecutive calls to consecutive workers so
+ *  every pool member gets ~the same share. A slow worker keeps its
+ *  share (its items wait; nothing reassigns on slowness); 429 / 404 /
+ *  error fall-through still advances an item to the next worker in
+ *  rotation, so an *erroring* worker may end up with less work. */
+sealed class WorkerSchedule {
+    data object Random : WorkerSchedule()
+    /** [key] groups calls that share one rotation — the report id. */
+    data class RoundRobin(val key: String) : WorkerSchedule()
+}
+
+/** Process-wide round-robin cursors keyed by rotation key (report id).
+ *  Shared by [WorkerRunner] (batch items) and
+ *  SecondaryRunManager.runSecondaryViaSwarm (single-call Meta / Fan-in /
+ *  Rerank / Moderation) so every covered call of one report advances the
+ *  same rotation. Monotonic, never reset; the map is tiny (one int per
+ *  report that ever ran a round-robin call this session). */
+internal object WorkerRotation {
+    private val counters = ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger>()
+    fun next(key: String): Int =
+        counters.computeIfAbsent(key) { java.util.concurrent.atomic.AtomicInteger(0) }.getAndIncrement()
+}
+
 /**
  * Executes a "workers"-category [InternalPrompt]: its [InternalPrompt.workers]
- * list is a fallback chain. Selection is **random per call** — the worker
- * order is shuffled each run, so the primary pick (and the fallback order
- * after a miss) is random rather than a deterministic rotation. On a **429**
+ * list is a fallback chain. Selection defaults to **random per call** — the
+ * worker order is shuffled each run, so the primary pick (and the fallback
+ * order after a miss) is random; a [WorkerSchedule.RoundRobin] schedule
+ * instead deals consecutive calls to consecutive workers. On a **429**
  * the worker is parked on a short cooldown (the response's `Retry-After`, else
  * [WORKER_429_DEFAULT_MS] = 5 s) and the next worker is tried; a non-429 /
  * logical miss just advances. A pass where EVERY candidate was cooling waits
@@ -101,12 +128,18 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
      *  **logical miss**: the worker produced no usable result, so the chain
      *  advances to the next worker exactly as it does for a transport miss,
      *  instead of returning a hollow Success the caller then has to paper over
-     *  with a fallback. Defaults to accepting any success (legacy behaviour). */
+     *  with a fallback. Defaults to accepting any success (legacy behaviour).
+     *
+     *  [schedule] picks the worker order: [WorkerSchedule.Random] (default)
+     *  shuffles per call; [WorkerSchedule.RoundRobin] starts at the shared
+     *  rotation cursor for its key and walks the pool in order, so a batch
+     *  deals items out evenly. */
     suspend fun run(
         prompt: InternalPrompt,
         resolvedText: String,
         aiSettings: Settings,
         context: Context,
+        schedule: WorkerSchedule = WorkerSchedule.Random,
         accept: (AnalysisResponse) -> Boolean = { true },
     ): WorkerOutcome {
         // Expand each worker into the per-member plain workers we actually
@@ -133,6 +166,11 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
         // sub-cap + global permits for the sleep and re-acquires them before
         // the next pass — so items waiting out a cooling pool don't throttle
         // the rest of the batch. Outside a batch it's a plain delay.
+        // Round-robin start index, fixed ONCE per run() call (not per pass):
+        // the all-cooling retry passes below re-walk the SAME rotated order
+        // without advancing the shared cursor, so a wait-and-retry doesn't
+        // skew the rotation.
+        val rotationStart = (schedule as? WorkerSchedule.RoundRobin)?.let { WorkerRotation.next(it.key) % n }
         var pass = 0
         while (true) {
             var sawRateLimit = false
@@ -142,10 +180,12 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
             fun noteWake(at: Long?) {
                 if (at != null && at > System.currentTimeMillis() && at < earliestWakeMs) earliestWakeMs = at
             }
-            // Random pick (not round-robin): shuffle the worker order each pass
-            // so the primary choice — and the fallback order after a cooldown /
-            // 429 / logical miss — is random rather than a deterministic rotation.
-            val order = members.indices.shuffled()
+            // Random schedule: shuffle each pass, so the primary choice — and
+            // the fallback order after a cooldown / 429 / logical miss — is
+            // random. RoundRobin: deterministic rotation from the shared
+            // cursor; fall-through walks the next workers in rotation order.
+            val order = if (rotationStart != null) List(n) { (rotationStart + it) % n }
+            else members.indices.shuffled()
 
             for (idx in order) {
                 val w = members[idx]
@@ -237,7 +277,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
             dynamicHost = true,
         ) { item ->
             val pair = resolve(item) ?: return@runThrottledBatch
-            onResult(item, run(pair.first, pair.second, aiSettings, context, accept))
+            onResult(item, run(pair.first, pair.second, aiSettings, context, accept = accept))
         }
     }
 }

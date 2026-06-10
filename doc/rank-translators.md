@@ -63,16 +63,18 @@ Its asset references the shared **`workers`** swarm, `parameters` and
 to its effective model, and yields a `Judge(worker, providerId, model)`
 list. Worker-source precedence at launch mirrors Tournament / Judges:
 
-1. **♻️ `report.useReportModelsAsWorkers`** — the report's own answer
+1. **Worker batches = `REPORT_MODELS`** — the report's own answer
    models become the panel (`reportModelWorkers(report)`), winning over
    everything else.
-2. **`*SELECT` swarm** — if the `translate-rank` prompt's
-   `modelSelection` is `MODEL_SELECTION_SELECT` and ♻️ is off, a
-   one-time `RuntimeWorkerPick` overlay ("Rank translators — pick
-   workers") runs **before** the confirm dialog, so the dialog's call
-   count matches the chosen judges (audit bug 6). The pick is passed as
-   `overrideWorkers`.
-3. **Otherwise** the prompt's configured swarm is used as-is.
+2. **Runtime pick** — when the report's Worker-batches mode (or the
+   `translate-rank` prompt's `*SELECT` under `PROMPT` mode) calls for a
+   picker (`workerPlanFor`), the `RuntimeWorkerPick` overlay ("Rank
+   translators — pick workers") runs **before** the confirm dialog, so
+   the dialog's call count matches the chosen judges (audit bug 6). The
+   pick is passed as `overrideWorkers`; a `SELECT_ONCE` first pick is
+   persisted onto `Report.workerConfig.batchWorkers` and reused.
+3. **Otherwise** the persisted `SELECT_ONCE` group, else the prompt's
+   configured swarm (`resolveBatchSwarm`).
 
 ## The cell grid and the ≤ 25-per-translator cap
 
@@ -175,7 +177,8 @@ langNative)`:
 The handler first checks whether a rank run already exists for that
 language (`engine.runByKey(key) != null`); if so it just **opens** it
 (`transRankOpenState.value = key`). Otherwise it resolves the worker
-source (♻️ / `*SELECT` / configured) and arms a `PendingRankRequest`,
+source (`launchWithWorkerPlan` — Worker-batches mode / `*SELECT` /
+configured) and arms a `PendingRankRequest`,
 which the shared **`RankTranslatorsConfirmHost`** dialog renders. The
 dialog calls `engine.plannedCellCount(...)` against exactly the workers
 the run will use and shows "This is about N scoring call(s)." (or

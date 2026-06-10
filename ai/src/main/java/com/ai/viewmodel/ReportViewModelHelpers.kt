@@ -149,34 +149,98 @@ internal fun reportToModels(report: Report, aiSettings: Settings): List<ReportMo
 }
 
 /** The report's own answer models as model-only [Worker]s — the
- *  worker swarm used when the ♻️ [Report.useReportModelsAsWorkers]
- *  flag is on. Distinct by provider:model; each resolves via
- *  [Settings.resolveWorker] into a dispatchable agent. The swarm
- *  consumers (runSecondaryViaSwarm / WorkerRunner) shuffle, so a
- *  single-worker kind picks one at random and a batch spreads across
- *  the whole set — no per-kind branching needed. */
+ *  worker pool used when the report's Worker-batches mode is
+ *  [com.ai.data.BatchWorkerMode.REPORT_MODELS]. Distinct by
+ *  provider:model, in stable [Report.agents] order (round-robin
+ *  relies on that stability); each resolves via
+ *  [Settings.resolveWorker] into a dispatchable agent. */
 internal fun reportModelWorkers(report: Report): List<Worker> =
     report.agents
         .distinctBy { "${it.provider}:${it.model}" }
         .map { Worker(agent = "*N/A", provider = it.provider, model = it.model) }
 
-/** The worker-pool override precedence every batch launch applies: ♻️
- *  [Report.useReportModelsAsWorkers] wins over an explicit
- *  [overrideWorkers] pick, which wins over the prompt's configured
- *  swarm. One definition so launch, resume / Broken-work restart and
- *  planned-count previews can't drift apart. */
-internal fun com.ai.model.InternalPrompt.withWorkerOverrides(report: Report, overrideWorkers: List<Worker>? = null): com.ai.model.InternalPrompt =
-    when {
-        report.useReportModelsAsWorkers -> copy(workers = reportModelWorkers(report))
-        overrideWorkers != null -> copy(workers = overrideWorkers)
-        else -> this
+/** The batch worker-pool precedence every type-B launch applies:
+ *  REPORT_MODELS wins over an explicit runtime [overrideWorkers] pick,
+ *  which wins over a persisted SELECT_ONCE group, which wins over the
+ *  prompt's [configured] chain. One definition so launch, resume /
+ *  Broken-work restart and planned-count previews can't drift apart.
+ *
+ *  Engine-internal launches (fan-meta auto-start, resume, regenerate)
+ *  have no picker surface: they always pass overrideWorkers = null, so
+ *  SELECT_ONCE uses the persisted group when present while SELECT_EACH
+ *  and a not-yet-picked SELECT_ONCE fall back to the configured chain. */
+internal fun resolveBatchSwarm(report: Report, configured: List<Worker>, overrideWorkers: List<Worker>?): List<Worker> {
+    val cfg = report.workerConfig
+    return when {
+        cfg.batches == com.ai.data.BatchWorkerMode.REPORT_MODELS -> reportModelWorkers(report)
+        overrideWorkers != null -> overrideWorkers
+        cfg.batches == com.ai.data.BatchWorkerMode.SELECT_ONCE && cfg.batchWorkers.isNotEmpty() -> cfg.batchWorkers
+        else -> configured
+    }
+}
+
+/** Prompt-shaped wrapper over [resolveBatchSwarm] — the drop-in the
+ *  batch engines apply to their driving worker prompt. */
+internal fun com.ai.model.InternalPrompt.withBatchWorkers(report: Report, overrideWorkers: List<Worker>? = null): com.ai.model.InternalPrompt =
+    copy(workers = resolveBatchSwarm(report, workers, overrideWorkers))
+
+/** UI-side decision for a type-B batch launch site: open the runtime
+ *  worker picker first, or dispatch straight away (the engine-side
+ *  [withBatchWorkers] then resolves the pool). */
+internal sealed class WorkerPlan {
+    /** Show RuntimeWorkerPickerScreen seeded with [initial]. When
+     *  [persistOnPick] (SELECT_ONCE first pick) the site must run
+     *  [com.ai.data.ReportStorage.setBatchWorkersIfEmpty] on the pick
+     *  and dispatch with its RETURN value (first write wins). */
+    data class NeedsPick(val initial: List<Worker>, val persistOnPick: Boolean) : WorkerPlan()
+    /** Dispatch with overrideWorkers = null. */
+    data object Resolved : WorkerPlan()
+}
+
+/** Maps the report's Worker-batches mode (plus the driving prompt's own
+ *  *SELECT setting) onto a [WorkerPlan]. Used by every type-B launch
+ *  site so the picker-vs-dispatch decision can't drift per kind. */
+internal fun workerPlanFor(cfg: com.ai.data.ReportWorkerConfig, prompt: com.ai.model.InternalPrompt?): WorkerPlan =
+    when (cfg.batches) {
+        com.ai.data.BatchWorkerMode.REPORT_MODELS -> WorkerPlan.Resolved
+        com.ai.data.BatchWorkerMode.SELECT_EACH ->
+            WorkerPlan.NeedsPick(prompt?.workers ?: emptyList(), persistOnPick = false)
+        com.ai.data.BatchWorkerMode.SELECT_ONCE ->
+            if (cfg.batchWorkers.isEmpty()) WorkerPlan.NeedsPick(prompt?.workers ?: emptyList(), persistOnPick = true)
+            else WorkerPlan.Resolved
+        com.ai.data.BatchWorkerMode.PROMPT ->
+            if (prompt?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT)
+                WorkerPlan.NeedsPick(prompt.workers, persistOnPick = false)
+            else WorkerPlan.Resolved
     }
 
-/** A single answer model as a one-element worker list. Used when ♻️
- *  models-as-workers wants THAT model — not the whole report-model swarm —
- *  to generate its own response's per-model icon / title (report answers and
- *  fan-out answers alike). Resolves via [Settings.resolveWorker] like the
- *  swarm entries. */
+/** Report-info card: when the report picked a custom worker group for
+ *  the report icon / titles / language calls, swap it in. */
+internal fun com.ai.model.InternalPrompt.withReportInfoWorkers(report: Report?): com.ai.model.InternalPrompt =
+    if (report?.workerConfig?.reportInfo == com.ai.data.ReportInfoMode.CUSTOM &&
+        report.workerConfig.reportInfoWorkers.isNotEmpty()
+    ) copy(workers = report.workerConfig.reportInfoWorkers) else this
+
+/** Model-info card: under "Own model" each answer model generates its
+ *  own title / icon — swap the prompt's chain for that single model. */
+internal fun com.ai.model.InternalPrompt.withOwnModelWorker(report: Report?, provider: String, model: String): com.ai.model.InternalPrompt =
+    if (report?.workerConfig?.modelInfo == com.ai.data.ModelInfoMode.OWN_MODEL)
+        copy(workers = singleModelWorker(provider, model)) else this
+
+/** Round-robin only applies to the REPORT_MODELS pool (the Worker-
+ *  selection sub-choice on the select-workers screen). Fixed-judge
+ *  grids (Judges / TransRank cells) and single-model pools ignore it —
+ *  they have no pool pick to rotate. */
+internal fun workerScheduleFor(report: Report): WorkerSchedule =
+    if (report.workerConfig.batches == com.ai.data.BatchWorkerMode.REPORT_MODELS &&
+        report.workerConfig.workerSelection == com.ai.data.WorkerSelectionMode.ROUND_ROBIN
+    ) WorkerSchedule.RoundRobin(report.id) else WorkerSchedule.Random
+
+/** A single answer model as a one-element worker list. Used when the
+ *  Model-info "Own model" mode wants THAT model — not a pool — to
+ *  generate its own response's per-model icon / title (report answers
+ *  and fan-out answers alike). Resolves via [Settings.resolveWorker]
+ *  like the pool entries. */
 internal fun singleModelWorker(provider: String, model: String): List<Worker> =
     listOf(Worker(agent = "*N/A", provider = provider, model = model))
 

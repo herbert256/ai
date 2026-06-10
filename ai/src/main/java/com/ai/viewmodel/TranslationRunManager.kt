@@ -317,7 +317,7 @@ class TranslationRunManager(
             // Translation runs through the WorkerRunner swarm — the same
             // Mode-B fallback chain tournament / fan-meta use; see
             // dispatchTranslationItems for the prompt resolution + batch.
-            // ♻️ When the source report's flag is on, the whole translation
+            // Under Worker-batches REPORT_MODELS the whole translation
             // runs against its own answer models (winning over a *SELECT
             // pick); the swarm spreads across every report-model.
             if (!dispatchTranslationItems(
@@ -354,7 +354,7 @@ class TranslationRunManager(
      *  workers/translate-title (title) chain, which shuffles its swarm
      *  and falls back on a 429 / miss — an item only ERRORs when the
      *  whole chain is exhausted or its "Batch item" ceiling fires
-     *  (inside [runOneTranslation]'s pooled call). ♻️ Models-as-workers
+     *  (inside [runOneTranslation]'s pooled call). The report's Worker-batches mode
      *  and [overrideWorkers] are applied to both prompts. When NEITHER
      *  prompt exists every item is finalized as ERROR, the run is
      *  closed, and false is returned; true means the dispatch ran to
@@ -371,9 +371,13 @@ class TranslationRunManager(
     ): Boolean {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val textPrompt = workerTranslatePrompt(aiSettings, title = false)
-            ?.withWorkerOverrides(sourceReport, overrideWorkers)
+            ?.withBatchWorkers(sourceReport, overrideWorkers)
         val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
-            ?.withWorkerOverrides(sourceReport, overrideWorkers)
+            ?.withBatchWorkers(sourceReport, overrideWorkers)
+        // Worker-selection mode: round robin deals items across the
+        // REPORT_MODELS pool so every report model translates ~the same
+        // number of items; Random (the historical pick) everywhere else.
+        val schedule = workerScheduleFor(sourceReport)
         if (textPrompt == null && titlePrompt == null) {
             AppLog.w("Translation", "no workers/translate-text|title prompt — marking all items error")
             items.forEach {
@@ -400,7 +404,7 @@ class TranslationRunManager(
                 // The per-item "Batch item" ceiling lives inside
                 // runOneTranslation's pooled call; a timeout comes back
                 // as a Failed outcome like any other miss.
-                val outcome = runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
+                val outcome = runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt, schedule)
                 if (outcome is TranslationOutcome.Failed) {
                     finalizeTranslationError(context, runId, item, outcome.message, outcome.rateLimited)
                 }
@@ -459,7 +463,8 @@ class TranslationRunManager(
         item: TranslationItem,
         targetLanguageName: String,
         textPrompt: InternalPrompt?,
-        titlePrompt: InternalPrompt?
+        titlePrompt: InternalPrompt?,
+        schedule: WorkerSchedule = WorkerSchedule.Random
     ): TranslationOutcome {
         val prompt = (if (item.kind.isTitle) titlePrompt else textPrompt)
             ?: return TranslationOutcome.Failed("translate worker prompt missing for ${item.kind}")
@@ -493,7 +498,8 @@ class TranslationRunManager(
                 onThrottleWait = { waiting ->
                     if (waiting) appViewModel.updateThrottledTranslationItems { it + item.id }
                     else appViewModel.updateThrottledTranslationItems { it - item.id }
-                }
+                },
+                schedule = schedule
             ) { resp -> !resp.analysis.isNullOrBlank() }
             if (pooled is PooledItemOutcome.Error) {
                 AppLog.d("Translation", "← item ${item.id} err — ${pooled.message}")
@@ -1548,7 +1554,7 @@ class TranslationRunManager(
 
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         try {
-            // ♻️ Models-as-workers must hold on restart / resume too — the
+            // The report's Worker-batches mode must hold on restart / resume too — the
             // helper re-applies the report's swap, or the re-dispatch would
             // translate with the CONFIGURED swarm instead of the report's
             // own models. A missing worker prompt finalizes the items and

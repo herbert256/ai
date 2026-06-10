@@ -211,6 +211,64 @@ data class PromptRevision(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+/** Who generates the report-level metadata (icon, short/long title,
+ *  language name + icon): the worker prompts' configured chains, or a
+ *  custom per-report worker group. */
+enum class ReportInfoMode { PROMPT, CUSTOM }
+
+/** Who generates each answer model's title + icon: the worker prompts'
+ *  configured chains, or the answer model itself ("Own model"). */
+enum class ModelInfoMode { PROMPT, OWN_MODEL }
+
+/** Where the worker batches (Fan Meta, Translation, Tournament, Judges,
+ *  Compare, TransRank, Rerank, Moderation, chat-Meta, Fan-in) draw their
+ *  worker pool from. */
+enum class BatchWorkerMode {
+    /** Each batch uses its Internal Prompt's configured chain; a prompt's
+     *  *SELECT mode still opens the runtime picker. */
+    PROMPT,
+    /** The report's own answer models are the pool. */
+    REPORT_MODELS,
+    /** The runtime picker opens on every batch launch. */
+    SELECT_EACH,
+    /** The runtime picker opens once, on the first batch; the pick is
+     *  persisted in [ReportWorkerConfig.batchWorkers] and reused. */
+    SELECT_ONCE,
+}
+
+/** How a [BatchWorkerMode.REPORT_MODELS] pool hands out work: the current
+ *  shuffled pick (fast models absorb more work) or a strict rotation so
+ *  every worker gets ~the same share. */
+enum class WorkerSelectionMode { WHEN_AVAILABLE, ROUND_ROBIN }
+
+/** Per-report worker routing, picked on the "Report - select workers"
+ *  screen (between select-models and Manage) and editable later from the
+ *  Manage 👷 action. Replaces the old ♻️ models-as-workers flag. */
+data class ReportWorkerConfig(
+    val reportInfo: ReportInfoMode = ReportInfoMode.PROMPT,
+    /** Worker chain for the report-info calls when [reportInfo] == CUSTOM. */
+    val reportInfoWorkers: List<com.ai.model.Worker> = emptyList(),
+    val modelInfo: ModelInfoMode = ModelInfoMode.PROMPT,
+    val batches: BatchWorkerMode = BatchWorkerMode.PROMPT,
+    /** Filled on the first type-B batch launch when [batches] == SELECT_ONCE. */
+    val batchWorkers: List<com.ai.model.Worker> = emptyList(),
+    /** Only meaningful when [batches] == REPORT_MODELS. */
+    val workerSelection: WorkerSelectionMode = WorkerSelectionMode.WHEN_AVAILABLE,
+) {
+    /** Defaults any null sub-field read from a file written by hand or a
+     *  truncated write (Gson's UnsafeAllocator bypasses constructor
+     *  defaults). Called from ReportStorage.normalizeReport. */
+    @Suppress("USELESS_CAST")
+    fun normalized() = ReportWorkerConfig(
+        reportInfo = (reportInfo as ReportInfoMode?) ?: ReportInfoMode.PROMPT,
+        reportInfoWorkers = (reportInfoWorkers as List<com.ai.model.Worker>?) ?: emptyList(),
+        modelInfo = (modelInfo as ModelInfoMode?) ?: ModelInfoMode.PROMPT,
+        batches = (batches as BatchWorkerMode?) ?: BatchWorkerMode.PROMPT,
+        batchWorkers = (batchWorkers as List<com.ai.model.Worker>?) ?: emptyList(),
+        workerSelection = (workerSelection as WorkerSelectionMode?) ?: WorkerSelectionMode.WHEN_AVAILABLE,
+    )
+}
+
 data class Report(
     val id: String,
     /** Last-changed time — bumped on (almost) every mutation. NOT a
@@ -265,16 +323,11 @@ data class Report(
      *  above the recent rows on the AI Reports hub. Persisted on the
      *  Report file so it survives across launches. */
     var pinned: Boolean = false,
-    /** ♻️ "Use report-models as workers". When on, every covered
-     *  secondary / batch / auto-icon call for this report draws its
-     *  workers from the report's own answer models (the providers +
-     *  models that produced its main answers) instead of the
-     *  configured / *SELECT worker chain — random one when a single
-     *  worker is needed, the whole set for batches. Rerank and
-     *  Moderation ignore it (they use special models). Set on the New
-     *  report screen and toggleable on Manage report; persisted here.
-     *  Default off on every legacy / new report. */
-    var useReportModelsAsWorkers: Boolean = false,
+    /** Per-report worker routing (report info / model info / worker
+     *  batches), picked on "Report - select workers" before generation
+     *  and editable later via the Manage 👷 action. Never null after
+     *  load (normalizeReport defaults it). */
+    var workerConfig: ReportWorkerConfig = ReportWorkerConfig(),
     /** Sum of input + output cost (USD) for every row deleted from
      *  this report — agent rows, secondary results, fan-out pairs,
      *  fan-in rows, translations, etc. Bumped on every delete by the

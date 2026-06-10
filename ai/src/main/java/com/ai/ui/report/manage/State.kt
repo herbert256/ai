@@ -164,6 +164,17 @@ internal class ReportsScreenState(
      *  Internal Prompt is about to run, so the user picks the workers first.
      *  Plain `remember` (not saveable) — it carries lambdas. */
     val runtimeWorkerPick: MutableState<RuntimeWorkerPick?>,
+    /** "Report - select workers" step between select-models and Generate:
+     *  whether the screen is showing, the in-progress worker config draft,
+     *  and the report type carried over from the select-models button. */
+    val showSelectWorkers: MutableState<Boolean>,
+    val workerConfig: MutableState<ReportWorkerConfig>,
+    val pendingReportType: MutableState<ReportType>,
+    /** ReportsScreen-level scope for work that must survive the runtime
+     *  worker picker's early-return overlay (which unmounts
+     *  ReportRunScreen and cancels any scope remembered there) — the
+     *  fresh-config read + SELECT_ONCE persist in launchWithWorkerPlan. */
+    val screenScope: kotlinx.coroutines.CoroutineScope,
 )
 
 /** A pending "pick workers before running" request (see [InternalPrompt.modelSelection]
@@ -262,6 +273,10 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val pendingBuildNav = remember { mutableStateOf<(() -> Unit)?>(null) }
     val pendingBuildCancel = remember { mutableStateOf<(() -> Unit)?>(null) }
     val runtimeWorkerPick = remember { mutableStateOf<RuntimeWorkerPick?>(null) }
+    val showSelectWorkers = rememberSaveable { mutableStateOf(false) }
+    val workerConfig = rememberSaveable(stateSaver = ReportWorkerConfigSaver) { mutableStateOf(ReportWorkerConfig()) }
+    val pendingReportType = rememberSaveable { mutableStateOf(ReportType.CLASSIC) }
+    val screenScope = rememberCoroutineScope()
     return remember {
         ReportsScreenState(
         openMetaResultId,
@@ -348,7 +363,11 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         pendingBuildKey,
         pendingBuildNav,
         pendingBuildCancel,
-        runtimeWorkerPick
+        runtimeWorkerPick,
+        showSelectWorkers,
+        workerConfig,
+        pendingReportType,
+        screenScope
         )
     }
 }

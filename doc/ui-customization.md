@@ -325,12 +325,14 @@ the UI renders). The 🧽 title-bar action resets *all* icons to factory
 - status/progress glyphs, marks/ranks/medals, arrows/carets, and a long
   tail of search/file/content/media/cost/workers/device symbols.
 
-A couple of carried fields are **not** surfaced as editor rows (they're
-absent from `DEFAULT_ICON_SECTIONS`, so `normalized()` and the screen
-never touch them): `translatorRank` 🏅 and `reportModels` ♻️. They are
-still persisted, sanitized and backed up like every other field, and the
-action bars draw them via `forFactoryGlyph` / `forKind` — they just can't
-be re-skinned on the Default icons screen yet.
+One carried field is **not** surfaced as an editor row (it's absent
+from `DEFAULT_ICON_SECTIONS`, so `normalized()` and the screen never
+touch it): `translatorRank` 🏅. It is still persisted, sanitized and
+backed up like every other field, and the action bars draw it via
+`forFactoryGlyph` / `forKind` — it just can't be re-skinned on the
+Default icons screen yet. (The old `reportModels` ♻️ field was removed
+along with the models-as-workers toggle; the Manage 👷 worker-config
+action uses the editable `worker` glyph.)
 
 Generated metadata icons on a report or secondary row still win over
 these defaults — the defaults are the fallback when a row has no

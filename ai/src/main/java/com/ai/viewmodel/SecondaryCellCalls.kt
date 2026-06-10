@@ -57,6 +57,7 @@ internal suspend fun runPooledWorkerCall(
     resolved: String,
     traceCategory: String? = null,
     onThrottleWait: (Boolean) -> Unit = {},
+    schedule: WorkerSchedule = WorkerSchedule.Random,
     accept: (AnalysisResponse) -> Boolean,
 ): PooledWorkerCall {
     val started = System.currentTimeMillis()
@@ -64,9 +65,9 @@ internal suspend fun runPooledWorkerCall(
     val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(onThrottleWait)) {
         withTraceFilenameSink(traceSink) {
             if (traceCategory != null) withTraceCategory(traceCategory) {
-                workerRunner.run(prompt, resolved, aiSettings, context, accept)
+                workerRunner.run(prompt, resolved, aiSettings, context, schedule, accept)
             } else {
-                workerRunner.run(prompt, resolved, aiSettings, context, accept)
+                workerRunner.run(prompt, resolved, aiSettings, context, schedule, accept)
             }
         }
     }
@@ -149,12 +150,13 @@ internal suspend fun runPooledItemCall(
     noResultMessage: String,
     traceCategory: String? = null,
     onThrottleWait: (Boolean) -> Unit = {},
+    schedule: WorkerSchedule = WorkerSchedule.Random,
     accept: (AnalysisResponse) -> Boolean,
 ): PooledItemOutcome {
     val aiSettings = appViewModel.uiState.value.aiSettings
     val call = try {
         withTimeout(NetworkSettings.batchItemTimeoutMs) {
-            runPooledWorkerCall(workerRunner, aiSettings, context, prompt, resolved, traceCategory, onThrottleWait, accept)
+            runPooledWorkerCall(workerRunner, aiSettings, context, prompt, resolved, traceCategory, onThrottleWait, schedule, accept)
         }
     } catch (e: TimeoutCancellationException) {
         return PooledItemOutcome.Error(timeoutMessage, rateLimited = false)

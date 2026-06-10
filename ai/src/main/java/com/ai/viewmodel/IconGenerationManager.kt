@@ -391,7 +391,6 @@ class IconGenerationManager(
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "report-icon"
         } ?: return
-        if (iconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "report/icon") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
@@ -404,10 +403,15 @@ class IconGenerationManager(
                     ?: report?.title?.takeIf { it.isNotBlank() }
                     ?: promptText
                 val resolved = iconPrompt.text.replace("@TITLE_LONG@", titleLong)
-                // ♻️ When the report flag is on, retrieve the icon from one of the
-                // report's own models (workerRunner shuffles → random report-model).
-                val effIconPrompt = if (report?.useReportModelsAsWorkers == true)
-                    iconPrompt.copy(workers = reportModelWorkers(report)) else iconPrompt
+                // Report-info card: a CUSTOM per-report worker group swaps in
+                // for the configured chain. The resolvability pre-flight runs
+                // on the EFFECTIVE prompt — a custom group may resolve when
+                // the configured chain doesn't (and vice versa).
+                val effIconPrompt = iconPrompt.withReportInfoWorkers(report)
+                if (effIconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+                    appViewModel.updateRunningInfoJobs { it - "$reportId|icon" }
+                    return@withTracerTags
+                }
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
                     // A worker reply with no parseable emoji is a logical miss —
@@ -598,17 +602,27 @@ class IconGenerationManager(
         // Two worker prompts → two calls: a ≤25-char short title (list
         // cards) and a ≤50-char long title (top-bar orange line). Each is a
         // random-pick / 429-fallback chain over the same 'workers' swarm.
-        val shortPrompt = aiSettings.internalPrompts.firstOrNull {
+        val basShortPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "report-title-short"
         }
-        val longPrompt = aiSettings.internalPrompts.firstOrNull {
+        val basLongPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "report-title-long"
         }
-        val shortUsable = shortPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
-        val longUsable = longPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
-        if (!shortUsable && !longUsable) return
+        if (basShortPrompt == null && basLongPrompt == null) return
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
+            // Report-info card: a CUSTOM per-report worker group swaps in for
+            // both title prompts' configured chains. Usability pre-flights
+            // run on the EFFECTIVE prompts.
+            val titleReport = ReportStorage.getReport(context, reportId)
+            val shortPrompt = basShortPrompt?.withReportInfoWorkers(titleReport)
+            val longPrompt = basLongPrompt?.withReportInfoWorkers(titleReport)
+            val shortUsable = shortPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
+            val longUsable = longPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
+            if (!shortUsable && !longUsable) {
+                appViewModel.updateRunningInfoJobs { it - "$reportId|title" }
+                return@launch
+            }
             // Run both calls concurrently.
             val (short, long) = coroutineScope {
                 val s = async { runTitlePrompt(context, reportId, shortPrompt, promptText, aiSettings, cap = 25, traceCategory = "report/title-short") }
@@ -773,17 +787,17 @@ class IconGenerationManager(
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "model-titles"
         } ?: return
-        if (titlePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         val agentResponse = ra.responseBody.orEmpty()
         if (agentResponse.isBlank()) return
         val resolved = titlePrompt.text.replace("@RESPONSE@", agentResponse)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            // ♻️ Models-as-workers: have THIS model write its own response's
-            // title — a one-worker swarm of the answer's own provider/model,
-            // not the configured model-titles swarm.
+            // Model-info "Own model": have THIS model write its own
+            // response's title — a one-worker swarm of the answer's own
+            // provider/model, not the configured model-titles swarm. The
+            // resolvability pre-flight runs on the EFFECTIVE prompt.
             val mawReport = ReportStorage.getReport(context, reportId)
-            val effTitlePrompt = if (mawReport?.useReportModelsAsWorkers == true)
-                titlePrompt.copy(workers = singleModelWorker(ra.provider, ra.model)) else titlePrompt
+            val effTitlePrompt = titlePrompt.withOwnModelWorker(mawReport, ra.provider, ra.model)
+            if (effTitlePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return@launch
             var generatedTitle: String? = null
             withTracerTags(reportId = reportId, category = "model/titles") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
@@ -876,7 +890,12 @@ class IconGenerationManager(
         val prompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "model-icons"
         } ?: return false
-        if (prompt.workers.none { aiSettings.resolveWorker(it) != null }) return false
+        // Model-info "Own model": THIS model retrieves its own response's
+        // icon (a one-worker swarm of the answer's provider/model), not the
+        // configured chain. Pre-flight runs on the EFFECTIVE prompt.
+        val report = ReportStorage.getReport(context, reportId)
+        val effPrompt = prompt.withOwnModelWorker(report, ra.provider, ra.model)
+        if (effPrompt.workers.none { aiSettings.resolveWorker(it) != null }) return false
         // Reset this agent's icon fields + iconCalls so a re-fire
         // (regenerate) replaces rather than accumulates — matches the
         // 3-tier chain's clearReportAgentIconState at its own start.
@@ -884,11 +903,6 @@ class IconGenerationManager(
         return withTracerTags(reportId = reportId, category = "model/icons") {
             val started = System.currentTimeMillis()
             val resolved = prompt.text.replace("@TITLE@", title)
-            // ♻️ Models-as-workers: THIS model retrieves its own response's icon
-            // (a one-worker swarm of the answer's provider/model), not the swarm.
-            val report = ReportStorage.getReport(context, reportId)
-            val effPrompt = if (report?.useReportModelsAsWorkers == true)
-                prompt.copy(workers = singleModelWorker(ra.provider, ra.model)) else prompt
             // Capture the trace filename of the winning icon call so the
             // Model-response screen's 🐞 next to the big icon can deep-link
             // to the exact call that decided this icon (the worker runs on
@@ -955,20 +969,22 @@ class IconGenerationManager(
         val namePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "report-language-name"
         } ?: return
-        if (namePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "report-language-icon"
         }
         val resolvedName = namePrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
-            // ♻️ When the report flag is on, language detect + icon run on the
-            // report's own models too (workerRunner shuffles → random model).
+            // Report-info card: a CUSTOM per-report worker group covers the
+            // language detect + icon calls too. The resolvability pre-flight
+            // runs on the EFFECTIVE prompt — a custom group may resolve when
+            // the configured chain doesn't (and vice versa).
             val langReport = ReportStorage.getReport(context, reportId)
-            val effNamePrompt = if (langReport?.useReportModelsAsWorkers == true)
-                namePrompt.copy(workers = reportModelWorkers(langReport)) else namePrompt
-            val effIconPrompt = iconPrompt?.let {
-                if (langReport?.useReportModelsAsWorkers == true) it.copy(workers = reportModelWorkers(langReport)) else it
+            val effNamePrompt = namePrompt.withReportInfoWorkers(langReport)
+            val effIconPrompt = iconPrompt?.withReportInfoWorkers(langReport)
+            if (effNamePrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+                appViewModel.updateRunningInfoJobs { it - "$reportId|language" }
+                return@launch
             }
             // ---- 1) Language name ----
             val detectedName = try {
@@ -2811,14 +2827,18 @@ class IconGenerationManager(
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
                 val aiSettings = appViewModel.uiState.value.aiSettings
-                // ♻️ Models-as-workers: each fan-out pair's icon/title is written
-                // by the model that produced THAT fan-out answer (resolved per
-                // pair, below). Here we only need the prompt template to exist;
-                // the per-pair model is always resolvable when the flag is on.
+                // Worker-batches REPORT_MODELS: each fan-out pair's icon/title
+                // is written by the model that produced THAT fan-out answer
+                // (resolved per pair, below) — here we only need the template
+                // to exist. Other modes resolve the batch pool up front
+                // (engine-internal launch: SELECT_ONCE uses the persisted
+                // group when present, otherwise the configured chain).
                 val report = ReportStorage.getReport(context, reportId)
-                val mawOn = report?.useReportModelsAsWorkers == true
-                if (fanMetaPrompt == null ||
-                    (!mawOn && fanMetaPrompt.workers.none { aiSettings.resolveWorker(it) != null })) {
+                val ownModelPairs = report?.workerConfig?.batches == com.ai.data.BatchWorkerMode.REPORT_MODELS
+                val effBatchPrompt = if (report != null && fanMetaPrompt != null)
+                    fanMetaPrompt.withBatchWorkers(report) else fanMetaPrompt
+                if (effBatchPrompt == null ||
+                    (!ownModelPairs && effBatchPrompt.workers.none { aiSettings.resolveWorker(it) != null })) {
                     AppLog.w("FanMeta", "fan/meta not configured — skipping")
                     buildKey?.let { appViewModel.finishBuild(it) }
                     return@launch
@@ -2862,7 +2882,7 @@ class IconGenerationManager(
                         if (!SecondaryResultStorage.exists(context, reportId, pair.id)) return@runThrottledBatch
                         appViewModel.updateRunningFanMetaPairs { it + pair.id }
                         try {
-                            runFanMetaForPair(context, reportId, pair, fanMetaPrompt, aiSettings, fanRunId, iconRefreshCoalescer, mawOn)
+                            runFanMetaForPair(context, reportId, pair, effBatchPrompt, aiSettings, fanRunId, iconRefreshCoalescer, ownModelPairs)
                         } finally {
                             appViewModel.updateRunningFanMetaPairs { it - pair.id }
                             // acquireOrWait clears its own wait notification, but
@@ -2914,12 +2934,14 @@ class IconGenerationManager(
         context: Context, reportId: String, pair: SecondaryResult,
         fanMetaPrompt: InternalPrompt, aiSettings: Settings, fanRunId: String,
         iconRefreshCoalescer: FanMetaIconRefreshCoalescer,
-        useReportModelsAsWorkers: Boolean = false
+        /** Worker-batches REPORT_MODELS: the fan-out answer's OWN model
+         *  writes its icon/title (a one-worker swarm of
+         *  pair.providerId/model) — rotation is a no-op on a one-model
+         *  pool, so this batch keeps the Random schedule. */
+        ownModelPairs: Boolean = false
     ) {
         val started = System.currentTimeMillis()
-        // ♻️ Models-as-workers: the fan-out answer's OWN model writes its
-        // icon/title (a one-worker swarm of pair.providerId/model).
-        val effPrompt = if (useReportModelsAsWorkers)
+        val effPrompt = if (ownModelPairs)
             fanMetaPrompt.copy(workers = singleModelWorker(pair.providerId, pair.model)) else fanMetaPrompt
         val resolved = effPrompt.text.replace("@PROMPT@", pair.content.orEmpty())
         // A fan-meta reply is usable when it yields at least a title or an

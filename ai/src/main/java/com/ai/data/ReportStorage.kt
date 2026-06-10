@@ -77,7 +77,7 @@ data class CreateReportConfig(
     val imageMime: String? = null,
     val webSearchTool: Boolean = false,
     val reasoningEffort: String? = null,
-    val useReportModelsAsWorkers: Boolean = false,
+    val workerConfig: ReportWorkerConfig = ReportWorkerConfig(),
     // Explicit id — used by the translation flow so the new report's UUID can
     // be reserved up front and threaded into ApiTracer.currentReportId before
     // any translation API call runs (otherwise those traces carry no report id).
@@ -171,7 +171,7 @@ object ReportStorage {
         val report = Report(explicitId ?: UUID.randomUUID().toString(), now, createdAt = now, title = title, prompt = prompt,
             agents = agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
             imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool,
-            reasoningEffort = reasoningEffort, useReportModelsAsWorkers = useReportModelsAsWorkers,
+            reasoningEffort = reasoningEffort, workerConfig = workerConfig,
             sourceReportId = sourceReportId,
             knowledgeBaseIds = knowledgeBaseIds, runId = runId,
             parameterPresetIds = parameterPresetIds, advancedParameters = advancedParameters,
@@ -651,6 +651,16 @@ object ReportStorage {
         if ((res.selectionParamsById as Map<String, List<String>>?) == null) {
             res = res.copy(selectionParamsById = emptyMap())
         }
+        // workerConfig is declared non-null but a file written before the
+        // field existed (or hand-edited) deserializes it as null; nested
+        // enums/lists can likewise be null inside an otherwise-present
+        // object. Default both layers here so every reader can use
+        // report.workerConfig directly.
+        res = if ((res.workerConfig as ReportWorkerConfig?) == null) {
+            res.copy(workerConfig = ReportWorkerConfig())
+        } else {
+            res.copy(workerConfig = res.workerConfig.normalized())
+        }
         if ((res.apiCallCosts as List<ReportApiCallCost>?) == null) {
             res = res.copy(apiCallCosts = mutableListOf())
         }
@@ -843,16 +853,41 @@ object ReportStorage {
         }
     }
 
-    /** Toggle (or set) the ♻️ "use report-models as workers" flag on
-     *  [reportId]. Strictly a worker-source signal — doesn't change the
-     *  report's body. See [Report.useReportModelsAsWorkers]. */
-    fun setUseReportModelsAsWorkers(context: Context, reportId: String, value: Boolean) {
+    /** Persist the worker-routing config picked on "Report - select
+     *  workers" (also the Manage 👷 re-edit). Strictly a worker-source
+     *  signal — doesn't change the report's body. See
+     *  [Report.workerConfig]. */
+    fun setWorkerConfig(context: Context, reportId: String, value: ReportWorkerConfig) {
         init(context)
         lock.withLock {
             val report = loadReport(reportId) ?: return
-            report.useReportModelsAsWorkers = value
+            report.workerConfig = value
             saveReport(report)
-            AuditLog.append(reportId, if (value) "Enabled report-models as workers (♻️)" else "Disabled report-models as workers (♻️)")
+            AuditLog.append(
+                reportId,
+                "Updated worker config (reportInfo=${value.reportInfo}, modelInfo=${value.modelInfo}, " +
+                    "batches=${value.batches}, selection=${value.workerSelection})"
+            )
+        }
+    }
+
+    /** SELECT_ONCE first-pick persistence. First write wins: when a
+     *  concurrent batch launch already stored a group, that stored group
+     *  is returned and [picked] is discarded — so two simultaneous
+     *  type-B launches can never persist two different groups. Callers
+     *  must run with whatever this returns. */
+    fun setBatchWorkersIfEmpty(
+        context: Context, reportId: String, picked: List<com.ai.model.Worker>
+    ): List<com.ai.model.Worker> {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock picked
+            val cfg = report.workerConfig
+            if (cfg.batchWorkers.isNotEmpty()) return@withLock cfg.batchWorkers
+            report.workerConfig = cfg.copy(batchWorkers = picked)
+            saveReport(report)
+            AuditLog.append(reportId, "Stored one-time batch workers (${picked.size} entries)")
+            picked
         }
     }
 

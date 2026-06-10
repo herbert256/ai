@@ -101,7 +101,14 @@ class SecondaryRunManager(
         val cooldown = HashMap<String, Long>()
         var sawRateLimit = false
         var lastErr: String? = null
-        for (idx in members.indices.shuffled()) {
+        // Worker order: shuffled by default; under REPORT_MODELS + Round
+        // robin a deterministic rotation from the shared per-report cursor,
+        // so successive single-call kinds spread evenly across the pool.
+        val rotationStart = (workerScheduleFor(report) as? WorkerSchedule.RoundRobin)
+            ?.let { WorkerRotation.next(it.key) % members.size }
+        val order = if (rotationStart != null) List(members.size) { (rotationStart + it) % members.size }
+        else members.indices.shuffled()
+        for (idx in order) {
             val w = members[idx]
             val key = "${w.provider}:${w.model}:${w.agent}"
             if ((cooldown[key] ?: 0L) > System.currentTimeMillis()) { sawRateLimit = true; continue }
@@ -289,7 +296,10 @@ class SecondaryRunManager(
                         )
                     }
                     runSecondaryViaSwarm(
-                        context, reportId, SecondaryKind.RERANK, rerankPrompt, overrideWorkers ?: rerankPrompt.workers,
+                        context, reportId, SecondaryKind.RERANK, rerankPrompt,
+                        // Worker-batches precedence — Rerank is no longer
+                        // exempt from REPORT_MODELS (the old ♻️ carve-out).
+                        resolveBatchSwarm(report, rerankPrompt.workers, overrideWorkers),
                         resolvedPrompt, aiSettings, report, base,
                         targetLanguage = sourceLanguage, targetLanguageNative = langCtx?.native,
                         paramsIds = paramsIds, systemPromptId = systemPromptId
@@ -366,7 +376,11 @@ class SecondaryRunManager(
                         )
                     }
                     runSecondaryViaSwarm(
-                        context, reportId, SecondaryKind.MODERATION, moderationPrompt, overrideWorkers ?: moderationPrompt.workers,
+                        context, reportId, SecondaryKind.MODERATION, moderationPrompt,
+                        // Worker-batches precedence — Moderation is no longer
+                        // exempt from REPORT_MODELS. Note a chat report model
+                        // can't serve /moderations; the help page calls this out.
+                        resolveBatchSwarm(report, moderationPrompt.workers, overrideWorkers),
                         resolvedPrompt = "", aiSettings = aiSettings, report = report, base = base,
                         targetLanguage = sourceLanguage, targetLanguageNative = native
                     )
@@ -835,29 +849,22 @@ class SecondaryRunManager(
             rvm.resumingMetaIds.remove(placeholder.id); return null
         }
         val kind = placeholder.kind
-        // Rerank & Moderation re-resolve their worker from the CURRENT prompt on
-        // every restart — the user may have changed the second-rerank /
-        // second-moderation worker since this row was first created. Every other
-        // kind keeps the provider/model recorded on the row.
-        val freshWorker = if (kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION) {
-            metaPrompt.workers.asSequence()
-                .flatMap { aiSettings.expandWorker(it).asSequence() }
-                .mapNotNull { w ->
-                    aiSettings.resolveWorker(w)?.let { a -> a.provider to aiSettings.getEffectiveModelForAgent(a) }
-                }
-                .firstOrNull()
-        } else null
-        val provider = freshWorker?.first
-            ?: AppService.findById(placeholder.providerId) ?: run {
-                rvm.resumingMetaIds.remove(placeholder.id); return null
-            }
-        val model = freshWorker?.second ?: placeholder.model
+        // Rerank & Moderation re-resolve their worker on every restart (the
+        // user may have changed the chain — or the report's Worker-batches
+        // mode — since the row was first created); the report-aware pool is
+        // resolved inside the coroutine, after the report loads off the UI
+        // thread. Every other kind keeps the provider/model recorded on the
+        // row, so an unresolvable recorded provider aborts here as before.
+        val fallbackProvider = AppService.findById(placeholder.providerId)
+        if (fallbackProvider == null && kind != SecondaryKind.RERANK && kind != SecondaryKind.MODERATION) {
+            rvm.resumingMetaIds.remove(placeholder.id); return null
+        }
         val scope = com.ai.data.SecondaryScope.decodeOrAllReports(placeholder.secondaryScope)
         val lang = placeholder.targetLanguage
         val langNative = placeholder.targetLanguageNative
         val cat = "${metaPrompt.category}/${metaPrompt.name}"
 
-        AppLog.i("Resume", "→ re-issue ${kind.name} \"${metaPrompt.name}\" report=$reportId row=${placeholder.id} via ${provider.id}/$model")
+        AppLog.i("Resume", "→ re-issue ${kind.name} \"${metaPrompt.name}\" report=$reportId row=${placeholder.id}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
@@ -878,6 +885,38 @@ class SecondaryRunManager(
                 ))
                 withTracerTags(reportId = reportId, category = cat) {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                    // Rerank / Moderation: a resolvable member of the
+                    // report-aware batch pool (REPORT_MODELS / stored
+                    // SELECT_ONCE pick / configured chain). Under Round
+                    // robin the pick advances the shared per-report cursor
+                    // so resumed rows honour the rotation share too.
+                    val freshWorker = if (kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION) {
+                        val candidates = resolveBatchSwarm(report, metaPrompt.workers, null)
+                            .flatMap { aiSettings.expandWorker(it) }
+                            .mapNotNull { w ->
+                                aiSettings.resolveWorker(w)?.let { a -> a.provider to aiSettings.getEffectiveModelForAgent(a) }
+                            }
+                        when {
+                            candidates.isEmpty() -> null
+                            else -> when (val sch = workerScheduleFor(report)) {
+                                is WorkerSchedule.RoundRobin -> candidates[WorkerRotation.next(sch.key) % candidates.size]
+                                else -> candidates.first()
+                            }
+                        }
+                    } else null
+                    val provider = freshWorker?.first ?: fallbackProvider ?: run {
+                        // Neither the pool nor the recorded provider resolves.
+                        // The row was already wiped to a pending placeholder
+                        // above — stamp a terminal error so it can't sit as a
+                        // silent forever-hourglass for the rest of the session.
+                        SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                            content = null,
+                            errorMessage = "No resolvable worker for ${kind.name.lowercase()} — check the worker chain under Prompt management.",
+                            durationMs = 0
+                        ))
+                        return@withTracerTags
+                    }
+                    val model = freshWorker?.second ?: placeholder.model
                     // Fan-in (combine-reports) rows rebuild from the fan-out
                     // matrix, NOT from the report's answers — resolve via the
                     // shared fan-in builder and re-issue against the same
@@ -978,7 +1017,10 @@ class SecondaryRunManager(
     ): Job? {
         AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via the Fan-in worker swarm")
         val aiSettings0 = appViewModel.uiState.value.aiSettings
-        val swarm = overrideWorkers ?: workerSwarmPrompt(aiSettings0, "fan-in")?.workers ?: emptyList()
+        // Configured chain only — overrideWorkers stays separate so the
+        // resolveBatchSwarm precedence (REPORT_MODELS > runtime pick >
+        // stored SELECT_ONCE pick > configured) applies at the call below.
+        val configuredSwarm = workerSwarmPrompt(aiSettings0, "fan-in")?.workers ?: emptyList()
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             val cat = "${metaPrompt.category}/${metaPrompt.name}"
@@ -1020,8 +1062,7 @@ class SecondaryRunManager(
                     }
                     runSecondaryViaSwarm(
                         context, reportId, SecondaryKind.META, metaPrompt,
-                        // ♻️ report-models as the worker swarm when the flag is on.
-                        if (report.useReportModelsAsWorkers) reportModelWorkers(report) else swarm,
+                        resolveBatchSwarm(report, configuredSwarm, overrideWorkers),
                         resolution.resolvedPrompt, aiSettings, report, base,
                         targetLanguage = sourceLanguage,
                         targetLanguageNative = resolution.languageNative,
@@ -1250,9 +1291,10 @@ class SecondaryRunManager(
         overrideWorkers: List<com.ai.model.Worker>? = null
     ): Job? {
         val kind = SecondaryKind.META
-        // Swarm from the dedicated workers/meta holder prompt; the
-        // content comes from the user's chosen meta prompt.
-        val swarm = overrideWorkers ?: workerSwarmPrompt(appViewModel.uiState.value.aiSettings, "meta")?.workers ?: emptyList()
+        // Configured chain from the dedicated workers/meta holder prompt;
+        // the content comes from the user's chosen meta prompt.
+        // overrideWorkers stays separate for the resolveBatchSwarm call.
+        val configuredSwarm = workerSwarmPrompt(appViewModel.uiState.value.aiSettings, "meta")?.workers ?: emptyList()
         AppLog.i("Meta", "→ start \"${metaPrompt.name}\" report=$reportId via the Meta worker swarm")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
@@ -1400,10 +1442,7 @@ class SecondaryRunManager(
                 }
                 runSecondaryViaSwarm(
                     context, reportId, kind, metaPrompt,
-                    // ♻️ When the report flag is on, the worker swarm is the
-                    // report's own models; runSecondaryViaSwarm shuffles, so
-                    // a single Meta result picks one at random.
-                    if (report.useReportModelsAsWorkers) reportModelWorkers(report) else swarm,
+                    resolveBatchSwarm(report, configuredSwarm, overrideWorkers),
                     resolvedPrompt, aiSettings, report, base,
                     targetLanguage = seedLang.first, targetLanguageNative = seedLang.second,
                     referenceLegend = referenceLegend,

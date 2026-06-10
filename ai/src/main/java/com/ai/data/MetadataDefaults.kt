@@ -60,7 +60,6 @@ object MetadataDefaults {
     const val CLEAR = "🧽"
     const val ATTACH = "📎"
     const val VALIDATE_PROMPT = "🚩"
-    const val REPORT_MODELS = "♻️"
     const val TRANSLATOR_RANK = "🏅"
     // Report-level actions.
     const val COPY = "📋"
@@ -271,7 +270,6 @@ data class MetadataIcons(
     val clear: String = MetadataDefaults.CLEAR,
     val attach: String = MetadataDefaults.ATTACH,
     val validatePrompt: String = MetadataDefaults.VALIDATE_PROMPT,
-    val reportModels: String = MetadataDefaults.REPORT_MODELS,
     val translatorRank: String = MetadataDefaults.TRANSLATOR_RANK,
     // Bottom-bar: report-level actions.
     val copy: String = MetadataDefaults.COPY,
@@ -510,7 +508,6 @@ data class MetadataIcons(
             clear = f(clear, MetadataDefaults.CLEAR),
             attach = f(attach, MetadataDefaults.ATTACH),
             validatePrompt = f(validatePrompt, MetadataDefaults.VALIDATE_PROMPT),
-            reportModels = f(reportModels, MetadataDefaults.REPORT_MODELS),
             translatorRank = f(translatorRank, MetadataDefaults.TRANSLATOR_RANK),
             copy = f(copy, MetadataDefaults.COPY),
             pin = f(pin, MetadataDefaults.PIN),

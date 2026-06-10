@@ -339,33 +339,69 @@ is `*CONFIGURED` (default — run against the prompt's saved
 picker just before the work starts and run against the user's
 pick; never written back).
 
-### ♻️ Report-models-as-workers
+### Per-report worker config — "Report - select workers"
 
-A per-report flag `Report.useReportModelsAsWorkers`
-([`ReportModels.kt:277`](../ai/src/main/java/com/ai/data/ReportModels.kt))
-overrides the worker pool for that report: when on, the covered
-kinds draw their workers from the **report's own answer models**
-instead of the `workers` swarm. The helper `reportModelWorkers`
-([`ReportViewModelHelpers.kt:158`](../ai/src/main/java/com/ai/viewmodel/ReportViewModelHelpers.kt))
-maps `report.agents` (distinct by `provider:model`) to model-only
-`Worker`s; the call sites swap the prompt's `workers` for it
-(`it.copy(workers = reportModelWorkers(report))`) in
-`SecondaryRunManager`, `IconGenerationManager`, `CompareEngine`,
-`JudgeEvalEngine`, `TournamentEngine`, `TranslatorRankEngine`,
-`TranslationRunManager`, and `ReportViewModel`. The swarm
-consumers shuffle, so no per-kind branching is needed.
+The old single ♻️ models-as-workers flag is replaced by a per-report
+`Report.workerConfig: ReportWorkerConfig`
+([`ReportModels.kt`](../ai/src/main/java/com/ai/data/ReportModels.kt)),
+picked on the **"Report - select workers"** screen
+([`SelectWorkers.kt`](../ai/src/main/java/com/ai/ui/report/start/SelectWorkers.kt))
+— the step between "Report - select models" and "Manage a report"
+that also hosts the **Generate report** button — and editable later
+via the Manage bottom-bar **👷** icon (same screen, Save instead of
+Generate; `ReportStorage.setWorkerConfig`). Three cards:
 
-It surfaces as the **♻️** affordance (`MetadataDefaults.REPORT_MODELS`,
-default `"♻️"`): a toggle on the New Report screen (default off,
-persisted onto the new `Report`,
-[`NewReportScreen.kt:111`](../ai/src/main/java/com/ai/ui/report/start/NewReportScreen.kt))
-and a bottom-bar icon on the report Manage screen that flips the
-stored flag (grayed at alpha 0.35 when off,
-[`Run.kt:472`](../ai/src/main/java/com/ai/ui/report/manage/Run.kt),
-[`SharedComponents.kt:2072`](../ai/src/main/java/com/ai/ui/shared/SharedComponents.kt);
-storage via `ReportStorage.setUseReportModelsAsWorkers`). When the
-flag is **off** a worker prompt's `*SELECT` mode still applies (the
-two are checked together at the launch sites).
+- **Report info** (`reportInfo`: `PROMPT` | `CUSTOM` +
+  `reportInfoWorkers`) — who generates the report icon, short/long
+  titles, and language name + icon. `CUSTOM` swaps each prompt's
+  chain for the per-report worker group
+  (`InternalPrompt.withReportInfoWorkers`).
+- **Model info** (`modelInfo`: `PROMPT` | `OWN_MODEL`) — who
+  generates each answer's per-model title + icon. `OWN_MODEL` runs
+  them on the answer's own model
+  (`InternalPrompt.withOwnModelWorker` → `singleModelWorker`).
+- **Worker batches** (`batches`: `PROMPT` | `REPORT_MODELS` |
+  `SELECT_EACH` | `SELECT_ONCE` + `batchWorkers`,
+  `workerSelection`: `WHEN_AVAILABLE` | `ROUND_ROBIN`) — the pool
+  for Fan Meta, Translation, Tournament, Judges, Compare, TransRank
+  **and** the single-call Rerank / Moderation / Meta / Fan-in (the
+  old Rerank/Moderation exemption is dropped).
+
+Batch-pool precedence lives in one place — `resolveBatchSwarm` /
+`InternalPrompt.withBatchWorkers`
+([`ReportViewModelHelpers.kt`](../ai/src/main/java/com/ai/viewmodel/ReportViewModelHelpers.kt)):
+`REPORT_MODELS` (→ `reportModelWorkers(report)`, the report's own
+answer models distinct by `provider:model`) > an explicit runtime
+pick > a persisted `SELECT_ONCE` group > the prompt's configured
+chain. The UI side of the same decision is `workerPlanFor` +
+`launchWithWorkerPlan`
+([`RuntimeWorkerPicker.kt`](../ai/src/main/java/com/ai/ui/report/manage/RuntimeWorkerPicker.kt)),
+used by all ten type-B launch sites: `PROMPT` honours the prompt's
+`*SELECT` picker; `SELECT_EACH` forces the picker on every batch;
+`SELECT_ONCE` shows it once — the first pick is persisted
+first-write-wins via `ReportStorage.setBatchWorkersIfEmpty` and
+reused by every later batch (engine-internal launches — fan-meta
+auto-start, resume, regenerate — never show a picker and fall back
+to the configured chain until a group is stored); `REPORT_MODELS`
+never asks.
+
+**Worker selection (round robin)** — under `REPORT_MODELS` the
+`workerSelection` sub-choice picks the scheduling:
+`WHEN_AVAILABLE` keeps the historical shuffled pick (fast models
+absorb more work); `ROUND_ROBIN` deals consecutive calls to
+consecutive pool members via a process-wide per-report cursor
+(`WorkerRotation` + `WorkerSchedule`,
+[`WorkerRunner.kt`](../ai/src/main/java/com/ai/viewmodel/WorkerRunner.kt)),
+so every worker gets ~the same share. A slow worker keeps its items
+(nothing reassigns on slowness); 429 / 404 / logical-miss
+fall-through advances an item to the next worker in rotation, so an
+erroring worker may end up with less. `WorkerRunner.run` and
+`runSecondaryViaSwarm` share the cursor; the engines thread the
+schedule through `runPooledItemCall`
+([`SecondaryCellCalls.kt`](../ai/src/main/java/com/ai/viewmodel/SecondaryCellCalls.kt)).
+Fixed-judge grids (Judges / TransRank cells) and the fan-meta
+per-pair single-model pool have no pool pick, so the mode is a
+no-op there.
 
 ## Parameter + system-prompt resolution
 

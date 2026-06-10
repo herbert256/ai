@@ -126,7 +126,14 @@ internal fun ReportRunScreen(
     onArmBuildStage: (String, String, () -> Unit, () -> Unit) -> Unit = { _, _, _, _ -> },
     /** Delete a tournament / judges run (build-stage Cancel cleanup). */
     onDeleteTournamentRun: (String) -> Unit = { },
-    onDeleteJudgeRun: (String) -> Unit = { }
+    onDeleteJudgeRun: (String) -> Unit = { },
+    /** Pending 🏅 rank-the-translators launch → the shared confirm dialog.
+     *  Hoisted to ReportsScreen: the runtime worker picker's early-return
+     *  overlay unmounts this composable, so state remembered here would
+     *  lose the pick (the Main.kt translation-run site already hoists its
+     *  sibling rankPending the same way). */
+    pendingRank: androidx.compose.runtime.MutableState<com.ai.ui.report.manage.PendingRankRequest?> =
+        androidx.compose.runtime.mutableStateOf(null)
 ) {
     val aiSettings = uiState.aiSettings
     val context = LocalContext.current
@@ -168,12 +175,10 @@ internal fun ReportRunScreen(
     // 🏅 Rank the translators — engine + open-state (run key "$reportId|$translationRunId").
     val translatorRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
-    // Pending 🏅 launch (translationRunId, lang, native) → shared confirm dialog.
-    val pendingRank = rememberSaveable(currentReportId, stateSaver = com.ai.ui.report.manage.PendingRankRequestSaver) {
-        mutableStateOf<com.ai.ui.report.manage.PendingRankRequest?>(null)
-    }
-    // onRankMedal is declared further down, after useReportModelsAsWorkers, so it
-    // can read that flag (audit bug 6).
+    // Pending 🏅 launch (translationRunId, lang, native) → shared confirm
+    // dialog. Hoisted into ReportsScreen (the pendingRank param) because the
+    // runtime worker picker's early-return overlay unmounts THIS composable —
+    // a rememberSaveable here would re-initialise to null and lose the pick.
     // Compare runs the meta-compare prompt with the SAME NAME as the meta item,
     // so only show meta items that actually have a matching meta-compare prompt;
     // the rest can't be compared.
@@ -199,29 +204,29 @@ internal fun ReportRunScreen(
             withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
         } ?: false
     }
-    // ♻️ Same disk-read + tick pattern as isPinned: drives the bottom-bar
-    // toggle tint and lets the covered secondary launch sites skip the
-    // *SELECT worker picker (the engines use the report's own models).
-    var reportModelsTick by remember(currentReportId) { mutableStateOf(0) }
-    val useReportModelsAsWorkers by produceState(initialValue = false, currentReportId, reportModelsTick) {
+    // Per-report worker config for the Manage 👷 edit overlay — same
+    // disk-read + tick pattern as isPinned, but NULL until the read lands
+    // so the overlay can't open on (and Save can't persist) the default
+    // config during the cold window. The launch sites don't read this —
+    // launchWithWorkerPlan reads the config fresh from disk per launch.
+    var workerConfigTick by remember(currentReportId) { mutableStateOf(0) }
+    val workerCfg by produceState<com.ai.data.ReportWorkerConfig?>(initialValue = null, currentReportId, workerConfigTick) {
         value = currentReportId?.let { rid ->
-            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.useReportModelsAsWorkers == true }
-        } ?: false
+            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.workerConfig ?: com.ai.data.ReportWorkerConfig() }
+        }
     }
-    val reportModelsScope = rememberCoroutineScope()
     // 🏅 handler: open an existing rank run for this translation, else confirm-start.
-    // For a *SELECT swarm the runtime worker pick runs BEFORE the confirm so the
-    // dialog's call count matches the chosen judges (audit bug 6).
+    // When a picker applies, the runtime worker pick runs BEFORE the confirm so
+    // the dialog's call count matches the chosen judges (audit bug 6).
     val onRankMedal: (String, String, String) -> Unit = handler@{ runId, ln, lnn ->
         val rid = currentReportId ?: return@handler
         val key = com.ai.data.transRankRunKey(rid, runId)
         if (translatorRankEngine?.runByKey(key) != null) { transRankOpenState?.value = key; return@handler }
-        val driver = aiSettings.workerPromptByName("translate-rank")
-        if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-            st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                "Rank translators — pick workers", driver.workers,
-                { picked -> pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }, {})
-        } else pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+        launchWithWorkerPlan(
+            st.runtimeWorkerPick, context, st.screenScope, rid,
+            aiSettings.workerPromptByName("translate-rank"),
+            "Rank translators — pick workers"
+        ) { picked -> pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }
     }
     // The select callback is pulled from LocalSystemPromptChange so we
     // don't thread it through the call site as another arg.
@@ -237,6 +242,34 @@ internal fun ReportRunScreen(
             selectedId = uiState.reportSystemPromptId,
             onSelect = systemPromptChange,
             onBack = { showEditSystemPrompt = false }, onNavigateHome = onDismiss
+        )
+        return
+    }
+    // 👷 "Report - select workers" re-edit — the same screen the pre-generation
+    // flow shows, without the Generate button. Draft-edit semantics: Save
+    // persists + bumps the tick; back discards the draft. Early return keeps
+    // this hub's remember state underneath (overlay back-stack rule). Gated
+    // on the loaded config (workerCfg null while the disk read is in flight)
+    // so a Save can never overwrite the stored config with cold defaults.
+    var showWorkerConfig by rememberSaveable(currentReportId) { mutableStateOf(false) }
+    val loadedWorkerCfg = workerCfg
+    if (showWorkerConfig && currentReportId != null && loadedWorkerCfg != null) {
+        var workerConfigDraft by remember(loadedWorkerCfg) { mutableStateOf(loadedWorkerCfg) }
+        com.ai.ui.report.start.ReportSelectWorkersScreen(
+            aiSettings = aiSettings,
+            config = workerConfigDraft,
+            onConfigChange = { workerConfigDraft = it },
+            onGenerate = null,
+            onSave = {
+                val rid = currentReportId
+                val draft = workerConfigDraft
+                st.screenScope.launch(Dispatchers.IO) {
+                    ReportStorage.setWorkerConfig(context, rid, draft)
+                    withContext(Dispatchers.Main) { workerConfigTick++ }
+                }
+                showWorkerConfig = false
+            },
+            onDismiss = { showWorkerConfig = false }
         )
         return
     }
@@ -264,10 +297,10 @@ internal fun ReportRunScreen(
                         onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
                         compareEngine?.startRun(context, rid, listOf(id), comparePrompt.id, key, ws)
                     }
-                    if (!useReportModelsAsWorkers && comparePrompt.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                        st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                            "Compare — pick workers", comparePrompt.workers, { picked -> arm(picked) }, {})
-                    } else arm(null)
+                    launchWithWorkerPlan(
+                        st.runtimeWorkerPick, context, st.screenScope, rid,
+                        comparePrompt, "Compare — pick workers"
+                    ) { picked -> arm(picked) }
                 }
                 compareStep = 0
             },
@@ -444,20 +477,12 @@ internal fun ReportRunScreen(
                 { generationHandlers.onTogglePin(); pinTick++ }
             } else null,
             isPinned = isPinned,
-            // ♻️ Toggle "use report-models as workers" on this report; persists
-            // then bumps the tick so the produceState re-reads and the tint flips.
-            onReportModels = if (currentReportId != null) {
-                {
-                    currentReportId.let { rid ->
-                        val next = !useReportModelsAsWorkers
-                        reportModelsScope.launch(Dispatchers.IO) {
-                            ReportStorage.setUseReportModelsAsWorkers(context, rid, next)
-                        }
-                        reportModelsTick++
-                    }
-                }
+            // 👷 Re-open "Report - select workers" for this report (no
+            // Generate button) so the worker routing stays editable after
+            // generation.
+            onWorkerConfig = if (currentReportId != null) {
+                { showWorkerConfig = true }
             } else null,
-            reportModelsActive = useReportModelsAsWorkers,
             onToggleModelRowLabels = if (currentReportId != null) {
                 { showModelNamesInReportRows = !showModelNamesInReportRows }
             } else null,
@@ -880,7 +905,7 @@ internal fun ReportRunScreen(
 
         // 🏅 Rank-the-translators launch — shared confirm dialog (with the call
         // count); on Rank, build-stage + run + open the ranking overlay. Honors
-        // the ♻️ / *SELECT worker-source precedence, like Tournament / Judges.
+        // the Worker-batches / *SELECT worker-source precedence, like Tournament / Judges.
         com.ai.ui.report.manage.RankTranslatorsConfirmHost(currentReportId, pendingRank, translatorRankEngine) { req ->
             currentReportId?.let { rid ->
                 val key = java.util.UUID.randomUUID().toString()
@@ -917,11 +942,11 @@ internal fun ReportRunScreen(
                                 onArmBuildStage(key, "Building tournament", { tournamentOpenState?.value = rid }, { onDeleteTournamentRun(rid) })
                                 onRunTournament(rid, key, ws)
                             }
-                            val driver = aiSettings.workerPromptByName("tournament")
-                            if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                                st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                                    "Tournament — pick workers", driver.workers, { picked -> arm(picked) }, {})
-                            } else arm(null)
+                            launchWithWorkerPlan(
+                                st.runtimeWorkerPick, context, st.screenScope, rid,
+                                aiSettings.workerPromptByName("tournament"),
+                                "Tournament — pick workers"
+                            ) { picked -> arm(picked) }
                         }
                         confirmTournament = false
                     }) { androidx.compose.material3.Text("Run") }
@@ -956,11 +981,11 @@ internal fun ReportRunScreen(
                                 onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
                                 onRunJudgeJudges(rid, key, ws)
                             }
-                            val driver = aiSettings.workerPromptByName("tournament")
-                            if (!useReportModelsAsWorkers && driver?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT) {
-                                st.runtimeWorkerPick.value = RuntimeWorkerPick(
-                                    "Judge the judges — pick workers", driver.workers, { picked -> arm(picked) }, {})
-                            } else arm(null)
+                            launchWithWorkerPlan(
+                                st.runtimeWorkerPick, context, st.screenScope, rid,
+                                aiSettings.workerPromptByName("tournament"),
+                                "Judge the judges — pick workers"
+                            ) { picked -> arm(picked) }
                         }
                         confirmJudgeJudges = false
                     }) { androidx.compose.material3.Text("Run") }

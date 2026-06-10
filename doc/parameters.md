@@ -251,15 +251,18 @@ This only changes **which** workers run; it does **not** change parameter
 resolution — the single-result kinds still resolve params via
 `resolveSecondaryParams`, and the worker-grid kinds still send empty params.
 
-### `useReportModelsAsWorkers` (♻️)
+### `Report.workerConfig` ("Report - select workers")
 
-A per-report flag (`Report.useReportModelsAsWorkers`) swaps the prompt's worker
-swarm for the report's own answer models (`reportModelWorkers(report)` —
-provider/model-only `Worker`s) on every worker-driven kind: Tournament, Judges,
-Compare, TransRank, Fan-meta, and the model-icon / model-title batches. It
-**wins over a `*SELECT` pick** (checked first in each engine's `when`). Like
-`*SELECT`, it changes only the worker set; parameters resolve exactly as above
-(empty for worker-grid kinds, `resolveSecondaryParams` for single-result kinds).
+The per-report worker config (picked on the "Report - select workers" screen,
+see [workers.md](workers.md)) swaps the worker pool per card: Worker batches =
+`REPORT_MODELS` puts the report's own answer models (`reportModelWorkers`) on
+every worker-driven kind — Tournament, Judges, Compare, TransRank, Fan-meta,
+Translation, Rerank, Moderation, Meta, Fan-in — **winning over a `*SELECT`
+pick** (`resolveBatchSwarm` precedence); a persisted `SELECT_ONCE` group sits
+between a runtime pick and the configured chain. The Report-info / Model-info
+cards swap the metadata prompts' chains likewise. Like `*SELECT`, all of it
+changes only the worker set; parameters resolve exactly as above (empty for
+worker-grid kinds, `resolveSecondaryParams` for single-result kinds).
 
 ---
 
@@ -308,4 +311,4 @@ reasoning value is also re-validated against the model's advertised
    the wire by `isReasoningCapableForDispatch`.
 5. **Worker-grid flows are the exception**: Tournament / Judges / Compare /
    TransRank send **no** resolved parameters — provider defaults only. `*SELECT`
-   and ♻️ `useReportModelsAsWorkers` change *which* workers run, never the params.
+   and `Report.workerConfig` change *which* workers run, never the params.

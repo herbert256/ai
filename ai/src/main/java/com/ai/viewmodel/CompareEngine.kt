@@ -89,10 +89,10 @@ class CompareEngine internal constructor(
     override suspend fun redispatchRows(context: Context, runKey: CompareRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
         val report = ReportStorage.getReport(context, runKey) ?: return
-        // ♻️ Models-as-workers must hold on resume / Broken-work restart too —
-        // the hydrated prompt carries the CONFIGURED swarm, so re-scoring
-        // without the swap would pull in foreign workers.
-        val prompt = run.comparePrompt.withWorkerOverrides(report)
+        // The report's Worker-batches mode must hold on resume / Broken-work
+        // restart too — the hydrated prompt carries the CONFIGURED swarm, so
+        // re-scoring without the swap would pull in foreign workers.
+        val prompt = run.comparePrompt.withBatchWorkers(report)
         val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
             val c = cellsById[row.id] ?: return@mapNotNull null
@@ -176,8 +176,9 @@ class CompareEngine internal constructor(
         launchRun(context, reportId, buildKey, TRACE_CATEGORY) { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
-            // ♻️ report-models as the compare worker pool, winning over a *SELECT pick.
-            val prompt = comparePromptById(aiSettings, promptId)?.withWorkerOverrides(report, overrideWorkers)
+            // Worker-batches precedence: REPORT_MODELS > runtime pick >
+            // stored SELECT_ONCE pick > configured chain.
+            val prompt = comparePromptById(aiSettings, promptId)?.withBatchWorkers(report, overrideWorkers)
             if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                 AppLog.w("Compare", "meta_compare prompt not configured / no runnable workers — aborting")
                 return@launchRun
@@ -251,6 +252,9 @@ class CompareEngine internal constructor(
     ) {
         if (items.isEmpty()) return
         val report = ReportStorage.getReport(context, reportId)
+        // Worker-selection mode (round robin deals cells across the
+        // REPORT_MODELS pool; Random everywhere else).
+        val schedule = report?.let { workerScheduleFor(it) } ?: WorkerSchedule.Random
         val agentBodyById = report?.agents?.associate { it.agentId to it.responseBody.orEmpty() }.orEmpty()
         // Resolve each referenced meta row's content once (strip the appended
         // reference legend so [1]/[2] artifacts don't pollute the judgment).
@@ -271,7 +275,7 @@ class CompareEngine internal constructor(
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
             try {
-                runOneCell(context, reportId, prompt, question, title, agentBodyById, metaContentById, item)
+                runOneCell(context, reportId, prompt, question, title, agentBodyById, metaContentById, item, schedule)
             } finally {
                 appViewModel.updateThrottledCompareCells { it - item.placeholder.id }
             }
@@ -286,7 +290,8 @@ class CompareEngine internal constructor(
         context: Context, reportId: String, prompt: InternalPrompt,
         question: String, title: String,
         agentBodyById: Map<String, String>, metaContentById: Map<String, String>,
-        item: PendingCell
+        item: PendingCell,
+        schedule: WorkerSchedule = WorkerSchedule.Random
     ) {
         val cKey = compareCellKey(item.agentId, item.metaResultId)
         val rowId = item.placeholder.id
@@ -310,7 +315,8 @@ class CompareEngine internal constructor(
                 onThrottleWait = { waiting ->
                     if (waiting) appViewModel.updateThrottledCompareCells { it + rowId }
                     else appViewModel.updateThrottledCompareCells { it - rowId }
-                }
+                },
+                schedule = schedule
             ) { resp -> parseSimilarityScore(resp.analysis) != null }) {
                 is PooledItemOutcome.Success -> SecondaryResultStorage.recordCompareCell(
                     context, reportId, rowId,

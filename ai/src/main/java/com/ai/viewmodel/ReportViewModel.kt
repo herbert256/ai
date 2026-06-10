@@ -347,8 +347,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         title: String, prompt: String,
         imageBase64: String? = null, imageMime: String? = null,
         webSearchTool: Boolean = false,
-        reasoningEffort: String? = null,
-        useReportModelsAsWorkers: Boolean = false
+        reasoningEffort: String? = null
     ) {
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
@@ -356,7 +355,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             reportImageBase64 = imageBase64, reportImageMime = imageMime,
             reportWebSearchTool = webSearchTool,
             reportReasoningEffort = reasoningEffort,
-            reportUseReportModelsAsWorkers = useReportModelsAsWorkers,
             showGenericAgentSelection = true, showGenericReportsDialog = false,
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
@@ -380,7 +378,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         directModelIds: Set<String> = emptySet(),
         parametersIds: List<String> = emptyList(),
         selectionParamsById: Map<String, List<String>> = emptyMap(),
-        reportType: ReportType = ReportType.CLASSIC
+        reportType: ReportType = ReportType.CLASSIC,
+        /** Worker routing picked on "Report - select workers"; stamped
+         *  onto the new Report and consulted by every worker flow. */
+        workerConfig: ReportWorkerConfig = ReportWorkerConfig()
     ) {
         reportGenerationJob?.cancel()
         // Outer launch on viewModelScope so navigating away from the
@@ -477,7 +478,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     imageBase64 = imageBase64, imageMime = imageMime,
                     webSearchTool = state.reportWebSearchTool,
                     reasoningEffort = state.reportReasoningEffort,
-                    useReportModelsAsWorkers = state.reportUseReportModelsAsWorkers,
+                    workerConfig = workerConfig,
                     knowledgeBaseIds = state.attachedKnowledgeBaseIds,
                     runId = runId,
                     // Capture the generation config so Regenerate replays these
@@ -2056,9 +2057,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withTracerTags(reportId = reportId, category = "Report info regenerate") {
                 when (kind) {
                     MetaRegenKind.REPORT_TITLE_SHORT -> {
+                        // Variant computed from the SUBSTITUTED prompt — must
+                        // mirror kickOffReportTitleGeneration exactly or the
+                        // eviction misses the cache key and the regen no-ops.
                         val prompt = ai.internalPrompts.firstOrNull {
                             it.category == "workers" && it.name == "report-title-short"
-                        }
+                        }?.withReportInfoWorkers(report)
                         com.ai.data.MetaCache.remove(
                             "report/title-short",
                             report.prompt,
@@ -2069,7 +2073,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     MetaRegenKind.REPORT_TITLE_LONG -> {
                         val prompt = ai.internalPrompts.firstOrNull {
                             it.category == "workers" && it.name == "report-title-long"
-                        }
+                        }?.withReportInfoWorkers(report)
                         com.ai.data.MetaCache.remove(
                             "report/title-long",
                             report.prompt,
@@ -2084,9 +2088,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     MetaRegenKind.LANGUAGE_ICON -> {
                         val iconPrompt = ai.internalPrompts.firstOrNull {
                             it.category == "workers" && it.name == "report-language-icon"
-                        }?.let {
-                            if (report.useReportModelsAsWorkers) it.copy(workers = reportModelWorkers(report)) else it
-                        }
+                        }?.withReportInfoWorkers(report)
                         report.languageName?.takeIf { it.isNotBlank() }?.let {
                             com.ai.data.MetaCache.remove(
                                 "language-icon",

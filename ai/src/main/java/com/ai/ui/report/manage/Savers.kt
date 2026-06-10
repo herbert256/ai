@@ -201,5 +201,40 @@ internal val ReportModelListSaver: Saver<List<ReportModel>, Any> = listSaver(
     }
 )
 
+/** Saver for the pre-generation [ReportWorkerConfig] draft on the
+ *  "Report - select workers" step, so the picked modes + worker rows
+ *  survive the nav hop through Help / Model Info like the model list
+ *  above. Workers flatten to 5 strings each; the two list lengths ride
+ *  in the header. */
+internal val ReportWorkerConfigSaver: Saver<ReportWorkerConfig, Any> = listSaver(
+    save = { cfg ->
+        fun flat(ws: List<Worker>) = ws.flatMap { listOf(it.agent, it.provider, it.model, it.flock, it.swarm) }
+        listOf(
+            cfg.reportInfo.name, cfg.modelInfo.name, cfg.batches.name, cfg.workerSelection.name,
+            cfg.reportInfoWorkers.size.toString(), cfg.batchWorkers.size.toString()
+        ) + flat(cfg.reportInfoWorkers) + flat(cfg.batchWorkers)
+    },
+    restore = { saved ->
+        fun enumOr(name: String, fallback: String) = name.ifBlank { fallback }
+        fun workersAt(offset: Int, count: Int): List<Worker> = (0 until count).mapNotNull { k ->
+            val i = offset + k * 5
+            if (i + 5 <= saved.size) Worker(
+                agent = saved[i], provider = saved[i + 1], model = saved[i + 2],
+                flock = saved[i + 3], swarm = saved[i + 4]
+            ) else null
+        }
+        val infoCount = saved.getOrNull(4)?.toIntOrNull() ?: 0
+        val batchCount = saved.getOrNull(5)?.toIntOrNull() ?: 0
+        ReportWorkerConfig(
+            reportInfo = runCatching { ReportInfoMode.valueOf(enumOr(saved.getOrNull(0) ?: "", "PROMPT")) }.getOrDefault(ReportInfoMode.PROMPT),
+            modelInfo = runCatching { ModelInfoMode.valueOf(enumOr(saved.getOrNull(1) ?: "", "PROMPT")) }.getOrDefault(ModelInfoMode.PROMPT),
+            batches = runCatching { BatchWorkerMode.valueOf(enumOr(saved.getOrNull(2) ?: "", "PROMPT")) }.getOrDefault(BatchWorkerMode.PROMPT),
+            workerSelection = runCatching { WorkerSelectionMode.valueOf(enumOr(saved.getOrNull(3) ?: "", "WHEN_AVAILABLE")) }.getOrDefault(WorkerSelectionMode.WHEN_AVAILABLE),
+            reportInfoWorkers = workersAt(6, infoCount),
+            batchWorkers = workersAt(6 + infoCount * 5, batchCount)
+        )
+    }
+)
+
 // ===== Navigation Wrapper =====
 

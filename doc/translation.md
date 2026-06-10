@@ -34,14 +34,16 @@ screen"):
    search box and a **Recent** block (`RecentTargetLanguages`, an MRU
    of the last 3 picks persisted in `eval_prefs`). Tapping a row
    confirms one language; pick more languages by re-running Translate.
-2. **Worker pick (conditional)** — if the report's ♻️
-   `useReportModelsAsWorkers` flag is on, the whole run uses the
-   report's own answer models (`reportModelWorkers`). Otherwise, if
-   the driving `translate-text` prompt's model selection is `*SELECT`,
-   a one-time `RuntimeWorkerPick` overlay ("Translate — pick workers")
-   lets the user choose the swarm for this run (passed as
-   `overrideWorkers`). In every other case the run goes straight to
-   the configured swarm.
+2. **Worker pick (conditional)** — decided by the report's Worker-batches
+   mode (`Report.workerConfig.batches`, see [workers.md](workers.md)):
+   `REPORT_MODELS` uses the report's own answer models
+   (`reportModelWorkers`) with no picker — optionally round-robin
+   scheduled (`workerSelection`); `SELECT_EACH` (or `PROMPT` with the
+   driving `translate-text` prompt set to `*SELECT`) shows the
+   `RuntimeWorkerPick` overlay ("Translate — pick workers", passed as
+   `overrideWorkers`); `SELECT_ONCE` shows it only for the report's
+   first type-B batch and then reuses the persisted group. In every
+   other case the run goes straight to the configured swarm.
 3. **Run** — `TranslationRunManager.startTranslation` allocates a
    fresh `runId`, snapshots the report's translatable items, and fires
    the runner behind a blocking build-stage popup ("Preparing N / M…"
