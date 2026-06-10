@@ -1,6 +1,5 @@
 package com.ai.viewmodel
 
-import com.ai.data.ModelCooldownStore
 import com.ai.data.Report
 import com.ai.data.ReportStatus
 import com.ai.data.SecondaryKind
@@ -49,15 +48,15 @@ object BrokenWorkPolicy {
             !activeRun &&
             live.nowMs - row.timestamp >= live.stalePlaceholderMs
 
-    /** A row is "errored" when it carries an error message — except a
-     *  TRANSLATE row whose model is merely on cooldown (a 429 retry-after
-     *  bench, not a real failure): that retries on its own, so it must not
-     *  light the ⚠️ or the hub's "problems" card. Folded in from the hub's
-     *  old reportHasProblems so both surfaces apply the same exception. */
-    private fun errored(row: SecondaryResult): Boolean =
-        row.errorMessage != null &&
-            !(row.kind == SecondaryKind.TRANSLATE &&
-                ModelCooldownStore.isUnavailable(row.providerId, row.model))
+    /** A row is "errored" when it carries an error message. (An exemption
+     *  for TRANSLATE rows whose model was on cooldown used to live here,
+     *  folded in from the hub's old reportHasProblems — but a translation
+     *  row only errors when the WHOLE worker chain is exhausted, and that
+     *  path stamps a blank provider/model, so the per-model cooldown check
+     *  could never match. The worker chain now also waits out a fully-
+     *  cooling pool by itself, which removes the case the exemption was
+     *  written for.) */
+    private fun errored(row: SecondaryResult): Boolean = row.errorMessage != null
 
     /** (interruptedAgentIds, erroredAgentIds) for one report's primary
      *  agents. Errored = reportStatus ERROR. Interrupted = PENDING/RUNNING
