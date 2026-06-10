@@ -202,8 +202,8 @@ class CompareEngine internal constructor(
             val pending = mutableListOf<PendingCell>()
             val newCells = LinkedHashMap<String, CompareCellState>()
             // Build stage: create every (answer × meta) cell up front.
+            // Counter tracks the persist below — construction is instant.
             if (buildKey != null) appViewModel.beginBuild(buildKey, cellCountFor(successful.size, metaRows.size), "Building compare")
-            var built = 0
             for (agent in successful) {
                 for (metaRow in metaRows) {
                     val placeholder = SecondaryResult(
@@ -224,11 +224,12 @@ class CompareEngine internal constructor(
                         secondaryScope = scopeEncoded
                     )
                     pending.add(PendingCell(agent.agentId, metaRow.id, placeholder))
-                    if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                 }
             }
-            val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
-                .mapTo(HashSet()) { it.id }
+            val savedIds = SecondaryResultStorage.saveAll(
+                context, pending.map { it.placeholder },
+                onProgress = { n -> if (buildKey != null) appViewModel.updateBuild(buildKey, n) }
+            ).mapTo(HashSet()) { it.id }
             pending.removeAll { it.placeholder.id !in savedIds }
             pending.forEach { item -> item.placeholder.toCompareCellState()?.let { newCells[it.key] = it } }
             if (buildKey != null) appViewModel.finishBuild(buildKey)

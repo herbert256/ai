@@ -407,9 +407,13 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
             val cleared = clearRowForRerun(cur)
             transitionItem(runKey, k) { resetItemToPending(it) }
             clearedRows.add(cleared)
-            if (buildKey != null) appViewModel.updateBuild(buildKey, clearedRows.size)
         }
-        if (clearedRows.isNotEmpty()) SecondaryResultStorage.saveAll(context, clearedRows)
+        // The counter tracks the batched persist — the slow part; the
+        // clear loop above is cached reads + in-memory copies.
+        if (clearedRows.isNotEmpty()) SecondaryResultStorage.saveAll(
+            context, clearedRows,
+            onProgress = { n -> if (buildKey != null) appViewModel.updateBuild(buildKey, n) }
+        )
         if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
         // Build phase complete — release the popup so the UI navigates to the
         // batch screen while the dispatch below keeps running in the background.

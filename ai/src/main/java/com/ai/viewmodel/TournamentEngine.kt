@@ -212,9 +212,10 @@ class TournamentEngine internal constructor(
 
             val pending = mutableListOf<PendingMatch>()
             val newMatches = LinkedHashMap<String, MatchState>()
-            // Build stage: create every match placeholder up front.
+            // Build stage: create every match placeholder up front. The
+            // "Preparing N / M…" counter tracks the PERSIST below (the slow
+            // part) — the in-memory row construction here is instant.
             if (buildKey != null) appViewModel.beginBuild(buildKey, matchCountFor(successful.size), "Building tournament")
-            var built = 0
             for (i in successful.indices) {
                 for (j in i + 1 until successful.size) {
                     val a = successful[i]; val b = successful[j]
@@ -239,12 +240,13 @@ class TournamentEngine internal constructor(
                             secondaryScope = scopeEncoded
                         )
                         pending.add(PendingMatch(aa, bb, orient, placeholder))
-                        if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                     }
                 }
             }
-            val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
-                .mapTo(HashSet()) { it.id }
+            val savedIds = SecondaryResultStorage.saveAll(
+                context, listOf(aggregate) + pending.map { it.placeholder },
+                onProgress = { n -> if (buildKey != null) appViewModel.updateBuild(buildKey, n) }
+            ).mapTo(HashSet()) { it.id }
             if (aggregate.id !in savedIds) return@launchRun
             pending.removeAll { it.placeholder.id !in savedIds }
             pending.forEach { item -> item.placeholder.toMatchState()?.let { newMatches[it.key] = it } }

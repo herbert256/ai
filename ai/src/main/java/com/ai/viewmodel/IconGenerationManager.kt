@@ -2862,9 +2862,9 @@ class IconGenerationManager(
                 // "Preparing N / M…" phase the Broken-work Continue popup covers.
                 if (buildKey != null) appViewModel.beginBuild(buildKey, pending.size, "Re-queuing fan meta")
                 SecondaryResultStorage.markFanOutFanMetaStartedBatch(
-                    context, reportId, pending.map { it.id }, fanRunId, promptUsed = "fan-meta"
+                    context, reportId, pending.map { it.id }, fanRunId, promptUsed = "fan-meta",
+                    onProgress = { n -> if (buildKey != null) appViewModel.updateBuild(buildKey, n) }
                 )
-                if (buildKey != null) appViewModel.updateBuild(buildKey, pending.size)
                 if (buildKey != null) appViewModel.finishBuild(buildKey)
                 AppLog.i("FanMeta", "→ start (report=$reportId, ${pending.size} pairs)")
                 withTracerTags(reportId = reportId, category = "fan/meta", runId = fanRunId) {

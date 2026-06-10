@@ -282,8 +282,8 @@ class TranslatorRankEngine internal constructor(
 
             val pending = mutableListOf<PendingCell>()
             val newCells = LinkedHashMap<String, TransRankCellState>()
+            // Counter tracks the persist below — construction is instant.
             if (buildKey != null) appViewModel.beginBuild(buildKey, cellCount, "Building translator ranking")
-            var built = 0
             for ((item, judge) in candidates) {
                 val placeholder = SecondaryResult(
                     id = java.util.UUID.randomUUID().toString(),
@@ -308,10 +308,11 @@ class TranslatorRankEngine internal constructor(
                     secondaryScope = scopeEncoded
                 )
                 pending.add(PendingCell(judge, item, placeholder))
-                if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
             }
-            val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
-                .mapTo(HashSet()) { it.id }
+            val savedIds = SecondaryResultStorage.saveAll(
+                context, listOf(aggregate) + pending.map { it.placeholder },
+                onProgress = { n -> if (buildKey != null) appViewModel.updateBuild(buildKey, n) }
+            ).mapTo(HashSet()) { it.id }
             if (aggregate.id !in savedIds) return@launchRun
             pending.removeAll { it.placeholder.id !in savedIds }
             pending.forEach { item -> item.placeholder.toTransRankCellState()?.let { newCells[it.key] = it } }

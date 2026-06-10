@@ -1130,13 +1130,16 @@ class FanOutEngine internal constructor(
                                     secondarySystemPromptId = systemPromptId
                                 )
                                 pending.add(PendingPair(answerer, source, placeholder))
-                                advance()
                             }
                         }
                         // Batched save so a large fan-out bumps storage observers
-                        // once; drop any row that failed to persist.
-                        val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
-                            .mapTo(HashSet()) { it.id }
+                        // once; drop any row that failed to persist. The build
+                        // counter tracks these writes — the in-memory pair
+                        // construction above is instant.
+                        val savedIds = SecondaryResultStorage.saveAll(
+                            context, pending.map { it.placeholder },
+                            onProgress = { n -> set(n) }
+                        ).mapTo(HashSet()) { it.id }
                         pending.removeAll { it.placeholder.id !in savedIds }
                         pending.forEach { item ->
                             item.placeholder.toPairState(item.answerer.agentId)?.let { newPairs[it.key] = it }
@@ -1773,12 +1776,15 @@ class FanOutEngine internal constructor(
             }
             val body = langCtx?.bodies?.get(pair.sourceAgentId) ?: source.responseBody.orEmpty()
             resets.add(Reset(pair, cleared, body))
-            if (buildKey != null) appViewModel.updateBuild(buildKey, resets.size)
         }
         // One batched write for all cleared rows (single storage lock +
         // data-version bump) — a restart over hundreds of pairs otherwise
-        // pays a save round-trip and observer wake-up per row.
-        if (resets.isNotEmpty()) SecondaryResultStorage.saveAll(context, resets.map { it.cleared })
+        // pays a save round-trip and observer wake-up per row. The build
+        // counter tracks these writes — the slow part of the reset.
+        if (resets.isNotEmpty()) SecondaryResultStorage.saveAll(
+            context, resets.map { it.cleared },
+            onProgress = { n -> if (buildKey != null) appViewModel.updateBuild(buildKey, n) }
+        )
         if (clearedCostDelta > 0.0) {
             ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, clearedCostDelta)
         }

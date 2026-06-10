@@ -203,8 +203,18 @@ object SecondaryResultStorage {
 
     /** Persist many rows under the same storage lock and bump
      *  [SecondaryDataVersion] once. Used by large batch build phases
-     *  that create hundreds of placeholders up front. */
-    fun saveAll(context: Context, results: List<SecondaryResult>): List<SecondaryResult> {
+     *  that create hundreds of placeholders up front.
+     *
+     *  [onProgress] (rows written so far) fires every few writes plus
+     *  once at the end — the disk writes are the slow part of a batch
+     *  build, so the "Preparing N / M…" popup counts THEM rather than
+     *  the instant in-memory row construction. Keep the callback cheap
+     *  (a StateFlow bump): it runs while the storage lock is held. */
+    fun saveAll(
+        context: Context,
+        results: List<SecondaryResult>,
+        onProgress: ((Int) -> Unit)? = null
+    ): List<SecondaryResult> {
         if (results.isEmpty()) return emptyList()
         init(context)
         val safeResults = results.filter { result ->
@@ -234,8 +244,10 @@ object SecondaryResultStorage {
                 rememberCachedResult(result.reportId, target, result)
                 saved += result
                 savedAny = true
+                if (onProgress != null && saved.size % 5 == 0) onProgress(saved.size)
             }
         }
+        onProgress?.invoke(saved.size)
         if (savedAny) SecondaryDataVersion.bumpMany(saved.map { it.reportId to it.kind })
         return saved
     }
@@ -944,17 +956,21 @@ object SecondaryResultStorage {
 
     /** Mark many fan-out rows as having a Fan Meta pass in progress.
      *  Writes still happen per row for crash visibility, but the lock
-     *  acquisition and data-version notification are batched. */
+     *  acquisition and data-version notification are batched.
+     *  [onProgress] (rows written so far) mirrors [saveAll]'s — the
+     *  build popup counts the writes, the slow part. */
     fun markFanOutFanMetaStartedBatch(
         context: Context,
         reportId: String,
         resultIds: Collection<String>,
         fanMetaRunId: String,
-        promptUsed: String = "fan-meta"
+        promptUsed: String = "fan-meta",
+        onProgress: ((Int) -> Unit)? = null
     ) {
         if (resultIds.isEmpty()) return
         init(context)
         var changed = false
+        var written = 0
         lock.withLock {
             val dir = resolveReportDirForRead(reportId) ?: return
             for (resultId in resultIds) {
@@ -972,8 +988,11 @@ object SecondaryResultStorage {
                 target.writeTextAtomic(gson.toJson(updated))
                 rememberCachedResult(reportId, target, updated)
                 changed = true
+                written++
+                if (onProgress != null && written % 5 == 0) onProgress(written)
             }
         }
+        onProgress?.invoke(written)
         if (changed) SecondaryDataVersion.bump(reportId, SecondaryKind.META)
     }
 

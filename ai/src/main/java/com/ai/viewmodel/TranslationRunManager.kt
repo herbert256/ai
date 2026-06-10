@@ -301,7 +301,8 @@ class TranslationRunManager(
                 )
             }
             val savedIds = appViewModel.runBatchBuild(buildKey, itemsWithIds.size, "Translating to $targetLanguageName") {
-                SecondaryResultStorage.saveAll(context, placeholderRows).mapTo(HashSet()) { it.id }
+                SecondaryResultStorage.saveAll(context, placeholderRows, onProgress = { n -> set(n) })
+                    .mapTo(HashSet()) { it.id }
             }
             itemsWithIds = itemsWithIds.filter { it.persistedRowId in savedIds }
             if (itemsWithIds.isEmpty()) return@launch
@@ -1507,11 +1508,11 @@ class TranslationRunManager(
                 runId = runId,
             )
         }
-        val savedIds = SecondaryResultStorage.saveAll(context, placeholderRows).mapTo(HashSet()) { it.id }
+        val savedIds = SecondaryResultStorage.saveAll(
+            context, placeholderRows,
+            onProgress = { n -> if (buildKey != null) appViewModel.updateBuild(buildKey, n) }
+        ).mapTo(HashSet()) { it.id }
         items = items.filter { it.persistedRowId in savedIds }
-        if (buildKey != null) {
-            appViewModel.updateBuild(buildKey, items.size)
-        }
         // Build phase complete — release the popup so the UI navigates to the
         // batch screen while the dispatch below keeps running in the background.
         if (buildKey != null) appViewModel.finishBuild(buildKey)

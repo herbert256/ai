@@ -242,8 +242,8 @@ class JudgeEvalEngine internal constructor(
             val pending = mutableListOf<PendingCell>()
             val newCells = LinkedHashMap<String, JudgeCellState>()
             // Build stage: create every (match × judge) cell up front.
+            // Counter tracks the persist below — construction is instant.
             if (buildKey != null) appViewModel.beginBuild(buildKey, chosen.size * judges.size, "Building judge-the-judges")
-            var built = 0
             for ((aId, bId, orient) in chosen) {
                 for (judge in judges) {
                     val placeholder = SecondaryResult(
@@ -266,11 +266,12 @@ class JudgeEvalEngine internal constructor(
                         secondaryScope = scopeEncoded
                     )
                     pending.add(PendingCell(judge, aId, bId, orient, placeholder))
-                    if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                 }
             }
-            val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
-                .mapTo(HashSet()) { it.id }
+            val savedIds = SecondaryResultStorage.saveAll(
+                context, listOf(aggregate) + pending.map { it.placeholder },
+                onProgress = { n -> if (buildKey != null) appViewModel.updateBuild(buildKey, n) }
+            ).mapTo(HashSet()) { it.id }
             if (aggregate.id !in savedIds) return@launchRun
             pending.removeAll { it.placeholder.id !in savedIds }
             pending.forEach { item -> item.placeholder.toJudgeCellState()?.let { newCells[it.key] = it } }
