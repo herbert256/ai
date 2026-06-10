@@ -492,7 +492,12 @@ class RegenerateBatchEngine internal constructor(
             when (agent.reportStatus) {
                 ReportStatus.SUCCESS ->
                     if (!agent.responseBody.isNullOrBlank()) RowStatus.Success
-                    else RowStatus.Pending
+                    // SUCCESS with a blank body is a state the rest of the app
+                    // refuses to mint (SecondaryRunManager maps a blank reply
+                    // to STOPPED); treating it as Pending parked the phase for
+                    // the full 30-minute timeout. Settle it as a terminal
+                    // error so pause-on-error surfaces the row instead.
+                    else RowStatus.Error("Empty response")
                 ReportStatus.ERROR -> RowStatus.Error(agent.errorMessage)
                 else -> RowStatus.Pending
             }
