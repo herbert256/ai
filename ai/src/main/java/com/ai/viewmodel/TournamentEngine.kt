@@ -36,11 +36,9 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 
 /**
  * Authoritative runtime owner for the Tournament run on every report.
@@ -310,42 +308,32 @@ class TournamentEngine internal constructor(
             .replace("@RESPONSE_A@", item.aAgent.responseBody.orEmpty())
             .replace("@RESPONSE_B@", item.bAgent.responseBody.orEmpty())
         try {
-            // Per-match wall-clock ceiling (the user-tunable "Batch item"
-            // timeout) over the whole worker chain — caught locally so a
-            // wedged match fails just this item, not the batch.
-            val call = withTimeout(NetworkSettings.batchItemTimeoutMs) {
-                runPooledWorkerCall(
-                    reportViewModel.workerRunner, aiSettings, context, prompt, resolved,
-                    onThrottleWait = { waiting ->
-                        if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
-                        else appViewModel.updateThrottledTournamentMatches { it - rowId }
-                    }
-                ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }
-            }
-            when (val outcome = call.outcome) {
-                is WorkerOutcome.Success -> {
-                    val win = resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind = "tournament", durationMs = call.durationMs)
-                    SecondaryResultStorage.recordTournamentMatch(
-                        context, reportId, rowId,
-                        win.agent?.provider?.id ?: TOURNAMENT_PENDING_PROVIDER,
-                        win.agent?.model ?: TOURNAMENT_PENDING_MODEL,
-                        outcome.response.analysis.orEmpty(),
-                        win.inTokens, win.outTokens, win.inCost, win.outCost,
-                        System.currentTimeMillis() - started,
-                        traceFile = call.traceFile
-                    )
+            // The pooled per-item shape — worker chain under the per-item
+            // "Batch item" ceiling, failures reduced to the standard
+            // messages. See runPooledItemCall.
+            when (val res = runPooledItemCall(
+                appViewModel, reportViewModel.workerRunner, context, prompt, resolved,
+                usageKind = "tournament",
+                timeoutMessage = "tournament: match timed out after ${NetworkSettings.batchItemTimeoutSec}s",
+                rateLimitedMessage = "tournament: all workers rate-limited",
+                noResultMessage = "tournament: no worker produced a verdict",
+                onThrottleWait = { waiting ->
+                    if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
+                    else appViewModel.updateThrottledTournamentMatches { it - rowId }
                 }
-                else -> {
-                    val msg = if (outcome is WorkerOutcome.AllRateLimited) "tournament: all workers rate-limited"
-                              else "tournament: no worker produced a verdict"
-                    recordItemCallError(context, reportId, rowId, item.placeholder, msg, started)
-                }
+            ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }) {
+                is PooledItemOutcome.Success -> SecondaryResultStorage.recordTournamentMatch(
+                    context, reportId, rowId,
+                    res.winner.agent?.provider?.id ?: TOURNAMENT_PENDING_PROVIDER,
+                    res.winner.agent?.model ?: TOURNAMENT_PENDING_MODEL,
+                    res.outcome.response.analysis.orEmpty(),
+                    res.winner.inTokens, res.winner.outTokens, res.winner.inCost, res.winner.outCost,
+                    System.currentTimeMillis() - started,
+                    traceFile = res.call.traceFile
+                )
+                is PooledItemOutcome.Error ->
+                    recordItemCallError(context, reportId, rowId, item.placeholder, res.message, started)
             }
-        } catch (e: TimeoutCancellationException) {
-            recordItemCallError(
-                context, reportId, rowId, item.placeholder,
-                "tournament: match timed out after ${NetworkSettings.batchItemTimeoutSec}s", started
-            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

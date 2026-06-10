@@ -352,9 +352,10 @@ class TranslationRunManager(
                     if (!SecondaryResultStorage.exists(context, sourceReportId, item.persistedRowId ?: "")) {
                         return@runThrottledBatch
                     }
-                    val outcome = kotlinx.coroutines.withTimeoutOrNull(NetworkSettings.batchItemTimeoutMs) {
-                        runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
-                    } ?: TranslationOutcome.Failed("translation timed out after ${NetworkSettings.batchItemTimeoutSec}s")
+                    // The per-item "Batch item" ceiling lives inside
+                    // runOneTranslation's pooled call; a timeout comes
+                    // back as a Failed outcome like any other miss.
+                    val outcome = runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
                     if (outcome is TranslationOutcome.Failed) {
                         finalizeTranslationError(context, runId, item, outcome.message)
                     }
@@ -432,7 +433,6 @@ class TranslationRunManager(
         textPrompt: InternalPrompt?,
         titlePrompt: InternalPrompt?
     ): TranslationOutcome {
-        val aiSettings = appViewModel.uiState.value.aiSettings
         val prompt = (if (item.kind.isTitle) titlePrompt else textPrompt)
             ?: return TranslationOutcome.Failed("translate worker prompt missing for ${item.kind}")
         if (prompt.workers.isEmpty())
@@ -451,49 +451,52 @@ class TranslationRunManager(
             else
                 prompt.text.replace("@LANGUAGE@", targetLanguageName).replace("@TEXT@", item.sourceText)
 
-            val call = runPooledWorkerCall(
-                rvm.workerRunner, aiSettings, context, prompt, resolved,
+            // The pooled per-item shape — worker chain under the per-item
+            // "Batch item" ceiling, failures reduced to the standard
+            // messages, the winner's spend rolled into AI Usage under this
+            // item's per-kind translate/* type. See runPooledItemCall.
+            val pooled = runPooledItemCall(
+                appViewModel, rvm.workerRunner, context, prompt, resolved,
+                usageKind = item.traceType,
+                timeoutMessage = "translation timed out after ${NetworkSettings.batchItemTimeoutSec}s",
+                rateLimitedMessage = "translate: all workers rate-limited",
+                noResultMessage = "translate: no worker produced a translation",
                 traceCategory = item.traceType,
                 onThrottleWait = { waiting ->
                     if (waiting) appViewModel.updateThrottledTranslationItems { it + item.id }
                     else appViewModel.updateThrottledTranslationItems { it - item.id }
                 }
             ) { resp -> !resp.analysis.isNullOrBlank() }
-            val outcome = call.outcome
-            val callDurationMs = call.durationMs
-
-            if (outcome !is WorkerOutcome.Success) {
-                val msg = if (outcome is WorkerOutcome.AllRateLimited)
-                    "translate: all workers rate-limited"
-                else "translate: no worker produced a translation"
-                AppLog.d("Translation", "← item ${item.id} err ${callDurationMs}ms — $msg")
-                return TranslationOutcome.Failed(msg)
+            if (pooled is PooledItemOutcome.Error) {
+                AppLog.d("Translation", "← item ${item.id} err — ${pooled.message}")
+                return TranslationOutcome.Failed(pooled.message)
             }
+            val res = pooled as PooledItemOutcome.Success
+            val callDurationMs = res.call.durationMs
 
             // Attribute the row to the worker that actually answered.
-            val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
-                it.copy(model = aiSettings.getEffectiveModelForAgent(it))
-            }
-            val provider = winAgent?.provider ?: outcome.response.service
-            val model = winAgent?.model.orEmpty()
-            val tu = outcome.response.tokenUsage
-            val pricing = if (model.isNotBlank()) PricingCache.getPricing(context, provider, model) else null
-            // One tier-aware in/out split per item — its sum IS what
-            // computeCost would return, and the halves go to
-            // saveOneTranslationItem as-is instead of being recomputed.
-            val costSplit = if (tu != null && pricing != null) PricingCache.computeInOutCost(tu, pricing) else null
+            val provider = res.winner.agent?.provider ?: res.outcome.response.service
+            val model = res.winner.agent?.model.orEmpty()
+            val tu = res.winner.tokenUsage
+            // The winner's costs are the canonical tier-aware split (their
+            // sum is what computeCost would return); persisted as-is so the
+            // halves can't drift from the total. Null when no worker
+            // resolved (the row then carries no pricing).
+            val costSplit = if (res.winner.agent != null && tu != null)
+                res.winner.inCost to res.winner.outCost
+            else null
             val costDollars = costSplit?.let { it.first + it.second } ?: 0.0
 
             transitionItem(runId, item.id) {
                 it.copy(
                     status = TranslationStatus.DONE,
-                    translatedText = outcome.response.analysis,
+                    translatedText = res.outcome.response.analysis,
                     costDollars = costDollars,
                     tokenUsage = tu,
                     durationMs = callDurationMs,
                     providerId = provider.id,
                     model = model,
-                    traceFile = call.traceFile
+                    traceFile = res.call.traceFile
                 )
             }
             // Persist as soon as the call settles so a process kill mid-batch
@@ -502,11 +505,6 @@ class TranslationRunManager(
             val freshItem = freshRun?.items?.get(item.id)
             if (freshRun != null && freshItem != null) {
                 saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, costSplit)
-            }
-            // Roll the winning worker's spend into AI Usage under this
-            // item's per-kind translate/* type.
-            if (tu != null && model.isNotBlank()) {
-                appViewModel.settingsPrefs.updateUsageStatsAsync(provider, model, tu, kind = item.traceType, durationMs = callDurationMs)
             }
             AppLog.d(
                 "Translation",
@@ -1559,9 +1557,10 @@ class TranslationRunManager(
                     dynamicHost = true,
                     register = { item, d -> item.persistedRowId?.let { registerItemJob(it, d) } },
                 ) { item ->
-                    val outcome = kotlinx.coroutines.withTimeoutOrNull(NetworkSettings.batchItemTimeoutMs) {
-                        runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
-                    } ?: TranslationOutcome.Failed("translation timed out after ${NetworkSettings.batchItemTimeoutSec}s")
+                    // The per-item "Batch item" ceiling lives inside
+                    // runOneTranslation's pooled call; a timeout comes
+                    // back as a Failed outcome like any other miss.
+                    val outcome = runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
                     if (outcome is TranslationOutcome.Failed) {
                         finalizeTranslationError(context, runId, item, outcome.message)
                     }

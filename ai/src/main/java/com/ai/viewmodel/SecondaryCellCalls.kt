@@ -2,6 +2,7 @@ package com.ai.viewmodel
 
 import android.content.Context
 import com.ai.data.AnalysisResponse
+import com.ai.data.NetworkSettings
 import com.ai.data.PricingCache
 import com.ai.data.ProviderThrottle
 import com.ai.data.SecondaryResult
@@ -13,8 +14,10 @@ import com.ai.model.Agent
 import com.ai.model.InternalPrompt
 import com.ai.model.Settings
 import com.ai.model.Worker
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -110,6 +113,60 @@ internal suspend fun resolvePooledWinner(
         appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = usageKind, durationMs = durationMs)
     }
     return PooledWinner(winAgent, inT, outT, inCost, outCost, tu)
+}
+
+/** One pooled per-item call reduced to its two endings: the settled
+ *  successful call (winner resolved + costed) or the standard error. */
+internal sealed class PooledItemOutcome {
+    class Success(
+        val call: PooledWorkerCall,
+        val outcome: WorkerOutcome.Success,
+        val winner: PooledWinner,
+    ) : PooledItemOutcome()
+
+    /** [rateLimited]: the whole pool was cooling (a try-later condition),
+     *  as opposed to no worker producing a usable artifact. */
+    class Error(val message: String, val rateLimited: Boolean) : PooledItemOutcome()
+}
+
+/** The pooled per-item shape Tournament / Compare / Translation shared
+ *  verbatim: run the worker chain under the per-item "Batch item"
+ *  ceiling, resolve + cost the winner on success (usage rolled into AI
+ *  Usage under [usageKind] by [resolvePooledWinner]), and reduce every
+ *  failure to the caller's standard message ([timeoutMessage] /
+ *  [rateLimitedMessage] / [noResultMessage] keep each engine's wording
+ *  unchanged). The timeout is caught HERE so a wedged chain fails just
+ *  this item, never the batch. */
+internal suspend fun runPooledItemCall(
+    appViewModel: AppViewModel,
+    workerRunner: WorkerRunner,
+    context: Context,
+    prompt: InternalPrompt,
+    resolved: String,
+    usageKind: String,
+    timeoutMessage: String,
+    rateLimitedMessage: String,
+    noResultMessage: String,
+    traceCategory: String? = null,
+    onThrottleWait: (Boolean) -> Unit = {},
+    accept: (AnalysisResponse) -> Boolean,
+): PooledItemOutcome {
+    val aiSettings = appViewModel.uiState.value.aiSettings
+    val call = try {
+        withTimeout(NetworkSettings.batchItemTimeoutMs) {
+            runPooledWorkerCall(workerRunner, aiSettings, context, prompt, resolved, traceCategory, onThrottleWait, accept)
+        }
+    } catch (e: TimeoutCancellationException) {
+        return PooledItemOutcome.Error(timeoutMessage, rateLimited = false)
+    }
+    return when (val outcome = call.outcome) {
+        is WorkerOutcome.Success -> PooledItemOutcome.Success(
+            call, outcome,
+            resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind, call.durationMs)
+        )
+        WorkerOutcome.AllRateLimited -> PooledItemOutcome.Error(rateLimitedMessage, rateLimited = true)
+        WorkerOutcome.Failed -> PooledItemOutcome.Error(noResultMessage, rateLimited = false)
+    }
 }
 
 // ===== Fixed-judge shape =====

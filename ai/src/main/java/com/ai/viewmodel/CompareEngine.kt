@@ -29,11 +29,9 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 
 /**
  * Authoritative runtime owner for the "Compare with meta" run on every report.
@@ -300,42 +298,32 @@ class CompareEngine internal constructor(
             .replace("@RESPONSE@", agentBodyById[item.agentId].orEmpty())
             .replace("@META_RESPONSE@", metaContentById[item.metaResultId].orEmpty())
         try {
-            // Per-cell wall-clock ceiling (the user-tunable "Batch item"
-            // timeout) over the whole worker chain — caught locally so a
-            // wedged cell fails just this item, not the batch.
-            val call = withTimeout(NetworkSettings.batchItemTimeoutMs) {
-                runPooledWorkerCall(
-                    reportViewModel.workerRunner, aiSettings, context, prompt, resolved,
-                    onThrottleWait = { waiting ->
-                        if (waiting) appViewModel.updateThrottledCompareCells { it + rowId }
-                        else appViewModel.updateThrottledCompareCells { it - rowId }
-                    }
-                ) { resp -> parseSimilarityScore(resp.analysis) != null }
-            }
-            when (val outcome = call.outcome) {
-                is WorkerOutcome.Success -> {
-                    val win = resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind = USAGE_KIND, durationMs = call.durationMs)
-                    SecondaryResultStorage.recordCompareCell(
-                        context, reportId, rowId,
-                        win.agent?.provider?.id ?: COMPARE_PENDING_PROVIDER,
-                        win.agent?.model ?: COMPARE_PENDING_MODEL,
-                        outcome.response.analysis.orEmpty(),
-                        win.inTokens, win.outTokens, win.inCost, win.outCost,
-                        System.currentTimeMillis() - started,
-                        traceFile = call.traceFile
-                    )
+            // The pooled per-item shape — worker chain under the per-item
+            // "Batch item" ceiling, failures reduced to the standard
+            // messages. See runPooledItemCall.
+            when (val res = runPooledItemCall(
+                appViewModel, reportViewModel.workerRunner, context, prompt, resolved,
+                usageKind = USAGE_KIND,
+                timeoutMessage = "compare: cell timed out after ${NetworkSettings.batchItemTimeoutSec}s",
+                rateLimitedMessage = "compare: all workers rate-limited",
+                noResultMessage = "compare: no worker produced a score",
+                onThrottleWait = { waiting ->
+                    if (waiting) appViewModel.updateThrottledCompareCells { it + rowId }
+                    else appViewModel.updateThrottledCompareCells { it - rowId }
                 }
-                else -> {
-                    val msg = if (outcome is WorkerOutcome.AllRateLimited) "compare: all workers rate-limited"
-                              else "compare: no worker produced a score"
-                    recordItemCallError(context, reportId, rowId, item.placeholder, msg, started)
-                }
+            ) { resp -> parseSimilarityScore(resp.analysis) != null }) {
+                is PooledItemOutcome.Success -> SecondaryResultStorage.recordCompareCell(
+                    context, reportId, rowId,
+                    res.winner.agent?.provider?.id ?: COMPARE_PENDING_PROVIDER,
+                    res.winner.agent?.model ?: COMPARE_PENDING_MODEL,
+                    res.outcome.response.analysis.orEmpty(),
+                    res.winner.inTokens, res.winner.outTokens, res.winner.inCost, res.winner.outCost,
+                    System.currentTimeMillis() - started,
+                    traceFile = res.call.traceFile
+                )
+                is PooledItemOutcome.Error ->
+                    recordItemCallError(context, reportId, rowId, item.placeholder, res.message, started)
             }
-        } catch (e: TimeoutCancellationException) {
-            recordItemCallError(
-                context, reportId, rowId, item.placeholder,
-                "compare: cell timed out after ${NetworkSettings.batchItemTimeoutSec}s", started
-            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
