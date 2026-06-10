@@ -278,12 +278,14 @@ class FanOutEngine internal constructor(
      *  that case. */
     internal fun refreshPairFromDisk(context: Context, reportId: String, pairId: String) {
         val row = SecondaryResultStorage.get(context, reportId, pairId) ?: return
+        // The pair row carries its fan-out prompt id, so the run key is
+        // direct — no scan over every loaded run's whole pair set. A
+        // blank metaPromptId never hydrates into a run, so bail like
+        // the old scan's no-match path did.
+        val key = row.metaPromptId?.takeIf { it.isNotBlank() }?.let { runKey(reportId, it) } ?: return
         _runs.update { runs ->
-            val entry = runs.entries.firstOrNull { (key, run) ->
-                key.startsWith("$reportId|") && run.pairs.values.any { it.id == pairId }
-            } ?: return@update runs
-            val run = entry.value
-            val cur = run.pairs.values.first { it.id == pairId }
+            val run = runs[key] ?: return@update runs
+            val cur = run.pairs.values.firstOrNull { it.id == pairId } ?: return@update runs
             val next = cur.copy(
                 title = row.title,
                 titleInputCost = row.titleInputCost,
@@ -301,7 +303,7 @@ class FanOutEngine internal constructor(
                 iconPromptUsed = row.iconPromptUsed
             )
             if (next == cur) runs
-            else runs + (entry.key to run.copy(pairs = run.pairs + (cur.key to next)))
+            else runs + (key to run.copy(pairs = run.pairs + (cur.key to next)))
         }
     }
 
