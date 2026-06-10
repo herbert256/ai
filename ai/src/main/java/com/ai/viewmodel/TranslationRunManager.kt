@@ -386,13 +386,10 @@ class TranslationRunManager(
     }
 
     /** Result of a single translation call. A [Failed] is non-terminal
-     *  at the [runOneTranslation] level — the caller decides whether to
-     *  retry the item on another model or finalize it as ERROR. */
+     *  at the [runOneTranslation] level — the dispatcher finalizes it
+     *  as the item's terminal ERROR row. */
     private sealed interface TranslationOutcome {
-        /** [costDollars] is the call's billed cost — the work queue
-         *  feeds it into a per-model running average to bias future
-         *  items toward cheaper models. */
-        data class Success(val costDollars: Double) : TranslationOutcome
+        data object Success : TranslationOutcome
         data class Failed(val message: String) : TranslationOutcome
     }
 
@@ -512,7 +509,7 @@ class TranslationRunManager(
                     (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
                     " cost=${"%.5f".format(costDollars)}"
             )
-            return TranslationOutcome.Success(costDollars)
+            return TranslationOutcome.Success
         } catch (e: kotlinx.coroutines.CancellationException) {
             transitionItem(runId, item.id) {
                 if (it.status == TranslationStatus.RUNNING)
