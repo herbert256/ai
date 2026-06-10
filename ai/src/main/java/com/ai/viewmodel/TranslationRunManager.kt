@@ -880,18 +880,37 @@ class TranslationRunManager(
         context: Context,
         sourceReportId: String,
         runId: String
+    ): Job = restartTranslationRowsMatching(context, sourceReportId, runId) { it.errorMessage != null }
+
+    fun restartTranslationRowsByIds(
+        context: Context,
+        sourceReportId: String,
+        runId: String,
+        rowIds: Set<String>
+    ): Job = restartTranslationRowsMatching(context, sourceReportId, runId) { it.id in rowIds }
+
+    /** Shared scaffold for the restart actions: collect [runId]'s rows
+     *  passing [rowFilter] and re-dispatch them via
+     *  [runTranslationSubset]. An explicit user re-fire — clears any
+     *  resume-cap attempt counts so the rows get a fresh
+     *  [BatchResume.MAX_ATTEMPTS] budget. Errored rows are deleted up
+     *  front so the rerun doesn't double up under the same
+     *  (target, kind) pair. */
+    private fun restartTranslationRowsMatching(
+        context: Context,
+        sourceReportId: String,
+        runId: String,
+        rowFilter: (SecondaryResult) -> Boolean
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
         val rows = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-            .filter { translationRunGroupingId(it) == runId && it.errorMessage != null }
+            .filter { translationRunGroupingId(it) == runId && rowFilter(it) }
         if (rows.isEmpty()) return@launch
-        // Explicit user re-fire — clear any resume-cap attempt counts so
-        // these rows get a fresh BatchResume.MAX_ATTEMPTS budget.
         BatchResume.resetAttempts(rows.map { it.id })
         runTranslationSubset(
             context, sourceReportId, runId,
             rows.map { it.translateSourceTargetId.orEmpty() to it.translateSourceKind.orEmpty() },
-            deleteRowIds = rows.map { it.id }
+            deleteRowIds = rows.filter { it.errorMessage != null }.map { it.id }
         )
     }
 
@@ -903,32 +922,9 @@ class TranslationRunManager(
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
-        val failed = SecondaryResultStorage
-            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-            .filter {
-                translationRunGroupingId(it) == runId && it.errorMessage != null
-            }
-        if (failed.isEmpty()) return@launch
-        val costDelta = failed.sumOf { it.fullCost() }
-        failed.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
-        ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, failed.map { it.id }.toSet())
-        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
-        // Also drop the items from any live state so the detail
-        // screen's row count updates immediately instead of waiting
-        // for the next list refresh.
-        val failedTargetKeys = failed
-            .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
-            .toSet()
-        _runs.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            runs + (runId to copyWithItems(cur, cur.items.filterValues { item ->
-                !(item.status == TranslationStatus.ERROR &&
-                    "${translateSrcKindOf(item.kind)}:${translateSrcTargetIdOf(item)}" in failedTargetKeys)
-            }))
-        }
-        ReportStorage.bumpReportTimestamp(context, sourceReportId)
-    }
+    ): Job = removeTranslationRowsMatching(
+        context, sourceReportId, runId, itemStatus = TranslationStatus.ERROR
+    ) { it.errorMessage != null }
 
     /** Drop every unfinished (stranded, never-ran) translation row from
      *  [runId] without re-firing — the Broken-work "delete unfinished"
@@ -938,68 +934,48 @@ class TranslationRunManager(
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
-        val stranded = SecondaryResultStorage
-            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-            .filter {
-                translationRunGroupingId(it) == runId &&
-                    it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null
-            }
-        if (stranded.isEmpty()) return@launch
-        val costDelta = stranded.sumOf { it.fullCost() }
-        stranded.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
-        ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, stranded.map { it.id }.toSet())
-        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
-        val strandedKeys = stranded
-            .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
-            .toSet()
-        _runs.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            runs + (runId to copyWithItems(cur, cur.items.filterValues { item ->
-                !(item.status == TranslationStatus.PENDING &&
-                    "${translateSrcKindOf(item.kind)}:${translateSrcTargetIdOf(item)}" in strandedKeys)
-            }))
-        }
-        ReportStorage.bumpReportTimestamp(context, sourceReportId)
-    }
-
-    fun restartTranslationRowsByIds(
-        context: Context,
-        sourceReportId: String,
-        runId: String,
-        rowIds: Set<String>
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
-        val rows = SecondaryResultStorage
-            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-            .filter { translationRunGroupingId(it) == runId && it.id in rowIds }
-        if (rows.isEmpty()) return@launch
-        BatchResume.resetAttempts(rows.map { it.id })
-        runTranslationSubset(
-            context, sourceReportId, runId,
-            rows.map { it.translateSourceTargetId.orEmpty() to it.translateSourceKind.orEmpty() },
-            deleteRowIds = rows.filter { it.errorMessage != null }.map { it.id }
-        )
-    }
+    ): Job = removeTranslationRowsMatching(
+        context, sourceReportId, runId, itemStatus = TranslationStatus.PENDING
+    ) { it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null }
 
     fun removeTranslationRowsByIds(
         context: Context,
         sourceReportId: String,
         runId: String,
         rowIds: Set<String>
+    ): Job = removeTranslationRowsMatching(
+        context, sourceReportId, runId, itemStatus = null
+    ) { it.id in rowIds }
+
+    /** Shared scaffold for the remove actions: delete [runId]'s disk
+     *  rows passing [rowFilter], roll their cost out of the report, and
+     *  drop the matching items from any live state so the detail
+     *  screen's row count updates immediately instead of waiting for
+     *  the next list refresh. [itemStatus] narrows the in-memory drop
+     *  to items in that status; null drops on key match alone. */
+    private fun removeTranslationRowsMatching(
+        context: Context,
+        sourceReportId: String,
+        runId: String,
+        itemStatus: TranslationStatus?,
+        rowFilter: (SecondaryResult) -> Boolean
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
         val rows = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-            .filter { translationRunGroupingId(it) == runId && it.id in rowIds }
+            .filter { translationRunGroupingId(it) == runId && rowFilter(it) }
         if (rows.isEmpty()) return@launch
         val costDelta = rows.sumOf { it.fullCost() }
         rows.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
         ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, rows.map { it.id }.toSet())
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
-        val rowKeys = rows.map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }.toSet()
+        val rowKeys = rows
+            .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
+            .toSet()
         _runs.update { runs ->
             val cur = runs[runId] ?: return@update runs
             runs + (runId to copyWithItems(cur, cur.items.filterValues { item ->
-                "${translateSrcKindOf(item.kind)}:${translateSrcTargetIdOf(item)}" !in rowKeys
+                !((itemStatus == null || item.status == itemStatus) &&
+                    "${translateSrcKindOf(item.kind)}:${translateSrcTargetIdOf(item)}" in rowKeys)
             }))
         }
         ReportStorage.bumpReportTimestamp(context, sourceReportId)
