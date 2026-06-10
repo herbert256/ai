@@ -414,8 +414,8 @@ internal fun ViewAiReportScreen(
         val transRanks: List<com.ai.data.SecondaryResult>,
         val compares: List<com.ai.data.SecondaryResult>
     )
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
     val translatesState = androidx.compose.runtime.produceState(
         initialValue = TranslatesLoad(emptyList(), null, emptyList(), emptyList(), emptyList(), emptyList()), reportId, reportDataVersion, secondaryDataVersion
     ) {

@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -84,6 +85,7 @@ import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.shortModelName
 import com.ai.ui.shared.shortModelName2
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
@@ -99,7 +101,7 @@ import kotlin.math.abs
 // ---------------------------------------------------------------------
 
 /** Which ranking feeds the quality axis. */
-private sealed class RankSource(val label: String) {
+internal sealed class RankSource(val label: String) {
     /** A single 0–1000 score per model, a weighted blend of every available
      *  ranking (Rerank / Judges / Translations / each Tournament method) using
      *  the weights from Settings → Ranking weights. First in the list. */
@@ -125,7 +127,7 @@ private sealed class RankSource(val label: String) {
 }
 
 /** Stable key for [rememberSaveable] selection + chip-selected matching. */
-private fun RankSource.key(): String = when (this) {
+internal fun RankSource.key(): String = when (this) {
     is RankSource.Combined -> "combined"
     is RankSource.Rerank -> "rerank"
     is RankSource.Judges -> "judges"
@@ -136,20 +138,20 @@ private fun RankSource.key(): String = when (this) {
 }
 
 /** A loaded "Rank the translators" run reduced to per-model quality scores. */
-private data class TransRankSource(
+internal data class TransRankSource(
     val runId: String,                       // sourceTranslationRunId
     val language: String,                    // native name preferred
     val scoreByModelKey: Map<String, Double> // "providerId|model" → avg score
 )
 
 /** Provider-alias-resolved model key, matching the fan-out fold-in. */
-private fun vvModelKey(provider: String, model: String): String =
+internal fun vvModelKey(provider: String, model: String): String =
     "${(AppService.findById(provider)?.id ?: provider).lowercase()}|${model.trim().lowercase()}"
 
 /** One model on the cost/quality plane. [costCents] = USD×100,
  *  [quality] = the ranking's REAL score (raw, model/method-scaled — NOT
  *  normalised to a rank position). */
-private data class ValuePoint(
+internal data class ValuePoint(
     val provider: String,
     val modelShort: String,
     val costCents: Double,
@@ -168,7 +170,7 @@ private data class ValuePoint(
  *  [fanOutCostByAgentId] adds each agent's fan-out RESPONSE spend (USD) on
  *  top of its main report-answer cost — non-empty only when the fan-out
  *  answerer set matched the report's model set (see the caller). */
-private fun buildValuePoints(
+internal fun buildValuePoints(
     report: Report,
     rows: List<RerankRow>,
     fanOutCostByAgentId: Map<String, Double> = emptyMap()
@@ -211,7 +213,7 @@ private fun buildValuePoints(
 /** Tournament "Total" → one RerankRow per model whose quality is the inverse of
  *  its AVERAGE position across every tournament method (lower mean position =
  *  better), matching the Tournament Total grid's ordering. */
-private fun tournamentTotalRows(matrix: WinMatrix): List<RerankRow> {
+internal fun tournamentTotalRows(matrix: WinMatrix): List<RerankRow> {
     val methods = TournamentMethod.values()
     val rankByMethod = methods.associateWith { m -> rankFor(m, matrix).associate { it.id to it.rank } }
     val n = matrix.n
@@ -226,13 +228,13 @@ private fun tournamentTotalRows(matrix: WinMatrix): List<RerankRow> {
  *  (Rerank / Judges / Translations / each Tournament method), min-max-normalise
  *  its per-model scores to 0–1, then weight-average per model and scale to
  *  0–1000. Ids are 1-based SUCCESS positions. Empty when nothing is weighted. */
-private fun buildCombinedRows(
+internal fun buildCombinedRows(
     report: Report,
     rerankRows: List<RerankRow>,
     judgesMatrix: WinMatrix?,
     transRankRuns: List<TransRankSource>,
     tournamentMatrix: WinMatrix?,
-    compareScoreByAgentId: Map<String, Int>,
+    compareScoreByAgentId: Map<String, Double>,
     weightOf: (String) -> Int
 ): List<RerankRow> {
     val success = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
@@ -265,7 +267,7 @@ private fun buildCombinedRows(
         if (compareScoreByAgentId.isNotEmpty()) {
             val sc = HashMap<Int, Double>()
             success.forEachIndexed { idx, a ->
-                compareScoreByAgentId[a.agentId]?.let { sc[idx + 1] = it.toDouble() }
+                compareScoreByAgentId[a.agentId]?.let { sc[idx + 1] = it }
             }
             if (sc.isNotEmpty()) rankings.add(w to sc)
         }
@@ -291,40 +293,109 @@ private fun buildCombinedRows(
     }
 }
 
+/** Everything the Value view derives its sources/points from — loaded off
+ *  the report + its secondary rows in one IO pass. Top-level (not local to
+ *  the composable) so the HTML exporter shares the screen's exact shape. */
+internal data class ValueViewData(
+    val report: Report?,
+    val rerankRows: List<RerankRow>,
+    val rerankModel: String?,
+    val tournamentMatrix: WinMatrix?,
+    val tournamentDefaultMethod: TournamentMethod?,
+    /** Consensus win matrix from the latest Judge-the-judges run, or null
+     *  when none (or too few resolvable answers). */
+    val judgesMatrix: WinMatrix?,
+    /** Every "Rank the translators" run (one per language), each reduced to
+     *  per-model average scores — added as ranking sources after Rerank. */
+    val transRankRuns: List<TransRankSource>,
+    val reportTitle: String?,
+    /** Extra fan-out RESPONSE spend (USD) to fold into each agent's cost,
+     *  keyed by agentId. Non-empty only when this report's fan-out
+     *  answerer model set equals the report's success-model set; empty
+     *  disables the fold. */
+    val fanOutCostByAgentId: Map<String, Double>,
+    /** True when [fanOutCostByAgentId] is folding fan-out cost in — drives
+     *  the caption note so the higher numbers aren't a mystery. */
+    val includesFanOut: Boolean,
+    /** Compare-with-meta: agentId → mean match % (0..100) over the latest
+     *  run — the result screen's first column, used as a quality source. */
+    val compareScoreByAgentId: Map<String, Double>
+)
+
+/** Available ranking sources for [data]: Combined (if any weighted ranking
+ *  exists) first, then Rerank, the translator runs, Judges, Compare, the
+ *  Tournament Total, and every individual Tournament method. */
+internal fun buildRankSources(data: ValueViewData, combinedRows: List<RerankRow>): List<RankSource> =
+    buildList {
+        if (combinedRows.isNotEmpty()) add(RankSource.Combined)
+        if (data.rerankRows.isNotEmpty()) add(RankSource.Rerank)
+        // Every "Rank the translators" run sits right after Rerank, labelled
+        // with its language.
+        data.transRankRuns.forEach { add(RankSource.TransRank(it.runId, it.language)) }
+        // Judges sits after those, before the Tournament methods.
+        if (data.judgesMatrix != null) add(RankSource.Judges)
+        // Compare with meta (match %) — after Judges.
+        if (data.compareScoreByAgentId.isNotEmpty()) add(RankSource.Compare)
+        if (data.tournamentMatrix != null) {
+            add(RankSource.TournamentTotal)   // before the first method
+            TournamentMethod.values().forEach { add(RankSource.Tournament(it)) }
+        }
+    }
+
+/** The rerank-shaped quality rows the given [source] feeds into
+ *  [buildValuePoints] — shared by the screen and the HTML exporter.
+ *  [combinedRows] / [tournamentTotalRows] are passed in pre-computed (the
+ *  Combined blend depends on the user's ranking weights). */
+internal fun rowsForSource(
+    source: RankSource,
+    data: ValueViewData,
+    combinedRows: List<RerankRow>,
+    tournamentTotalRows: List<RerankRow>
+): List<RerankRow> {
+    val report = data.report ?: return emptyList()
+    return when (source) {
+        is RankSource.Combined -> combinedRows
+        is RankSource.TournamentTotal -> tournamentTotalRows
+        is RankSource.Rerank -> data.rerankRows
+        is RankSource.Judges -> data.judgesMatrix?.let { m ->
+            // Copeland (win-rate) over the consensus matrix — the robust,
+            // interpretable default for a plurality-of-judges ranking.
+            rankFor(TournamentMethod.COPELAND, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
+        } ?: emptyList()
+        is RankSource.Compare -> {
+            // Each SUCCESS answer's mean match % (0..100) against the meta.
+            report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .mapIndexedNotNull { idx, a ->
+                    data.compareScoreByAgentId[a.agentId]?.let { RerankRow(idx + 1, null, it, null) }
+                }
+        }
+        is RankSource.TransRank -> {
+            // Map each model's translator average score onto the report's
+            // SUCCESS answer models (by provider/model); models that weren't
+            // translators get no row and drop off the plot.
+            val scoreByKey = data.transRankRuns.firstOrNull { it.runId == source.runId }?.scoreByModelKey ?: emptyMap()
+            report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .mapIndexedNotNull { idx, a ->
+                    scoreByKey[vvModelKey(a.provider, a.model)]?.let { RerankRow(idx + 1, null, it, null) }
+                }
+        }
+        is RankSource.Tournament -> data.tournamentMatrix?.let { m ->
+            rankFor(source.method, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
+        } ?: emptyList()
+    }
+}
+
 @Composable
 fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
 
-    data class Loaded(
-        val report: Report?,
-        val rerankRows: List<RerankRow>,
-        val rerankModel: String?,
-        val tournamentMatrix: WinMatrix?,
-        val tournamentDefaultMethod: TournamentMethod?,
-        /** Consensus win matrix from the latest Judge-the-judges run, or null
-         *  when none (or too few resolvable answers). */
-        val judgesMatrix: WinMatrix?,
-        /** Every "Rank the translators" run (one per language), each reduced to
-         *  per-model average scores — added as ranking sources after Rerank. */
-        val transRankRuns: List<TransRankSource>,
-        val reportTitle: String?,
-        /** Extra fan-out RESPONSE spend (USD) to fold into each agent's cost,
-         *  keyed by agentId. Non-empty only when this report's fan-out
-         *  answerer model set equals the report's success-model set; empty
-         *  disables the fold. */
-        val fanOutCostByAgentId: Map<String, Double>,
-        /** True when [fanOutCostByAgentId] is folding fan-out cost in — drives
-         *  the caption note so the higher numbers aren't a mystery. */
-        val includesFanOut: Boolean,
-        /** Compare-with-meta: agentId → mean match % (0..100) over the latest
-         *  run — the result screen's first column, used as a quality source. */
-        val compareScoreByAgentId: Map<String, Int>
-    )
     val loadedState = produceState(
-        Loaded(null, emptyList(), null, null, null, null, emptyList(), null, emptyMap(), false, emptyMap()),
+        ValueViewData(null, emptyList(), null, null, null, null, emptyList(), null, emptyMap(), false, emptyMap()),
         reportId, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
@@ -407,14 +478,14 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             // Compare-with-meta: reduce the latest run's CELL rows to each
             // answer's mean match % (agentId → 0..100), the result screen's
             // first column. No AGGREGATE row exists, so average the cells here.
-            val compareScoreByAgentId: Map<String, Int> = run {
+            val compareScoreByAgentId: Map<String, Double> = run {
                 val byRun = rows.filter { it.kind == SecondaryKind.COMPARE && !it.compareRunId.isNullOrBlank() }
                     .groupBy { it.compareRunId!! }
                 val group = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }?.value ?: return@run emptyMap()
                 group.mapNotNull { it.toCompareCellState() }
                     .filter { it.percent != null }
                     .groupBy { it.agentId }
-                    .mapValues { (_, cs) -> cs.sumOf { it.percent!! } / cs.size }
+                    .mapValues { (_, cs) -> cs.sumOf { it.percent!! }.toDouble() / cs.size }
             }
             val fanOutCostByAgentId: Map<String, Double> =
                 if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && noDuplicateModels && answererKeys == successKeys) {
@@ -423,7 +494,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                         .mapValues { (_, list) -> list.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } }
                     successAgents.associate { it.agentId to (costByKey[modelKey(it.provider, it.model)] ?: 0.0) }
                 } else emptyMap()
-            Loaded(
+            ValueViewData(
                 report = report,
                 rerankRows = rerankRows,
                 rerankModel = rerank?.let { shortModelName(it.model) },
@@ -459,23 +530,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     // Available ranking sources: Combined (if any weighted ranking exists) first,
     // then Rerank, the translator runs, Judges, the Tournament Total, and every
     // individual Tournament method.
-    val sources = remember(loaded, combinedRows) {
-        buildList {
-            if (combinedRows.isNotEmpty()) add(RankSource.Combined)
-            if (loaded.rerankRows.isNotEmpty()) add(RankSource.Rerank)
-            // Every "Rank the translators" run sits right after Rerank, labelled
-            // with its language.
-            loaded.transRankRuns.forEach { add(RankSource.TransRank(it.runId, it.language)) }
-            // Judges sits after those, before the Tournament methods.
-            if (loaded.judgesMatrix != null) add(RankSource.Judges)
-            // Compare with meta (match %) — after Judges.
-            if (loaded.compareScoreByAgentId.isNotEmpty()) add(RankSource.Compare)
-            if (loaded.tournamentMatrix != null) {
-                add(RankSource.TournamentTotal)   // before the first method
-                TournamentMethod.values().forEach { add(RankSource.Tournament(it)) }
-            }
-        }
-    }
+    val sources = remember(loaded, combinedRows) { buildRankSources(loaded, combinedRows) }
     var selectedKey by rememberSaveable(reportId) { mutableStateOf<String?>(null) }
     // Effective selection: the user's pick if still available, else Rerank,
     // else the tournament's stored method, else the first source.
@@ -490,39 +545,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
 
     val points = remember(loaded, selected, combinedRows, tournamentTotalRowList) {
         val report = loaded.report ?: return@remember emptyList<ValuePoint>()
-        val rows = when (val s = selected) {
-            is RankSource.Combined -> combinedRows
-            is RankSource.TournamentTotal -> tournamentTotalRowList
-            is RankSource.Rerank -> loaded.rerankRows
-            is RankSource.Judges -> loaded.judgesMatrix?.let { m ->
-                // Copeland (win-rate) over the consensus matrix — the robust,
-                // interpretable default for a plurality-of-judges ranking.
-                rankFor(TournamentMethod.COPELAND, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
-            } ?: emptyList()
-            is RankSource.Compare -> {
-                // Each SUCCESS answer's mean match % (0..100) against the meta.
-                report.agents
-                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    .mapIndexedNotNull { idx, a ->
-                        loaded.compareScoreByAgentId[a.agentId]?.let { RerankRow(idx + 1, null, it.toDouble(), null) }
-                    }
-            }
-            is RankSource.TransRank -> {
-                // Map each model's translator average score onto the report's
-                // SUCCESS answer models (by provider/model); models that weren't
-                // translators get no row and drop off the plot.
-                val scoreByKey = loaded.transRankRuns.firstOrNull { it.runId == s.runId }?.scoreByModelKey ?: emptyMap()
-                report.agents
-                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    .mapIndexedNotNull { idx, a ->
-                        scoreByKey[vvModelKey(a.provider, a.model)]?.let { RerankRow(idx + 1, null, it, null) }
-                    }
-            }
-            is RankSource.Tournament -> loaded.tournamentMatrix?.let { m ->
-                rankFor(s.method, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
-            } ?: emptyList()
-            null -> emptyList()
-        }
+        val rows = selected?.let { rowsForSource(it, loaded, combinedRows, tournamentTotalRowList) } ?: emptyList()
         buildValuePoints(report, rows, loaded.fanOutCostByAgentId)
     }
     val best = remember(points) { points.firstOrNull { it.bestValue } }
@@ -572,12 +595,38 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // 📤 export — the whole screen as one self-contained HTML page (every
+        // ranking source as a tab, click-to-full-screen graphs), via the
+        // system share sheet. Built off-main; null while nothing is loaded.
+        val exportScope = rememberCoroutineScope()
+        val onExport: (() -> Unit)? =
+            if (loaded.report != null && sources.isNotEmpty()) {
+                {
+                    val gem = com.ai.data.MetadataIconsHolder.current.gem
+                    val selectedKey0 = selected?.key()
+                    exportScope.launch(Dispatchers.IO) {
+                        try {
+                            val html = buildValueViewHtml(
+                                loaded, sources, combinedRows, tournamentTotalRowList,
+                                defaultSourceKey = selectedKey0, gemGlyph = gem
+                            )
+                            if (html != null) exportValueViewHtml(context, html, loaded.reportTitle)
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    Unit
+                }
+            } else null
         ViewTitleBar(
             reportTitle = loaded.reportTitle,
             screenTitle = "Value view",
             subject = subject,
             helpTopic = "value_view",
-            onBack = onBack
+            onBack = onBack,
+            onExport = onExport
         )
 
         // Ranking-source switch — Rerank + every available Tournament method.
@@ -1035,5 +1084,5 @@ private fun ValueRow(p: ValuePoint) {
 
 /** Real ranking score, max 1 decimal — whole numbers (e.g. Elo 1500) drop
  *  the decimal, fractional ones round to one place. */
-private fun formatScore(q: Double): String =
+internal fun formatScore(q: Double): String =
     if (q == q.toLong().toDouble()) q.toLong().toString() else String.format(java.util.Locale.US, "%.1f", q)

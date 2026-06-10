@@ -91,7 +91,7 @@ fun TournamentPodiumViewScreen(
     val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
     val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TOURNAMENT).collectAsState()
     val loadedState = produceState(
         initialValue = TournamentPodiumLoaded(),
         currentReportId, currentResultId, secondaryDataVersion

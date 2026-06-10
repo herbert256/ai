@@ -106,8 +106,8 @@ fun MetaViewScreen(
         val report: Report?
     )
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId).collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), null),
         currentReportId, currentResultId, reportDataVersion, secondaryDataVersion

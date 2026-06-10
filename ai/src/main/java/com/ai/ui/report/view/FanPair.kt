@@ -44,6 +44,7 @@ import com.ai.data.Report
 import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
+import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
@@ -85,8 +86,8 @@ fun FanOutPairViewScreen(
         val pairs: List<SecondaryResult>
     )
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId, SecondaryKind.META).collectAsState()
     val loadedState = produceState(
         initialValue = Loaded(null, emptyList()),
         reportId, metaPromptName, reportDataVersion, secondaryDataVersion

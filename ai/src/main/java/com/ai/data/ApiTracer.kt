@@ -18,7 +18,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asContextElement
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +37,7 @@ object ApiTracer {
     private const val TRACE_DIR = "trace"
     private const val MAX_TRACE_FILES = 2_000
     private const val MAX_TRACE_BYTES = 50L * 1024L * 1024L
+    private const val TRACE_VERSION_DEBOUNCE_MS = 750L
     private var traceDir: File? = null
     private val gson = createAppGson(prettyPrint = true)
     private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.US).withZone(ZoneId.systemDefault())
@@ -46,6 +52,10 @@ object ApiTracer {
     @Volatile var isTracingEnabled: Boolean = false
     private val _traceVersion = MutableStateFlow(0L)
     val traceVersion: StateFlow<Long> = _traceVersion.asStateFlow()
+    private val versionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val versionLock = Any()
+    private var versionBumpPending = false
+    private var versionBumpJob: Job? = null
 
     /** User toggle (Settings → Logging → API Tracing → "Show Ladybug icons",
      *  default true). When false the 🐞 trace hot-links are hidden everywhere
@@ -106,8 +116,30 @@ object ApiTracer {
      *  so subsequent reads stay O(1). All access goes through [lock]. */
     @Volatile private var cachedTraceFiles: List<TraceFileInfo>? = null
 
-    private fun bumpTraceVersion() {
+    private fun bumpTraceVersionNow() {
+        synchronized(versionLock) {
+            versionBumpPending = false
+            versionBumpJob?.cancel()
+            versionBumpJob = null
+        }
         _traceVersion.update { it + 1 }
+    }
+
+    private fun bumpTraceVersionDebounced() {
+        synchronized(versionLock) {
+            versionBumpPending = true
+            if (versionBumpJob?.isActive == true) return
+            versionBumpJob = versionScope.launch {
+                delay(TRACE_VERSION_DEBOUNCE_MS)
+                val shouldBump = synchronized(versionLock) {
+                    versionBumpJob = null
+                    val pending = versionBumpPending
+                    versionBumpPending = false
+                    pending
+                }
+                if (shouldBump) _traceVersion.update { it + 1 }
+            }
+        }
     }
 
     fun init(context: Context) = lock.withLock {
@@ -208,7 +240,7 @@ object ApiTracer {
             }
             val pruned = pruneTraceDirLocked(dir, protectedFilename = resolvedFilename)
             if (pruned > 0) AppLog.i("ApiTracer", "Pruned $pruned old trace file(s)")
-            bumpTraceVersion()
+            bumpTraceVersionDebounced()
             return resolvedFilename
         }
     }
@@ -381,7 +413,7 @@ object ApiTracer {
     fun clearTraces() = lock.withLock {
         traceDir?.listFiles()?.forEach { if (it.extension == "json") it.delete() }
         cachedTraceFiles = emptyList()
-        bumpTraceVersion()
+        bumpTraceVersionNow()
     }
 
     /** Delete one trace file by filename. Returns true on success, false
@@ -395,7 +427,7 @@ object ApiTracer {
         if (ok) cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename == filename }
         }
-        if (ok) bumpTraceVersion()
+        if (ok) bumpTraceVersionNow()
         ok
     }
 
@@ -418,7 +450,7 @@ object ApiTracer {
         cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename in deletedNames }
         }
-        if (count > 0) bumpTraceVersion()
+        if (count > 0) bumpTraceVersionNow()
         count
     }
 
@@ -441,7 +473,7 @@ object ApiTracer {
         cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename in deletedNames }
         }
-        if (count > 0) bumpTraceVersion()
+        if (count > 0) bumpTraceVersionNow()
         count
     }
 

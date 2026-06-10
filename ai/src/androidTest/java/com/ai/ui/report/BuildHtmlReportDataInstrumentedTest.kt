@@ -72,7 +72,7 @@ class BuildHtmlReportDataInstrumentedTest {
             agents = listOf(ReportAgent("a-1", "Agent 1", TestProvider.ID, TestProvider.MODEL,
                 reportStatus = ReportStatus.SUCCESS, responseBody = "vertaling",
                 tokenUsage = TokenUsage(10, 20))),
-            sourceReportId = source.id
+            config = com.ai.data.CreateReportConfig(sourceReportId = source.id)
         )
         // One secondary on the translated copy.
         val sumPlaceholder = SecondaryResultStorage.create(

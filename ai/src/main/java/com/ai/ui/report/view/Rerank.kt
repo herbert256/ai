@@ -46,6 +46,7 @@ import com.ai.data.AppService
 import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
+import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
@@ -97,8 +98,8 @@ fun RerankViewScreen(
         val reportTitle: String?
     )
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.RERANK).collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), null),
         currentReportId, currentResultId, reportDataVersion, secondaryDataVersion

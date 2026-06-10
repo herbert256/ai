@@ -22,8 +22,8 @@ import com.ai.data.TournamentRunKey
 import com.ai.data.TournamentRunState
 import com.ai.data.computeWinMatrix
 import com.ai.data.decodeTournamentMatrix
-import com.ai.data.encode
 import com.ai.data.fullCost
+import com.ai.data.encode
 import com.ai.data.matchKey
 import com.ai.data.parseMatchVerdict
 import com.ai.data.rankFor
@@ -38,10 +38,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asContextElement
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -66,11 +63,42 @@ import kotlinx.coroutines.withContext
  * and app-kill resume.
  */
 class TournamentEngine internal constructor(
-    private val appViewModel: AppViewModel,
+    override val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel
-) : BatchEngine<TournamentRunKey, String, MatchState, TournamentRunState>() {
+) : SecondaryBatchEngine<TournamentRunKey, MatchState, TournamentRunState>() {
     override fun copyWithItems(run: TournamentRunState, items: Map<String, MatchState>) =
         run.copy(matches = items)
+
+    override val secondaryKind = SecondaryKind.TOURNAMENT
+    override val logTag = "Tournament"
+    override val itemNoun = "match"
+    override fun reportIdOf(runKey: TournamentRunKey) = runKey
+    override fun runKeysForReport(reportId: String) = listOf(reportId)
+    override fun terminalizeItem(item: MatchState, message: String) =
+        item.copy(status = MatchStatus.ERROR, errorMessage = message, durationMs = 0)
+    override fun isItemRow(run: TournamentRunState?, row: SecondaryResult) =
+        row.tournamentRole == ROLE_MATCH
+    override fun aggregateRowIdOf(run: TournamentRunState) = run.aggregateRowId
+    override fun canRedispatch(context: Context, run: TournamentRunState) =
+        run.tournamentPrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 16
+    override val requeueBuildLabel = "Re-queuing tournament"
+    override fun resetItemToPending(item: MatchState) =
+        item.copy(
+            status = MatchStatus.PENDING, judgeModel = null, content = null, verdict = null,
+            confidence = null, reason = null, errorMessage = null,
+            inputCost = null, outputCost = null, durationMs = null, tokenUsage = null
+        )
+    /** Restore the pre-judge sentinel too — the next judge is unknown until
+     *  the worker chain settles (dynamic-host). */
+    override fun clearRowForRerun(row: SecondaryResult) =
+        row.copy(
+            providerId = TOURNAMENT_PENDING_PROVIDER,
+            model = TOURNAMENT_PENDING_MODEL,
+            agentName = "$TOURNAMENT_PENDING_PROVIDER / $TOURNAMENT_PENDING_MODEL",
+            content = null, errorMessage = null,
+            inputCost = null, outputCost = null, tokenUsage = null, durationMs = null,
+            timestamp = System.currentTimeMillis()
+        )
 
     /** The L1 "Throttled" stat — match ids parked on a provider throttle. */
     val throttledMatches: StateFlow<Set<String>> get() = appViewModel.throttledTournamentMatches
@@ -99,7 +127,7 @@ class TournamentEngine internal constructor(
      *  [TournamentRunState] (one tournament per report — newest run wins if
      *  legacy multi-run rows are present), and publish it. Preserves a live
      *  RUNNING match status the disk placeholder can't yet show. */
-    suspend fun hydrate(context: Context, reportId: String) {
+    override suspend fun hydrate(context: Context, reportId: String) {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val rows = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
@@ -150,15 +178,6 @@ class TournamentEngine internal constructor(
     fun runByKey(key: TournamentRunKey): TournamentRunState? = _runs.value[key]
 
     // -----------------------------------------------------------------
-    // State-flow transition helpers
-    // -----------------------------------------------------------------
-
-    private fun transitionMatch(reportId: String, mKey: String, update: (MatchState) -> MatchState) =
-        transitionItem(reportId, mKey, update)
-
-    private fun dropMatch(reportId: String, mKey: String) = dropItem(reportId, mKey)
-
-    // -----------------------------------------------------------------
     // Run launch
     // -----------------------------------------------------------------
 
@@ -206,15 +225,22 @@ class TournamentEngine internal constructor(
                     AuditLog.append(reportId, "Start Tournament — ${successful.size} responses, ${matchCountFor(successful.size)} matches (worker-judged)")
                     val scopeEncoded = SecondaryScope.AllReports.encode()
 
-                    val aggregate = SecondaryResultStorage.create(
-                        context, reportId, SecondaryKind.TOURNAMENT, AGG_PROVIDER, AGG_MODEL, "Tournament"
-                    ) {
-                        it.copy(
-                            tournamentRole = ROLE_AGGREGATE, tournamentJudgeRunId = runId,
-                            metaPromptId = prompt.id, metaPromptName = prompt.name,
-                            runId = runId, secondaryScope = scopeEncoded
-                        )
-                    }
+                    val aggregate = SecondaryResult(
+                        id = java.util.UUID.randomUUID().toString(),
+                        reportId = reportId,
+                        kind = SecondaryKind.TOURNAMENT,
+                        providerId = AGG_PROVIDER,
+                        model = AGG_MODEL,
+                        agentName = "Tournament",
+                        timestamp = System.currentTimeMillis(),
+                        content = null,
+                        tournamentRole = ROLE_AGGREGATE,
+                        tournamentJudgeRunId = runId,
+                        metaPromptId = prompt.id,
+                        metaPromptName = prompt.name,
+                        runId = runId,
+                        secondaryScope = scopeEncoded
+                    )
 
                     val pending = mutableListOf<PendingMatch>()
                     val newMatches = LinkedHashMap<String, MatchState>()
@@ -225,24 +251,35 @@ class TournamentEngine internal constructor(
                         for (j in i + 1 until successful.size) {
                             val a = successful[i]; val b = successful[j]
                             for ((aa, bb, orient) in listOf(Triple(a, b, 0), Triple(b, a, 1))) {
-                                val placeholder = SecondaryResultStorage.create(
-                                    context, reportId, SecondaryKind.TOURNAMENT,
-                                    TOURNAMENT_PENDING_PROVIDER, TOURNAMENT_PENDING_MODEL, "Tournament match"
-                                ) {
-                                    it.copy(
-                                        tournamentRole = ROLE_MATCH, tournamentJudgeRunId = runId,
-                                        matchResponseAId = aa.agentId, matchResponseBId = bb.agentId,
-                                        matchOrientation = orient,
-                                        metaPromptId = prompt.id, metaPromptName = prompt.name,
-                                        runId = runId, secondaryScope = scopeEncoded
-                                    )
-                                }
+                                val placeholder = SecondaryResult(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    reportId = reportId,
+                                    kind = SecondaryKind.TOURNAMENT,
+                                    providerId = TOURNAMENT_PENDING_PROVIDER,
+                                    model = TOURNAMENT_PENDING_MODEL,
+                                    agentName = "Tournament match",
+                                    timestamp = System.currentTimeMillis(),
+                                    content = null,
+                                    tournamentRole = ROLE_MATCH,
+                                    tournamentJudgeRunId = runId,
+                                    matchResponseAId = aa.agentId,
+                                    matchResponseBId = bb.agentId,
+                                    matchOrientation = orient,
+                                    metaPromptId = prompt.id,
+                                    metaPromptName = prompt.name,
+                                    runId = runId,
+                                    secondaryScope = scopeEncoded
+                                )
                                 pending.add(PendingMatch(aa, bb, orient, placeholder))
-                                placeholder.toMatchState()?.let { newMatches[it.key] = it }
                                 if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                             }
                         }
                     }
+                    val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
+                        .mapTo(HashSet()) { it.id }
+                    if (aggregate.id !in savedIds) return@withTracerTags
+                    pending.removeAll { it.placeholder.id !in savedIds }
+                    pending.forEach { item -> item.placeholder.toMatchState()?.let { newMatches[it.key] = it } }
                     if (buildKey != null) appViewModel.finishBuild(buildKey)
 
                     _runs.update { runs ->
@@ -254,12 +291,12 @@ class TournamentEngine internal constructor(
                     }
 
                     dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
-                    recomputeAndPersistAggregate(context, reportId)
+                    recomputeAggregate(context, reportId)
                     AuditLog.append(reportId, "End Tournament")
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverMatches(context, reportId)
+                finalizeLeftoverItems(context, reportId)
                 if (buildKey != null) {
                     val p = appViewModel.batchBuildProgress.value[buildKey]
                     if (p != null && !p.done) appViewModel.clearBuild(buildKey)
@@ -308,7 +345,7 @@ class TournamentEngine internal constructor(
     ) {
         val mKey = matchKey(item.aAgent.agentId, item.bAgent.agentId, item.orientation)
         val rowId = item.placeholder.id
-        transitionMatch(reportId, mKey) { it.copy(status = MatchStatus.RUNNING) }
+        transitionItem(reportId, mKey) { it.copy(status = MatchStatus.RUNNING) }
         val started = System.currentTimeMillis()
         val aiSettings = appViewModel.uiState.value.aiSettings
         val resolvedBase = resolveSecondaryPrompt(prompt.text, question = question, results = "", count = 2, title = title)
@@ -372,8 +409,8 @@ class TournamentEngine internal constructor(
             // 3s re-hydrate that used to recover that case has been removed.
             withContext(kotlinx.coroutines.NonCancellable) {
                 val saved = SecondaryResultStorage.get(context, reportId, rowId)
-                if (saved == null) dropMatch(reportId, mKey)
-                else transitionMatch(reportId, mKey) {
+                if (saved == null) dropItem(reportId, mKey)
+                else transitionItem(reportId, mKey) {
                     saved.toMatchState() ?: it.copy(status = MatchStatus.ERROR, errorMessage = "Match row could not be parsed")
                 }
             }
@@ -384,7 +421,8 @@ class TournamentEngine internal constructor(
     // Aggregation
     // -----------------------------------------------------------------
 
-    private fun recomputeAndPersistAggregate(context: Context, reportId: String) {
+    override fun recomputeAggregate(context: Context, runKey: TournamentRunKey) {
+        val reportId = runKey
         val run = _runs.value[reportId] ?: return
         val aggId = run.aggregateRowId ?: return
         val report = ReportStorage.getReport(context, reportId) ?: return
@@ -438,7 +476,7 @@ class TournamentEngine internal constructor(
                     content = ranks.toRerankJson(), tournamentMatrix = decoded.first.encode(method)
                 ))
             } else {
-                recomputeAndPersistAggregate(context, reportId)
+                recomputeAggregate(context, reportId)
             }
         }
 
@@ -448,180 +486,37 @@ class TournamentEngine internal constructor(
 
     fun restartFailedMatches(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val keys = run.matches.values.filter { it.status == MatchStatus.ERROR }.map { it.key }
-            rerunMatchesBlocking(context, reportId, keys)
-            recomputeAndPersistAggregate(context, reportId)
+            restartItemsWhere(context, reportId) { it.status == MatchStatus.ERROR }
         }
-
-    /** Broken-work "Continue": stop this run's in-flight matches (keeping the
-     *  run + its finished matches), then re-queue every broken match
-     *  (stranded PENDING + errored) and re-judge in one batch, driving the
-     *  build-stage popup off [buildKey]. Finished matches are untouched. */
-    fun continueBrokenBatch(context: Context, reportId: String, buildKey: String?): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            try {
-                stopInFlightKeepingState(reportId)
-                hydrate(context, reportId)
-                _runs.value[reportId]?.let { run ->
-                    val keys = run.matches.values.filter {
-                        it.status == MatchStatus.PENDING || it.status == MatchStatus.ERROR
-                    }.map { it.key }
-                    rerunMatchesBlocking(context, reportId, keys, buildKey)
-                    recomputeAndPersistAggregate(context, reportId)
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                buildKey?.let { appViewModel.clearBuild(it) }
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Tournament", "continue broken batch failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-            } finally {
-                // Release the popup so the overlay still opens when there was
-                // nothing to re-queue (the normal path finishes it before dispatch).
-                buildKey?.let {
-                    if (appViewModel.batchBuildProgress.value[it]?.done != true) appViewModel.finishBuild(it)
-                }
-            }
-        }
-
-    /** Cancel this run's outer Job + every per-match coroutine and JOIN them
-     *  (so no in-flight write lands after we re-queue) WITHOUT deleting rows
-     *  or dropping the run — the keep-state counterpart of [cancelAllForReport],
-     *  used by [continueBrokenBatch]. */
-    private suspend fun stopInFlightKeepingState(reportId: String) {
-        runJobOf(reportId)?.cancelAndJoin()
-        _runs.value[reportId]?.matches?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-    }
 
     fun rerunMatch(context: Context, reportId: String, mKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            rerunMatchesBlocking(context, reportId, listOf(mKey))
-            recomputeAndPersistAggregate(context, reportId)
+            restartItemsWhere(context, reportId) { it.key == mKey }
         }
 
     /** Drop every errored match without re-firing — clears a permanently-dead
-     *  failure so the run can settle. Rolls the spend into deleted-items and
-     *  recomputes the ranking; if nothing is left, drops the whole run (an
-     *  empty run would otherwise read as never-terminal). */
+     *  failure so the run can settle. */
     fun removeFailedMatches(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val failed = run.matches.values.filter { it.status == MatchStatus.ERROR }
-            if (failed.isEmpty()) return@launch
-            failed.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-            val costDelta = failed.sumOf { it.totalCost }
-            failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            val remaining = run.matches - failed.map { it.key }.toSet()
-            if (remaining.isEmpty()) {
-                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
-                dropRun(reportId)
-            } else {
-                _runs.update { runs ->
-                    val cur = runs[reportId] ?: return@update runs
-                    runs + (reportId to cur.copy(matches = remaining))
-                }
-                recomputeAndPersistAggregate(context, reportId)
-            }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, reportId)
+            removeItemsMatching(context, reportId) { it.status == MatchStatus.ERROR }
         }
 
     /** Drop every unfinished (stranded, never-ran) match without re-firing
-     *  — the Broken-work "delete unfinished" action. Mirror of
-     *  [removeFailedMatches], narrowed to PENDING rows. */
+     *  — the Broken-work "delete unfinished" action. */
     fun removeUnfinishedMatches(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val stranded = run.matches.values.filter { it.status == MatchStatus.PENDING }
-            if (stranded.isEmpty()) return@launch
-            stranded.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-            val costDelta = stranded.sumOf { it.totalCost }
-            stranded.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            val remaining = run.matches - stranded.map { it.key }.toSet()
-            if (remaining.isEmpty()) {
-                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
-                dropRun(reportId)
-            } else {
-                _runs.update { runs ->
-                    val cur = runs[reportId] ?: return@update runs
-                    runs + (reportId to cur.copy(matches = remaining))
-                }
-                recomputeAndPersistAggregate(context, reportId)
-            }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, reportId)
+            removeItemsMatching(context, reportId) { it.status == MatchStatus.PENDING }
         }
 
     fun removeMatchesByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val victims = run.matches.values.filter { it.id in rowIds }
-            if (victims.isEmpty()) return@launch
-            victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-            val costDelta = victims.sumOf {
-                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
-            }
-            victims.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            val remaining = run.matches - victims.map { it.key }.toSet()
-            if (remaining.isEmpty()) {
-                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
-                dropRun(reportId)
-            } else {
-                _runs.update { runs ->
-                    val cur = runs[reportId] ?: return@update runs
-                    runs + (reportId to cur.copy(matches = remaining))
-                }
-                recomputeAndPersistAggregate(context, reportId)
-            }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, reportId)
+            removeItemsMatching(context, reportId) { it.id in rowIds }
         }
 
     fun restartMatchesByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val keys = run.matches.values.filter { it.id in rowIds }.map { it.key }
-            rerunMatchesBlocking(context, reportId, keys)
-            recomputeAndPersistAggregate(context, reportId)
+            restartItemsWhere(context, reportId) { it.id in rowIds }
         }
-
-    private suspend fun rerunMatchesBlocking(context: Context, reportId: String, mKeys: List<String>, buildKey: String? = null) {
-        if (mKeys.isEmpty()) { buildKey?.let { appViewModel.finishBuild(it) }; return }
-        val run = _runs.value[reportId] ?: return
-        val report = ReportStorage.getReport(context, reportId) ?: return
-        val prompt = tournamentPrompt(appViewModel.uiState.value.aiSettings) ?: return
-        val agentsById = report.agents.associateBy { it.agentId }
-        val resets = mutableListOf<PendingMatch>()
-        var clearedCostDelta = 0.0
-        // Build stage: resetting each broken match to a PENDING placeholder is
-        // the "Preparing N / M…" phase the Broken-work Continue popup covers.
-        if (buildKey != null) appViewModel.beginBuild(buildKey, mKeys.size, "Re-queuing tournament")
-        for (k in mKeys) {
-            val m = run.matches[k] ?: continue
-            val a = agentsById[m.responseAId] ?: continue
-            val b = agentsById[m.responseBId] ?: continue
-            SecondaryResultStorage.get(context, reportId, m.id)?.let { clearedCostDelta += it.fullCost() }
-            SecondaryResultStorage.resetTournamentMatch(context, reportId, m.id)
-            val cleared = SecondaryResultStorage.get(context, reportId, m.id) ?: continue
-            transitionMatch(reportId, k) {
-                it.copy(
-                    status = MatchStatus.PENDING, judgeModel = null, content = null, verdict = null,
-                    confidence = null, reason = null, errorMessage = null,
-                    inputCost = null, outputCost = null, durationMs = null, tokenUsage = null
-                )
-            }
-            resets.add(PendingMatch(a, b, m.orientation, cleared))
-            if (buildKey != null) appViewModel.updateBuild(buildKey, resets.size)
-        }
-        if (clearedCostDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, clearedCostDelta)
-        // Build phase complete — release the popup so the UI navigates to the
-        // batch screen while the dispatch below keeps running in the background.
-        if (buildKey != null) appViewModel.finishBuild(buildKey)
-        if (resets.isEmpty()) return
-        withTracerTags(reportId = reportId, category = "after/tournament") {
-            dispatchMatches(context, reportId, prompt, report.prompt, report.title, resets)
-        }
-    }
 
     /** Cancel + delete the whole run (matches + aggregate), rolling the spend
      *  into the report's deleted-items tally. */
@@ -631,7 +526,13 @@ class TournamentEngine internal constructor(
         val runJob = runJobOf(reportId)
         val itemJobs = run.matches.values.mapNotNull { itemJobOf(it.id) }
         return deleteRunDeferred(appViewModel.viewModelScope, reportId, runJob, itemJobs) {
-            val costDelta = run.matches.values.sumOf { it.totalCost }
+            // Disk-truth costs: the run was dropped from _runs before the join,
+            // so an in-flight match that settled during the cancel never
+            // mirrored into this snapshot — the rows are read-then-deleted
+            // anyway, so sum what's actually on them.
+            val costDelta = run.matches.values.sumOf {
+                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             run.matches.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
@@ -647,132 +548,44 @@ class TournamentEngine internal constructor(
             startRun(context, reportId)
         }
 
-    /** Best-effort cancel of every in-flight match for [reportId] (called
-     *  from the synchronous report-delete path). */
-    fun cancelAllForReport(reportId: String) {
-        runJobOf(reportId)?.cancel()
-        _runs.value[reportId]?.matches?.values?.forEach { itemJobOf(it.id)?.cancel() }
-        _runs.update { it - reportId }
-    }
-
     // -----------------------------------------------------------------
     // Resume on report open / regenerate
     // -----------------------------------------------------------------
 
-    /** Match row ids whose worker Job is live in THIS process — the
-     *  read-only broken-work scan's in-flight exclusion (parallel to
-     *  [FanOutEngine.inFlightRowIds]). Empty after a process kill. */
-    fun inFlightRowIds(): Set<String> = itemJobIds()
-
-    /** Top-level Tournament runs currently alive in this process. Covers
-     *  pre-created match rows that are still waiting for a per-match Job. */
-    fun activeRunKeys(): Set<TournamentRunKey> =
-        activeRunJobKeys()
-
-    /** Re-dispatch every stale match (blank placeholder on disk, no live Job)
-     *  — the app-kill recovery + RegeneratePhase.TOURNAMENT path. Bounded by
-     *  [BatchResume]. The stale filter is sentinel-independent (content blank
-     *  + no duration), so an interrupted-after-worker row is still found. */
-    fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            // hydrate runs before the scan guard (so the body try's finally
-            // only fires for the invocation that added the marker), so it
-            // needs its own guard — an uncaught throw here would crash the app.
-            try {
-                hydrate(context, reportId)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("Tournament", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-                return@launch
-            }
-            if (!beginResumeScan(reportId)) return@launch
-            try {
-                val run = _runs.value[reportId] ?: return@launch
-                val prompt = run.tournamentPrompt
-                if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't resume
-                val report = ReportStorage.getReport(context, reportId) ?: return@launch
-                val agentsById = report.agents.associateBy { it.agentId }
-                val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
-                    .filter {
-                        it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
-                            it.errorMessage == null && it.durationMs == null && !hasItemJob(it.id)
-                    }.associateBy { it.id }
-                if (diskById.isEmpty()) {
-                    // No stale matches left, but the aggregate matrix may be
-                    // truncated (an old recompute ran during a partial-SUCCESS
-                    // window). Re-sync once if it covers fewer responses than
-                    // the run's participants. Guarded so it can't loop.
-                    val participants = run.matches.values
-                        .flatMapTo(HashSet()) { listOf(it.responseAId, it.responseBId) }.size
-                    val storedN = run.aggregateRowId
-                        ?.let { SecondaryResultStorage.get(context, reportId, it)?.tournamentMatrix }
-                        ?.let { decodeTournamentMatrix(it)?.first?.ids?.size } ?: 0
-                    if (participants >= 2 && storedN < participants) {
-                        recomputeAndPersistAggregate(context, reportId)
-                    }
-                    return@launch
-                }
-                val staleRows = run.matches.values
-                    .filter { it.status == MatchStatus.PENDING && it.id in diskById }
-                    .mapNotNull { diskById[it.id] }
-                if (resetAttempts) BatchResume.resetAttempts(staleRows.map { it.id })
-                val retryRows = BatchResume.capForRetry(staleRows) { row ->
-                    markRowInterrupted(context, reportId, row.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
-                    run.matches.values.firstOrNull { it.id == row.id }?.let { m ->
-                        transitionMatch(reportId, m.key) {
-                            it.copy(status = MatchStatus.ERROR, errorMessage = "Interrupted — no result after resume attempts", durationMs = 0)
-                        }
-                    }
-                }
-                val pending = retryRows.mapNotNull { row ->
-                    val m = run.matches.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
-                    val a = agentsById[m.responseAId] ?: return@mapNotNull null
-                    val b = agentsById[m.responseBId] ?: return@mapNotNull null
-                    PendingMatch(a, b, m.orientation, row)
-                }
-                if (pending.isEmpty()) return@launch
-                withTracerTags(reportId = reportId, category = "after/tournament") {
-                    dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
-                }
-                recomputeAndPersistAggregate(context, reportId)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // This launch is a direct child of viewModelScope, so an
-                // uncaught throw here reaches the global handler and crashes
-                // the app (the background resume sweep only join()s this Job,
-                // it can't catch it). Contain it — a failed resume just leaves
-                // the run as-is until the next open / sweep.
-                AppLog.w("Tournament", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
-            } finally {
-                endResumeScan(reportId)
-            }
-        }
-
-    private suspend fun finalizeLeftoverMatches(context: Context, reportId: String) {
-        withContext(kotlinx.coroutines.NonCancellable) {
-            val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
-                .filter {
-                    it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
-                        it.errorMessage == null && it.durationMs == null && !hasItemJob(it.id)
-                }
-            BatchResume.finalizeLeftover(leftover) { row ->
-                markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this match finished")
-                _runs.value[reportId]?.matches?.values?.firstOrNull { it.id == row.id }?.let { m ->
-                    transitionMatch(reportId, m.key) {
-                        if (it.status == MatchStatus.PENDING || it.status == MatchStatus.RUNNING)
-                            it.copy(status = MatchStatus.ERROR, errorMessage = "Interrupted", durationMs = 0)
-                        else it
-                    }
-                }
-            }
+    /** No stale matches left, but the aggregate matrix may be truncated (an
+     *  old recompute ran during a partial-SUCCESS window). Re-sync once if it
+     *  covers fewer responses than the run's participants. Guarded so it
+     *  can't loop. */
+    override fun onNoStaleRows(context: Context, runKey: TournamentRunKey) {
+        val run = _runs.value[runKey] ?: return
+        val participants = run.matches.values
+            .flatMapTo(HashSet()) { listOf(it.responseAId, it.responseBId) }.size
+        val storedN = run.aggregateRowId
+            ?.let { SecondaryResultStorage.get(context, runKey, it)?.tournamentMatrix }
+            ?.let { decodeTournamentMatrix(it)?.first?.ids?.size } ?: 0
+        if (participants >= 2 && storedN < participants) {
+            recomputeAggregate(context, runKey)
         }
     }
 
-    private fun markRowInterrupted(context: Context, reportId: String, rowId: String, message: String) {
-        val current = SecondaryResultStorage.get(context, reportId, rowId) ?: return
-        if (current.errorMessage != null || !current.content.isNullOrBlank() || current.durationMs != null) return
-        SecondaryResultStorage.save(context, current.copy(errorMessage = message, durationMs = 0))
+    override suspend fun redispatchRows(context: Context, runKey: TournamentRunKey, rows: List<SecondaryResult>) {
+        val run = _runs.value[runKey] ?: return
+        val report = ReportStorage.getReport(context, runKey) ?: return
+        // ♻️ Models-as-workers must hold on resume / Broken-work restart /
+        // regenerate too — the hydrated prompt carries the CONFIGURED swarm,
+        // so re-judging without the swap would pull in foreign workers.
+        val prompt = if (report.useReportModelsAsWorkers)
+            run.tournamentPrompt.copy(workers = reportModelWorkers(report)) else run.tournamentPrompt
+        val agentsById = report.agents.associateBy { it.agentId }
+        val pending = rows.mapNotNull { row ->
+            val m = run.matches.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+            val a = agentsById[m.responseAId] ?: return@mapNotNull null
+            val b = agentsById[m.responseBId] ?: return@mapNotNull null
+            PendingMatch(a, b, m.orientation, row)
+        }
+        if (pending.isEmpty()) return
+        withTracerTags(reportId = runKey, category = "after/tournament") {
+            dispatchMatches(context, runKey, prompt, report.prompt, report.title, pending)
+        }
     }
 }

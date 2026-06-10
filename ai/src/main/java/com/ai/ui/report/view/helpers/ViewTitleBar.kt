@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -100,6 +102,9 @@ fun ViewTitleBar(
     /** Optional left-aligned 🗂️ bottom-bar icon → pick-a-report-to-view
      *  (View hub only). */
     onViewList: (() -> Unit)? = null,
+    /** Optional right-aligned 📤 bottom-bar icon (left of the ❓) —
+     *  exports this screen as a shareable file. */
+    onExport: (() -> Unit)? = null,
     /** When set together with a non-blank [activeLanguage], the orange
      *  report title swaps to its translated variant for that language —
      *  the report long title's TITLE_LONG translation (when the report
@@ -124,7 +129,7 @@ fun ViewTitleBar(
         // SideEffect, so an unconditional null would wipe the new screen's
         // spec and the bar would vanish. We only null it when we still own it.
         val ownerToken = remember { Any() }
-        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, onViewList = onViewList, helpTopic = helpTopic, owner = ownerToken) }
+        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, onViewList = onViewList, helpTopic = helpTopic, onExport = onExport, owner = ownerToken, reportView = true) }
         DisposableEffect(viewBottomBarState) {
             onDispose { if (viewBottomBarState.value?.owner === ownerToken) viewBottomBarState.value = null }
         }
@@ -141,8 +146,8 @@ fun ViewTitleBar(
     // leaving the original [reportTitle] — when there's no language
     // context or no translation row.
     val context = LocalContext.current
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId, SecondaryKind.TRANSLATE).collectAsState()
     val translatedTitle by produceState<String?>(null, reportId, activeLanguage, reportDataVersion, secondaryDataVersion) {
         value = if (reportId != null && !activeLanguage.isNullOrBlank()) {
             withContext(Dispatchers.IO) {
@@ -157,9 +162,20 @@ fun ViewTitleBar(
         } else null
     }
     val effectiveReportTitle = translatedTitle ?: reportTitle
+    // Full screen hides the status bar and the Home icon bar is suppressed on
+    // report View screens, so this title bar is the topmost element. Push it
+    // below any top camera punch-hole so the title never sits on the cutout —
+    // same platform DisplayCutout inset the Home icon bar uses; 0 when there's
+    // no top cutout. No effect when the status bar is visible (the Scaffold
+    // already insets content below it).
+    val fullScreen = com.ai.ui.shared.LocalGeneralSettings.current?.fullScreen == true
+    val density = LocalDensity.current
+    val cutoutTopPx = WindowInsets.displayCutout.getTop(density)
+    val cutoutTopPad = if (fullScreen && cutoutTopPx > 0) with(density) { cutoutTopPx.toDp() } else 0.dp
     // The single shared chrome: report glyph left, white screen title /
     // orange report title / green subject centre, AI logo right.
     com.ai.ui.shared.AppTopBarChrome(
+        modifier = Modifier.padding(top = cutoutTopPad),
         screenTitle = screenTitle,
         secondLine = effectiveReportTitle,
         thirdLine = subject,

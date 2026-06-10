@@ -704,6 +704,11 @@ internal fun ColumnScope.GenerationPhase(
     // activeTranslationRuns instead of capturing the snapshot at
     // launch.
     val latestActiveRuns = rememberUpdatedState(activeTranslationRuns)
+    // `paused` is a plain Boolean param — without the same wrapper the
+    // long-lived loop below reads the value captured at effect launch
+    // forever (the overlay gate never engages once launched unpaused,
+    // and never releases once launched paused).
+    val latestPaused = rememberUpdatedState(paused)
     LaunchedEffect(currentReportId) {
         // Per-runId guard so a reconcile that cannot flip a genuinely
         // stuck run to finished is attempted once (per report open),
@@ -715,7 +720,7 @@ internal fun ColumnScope.GenerationPhase(
             // Skip the reconcile sweep while a Get-info overlay is layered
             // on top — the hub is hidden, so there's nothing to self-heal
             // for the user right now.
-            if (rid != null && !paused) {
+            if (rid != null && !latestPaused.value) {
                 latestActiveRuns.value.forEach { run ->
                     if (run.total > 0 && run.completed == run.total && run.runId !in reconciled) {
                         reconciled.add(run.runId)

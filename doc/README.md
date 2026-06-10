@@ -37,6 +37,9 @@ and a manual override layer into one resolved view per
 - **[architecture.md](architecture.md)** — Big-picture map of the app:
   navigation, view models, data layer, layered lookups, concurrency,
   state recovery, Fan-out / Fan-in.
+- **[ownership.md](ownership.md)** — Runtime-state single-writer map:
+  who owns each `StateFlow` / job map / Compose-derived bundle, and
+  where everyone else reads it from. Read before moving runtime state.
 - **[development.md](development.md)** — Build/deploy/test commands,
   project layout, how to add a provider / parameter / pricing tier /
   SecondaryKind / Internal Prompt category, common gotchas.

@@ -136,8 +136,8 @@ data class FanOutActions(
  * holds the [FanOutNav] state, and routes to one of the three
  * level Composables.
  *
- * Replaces FanOutDrillInView in SecondaryResultsScreen.kt. Phase E
- * deletes the old composable; this is the only entry point now.
+ * This is the primary fan-out entry point; the older
+ * FanOutDrillInView remains only as a fallback (see SecondaryResultsScreen).
  */
 @Composable
 fun FanOutScreen(

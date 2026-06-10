@@ -106,7 +106,7 @@ internal fun MetaDetailScreen(
     // Fresh on-disk row, re-read on every secondary save, so a refine /
     // edit Apply (which rewrites content) reflects here even though
     // `result` arrives stale from the list mount.
-    val secDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
+    val secDataVersion by com.ai.data.SecondaryDataVersion.versionFor(result.reportId).collectAsState()
     val resultFresh by produceState<SecondaryResult?>(null, result.id, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, result.reportId, result.id) }
     }
@@ -222,7 +222,7 @@ internal fun MetaDetailScreen(
         UserNoteEditorOverlay(result.reportId, "SECONDARY", result.id, noteEdit!!) { noteEdit = null }
         return
     }
-    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val noteDataVersion by ReportDataVersion.versionFor(result.reportId).collectAsState()
     val secondaryNotes by produceState(emptyList<UserNote>(), result.reportId, result.id, noteDataVersion) {
         value = withContext(Dispatchers.IO) {
             ReportStorage.getReport(context, result.reportId)?.notesFor("SECONDARY", result.id) ?: emptyList()

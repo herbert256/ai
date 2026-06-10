@@ -194,7 +194,14 @@ class FanOutEngine internal constructor(
             for (row in rows) {
                 val answererAgentId = agentsById.values.firstOrNull {
                     it.provider.equals(row.providerId, ignoreCase = true) && it.model == row.model
-                }?.agentId ?: continue
+                }?.agentId
+                    // The answerer model may have been removed from the report
+                    // since the fan-out ran. Hydrate the pair anyway under a
+                    // stable synthetic id: L1 groups by the pair's OWN
+                    // provider|model, so its rows stay visible, deletable and
+                    // counted — skipping them left invisible rows on disk that
+                    // still showed up in the cost tables and exports.
+                    ?: "removed:${row.providerId.lowercase()}|${row.model}"
                 val diskPair = row.toPairState(answererAgentId) ?: continue
                 // Preserve a live RUNNING status the disk can't yet show.
                 val pair = if (diskPair.status == PairStatus.PENDING &&
@@ -1085,21 +1092,25 @@ class FanOutEngine internal constructor(
                     data class PendingPair(val answerer: ReportAgent, val source: ReportAgent, val placeholder: SecondaryResult)
                     val pending = mutableListOf<PendingPair>()
                     val newPairs = mutableMapOf<PairKey, PairState>()
-                    // Build stage: this nested loop is the disk-heavy phase the
-                    // "Preparing N / M…" popup covers (one create() per pair).
+                    // Build stage: construct every row first, then persist the
+                    // full placeholder set with one data-version bump.
                     val totalPairs = answerers.filter { AppService.findById(it.provider) != null }
                         .sumOf { a -> sources.count { s -> includeSelfResponses || s.agentId != a.agentId } }
-                    if (buildKey != null) appViewModel.beginBuild(buildKey, totalPairs, "Building fan-out")
-                    var built = 0
-                    for (answerer in answerers) {
-                        val provider = AppService.findById(answerer.provider) ?: continue
-                        for (source in sources) {
-                            if (source.agentId == answerer.agentId && !includeSelfResponses) continue
-                            val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
-                            val placeholder = SecondaryResultStorage.create(
-                                context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
-                            ) {
-                                it.copy(
+                    appViewModel.runBatchBuild(buildKey, totalPairs, "Building fan-out", updateEvery = 10) {
+                        for (answerer in answerers) {
+                            val provider = AppService.findById(answerer.provider) ?: continue
+                            for (source in sources) {
+                                if (source.agentId == answerer.agentId && !includeSelfResponses) continue
+                                val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
+                                val placeholder = SecondaryResult(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    reportId = reportId,
+                                    kind = SecondaryKind.META,
+                                    providerId = provider.id,
+                                    model = answerer.model,
+                                    agentName = agentName,
+                                    timestamp = System.currentTimeMillis(),
+                                    content = null,
                                     metaPromptId = metaPrompt.id,
                                     metaPromptName = metaPrompt.name,
                                     fanOutSourceAgentId = source.agentId,
@@ -1110,13 +1121,19 @@ class FanOutEngine internal constructor(
                                     secondaryParameterPresetIds = paramsIds,
                                     secondarySystemPromptId = systemPromptId
                                 )
+                                pending.add(PendingPair(answerer, source, placeholder))
+                                advance()
                             }
-                            pending.add(PendingPair(answerer, source, placeholder))
-                            placeholder.toPairState(answerer.agentId)?.let { newPairs[it.key] = it }
-                            if (buildKey != null) { built++; if (built % 10 == 0) appViewModel.updateBuild(buildKey, built) }
+                        }
+                        // Batched save so a large fan-out bumps storage observers
+                        // once; drop any row that failed to persist.
+                        val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
+                            .mapTo(HashSet()) { it.id }
+                        pending.removeAll { it.placeholder.id !in savedIds }
+                        pending.forEach { item ->
+                            item.placeholder.toPairState(item.answerer.agentId)?.let { newPairs[it.key] = it }
                         }
                     }
-                    if (buildKey != null) appViewModel.finishBuild(buildKey)
                     // Publish the run state — preserve any existing
                     // combined-report rows already attached to this run.
                     val existingCombined = _runs.value[rk]?.combinedReports.orEmpty()
@@ -1447,7 +1464,9 @@ class FanOutEngine internal constructor(
                     !ModelCooldownStore.isUnavailable(it.providerId, it.model)
             }
             if (failed.isEmpty()) return@launch
-            val costDelta = failed.sumOf { it.totalCost }
+            val costDelta = failed.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             failed.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
             ReportStorage.removeFanOutIconCalls(context, run.reportId, failed.map { it.id }.toSet())
             _runs.update { runs ->
@@ -1467,7 +1486,9 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             val stranded = run.pairs.values.filter { it.status == PairStatus.PENDING }
             if (stranded.isEmpty()) return@launch
-            val costDelta = stranded.sumOf { it.totalCost }
+            val costDelta = stranded.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             stranded.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
             ReportStorage.removeFanOutIconCalls(context, run.reportId, stranded.map { it.id }.toSet())
             _runs.update { runs ->
@@ -1492,7 +1513,9 @@ class FanOutEngine internal constructor(
                     ModelCooldownStore.isUnavailable(it.providerId, it.model)
             }
             if (benched.isEmpty()) return@launch
-            val costDelta = benched.sumOf { it.totalCost }
+            val costDelta = benched.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             benched.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
             ReportStorage.removeFanOutIconCalls(context, run.reportId, benched.map { it.id }.toSet())
             _runs.update { runs ->
@@ -1519,7 +1542,9 @@ class FanOutEngine internal constructor(
                 it.model == model
         }
         if (failed.isEmpty()) return@launch
-        val costDelta = failed.sumOf { it.totalCost }
+        val costDelta = failed.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
         failed.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
         ReportStorage.removeFanOutIconCalls(context, run.reportId, failed.map { it.id }.toSet())
         _runs.update { runs ->
@@ -1780,10 +1805,12 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             runJobOf(runKey)?.cancelAndJoin()
             run.pairs.values.forEach { pair -> itemJobOf(pair.id)?.cancelAndJoin() }
-            // totalCost (not just in/out) so the deleted pairs' Fan-Meta
-            // icon + title spend rolls into the tally too — summing only
-            // inputCost + outputCost dropped it.
-            val costDelta = run.pairs.values.sumOf { it.totalCost }
+            // Disk-truth fullCost (in/out + Fan-Meta icon + title) so a pair
+            // that settled while we were cancelling still rolls its spend in;
+            // the in-memory totalCost is the fallback for a missing row.
+            val costDelta = run.pairs.values.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.delete(context, run.reportId, pair.id)
@@ -1814,12 +1841,17 @@ class FanOutEngine internal constructor(
         val pairJobs = run.pairs.values.mapNotNull { itemJobOf(it.id) }
         return deleteRunDeferred(appViewModel.viewModelScope, runKey, runJob, pairJobs) {
             // Roll the whole run's spend into the report's Deleted-items tally
-            // before the disk deletes — pair totalCost (in/out + Fan-Meta icon +
-            // title) plus each combined fan-in row. Without this, trashing an
-            // entire fan-out run erased all of its API spend from the lifetime
-            // cost view.
-            val costDelta = run.pairs.values.sumOf { it.totalCost } +
-                run.combinedReports.sumOf { it.totalCost }
+            // before the disk deletes — disk-truth fullCost per pair (in/out +
+            // Fan-Meta icon + title; the run was dropped from _runs before the
+            // join, so a pair that settled during the cancel never mirrored
+            // into this snapshot) plus each combined fan-in row. Without this,
+            // trashing an entire fan-out run erased all of its API spend from
+            // the lifetime cost view.
+            val costDelta = run.pairs.values.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            } + run.combinedReports.sumOf { cr ->
+                SecondaryResultStorage.get(context, run.reportId, cr.id)?.fullCost() ?: cr.totalCost
+            }
             val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.delete(context, run.reportId, pair.id)
@@ -1889,7 +1921,9 @@ class FanOutEngine internal constructor(
         // Cancel the per-pair coroutines first so no zombie write lands
         // after the delete.
         victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-        val costDelta = victims.sumOf { it.totalCost }
+        val costDelta = victims.sumOf {
+            SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+        }
         victims.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
         ReportStorage.removeFanOutIconCalls(context, run.reportId, victims.map { it.id }.toSet())
         _runs.update { runs ->

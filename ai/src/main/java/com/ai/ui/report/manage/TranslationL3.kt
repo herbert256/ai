@@ -133,8 +133,8 @@ internal fun TranslationL3Screen(
     // items also carry it on item.sourceText — fall back to that so
     // an in-flight run needs no disk read.
     val empty = TranslationSourceInfo(null, null, null, null)
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
     val source by produceState(
         initialValue = empty,
         reportId, item.id, item.kind, item.target, reportDataVersion, secondaryDataVersion

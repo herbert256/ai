@@ -693,7 +693,7 @@ internal fun NavGraphBuilder.reportRoutes(
                 // manage overlay stack offers. Find-alternatives is hidden
                 // (its picker lives only in the manage overlay stack).
                 val rmAiSettings = com.ai.ui.shared.LocalAiSettings.current
-                val rmDataVersion by com.ai.data.ReportDataVersion.version.collectAsState()
+                val rmDataVersion by com.ai.data.ReportDataVersion.versionFor(rid).collectAsState()
                 val rmReport by produceState<com.ai.data.Report?>(null, rid, rmDataVersion) {
                     value = withContext(Dispatchers.IO) {
                         com.ai.ui.report.view.helpers.ViewReportCache.get(rmContext, rid)

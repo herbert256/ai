@@ -35,6 +35,8 @@ provider/runtime seams, UI workflow structure, and test coverage.
 
 - `00_summary.md`: executive summary and recommended first pass.
 - `01_findings.md`: current findings, grouped by domain.
+- `02_progress.md`: re-verification against current `master` (2026-06-09),
+  per-finding verdicts, and the work landed in response.
 
 ## Verification note
 

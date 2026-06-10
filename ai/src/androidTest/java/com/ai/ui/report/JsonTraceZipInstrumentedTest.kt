@@ -94,7 +94,7 @@ class JsonTraceZipInstrumentedTest {
     @Test fun buildJsonTraceZipBytes_includes_source_traces_under_source_prefix_for_translated_reports() {
         val src = ReportStorage.createReport(context, "src", "p", emptyList())
         val translated = ReportStorage.createReport(
-            context, "[NL] src", "p", emptyList(), sourceReportId = src.id
+            context, "[NL] src", "p", emptyList(), com.ai.data.CreateReportConfig(sourceReportId = src.id)
         )
         ApiTracer.saveTrace(planTrace(translated.id, "Translation"))
         ApiTracer.saveTrace(planTrace(src.id, "Report"))

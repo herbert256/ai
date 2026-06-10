@@ -315,8 +315,11 @@ detail), and COMPARE cells flat.
 
 Deleting a report deletes these rows with every other secondary result. Deleting
 a run removes only rows belonging to that run id. Restarting failed cells resets
-the affected placeholders back to their sentinel (`resetTournamentMatch` /
-`resetCompareCell`). A full redo creates a new run id.
+the affected placeholders back to a blank PENDING shape via the shared
+`SecondaryBatchEngine.rerunItemsBlocking` (Tournament and Compare override
+`clearRowForRerun` to also restore their pre-judge sentinel provider/model;
+Judges keeps the judge so the retry goes to the same model). A full redo
+creates a new run id.
 
 ## Cost and usage
 

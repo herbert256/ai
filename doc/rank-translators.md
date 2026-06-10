@@ -193,8 +193,9 @@ langNative, buildKey, overrideWorkers)`.
 - writes the aggregate placeholder, then one cell placeholder per
   capped candidate (build progress ticked every 5 rows), publishes the
   `TransRankRunState`, dispatches the cells, recomputes the aggregate,
-  and on exit `finalizeLeftoverCells` terminalizes any cell left
-  PENDING/RUNNING (without a live job) as an "Interrupted" error.
+  and on exit the shared `SecondaryBatchEngine.finalizeLeftoverItems`
+  terminalizes any stale cell (no result, no live job) as an
+  "Interrupted" error.
 
 `PendingRankRequest` survives a config change via
 `PendingRankRequestSaver` (run identity only — a mid-confirm runtime

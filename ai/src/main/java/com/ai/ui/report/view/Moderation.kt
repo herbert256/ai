@@ -43,6 +43,7 @@ import com.ai.data.AppService
 import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
+import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
@@ -89,8 +90,8 @@ fun ModerationViewScreen(
         val reportTitle: String?
     )
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.MODERATION).collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), emptyMap(), 0, null),
         currentReportId, currentResultId, reportDataVersion, secondaryDataVersion
@@ -364,9 +365,13 @@ private fun AgentModerationCard(
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }
-        if (row.flagged && row.firedCategories.isNotEmpty()) {
+        if (row.flagged) {
+            // A model can flag without a per-category breakdown — still show
+            // the flagged marker instead of silently hiding it.
+            val fired = row.firedCategories.takeIf { it.isNotEmpty() }
+                ?.joinToString(", ") ?: "(no categories reported)"
             Text(
-                text = "${com.ai.data.MetadataIconsHolder.current.validatePrompt} Fired: ${row.firedCategories.joinToString(", ")}",
+                text = "${com.ai.data.MetadataIconsHolder.current.validatePrompt} Fired: $fired",
                 color = AppColors.DangerAccent, fontSize = 12.sp, fontWeight = FontWeight.Medium
             )
         }

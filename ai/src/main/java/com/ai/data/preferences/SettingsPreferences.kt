@@ -718,39 +718,57 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     ) {
         val reportId = ApiTracer.currentReportId?.takeIf { it.isNotBlank() } ?: return
         if (inputTokens <= 0 && outputTokens <= 0 && searchUnits <= 0) return
-        val appended = ReportStorage.appendApiCallCost(
-            filesDir = filesDir,
-            reportId = reportId,
-            record = ReportApiCallCost(
-                type = category,
-                provider = provider.id,
-                model = model,
-                pricingTier = costs.pricingSource,
-                inputTokens = inputTokens,
-                outputTokens = outputTokens,
-                inputCost = costs.inputCost,
-                outputCost = costs.outputCost,
-                searchUnits = searchUnits,
-                durationMs = durationMs
-            )
-        ) ?: return
-        val reports = ensureUsageReportStatsCache()
-        reports.compute(appended.reportId) { _, existing ->
-            val base = existing ?: UsageReportStats(
-                reportId = appended.reportId,
-                title = appended.title,
-                timestamp = appended.timestamp
-            )
-            base.copy(
-                title = appended.title.takeIf { it.isNotBlank() } ?: base.title,
-                timestamp = if (appended.timestamp > 0L) appended.timestamp else base.timestamp,
-                callCount = base.callCount + 1,
-                inputTokens = base.inputTokens + inputTokens,
-                outputTokens = base.outputTokens + outputTokens,
-                searchUnits = base.searchUnits + searchUnits,
-                inputCost = base.inputCost + costs.inputCost,
-                outputCost = base.outputCost + costs.outputCost
-            )
+        val record = ReportApiCallCost(
+            type = category,
+            provider = provider.id,
+            model = model,
+            pricingTier = costs.pricingSource,
+            inputTokens = inputTokens,
+            outputTokens = outputTokens,
+            inputCost = costs.inputCost,
+            outputCost = costs.outputCost,
+            searchUnits = searchUnits,
+            durationMs = durationMs
+        )
+        synchronized(usageStatsLock) {
+            pendingReportApiCallCosts.getOrPut(reportId) { mutableListOf() } += record
+            val reports = ensureUsageReportStatsCache()
+            reports.compute(reportId) { _, existing ->
+                val base = existing ?: UsageReportStats(
+                    reportId = reportId,
+                    title = reportId,
+                    timestamp = record.timestamp
+                )
+                base.copy(
+                    timestamp = if (record.timestamp > 0L) record.timestamp else base.timestamp,
+                    callCount = base.callCount + 1,
+                    inputTokens = base.inputTokens + inputTokens,
+                    outputTokens = base.outputTokens + outputTokens,
+                    searchUnits = base.searchUnits + searchUnits,
+                    inputCost = base.inputCost + costs.inputCost,
+                    outputCost = base.outputCost + costs.outputCost
+                )
+            }
+        }
+    }
+
+    private fun flushPendingReportApiCallCostsLocked() {
+        if (pendingReportApiCallCosts.isEmpty()) return
+        val pending = pendingReportApiCallCosts.mapValues { it.value.toList() }
+        pendingReportApiCallCosts.clear()
+        pending.forEach { (reportId, rows) ->
+            val appended = ReportStorage.appendApiCallCosts(filesDir, reportId, rows) ?: return@forEach
+            usageReportStatsCache?.compute(appended.reportId) { _, existing ->
+                val base = existing ?: UsageReportStats(
+                    reportId = appended.reportId,
+                    title = appended.title,
+                    timestamp = appended.timestamp
+                )
+                base.copy(
+                    title = appended.title.takeIf { it.isNotBlank() } ?: base.title,
+                    timestamp = if (appended.timestamp > 0L) appended.timestamp else base.timestamp
+                )
+            }
         }
     }
 
@@ -922,6 +940,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         synchronized(usageStatsLock) {
             if (System.currentTimeMillis() - lastUsageStatsFlush < USAGE_STATS_FLUSH_MS) return
             lastUsageStatsFlush = System.currentTimeMillis()
+            flushPendingReportApiCallCostsLocked()
             val snapshot = usageStatsCache?.let { HashMap(it) } ?: return
             saveUsageStats(snapshot)
             usageCategoryStatsCache?.let { saveUsageCategoryStats(HashMap(it)) }
@@ -931,6 +950,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun flushUsageStats() {
         synchronized(usageStatsLock) {
+            flushPendingReportApiCallCostsLocked()
             val snapshot = usageStatsCache?.let { HashMap(it) } ?: return
             lastUsageStatsFlush = System.currentTimeMillis()
             saveUsageStats(snapshot)
@@ -949,6 +969,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         usageStatsCache?.clear()
         usageCategoryStatsCache?.clear()
         usageReportStatsCache?.clear()
+        pendingReportApiCallCosts.clear()
         // Reset the flush timestamp so the next updateUsageStats
         // doesn't skip the disk flush against a 2-second debounce
         // window inherited from a recent pre-clear write — that
@@ -1040,6 +1061,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         @Volatile private var usageStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageStats>? = null
         @Volatile private var usageCategoryStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats>? = null
         @Volatile private var usageReportStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>? = null
+        private val pendingReportApiCallCosts = HashMap<String, MutableList<ReportApiCallCost>>()
         @Volatile private var lastUsageStatsFlush: Long = 0L
         private const val USAGE_STATS_FLUSH_MS = 2_000L
         const val PREFS_NAME = "eval_prefs"

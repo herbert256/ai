@@ -68,13 +68,13 @@ fun ReportInfoScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
 
-    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
     val report by produceState<Report?>(initialValue = null, reportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
     }
     // Refresh the secondary summary + total-API-time when a secondary
     // completes / is deleted while the info screen stays open.
-    val secDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
     val secondaries by produceState(initialValue = emptyList<SecondaryResult>(), reportId, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, reportId) }
     }

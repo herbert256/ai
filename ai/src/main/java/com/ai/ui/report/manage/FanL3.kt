@@ -196,7 +196,7 @@ internal fun FanOutL3Screen(
         UserNoteEditorOverlay(run.reportId, "SECONDARY", pair.id, noteEdit!!) { noteEdit = null }
         return
     }
-    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val noteDataVersion by ReportDataVersion.versionFor(run.reportId).collectAsState()
     val pairNotes by produceState(emptyList<UserNote>(), run.reportId, pair.id, noteDataVersion) {
         value = withContext(Dispatchers.IO) {
             ReportStorage.getReport(context, run.reportId)?.notesFor("SECONDARY", pair.id) ?: emptyList()
@@ -205,7 +205,7 @@ internal fun FanOutL3Screen(
 
     // 🗣️ refine-in-chat overlay for this fan-out pair's answer.
     val aiSettings = com.ai.ui.shared.LocalAiSettings.current
-    val secDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
+    val secDataVersion by com.ai.data.SecondaryDataVersion.versionFor(run.reportId, com.ai.data.SecondaryKind.META).collectAsState()
     // Fresh on-disk row (re-read on every secondary save) so the 🗣️ Apply
     // — which rewrites content — reflects here even though `pair` comes
     // from the in-memory run snapshot. Drives both the displayed content

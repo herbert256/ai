@@ -23,7 +23,7 @@ have format-specific code.
 | Persistence | SharedPreferences + JSON files in `<filesDir>` |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |
-| Size | ~153,520 LOC across 388 Kotlin files (88 data, 273 ui, 24 viewmodel, 2 model, 1 entry) |
+| Size | ~153,000 LOC across 389 Kotlin files (88 data, 273 ui, 25 viewmodel, 2 model, 1 entry) |
 
 ## Documentation
 
@@ -130,11 +130,13 @@ Top-level under `ai/src/main/java/com/ai/`:
   (`LocalLlm`, `LocalEmbedder`), `BackupManager`,
   `SharedContent`.
 - `model/` (2 files) — settings data classes.
-- `viewmodel/` (24 files) — `AppViewModel`, `ChatViewModel`,
+- `viewmodel/` (25 files) — `AppViewModel`, `ChatViewModel`,
   `ReportViewModel` plus extracted engines/managers
   (`RegenerateBatchEngine`, `SecondaryRunManager`,
-  `IconGenerationManager`, …). Other view models delegate state to
-  `AppViewModel`.
+  `IconGenerationManager`, …). `SecondaryBatchEngine` is the shared
+  template for the Tournament / JudgeEval / Compare / TranslatorRank
+  engines (finalize / resume / remove / rerun / continue-broken flows).
+  Other view models delegate state to `AppViewModel`.
 - `ui/` (273 files) — Compose screens grouped by domain
   (`report/` ×98, `cruds/` ×48, `admin/` ×35, `settings/` ×22,
   `helpers/`, `shared/`, `navigation/`, `other/`, `chat/`,

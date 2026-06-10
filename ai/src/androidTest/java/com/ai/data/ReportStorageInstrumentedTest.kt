@@ -58,7 +58,7 @@ class ReportStorageInstrumentedTest {
         val explicit = "fixed-uuid-1"
         val report = ReportStorage.createReport(
             context = context, title = "x", prompt = "y",
-            agents = listOf(agent("a")), explicitId = explicit
+            agents = listOf(agent("a")), config = CreateReportConfig(explicitId = explicit)
         )
         assertThat(report.id).isEqualTo(explicit)
         assertThat(ReportStorage.getReport(context, explicit)).isNotNull()
@@ -70,7 +70,7 @@ class ReportStorageInstrumentedTest {
         )
         val copy = ReportStorage.createReport(
             context = context, title = "[NL] src", prompt = "p",
-            agents = listOf(agent("a")), sourceReportId = src.id
+            agents = listOf(agent("a")), config = CreateReportConfig(sourceReportId = src.id)
         )
         assertThat(ReportStorage.getReport(context, copy.id)?.sourceReportId).isEqualTo(src.id)
         assertThat(ReportStorage.getReport(context, src.id)?.sourceReportId).isNull()
@@ -225,5 +225,77 @@ class ReportStorageInstrumentedTest {
         assertThat(all.map { it.id }).contains(good.id)
         assertThat(ReportStorage.getLastLoadFailures(context).map { it.filename })
             .contains("broken.json")
+    }
+
+    // ---- additive vs idempotent cost mutations (audit T06) ----
+
+    @Test fun markAgentSuccess_same_trace_is_idempotent_on_cost_and_tokens() {
+        val report = ReportStorage.createReport(context, "t", "p", listOf(agent("a")))
+        ReportStorage.markAgentSuccess(context, report.id, "a", 200, null, "body",
+            TokenUsage(10, 20), 0.05, traceFile = "trace-1.json")
+        // A retry/fallback re-reporting the SAME attempt (same traceFile) must not
+        // double-count its cost or tokens.
+        ReportStorage.markAgentSuccess(context, report.id, "a", 200, null, "body",
+            TokenUsage(10, 20), 0.05, traceFile = "trace-1.json")
+        val ag = ReportStorage.getReport(context, report.id)!!.agents.first { it.agentId == "a" }
+        assertThat(ag.cost!!).isWithin(1e-9).of(0.05)
+        assertThat(ag.tokenUsage!!.inputTokens).isEqualTo(10)
+        assertThat(ag.tokenUsage!!.outputTokens).isEqualTo(20)
+    }
+
+    @Test fun markAgentSuccess_distinct_traces_accumulate_cost_and_tokens() {
+        val report = ReportStorage.createReport(context, "t", "p", listOf(agent("a")))
+        ReportStorage.markAgentSuccess(context, report.id, "a", 200, null, "body1",
+            TokenUsage(10, 20), 0.05, traceFile = "trace-1.json")
+        // A genuine re-dispatch (Regenerate-batch retry → success, different trace)
+        // is additive: the row shows prior + new spend.
+        ReportStorage.markAgentSuccess(context, report.id, "a", 200, null, "body2",
+            TokenUsage(3, 7), 0.05, traceFile = "trace-2.json")
+        val ag = ReportStorage.getReport(context, report.id)!!.agents.first { it.agentId == "a" }
+        assertThat(ag.cost!!).isWithin(1e-9).of(0.10)
+        assertThat(ag.tokenUsage!!.inputTokens).isEqualTo(13)
+        assertThat(ag.tokenUsage!!.outputTokens).isEqualTo(27)
+    }
+
+    @Test fun markAgentSuccess_records_inOut_cost_when_aggregate_cost_is_null() {
+        // Metadata-style cost write: no aggregate `cost`, but split in/out costs
+        // still land on the agent row (Bug 28 — a cost bump with cost=null must
+        // not be silently dropped).
+        val report = ReportStorage.createReport(context, "t", "p", listOf(agent("a")))
+        ReportStorage.markAgentSuccess(context, report.id, "a", 200, null, "body",
+            TokenUsage(1, 1), null, inputCost = 0.01, outputCost = 0.02, traceFile = "t.json")
+        val ag = ReportStorage.getReport(context, report.id)!!.agents.first { it.agentId == "a" }
+        assertThat(ag.inputCost!!).isWithin(1e-9).of(0.01)
+        assertThat(ag.outputCost!!).isWithin(1e-9).of(0.02)
+    }
+
+    @Test fun markAgentError_after_success_preserves_recorded_cost() {
+        val report = ReportStorage.createReport(context, "t", "p", listOf(agent("a")))
+        ReportStorage.markAgentSuccess(context, report.id, "a", 200, null, "body",
+            TokenUsage(10, 20), 0.05, traceFile = "trace-1.json")
+        // A later failed attempt passes cost=null and must not zero or alter the
+        // spend already booked for the successful call.
+        ReportStorage.markAgentError(context, report.id, "a", httpStatus = 500, errorMessage = "boom")
+        val ag = ReportStorage.getReport(context, report.id)!!.agents.first { it.agentId == "a" }
+        assertThat(ag.cost!!).isWithin(1e-9).of(0.05)
+    }
+
+    @Test fun appendApiCallCost_accumulates_distinct_records_in_ledger() {
+        val report = ReportStorage.createReport(context, "ledger", "p", listOf(agent("a")))
+        ReportStorage.appendApiCallCost(context.filesDir, report.id, costRecord("rec-1"))
+        ReportStorage.appendApiCallCost(context.filesDir, report.id, costRecord("rec-2"))
+        val reloaded = ReportStorage.getReport(context, report.id)!!
+        assertThat(reloaded.apiCallCosts.map { it.id }).containsExactly("rec-1", "rec-2")
+        // The ledger is the cost source of truth for current reports, so totalCost
+        // is the sum of every row's in + out cost.
+        assertThat(reloaded.totalCost).isWithin(1e-9).of((0.001 + 0.002) * 2)
+    }
+
+    @Test fun reconcileApiCallCostLedger_returns_null_for_current_report() {
+        // Reports created now are already ledger-current, so reconciliation is a
+        // no-op: it returns null, which is what stops SettingsPreferences from
+        // applying a spurious usage-stat delta for an unchanged report.
+        val report = ReportStorage.createReport(context, "current", "p", listOf(agent("a")))
+        assertThat(ReportStorage.reconcileApiCallCostLedger(context, report.id)).isNull()
     }
 }
