@@ -1325,9 +1325,12 @@ class TranslationRunManager(
         preloadedRunRows: List<SecondaryResult>? = null
     ) {
         if (targetKindPairs.isEmpty()) return
-        val translateRows = preloadedRunRows ?: SecondaryResultStorage
-            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-            .filter { translationRunGroupingId(it) == runId }
+        // One storage pass: the run's TRANSLATE rows are a subset of the
+        // report's secondaries (needed below anyway), so derive them from
+        // the full list instead of a second kind-filtered listForReport.
+        val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
+        val translateRows = preloadedRunRows ?: secondaries
+            .filter { it.kind == SecondaryKind.TRANSLATE && translationRunGroupingId(it) == runId }
         val anchor = translateRows.firstOrNull() ?: return
         val targetLanguageName = anchor.targetLanguage ?: return
         val targetLanguageNative = anchor.targetLanguageNative ?: targetLanguageName
@@ -1344,7 +1347,6 @@ class TranslationRunManager(
             .toMap()
 
         val report = ReportStorage.getReport(context, sourceReportId) ?: return
-        val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
         val agentsById = report.agents.associateBy { it.agentId }
         val secondariesById = secondaries.associateBy { it.id }
 
