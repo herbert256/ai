@@ -194,7 +194,14 @@ class FanOutEngine internal constructor(
             for (row in rows) {
                 val answererAgentId = agentsById.values.firstOrNull {
                     it.provider.equals(row.providerId, ignoreCase = true) && it.model == row.model
-                }?.agentId ?: continue
+                }?.agentId
+                    // The answerer model may have been removed from the report
+                    // since the fan-out ran. Hydrate the pair anyway under a
+                    // stable synthetic id: L1 groups by the pair's OWN
+                    // provider|model, so its rows stay visible, deletable and
+                    // counted — skipping them left invisible rows on disk that
+                    // still showed up in the cost tables and exports.
+                    ?: "removed:${row.providerId.lowercase()}|${row.model}"
                 val diskPair = row.toPairState(answererAgentId) ?: continue
                 // Preserve a live RUNNING status the disk can't yet show.
                 val pair = if (diskPair.status == PairStatus.PENDING &&
