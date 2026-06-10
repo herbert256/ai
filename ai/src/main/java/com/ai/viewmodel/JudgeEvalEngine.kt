@@ -13,7 +13,6 @@ import com.ai.data.JudgeCellState
 import com.ai.data.JudgeCellStatus
 import com.ai.data.JudgeEvalRunKey
 import com.ai.data.JudgeEvalRunState
-import com.ai.data.PricingCache
 import com.ai.data.Report
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
@@ -75,6 +74,7 @@ class JudgeEvalEngine internal constructor(
     override fun runKeysForReport(reportId: String) = listOf(reportId)
     override fun terminalizeItem(item: JudgeCellState, message: String) =
         item.copy(status = JudgeCellStatus.ERROR, errorMessage = message, durationMs = 0)
+    override fun itemFromRow(row: SecondaryResult) = row.toJudgeCellState()
     override fun isItemRow(run: JudgeEvalRunState?, row: SecondaryResult) =
         row.tournamentRole == JUDGE_ROLE_CELL
     override fun aggregateRowIdOf(run: JudgeEvalRunState) = run.aggregateRowId
@@ -122,23 +122,11 @@ class JudgeEvalEngine internal constructor(
     private fun judgePrompt(aiSettings: Settings): InternalPrompt? =
         aiSettings.internalPrompts.firstOrNull { it.category == WORKERS_CATEGORY && it.name == PROMPT_NAME }
 
-    /** A concrete judge resolved from the prompt's swarm. */
-    private data class Judge(val worker: Worker, val providerId: String, val model: String) {
-        val key: String get() = "$providerId/$model"
-    }
+    // Judge resolution lives in the shared fixed-judge helpers
+    // ([ResolvedJudge] / [resolveJudges] in SecondaryCellCalls.kt).
 
-    /** Expand the prompt's worker chain into the concrete, resolvable judge
-     *  models (one per swarm member). */
-    private fun resolveJudges(aiSettings: Settings, prompt: InternalPrompt): List<Judge> =
-        prompt.workers.flatMap { aiSettings.expandWorker(it) }
-            .distinctBy { "${it.provider}/${it.model}" }
-            .mapNotNull { w ->
-                val raw = aiSettings.resolveWorker(w) ?: return@mapNotNull null
-                Judge(w, raw.provider.id, aiSettings.getEffectiveModelForAgent(raw))
-            }
-
-    private fun judgeFromRow(row: SecondaryResult): Judge =
-        Judge(Worker(provider = row.providerId, model = row.model), row.providerId, row.model)
+    private fun judgeFromRow(row: SecondaryResult): ResolvedJudge =
+        ResolvedJudge(Worker(provider = row.providerId, model = row.model), row.providerId, row.model)
 
     /** Pick up to [JUDGE_MATCH_COUNT] distinct random answer-pairs from the
      *  report's successful agents, randomising which side is A. Empty when the
@@ -214,7 +202,7 @@ class JudgeEvalEngine internal constructor(
     // -----------------------------------------------------------------
 
     private data class PendingCell(
-        val judge: Judge, val aId: String, val bId: String, val orientation: Int,
+        val judge: ResolvedJudge, val aId: String, val bId: String, val orientation: Int,
         val placeholder: SecondaryResult
     )
 
@@ -380,12 +368,7 @@ class JudgeEvalEngine internal constructor(
      *  the bench lifts). */
     private fun restoreBenchedCellForRequeue(context: Context, reportId: String, item: PendingCell) {
         val cKey = judgeCellKey(item.judge.providerId, item.judge.model, matchKey(item.aId, item.bId, item.orientation))
-        SecondaryResultStorage.get(context, reportId, item.placeholder.id)?.let { saved ->
-            SecondaryResultStorage.save(
-                context,
-                saved.copy(content = null, errorMessage = null, durationMs = null, tokenUsage = null)
-            )
-        }
+        clearRowForBenchRequeue(context, reportId, item.placeholder.id)
         transitionItem(reportId, cKey) {
             it.copy(status = JudgeCellStatus.PENDING, content = null, errorMessage = null, durationMs = null)
         }
@@ -409,65 +392,24 @@ class JudgeEvalEngine internal constructor(
             .replace("@RESPONSE_B@", bBody)
 
         try {
-            val raw = aiSettings.resolveWorker(item.judge.worker)
-            if (raw == null) {
-                recordCellError(context, reportId, rowId, item.placeholder, "judge ${item.judge.key} could not be resolved", started)
-            } else {
-                val agent = raw.copy(
-                    apiKey = aiSettings.getEffectiveApiKeyForAgent(raw),
-                    model = aiSettings.getEffectiveModelForAgent(raw)
+            val res = runFixedJudgeCall(
+                appViewModel, context, aiSettings, item.judge, resolved,
+                usageKind = "judges", noArtifactMessage = "judge produced no verdict"
+            ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }
+            when (res) {
+                is FixedJudgeOutcome.Accepted -> SecondaryResultStorage.recordTournamentMatch(
+                    context, reportId, rowId, item.judge.providerId, item.judge.model,
+                    res.response.analysis.orEmpty(),
+                    res.inTokens, res.outTokens, res.inCost, res.outCost,
+                    System.currentTimeMillis() - started,
+                    traceFile = res.traceFile
                 )
-                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-                val resp = com.ai.data.withTraceFilenameSink(traceSink) {
-                    appViewModel.repository.analyzeWithAgent(
-                        agent, "", resolved, context = context, baseUrl = baseUrl, retry = false
-                    )
-                }
-                if (resp.isSuccess && parseMatchVerdict(resp.analysis)?.verdict != null) {
-                    val tu = resp.tokenUsage
-                    val inT = tu?.inputTokens ?: 0
-                    val outT = tu?.outputTokens ?: 0
-                    var inCost = 0.0; var outCost = 0.0
-                    if (tu != null && (inT > 0 || outT > 0)) {
-                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                        val split = PricingCache.computeInOutCost(tu, pricing)
-                        inCost = split.first
-                        outCost = split.second
-                        appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, tu, kind = "judges", durationMs = System.currentTimeMillis() - started)
-                    }
-                    SecondaryResultStorage.recordTournamentMatch(
-                        context, reportId, rowId, item.judge.providerId, item.judge.model,
-                        resp.analysis.orEmpty(),
-                        inT, outT, inCost, outCost, System.currentTimeMillis() - started,
-                        traceFile = traceSink.get()
-                    )
-                } else {
-                    val msg = resp.error?.takeIf { it.isNotBlank() } ?: "judge produced no verdict"
-                    recordCellError(context, reportId, rowId, item.placeholder, msg, started)
-                }
+                is FixedJudgeOutcome.Rejected ->
+                    recordItemCallError(context, reportId, rowId, item.placeholder, res.message, started)
             }
         } finally {
-            // Mirror the saved row into memory in a NonCancellable block so a
-            // stop / cancel mid-call still settles the cell on its disk-truth
-            // status instead of leaving it stuck at RUNNING — the per-screen
-            // 3s re-hydrate that used to recover that case has been removed.
-            withContext(kotlinx.coroutines.NonCancellable) {
-                val saved = SecondaryResultStorage.get(context, reportId, rowId)
-                if (saved == null) dropItem(reportId, cKey)
-                else transitionItem(reportId, cKey) {
-                    saved.toJudgeCellState() ?: it.copy(status = JudgeCellStatus.ERROR, errorMessage = "Cell row could not be parsed")
-                }
-            }
+            settleItemFromDisk(context, reportId, cKey, rowId)
         }
-    }
-
-    private fun recordCellError(
-        context: Context, reportId: String, rowId: String,
-        placeholder: SecondaryResult, message: String, started: Long
-    ) {
-        val cur = SecondaryResultStorage.get(context, reportId, rowId) ?: placeholder
-        SecondaryResultStorage.save(context, cur.copy(errorMessage = message, durationMs = System.currentTimeMillis() - started))
     }
 
     // -----------------------------------------------------------------
@@ -611,7 +553,7 @@ class JudgeEvalEngine internal constructor(
             if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't add a judge
             val runId = run.runId
             val scopeEncoded = SecondaryScope.AllReports.encode()
-            val judge = Judge(Worker(provider = provider.id, model = model), provider.id, model)
+            val judge = ResolvedJudge(Worker(provider = provider.id, model = model), provider.id, model)
 
             appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
             try {

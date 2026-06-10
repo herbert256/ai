@@ -451,26 +451,16 @@ class TranslationRunManager(
             else
                 prompt.text.replace("@LANGUAGE@", targetLanguageName).replace("@TEXT@", item.sourceText)
 
-            val callStart = System.currentTimeMillis()
-            // Surface the per-provider throttle wait to the L1 "Throttled"
-            // counter — a worker call is dynamic-host, so its wait happens
-            // inside ProviderThrottle.acquire, not at the batch layer.
-            val observer: (Boolean) -> Unit = { waiting ->
-                if (waiting) appViewModel.updateThrottledTranslationItems { it + item.id }
-                else appViewModel.updateThrottledTranslationItems { it - item.id }
-            }
-            // Capture the winning call's trace filename for the per-item 🐞.
-            val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-            val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(observer)) {
-                withTraceCategory(item.traceType) {
-                    withTraceFilenameSink(traceSink) {
-                        rvm.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
-                            !resp.analysis.isNullOrBlank()
-                        }
-                    }
+            val call = runPooledWorkerCall(
+                rvm.workerRunner, aiSettings, context, prompt, resolved,
+                traceCategory = item.traceType,
+                onThrottleWait = { waiting ->
+                    if (waiting) appViewModel.updateThrottledTranslationItems { it + item.id }
+                    else appViewModel.updateThrottledTranslationItems { it - item.id }
                 }
-            }
-            val callDurationMs = System.currentTimeMillis() - callStart
+            ) { resp -> !resp.analysis.isNullOrBlank() }
+            val outcome = call.outcome
+            val callDurationMs = call.durationMs
 
             if (outcome !is WorkerOutcome.Success) {
                 val msg = if (outcome is WorkerOutcome.AllRateLimited)
@@ -499,7 +489,7 @@ class TranslationRunManager(
                     durationMs = callDurationMs,
                     providerId = provider.id,
                     model = model,
-                    traceFile = traceSink.get()
+                    traceFile = call.traceFile
                 )
             }
             // Persist as soon as the call settles so a process kill mid-batch

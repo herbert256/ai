@@ -6,7 +6,6 @@ import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
 import com.ai.data.AppService
 import com.ai.data.AuditLog
-import com.ai.data.PricingCache
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
@@ -25,7 +24,6 @@ import com.ai.data.toTransRankCellState
 import com.ai.data.toTransRankJson
 import com.ai.data.transRankCellKey
 import com.ai.data.transRankRunKey
-import com.ai.data.withTraceFilenameSink
 import com.ai.data.withTracerTags
 import com.ai.model.InternalPrompt
 import com.ai.model.Settings
@@ -63,6 +61,7 @@ class TranslatorRankEngine internal constructor(
         _runs.value.keys.filter { it.startsWith("$reportId|") }
     override fun terminalizeItem(item: TransRankCellState, message: String) =
         item.copy(status = TransRankCellStatus.ERROR, errorMessage = message, durationMs = 0)
+    override fun itemFromRow(row: SecondaryResult) = row.toTransRankCellState()
     override fun isItemRow(run: TransRankRunState?, row: SecondaryResult) =
         run != null && row.tournamentRole == TRANSRANK_ROLE_CELL &&
             row.tournamentJudgeRunId == run.runId
@@ -99,7 +98,7 @@ class TranslatorRankEngine internal constructor(
             val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
             val sc = items[c.translationRowId] ?: return@mapNotNull null
             val judge = judgesByKey["${c.judgeProviderId}/${c.judgeModel}"]
-                ?: Judge(Worker(provider = c.judgeProviderId, model = c.judgeModel), c.judgeProviderId, c.judgeModel)
+                ?: ResolvedJudge(Worker(provider = c.judgeProviderId, model = c.judgeModel), c.judgeProviderId, c.judgeModel)
             PendingCell(judge, sc, row)
         }
         if (pending.isEmpty()) return
@@ -124,17 +123,8 @@ class TranslatorRankEngine internal constructor(
     private fun rankPrompt(aiSettings: Settings): InternalPrompt? =
         aiSettings.internalPrompts.firstOrNull { it.category == "workers" && it.name == PROMPT_NAME }
 
-    private data class Judge(val worker: Worker, val providerId: String, val model: String) {
-        val key: String get() = "$providerId/$model"
-    }
-
-    private fun resolveJudges(aiSettings: Settings, prompt: InternalPrompt): List<Judge> =
-        prompt.workers.flatMap { aiSettings.expandWorker(it) }
-            .distinctBy { "${it.provider}/${it.model}" }
-            .mapNotNull { w ->
-                val raw = aiSettings.resolveWorker(w) ?: return@mapNotNull null
-                Judge(w, raw.provider.id, aiSettings.getEffectiveModelForAgent(raw))
-            }
+    // Judge resolution lives in the shared fixed-judge helpers
+    // ([ResolvedJudge] / [resolveJudges] in SecondaryCellCalls.kt).
 
     /** One scorable translated item recovered from the translation run. */
     private data class ScorableItem(
@@ -178,7 +168,7 @@ class TranslatorRankEngine internal constructor(
             }
     }
 
-    private data class CellCandidate(val item: ScorableItem, val judge: Judge)
+    private data class CellCandidate(val item: ScorableItem, val judge: ResolvedJudge)
 
     /** Every (item × judge≠translator) pair, then capped to
      *  [com.ai.data.TRANSRANK_CELLS_PER_TRANSLATOR] random pairs PER TRANSLATOR
@@ -186,7 +176,7 @@ class TranslatorRankEngine internal constructor(
      *  items per translator each item still draws several judges; with many
      *  items the budget spreads thinner. */
     private fun cappedCandidates(
-        items: List<ScorableItem>, judges: List<Judge>, sourceTranslationRunId: String
+        items: List<ScorableItem>, judges: List<ResolvedJudge>, sourceTranslationRunId: String
     ): List<CellCandidate> =
         items
             .flatMap { item ->
@@ -224,7 +214,7 @@ class TranslatorRankEngine internal constructor(
     }
 
     private data class PendingCell(
-        val judge: Judge, val item: ScorableItem, val placeholder: SecondaryResult
+        val judge: ResolvedJudge, val item: ScorableItem, val placeholder: SecondaryResult
     )
 
     fun runByKey(key: TransRankRunKey): TransRankRunState? = _runs.value[key]
@@ -394,9 +384,7 @@ class TranslatorRankEngine internal constructor(
     private fun restoreBenchedCellForRequeue(context: Context, key: TransRankRunKey, item: PendingCell) {
         val reportId = _runs.value[key]?.reportId ?: return
         val cKey = transRankCellKey(item.judge.providerId, item.judge.model, item.item.translationRowId)
-        SecondaryResultStorage.get(context, reportId, item.placeholder.id)?.let { saved ->
-            SecondaryResultStorage.save(context, saved.copy(content = null, errorMessage = null, durationMs = null, tokenUsage = null))
-        }
+        clearRowForBenchRequeue(context, reportId, item.placeholder.id)
         transitionItem(key, cKey) {
             it.copy(status = TransRankCellStatus.PENDING, content = null, errorMessage = null, durationMs = null)
         }
@@ -415,55 +403,24 @@ class TranslatorRankEngine internal constructor(
             .replace("@ORIGINAL@", item.item.originalText)
             .replace("@TRANSLATION@", item.item.translatedText)
         try {
-            val raw = aiSettings.resolveWorker(item.judge.worker)
-            if (raw == null) {
-                recordCellError(context, reportId, rowId, item.placeholder, "judge ${item.judge.key} could not be resolved", started)
-            } else {
-                val agent = raw.copy(
-                    apiKey = aiSettings.getEffectiveApiKeyForAgent(raw),
-                    model = aiSettings.getEffectiveModelForAgent(raw)
+            val res = runFixedJudgeCall(
+                appViewModel, context, aiSettings, item.judge, resolved,
+                usageKind = "transrank", noArtifactMessage = "judge produced no score"
+            ) { resp -> parseScoreAndReason(resp.analysis)?.first != null }
+            when (res) {
+                is FixedJudgeOutcome.Accepted -> SecondaryResultStorage.recordTournamentMatch(
+                    context, reportId, rowId, item.judge.providerId, item.judge.model,
+                    res.response.analysis.orEmpty(),
+                    res.inTokens, res.outTokens, res.inCost, res.outCost,
+                    System.currentTimeMillis() - started, traceFile = res.traceFile,
+                    tokenUsage = res.tokenUsage
                 )
-                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-                val resp = withTraceFilenameSink(traceSink) {
-                    appViewModel.repository.analyzeWithAgent(agent, "", resolved, context = context, baseUrl = baseUrl, retry = false)
-                }
-                if (resp.isSuccess && parseScoreAndReason(resp.analysis)?.first != null) {
-                    val tu = resp.tokenUsage
-                    val inT = tu?.inputTokens ?: 0
-                    val outT = tu?.outputTokens ?: 0
-                    var inCost = 0.0; var outCost = 0.0
-                    if (tu != null && (inT > 0 || outT > 0)) {
-                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                        val split = PricingCache.computeInOutCost(tu, pricing)
-                        inCost = split.first; outCost = split.second
-                        appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, tu, kind = "transrank", durationMs = System.currentTimeMillis() - started)
-                    }
-                    SecondaryResultStorage.recordTournamentMatch(
-                        context, reportId, rowId, item.judge.providerId, item.judge.model,
-                        resp.analysis.orEmpty(), inT, outT, inCost, outCost,
-                        System.currentTimeMillis() - started, traceFile = traceSink.get(),
-                        tokenUsage = tu
-                    )
-                } else {
-                    recordCellError(context, reportId, rowId, item.placeholder,
-                        resp.error?.takeIf { it.isNotBlank() } ?: "judge produced no score", started)
-                }
+                is FixedJudgeOutcome.Rejected ->
+                    recordItemCallError(context, reportId, rowId, item.placeholder, res.message, started)
             }
         } finally {
-            withContext(kotlinx.coroutines.NonCancellable) {
-                val saved = SecondaryResultStorage.get(context, reportId, rowId)
-                if (saved == null) dropItem(key, cKey)
-                else transitionItem(key, cKey) {
-                    saved.toTransRankCellState() ?: it.copy(status = TransRankCellStatus.ERROR, errorMessage = "Cell row could not be parsed")
-                }
-            }
+            settleItemFromDisk(context, key, cKey, rowId)
         }
-    }
-
-    private fun recordCellError(context: Context, reportId: String, rowId: String, placeholder: SecondaryResult, message: String, started: Long) {
-        val cur = SecondaryResultStorage.get(context, reportId, rowId) ?: placeholder
-        SecondaryResultStorage.save(context, cur.copy(errorMessage = message, durationMs = System.currentTimeMillis() - started))
     }
 
     override fun recomputeAggregate(context: Context, runKey: TransRankRunKey) {

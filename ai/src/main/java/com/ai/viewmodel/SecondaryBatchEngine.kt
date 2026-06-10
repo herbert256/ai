@@ -64,6 +64,11 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  the in-memory mirror of [markRowInterrupted]. */
     protected abstract fun terminalizeItem(item: ItemState, message: String): ItemState
 
+    /** Parse one disk [row] back into this engine's item state — the
+     *  `toMatchState` / `toJudgeCellState` / … converter. Null when the row
+     *  is missing the fields an item needs. */
+    protected abstract fun itemFromRow(row: SecondaryResult): ItemState?
+
     /** True when [row] is one of [run]'s items — the per-engine role / run-id
      *  filter in front of [isStaleRow] (MATCH role for Tournament, CELL role
      *  for Judges, CELL role + matching run id for TransRank). Default: every
@@ -144,6 +149,34 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
     protected fun isStaleRow(row: SecondaryResult): Boolean =
         row.content.isNullOrBlank() && row.errorMessage == null &&
             row.durationMs == null && !hasItemJob(row.id)
+
+    /** NonCancellable disk-truth mirror for a per-item `finally`: re-read
+     *  the row and settle the in-memory item on what's actually persisted,
+     *  so a stop / cancel mid-call can't leave it stuck at RUNNING (the
+     *  per-screen 3s re-hydrate that used to recover that case is gone). A
+     *  deleted row drops the item; an unparseable row terminalizes it. */
+    protected suspend fun settleItemFromDisk(context: Context, runKey: RunKey, itemKey: String, rowId: String) {
+        withContext(NonCancellable) {
+            val saved = SecondaryResultStorage.get(context, reportIdOf(runKey), rowId)
+            if (saved == null) dropItem(runKey, itemKey)
+            else transitionItem(runKey, itemKey) {
+                itemFromRow(saved)
+                    ?: terminalizeItem(it, "${itemNoun.replaceFirstChar(Char::uppercase)} row could not be parsed")
+            }
+        }
+    }
+
+    /** Disk half of a type-A bench re-queue: clear the error the failed
+     *  attempt persisted so the re-dispatched row reads as a fresh PENDING
+     *  placeholder. Callers reset their in-memory item alongside. */
+    protected fun clearRowForBenchRequeue(context: Context, reportId: String, rowId: String) {
+        SecondaryResultStorage.get(context, reportId, rowId)?.let { saved ->
+            SecondaryResultStorage.save(
+                context,
+                saved.copy(content = null, errorMessage = null, durationMs = null, tokenUsage = null)
+            )
+        }
+    }
 
     /** Cancel this run's outer Job + every per-item coroutine and JOIN them
      *  (so no in-flight write lands after a re-queue) WITHOUT deleting rows

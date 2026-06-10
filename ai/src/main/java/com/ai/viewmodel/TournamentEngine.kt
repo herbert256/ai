@@ -6,8 +6,6 @@ import com.ai.data.AppLog
 import com.ai.data.AuditLog
 import com.ai.data.MatchState
 import com.ai.data.MatchStatus
-import com.ai.data.PricingCache
-import com.ai.data.ProviderThrottle
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
@@ -37,7 +35,6 @@ import com.ai.model.Settings
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -76,6 +73,7 @@ class TournamentEngine internal constructor(
     override fun runKeysForReport(reportId: String) = listOf(reportId)
     override fun terminalizeItem(item: MatchState, message: String) =
         item.copy(status = MatchStatus.ERROR, errorMessage = message, durationMs = 0)
+    override fun itemFromRow(row: SecondaryResult) = row.toMatchState()
     override fun isItemRow(run: TournamentRunState?, row: SecondaryResult) =
         row.tournamentRole == ROLE_MATCH
     override fun aggregateRowIdOf(run: TournamentRunState) = run.aggregateRowId
@@ -352,68 +350,35 @@ class TournamentEngine internal constructor(
         val resolved = resolvedBase
             .replace("@RESPONSE_A@", item.aAgent.responseBody.orEmpty())
             .replace("@RESPONSE_B@", item.bAgent.responseBody.orEmpty())
-        // Surface the per-provider throttle wait to the L1 "Throttled" counter
-        // (a worker call is dynamic-host, so its wait happens inside
-        // ProviderThrottle.acquire, not at the batch layer).
-        val observer: (Boolean) -> Unit = { waiting ->
-            if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
-            else appViewModel.updateThrottledTournamentMatches { it - rowId }
-        }
-        // Capture the judging call's trace filename (when tracing is on) so
-        // the head-to-heads' 🐞 can deep-link to it. Null otherwise.
-        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
         try {
-            val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(observer)) {
-                com.ai.data.withTraceFilenameSink(traceSink) {
-                    reportViewModel.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
-                        parseMatchVerdict(resp.analysis)?.verdict != null
-                    }
+            val call = runPooledWorkerCall(
+                reportViewModel.workerRunner, aiSettings, context, prompt, resolved,
+                onThrottleWait = { waiting ->
+                    if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
+                    else appViewModel.updateThrottledTournamentMatches { it - rowId }
                 }
-            }
-            when (outcome) {
+            ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }
+            when (val outcome = call.outcome) {
                 is WorkerOutcome.Success -> {
-                    val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
-                        it.copy(model = aiSettings.getEffectiveModelForAgent(it))
-                    }
-                    val tu = outcome.response.tokenUsage
-                    val inT = tu?.inputTokens ?: 0
-                    val outT = tu?.outputTokens ?: 0
-                    val provId = winAgent?.provider?.id ?: TOURNAMENT_PENDING_PROVIDER
-                    val mdl = winAgent?.model ?: TOURNAMENT_PENDING_MODEL
-                    var inCost = 0.0; var outCost = 0.0
-                    if (winAgent != null && tu != null && (inT > 0 || outT > 0)) {
-                        val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
-                        val split = PricingCache.computeInOutCost(tu, pricing)
-                        inCost = split.first
-                        outCost = split.second
-                        appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = "tournament", durationMs = System.currentTimeMillis() - started)
-                    }
+                    val win = resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind = "tournament", durationMs = call.durationMs)
                     SecondaryResultStorage.recordTournamentMatch(
-                        context, reportId, rowId, provId, mdl,
+                        context, reportId, rowId,
+                        win.agent?.provider?.id ?: TOURNAMENT_PENDING_PROVIDER,
+                        win.agent?.model ?: TOURNAMENT_PENDING_MODEL,
                         outcome.response.analysis.orEmpty(),
-                        inT, outT, inCost, outCost, System.currentTimeMillis() - started,
-                        traceFile = traceSink.get()
+                        win.inTokens, win.outTokens, win.inCost, win.outCost,
+                        System.currentTimeMillis() - started,
+                        traceFile = call.traceFile
                     )
                 }
                 else -> {
                     val msg = if (outcome is WorkerOutcome.AllRateLimited) "tournament: all workers rate-limited"
                               else "tournament: no worker produced a verdict"
-                    val cur = SecondaryResultStorage.get(context, reportId, rowId) ?: item.placeholder
-                    SecondaryResultStorage.save(context, cur.copy(errorMessage = msg, durationMs = System.currentTimeMillis() - started))
+                    recordItemCallError(context, reportId, rowId, item.placeholder, msg, started)
                 }
             }
         } finally {
-            // Mirror the saved row into memory in a NonCancellable block so a
-            // stop / cancel mid-call still settles the match on its disk-truth
-            // status instead of leaving it stuck at RUNNING — the per-screen
-            // 3s re-hydrate that used to recover that case has been removed.
-            withContext(kotlinx.coroutines.NonCancellable) {
-                val saved = SecondaryResultStorage.get(context, reportId, rowId)
-                if (saved == null) dropItem(reportId, mKey)
-                else transitionItem(reportId, mKey) {
-                    saved.toMatchState() ?: it.copy(status = MatchStatus.ERROR, errorMessage = "Match row could not be parsed")
-                }
-            }
+            settleItemFromDisk(context, reportId, mKey, rowId)
         }
     }
 

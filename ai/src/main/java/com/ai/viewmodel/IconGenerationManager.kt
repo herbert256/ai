@@ -2932,22 +2932,20 @@ class IconGenerationManager(
         // it as the call parks / is admitted. The element re-installs the
         // value on whatever thread the coroutine resumes on.
         val pairId = pair.id
-        val throttleObserver: (Boolean) -> Unit = { waiting ->
-            if (waiting) appViewModel.updateThrottledFanMetaPairs { it + pairId }
-            else appViewModel.updateThrottledFanMetaPairs { it - pairId }
-        }
-        val outcome = withContext(
-            ProviderThrottle.throttleWaitObserver.asContextElement(throttleObserver)
-        ) {
-            rvm.workerRunner.run(effPrompt, resolved, aiSettings, context) { resp ->
-                val a = resp.analysis
-                val titleRaw = a?.lineSequence()
-                    ?.firstOrNull { it.trim().startsWith("title", ignoreCase = true) }
-                    ?.substringAfter(":") ?: a
-                extractFirstEmoji(a) != null || cleanTitle(titleRaw).isNotBlank()
+        val call = runPooledWorkerCall(
+            rvm.workerRunner, aiSettings, context, effPrompt, resolved,
+            onThrottleWait = { waiting ->
+                if (waiting) appViewModel.updateThrottledFanMetaPairs { it + pairId }
+                else appViewModel.updateThrottledFanMetaPairs { it - pairId }
             }
+        ) { resp ->
+            val a = resp.analysis
+            val titleRaw = a?.lineSequence()
+                ?.firstOrNull { it.trim().startsWith("title", ignoreCase = true) }
+                ?.substringAfter(":") ?: a
+            extractFirstEmoji(a) != null || cleanTitle(titleRaw).isNotBlank()
         }
-        when (outcome) {
+        when (val outcome = call.outcome) {
             is WorkerOutcome.Success -> {
                 val analysis = outcome.response.analysis
                 val titleRaw = analysis?.lineSequence()
@@ -2956,34 +2954,18 @@ class IconGenerationManager(
                 val title = cleanTitle(titleRaw)
                 val iconLine = analysis?.lineSequence()?.firstOrNull { it.trim().startsWith("icon", ignoreCase = true) }
                 val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: MetadataIconsHolder.current.fanOutRow
-                val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
-                    it.copy(model = aiSettings.getEffectiveModelForAgent(it))
-                }
-                val titleModel = winAgent?.let { "${it.provider.id}/${it.model}" }
-                val tu = outcome.response.tokenUsage
-                var inT = 0
-                var outT = 0
-                var inC = 0.0
-                var outC = 0.0
-                if (winAgent != null && tu != null && (tu.inputTokens > 0 || tu.outputTokens > 0)) {
-                    inT = tu.inputTokens
-                    outT = tu.outputTokens
-                    val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
-                    val split = costSplit(tu, pricing)
-                    inC = split.first
-                    outC = split.second
-                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = "title", durationMs = System.currentTimeMillis() - started)
-                }
+                val win = resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind = "title", durationMs = System.currentTimeMillis() - started)
+                val titleModel = win.agent?.let { "${it.provider.id}/${it.model}" }
                 SecondaryResultStorage.recordFanMetaResult(
                     context = context,
                     reportId = reportId,
                     resultId = pair.id,
                     title = title,
                     icon = emoji,
-                    inputTokens = inT,
-                    outputTokens = outT,
-                    inputCost = inC,
-                    outputCost = outC,
+                    inputTokens = win.inTokens,
+                    outputTokens = win.outTokens,
+                    inputCost = win.inCost,
+                    outputCost = win.outCost,
                     titleRunId = fanRunId,
                     iconRunId = fanRunId,
                     promptUsed = "fan-meta",

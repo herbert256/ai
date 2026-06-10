@@ -10,8 +10,6 @@ import com.ai.data.CompareCellState
 import com.ai.data.CompareCellStatus
 import com.ai.data.CompareRunKey
 import com.ai.data.CompareRunState
-import com.ai.data.PricingCache
-import com.ai.data.ProviderThrottle
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
@@ -30,7 +28,6 @@ import com.ai.model.Settings
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -66,6 +63,7 @@ class CompareEngine internal constructor(
     override fun runKeysForReport(reportId: String) = listOf(reportId)
     override fun terminalizeItem(item: CompareCellState, message: String) =
         item.copy(status = CompareCellStatus.ERROR, errorMessage = message, durationMs = 0)
+    override fun itemFromRow(row: SecondaryResult) = row.toCompareCellState()
     override fun canRedispatch(context: Context, run: CompareRunState) =
         run.comparePrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 15
     override val requeueBuildLabel = "Re-queuing compare"
@@ -341,63 +339,35 @@ class CompareEngine internal constructor(
         val resolved = resolvedBase
             .replace("@RESPONSE@", agentBodyById[item.agentId].orEmpty())
             .replace("@META_RESPONSE@", metaContentById[item.metaResultId].orEmpty())
-        val observer: (Boolean) -> Unit = { waiting ->
-            if (waiting) appViewModel.updateThrottledCompareCells { it + rowId }
-            else appViewModel.updateThrottledCompareCells { it - rowId }
-        }
-        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
         try {
-            val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(observer)) {
-                com.ai.data.withTraceFilenameSink(traceSink) {
-                    reportViewModel.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
-                        parseSimilarityScore(resp.analysis) != null
-                    }
+            val call = runPooledWorkerCall(
+                reportViewModel.workerRunner, aiSettings, context, prompt, resolved,
+                onThrottleWait = { waiting ->
+                    if (waiting) appViewModel.updateThrottledCompareCells { it + rowId }
+                    else appViewModel.updateThrottledCompareCells { it - rowId }
                 }
-            }
-            when (outcome) {
+            ) { resp -> parseSimilarityScore(resp.analysis) != null }
+            when (val outcome = call.outcome) {
                 is WorkerOutcome.Success -> {
-                    val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
-                        it.copy(model = aiSettings.getEffectiveModelForAgent(it))
-                    }
-                    val tu = outcome.response.tokenUsage
-                    val inT = tu?.inputTokens ?: 0
-                    val outT = tu?.outputTokens ?: 0
-                    val provId = winAgent?.provider?.id ?: COMPARE_PENDING_PROVIDER
-                    val mdl = winAgent?.model ?: COMPARE_PENDING_MODEL
-                    var inCost = 0.0; var outCost = 0.0
-                    if (winAgent != null && tu != null && (inT > 0 || outT > 0)) {
-                        val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
-                        val split = PricingCache.computeInOutCost(tu, pricing)
-                        inCost = split.first
-                        outCost = split.second
-                        appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = USAGE_KIND, durationMs = System.currentTimeMillis() - started)
-                    }
+                    val win = resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind = USAGE_KIND, durationMs = call.durationMs)
                     SecondaryResultStorage.recordCompareCell(
-                        context, reportId, rowId, provId, mdl,
+                        context, reportId, rowId,
+                        win.agent?.provider?.id ?: COMPARE_PENDING_PROVIDER,
+                        win.agent?.model ?: COMPARE_PENDING_MODEL,
                         outcome.response.analysis.orEmpty(),
-                        inT, outT, inCost, outCost, System.currentTimeMillis() - started,
-                        traceFile = traceSink.get()
+                        win.inTokens, win.outTokens, win.inCost, win.outCost,
+                        System.currentTimeMillis() - started,
+                        traceFile = call.traceFile
                     )
                 }
                 else -> {
                     val msg = if (outcome is WorkerOutcome.AllRateLimited) "compare: all workers rate-limited"
                               else "compare: no worker produced a score"
-                    val cur = SecondaryResultStorage.get(context, reportId, rowId) ?: item.placeholder
-                    SecondaryResultStorage.save(context, cur.copy(errorMessage = msg, durationMs = System.currentTimeMillis() - started))
+                    recordItemCallError(context, reportId, rowId, item.placeholder, msg, started)
                 }
             }
         } finally {
-            // Mirror the saved row into memory in a NonCancellable block so a
-            // stop / cancel mid-call still settles the cell on its disk-truth
-            // status instead of leaving it stuck at RUNNING — the per-screen
-            // 3s re-hydrate that used to recover that case has been removed.
-            withContext(kotlinx.coroutines.NonCancellable) {
-                val saved = SecondaryResultStorage.get(context, reportId, rowId)
-                if (saved == null) dropItem(reportId, cKey)
-                else transitionItem(reportId, cKey) {
-                    saved.toCompareCellState() ?: it.copy(status = CompareCellStatus.ERROR, errorMessage = "Cell row could not be parsed")
-                }
-            }
+            settleItemFromDisk(context, reportId, cKey, rowId)
         }
     }
 
