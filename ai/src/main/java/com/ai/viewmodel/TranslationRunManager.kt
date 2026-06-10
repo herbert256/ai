@@ -478,7 +478,11 @@ class TranslationRunManager(
             val model = winAgent?.model.orEmpty()
             val tu = outcome.response.tokenUsage
             val pricing = if (model.isNotBlank()) PricingCache.getPricing(context, provider, model) else null
-            val costDollars = if (tu != null && pricing != null) PricingCache.computeCost(tu, pricing) else 0.0
+            // One tier-aware in/out split per item — its sum IS what
+            // computeCost would return, and the halves go to
+            // saveOneTranslationItem as-is instead of being recomputed.
+            val costSplit = if (tu != null && pricing != null) PricingCache.computeInOutCost(tu, pricing) else null
+            val costDollars = costSplit?.let { it.first + it.second } ?: 0.0
 
             transitionItem(runId, item.id) {
                 it.copy(
@@ -497,7 +501,7 @@ class TranslationRunManager(
             val freshRun = _runs.value[runId]
             val freshItem = freshRun?.items?.get(item.id)
             if (freshRun != null && freshItem != null) {
-                saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
+                saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, costSplit)
             }
             // Roll the winning worker's spend into AI Usage under this
             // item's per-kind translate/* type.
@@ -533,19 +537,16 @@ class TranslationRunManager(
         item: TranslationItem,
         translateProvider: AppService?,
         translateModel: String,
-        translatePricing: PricingCache.ModelPricing?
+        /** Tier-aware (input, output) cost halves — computed once in
+         *  [runOneTranslation] (whose costDollars is this split summed),
+         *  so the persisted halves can't drift from the canonical total.
+         *  An ERROR row carries no provider/pricing (the worker chain
+         *  was exhausted), so the split is simply null then. */
+        costSplit: Pair<Double, Double>?
     ) {
         val tu = item.tokenUsage
-        // Tier-aware split — runOneTranslation already computes the
-        // total via PricingCache.computeCost. The persisted in / out
-        // halves now go through computeInOutCost so a long-context
-        // translation (>200k tokens) doesn't drift from the canonical
-        // total recorded in the parent run. An ERROR row carries no
-        // provider/pricing (the worker chain was exhausted), so the
-        // split is simply null then.
-        val (inCost, outCost) = if (tu != null && translatePricing != null)
-            PricingCache.computeInOutCost(tu, translatePricing).let { it.first to it.second }
-        else (null to null)
+        val inCost = costSplit?.first
+        val outCost = costSplit?.second
         val labelPrefix = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}"
         val srcKind = translateSrcKindOf(item.kind)
         val srcTargetId = translateSrcTargetIdOf(item)
