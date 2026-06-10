@@ -234,7 +234,7 @@ internal fun buildCombinedRows(
     judgesMatrix: WinMatrix?,
     transRankRuns: List<TransRankSource>,
     tournamentMatrix: WinMatrix?,
-    compareScoreByAgentId: Map<String, Int>,
+    compareScoreByAgentId: Map<String, Double>,
     weightOf: (String) -> Int
 ): List<RerankRow> {
     val success = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
@@ -267,7 +267,7 @@ internal fun buildCombinedRows(
         if (compareScoreByAgentId.isNotEmpty()) {
             val sc = HashMap<Int, Double>()
             success.forEachIndexed { idx, a ->
-                compareScoreByAgentId[a.agentId]?.let { sc[idx + 1] = it.toDouble() }
+                compareScoreByAgentId[a.agentId]?.let { sc[idx + 1] = it }
             }
             if (sc.isNotEmpty()) rankings.add(w to sc)
         }
@@ -319,7 +319,7 @@ internal data class ValueViewData(
     val includesFanOut: Boolean,
     /** Compare-with-meta: agentId → mean match % (0..100) over the latest
      *  run — the result screen's first column, used as a quality source. */
-    val compareScoreByAgentId: Map<String, Int>
+    val compareScoreByAgentId: Map<String, Double>
 )
 
 /** Available ranking sources for [data]: Combined (if any weighted ranking
@@ -367,7 +367,7 @@ internal fun rowsForSource(
             report.agents
                 .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 .mapIndexedNotNull { idx, a ->
-                    data.compareScoreByAgentId[a.agentId]?.let { RerankRow(idx + 1, null, it.toDouble(), null) }
+                    data.compareScoreByAgentId[a.agentId]?.let { RerankRow(idx + 1, null, it, null) }
                 }
         }
         is RankSource.TransRank -> {
@@ -478,14 +478,14 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             // Compare-with-meta: reduce the latest run's CELL rows to each
             // answer's mean match % (agentId → 0..100), the result screen's
             // first column. No AGGREGATE row exists, so average the cells here.
-            val compareScoreByAgentId: Map<String, Int> = run {
+            val compareScoreByAgentId: Map<String, Double> = run {
                 val byRun = rows.filter { it.kind == SecondaryKind.COMPARE && !it.compareRunId.isNullOrBlank() }
                     .groupBy { it.compareRunId!! }
                 val group = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }?.value ?: return@run emptyMap()
                 group.mapNotNull { it.toCompareCellState() }
                     .filter { it.percent != null }
                     .groupBy { it.agentId }
-                    .mapValues { (_, cs) -> cs.sumOf { it.percent!! } / cs.size }
+                    .mapValues { (_, cs) -> cs.sumOf { it.percent!! }.toDouble() / cs.size }
             }
             val fanOutCostByAgentId: Map<String, Double> =
                 if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && noDuplicateModels && answererKeys == successKeys) {

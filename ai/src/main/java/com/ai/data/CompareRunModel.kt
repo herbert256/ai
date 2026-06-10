@@ -1,6 +1,7 @@
 package com.ai.data
 
 import com.ai.model.InternalPrompt
+import kotlin.math.roundToInt
 
 /**
  * Runtime state for the "Compare with meta" batch (kind == COMPARE).
@@ -83,7 +84,9 @@ data class CompareRunState(
     fun avgForAgent(agentId: String): Int? {
         val scored = cells.values.filter { it.agentId == agentId && it.percent != null }
         if (scored.isEmpty()) return null
-        return scored.sumOf { it.percent!! } / scored.size
+        // Average in Double and round — Int/Int truncation biased every
+        // mean down (50.5 → 50) and tied agents whose true means differ.
+        return (scored.sumOf { it.percent!! }.toDouble() / scored.size).roundToInt()
     }
 
     /** Mean scored percentage across [metaResultId]'s done cells, or null when
@@ -91,7 +94,7 @@ data class CompareRunState(
     fun avgForMeta(metaResultId: String): Int? {
         val scored = cells.values.filter { it.metaResultId == metaResultId && it.percent != null }
         if (scored.isEmpty()) return null
-        return scored.sumOf { it.percent!! } / scored.size
+        return (scored.sumOf { it.percent!! }.toDouble() / scored.size).roundToInt()
     }
 }
 

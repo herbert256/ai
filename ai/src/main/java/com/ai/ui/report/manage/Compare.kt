@@ -68,6 +68,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 // ===================================================================
 // Selection flow — page 1 (meta items) → page 2 (prompt). Rendered as
@@ -320,7 +321,10 @@ private data class CompareGroupRow(val key: String, val label: String, val cells
     val cost get() = cells.sumOf { it.totalCost }
     val avg: Int? get() {
         val scored = cells.mapNotNull { it.percent }
-        return if (scored.isEmpty()) null else scored.sum() / scored.size
+        // Average in Double and round — Int/Int truncation biased every
+        // mean down (50.5 → 50).
+        return if (scored.isEmpty()) null
+        else (scored.sum().toDouble() / scored.size).roundToInt()
     }
 }
 
