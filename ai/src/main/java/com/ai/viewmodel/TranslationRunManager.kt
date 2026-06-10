@@ -43,8 +43,8 @@ private fun translateSrcTargetIdOf(item: TranslationItem): String = when (item.k
 /** Per-kind trace/cost/usage Type for [item]. For META items the source
  *  secondary (by [TranslationItem.target]) decides fan-out / fan-in / plain
  *  meta; other kinds map purely from the kind. */
-private fun traceTypeFor(item: TranslationItem, secondaries: List<SecondaryResult>): String {
-    val src = if (item.kind == TranslationKind.META) secondaries.firstOrNull { it.id == item.target } else null
+private fun traceTypeFor(item: TranslationItem, secondariesById: Map<String, SecondaryResult>): String {
+    val src = if (item.kind == TranslationKind.META) item.target?.let { secondariesById[it] } else null
     return com.ai.data.translateTraceType(
         translateSrcKindOf(item.kind),
         sourceIsFanOut = src?.fanOutSourceAgentId != null,
@@ -258,10 +258,11 @@ class TranslationRunManager(
             // against THIS set rather than recomputing from current
             // report state, so items added to the report AFTER this
             // run completes don't get spuriously translated.
+            val secondariesById = secondaries.associateBy { s -> s.id }
             var itemsWithIds = items.map {
                 it.copy(
                     persistedRowId = java.util.UUID.randomUUID().toString(),
-                    traceType = traceTypeFor(it, secondaries)
+                    traceType = traceTypeFor(it, secondariesById)
                 )
             }
             // Build stage: persist one placeholder per item up front. Use a
@@ -1251,7 +1252,7 @@ class TranslationRunManager(
         // works. Without this every reconstructed item keeps the data-
         // class default ("translate/translate") and Types collapses to a
         // single "translate" row.
-        .map { it.copy(traceType = traceTypeFor(it, secondaries)) }
+        .map { it.copy(traceType = traceTypeFor(it, secondariesById)) }
     }
 
     /** Reconstruct a finished / persisted translation run as a
@@ -1427,7 +1428,7 @@ class TranslationRunManager(
                 }
                 else -> null
             }
-        }.map { it.copy(traceType = traceTypeFor(it, secondaries)) }
+        }.map { it.copy(traceType = traceTypeFor(it, secondariesById)) }
         if (items.isEmpty()) return
 
         // Delete the rows we're replacing so the rerun doesn't double
