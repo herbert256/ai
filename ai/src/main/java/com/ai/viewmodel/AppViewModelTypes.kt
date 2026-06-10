@@ -70,6 +70,10 @@ data class BrokenBatch(
     val batchName: String,
     val unfinishedCount: Int,
     val errorCount: Int,
+    /** Of [errorCount], how many rows carry a stamped 429 — a transient
+     *  pool-cooling / rate-limit failure a restart will likely clear,
+     *  as opposed to a permanent error. */
+    val rateLimitedCount: Int = 0,
     val timestamp: Long,
     /** Inline failure message shown on the card when the entry is a single
      *  errored item (one secondary, or a batch with exactly one error), or

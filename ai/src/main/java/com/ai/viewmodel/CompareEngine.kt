@@ -322,7 +322,10 @@ class CompareEngine internal constructor(
                     traceFile = res.call.traceFile
                 )
                 is PooledItemOutcome.Error ->
-                    recordItemCallError(context, reportId, rowId, item.placeholder, res.message, started)
+                    recordItemCallError(
+                        context, reportId, rowId, item.placeholder, res.message, started,
+                        httpStatusCode = if (res.rateLimited) 429 else null
+                    )
             }
         } catch (e: CancellationException) {
             throw e

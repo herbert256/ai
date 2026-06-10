@@ -399,7 +399,10 @@ class TranslatorRankEngine internal constructor(
                     tokenUsage = res.tokenUsage
                 )
                 is FixedJudgeOutcome.Rejected ->
-                    recordItemCallError(context, reportId, rowId, item.placeholder, res.message, started)
+                    recordItemCallError(
+                        context, reportId, rowId, item.placeholder, res.message, started,
+                        httpStatusCode = res.httpStatusCode
+                    )
             }
         } catch (e: TimeoutCancellationException) {
             recordItemCallError(

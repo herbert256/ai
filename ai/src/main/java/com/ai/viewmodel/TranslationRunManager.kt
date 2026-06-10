@@ -357,7 +357,7 @@ class TranslationRunManager(
                     // back as a Failed outcome like any other miss.
                     val outcome = runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
                     if (outcome is TranslationOutcome.Failed) {
-                        finalizeTranslationError(context, runId, item, outcome.message)
+                        finalizeTranslationError(context, runId, item, outcome.message, outcome.rateLimited)
                     }
                 }
 
@@ -390,7 +390,10 @@ class TranslationRunManager(
      *  as the item's terminal ERROR row. */
     private sealed interface TranslationOutcome {
         data object Success : TranslationOutcome
-        data class Failed(val message: String) : TranslationOutcome
+        /** [rateLimited]: the whole worker pool was cooling (a try-later
+         *  condition) — stamped as a 429 on the row so Broken-work can
+         *  tell the transient errors from the permanent ones. */
+        data class Failed(val message: String, val rateLimited: Boolean = false) : TranslationOutcome
     }
 
     /** Mark a translation item ERROR and persist its TRANSLATE row.
@@ -402,7 +405,8 @@ class TranslationRunManager(
         context: Context,
         runId: String,
         item: TranslationItem,
-        message: String
+        message: String,
+        rateLimited: Boolean = false
     ) {
         transitionItem(runId, item.id) {
             it.copy(status = TranslationStatus.ERROR, errorMessage = message, providerId = null, model = null)
@@ -410,7 +414,10 @@ class TranslationRunManager(
         val freshRun = _runs.value[runId]
         val freshItem = freshRun?.items?.get(item.id)
         if (freshRun != null && freshItem != null) {
-            saveOneTranslationItem(context, runId, freshRun, freshItem, null, "", null)
+            saveOneTranslationItem(
+                context, runId, freshRun, freshItem, null, "", null,
+                httpStatusCode = if (rateLimited) 429 else null
+            )
         }
     }
 
@@ -466,7 +473,7 @@ class TranslationRunManager(
             ) { resp -> !resp.analysis.isNullOrBlank() }
             if (pooled is PooledItemOutcome.Error) {
                 AppLog.d("Translation", "← item ${item.id} err — ${pooled.message}")
-                return TranslationOutcome.Failed(pooled.message)
+                return TranslationOutcome.Failed(pooled.message, pooled.rateLimited)
             }
             val res = pooled as PooledItemOutcome.Success
             val callDurationMs = res.call.durationMs
@@ -543,7 +550,10 @@ class TranslationRunManager(
          *  so the persisted halves can't drift from the canonical total.
          *  An ERROR row carries no provider/pricing (the worker chain
          *  was exhausted), so the split is simply null then. */
-        costSplit: Pair<Double, Double>?
+        costSplit: Pair<Double, Double>?,
+        /** 429 when the whole pool was rate-limited — the machine-readable
+         *  transient marker Broken-work reads. Null otherwise. */
+        httpStatusCode: Int? = null
     ) {
         val tu = item.tokenUsage
         val inCost = costSplit?.first
@@ -577,7 +587,8 @@ class TranslationRunManager(
             targetLanguageNative = run.targetLanguageNative,
             translationRunId = runId,
             runId = runId,
-            traceFile = item.traceFile
+            traceFile = item.traceFile,
+            httpStatusCode = httpStatusCode
         )
         if (item.persistedRowId != null) {
             // Placeholder was written up front, so use the present-guarded
@@ -1559,7 +1570,7 @@ class TranslationRunManager(
                     // back as a Failed outcome like any other miss.
                     val outcome = runOneTranslation(runId, context, item, targetLanguageName, textPrompt, titlePrompt)
                     if (outcome is TranslationOutcome.Failed) {
-                        finalizeTranslationError(context, runId, item, outcome.message)
+                        finalizeTranslationError(context, runId, item, outcome.message, outcome.rateLimited)
                     }
                 }
             }

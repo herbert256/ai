@@ -201,8 +201,10 @@ internal sealed class FixedJudgeOutcome {
     ) : FixedJudgeOutcome()
 
     /** Unresolvable judge, transport error, or no parseable artifact —
-     *  a category-1 "real error" (fixed model, no pool to fall back to). */
-    class Rejected(val message: String) : FixedJudgeOutcome()
+     *  a category-1 "real error" (fixed model, no pool to fall back to).
+     *  [httpStatusCode] carries the transport status (e.g. a 429 whose
+     *  bench-requeue budget ran out) for the Broken-work transient hint. */
+    class Rejected(val message: String, val httpStatusCode: Int? = null) : FixedJudgeOutcome()
 }
 
 /** Call ONE specific [judge] (not the worker chain) with [resolved] and
@@ -234,7 +236,10 @@ internal suspend fun runFixedJudgeCall(
         )
     }
     if (!resp.isSuccess || !accepted(resp)) {
-        return FixedJudgeOutcome.Rejected(resp.error?.takeIf { it.isNotBlank() } ?: noArtifactMessage)
+        return FixedJudgeOutcome.Rejected(
+            resp.error?.takeIf { it.isNotBlank() } ?: noArtifactMessage,
+            resp.httpStatusCode
+        )
     }
     val tu = resp.tokenUsage
     val inT = tu?.inputTokens ?: 0
@@ -254,7 +259,9 @@ internal suspend fun runFixedJudgeCall(
 /** Stamp an item's row with [message] after its call failed, preserving
  *  whatever the row already holds (the disk row wins over [placeholder]
  *  when it still exists). Shared error stamp of all four engines'
- *  per-item bodies. */
+ *  per-item bodies. [httpStatusCode] makes the failure machine-readable
+ *  — 429 marks a transient pool-cooling / rate-limit error the
+ *  Broken-work screen can tell apart from a permanent one. */
 internal fun recordItemCallError(
     context: Context,
     reportId: String,
@@ -262,7 +269,12 @@ internal fun recordItemCallError(
     placeholder: SecondaryResult,
     message: String,
     started: Long,
+    httpStatusCode: Int? = null,
 ) {
     val cur = SecondaryResultStorage.get(context, reportId, rowId) ?: placeholder
-    SecondaryResultStorage.save(context, cur.copy(errorMessage = message, durationMs = System.currentTimeMillis() - started))
+    SecondaryResultStorage.save(context, cur.copy(
+        errorMessage = message,
+        durationMs = System.currentTimeMillis() - started,
+        httpStatusCode = httpStatusCode ?: cur.httpStatusCode
+    ))
 }

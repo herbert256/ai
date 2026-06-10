@@ -82,6 +82,7 @@ object BrokenWorkPolicy {
     private class Acc(val kind: BatchFamilyKind, val key: String, val name: String) {
         var unfinished = 0
         var errors = 0
+        var rateLimited = 0
         var lastError: String? = null
     }
 
@@ -100,12 +101,16 @@ object BrokenWorkPolicy {
             unfinished: Boolean,
             error: Boolean,
             errorMsg: String? = null,
+            /** The error is a stamped 429 — a transient pool-cooling /
+             *  rate-limit failure a restart will likely clear. */
+            rateLimited: Boolean = false,
         ) {
             if (!unfinished && !error) return
             val group = groups.getOrPut("$kind|$key") { Acc(kind, key, name) }
             if (unfinished) group.unfinished++
             if (error) {
                 group.errors++
+                if (rateLimited) group.rateLimited++
                 if (!errorMsg.isNullOrBlank()) group.lastError = errorMsg
             }
         }
@@ -122,7 +127,8 @@ object BrokenWorkPolicy {
                         "Fan Out · $name",
                         interrupted(row, live, activeRun = runKey in live.activeFanOutRunKeys),
                         errored(row),
-                        row.errorMessage
+                        row.errorMessage,
+                        rateLimited = row.httpStatusCode == 429
                     )
                     val fanMetaExpected = fanMetaTouched(row)
                     val fanMetaActive = runKey in live.activeFanMetaRunKeys
@@ -150,7 +156,8 @@ object BrokenWorkPolicy {
                         "Tournament",
                         interrupted(row, live, activeRun = reportId in live.activeTournamentRunKeys),
                         errored(row),
-                        row.errorMessage
+                        row.errorMessage,
+                        rateLimited = row.httpStatusCode == 429
                     )
                 row.kind == SecondaryKind.JUDGES && row.tournamentRole == "MATCH" ->
                     tally(
@@ -159,7 +166,8 @@ object BrokenWorkPolicy {
                         "Judges",
                         interrupted(row, live, activeRun = reportId in live.activeJudgeRunKeys),
                         errored(row),
-                        row.errorMessage
+                        row.errorMessage,
+                        rateLimited = row.httpStatusCode == 429
                     )
                 row.kind == SecondaryKind.COMPARE ->
                     tally(
@@ -168,7 +176,8 @@ object BrokenWorkPolicy {
                         "Compare",
                         interrupted(row, live, activeRun = reportId in live.activeCompareRunKeys),
                         errored(row),
-                        row.errorMessage
+                        row.errorMessage,
+                        rateLimited = row.httpStatusCode == 429
                     )
                 // Rank-the-translators cell rows. One batch per LANGUAGE, keyed
                 // like the engine's run key ("$reportId|$sourceTranslationRunId")
@@ -183,7 +192,8 @@ object BrokenWorkPolicy {
                         "Rank the translators · ${row.targetLanguage?.takeIf { it.isNotBlank() } ?: "?"}",
                         interrupted(row, live, activeRun = runKey in live.activeTransRankRunKeys),
                         errored(row),
-                        row.errorMessage
+                        row.errorMessage,
+                        rateLimited = row.httpStatusCode == 429
                     )
                 }
                 row.kind == SecondaryKind.TRANSLATE && row.translationRunId != null -> {
@@ -194,7 +204,8 @@ object BrokenWorkPolicy {
                         "Translation · ${row.targetLanguage?.takeIf { it.isNotBlank() } ?: "?"}",
                         interrupted(row, live, activeRun = runId in live.activeTranslationRunIds),
                         errored(row),
-                        row.errorMessage
+                        row.errorMessage,
+                        rateLimited = row.httpStatusCode == 429
                     )
                 }
                 row.fanOutSourceAgentId == null &&
@@ -209,7 +220,8 @@ object BrokenWorkPolicy {
                         "Meta / Rerank / Moderation",
                         interrupted(row, live),
                         errored(row),
-                        row.errorMessage
+                        row.errorMessage,
+                        rateLimited = row.httpStatusCode == 429
                     )
             }
         }
@@ -223,6 +235,7 @@ object BrokenWorkPolicy {
                 batchName = it.name,
                 unfinishedCount = it.unfinished,
                 errorCount = it.errors,
+                rateLimitedCount = it.rateLimited,
                 timestamp = reportTimestamp,
                 errorMessage = if (it.errors == 1 && it.unfinished == 0) it.lastError else null
             )

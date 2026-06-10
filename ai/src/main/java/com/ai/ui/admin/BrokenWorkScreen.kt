@@ -285,8 +285,15 @@ private fun BrokenWorkItem(
                 }
                 if (!responsesSingle && batch.errorCount > 0) {
                     val mode = BrokenItemMode.ERRORS
+                    // A stamped 429 means the pool was cooling, not broken —
+                    // tell the user a restart will likely clear those.
+                    val rateLimitedHint = when {
+                        batch.rateLimitedCount == 0 -> ""
+                        batch.rateLimitedCount == batch.errorCount -> " (rate-limited)"
+                        else -> " (${batch.rateLimitedCount} rate-limited)"
+                    }
                     CountActionLine(
-                        text = "${batch.errorCount} error${if (batch.errorCount == 1) "" else "s"}",
+                        text = "${batch.errorCount} error${if (batch.errorCount == 1) "" else "s"}$rateLimitedHint",
                         color = AppColors.DangerAccent,
                         busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(batch, mode)) },
                         canView = canView,
