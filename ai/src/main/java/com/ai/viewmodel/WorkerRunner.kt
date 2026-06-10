@@ -16,7 +16,8 @@ import java.util.concurrent.ConcurrentHashMap
 sealed class WorkerOutcome {
     /** A worker produced a successful response. */
     data class Success(val response: AnalysisResponse, val worker: Worker) : WorkerOutcome()
-    /** Every candidate was rate-limited (429) or on cooldown — try later. */
+    /** Every candidate stayed rate-limited (429) or on cooldown even after
+     *  the chain waited the cooldowns out and retried — try later. */
     data object AllRateLimited : WorkerOutcome()
     /** Workers were exhausted with non-429 failures (or none resolvable). */
     data object Failed : WorkerOutcome()
@@ -29,7 +30,10 @@ sealed class WorkerOutcome {
  * after a miss) is random rather than a deterministic rotation. On a **429**
  * the worker is parked on a short cooldown (the response's `Retry-After`, else
  * [WORKER_429_DEFAULT_MS] = 5 s) and the next worker is tried; a non-429 /
- * logical miss just advances.
+ * logical miss just advances. A pass where EVERY candidate was cooling waits
+ * for the earliest cooldown to lift and re-runs the chain (bounded — see
+ * [ALL_RATE_LIMITED_MAX_RETRIES]) before settling on
+ * [WorkerOutcome.AllRateLimited].
  *
  * Calls go through [com.ai.data.AnalysisRepository.analyzeWithAgent] with
  * `retry = false`, so the engine owns the fallback while the shared OkHttp
@@ -42,6 +46,23 @@ sealed class WorkerOutcome {
  * calls this yet; it's the reusable foundation batches will be converted onto.
  */
 class WorkerRunner(private val appViewModel: AppViewModel) {
+
+    private companion object {
+        /** Extra chain passes after a pass where every candidate was cooling.
+         *  A fully-cooling pass is usually a 5 s blip (the local 429 cooldown),
+         *  not a real failure — erroring the item on the first such pass
+         *  contradicts the pool design ("a failed call can be replaced by
+         *  another worker"), so the chain waits the cooldown out and retries. */
+        const val ALL_RATE_LIMITED_MAX_RETRIES = 3
+        /** Longest single wait worth taking. An earliest-wake further out than
+         *  this means the pool is on a real bench (Google's hours-long
+         *  exhausted-quota cooldown) — give up immediately instead of holding
+         *  the batch permits for nothing. */
+        const val ALL_RATE_LIMITED_MAX_WAIT_MS = 20_000L
+        /** Floor for one wait, plus up-to-500ms jitter so concurrent items
+         *  woken by the same cooldown expiry don't stampede one worker. */
+        const val ALL_RATE_LIMITED_MIN_WAIT_MS = 250L
+    }
 
     /** workerKey -> epoch-ms the worker becomes selectable again (local 429). */
     private val cooldownUntil = ConcurrentHashMap<String, Long>()
@@ -98,58 +119,93 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
             return WorkerOutcome.Failed
         }
         val n = members.size
-        // Random pick (not round-robin): shuffle the worker order each call
-        // so the primary choice — and the fallback order after a cooldown /
-        // 429 / logical miss — is random rather than a deterministic rotation.
-        val order = members.indices.shuffled()
-        var sawRateLimit = false
-
-        for (idx in order) {
-            val w = members[idx]
-            val key = workerKey(w)
-            // Permanently out of order this session (model gone) — skip with no
-            // call. NOT counted as a rate-limit: a dead worker isn't "try later".
-            if (key in disabledWorkers) continue
-            if ((cooldownUntil[key] ?: 0L) > System.currentTimeMillis()) { sawRateLimit = true; continue }
-            val raw = aiSettings.resolveWorker(w) ?: continue
-            val effModel = aiSettings.getEffectiveModelForAgent(raw)
-            if (ModelCooldownStore.isUnavailable(raw.provider.id, effModel)) { sawRateLimit = true; continue }
-
-            val agent = raw.copy(
-                apiKey = aiSettings.getEffectiveApiKeyForAgent(raw),
-                model = effModel
-            )
-            val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-            val resp = appViewModel.repository.analyzeWithAgent(
-                agent, "", resolvedText, context = context, baseUrl = baseUrl, retry = false
-            )
-            when {
-                resp.isSuccess && accept(resp) -> {
-                    AppLog.i("Workers", "${com.ai.data.MetadataIconsHolder.current.checkMark} '${prompt.name}' via ${agent.name} (worker ${idx + 1}/$n)")
-                    return WorkerOutcome.Success(resp, w)
-                }
-                resp.httpStatusCode == 429 || resp.error?.contains("API error: 429") == true -> {
-                    val waitMs = retryAfterFromHeaderBlock(resp.httpHeaders) ?: WORKER_429_DEFAULT_MS
-                    cooldownUntil[key] = System.currentTimeMillis() + waitMs
-                    sawRateLimit = true
-                    AppLog.w("Workers", "429 '${prompt.name}' via ${agent.name} — cooling ${waitMs}ms, next worker")
-                }
-                // Model gone (404 does-not-exist / 410 retired) — not transient.
-                // Take the worker out of rotation for the rest of the session so
-                // it stops wasting a call (and a provider rate slot) on every
-                // pair. The chain still falls through to the next worker now.
-                isModelGone(resp) -> {
-                    disabledWorkers.add(key)
-                    AppLog.w("Workers", "${resp.httpStatusCode ?: "model-gone"} '${prompt.name}' via ${agent.name} — model unavailable, disabling this worker for the session")
-                }
-                // HTTP-200 but no usable artifact (e.g. a reply with no emoji /
-                // no title) — a logical miss; fall through to the next worker
-                // just like a transport error rather than accepting it.
-                resp.isSuccess -> AppLog.w("Workers", "no usable result '${prompt.name}' via ${agent.name} — next worker")
-                else -> AppLog.w("Workers", "miss '${prompt.name}' via ${agent.name}: ${resp.error?.take(80)}")
+        // Pool-cooling retry loop: a pass where EVERY candidate was skipped or
+        // parked on a rate-limit isn't a real failure — the local 429 cooldown
+        // defaults to 5 s. Instead of returning AllRateLimited on the first
+        // such pass (which the batch engines stamp as a terminal error), wait
+        // for the earliest cooldown to lift and re-run the chain, bounded by
+        // ALL_RATE_LIMITED_MAX_RETRIES extra passes and capped at
+        // ALL_RATE_LIMITED_MAX_WAIT_MS per wait (a wake further out means a
+        // real bench — hours, not a blip — so waiting is pointless). The wait
+        // holds the caller's batch permits, which is intentional: the item IS
+        // still in flight, exactly like the type-A bench loop's gate.
+        var pass = 0
+        while (true) {
+            var sawRateLimit = false
+            // Earliest epoch-ms any rate-limited candidate becomes selectable
+            // again this pass — drives the retry wait.
+            var earliestWakeMs = Long.MAX_VALUE
+            fun noteWake(at: Long?) {
+                if (at != null && at > System.currentTimeMillis() && at < earliestWakeMs) earliestWakeMs = at
             }
+            // Random pick (not round-robin): shuffle the worker order each pass
+            // so the primary choice — and the fallback order after a cooldown /
+            // 429 / logical miss — is random rather than a deterministic rotation.
+            val order = members.indices.shuffled()
+
+            for (idx in order) {
+                val w = members[idx]
+                val key = workerKey(w)
+                // Permanently out of order this session (model gone) — skip with no
+                // call. NOT counted as a rate-limit: a dead worker isn't "try later".
+                if (key in disabledWorkers) continue
+                val localUntil = cooldownUntil[key] ?: 0L
+                if (localUntil > System.currentTimeMillis()) { sawRateLimit = true; noteWake(localUntil); continue }
+                val raw = aiSettings.resolveWorker(w) ?: continue
+                val effModel = aiSettings.getEffectiveModelForAgent(raw)
+                if (ModelCooldownStore.isUnavailable(raw.provider.id, effModel)) {
+                    sawRateLimit = true
+                    noteWake(ModelCooldownStore.availableAt(raw.provider.id, effModel))
+                    continue
+                }
+
+                val agent = raw.copy(
+                    apiKey = aiSettings.getEffectiveApiKeyForAgent(raw),
+                    model = effModel
+                )
+                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                val resp = appViewModel.repository.analyzeWithAgent(
+                    agent, "", resolvedText, context = context, baseUrl = baseUrl, retry = false
+                )
+                when {
+                    resp.isSuccess && accept(resp) -> {
+                        AppLog.i("Workers", "${com.ai.data.MetadataIconsHolder.current.checkMark} '${prompt.name}' via ${agent.name} (worker ${idx + 1}/$n)")
+                        return WorkerOutcome.Success(resp, w)
+                    }
+                    resp.httpStatusCode == 429 || resp.error?.contains("API error: 429") == true -> {
+                        val waitMs = retryAfterFromHeaderBlock(resp.httpHeaders) ?: WORKER_429_DEFAULT_MS
+                        val until = System.currentTimeMillis() + waitMs
+                        cooldownUntil[key] = until
+                        sawRateLimit = true
+                        noteWake(until)
+                        AppLog.w("Workers", "429 '${prompt.name}' via ${agent.name} — cooling ${waitMs}ms, next worker")
+                    }
+                    // Model gone (404 does-not-exist / 410 retired) — not transient.
+                    // Take the worker out of rotation for the rest of the session so
+                    // it stops wasting a call (and a provider rate slot) on every
+                    // pair. The chain still falls through to the next worker now.
+                    isModelGone(resp) -> {
+                        disabledWorkers.add(key)
+                        AppLog.w("Workers", "${resp.httpStatusCode ?: "model-gone"} '${prompt.name}' via ${agent.name} — model unavailable, disabling this worker for the session")
+                    }
+                    // HTTP-200 but no usable artifact (e.g. a reply with no emoji /
+                    // no title) — a logical miss; fall through to the next worker
+                    // just like a transport error rather than accepting it.
+                    resp.isSuccess -> AppLog.w("Workers", "no usable result '${prompt.name}' via ${agent.name} — next worker")
+                    else -> AppLog.w("Workers", "miss '${prompt.name}' via ${agent.name}: ${resp.error?.take(80)}")
+                }
+            }
+            if (!sawRateLimit) return WorkerOutcome.Failed
+            pass++
+            val waitMs = if (earliestWakeMs == Long.MAX_VALUE) WORKER_429_DEFAULT_MS
+                else earliestWakeMs - System.currentTimeMillis()
+            if (pass > ALL_RATE_LIMITED_MAX_RETRIES || waitMs > ALL_RATE_LIMITED_MAX_WAIT_MS) {
+                return WorkerOutcome.AllRateLimited
+            }
+            val delayMs = waitMs.coerceAtLeast(ALL_RATE_LIMITED_MIN_WAIT_MS) + (0L..500L).random()
+            AppLog.i("Workers", "'${prompt.name}' all workers cooling — retrying in ${delayMs}ms (pass $pass/$ALL_RATE_LIMITED_MAX_RETRIES)")
+            kotlinx.coroutines.delay(delayMs)
         }
-        return if (sawRateLimit) WorkerOutcome.AllRateLimited else WorkerOutcome.Failed
     }
 
     /** Run [items] through the worker chain under the shared worker cap.
