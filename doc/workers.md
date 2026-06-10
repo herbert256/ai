@@ -320,7 +320,11 @@ spreads across the pool:
   + titles). Random per-call order, per-worker 429 cooldown
   (honouring `Retry-After`), an `accept` predicate that treats a
   200 with no usable artifact as a logical miss, and a
-  session-scoped disable for 404/410 ("model gone") members. See
+  session-scoped disable for 404/410 ("model gone") members. A
+  pass where EVERY candidate was cooling waits for the earliest
+  cooldown to lift and re-runs the chain (up to 3 extra passes,
+  20 s per-wait cap) before settling on `AllRateLimited` — so a 5 s
+  429 blip across the pool doesn't mass-error a batch. See
   [report-icons.md](report-icons.md) for the full engine.
 
 **Run-time worker source** — a worker prompt's
