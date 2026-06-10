@@ -1456,7 +1456,9 @@ class FanOutEngine internal constructor(
                     !ModelCooldownStore.isUnavailable(it.providerId, it.model)
             }
             if (failed.isEmpty()) return@launch
-            val costDelta = failed.sumOf { it.totalCost }
+            val costDelta = failed.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             failed.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
             ReportStorage.removeFanOutIconCalls(context, run.reportId, failed.map { it.id }.toSet())
             _runs.update { runs ->
@@ -1476,7 +1478,9 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             val stranded = run.pairs.values.filter { it.status == PairStatus.PENDING }
             if (stranded.isEmpty()) return@launch
-            val costDelta = stranded.sumOf { it.totalCost }
+            val costDelta = stranded.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             stranded.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
             ReportStorage.removeFanOutIconCalls(context, run.reportId, stranded.map { it.id }.toSet())
             _runs.update { runs ->
@@ -1501,7 +1505,9 @@ class FanOutEngine internal constructor(
                     ModelCooldownStore.isUnavailable(it.providerId, it.model)
             }
             if (benched.isEmpty()) return@launch
-            val costDelta = benched.sumOf { it.totalCost }
+            val costDelta = benched.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             benched.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
             ReportStorage.removeFanOutIconCalls(context, run.reportId, benched.map { it.id }.toSet())
             _runs.update { runs ->
@@ -1528,7 +1534,9 @@ class FanOutEngine internal constructor(
                 it.model == model
         }
         if (failed.isEmpty()) return@launch
-        val costDelta = failed.sumOf { it.totalCost }
+        val costDelta = failed.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
         failed.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
         ReportStorage.removeFanOutIconCalls(context, run.reportId, failed.map { it.id }.toSet())
         _runs.update { runs ->
@@ -1789,10 +1797,12 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             runJobOf(runKey)?.cancelAndJoin()
             run.pairs.values.forEach { pair -> itemJobOf(pair.id)?.cancelAndJoin() }
-            // totalCost (not just in/out) so the deleted pairs' Fan-Meta
-            // icon + title spend rolls into the tally too — summing only
-            // inputCost + outputCost dropped it.
-            val costDelta = run.pairs.values.sumOf { it.totalCost }
+            // Disk-truth fullCost (in/out + Fan-Meta icon + title) so a pair
+            // that settled while we were cancelling still rolls its spend in;
+            // the in-memory totalCost is the fallback for a missing row.
+            val costDelta = run.pairs.values.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.delete(context, run.reportId, pair.id)
@@ -1823,12 +1833,17 @@ class FanOutEngine internal constructor(
         val pairJobs = run.pairs.values.mapNotNull { itemJobOf(it.id) }
         return deleteRunDeferred(appViewModel.viewModelScope, runKey, runJob, pairJobs) {
             // Roll the whole run's spend into the report's Deleted-items tally
-            // before the disk deletes — pair totalCost (in/out + Fan-Meta icon +
-            // title) plus each combined fan-in row. Without this, trashing an
-            // entire fan-out run erased all of its API spend from the lifetime
-            // cost view.
-            val costDelta = run.pairs.values.sumOf { it.totalCost } +
-                run.combinedReports.sumOf { it.totalCost }
+            // before the disk deletes — disk-truth fullCost per pair (in/out +
+            // Fan-Meta icon + title; the run was dropped from _runs before the
+            // join, so a pair that settled during the cancel never mirrored
+            // into this snapshot) plus each combined fan-in row. Without this,
+            // trashing an entire fan-out run erased all of its API spend from
+            // the lifetime cost view.
+            val costDelta = run.pairs.values.sumOf {
+                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+            } + run.combinedReports.sumOf { cr ->
+                SecondaryResultStorage.get(context, run.reportId, cr.id)?.fullCost() ?: cr.totalCost
+            }
             val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.delete(context, run.reportId, pair.id)
@@ -1898,7 +1913,9 @@ class FanOutEngine internal constructor(
         // Cancel the per-pair coroutines first so no zombie write lands
         // after the delete.
         victims.forEach { itemJobOf(it.id)?.cancelAndJoin() }
-        val costDelta = victims.sumOf { it.totalCost }
+        val costDelta = victims.sumOf {
+            SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+        }
         victims.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
         ReportStorage.removeFanOutIconCalls(context, run.reportId, victims.map { it.id }.toSet())
         _runs.update { runs ->

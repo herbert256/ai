@@ -23,6 +23,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.SecondaryScope
 import com.ai.data.analyzeJudges
+import com.ai.data.fullCost
 import com.ai.data.judgeCellKey
 import com.ai.data.matchKey
 import com.ai.data.parseMatchVerdict
@@ -548,7 +549,10 @@ class JudgeEvalEngine internal constructor(
             val judgeKey = "$providerId/$model"
             val cells = run.cells.values.filter { it.judgeKey == judgeKey }
             if (cells.isEmpty()) return@launch
-            val costDelta = cells.sumOf { it.totalCost }
+            // Disk-truth costs (in-memory state can lag a just-settled call).
+            val costDelta = cells.sumOf {
+                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             cells.forEach { c ->
                 itemJobOf(c.id)?.cancelAndJoin()
                 SecondaryResultStorage.delete(context, reportId, c.id)
@@ -687,7 +691,12 @@ class JudgeEvalEngine internal constructor(
         val runJob = runJobOf(reportId)
         val itemJobs = run.cells.values.mapNotNull { itemJobOf(it.id) }
         return deleteRunDeferred(appViewModel.viewModelScope, reportId, runJob, itemJobs) {
-            val costDelta = run.cells.values.sumOf { it.totalCost }
+            // Disk-truth costs: the run was dropped from _runs before the join,
+            // so an in-flight cell that settled during the cancel never
+            // mirrored into this snapshot.
+            val costDelta = run.cells.values.sumOf {
+                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             run.cells.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)

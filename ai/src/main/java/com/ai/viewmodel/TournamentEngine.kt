@@ -22,6 +22,7 @@ import com.ai.data.TournamentRunKey
 import com.ai.data.TournamentRunState
 import com.ai.data.computeWinMatrix
 import com.ai.data.decodeTournamentMatrix
+import com.ai.data.fullCost
 import com.ai.data.encode
 import com.ai.data.matchKey
 import com.ai.data.parseMatchVerdict
@@ -525,7 +526,13 @@ class TournamentEngine internal constructor(
         val runJob = runJobOf(reportId)
         val itemJobs = run.matches.values.mapNotNull { itemJobOf(it.id) }
         return deleteRunDeferred(appViewModel.viewModelScope, reportId, runJob, itemJobs) {
-            val costDelta = run.matches.values.sumOf { it.totalCost }
+            // Disk-truth costs: the run was dropped from _runs before the join,
+            // so an in-flight match that settled during the cancel never
+            // mirrored into this snapshot — the rows are read-then-deleted
+            // anyway, so sum what's actually on them.
+            val costDelta = run.matches.values.sumOf {
+                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             run.matches.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)

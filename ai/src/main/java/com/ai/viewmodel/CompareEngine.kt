@@ -19,6 +19,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.SecondaryScope
 import com.ai.data.compareCellKey
+import com.ai.data.fullCost
 import com.ai.data.parseSimilarityScore
 import com.ai.data.resolveSecondaryPrompt
 import com.ai.data.stripMetaReferenceLegend
@@ -447,7 +448,12 @@ class CompareEngine internal constructor(
         val runJob = runJobOf(reportId)
         val itemJobs = run.cells.values.mapNotNull { itemJobOf(it.id) }
         return deleteRunDeferred(appViewModel.viewModelScope, reportId, runJob, itemJobs) {
-            val costDelta = run.cells.values.sumOf { it.totalCost }
+            // Disk-truth costs: the run was dropped from _runs before the join,
+            // so an in-flight cell that settled during the cancel never
+            // mirrored into this snapshot.
+            val costDelta = run.cells.values.sumOf {
+                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            }
             run.cells.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
