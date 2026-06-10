@@ -17,7 +17,6 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.SecondaryScope
 import com.ai.data.compareCellKey
-import com.ai.data.fullCost
 import com.ai.data.parseSimilarityScore
 import com.ai.data.resolveSecondaryPrompt
 import com.ai.data.stripMetaReferenceLegend
@@ -31,7 +30,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Authoritative runtime owner for the "Compare with meta" run on every report.
@@ -51,7 +49,7 @@ import kotlinx.coroutines.withContext
  */
 class CompareEngine internal constructor(
     override val appViewModel: AppViewModel,
-    private val reportViewModel: ReportViewModel
+    override val reportViewModel: ReportViewModel
 ) : SecondaryBatchEngine<CompareRunKey, CompareCellState, CompareRunState>() {
     override fun copyWithItems(run: CompareRunState, items: Map<String, CompareCellState>) =
         run.copy(cells = items)
@@ -64,6 +62,7 @@ class CompareEngine internal constructor(
     override fun terminalizeItem(item: CompareCellState, message: String) =
         item.copy(status = CompareCellStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun itemFromRow(row: SecondaryResult) = row.toCompareCellState()
+    override fun markItemRunning(item: CompareCellState) = item.copy(status = CompareCellStatus.RUNNING)
     override fun canRedispatch(context: Context, run: CompareRunState) =
         run.comparePrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 15
     override val requeueBuildLabel = "Re-queuing compare"
@@ -91,8 +90,7 @@ class CompareEngine internal constructor(
         // ♻️ Models-as-workers must hold on resume / Broken-work restart too —
         // the hydrated prompt carries the CONFIGURED swarm, so re-scoring
         // without the swap would pull in foreign workers.
-        val prompt = if (report.useReportModelsAsWorkers)
-            run.comparePrompt.copy(workers = reportModelWorkers(report)) else run.comparePrompt
+        val prompt = run.comparePrompt.withWorkerOverrides(report)
         val pending = rows.mapNotNull { row ->
             val c = run.cells.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
             PendingCell(c.agentId, c.metaResultId, row)
@@ -129,45 +127,26 @@ class CompareEngine internal constructor(
 
     override suspend fun hydrate(context: Context, reportId: String) {
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val rows = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.COMPARE)
-        }
-        val byRun = rows.filter { !it.compareRunId.isNullOrBlank() }
-            .groupBy { it.compareRunId!! }
-        if (byRun.isEmpty()) {
-            _runs.update { it - reportId }
-            return
-        }
-        // One compare run per report — pick the newest run group.
-        val (runId, group) = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }!!
-        // Keep the run visible even if the compare prompt was deleted/renamed
-        // since it ran: fall back to a synthetic prompt from the row metadata
-        // (blank text) so the cells hydrate read-only. Rerun/resume no-op on a
-        // synthetic (blank-text) prompt. See audit bug 15.
-        val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
-            ?: comparePromptById(aiSettings, null)
-            ?: InternalPrompt(
-                id = group.first().metaPromptId ?: "",
-                name = group.first().metaPromptName?.takeIf { it.isNotBlank() } ?: "(prompt unavailable)",
-                category = COMPARE_CATEGORY
+        hydrateNewestRun(context, reportId, reportId, { it.compareRunId }) { runId, group ->
+            // Keep the run visible even if the compare prompt was deleted/renamed
+            // since it ran: fall back to a synthetic prompt from the row metadata
+            // (blank text) so the cells hydrate read-only. Rerun/resume no-op on a
+            // synthetic (blank-text) prompt. See audit bug 15.
+            val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
+                ?: comparePromptById(aiSettings, null)
+                ?: InternalPrompt(
+                    id = group.first().metaPromptId ?: "",
+                    name = group.first().metaPromptName?.takeIf { it.isNotBlank() } ?: "(prompt unavailable)",
+                    category = COMPARE_CATEGORY
+                )
+            CompareRunState(
+                key = reportId,
+                reportId = reportId,
+                runId = runId,
+                comparePrompt = prompt,
+                cells = itemsFromGroup(reportId, group)
             )
-        val currentCells = _runs.value[reportId]?.cells
-        val cells = group.mapNotNull { it.toCompareCellState() }
-            .associateBy { it.key }
-            .mapValues { (k, diskCell) ->
-                if (diskCell.status == CompareCellStatus.PENDING &&
-                    currentCells?.get(k)?.status == CompareCellStatus.RUNNING
-                ) diskCell.copy(status = CompareCellStatus.RUNNING) else diskCell
-            }
-        val run = CompareRunState(
-            key = reportId,
-            reportId = reportId,
-            runId = runId,
-            comparePrompt = prompt,
-            cells = cells
-        )
-        // Don't re-publish a run whose delete is mid-flight (rows still on disk).
-        _runs.update { if (isDeleting(reportId)) it else it + (reportId to run) }
+        }
     }
 
     fun runByKey(key: CompareRunKey): CompareRunState? = _runs.value[key]
@@ -190,100 +169,76 @@ class CompareEngine internal constructor(
      *  Pre-creates agents×meta CELL placeholders (sentinel provider/model),
      *  publishes the run with all cells PENDING, then scores each cell through
      *  the worker batch. */
-    fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? {
-        val rk: CompareRunKey = reportId
-        runJobOf(rk)?.let { if (it.isActive) return it }
-        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val runId = java.util.UUID.randomUUID().toString()
-        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
-            try {
-                withTracerTags(reportId = reportId, category = TRACE_CATEGORY, runId = runId) {
-                    val aiSettings = appViewModel.uiState.value.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    // ♻️ report-models as the compare worker pool, winning over a *SELECT pick.
-                    val prompt = comparePromptById(aiSettings, promptId)?.let {
-                        when {
-                            report.useReportModelsAsWorkers -> it.copy(workers = reportModelWorkers(report))
-                            overrideWorkers != null -> it.copy(workers = overrideWorkers)
-                            else -> it
-                        }
-                    }
-                    if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
-                        AppLog.w("Compare", "meta_compare prompt not configured / no runnable workers — aborting")
-                        return@withTracerTags
-                    }
-                    ReportStorage.bumpReportTimestamp(context, reportId)
-                    val successful = report.agents.filter {
-                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                    }
-                    // Resolve the chosen meta rows, keeping only those that still
-                    // exist with non-blank content.
-                    val metaRows = metaResultIds.distinct().mapNotNull { mid ->
-                        SecondaryResultStorage.get(context, reportId, mid)?.takeIf { !it.content.isNullOrBlank() }
-                    }
-                    if (successful.isEmpty() || metaRows.isEmpty()) {
-                        AppLog.w("Compare", "nothing to compare (answers=${successful.size}, meta=${metaRows.size})")
-                        return@withTracerTags
-                    }
-                    AuditLog.append(reportId, "Start Compare with meta — ${successful.size} answers × ${metaRows.size} meta items")
-                    val scopeEncoded = SecondaryScope.AllReports.encode()
+    fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? =
+        launchRun(context, reportId, buildKey, TRACE_CATEGORY) { runId ->
+            val aiSettings = appViewModel.uiState.value.aiSettings
+            val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
+            // ♻️ report-models as the compare worker pool, winning over a *SELECT pick.
+            val prompt = comparePromptById(aiSettings, promptId)?.withWorkerOverrides(report, overrideWorkers)
+            if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+                AppLog.w("Compare", "meta_compare prompt not configured / no runnable workers — aborting")
+                return@launchRun
+            }
+            ReportStorage.bumpReportTimestamp(context, reportId)
+            val successful = report.agents.filter {
+                it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+            }
+            // Resolve the chosen meta rows, keeping only those that still
+            // exist with non-blank content.
+            val metaRows = metaResultIds.distinct().mapNotNull { mid ->
+                SecondaryResultStorage.get(context, reportId, mid)?.takeIf { !it.content.isNullOrBlank() }
+            }
+            if (successful.isEmpty() || metaRows.isEmpty()) {
+                AppLog.w("Compare", "nothing to compare (answers=${successful.size}, meta=${metaRows.size})")
+                return@launchRun
+            }
+            AuditLog.append(reportId, "Start Compare with meta — ${successful.size} answers × ${metaRows.size} meta items")
+            val scopeEncoded = SecondaryScope.AllReports.encode()
 
-                    val pending = mutableListOf<PendingCell>()
-                    val newCells = LinkedHashMap<String, CompareCellState>()
-                    // Build stage: create every (answer × meta) cell up front.
-                    if (buildKey != null) appViewModel.beginBuild(buildKey, cellCountFor(successful.size, metaRows.size), "Building compare")
-                    var built = 0
-                    for (agent in successful) {
-                        for (metaRow in metaRows) {
-                            val placeholder = SecondaryResult(
-                                id = java.util.UUID.randomUUID().toString(),
-                                reportId = reportId,
-                                kind = SecondaryKind.COMPARE,
-                                providerId = COMPARE_PENDING_PROVIDER,
-                                model = COMPARE_PENDING_MODEL,
-                                agentName = "Compare cell",
-                                timestamp = System.currentTimeMillis(),
-                                content = null,
-                                compareRunId = runId,
-                                compareAgentId = agent.agentId,
-                                compareToResultId = metaRow.id,
-                                metaPromptId = prompt.id,
-                                metaPromptName = prompt.name,
-                                runId = runId,
-                                secondaryScope = scopeEncoded
-                            )
-                            pending.add(PendingCell(agent.agentId, metaRow.id, placeholder))
-                            if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
-                        }
-                    }
-                    val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
-                        .mapTo(HashSet()) { it.id }
-                    pending.removeAll { it.placeholder.id !in savedIds }
-                    pending.forEach { item -> item.placeholder.toCompareCellState()?.let { newCells[it.key] = it } }
-                    if (buildKey != null) appViewModel.finishBuild(buildKey)
-
-                    _runs.update { runs ->
-                        runs + (rk to CompareRunState(
-                            key = rk, reportId = reportId, runId = runId,
-                            comparePrompt = prompt, cells = newCells
-                        ))
-                    }
-
-                    dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
-                    AuditLog.append(reportId, "End Compare with meta")
-                }
-            } finally {
-                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverItems(context, reportId)
-                if (buildKey != null) {
-                    val p = appViewModel.batchBuildProgress.value[buildKey]
-                    if (p != null && !p.done) appViewModel.clearBuild(buildKey)
+            val pending = mutableListOf<PendingCell>()
+            val newCells = LinkedHashMap<String, CompareCellState>()
+            // Build stage: create every (answer × meta) cell up front.
+            if (buildKey != null) appViewModel.beginBuild(buildKey, cellCountFor(successful.size, metaRows.size), "Building compare")
+            var built = 0
+            for (agent in successful) {
+                for (metaRow in metaRows) {
+                    val placeholder = SecondaryResult(
+                        id = java.util.UUID.randomUUID().toString(),
+                        reportId = reportId,
+                        kind = SecondaryKind.COMPARE,
+                        providerId = COMPARE_PENDING_PROVIDER,
+                        model = COMPARE_PENDING_MODEL,
+                        agentName = "Compare cell",
+                        timestamp = System.currentTimeMillis(),
+                        content = null,
+                        compareRunId = runId,
+                        compareAgentId = agent.agentId,
+                        compareToResultId = metaRow.id,
+                        metaPromptId = prompt.id,
+                        metaPromptName = prompt.name,
+                        runId = runId,
+                        secondaryScope = scopeEncoded
+                    )
+                    pending.add(PendingCell(agent.agentId, metaRow.id, placeholder))
+                    if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                 }
             }
+            val savedIds = SecondaryResultStorage.saveAll(context, pending.map { it.placeholder })
+                .mapTo(HashSet()) { it.id }
+            pending.removeAll { it.placeholder.id !in savedIds }
+            pending.forEach { item -> item.placeholder.toCompareCellState()?.let { newCells[it.key] = it } }
+            if (buildKey != null) appViewModel.finishBuild(buildKey)
+
+            _runs.update { runs ->
+                runs + (reportId to CompareRunState(
+                    key = reportId, reportId = reportId, runId = runId,
+                    comparePrompt = prompt, cells = newCells
+                ))
+            }
+
+            dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
+            AuditLog.append(reportId, "End Compare with meta")
         }
-        registerRunJob(rk, job)
-        return job
-    }
 
     /** Dynamic-host cell dispatch — each worker call self-throttles its own
      *  provider under the shared workers cap (mirrors the Tournament batch). */
@@ -410,24 +365,7 @@ class CompareEngine internal constructor(
             restartItemsWhere(context, reportId) { it.id in rowIds }
         }
 
-    /** Cancel + delete the whole run, rolling the spend into the report's
-     *  deleted-items tally. */
-    fun deleteRun(context: Context, reportId: String): Job {
-        val run = _runs.value[reportId] ?: return appViewModel.viewModelScope.launch { }
-        // Capture the live coroutines before the deferred delete drops the run.
-        val runJob = runJobOf(reportId)
-        val itemJobs = run.cells.values.mapNotNull { itemJobOf(it.id) }
-        return deleteRunDeferred(appViewModel.viewModelScope, reportId, runJob, itemJobs) {
-            // Disk-truth costs: the run was dropped from _runs before the join,
-            // so an in-flight cell that settled during the cancel never
-            // mirrored into this snapshot.
-            val costDelta = run.cells.values.sumOf {
-                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
-            }
-            run.cells.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, reportId)
-        }
-    }
+    // deleteRun lives in the SecondaryBatchEngine base (Compare has no
+    // aggregate row — aggregateRowIdOf's null default skips that delete).
 
 }

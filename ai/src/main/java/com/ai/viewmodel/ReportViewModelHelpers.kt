@@ -160,6 +160,18 @@ internal fun reportModelWorkers(report: Report): List<Worker> =
         .distinctBy { "${it.provider}:${it.model}" }
         .map { Worker(agent = "*N/A", provider = it.provider, model = it.model) }
 
+/** The worker-pool override precedence every batch launch applies: ♻️
+ *  [Report.useReportModelsAsWorkers] wins over an explicit
+ *  [overrideWorkers] pick, which wins over the prompt's configured
+ *  swarm. One definition so launch, resume / Broken-work restart and
+ *  planned-count previews can't drift apart. */
+internal fun com.ai.model.InternalPrompt.withWorkerOverrides(report: Report, overrideWorkers: List<Worker>? = null): com.ai.model.InternalPrompt =
+    when {
+        report.useReportModelsAsWorkers -> copy(workers = reportModelWorkers(report))
+        overrideWorkers != null -> copy(workers = overrideWorkers)
+        else -> this
+    }
+
 /** A single answer model as a one-element worker list. Used when ♻️
  *  models-as-workers wants THAT model — not the whole report-model swarm —
  *  to generate its own response's per-model icon / title (report answers and

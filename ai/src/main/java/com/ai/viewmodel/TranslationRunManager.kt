@@ -314,11 +314,10 @@ class TranslationRunManager(
             // ♻️ When the source report's flag is on, the whole translation runs
             // against its own answer models (winning over a *SELECT pick); the
             // swarm spreads across every report-model.
-            val reportSwarm = if (sourceReport.useReportModelsAsWorkers) reportModelWorkers(sourceReport) else null
             val textPrompt = workerTranslatePrompt(aiSettings, title = false)
-                ?.let { p -> reportSwarm?.let { p.copy(workers = it) } ?: overrideWorkers?.let { p.copy(workers = it) } ?: p }
+                ?.withWorkerOverrides(sourceReport, overrideWorkers)
             val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
-                ?.let { p -> reportSwarm?.let { p.copy(workers = it) } ?: overrideWorkers?.let { p.copy(workers = it) } ?: p }
+                ?.withWorkerOverrides(sourceReport, overrideWorkers)
             if (textPrompt == null && titlePrompt == null) {
                 AppLog.w("Translation", "no workers/translate-text|title prompt — marking all items error")
                 itemsWithIds.forEach {
@@ -1503,11 +1502,8 @@ class TranslationRunManager(
         // ♻️ Models-as-workers must hold on restart / resume too — mirror
         // startTranslation's swap, or the re-dispatch would translate with
         // the CONFIGURED swarm instead of the report's own models.
-        val reportSwarm = if (report.useReportModelsAsWorkers) reportModelWorkers(report) else null
-        val textPrompt = workerTranslatePrompt(aiSettings, title = false)
-            ?.let { p -> reportSwarm?.let { p.copy(workers = it) } ?: p }
-        val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
-            ?.let { p -> reportSwarm?.let { p.copy(workers = it) } ?: p }
+        val textPrompt = workerTranslatePrompt(aiSettings, title = false)?.withWorkerOverrides(report)
+        val titlePrompt = workerTranslatePrompt(aiSettings, title = true)?.withWorkerOverrides(report)
 
         // When the in-memory run state is gone (post-kill resume or
         // manual reload on a finished run), seed the fresh state with

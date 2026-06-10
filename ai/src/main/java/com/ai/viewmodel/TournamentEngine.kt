@@ -20,7 +20,6 @@ import com.ai.data.TournamentRunKey
 import com.ai.data.TournamentRunState
 import com.ai.data.computeWinMatrix
 import com.ai.data.decodeTournamentMatrix
-import com.ai.data.fullCost
 import com.ai.data.encode
 import com.ai.data.matchKey
 import com.ai.data.parseMatchVerdict
@@ -38,7 +37,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Authoritative runtime owner for the Tournament run on every report.
@@ -61,7 +59,7 @@ import kotlinx.coroutines.withContext
  */
 class TournamentEngine internal constructor(
     override val appViewModel: AppViewModel,
-    private val reportViewModel: ReportViewModel
+    override val reportViewModel: ReportViewModel
 ) : SecondaryBatchEngine<TournamentRunKey, MatchState, TournamentRunState>() {
     override fun copyWithItems(run: TournamentRunState, items: Map<String, MatchState>) =
         run.copy(matches = items)
@@ -74,6 +72,7 @@ class TournamentEngine internal constructor(
     override fun terminalizeItem(item: MatchState, message: String) =
         item.copy(status = MatchStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun itemFromRow(row: SecondaryResult) = row.toMatchState()
+    override fun markItemRunning(item: MatchState) = item.copy(status = MatchStatus.RUNNING)
     override fun isItemRow(run: TournamentRunState?, row: SecondaryResult) =
         row.tournamentRole == ROLE_MATCH
     override fun aggregateRowIdOf(run: TournamentRunState) = run.aggregateRowId
@@ -127,50 +126,30 @@ class TournamentEngine internal constructor(
      *  RUNNING match status the disk placeholder can't yet show. */
     override suspend fun hydrate(context: Context, reportId: String) {
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val rows = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
-        }
-        val byRun = rows.filter { !it.tournamentJudgeRunId.isNullOrBlank() }
-            .groupBy { it.tournamentJudgeRunId!! }
-        if (byRun.isEmpty()) {
-            _runs.update { it - reportId }
-            return
-        }
-        // One tournament per report — pick the newest run group.
-        val (runId, group) = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }!!
-        // Keep the run visible even if the tournament prompt was deleted/renamed
-        // since it ran: fall back to a synthetic prompt from the row metadata
-        // (blank text) so matches hydrate read-only. Rerun/resume no-op on a
-        // synthetic (blank-text) prompt. See audit bug 16.
-        val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
-            ?: tournamentPrompt(aiSettings)
-            ?: InternalPrompt(
-                id = group.first().metaPromptId ?: "",
-                name = group.first().metaPromptName?.takeIf { it.isNotBlank() } ?: "(prompt unavailable)",
-                category = WORKERS_CATEGORY
+        hydrateNewestRun(context, reportId, reportId, { it.tournamentJudgeRunId }) { runId, group ->
+            // Keep the run visible even if the tournament prompt was deleted/renamed
+            // since it ran: fall back to a synthetic prompt from the row metadata
+            // (blank text) so matches hydrate read-only. Rerun/resume no-op on a
+            // synthetic (blank-text) prompt. See audit bug 16.
+            val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
+                ?: tournamentPrompt(aiSettings)
+                ?: InternalPrompt(
+                    id = group.first().metaPromptId ?: "",
+                    name = group.first().metaPromptName?.takeIf { it.isNotBlank() } ?: "(prompt unavailable)",
+                    category = WORKERS_CATEGORY
+                )
+            val aggRow = group.firstOrNull { it.tournamentRole == ROLE_AGGREGATE }
+            val method = decodeTournamentMatrix(aggRow?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
+            TournamentRunState(
+                key = reportId,
+                reportId = reportId,
+                runId = runId,
+                tournamentPrompt = prompt,
+                matches = itemsFromGroup(reportId, group),
+                aggregateRowId = aggRow?.id,
+                selectedMethod = method
             )
-        val aggRow = group.firstOrNull { it.tournamentRole == ROLE_AGGREGATE }
-        val method = decodeTournamentMatrix(aggRow?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
-        val currentMatches = _runs.value[reportId]?.matches
-        val matches = group.mapNotNull { it.toMatchState() }
-            .associateBy { it.key }
-            .mapValues { (k, diskMatch) ->
-                if (diskMatch.status == MatchStatus.PENDING &&
-                    currentMatches?.get(k)?.status == MatchStatus.RUNNING
-                ) diskMatch.copy(status = MatchStatus.RUNNING) else diskMatch
-            }
-        val run = TournamentRunState(
-            key = reportId,
-            reportId = reportId,
-            runId = runId,
-            tournamentPrompt = prompt,
-            matches = matches,
-            aggregateRowId = aggRow?.id,
-            selectedMethod = method
-        )
-        // Don't re-publish a run whose delete is mid-flight: its rows are still
-        // on disk but the user already dropped it.
-        _runs.update { if (isDeleting(reportId)) it else it + (reportId to run) }
+        }
     }
 
     fun runByKey(key: TournamentRunKey): TournamentRunState? = _runs.value[key]
@@ -193,117 +172,93 @@ class TournamentEngine internal constructor(
      *  placeholders (sentinel provider/model) + one AGGREGATE placeholder,
      *  publishes the run with all matches PENDING, runs each match through
      *  the worker batch, then folds the verdicts into the aggregate ranking. */
-    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? {
-        val rk = tournamentRunKey(reportId)
-        runJobOf(rk)?.let { if (it.isActive) return it }
-        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val runId = java.util.UUID.randomUUID().toString()
-        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
-            try {
-                withTracerTags(reportId = reportId, category = "after/tournament", runId = runId) {
-                    val aiSettings = appViewModel.uiState.value.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    // ♻️ report-models as the worker pool wins over a *SELECT pick.
-                    val prompt = tournamentPrompt(aiSettings)?.let {
-                        when {
-                            report.useReportModelsAsWorkers -> it.copy(workers = reportModelWorkers(report))
-                            overrideWorkers != null -> it.copy(workers = overrideWorkers)
-                            else -> it
-                        }
-                    }
-                    if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
-                        AppLog.w("Tournament", "workers/tournament not configured — aborting")
-                        return@withTracerTags
-                    }
-                    ReportStorage.bumpReportTimestamp(context, reportId)
-                    val successful = report.agents.filter {
-                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                    }
-                    if (successful.size < 2) return@withTracerTags
-                    AuditLog.append(reportId, "Start Tournament — ${successful.size} responses, ${matchCountFor(successful.size)} matches (worker-judged)")
-                    val scopeEncoded = SecondaryScope.AllReports.encode()
+    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? =
+        launchRun(context, tournamentRunKey(reportId), buildKey, "after/tournament") { runId ->
+            val aiSettings = appViewModel.uiState.value.aiSettings
+            val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
+            // ♻️ report-models as the worker pool wins over a *SELECT pick.
+            val prompt = tournamentPrompt(aiSettings)?.withWorkerOverrides(report, overrideWorkers)
+            if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+                AppLog.w("Tournament", "workers/tournament not configured — aborting")
+                return@launchRun
+            }
+            ReportStorage.bumpReportTimestamp(context, reportId)
+            val successful = report.agents.filter {
+                it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+            }
+            if (successful.size < 2) return@launchRun
+            AuditLog.append(reportId, "Start Tournament — ${successful.size} responses, ${matchCountFor(successful.size)} matches (worker-judged)")
+            val scopeEncoded = SecondaryScope.AllReports.encode()
 
-                    val aggregate = SecondaryResult(
-                        id = java.util.UUID.randomUUID().toString(),
-                        reportId = reportId,
-                        kind = SecondaryKind.TOURNAMENT,
-                        providerId = AGG_PROVIDER,
-                        model = AGG_MODEL,
-                        agentName = "Tournament",
-                        timestamp = System.currentTimeMillis(),
-                        content = null,
-                        tournamentRole = ROLE_AGGREGATE,
-                        tournamentJudgeRunId = runId,
-                        metaPromptId = prompt.id,
-                        metaPromptName = prompt.name,
-                        runId = runId,
-                        secondaryScope = scopeEncoded
-                    )
+            val aggregate = SecondaryResult(
+                id = java.util.UUID.randomUUID().toString(),
+                reportId = reportId,
+                kind = SecondaryKind.TOURNAMENT,
+                providerId = AGG_PROVIDER,
+                model = AGG_MODEL,
+                agentName = "Tournament",
+                timestamp = System.currentTimeMillis(),
+                content = null,
+                tournamentRole = ROLE_AGGREGATE,
+                tournamentJudgeRunId = runId,
+                metaPromptId = prompt.id,
+                metaPromptName = prompt.name,
+                runId = runId,
+                secondaryScope = scopeEncoded
+            )
 
-                    val pending = mutableListOf<PendingMatch>()
-                    val newMatches = LinkedHashMap<String, MatchState>()
-                    // Build stage: create every match placeholder up front.
-                    if (buildKey != null) appViewModel.beginBuild(buildKey, matchCountFor(successful.size), "Building tournament")
-                    var built = 0
-                    for (i in successful.indices) {
-                        for (j in i + 1 until successful.size) {
-                            val a = successful[i]; val b = successful[j]
-                            for ((aa, bb, orient) in listOf(Triple(a, b, 0), Triple(b, a, 1))) {
-                                val placeholder = SecondaryResult(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    reportId = reportId,
-                                    kind = SecondaryKind.TOURNAMENT,
-                                    providerId = TOURNAMENT_PENDING_PROVIDER,
-                                    model = TOURNAMENT_PENDING_MODEL,
-                                    agentName = "Tournament match",
-                                    timestamp = System.currentTimeMillis(),
-                                    content = null,
-                                    tournamentRole = ROLE_MATCH,
-                                    tournamentJudgeRunId = runId,
-                                    matchResponseAId = aa.agentId,
-                                    matchResponseBId = bb.agentId,
-                                    matchOrientation = orient,
-                                    metaPromptId = prompt.id,
-                                    metaPromptName = prompt.name,
-                                    runId = runId,
-                                    secondaryScope = scopeEncoded
-                                )
-                                pending.add(PendingMatch(aa, bb, orient, placeholder))
-                                if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
-                            }
-                        }
+            val pending = mutableListOf<PendingMatch>()
+            val newMatches = LinkedHashMap<String, MatchState>()
+            // Build stage: create every match placeholder up front.
+            if (buildKey != null) appViewModel.beginBuild(buildKey, matchCountFor(successful.size), "Building tournament")
+            var built = 0
+            for (i in successful.indices) {
+                for (j in i + 1 until successful.size) {
+                    val a = successful[i]; val b = successful[j]
+                    for ((aa, bb, orient) in listOf(Triple(a, b, 0), Triple(b, a, 1))) {
+                        val placeholder = SecondaryResult(
+                            id = java.util.UUID.randomUUID().toString(),
+                            reportId = reportId,
+                            kind = SecondaryKind.TOURNAMENT,
+                            providerId = TOURNAMENT_PENDING_PROVIDER,
+                            model = TOURNAMENT_PENDING_MODEL,
+                            agentName = "Tournament match",
+                            timestamp = System.currentTimeMillis(),
+                            content = null,
+                            tournamentRole = ROLE_MATCH,
+                            tournamentJudgeRunId = runId,
+                            matchResponseAId = aa.agentId,
+                            matchResponseBId = bb.agentId,
+                            matchOrientation = orient,
+                            metaPromptId = prompt.id,
+                            metaPromptName = prompt.name,
+                            runId = runId,
+                            secondaryScope = scopeEncoded
+                        )
+                        pending.add(PendingMatch(aa, bb, orient, placeholder))
+                        if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                     }
-                    val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
-                        .mapTo(HashSet()) { it.id }
-                    if (aggregate.id !in savedIds) return@withTracerTags
-                    pending.removeAll { it.placeholder.id !in savedIds }
-                    pending.forEach { item -> item.placeholder.toMatchState()?.let { newMatches[it.key] = it } }
-                    if (buildKey != null) appViewModel.finishBuild(buildKey)
-
-                    _runs.update { runs ->
-                        runs + (rk to TournamentRunState(
-                            key = rk, reportId = reportId, runId = runId, tournamentPrompt = prompt,
-                            matches = newMatches, aggregateRowId = aggregate.id,
-                            selectedMethod = TournamentMethod.COPELAND
-                        ))
-                    }
-
-                    dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
-                    recomputeAggregate(context, reportId)
-                    AuditLog.append(reportId, "End Tournament")
-                }
-            } finally {
-                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverItems(context, reportId)
-                if (buildKey != null) {
-                    val p = appViewModel.batchBuildProgress.value[buildKey]
-                    if (p != null && !p.done) appViewModel.clearBuild(buildKey)
                 }
             }
+            val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
+                .mapTo(HashSet()) { it.id }
+            if (aggregate.id !in savedIds) return@launchRun
+            pending.removeAll { it.placeholder.id !in savedIds }
+            pending.forEach { item -> item.placeholder.toMatchState()?.let { newMatches[it.key] = it } }
+            if (buildKey != null) appViewModel.finishBuild(buildKey)
+
+            _runs.update { runs ->
+                runs + (reportId to TournamentRunState(
+                    key = reportId, reportId = reportId, runId = runId, tournamentPrompt = prompt,
+                    matches = newMatches, aggregateRowId = aggregate.id,
+                    selectedMethod = TournamentMethod.COPELAND
+                ))
+            }
+
+            dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
+            recomputeAggregate(context, reportId)
+            AuditLog.append(reportId, "End Tournament")
         }
-        registerRunJob(rk, job)
-        return job
-    }
 
     /** Worker-batch dispatch shared by [startRun] and the rerun/resume paths
      *  — dynamic-host (each worker call self-throttles its provider) under
@@ -483,27 +438,8 @@ class TournamentEngine internal constructor(
             restartItemsWhere(context, reportId) { it.id in rowIds }
         }
 
-    /** Cancel + delete the whole run (matches + aggregate), rolling the spend
-     *  into the report's deleted-items tally. */
-    fun deleteRun(context: Context, reportId: String): Job {
-        val run = _runs.value[reportId] ?: return appViewModel.viewModelScope.launch { }
-        // Capture the live coroutines before the deferred delete drops the run.
-        val runJob = runJobOf(reportId)
-        val itemJobs = run.matches.values.mapNotNull { itemJobOf(it.id) }
-        return deleteRunDeferred(appViewModel.viewModelScope, reportId, runJob, itemJobs) {
-            // Disk-truth costs: the run was dropped from _runs before the join,
-            // so an in-flight match that settled during the cancel never
-            // mirrored into this snapshot — the rows are read-then-deleted
-            // anyway, so sum what's actually on them.
-            val costDelta = run.matches.values.sumOf {
-                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
-            }
-            run.matches.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, reportId)
-        }
-    }
+    // deleteRun lives in the SecondaryBatchEngine base (items + aggregate
+    // row + deleted-items cost rollup).
 
     /** Delete the current tournament and immediately start a fresh one — the
      *  L1 🔄 redo. */
@@ -539,8 +475,7 @@ class TournamentEngine internal constructor(
         // ♻️ Models-as-workers must hold on resume / Broken-work restart /
         // regenerate too — the hydrated prompt carries the CONFIGURED swarm,
         // so re-judging without the swap would pull in foreign workers.
-        val prompt = if (report.useReportModelsAsWorkers)
-            run.tournamentPrompt.copy(workers = reportModelWorkers(report)) else run.tournamentPrompt
+        val prompt = run.tournamentPrompt.withWorkerOverrides(report)
         val agentsById = report.agents.associateBy { it.agentId }
         val pending = rows.mapNotNull { row ->
             val m = run.matches.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null

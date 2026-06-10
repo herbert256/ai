@@ -48,7 +48,7 @@ import kotlinx.coroutines.withContext
  */
 class TranslatorRankEngine internal constructor(
     override val appViewModel: AppViewModel,
-    private val reportViewModel: ReportViewModel
+    override val reportViewModel: ReportViewModel
 ) : SecondaryBatchEngine<TransRankRunKey, TransRankCellState, TransRankRunState>() {
     override fun copyWithItems(run: TransRankRunState, items: Map<String, TransRankCellState>) =
         run.copy(cells = items)
@@ -62,6 +62,7 @@ class TranslatorRankEngine internal constructor(
     override fun terminalizeItem(item: TransRankCellState, message: String) =
         item.copy(status = TransRankCellStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun itemFromRow(row: SecondaryResult) = row.toTransRankCellState()
+    override fun markItemRunning(item: TransRankCellState) = item.copy(status = TransRankCellStatus.RUNNING)
     override fun isItemRow(run: TransRankRunState?, row: SecondaryResult) =
         run != null && row.tournamentRole == TRANSRANK_ROLE_CELL &&
             row.tournamentJudgeRunId == run.runId
@@ -90,8 +91,7 @@ class TranslatorRankEngine internal constructor(
         // against the report-model panel (what startRun dispatched with),
         // not the configured swarm — otherwise every pinned judge misses
         // the lookup and falls back to a bare provider/model worker.
-        val effPrompt = if (report.useReportModelsAsWorkers)
-            run.prompt.copy(workers = reportModelWorkers(report)) else run.prompt
+        val effPrompt = run.prompt.withWorkerOverrides(report)
         val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
         val judgesByKey = resolveJudges(aiSettings, effPrompt).associateBy { it.key }
         val pending = rows.mapNotNull { row ->
@@ -201,13 +201,7 @@ class TranslatorRankEngine internal constructor(
     ): Int = withContext(Dispatchers.IO) {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val report = ReportStorage.getReport(context, reportId) ?: return@withContext 0
-        val prompt = rankPrompt(aiSettings)?.let {
-            when {
-                report.useReportModelsAsWorkers -> it.copy(workers = reportModelWorkers(report))
-                overrideWorkers != null -> it.copy(workers = overrideWorkers)
-                else -> it
-            }
-        } ?: return@withContext 0
+        val prompt = rankPrompt(aiSettings)?.withWorkerOverrides(report, overrideWorkers) ?: return@withContext 0
         val judges = resolveJudges(aiSettings, prompt)
         if (judges.isEmpty()) return@withContext 0
         cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges, sourceTranslationRunId).size
@@ -233,125 +227,103 @@ class TranslatorRankEngine internal constructor(
         buildKey: String? = null, overrideWorkers: List<Worker>? = null
     ): Job? {
         val rk = transRankRunKey(reportId, sourceTranslationRunId)
-        runJobOf(rk)?.let { if (it.isActive) return it }
-        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val runId = java.util.UUID.randomUUID().toString()
-        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
-            try {
-                withTracerTags(reportId = reportId, category = "transrank/rank", runId = runId) {
-                    val aiSettings = appViewModel.uiState.value.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    // ♻️ report-models become the judge panel, winning over a *SELECT pick.
-                    val prompt = rankPrompt(aiSettings)?.let {
-                        when {
-                            report.useReportModelsAsWorkers -> it.copy(workers = reportModelWorkers(report))
-                            overrideWorkers != null -> it.copy(workers = overrideWorkers)
-                            else -> it
-                        }
-                    }
-                    if (prompt == null) {
-                        AppLog.w("TransRank", "workers/translate-rank prompt not configured — aborting")
-                        return@withTracerTags
-                    }
-                    val judges = resolveJudges(aiSettings, prompt)
-                    if (judges.isEmpty()) {
-                        AppLog.w("TransRank", "no resolvable judges in the swarm — aborting")
-                        return@withTracerTags
-                    }
-                    // Cap each TRANSLATOR to at most TRANSRANK_CELLS_PER_TRANSLATOR
-                    // (item × judge) cells, so the whole batch is at most
-                    // (#translators × 25) — e.g. 10 translator models → ≤ 250.
-                    val candidates = cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges, sourceTranslationRunId)
-                    val cellCount = candidates.size
-                    if (cellCount == 0) {
-                        AppLog.w("TransRank", "nothing to rank (judges=${judges.size})")
-                        return@withTracerTags
-                    }
-                    ReportStorage.bumpReportTimestamp(context, reportId)
-                    AuditLog.append(reportId, "Start Rank-the-translators ($langName) — $cellCount cells × ${judges.size} judges")
-                    val scopeEncoded = SecondaryScope.AllReports.encode()
-
-                    val aggregate = SecondaryResult(
-                        id = java.util.UUID.randomUUID().toString(),
-                        reportId = reportId,
-                        kind = SecondaryKind.TRANSRANK,
-                        providerId = AGG_PROVIDER,
-                        model = AGG_MODEL,
-                        agentName = "Rank the translators",
-                        timestamp = System.currentTimeMillis(),
-                        content = null,
-                        tournamentRole = TRANSRANK_ROLE_AGGREGATE,
-                        tournamentJudgeRunId = runId,
-                        translationRunId = sourceTranslationRunId,
-                        targetLanguage = langName,
-                        targetLanguageNative = langNative,
-                        metaPromptId = prompt.id,
-                        metaPromptName = prompt.name,
-                        runId = runId,
-                        secondaryScope = scopeEncoded
-                    )
-
-                    val pending = mutableListOf<PendingCell>()
-                    val newCells = LinkedHashMap<String, TransRankCellState>()
-                    if (buildKey != null) appViewModel.beginBuild(buildKey, cellCount, "Building translator ranking")
-                    var built = 0
-                    for ((item, judge) in candidates) {
-                        val placeholder = SecondaryResult(
-                            id = java.util.UUID.randomUUID().toString(),
-                            reportId = reportId,
-                            kind = SecondaryKind.TRANSRANK,
-                            providerId = judge.providerId,
-                            model = judge.model,
-                            agentName = "${judge.providerId} / ${judge.model}",
-                            timestamp = System.currentTimeMillis(),
-                            content = null,
-                            tournamentRole = TRANSRANK_ROLE_CELL,
-                            tournamentJudgeRunId = runId,
-                            translationRunId = sourceTranslationRunId,
-                            compareToResultId = item.translationRowId,
-                            matchResponseAId = item.translatorProviderId,
-                            matchResponseBId = item.translatorModel,
-                            targetLanguage = langName,
-                            targetLanguageNative = langNative,
-                            metaPromptId = prompt.id,
-                            metaPromptName = prompt.name,
-                            runId = runId,
-                            secondaryScope = scopeEncoded
-                        )
-                        pending.add(PendingCell(judge, item, placeholder))
-                        if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
-                    }
-                    val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
-                        .mapTo(HashSet()) { it.id }
-                    if (aggregate.id !in savedIds) return@withTracerTags
-                    pending.removeAll { it.placeholder.id !in savedIds }
-                    pending.forEach { item -> item.placeholder.toTransRankCellState()?.let { newCells[it.key] = it } }
-                    if (buildKey != null) appViewModel.finishBuild(buildKey)
-
-                    _runs.update { runs ->
-                        runs + (rk to TransRankRunState(
-                            key = rk, reportId = reportId, runId = runId,
-                            sourceTranslationRunId = sourceTranslationRunId,
-                            targetLanguageName = langName, targetLanguageNative = langNative,
-                            prompt = prompt, cells = newCells, aggregateRowId = aggregate.id
-                        ))
-                    }
-
-                    dispatchCells(context, rk, prompt, pending)
-                    recomputeAggregate(context, rk)
-                    AuditLog.append(reportId, "End Rank-the-translators ($langName)")
-                }
-            } finally {
-                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverItems(context, rk)
-                if (buildKey != null) {
-                    val p = appViewModel.batchBuildProgress.value[buildKey]
-                    if (p != null && !p.done) appViewModel.clearBuild(buildKey)
-                }
+        return launchRun(context, rk, buildKey, "transrank/rank") { runId ->
+            val aiSettings = appViewModel.uiState.value.aiSettings
+            val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
+            // ♻️ report-models become the judge panel, winning over a *SELECT pick.
+            val prompt = rankPrompt(aiSettings)?.withWorkerOverrides(report, overrideWorkers)
+            if (prompt == null) {
+                AppLog.w("TransRank", "workers/translate-rank prompt not configured — aborting")
+                return@launchRun
             }
+            val judges = resolveJudges(aiSettings, prompt)
+            if (judges.isEmpty()) {
+                AppLog.w("TransRank", "no resolvable judges in the swarm — aborting")
+                return@launchRun
+            }
+            // Cap each TRANSLATOR to at most TRANSRANK_CELLS_PER_TRANSLATOR
+            // (item × judge) cells, so the whole batch is at most
+            // (#translators × 25) — e.g. 10 translator models → ≤ 250.
+            val candidates = cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges, sourceTranslationRunId)
+            val cellCount = candidates.size
+            if (cellCount == 0) {
+                AppLog.w("TransRank", "nothing to rank (judges=${judges.size})")
+                return@launchRun
+            }
+            ReportStorage.bumpReportTimestamp(context, reportId)
+            AuditLog.append(reportId, "Start Rank-the-translators ($langName) — $cellCount cells × ${judges.size} judges")
+            val scopeEncoded = SecondaryScope.AllReports.encode()
+
+            val aggregate = SecondaryResult(
+                id = java.util.UUID.randomUUID().toString(),
+                reportId = reportId,
+                kind = SecondaryKind.TRANSRANK,
+                providerId = AGG_PROVIDER,
+                model = AGG_MODEL,
+                agentName = "Rank the translators",
+                timestamp = System.currentTimeMillis(),
+                content = null,
+                tournamentRole = TRANSRANK_ROLE_AGGREGATE,
+                tournamentJudgeRunId = runId,
+                translationRunId = sourceTranslationRunId,
+                targetLanguage = langName,
+                targetLanguageNative = langNative,
+                metaPromptId = prompt.id,
+                metaPromptName = prompt.name,
+                runId = runId,
+                secondaryScope = scopeEncoded
+            )
+
+            val pending = mutableListOf<PendingCell>()
+            val newCells = LinkedHashMap<String, TransRankCellState>()
+            if (buildKey != null) appViewModel.beginBuild(buildKey, cellCount, "Building translator ranking")
+            var built = 0
+            for ((item, judge) in candidates) {
+                val placeholder = SecondaryResult(
+                    id = java.util.UUID.randomUUID().toString(),
+                    reportId = reportId,
+                    kind = SecondaryKind.TRANSRANK,
+                    providerId = judge.providerId,
+                    model = judge.model,
+                    agentName = "${judge.providerId} / ${judge.model}",
+                    timestamp = System.currentTimeMillis(),
+                    content = null,
+                    tournamentRole = TRANSRANK_ROLE_CELL,
+                    tournamentJudgeRunId = runId,
+                    translationRunId = sourceTranslationRunId,
+                    compareToResultId = item.translationRowId,
+                    matchResponseAId = item.translatorProviderId,
+                    matchResponseBId = item.translatorModel,
+                    targetLanguage = langName,
+                    targetLanguageNative = langNative,
+                    metaPromptId = prompt.id,
+                    metaPromptName = prompt.name,
+                    runId = runId,
+                    secondaryScope = scopeEncoded
+                )
+                pending.add(PendingCell(judge, item, placeholder))
+                if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
+            }
+            val savedIds = SecondaryResultStorage.saveAll(context, listOf(aggregate) + pending.map { it.placeholder })
+                .mapTo(HashSet()) { it.id }
+            if (aggregate.id !in savedIds) return@launchRun
+            pending.removeAll { it.placeholder.id !in savedIds }
+            pending.forEach { item -> item.placeholder.toTransRankCellState()?.let { newCells[it.key] = it } }
+            if (buildKey != null) appViewModel.finishBuild(buildKey)
+
+            _runs.update { runs ->
+                runs + (rk to TransRankRunState(
+                    key = rk, reportId = reportId, runId = runId,
+                    sourceTranslationRunId = sourceTranslationRunId,
+                    targetLanguageName = langName, targetLanguageNative = langNative,
+                    prompt = prompt, cells = newCells, aggregateRowId = aggregate.id
+                ))
+            }
+
+            dispatchCells(context, rk, prompt, pending)
+            recomputeAggregate(context, rk)
+            AuditLog.append(reportId, "End Rank-the-translators ($langName)")
         }
-        registerRunJob(rk, job)
-        return job
     }
 
     private suspend fun dispatchCells(
@@ -514,7 +486,12 @@ class TranslatorRankEngine internal constructor(
             removeItemsMatching(context, key) { it.id in rowIds }
         }
 
-    fun deleteRun(context: Context, key: TransRankRunKey): Job {
+    /** Unlike the base deleteRun (which deletes the in-memory item rows),
+     *  this sweeps the DISK by source-translation-run id, so a mid-build
+     *  cancel — where startRun already wrote the aggregate but hasn't
+     *  published the run — still removes every row (no orphan row). */
+    override fun deleteRun(context: Context, runKey: TransRankRunKey): Job {
+        val key = runKey
         // deleteRunDeferred stops the UI FIRST: it drops the run from the flow
         // synchronously (the live screen + the Manage row read _runs, so they
         // stop rendering at once — and the per-cell finally `transitionCell`

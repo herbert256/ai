@@ -11,6 +11,7 @@ import com.ai.data.BatchRun
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.withTracerTags
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,6 +43,9 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
     /** The app view model — scope, build progress, uiState counters. */
     protected abstract val appViewModel: AppViewModel
 
+    /** The report view model — log context, worker runner. */
+    protected abstract val reportViewModel: ReportViewModel
+
     /** The [SecondaryKind] this engine's rows are stored under. */
     protected abstract val secondaryKind: SecondaryKind
 
@@ -68,6 +72,11 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  `toMatchState` / `toJudgeCellState` / … converter. Null when the row
      *  is missing the fields an item needs. */
     protected abstract fun itemFromRow(row: SecondaryResult): ItemState?
+
+    /** [item] re-marked RUNNING — hydrate's preserve-a-live-coroutine merge
+     *  ([itemsFromGroup]) uses it on a disk placeholder that can't yet show
+     *  the RUNNING status of its in-process worker. */
+    protected abstract fun markItemRunning(item: ItemState): ItemState
 
     /** True when [row] is one of [run]'s items — the per-engine role / run-id
      *  filter in front of [isStaleRow] (MATCH role for Tournament, CELL role
@@ -133,6 +142,106 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
     protected abstract suspend fun redispatchRows(context: Context, runKey: RunKey, rows: List<SecondaryResult>)
 
     // ===== Promoted flows (byte-identical across the four engines) =====
+
+    /** The startRun scaffold every engine copied: refuse to double-launch
+     *  (returning the live Job), bump the global active-batches counter,
+     *  mint a runId, run [body] under the report's log context + tracer
+     *  tags, and ALWAYS decrement the counter, finalize leftover rows and
+     *  release a stuck build popup on the way out. [body] does the
+     *  engine-specific part: enumerate items, persist placeholders,
+     *  publish the run, dispatch, recompute. */
+    protected fun launchRun(
+        context: Context,
+        runKey: RunKey,
+        buildKey: String?,
+        traceCategory: String,
+        body: suspend (runId: String) -> Unit,
+    ): Job {
+        runJobOf(runKey)?.let { if (it.isActive) return it }
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        val reportId = reportIdOf(runKey)
+        val runId = java.util.UUID.randomUUID().toString()
+        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+            try {
+                withTracerTags(reportId = reportId, category = traceCategory, runId = runId) {
+                    body(runId)
+                }
+            } finally {
+                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+                finalizeLeftoverItems(context, runKey)
+                if (buildKey != null) {
+                    val p = appViewModel.batchBuildProgress.value[buildKey]
+                    if (p != null && !p.done) appViewModel.clearBuild(buildKey)
+                }
+            }
+        }
+        registerRunJob(runKey, job)
+        return job
+    }
+
+    /** The hydrate scaffold of the single-run-per-report engines: list this
+     *  kind's rows, group them by [runIdOf] (rows with a blank run id are
+     *  ignored), keep the NEWEST group (legacy multi-run rows may exist),
+     *  and publish the run [buildRun] makes of it — unless its delete is
+     *  still mid-flight. No groups at all drops the run instead. */
+    protected suspend fun hydrateNewestRun(
+        context: Context,
+        reportId: String,
+        runKey: RunKey,
+        runIdOf: (SecondaryResult) -> String?,
+        buildRun: (runId: String, group: List<SecondaryResult>) -> RunState,
+    ) {
+        val rows = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, reportId, secondaryKind)
+        }
+        val byRun = rows.filter { !runIdOf(it).isNullOrBlank() }.groupBy { runIdOf(it)!! }
+        if (byRun.isEmpty()) {
+            dropRun(runKey)
+            return
+        }
+        val (runId, group) = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }!!
+        val run = buildRun(runId, group)
+        _runs.update { if (isDeleting(runKey)) it else it + (runKey to run) }
+    }
+
+    /** Disk rows → item map for hydrate, preserving a live RUNNING status
+     *  from the currently-published run that the disk placeholder can't
+     *  show yet. Non-item rows (the AGGREGATE) fall out via [itemFromRow]. */
+    protected fun itemsFromGroup(runKey: RunKey, group: List<SecondaryResult>): Map<String, ItemState> {
+        val current = _runs.value[runKey]?.items
+        return group.mapNotNull { itemFromRow(it) }
+            .associateBy { it.key }
+            .mapValues { (k, diskItem) ->
+                if (diskItem.status == BatchItemStatus.PENDING && current?.get(k)?.status == BatchItemStatus.RUNNING)
+                    markItemRunning(diskItem) else diskItem
+            }
+    }
+
+    /** Cancel + delete the whole run (items + aggregate row), rolling the
+     *  spend into the report's deleted-items tally. The cheap part drops
+     *  the run from the flow synchronously; the disk sweep runs in the
+     *  background (see [deleteRunDeferred]). Open — TransRank overrides
+     *  with a disk sweep keyed by its source translation run. */
+    open fun deleteRun(context: Context, runKey: RunKey): Job {
+        val run = _runs.value[runKey] ?: return appViewModel.viewModelScope.launch { }
+        val reportId = reportIdOf(runKey)
+        // Capture the live coroutines before the deferred delete drops the run.
+        val runJob = runJobOf(runKey)
+        val itemJobs = run.items.values.mapNotNull { itemJobOf(it.id) }
+        return deleteRunDeferred(appViewModel.viewModelScope, runKey, runJob, itemJobs) {
+            // Disk-truth costs: the run was dropped from _runs before the join,
+            // so an in-flight item that settled during the cancel never
+            // mirrored into this snapshot — the rows are read-then-deleted
+            // anyway, so sum what's actually on them.
+            val costDelta = run.items.values.sumOf {
+                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            }
+            run.items.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            aggregateRowIdOf(run)?.let { SecondaryResultStorage.delete(context, reportId, it) }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+    }
 
     /** Stamp an "interrupted" error on a row — unless it already reached a
      *  terminal state on disk (result, error, or duration present), so a row
