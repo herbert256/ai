@@ -324,7 +324,12 @@ spreads across the pool:
   pass where EVERY candidate was cooling waits for the earliest
   cooldown to lift and re-runs the chain (up to 3 extra passes,
   20 s per-wait cap) before settling on `AllRateLimited` — so a 5 s
-  429 blip across the pool doesn't mass-error a batch. See
+  429 blip across the pool doesn't mass-error a batch. Under a
+  throttled batch the wait runs permit-free: `runThrottledBatch`'s
+  dynamic-host path installs `ProviderThrottle.poolCoolingWaiter`,
+  which releases the item's sub-cap + global permits for the sleep
+  and re-acquires them before the next pass, so cooling items don't
+  throttle the rest of the batch. See
   [report-icons.md](report-icons.md) for the full engine.
 
 **Run-time worker source** — a worker prompt's

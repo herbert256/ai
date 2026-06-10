@@ -5,6 +5,7 @@ import com.ai.data.AnalysisResponse
 import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
 import com.ai.data.ModelCooldownStore
+import com.ai.data.ProviderThrottle
 import com.ai.data.WORKER_429_DEFAULT_MS
 import com.ai.data.retryAfterFromHeaderBlock
 import com.ai.model.InternalPrompt
@@ -126,9 +127,12 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
         // for the earliest cooldown to lift and re-run the chain, bounded by
         // ALL_RATE_LIMITED_MAX_RETRIES extra passes and capped at
         // ALL_RATE_LIMITED_MAX_WAIT_MS per wait (a wake further out means a
-        // real bench — hours, not a blip — so waiting is pointless). The wait
-        // holds the caller's batch permits, which is intentional: the item IS
-        // still in flight, exactly like the type-A bench loop's gate.
+        // real bench — hours, not a blip — so waiting is pointless). Under a
+        // throttled batch the wait runs PERMIT-FREE: the batch layer installs
+        // ProviderThrottle.poolCoolingWaiter, which releases the item's
+        // sub-cap + global permits for the sleep and re-acquires them before
+        // the next pass — so items waiting out a cooling pool don't throttle
+        // the rest of the batch. Outside a batch it's a plain delay.
         var pass = 0
         while (true) {
             var sawRateLimit = false
@@ -204,7 +208,8 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
             }
             val delayMs = waitMs.coerceAtLeast(ALL_RATE_LIMITED_MIN_WAIT_MS) + (0L..500L).random()
             AppLog.i("Workers", "'${prompt.name}' all workers cooling — retrying in ${delayMs}ms (pass $pass/$ALL_RATE_LIMITED_MAX_RETRIES)")
-            kotlinx.coroutines.delay(delayMs)
+            val waiter = ProviderThrottle.poolCoolingWaiter.get()
+            if (waiter != null) waiter(delayMs) else kotlinx.coroutines.delay(delayMs)
         }
     }
 

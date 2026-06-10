@@ -101,6 +101,20 @@ object ProviderThrottle {
     val throttleWaitObserver: ThreadLocal<((waiting: Boolean) -> Unit)?> =
         ThreadLocal.withInitial { null }
 
+    /** Pool-cooling waiter installed by `runThrottledBatch`'s dynamic-host
+     *  path — the dynamic-host sibling of [backoffPermitYielder]. When the
+     *  worker chain finds EVERY pool candidate cooling (WorkerRunner's
+     *  all-rate-limited retry), it calls this to wait the cooldown out
+     *  WITHOUT pinning batch capacity: the installed implementation
+     *  releases the item's sub-cap + global permits, delays (suspending,
+     *  cancellable) holding nothing, then re-acquires them in canonical
+     *  order before the chain retries. Read on the coroutine thread (the
+     *  chain itself), so the [asContextElement] re-install is all the
+     *  propagation it needs — like [throttleWaitObserver]. Null = not
+     *  under a throttled batch → callers fall back to a plain delay. */
+    val poolCoolingWaiter: ThreadLocal<(suspend (waitMs: Long) -> Unit)?> =
+        ThreadLocal.withInitial { null }
+
     /** Sleep [ms] for a retry backoff. If the current flow registered a
      *  [backoffPermitYielder] (the throttled-batch flows do), delegate to
      *  it so the held permits are released for the duration; otherwise a

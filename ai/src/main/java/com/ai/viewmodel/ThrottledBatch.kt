@@ -80,7 +80,11 @@ import kotlinx.coroutines.withTimeout
  *                  `permitPreAcquired` is NOT set, so each inner call acquires
  *                  its own per-host permit through `ProviderThrottleInterceptor`
  *                  (sub → global → host order preserved, no same-host
- *                  re-acquire). [hostOf] is ignored. Default false keeps the
+ *                  re-acquire). `ProviderThrottle.poolCoolingWaiter` is also
+ *                  installed, so the worker chain's all-rate-limited retry
+ *                  waits a cooling pool out with the permits RELEASED
+ *                  ([PermitHold.yieldSuspending]) instead of pinning them.
+ *                  [hostOf] is ignored. Default false keeps the
  *                  fixed-host path (and its null = skip) byte-for-byte.
  * @param body      the per-item work (the network call + its own persist /
  *                  status / deleted-check logic). Runs with the permits
@@ -124,8 +128,19 @@ internal suspend fun <T> runThrottledBatch(
                         onCleared = { onCleared(item) }
                     )
                     try {
-                        if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
-                        else body(item)
+                        // Pool-cooling waits run permit-free: when the worker
+                        // chain finds EVERY candidate cooling it calls the
+                        // installed waiter instead of delaying in place, so an
+                        // item waiting out a cooling pool doesn't pin sub-cap /
+                        // global capacity other items could use (the
+                        // dynamic-host sibling of backoffPermitYielder).
+                        withContext(
+                            ProviderThrottle.poolCoolingWaiter
+                                .asContextElement({ ms -> hold.yieldSuspending(ms) })
+                        ) {
+                            if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
+                            else body(item)
+                        }
                     } finally {
                         hold.dispose()
                     }
@@ -225,6 +240,55 @@ internal class PermitHold(
     private val lock = Any()
     private var held = true
     private var done = false
+
+    /** Suspending counterpart of [yieldFor] for the pool-cooling retry
+     *  (see `ProviderThrottle.poolCoolingWaiter`): release all permits,
+     *  delay [ms] holding nothing (cancellable), then re-acquire in
+     *  canonical order with the suspending semaphore API. Only installed
+     *  by the dynamic-host batch path, whose host is "" (a no-op stub
+     *  releaser), so the blocking `ProviderThrottle.acquire` below never
+     *  actually blocks. A no-op if already [dispose]d; a cancellation
+     *  mid-delay or mid-re-acquire leaves `held = false` with every
+     *  partial acquisition rolled back, so [dispose] releases nothing. */
+    suspend fun yieldSuspending(ms: Long) {
+        synchronized(lock) {
+            if (!held || done) return
+            hostReleaser.release()
+            global.release()
+            subCap.release()
+            held = false
+        }
+        kotlinx.coroutines.delay(ms)
+        if (synchronized(lock) { done }) return
+        var gotSub = false
+        var gotGlobal = false
+        var gotHost: com.ai.data.ProviderThrottle.Releaser? = null
+        try {
+            subCap.acquire()
+            gotSub = true
+            global.acquire()
+            gotGlobal = true
+            gotHost = com.ai.data.ProviderThrottle.acquire(host)
+        } catch (t: Throwable) {
+            gotHost?.release()
+            if (gotGlobal) global.release()
+            if (gotSub) subCap.release()
+            throw t
+        }
+        val newHostReleaser = gotHost
+        synchronized(lock) {
+            if (done) {
+                // Disposed while we were re-acquiring: undo so nothing
+                // leaks; dispose() released nothing (held was false).
+                newHostReleaser.release()
+                global.release()
+                subCap.release()
+            } else {
+                hostReleaser = newHostReleaser
+                held = true
+            }
+        }
+    }
 
     /** Backoff yield: release all three permits, sleep [ms] holding
      *  nothing, then re-acquire in canonical order and re-queue. A no-op
