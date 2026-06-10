@@ -48,6 +48,7 @@ import com.ai.model.InternalPrompt
 import com.ai.ui.shared.shortModelName
 import androidx.lifecycle.viewModelScope
 import com.ai.model.Settings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -1419,6 +1420,24 @@ class FanOutEngine internal constructor(
                             SecondaryResultStorage.save(context, timedOut)
                             AppLog.w("FanOut", "pair ans=$answererAgentId src=$sourceAgentId timed out after ${ceilingSec}s")
                         }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // One poisoned pair (a throw that escaped
+                        // executeSecondaryTask's own handling) must fail just
+                        // this pair — an escape would cancel every in-flight
+                        // sibling via the batch's coroutineScope. Guarded
+                        // stamp: a row that already settled keeps its result.
+                        val cur = SecondaryResultStorage.get(context, report.id, placeholderId)
+                        if (cur != null && cur.errorMessage == null &&
+                            cur.content.isNullOrBlank() && cur.durationMs == null
+                        ) {
+                            SecondaryResultStorage.save(context, cur.copy(
+                                errorMessage = "Fan-out pair failed: ${e.javaClass.simpleName}: ${e.message}",
+                                durationMs = System.currentTimeMillis() - pairStart
+                            ))
+                        }
+                        AppLog.w("FanOut", "pair ans=$answererAgentId src=$sourceAgentId threw ${e.javaClass.simpleName}: ${e.message}")
                     } finally {
                         // Re-read the now-persisted row + mirror it into the
                         // in-memory PairState in a NonCancellable block, so a

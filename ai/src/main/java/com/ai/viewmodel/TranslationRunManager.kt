@@ -515,13 +515,19 @@ class TranslationRunManager(
                     " cost=${"%.5f".format(costDollars)}"
             )
             return TranslationOutcome.Success(costDollars)
-        } catch (t: Throwable) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
             transitionItem(runId, item.id) {
                 if (it.status == TranslationStatus.RUNNING)
                     it.copy(status = TranslationStatus.PENDING, providerId = null, model = null)
                 else it
             }
-            throw t
+            throw e
+        } catch (e: Exception) {
+            // One poisoned item (a storage / parse / pricing throw) must
+            // fail just this item — an escape would cancel every in-flight
+            // sibling via the batch's coroutineScope. The caller finalizes
+            // the ERROR row.
+            return TranslationOutcome.Failed("translate failed: ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 

@@ -33,6 +33,7 @@ import com.ai.data.withTracerTags
 import com.ai.model.InternalPrompt
 import com.ai.model.Settings
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -344,6 +345,16 @@ class TournamentEngine internal constructor(
             recordItemCallError(
                 context, reportId, rowId, item.placeholder,
                 "tournament: match timed out after ${NetworkSettings.batchItemTimeoutSec}s", started
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // One poisoned match (a storage / parse / pricing throw) must
+            // fail just this item — an escape would cancel every in-flight
+            // sibling via the batch's coroutineScope.
+            recordItemCallError(
+                context, reportId, rowId, item.placeholder,
+                "tournament: ${e.javaClass.simpleName}: ${e.message}", started
             )
         } finally {
             settleItemFromDisk(context, reportId, mKey, rowId)
