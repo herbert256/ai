@@ -1704,6 +1704,16 @@ class TranslationRunManager(
             // so a new run needs only a fresh id — no model to inherit.
             val runId: String = existingRunId ?: java.util.UUID.randomUUID().toString()
 
+            // Hook this dispatch into the base run-job registry so a
+            // report delete (cancelAllForReport → cancelTranslation)
+            // cancels it like any other run job instead of letting the
+            // worker calls run on against a gone report. Skipped when
+            // the run's original dispatch is still alive — registering
+            // would supersede (cancel) that live job.
+            if (runJobOf(runId)?.isActive != true) {
+                coroutineContext[Job]?.let { registerRunJob(runId, it) }
+            }
+
             // Persist placeholder TRANSLATE rows — same pattern as
             // addCrossTranslationItems. Map the (sourceKind, targetId)
             // back to the placeholder row id so runTranslationSubset's
