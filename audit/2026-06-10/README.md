@@ -31,8 +31,8 @@ Audit ground rules set by the user:
 
 | File | Findings | Status |
 |---|---:|---|
-| `bugs_reports.md` | 10 | 10 open |
-| **Total** | **10** | **10 open** |
+| `bugs_reports.md` | 10 | 10 fixed |
+| **Total** | **10** | **10 fixed** |
 
 ## Severity Counts
 

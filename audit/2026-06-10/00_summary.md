@@ -6,9 +6,9 @@ Worktree audited: `/Users/herbert/ai`
 
 Branch observed: `master` (at `e948786f3`)
 
-Status: static audit complete, 10 findings — all 10 open
-(per-finding detail in `bugs_reports.md`, including the list of
-~15 candidates rejected on hand verification).
+Status: static audit complete, 10 findings — all 10 fixed
+(per-finding status + fixing commit in `bugs_reports.md`, which also
+lists the ~15 candidates rejected on hand verification).
 
 Scope: the reports section only (per request) — manage + view screens,
 batch engines including the fresh `SecondaryBatchEngine` consolidation,

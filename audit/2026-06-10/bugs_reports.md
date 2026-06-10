@@ -1,7 +1,7 @@
 # Report Bugs — Audit 2026-06-10
 
 All findings verified by hand against the source at `e948786f3`.
-Status: all **Open** at audit time.
+Status: all 10 **fixed** on 2026-06-10 (per-finding commit on each Status line).
 
 ### Bug 1 - Severity: High - Category: Tournament rank-id labeling
 **Location:** `ai/src/main/java/com/ai/ui/report/view/Tournament.kt:104` (vs `TournamentPodium.kt:325-344` and `TournamentEngine.recomputeAggregate`)
@@ -39,7 +39,7 @@ the wrong model's head-to-heads.
 collect `participantIds` from the run's MATCH rows, then number
 `report.agents.filter { it.agentId in participantIds }` by index.
 
-**Status:** Open
+**Status:** Fixed — 7796800cd (number ranks by the participant set, like Podium)
 
 ### Bug 2 - Severity: Medium - Category: Stale Compose capture
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/GenerationPhase.kt:707-728` (param declared `:411`)
@@ -75,7 +75,7 @@ Get-info overlay, watch the log: the reconcile sweep still fires every
 **Proposed fix:** `val latestPaused = rememberUpdatedState(paused)` and
 gate on `latestPaused.value`, matching the `latestActiveRuns` pattern.
 
-**Status:** Open
+**Status:** Fixed — 0862d43a6 (rememberUpdatedState on the paused gate)
 
 ### Bug 3 - Severity: Medium - Category: Regenerate phase parking
 **Location:** `ai/src/main/java/com/ai/viewmodel/RegenerateBatchEngine.kt:493-495`
@@ -110,7 +110,7 @@ and pauses with "Phase timed out".
 (`Success`, or `Error("empty response")` to match the
 `SecondaryRunManager` stance) so the phase settles immediately.
 
-**Status:** Open
+**Status:** Fixed — 5a98c7ebe (SUCCESS+blank body settles as Error("Empty response"))
 
 ### Bug 4 - Severity: Medium - Category: Cost accounting on delete
 **Location:** `ai/src/main/java/com/ai/viewmodel/TournamentEngine.kt:528`, `JudgeEvalEngine.kt:551` (`deleteJudgeFromRun`), `JudgeEvalEngine.kt:690` (`deleteRun`), `CompareEngine.kt:450`, `FanOutEngine.kt:1459`, `:1479`, `:1504`, `:1531`, `:1795`, `:1830-1831`, `:1901`
@@ -149,7 +149,7 @@ tally.
 ?: it.totalCost` (the rows are read-then-deleted anyway), matching
 `removeItemsMatching` / `removePairsByIds`.
 
-**Status:** Open
+**Status:** Fixed — 4b60dff73 (disk-truth fullCost at all 11 delete/remove sites)
 
 ### Bug 5 - Severity: Medium - Category: Fan-out orphaned rows
 **Location:** `ai/src/main/java/com/ai/viewmodel/FanOutEngine.kt:195-197` (hydrate)
@@ -183,7 +183,7 @@ Broken-work sweep later marks them errored — invisible errors.
 pair group (read-only, deletable) instead of skipping, or sweep them
 into the deleted-items tally when the source agent disappears.
 
-**Status:** Open
+**Status:** Fixed — aea9e370d (hydrate orphaned pairs under a synthetic answerer id)
 
 ### Bug 6 - Severity: Low - Category: Compare precision
 **Location:** `ai/src/main/java/com/ai/data/CompareRunModel.kt:86`, `:94` (`avgForAgent` / `avgForMeta`), `ai/src/main/java/com/ai/ui/report/view/ValueView.kt:488`
@@ -211,7 +211,7 @@ ranked quality despite a real ordering.
 **Proposed fix:** Average in `Double` (`sumOf(...).toDouble() / size`)
 and round only at the display edge.
 
-**Status:** Open
+**Status:** Fixed — 097974566 (average in Double; round at the display edge)
 
 ### Bug 7 - Severity: Low - Category: Build-popup release
 **Location:** `ai/src/main/java/com/ai/viewmodel/SecondaryBatchEngine.kt:247` (`rerunItemsBlocking`)
@@ -234,7 +234,7 @@ popup. The asymmetry is a trap for the next direct caller.
 
 **Proposed fix:** `?: run { buildKey?.let { appViewModel.finishBuild(it) }; return }`.
 
-**Status:** Open
+**Status:** Fixed — 09701500b (finishBuild on the run-null early return)
 
 ### Bug 8 - Severity: Low - Category: Dead status input
 **Location:** `ai/src/main/java/com/ai/ui/report/manage/SecondResults.kt:56-62` (`secondAggregate`), only call `RuntimeState.kt:343`
@@ -261,7 +261,7 @@ placeholders the second row shows ❌ although the batch is live.
 **Proposed fix:** Pass the live-translation signal the screen already
 has (`activeTranslationRuns.isNotEmpty()`), or drop the dead parameter.
 
-**Status:** Open
+**Status:** Fixed — 4be0ed1b8 (pass the unfinished-run signal from RuntimeState)
 
 ### Bug 9 - Severity: Low - Category: Moderation display
 **Location:** `ai/src/main/java/com/ai/ui/report/view/Moderation.kt:368`
@@ -282,7 +282,7 @@ breakdown; the flag is then silently hidden.
 **Proposed fix:** When `row.flagged` and the list is empty, render
 "Fired: (no categories reported)".
 
-**Status:** Open
+**Status:** Fixed — f789e5106 (show "Fired: (no categories reported)")
 
 ### Bug 10 - Severity: Low - Category: Locale-format consistency
 **Location:** `ai/src/main/java/com/ai/ui/report/view/ValueViewExport.kt` (`jsonEsc`, the control-char branch)
@@ -297,7 +297,7 @@ every `format` call.
 
 **Proposed fix:** `String.format(Locale.US, "\\u%04X", c.code)`.
 
-**Status:** Open
+**Status:** Fixed — 95976ca5d (Locale.US pinned)
 
 ---
 
