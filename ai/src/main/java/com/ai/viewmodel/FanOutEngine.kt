@@ -171,7 +171,13 @@ class FanOutEngine internal constructor(
             .filter { it.fanInOf != null && it.fanOutSourceAgentId == null }
             .groupBy { it.metaPromptName.orEmpty() }
 
-        val agentsById = report.agents.associateBy { it.agentId }
+        // (provider, model) → agentId index for the per-row answerer
+        // lookup below. First agent wins on duplicate (provider, model)
+        // swarm members, matching the old firstOrNull scan.
+        val agentIdByProviderModel = HashMap<Pair<String, String>, String>()
+        for (agent in report.agents) {
+            agentIdByProviderModel.putIfAbsent(agent.provider.lowercase() to agent.model, agent.agentId)
+        }
 
         val newRuns = mutableMapOf<FanOutRunKey, FanOutRunState>()
         // Snapshot of the current in-memory runs so a re-hydrate (the
@@ -193,9 +199,7 @@ class FanOutEngine internal constructor(
             // same answerer key set; arbitrarily pick the first.
             val pairs = mutableMapOf<PairKey, PairState>()
             for (row in rows) {
-                val answererAgentId = agentsById.values.firstOrNull {
-                    it.provider.equals(row.providerId, ignoreCase = true) && it.model == row.model
-                }?.agentId
+                val answererAgentId = agentIdByProviderModel[row.providerId.lowercase() to row.model]
                     // The answerer model may have been removed from the report
                     // since the fan-out ran. Hydrate the pair anyway under a
                     // stable synthetic id: L1 groups by the pair's OWN
