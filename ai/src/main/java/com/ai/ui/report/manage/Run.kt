@@ -477,12 +477,6 @@ internal fun ReportRunScreen(
                 { generationHandlers.onTogglePin(); pinTick++ }
             } else null,
             isPinned = isPinned,
-            // 👷 Re-open "Report - select workers" for this report (no
-            // Generate button) so the worker routing stays editable after
-            // generation.
-            onWorkerConfig = if (currentReportId != null) {
-                { showWorkerConfig = true }
-            } else null,
             onToggleModelRowLabels = if (currentReportId != null) {
                 { showModelNamesInReportRows = !showModelNamesInReportRows }
             } else null,
@@ -793,6 +787,7 @@ internal fun ReportRunScreen(
                         st.showEditReportOverview.value = false
                         generationHandlers.onEditModelsInline()
                     },
+                    onEditWorkers = { showWorkerConfig = true },
                     onBack = { st.showEditReportOverview.value = false }
                 )
             }

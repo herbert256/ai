@@ -60,6 +60,7 @@ internal fun ReportEditOverviewScreen(
     st: ReportsScreenState,
     editSystemPromptTrigger: () -> Unit,
     onEditModels: () -> Unit,
+    onEditWorkers: () -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -164,6 +165,11 @@ internal fun ReportEditOverviewScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
             ) { Text("Edit titles", maxLines = 1, softWrap = false) }
+            OutlinedButton(
+                onClick = onEditWorkers,
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Edit workers", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
