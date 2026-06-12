@@ -82,7 +82,8 @@ internal fun ReportSecondResultsScreen(
     translationRuns: List<TranslationRunState>,
     translationRunSummaries: List<TranslationRunSummary>,
     languageName: String?,
-    /** The report's (orange-line) title — shown on the "report" row. */
+    /** The report's long title — the orange subtitle line (same as on the
+     *  other two report screens) and the "report" row text. */
     reportTitle: String,
     /** The hub's live running total for the stats line (see [ReportStatsLine]). */
     costDollars: Double,
@@ -131,7 +132,9 @@ internal fun ReportSecondResultsScreen(
         TitleBar(
             helpTopic = "report_second_results",
             title = "Report - second results",
-            subject = "Status of every secondary result",
+            // Orange line = the report's long title, same as the other two
+            // report screens, so the three flip without the line changing.
+            subject = reportTitle,
             onBackClick = onBack,
             onTitleClick = onCycleNext,
             forceTitleClick = true,

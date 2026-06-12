@@ -96,7 +96,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_get_info" to HelpContent(
-        title = "Help - Report - Get info",
+        title = "Help - Report - language/titles/icons",
         cards = listOf(
             HelpCard("What you see", "A list of the report's metadata-generation jobs, each with a status: ⏰ clock (can't run yet), ⏳ hourglass (running), ❌ red cross (failed), ✅ green (done). Report-level jobs are the icon, the detected language, and the AI title; per-model jobs are each model's icon and its model-title."),
             HelpCard("When jobs run", "Icon / language / title start as soon as the report runs. A model's icon and model-title wait (⏰) until that model's own response finishes, then run. A model whose response failed leaves its icon/title rows on the clock — they can't be produced without a response."),
@@ -110,14 +110,14 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What you see", "Every secondary result the report has produced, in one place: Tournament, Judge-the-judges, Compare, and Rank-the-translators batches; individual Meta / Rerank / Moderation / Fan-in rows; Fan-out and Fan-meta; and Translation runs (live + finished). Each row shows the same icon it uses on Manage, a status (⏳ running, ❌ failed, ✅ done), and its own cost."),
             HelpCard("Tap a row", "Opens that result's existing detail or drill-in (the rank / tournament / judges / compare leaderboard, the per-run translation list, a single meta result, the fan-out pairs, …). Back returns here; Back again returns to Manage."),
-            HelpCard("Statistics line + top rows", "Under the title bar a statistics line shows the report's API-call count, total API time and running cost in cents (tap → the costs screen). The list leads with two link rows: report (the report's icon + title — tap to return to Manage) and info (the metadata-jobs aggregate — tap for Report - Get info)."),
+            HelpCard("Statistics line + top rows", "Under the title bar a statistics line shows the report's API-call count, total API time and running cost in cents (tap → the costs screen). The list leads with two link rows: report (the report's icon + title — tap to return to Manage) and info (the metadata-jobs aggregate — tap for Report - language/titles/icons)."),
             HelpCard("Costs", "Each row shows its own cost; the single second row on Manage report sums them all and its status aggregates them (❌ if any failed, else ⏳ if any still running, else ✅).")
         )
     ),
     "report_edit_model_title" to HelpContent(
         title = "Help - Edit model title",
         cards = listOf(
-            HelpCard("What you see", "The title generated for one model's response (from Report - Get info → a model-title row). Edit it and tap Update title to save."),
+            HelpCard("What you see", "The title generated for one model's response (from Report - language/titles/icons → a model-title row). Edit it and tap Update title to save."),
             HelpCard("How it works", "This is an in-place text edit — it does not re-run the model or the title call. The new title shows on the model-title row and as the label of that model's model-icon row.")
         )
     ),
@@ -199,10 +199,10 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_run" to HelpContent(
-        title = "Help - Report — manage",
+        title = "Help - Report - manage",
         cards = listOf(
             HelpCard("Overview", "The post-Generate page in the report flow. Per-agent rows stream in as each model returns; the Action row at the bottom exposes the operations you can apply to the finished run. Sibling of the pre-Generate Report - select models — a Generate (or opening a saved report from History) lands you here."),
-            HelpCard("Statistics line", "Directly under the title bar's orange title: the report's API-call count, its total API time in seconds, and the running cost in cents (¢). The cost updates live as each call settles; tap the line to open the report's costs screen. The same line appears on Report - Get info and Report - second results."),
+            HelpCard("Statistics line", "Directly under the title bar's orange title: the report's API-call count, its total API time in seconds, and the running cost in cents (¢). The cost updates live as each call settles; tap the line to open the report's costs screen. The same line appears on Report - language/titles/icons and Report - second results."),
             HelpCard("Per-agent rows", "One card per dispatched model. While the call is in flight the row shows progress; on completion it carries the response, token + cost cell, optional 🐞 trace icon, and the auto-generated per-model emoji once the icon worker finishes."),
             HelpCard("Row labels", "Report rows show generated per-model titles by default. Tap 🔤 in the icon bar to switch those rows to raw provider/model names; tap it again to return to titles."),
             HelpCard("Action row — while running", "STOP cancels every in-flight call (rows mid-stream complete what they've received, then mark CANCELLED). Background drops you back to Hub while the run continues; reopening the report shows the in-flight rows still streaming."),

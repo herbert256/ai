@@ -456,8 +456,8 @@ internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
     "🔄" to ("Regenerate" to "Re-run / reload."),
     "🗑" to ("Delete" to "Delete this item (asks to confirm)."),
     "🐞" to ("Trace" to "Open the API trace(s)."),
-    "1️⃣" to ("Manage a report" to "Go to the Manage-a-report screen (greyed when you're on another of the three report screens)."),
-    "2️⃣" to ("Report - Get info" to "Go to the Get-info screen (icon / title / language job status)."),
+    "1️⃣" to ("Report - manage" to "Go to the Report-manage screen (greyed when you're on another of the three report screens)."),
+    "2️⃣" to ("Report - language/titles/icons" to "Go to the language/titles/icons screen (icon / title / language job status)."),
     "3️⃣" to ("Report - second results" to "Go to the second-results screen (Meta / Fan-out / Tournament / Translation / Rerank / Moderation)."),
 )
 

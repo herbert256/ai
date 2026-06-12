@@ -367,7 +367,8 @@ fun ReportGetInfoScreen(
     perModelIcon: Boolean,
     perModelTitle: Boolean,
     runningInfoJobs: Set<String>,
-    /** The report's (orange-line) title — shown on the "report" row. */
+    /** The report's long title — the orange subtitle line (same as on the
+     *  other two report screens) and the "report" row text. */
     reportTitle: String,
     /** The hub's live running total for the stats line (see [ReportStatsLine]). */
     costDollars: Double,
@@ -423,7 +424,7 @@ fun ReportGetInfoScreen(
         // of the Manage hub, which keeps publishing its own bottom bar
         // (a per-layer icon set). We render only the top chrome here.
         TitleBar(
-            helpTopic = "report_get_info", title = "Report - Get info", subject = "Status of icon, title & language jobs", onBackClick = onBack,
+            helpTopic = "report_get_info", title = "Report - language/titles/icons", subject = reportTitle, onBackClick = onBack,
             onTitleClick = onCycleNext,
             forceTitleClick = true,
             onReportIconClick = onOpenViewHub,

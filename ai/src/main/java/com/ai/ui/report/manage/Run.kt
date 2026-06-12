@@ -472,7 +472,7 @@ internal fun ReportRunScreen(
             // live update, so without this gate its SideEffect re-publishes the
             // full Manage action set and clobbers the Translations bar.
             publishBottomBar = !showTranslationsList,
-            title = "Manage a report",
+            title = "Report - manage",
             // Tapping the title / orange report title cycles to the next of
             // the three report screens (Manage → Get-info → second results).
             // The report icon (below) keeps going to the View hub.
