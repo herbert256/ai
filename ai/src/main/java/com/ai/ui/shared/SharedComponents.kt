@@ -2061,7 +2061,10 @@ private data class BottomBarIcon(
     val widthDp: Int,
     val fontSize: androidx.compose.ui.unit.TextUnit = 16.sp,
     val alpha: Float = 1f,
-    val legendKey: String = emoji
+    val legendKey: String = emoji,
+    /** The 1️⃣ 2️⃣ 3️⃣ report-screen switcher. These get their own dedicated
+     *  row (always in 1-2-3 order, never sharing with other icons). */
+    val isNav: Boolean = false
 )
 
 /** Ordered list of the action icons currently present (❓ help is kept
@@ -2077,18 +2080,18 @@ private fun buildBottomBarIcons(
     suppressShare: Boolean = false
 ): List<BottomBarIcon> = buildList {
     val D = com.ai.data.MetadataDefaults
-    // ----- 1️⃣ 2️⃣ 3️⃣ report-screen switcher (leads the whole strip) -----
-    // The on-screen number comes first and full-colour; the other two are
-    // greyed but still click → jump straight to that report screen.
+    // ----- 1️⃣ 2️⃣ 3️⃣ report-screen switcher -----
+    // Always emitted in 1-2-3 order; the on-screen number is full-colour, the
+    // other two greyed but still click → jump straight to that report screen.
+    // Tagged isNav so BottomIconBar gives them their own exclusive row.
     icons.screenNav?.let { nav ->
         listOf(
             Triple(1, "1️⃣", nav.onGoManage),
             Triple(2, "2️⃣", nav.onGoGetInfo),
             Triple(3, "3️⃣", nav.onGoSecond)
-        ).sortedBy { if (it.first == nav.active) -1 else it.first }
-            .forEach { (idx, glyph, onClick) ->
-                add(BottomBarIcon(glyph, Color.Unspecified, onClick, 28, alpha = if (idx == nav.active) 1f else 0.35f))
-            }
+        ).forEach { (idx, glyph, onClick) ->
+            add(BottomBarIcon(glyph, Color.Unspecified, onClick, 28, alpha = if (idx == nav.active) 1f else 0.35f, isNav = true))
+        }
     }
     // Reports-hub leading actions: 🆕 New, 🔍 Search, 🗂️ All (replaced the top buttons).
     icons.onNewReport?.let { add(BottomBarIcon(mi.add, Color.Unspecified, it, 28, legendKey = D.ADD)) }
@@ -2463,7 +2466,7 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
     // Manage hub + its edit/create overlays and sub-editors.
     "report_run",
     "report_edit_overview", "report_edit_icons", "report_edit_titles",
-    "report_create_overview", "report_get_info",
+    "report_create_overview", "report_get_info", "report_second_results",
     "report_edit_short_title", "report_edit_long_title", "report_edit_prompt",
     "report_find_alt_prompt",
     "report_edit_model_title", "report_edit_pair_title",
@@ -2523,6 +2526,10 @@ fun BottomIconBar(
     } else {
         emptyList()
     }
+    // The 1️⃣ 2️⃣ 3️⃣ switcher gets its OWN exclusive row (always 1-2-3, never
+    // sharing). Everything else wraps below it.
+    val navSpecs = specs.filter { it.isNav }
+    val actionSpecs = specs.filterNot { it.isNav }
     if (suppressScreenTraceAndHelp && specs.isEmpty() && costText == null) {
         // No action icons to show — render a little breathing room instead of
         // nothing, so the screen's last item isn't flush against the bottom edge.
@@ -2586,19 +2593,21 @@ fun BottomIconBar(
         // bar is crowded (>3 icons), as before. The red ❓ always navigates to
         // the screen's help page.
         val showLegendHelp = useLegend
-        val showIconPageHelp = !useLegend && iconTopic != null && specs.size > 3
+        val showIconPageHelp = !useLegend && iconTopic != null && actionSpecs.size > 3
         val showSecondHelp = showLegendHelp || showIconPageHelp
         val showScreenHelp = !suppressScreenTraceAndHelp
         val cell = 24                       // uniform column width (dp) — tight spacing
         // Fill rows of up to 7, but put the SMALLEST (remainder) row on
         // TOP so the full rows sit at the bottom. ❓ pins to the right of
         // the last (bottom) row; the cost readout to the first (top) row.
+        // The 1️⃣2️⃣3️⃣ switcher is handled separately (its own row above), so
+        // only the action icons wrap here.
         val per = 7
-        val rem = specs.size % per
+        val rem = actionSpecs.size % per
         val rows = when {
-            specs.isEmpty() -> listOf(emptyList())
-            rem == 0 -> specs.chunked(per)
-            else -> listOf(specs.take(rem)) + specs.drop(rem).chunked(per)
+            actionSpecs.isEmpty() -> listOf(emptyList())
+            rem == 0 -> actionSpecs.chunked(per)
+            else -> listOf(actionSpecs.take(rem)) + actionSpecs.drop(rem).chunked(per)
         }
         // Rough width (unscaled) the cost readout needs, reserved on the
         // first row so the scale shrinks enough to keep it on-screen.
@@ -2610,14 +2619,28 @@ fun BottomIconBar(
                     if (helpCount > 0) helpGap + helpW * helpCount else 0f
                 } else 0f) +
                 (if (withCost) costReserve else 0f)
-        val widest = rows.mapIndexed { i, r ->
-            rowWidth(r.size, i == rows.lastIndex, i == 0)
-        }.maxOrNull() ?: helpW
+        // The nav row's own (unscaled) width, folded into the max so the scale
+        // never makes 1️⃣2️⃣3️⃣ overflow even when the action rows are sparse.
+        val navRowWidth = if (navSpecs.isNotEmpty())
+            (navSpecs.size * cell + (navSpecs.size - 1).coerceAtLeast(0) * extraGap).toFloat() else 0f
+        val widest = maxOf(
+            rows.mapIndexed { i, r -> rowWidth(r.size, i == rows.lastIndex, i == 0) }.maxOrNull() ?: helpW,
+            navRowWidth
+        )
         val scale = (available / widest).coerceIn(1.0f, ceiling)
         // Tighter per-row cell height when wrapped so the rows sit close
-        // together vertically; full height for a single row.
-        val rowCellH = if (rows.size > 1) 22 else 32
+        // together vertically; full height for a single row. The nav row
+        // counts as a visual row.
+        val totalVisualRows = (if (navSpecs.isNotEmpty()) 1 else 0) + rows.size
+        val rowCellH = if (totalVisualRows > 1) 22 else 32
         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            // Dedicated 1️⃣2️⃣3️⃣ switcher row — always its own row, always in
+            // 1-2-3 order, never sharing with any other icon.
+            if (navSpecs.isNotEmpty()) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    BottomBarIconRow(navSpecs, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
+                }
+            }
             rows.forEachIndexed { i, rowSpecs ->
                 val isFirst = i == 0
                 val isLast = i == rows.lastIndex
