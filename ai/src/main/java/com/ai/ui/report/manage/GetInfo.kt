@@ -424,7 +424,7 @@ fun ReportGetInfoScreen(
         // of the Manage hub, which keeps publishing its own bottom bar
         // (a per-layer icon set). We render only the top chrome here.
         TitleBar(
-            helpTopic = "report_get_info", title = "Report - language/titles/icons", subject = reportTitle, onBackClick = onBack,
+            helpTopic = "report_get_info", title = "Report - titles/icons/...", subject = reportTitle, onBackClick = onBack,
             onTitleClick = onCycleNext,
             forceTitleClick = true,
             onReportIconClick = onOpenViewHub,
