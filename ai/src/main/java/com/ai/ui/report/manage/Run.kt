@@ -154,15 +154,15 @@ internal fun ReportRunScreen(
     // "Report - second results" layer flag — survivable (held in ReportsScreenNav).
     val showSecondResults = com.ai.ui.shared.LocalShowSecondResults.current
     // Title-tap cycles the three report screens, wrapping with no edge:
-    // Manage → Get-info → (second results, only when one exists) → Manage.
+    // Manage → Get-info → second results → Manage.
     val cycleReportScreens: () -> Unit = {
         when {
-            showSecondResults?.value == true -> showSecondResults.value = false        // second → Manage
-            st.showGetInfo.value -> {                                                  // Get-info → next
+            showSecondResults?.value == true -> showSecondResults.value = false // second → Manage
+            st.showGetInfo.value -> {                                           // Get-info → second
                 st.showGetInfo.value = false
-                if (secondEnabled || secondTotal > 0.0) showSecondResults?.value = true // → second, else Manage
+                showSecondResults?.value = true
             }
-            else -> st.showGetInfo.value = true                                        // Manage → Get-info
+            else -> st.showGetInfo.value = true                                 // Manage → Get-info
         }
     }
     // Which of the three report screens is on top right now. The hub is the
@@ -410,6 +410,11 @@ internal fun ReportRunScreen(
             swipeSwitch!!(match.reportId)
         }
     }
+    // Running total cost, reported up from GenerationPhase, shown in the
+    // statistics line under the title bar. Hoisted to this scope so the
+    // Get-info / second-results overlay layers (mounted outside the hub
+    // Column below) can render the same live number in their stats lines.
+    var totalCostForBar by remember { mutableStateOf(0.0) }
     Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
@@ -443,9 +448,6 @@ internal fun ReportRunScreen(
         // Main Manage screen: the report icon, the "Manage report" screen
         // title and the green report-name in GenerationPhase all open the
         // View hub (same target as the bottom-bar 👁).
-        // Running total cost, reported up from GenerationPhase, shown in
-        // the bottom icon bar (top row, right, above ❓).
-        var totalCostForBar by remember { mutableStateOf(0.0) }
         var showModelNamesInReportRows by rememberSaveable(currentReportId) { mutableStateOf(false) }
         // 🗂️ pick-another-report on the Manage hub → the unfiltered picker,
         // returning to the hub for the chosen report. Provided only around
@@ -471,8 +473,6 @@ internal fun ReportRunScreen(
             // full Manage action set and clobbers the Translations bar.
             publishBottomBar = !showTranslationsList,
             title = "Manage a report",
-            costText = totalCostForBar.takeIf { it > 0.0 }?.let { com.ai.ui.shared.formatCents(it, 2) },
-            onCostClick = generationHandlers.onViewCosts,
             // Tapping the title / orange report title cycles to the next of
             // the three report screens (Manage → Get-info → second results).
             // The report icon (below) keeps going to the View hub.
@@ -601,6 +601,17 @@ internal fun ReportRunScreen(
         )
         }
 
+        // Statistics line — api calls / total API time / running cost —
+        // directly under the title bar's orange line; tap → costs screen.
+        if (currentReportId != null) {
+            ReportStatsLine(
+                reportId = currentReportId,
+                costDollars = totalCostForBar,
+                refreshKey = totalCostForBar,
+                onClick = generationHandlers.onViewCosts
+            )
+        }
+
         if (currentReportId != null) {
             UserNotesSection(
                 reportId = currentReportId,
@@ -716,10 +727,10 @@ internal fun ReportRunScreen(
         // "Report - Get info" drawn as a visual layer ON TOP of this
         // still-composed hub. Because the hub's TitleBar + GenerationPhase
         // stay composed underneath, the global bottom bar remains the
-        // hub's (cost above ❓ + every action icon, with the live ✏️/🆕
-        // menus and confirm dialogs) — Get info's own header passes
-        // publishBottomBar=false so it doesn't clobber it. Its opaque
-        // background covers the hub body; Back peels just this layer.
+        // hub's (published per-layer, with the live ✏️/🆕 menus and confirm
+        // dialogs) — Get info's own header passes publishBottomBar=false so
+        // it doesn't clobber it. Its opaque background covers the hub body;
+        // Back peels just this layer.
         if (st.showGetInfo.value && currentReportId != null) {
             // Provide the report-context locals the screen's TitleBar
             // reads: the dynamic report icon (top-left), and the
@@ -740,6 +751,15 @@ internal fun ReportRunScreen(
                     perModelIcon = uiState.generalSettings.perModelIconOn(),
                     perModelTitle = uiState.generalSettings.perModelTitleOn(),
                     runningInfoJobs = runningInfoJobs,
+                    // Stats line + the report / second cross-link rows —
+                    // same live data the hub's own stats line shows.
+                    reportTitle = uiState.genericPromptTitleLong.ifBlank { uiState.genericPromptTitle },
+                    costDollars = totalCostForBar,
+                    onViewCosts = generationHandlers.onViewCosts,
+                    secondState = secondState,
+                    secondTotal = secondTotal,
+                    onGoManage = goManageScreen,
+                    onGoSecond = goSecondScreen,
                     onBack = { st.showGetInfo.value = false },
                     onCycleNext = cycleReportScreens,
                     onOpenViewHub = onOpenViewReport,
@@ -780,6 +800,16 @@ internal fun ReportRunScreen(
                     translationRuns = translationRuns,
                     translationRunSummaries = translationRunSummaries,
                     languageName = languageName,
+                    // Stats line + the report / info cross-link rows —
+                    // same live data the hub's own stats line shows.
+                    reportTitle = uiState.genericPromptTitleLong.ifBlank { uiState.genericPromptTitle },
+                    costDollars = totalCostForBar,
+                    onViewCosts = generationHandlers.onViewCosts,
+                    infoEnabled = infoEnabled,
+                    infoState = infoState,
+                    infoMetaTotal = infoMetaTotal,
+                    onGoManage = goManageScreen,
+                    onGoInfo = goGetInfoScreen,
                     // The 🔤 model-names toggle is a Manage-row local (out of
                     // scope here); the screen always shows prompt titles.
                     showModelNamesInReportRows = false,

@@ -351,8 +351,10 @@ internal fun InfoStatusCell(state: InfoJobState, doneIcon: String? = null) {
 /**
  * "Report - Get info" — full-screen list of the report's metadata-generation
  * jobs, each with a clock/hourglass/cross/ok status and its own cost. The
- * screen total shows in the bottom icon bar (via [TitleBar] costText). Rows
- * are clickable to their existing detail screens, layered over this overlay.
+ * report's api-calls / duration / cost statistics line sits under the title
+ * bar, and the list leads with the "report" / "second" cross-link rows to the
+ * other two report screens. Rows are clickable to their existing detail
+ * screens, layered over this overlay.
  */
 @Composable
 fun ReportGetInfoScreen(
@@ -365,6 +367,19 @@ fun ReportGetInfoScreen(
     perModelIcon: Boolean,
     perModelTitle: Boolean,
     runningInfoJobs: Set<String>,
+    /** The report's (orange-line) title — shown on the "report" row. */
+    reportTitle: String,
+    /** The hub's live running total for the stats line (see [ReportStatsLine]). */
+    costDollars: Double,
+    /** Stats-line tap → the report's costs screen. */
+    onViewCosts: (() -> Unit)? = null,
+    /** Aggregate state + total for the "second" cross-link row. */
+    secondState: InfoJobState = InfoJobState.DONE,
+    secondTotal: Double = 0.0,
+    /** "report" row tap → the Manage hub. */
+    onGoManage: () -> Unit = {},
+    /** "second" row tap → the second-results screen. */
+    onGoSecond: () -> Unit = {},
     onBack: () -> Unit,
     /** Title tap → next of the three report screens. */
     onCycleNext: () -> Unit = {},
@@ -405,9 +420,8 @@ fun ReportGetInfoScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         // publishBottomBar=false: this screen is drawn as a layer on top
-        // of the Manage hub, which keeps publishing its own (full) bottom
-        // bar. We render only the top chrome here. (costText would be
-        // ignored anyway with nothing published.)
+        // of the Manage hub, which keeps publishing its own bottom bar
+        // (a per-layer icon set). We render only the top chrome here.
         TitleBar(
             helpTopic = "report_get_info", title = "Report - Get info", subject = "Status of icon, title & language jobs", onBackClick = onBack,
             onTitleClick = onCycleNext,
@@ -415,7 +429,27 @@ fun ReportGetInfoScreen(
             onReportIconClick = onOpenViewHub,
             publishBottomBar = false
         )
+        // Statistics line — api calls / total API time / running cost —
+        // same numbers as the hub's own line; tap → costs screen.
+        ReportStatsLine(
+            reportId = reportId,
+            costDollars = costDollars,
+            refreshKey = "$iconRefreshTick|${runningInfoJobs.size}|$costDollars",
+            onClick = onViewCosts
+        )
         LazyColumn(modifier = Modifier.weight(1f)) {
+            // Top-of-list divider — same 1 dp cap the Manage list paints.
+            item(key = "top-divider") {
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+            }
+            // Cross-link rows to the other two report screens: the report
+            // itself (Manage hub) and the second-results aggregate.
+            item(key = "row-reports") {
+                ReportsSummaryRow(reportTitle, onClick = onGoManage)
+            }
+            item(key = "row-second") {
+                SecondSummaryRow(secondState, cost = secondTotal, onClick = onGoSecond)
+            }
             items(jobs, key = { "${it.type}-${it.agentId ?: it.label}" }) { job ->
                 val click: (() -> Unit)? = when (job.type) {
                     "report-icon" -> onOpenIconDetail

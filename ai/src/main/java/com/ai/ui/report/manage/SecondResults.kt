@@ -82,6 +82,21 @@ internal fun ReportSecondResultsScreen(
     translationRuns: List<TranslationRunState>,
     translationRunSummaries: List<TranslationRunSummary>,
     languageName: String?,
+    /** The report's (orange-line) title — shown on the "report" row. */
+    reportTitle: String,
+    /** The hub's live running total for the stats line (see [ReportStatsLine]). */
+    costDollars: Double,
+    /** Stats-line tap → the report's costs screen. */
+    onViewCosts: (() -> Unit)? = null,
+    /** Gate + aggregate state + total for the "info" cross-link row (same
+     *  gate as the Manage hub's info row). */
+    infoEnabled: Boolean = false,
+    infoState: InfoJobState = InfoJobState.DONE,
+    infoMetaTotal: Double = 0.0,
+    /** "report" row tap → the Manage hub. */
+    onGoManage: () -> Unit = {},
+    /** "info" row tap → the Get-info screen. */
+    onGoInfo: () -> Unit = {},
     showModelNamesInReportRows: Boolean,
     onOpenSecondaryRun: (String) -> Unit,
     onMissingPromptIcon: (InternalPrompt) -> Unit,
@@ -123,7 +138,35 @@ internal fun ReportSecondResultsScreen(
             onReportIconClick = onOpenViewHub,
             publishBottomBar = false
         )
+        // Statistics line — api calls / total API time / running cost —
+        // same numbers as the hub's own line; tap → costs screen.
+        ReportStatsLine(
+            reportId = reportId,
+            costDollars = costDollars,
+            refreshKey = costDollars,
+            onClick = onViewCosts
+        )
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            // Top-of-list divider — same 1 dp cap the Manage list paints.
+            item(key = "top-divider") {
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+            }
+            // Cross-link rows to the other two report screens: the report
+            // itself (Manage hub) and the Get-info aggregate (same gate as
+            // the Manage hub's info row).
+            item(key = "row-reports") {
+                ReportsSummaryRow(reportTitle, onClick = onGoManage)
+            }
+            if (infoEnabled || infoMetaTotal > 0.0) {
+                item(key = "row-info") {
+                    InfoSummaryRow(
+                        infoState,
+                        doneIcon = com.ai.ui.shared.LocalReportIcon.current,
+                        cost = infoMetaTotal,
+                        onClick = onGoInfo
+                    )
+                }
+            }
             item(key = "tournament-batch-row") { TournamentManageRow() }
             item(key = "judge-eval-batch-row") { JudgeEvalManageRow() }
             item(key = "compare-batch-row") { CompareManageRow() }

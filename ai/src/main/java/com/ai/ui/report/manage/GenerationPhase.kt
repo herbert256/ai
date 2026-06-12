@@ -587,7 +587,7 @@ internal fun ColumnScope.GenerationPhase(
 
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
-    // The bottom-bar total is the exact sum of the body rows below — each
+    // The stats-line total is the exact sum of the body rows below — each
     // term is shown in a row, so the headline can't drift from the page:
     //   agentCost                  → the per-model report rows
     //   secondaryTotals in/out     → the meta / fan-out / translation rows
@@ -601,7 +601,8 @@ internal fun ColumnScope.GenerationPhase(
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
 
     // Report the running total up to the host (ReportRunScreen) so it can
-    // surface it in the bottom icon bar (top row, right, above ❓).
+    // surface it in the statistics line under the title bar (all three
+    // report screens).
     androidx.compose.runtime.LaunchedEffect(totalCost, showTotals) {
         onTotalCostChange(if (showTotals) totalCost else 0.0)
     }
@@ -609,14 +610,17 @@ internal fun ColumnScope.GenerationPhase(
     // (The report title now renders as the bar's orange second line —
     // see Run.kt's TitleBar subject = promptTitle.)
 
-    // The running total cost is surfaced in the bottom icon bar (via
-    // onTotalCostChange → ReportRunScreen → TitleBar costText), not in
+    // The running total cost is surfaced in the title-bar statistics line
+    // (via onTotalCostChange → ReportRunScreen → ReportStatsLine), not in
     // the body list.
 
     // The Edit ✏️ and Create 🆕 icons now open full-screen overlays
     // (ReportEditOverviewScreen / ReportCreateOverviewScreen, mounted in
     // ReportRunScreen) instead of bottom-bar pop-ups.
-    Spacer(modifier = Modifier.height(8.dp))
+
+    // (No Spacer here — the stats line above carries the 8 dp bottom gap,
+    // identical on all three report screens, so the top divider sits at
+    // the same height everywhere.)
 
     // Pending-changes banner: surfaces edits the user made (prompt / models / parameters)
     // since the report ran, so they know a Regenerate is needed to see the new outputs.
@@ -794,24 +798,9 @@ internal fun ColumnScope.GenerationPhase(
         // in the grand total).
         if (infoEnabled || infoMetaTotal > 0.0) {
             item(key = "row-info") {
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    .clickable { onGetInfo() },
-                    verticalAlignment = Alignment.CenterVertically) {
-                    // When all jobs are done, the aggregate cell shows the
-                    // report's own icon instead of ✅.
-                    InfoStatusCell(infoState, doneIcon = reportIcon)
-                    RowTypeCell("info")
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("icon, language, title, per-model icon / title",
-                            fontSize = 13.sp, color = AppColors.TextPrimary,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    if (infoMetaTotal > 0.0) {
-                        Text(formatCents(infoMetaTotal), fontSize = 10.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                    }
-                }
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                // When all jobs are done, the aggregate cell shows the
+                // report's own icon instead of ✅.
+                InfoSummaryRow(infoState, doneIcon = reportIcon, cost = infoMetaTotal, onClick = onGetInfo)
             }
         }
         // Regenerate batch — top of body when a RegenerateJob is
@@ -828,31 +817,14 @@ internal fun ColumnScope.GenerationPhase(
         // Rerank / Moderation / Fan-in, Fan-out / Fan-meta, Translations); those
         // now live on the "Report - second results" screen. Status aggregates
         // them (❌ if any failed, else ⏳ if any running, else ✅) and the cost is
-        // the summed secondary spend. Shown when any secondary exists OR
-        // secondary cost was already spent.
-        if (secondEnabled || secondTotal > 0.0) {
-            item(key = "row-second") {
-                // Open via the survivable LocalShowSecondResults (held in
-                // ReportsScreenNav) so a Nav-level batch drill-in opened from
-                // the second-results screen returns to it, not to Manage.
-                val showSecond = com.ai.ui.shared.LocalShowSecondResults.current
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    .clickable { showSecond?.value = true },
-                    verticalAlignment = Alignment.CenterVertically) {
-                    InfoStatusCell(secondState, doneIcon = com.ai.ui.shared.LocalMetadataIcons.current.meta)
-                    RowTypeCell("second")
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("rerank, meta, moderation, translate, fan-out, tournament, judges, compare, rank",
-                            fontSize = 13.sp, color = AppColors.TextPrimary,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    if (secondTotal > 0.0) {
-                        Text(formatCents(secondTotal), fontSize = 10.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                    }
-                }
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-            }
+        // the summed secondary spend. Always shown — even with nothing run yet —
+        // so the second-results screen stays one tap away.
+        item(key = "row-second") {
+            // Open via the survivable LocalShowSecondResults (held in
+            // ReportsScreenNav) so a Nav-level batch drill-in opened from
+            // the second-results screen returns to it, not to Manage.
+            val showSecond = com.ai.ui.shared.LocalShowSecondResults.current
+            SecondSummaryRow(secondState, cost = secondTotal, onClick = { showSecond?.value = true })
         }
 
 
