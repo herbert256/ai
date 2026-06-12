@@ -2528,12 +2528,11 @@ fun BottomIconBar(
         if (list.isEmpty()) return 1f
         return (list.sumOf { it.widthDp } + (list.size - 1) * extraGap).toFloat()
     }
-    // Uniform icon size across 1-row and 2-row bars: the two-row layout
-    // naturally lands around 2.1×, so capping both branches here makes a
-    // sparse single-row bar render its icons at that same size instead of
-    // blowing them up. Floor stays 1.0× so a crowded row still shrinks to
-    // fit rather than overflowing.
-    val ceiling = 2.1f
+    // FIXED icon size for every help-layout bar: each row on each screen
+    // renders at exactly this scale — a crowded bar wraps to more rows
+    // instead of shrinking its icons, so the glyphs are the same size
+    // everywhere.
+    val barIconScale = 2.1f
 
     androidx.compose.foundation.layout.BoxWithConstraints(
         // Bottom padding lifts the bar a touch above the gesture pill; a small
@@ -2554,11 +2553,12 @@ fun BottomIconBar(
             return@BoxWithConstraints
         }
 
-        // Help layout (every non-View screen). Icons fill up to 7 per
-        // row, then wrap to a new LEFT-aligned row; the ❓ help glyph is
-        // pinned to the right of the LAST row and never counts toward the
-        // 7-per-row cap. A uniform per-icon cell width keeps columns
-        // aligned vertically across rows.
+        // Help layout (every non-View screen). Icons render at the fixed
+        // [barIconScale] size and fill each LEFT-aligned row with as many as
+        // actually fit in the available width, wrapping to a new row as
+        // needed; the ❓ help glyph is pinned to the right of the LAST row
+        // (that row keeps room for it). A uniform per-icon cell width keeps
+        // columns aligned vertically across rows.
         val helpW = 32f
         val helpGap = 4f
         // Second help glyph ❔ — a per-screen "what do these icons do?" page.
@@ -2577,34 +2577,33 @@ fun BottomIconBar(
         val showSecondHelp = showLegendHelp || showIconPageHelp
         val showScreenHelp = !suppressScreenTraceAndHelp
         val cell = 24                       // uniform column width (dp) — tight spacing
-        // Fill rows of up to 7, but put the SMALLEST (remainder) row on
-        // TOP so the full rows sit at the bottom. ❓ pins to the right of
-        // the last (bottom) row. The 1️⃣2️⃣3️⃣ switcher is handled separately
-        // (its own row above), so only the action icons wrap here — except
-        // with no action icons at all, where the switcher becomes the single
-        // bottom row (1️⃣2️⃣3️⃣ left, ❔/❓ right).
-        val per = 7
-        val rem = actionSpecs.size % per
+        // Wrap by WIDTH, not by a fixed per-row count: at the fixed
+        // [barIconScale] each row takes as many icons as genuinely fit; the
+        // LAST row reserves space for the right-pinned ❔/❓, and the
+        // remainder (smallest) row goes on TOP so the full rows sit at the
+        // bottom. The 1️⃣2️⃣3️⃣ switcher is handled separately (its own row
+        // above) — except with no action icons at all, where it becomes the
+        // single bottom row itself (1️⃣2️⃣3️⃣ left, ❔/❓ right).
+        val scale = barIconScale
+        val capacity = available / scale    // row width in unscaled dp
+        val helpCount = (if (showSecondHelp) 1 else 0) + (if (showScreenHelp) 1 else 0)
+        val helpReserve = if (helpCount > 0) helpGap + helpW * helpCount else 0f
+        // Icons that fit in [cap] — at least 1, so a pathologically narrow
+        // bar still renders rather than dividing the list by zero rows.
+        fun fitCount(cap: Float) = ((cap + extraGap) / (cell + extraGap)).toInt().coerceAtLeast(1)
+        val perFull = fitCount(capacity)
+        val perLast = fitCount(capacity - helpReserve)
         val rows = when {
             actionSpecs.isEmpty() -> listOf(navSpecs)
-            rem == 0 -> actionSpecs.chunked(per)
-            else -> listOf(actionSpecs.take(rem)) + actionSpecs.drop(rem).chunked(per)
+            actionSpecs.size <= perLast -> listOf(actionSpecs)
+            else -> {
+                val above = actionSpecs.dropLast(perLast)
+                val rem = above.size % perFull
+                (if (rem == 0) above.chunked(perFull)
+                else listOf(above.take(rem)) + above.drop(rem).chunked(perFull)) +
+                    listOf(actionSpecs.takeLast(perLast))
+            }
         }
-        fun rowWidth(count: Int, withHelp: Boolean) =
-            (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat() +
-                (if (withHelp) {
-                    val helpCount = (if (showSecondHelp) 1 else 0) + (if (showScreenHelp) 1 else 0)
-                    if (helpCount > 0) helpGap + helpW * helpCount else 0f
-                } else 0f)
-        // The nav row's own (unscaled) width, folded into the max so the scale
-        // never makes 1️⃣2️⃣3️⃣ overflow even when the action rows are sparse.
-        val navRowWidth = if (navOwnRow)
-            (navSpecs.size * cell + (navSpecs.size - 1).coerceAtLeast(0) * extraGap).toFloat() else 0f
-        val widest = maxOf(
-            rows.mapIndexed { i, r -> rowWidth(r.size, i == rows.lastIndex) }.maxOrNull() ?: helpW,
-            navRowWidth
-        )
-        val scale = (available / widest).coerceIn(1.0f, ceiling)
         // Tighter per-row cell height when wrapped so the rows sit close
         // together vertically; full height for a single row. The nav row
         // counts as a visual row.
