@@ -456,6 +456,9 @@ internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
     "🔄" to ("Regenerate" to "Re-run / reload."),
     "🗑" to ("Delete" to "Delete this item (asks to confirm)."),
     "🐞" to ("Trace" to "Open the API trace(s)."),
+    "1️⃣" to ("Manage a report" to "Go to the Manage-a-report screen (greyed when you're on another of the three report screens)."),
+    "2️⃣" to ("Report - Get info" to "Go to the Get-info screen (icon / title / language job status)."),
+    "3️⃣" to ("Report - second results" to "Go to the second-results screen (Meta / Fan-out / Tournament / Translation / Rerank / Moderation)."),
 )
 
 /** Topics whose screen shows MORE than 3 icons → a standalone ❔ icon page

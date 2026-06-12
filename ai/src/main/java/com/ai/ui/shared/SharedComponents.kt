@@ -917,6 +917,17 @@ fun shareText(context: android.content.Context, text: String, subject: String? =
     context.startActivity(android.content.Intent.createChooser(intent, "Share"))
 }
 
+/** The 1️⃣ 2️⃣ 3️⃣ screen-switcher published by the three report screens
+ *  (Manage / Get-info / Second-results). [active] is the on-screen one
+ *  (1/2/3); buildBottomBarIcons renders it first and full-colour, the
+ *  other two greyed but still clickable, jumping straight to that screen. */
+data class ReportScreenNav(
+    val active: Int,
+    val onGoManage: () -> Unit,
+    val onGoGetInfo: () -> Unit,
+    val onGoSecond: () -> Unit
+)
+
 /** Captured icon state from a TitleBar — what BottomIconBar needs to
  *  render the same strip the top bar would have rendered. */
 data class TitleBarIcons(
@@ -1105,7 +1116,15 @@ data class TitleBarIcons(
     val monitorNav: MonitorNav? = null,
     /** The screen's title, captured so the live "<title> - icons" overlay
      *  (white ❓ on allowlisted screens) can header itself. Null → "Icons". */
-    val title: String? = null
+    val title: String? = null,
+    /** The 1️⃣ 2️⃣ 3️⃣ report-screen switcher (Manage / Get-info / Second).
+     *  Non-null only on the three report screens; rendered first in the
+     *  bar. Null → no switcher. */
+    val screenNav: ReportScreenNav? = null,
+    /** Greys the 📒 list-notes glyph (alpha) when the report has no notes
+     *  yet. Still clickable so the User-notes screen (with ✍️ Add note)
+     *  stays reachable. Ignored when [onListNotes] is null. */
+    val listNotesActive: Boolean = true
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -1427,6 +1446,13 @@ fun TitleBar(
      *  info" over the Manage hub) so the host's already-published bottom
      *  bar stands instead of being clobbered. */
     publishBottomBar: Boolean = true,
+    /** Optional 1️⃣ 2️⃣ 3️⃣ report-screen switcher (Manage / Get-info /
+     *  Second-results). Rendered first in the bottom bar — active first
+     *  and full-colour, the other two greyed but clickable. Null → none. */
+    screenNav: ReportScreenNav? = null,
+    /** Greys the 📒 list-notes glyph when the report has no notes yet (it
+     *  stays clickable). Ignored when [onListNotes] is null. */
+    listNotesActive: Boolean = true,
     /** Applied to the bar's outer Row. */
     modifier: Modifier = Modifier
 ) {
@@ -1526,7 +1552,9 @@ fun TitleBar(
         // ❓ help moved out of the top bar into the bottom icons bar
         // (right-aligned, other icons left). View screens keep their
         // top-bar ❓ — see ViewScreenTitleBar.
-        onHelp = helpTopic?.let { { navigateHelp(it) } }
+        onHelp = helpTopic?.let { { navigateHelp(it) } },
+        screenNav = screenNav,
+        listNotesActive = listNotesActive
     )
     if (state != null && publishBottomBar) {
         // Bottom-bar publish is RESUME-anchored so the ACTIVE destination always
@@ -2049,6 +2077,19 @@ private fun buildBottomBarIcons(
     suppressShare: Boolean = false
 ): List<BottomBarIcon> = buildList {
     val D = com.ai.data.MetadataDefaults
+    // ----- 1️⃣ 2️⃣ 3️⃣ report-screen switcher (leads the whole strip) -----
+    // The on-screen number comes first and full-colour; the other two are
+    // greyed but still click → jump straight to that report screen.
+    icons.screenNav?.let { nav ->
+        listOf(
+            Triple(1, "1️⃣", nav.onGoManage),
+            Triple(2, "2️⃣", nav.onGoGetInfo),
+            Triple(3, "3️⃣", nav.onGoSecond)
+        ).sortedBy { if (it.first == nav.active) -1 else it.first }
+            .forEach { (idx, glyph, onClick) ->
+                add(BottomBarIcon(glyph, Color.Unspecified, onClick, 28, alpha = if (idx == nav.active) 1f else 0.35f))
+            }
+    }
     // Reports-hub leading actions: 🆕 New, 🔍 Search, 🗂️ All (replaced the top buttons).
     icons.onNewReport?.let { add(BottomBarIcon(mi.add, Color.Unspecified, it, 28, legendKey = D.ADD)) }
     icons.onSearchReports?.let { add(BottomBarIcon(mi.search, Color.Unspecified, it, 28, legendKey = D.SEARCH)) }
@@ -2133,7 +2174,7 @@ private fun buildBottomBarIcons(
     icons.onTranslationCompare?.let { add(BottomBarIcon(mi.translationCompare, Color.Unspecified, it, 28, legendKey = D.TRANSLATION_COMPARE)) }
     icons.onMemo?.let { add(BottomBarIcon(mi.memo, Color.Unspecified, it, 28, legendKey = D.MEMO)) }
     icons.onAddNote?.let { add(BottomBarIcon(mi.addNote, Color.Unspecified, it, 28, legendKey = D.ADD_NOTE)) }
-    icons.onListNotes?.let { add(BottomBarIcon(mi.listNotes, Color.Unspecified, it, 28, legendKey = D.LIST_NOTES)) }
+    icons.onListNotes?.let { add(BottomBarIcon(mi.listNotes, Color.Unspecified, it, 28, alpha = if (icons.listNotesActive) 1f else 0.35f, legendKey = D.LIST_NOTES)) }
     icons.onEdit?.let { add(BottomBarIcon(mi.edit, Color.Unspecified, it, 28, legendKey = D.EDIT)) }
     // Reload slot — normally 🔄 reload; when swapped (Model response) the
     // 💬 chat glyph takes this late position instead.

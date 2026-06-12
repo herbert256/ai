@@ -165,6 +165,25 @@ internal fun ReportRunScreen(
             else -> st.showGetInfo.value = true                                        // Manage → Get-info
         }
     }
+    // Which of the three report screens is on top right now. The hub is the
+    // sole bottom-bar publisher (the Get-info / second-results overlays keep
+    // publishBottomBar=false and draw only their top chrome), so it publishes
+    // a DIFFERENT icon set per layer: 1 = Manage, 2 = Get-info, 3 = second
+    // results. Read here so the hub recomposes + re-publishes on layer change.
+    val activeReportLayer = when {
+        showSecondResults?.value == true -> 3
+        st.showGetInfo.value -> 2
+        else -> 1
+    }
+    // View/Edit/Delete/Regenerate/Copy/Pin/Export + the kept extras live on
+    // Manage only; the six secondary launchers live on second-results only.
+    val manageLayer = activeReportLayer == 1
+    val secondLayer = activeReportLayer == 3
+    // Direct jumps for the 1️⃣ 2️⃣ 3️⃣ switcher (cycleReportScreens only steps
+    // forward). Each clears the others so exactly one layer is shown.
+    val goManageScreen: () -> Unit = { st.showGetInfo.value = false; showSecondResults?.value = false }
+    val goGetInfoScreen: () -> Unit = { showSecondResults?.value = false; st.showGetInfo.value = true }
+    val goSecondScreen: () -> Unit = { st.showGetInfo.value = false; showSecondResults?.value = true }
     val tournamentResponseCount = reportsAgentResults.values.count { it.error == null && !it.analysis.isNullOrBlank() }
     // "Compare with meta" — two-page selection flow (meta items → prompt) then
     // the worker-judged grid. compareStep: 0 = none, 1 = select meta, 2 = select
@@ -433,11 +452,19 @@ internal fun ReportRunScreen(
         // the TitleBar so the auto-captured bottom-bar icon appears here.
         val managePick = com.ai.ui.shared.LocalNavigateToManagePicker.current
         androidx.compose.runtime.CompositionLocalProvider(
+            // 🗂️ pick-report is a Manage-only extra; null on the Get-info /
+            // second-results layers so it doesn't surface there.
             com.ai.ui.shared.LocalManagePickReport provides
-                { managePick(com.ai.ui.navigation.ManagePickKind.MANAGE.arg) }
+                (if (manageLayer) ({ managePick(com.ai.ui.navigation.ManagePickKind.MANAGE.arg) }) else null)
         ) {
         TitleBar(
-            helpTopic = "report_run",
+            // Help / icon-legend follow the on-screen layer (the hub publishes
+            // the bar for all three).
+            helpTopic = when (activeReportLayer) {
+                2 -> "report_get_info"
+                3 -> "report_second_results"
+                else -> "report_run"
+            },
             // While the Translations layer is open it owns the bottom bar (just
             // 🆕). The hub stays composed underneath and recomposes on every
             // live update, so without this gate its SideEffect re-publishes the
@@ -460,28 +487,30 @@ internal fun ReportRunScreen(
             // ℹ️ → the standalone "Report information" screen (real route).
             // Read from a CompositionLocal rather than a threaded arg —
             // ReportsScreen is at the JVM 64 KB method ceiling.
-            onInfo = currentReportId?.let { rid -> { navigateToReportInfo(rid) } },
+            // View / Edit / Delete / Regenerate / Copy / Pin / Export + the
+            // kept extras (Chat / Info / Trace / row-labels) are Manage-only.
+            onInfo = if (manageLayer) currentReportId?.let { rid -> { navigateToReportInfo(rid) } } else null,
             onBackClick = onDismiss,
-            onReload = if (currentReportId != null && isComplete) onRequestRegenerate else null,
-            onTrace = if (currentReportId != null) generationHandlers.onTrace else null,
-            onDelete = if (currentReportId != null) generationHandlers.onDelete else null,
-            onOpenView = if (currentReportId != null) onOpenViewReport else null,
-            onChat = if (uiState.genericPromptText.isNotBlank()) {
+            onReload = if (manageLayer && currentReportId != null && isComplete) onRequestRegenerate else null,
+            onTrace = if (manageLayer && currentReportId != null) generationHandlers.onTrace else null,
+            onDelete = if (manageLayer && currentReportId != null) generationHandlers.onDelete else null,
+            onOpenView = if (manageLayer && currentReportId != null) onOpenViewReport else null,
+            onChat = if (manageLayer && uiState.genericPromptText.isNotBlank()) {
                 { onChatWithReportPrompt(uiState.genericPromptText) }
             } else null,
-            onShare = if (currentReportId != null && isComplete) generationHandlers.onRequestExport else null,
-            onCopyReport = if (currentReportId != null) {
+            onShare = if (manageLayer && currentReportId != null && isComplete) generationHandlers.onRequestExport else null,
+            onCopyReport = if (manageLayer && currentReportId != null) {
                 { showCopyConfirm = true }
             } else null,
-            onPin = if (currentReportId != null) {
+            onPin = if (manageLayer && currentReportId != null) {
                 { generationHandlers.onTogglePin(); pinTick++ }
             } else null,
             isPinned = isPinned,
-            onToggleModelRowLabels = if (currentReportId != null) {
+            onToggleModelRowLabels = if (manageLayer && currentReportId != null) {
                 { showModelNamesInReportRows = !showModelNamesInReportRows }
             } else null,
             modelRowLabelsShowModelNames = showModelNamesInReportRows,
-            onFanOut = if (currentReportId != null) {
+            onFanOut = if (secondLayer && currentReportId != null) {
                 {
                     st.showCreateOverview.value = false
                     showTournamentOverview = false
@@ -499,7 +528,7 @@ internal fun ReportRunScreen(
             fanOutIcon = com.ai.ui.shared.LocalMetadataIcons.current.fanOutRow
                 .takeIf { it.isNotBlank() }
                 ?: com.ai.data.MetadataDefaults.FAN_OUT,
-            onTournament = if (currentReportId != null) {
+            onTournament = if (secondLayer && currentReportId != null) {
                 {
                     st.showCreateOverview.value = false
                     showTournamentOverview = true
@@ -512,7 +541,7 @@ internal fun ReportRunScreen(
             // row + any existing translations); its 🆕 starts the create flow
             // (language→model picker → its own run screen). Shown even with no
             // translations yet, so the page is always reachable.
-            onTranslate = if (currentReportId != null) {
+            onTranslate = if (secondLayer && currentReportId != null) {
                 {
                     st.showCreateOverview.value = false
                     showTournamentOverview = false
@@ -525,7 +554,7 @@ internal fun ReportRunScreen(
             // 🏆 Rerank — single-shot: if one exists, jump straight to its
             // detail; otherwise start it (the picker → run then surfaces the
             // "Report - second results" screen, where the new row appears).
-            onRerank = if (currentReportId != null) {
+            onRerank = if (secondLayer && currentReportId != null) {
                 {
                     val existing = secondaryRuns.firstOrNull { it.kind == com.ai.data.SecondaryKind.RERANK }
                     if (existing != null) {
@@ -539,7 +568,7 @@ internal fun ReportRunScreen(
                 .takeIf { it.isNotBlank() }
                 ?: com.ai.data.MetadataDefaults.RERANK,
             // 🚦 Moderation — same single-shot behaviour as rerank.
-            onModeration = if (currentReportId != null) {
+            onModeration = if (secondLayer && currentReportId != null) {
                 {
                     val existing = secondaryRuns.firstOrNull { it.kind == com.ai.data.SecondaryKind.MODERATION }
                     if (existing != null) {
@@ -552,18 +581,23 @@ internal fun ReportRunScreen(
             moderationIcon = com.ai.ui.shared.LocalMetadataIcons.current.moderate
                 .takeIf { it.isNotBlank() }
                 ?: com.ai.data.MetadataDefaults.MODERATE,
-            // ✏️ opens the full-screen "Edit report" overview (layer on top
-            // of this hub) instead of the old 3-button pop-up.
-            onEdit = { st.showEditReportOverview.value = true },
-            // 🔗 opens the full-screen "Meta" launcher (Meta + Compare with
-            // meta) as a layer on top of this hub. Glyph = the user's Meta
-            // default icon (Settings → Default icons) rather than hard-coded.
-            onAdd = { st.showCreateOverview.value = true },
+            // ✏️ opens the full-screen "Edit report" overview (Manage only).
+            onEdit = if (manageLayer) { { st.showEditReportOverview.value = true } } else null,
+            // 🔗 the full-screen "Meta" launcher (Meta + Compare with meta) —
+            // a secondary launcher, so it lives on the second-results layer.
+            // Glyph = the user's Meta default icon (Settings → Default icons).
+            onAdd = if (secondLayer) { { st.showCreateOverview.value = true } } else null,
             addIcon = com.ai.ui.shared.LocalMetadataIcons.current.meta,
             addFirst = true,
-            // ✍️ add a report-level note; 📒 open the all-notes list.
-            onAddNote = if (currentReportId != null) { { noteEdit = NoteEdit.Add } } else null,
-            onListNotes = if (currentReportId != null) { { showNotesList = true } } else null
+            // 📒 open the all-notes list (Manage only), greyed when the report
+            // has no notes yet — still clickable so the User-notes screen (which
+            // hosts ✍️ Add note) stays reachable. ✍️ itself moved there.
+            onListNotes = if (manageLayer && currentReportId != null) { { showNotesList = true } } else null,
+            listNotesActive = reportNotes.isNotEmpty(),
+            // 1️⃣ 2️⃣ 3️⃣ switcher — leads the bar on all three report screens.
+            screenNav = currentReportId?.let {
+                com.ai.ui.shared.ReportScreenNav(activeReportLayer, goManageScreen, goGetInfoScreen, goSecondScreen)
+            }
         )
         }
 
