@@ -2525,10 +2525,12 @@ fun BottomIconBar(
         return
     }
     val navigateHelp = LocalNavigateToHelp.current
-    // On allowlisted screens the white ❓ opens a live icon-legend overlay
-    // (this screen's visible bar icons) instead of the help page. The
-    // overlay's own red ❓ then opens the full icon-table help page.
-    val useLegend = (icons?.helpTopic in LEGEND_OVERLAY_TOPICS) && specs.isNotEmpty()
+    // The white ❔ opens a live icon-legend overlay (this screen's visible bar
+    // icons) on EVERY screen that has ≥1 non-help bar icon — its own red ❓
+    // then opens the full help page. (Was once gated to LEGEND_OVERLAY_TOPICS;
+    // now every screen with bar icons gets it, per "every screen with icons
+    // must also carry the icon-legend helper".)
+    val useLegend = specs.isNotEmpty()
     var showLegend by remember { mutableStateOf(false) }
     val extraGap = 2
     fun intrinsicOf(list: List<BottomBarIcon>): Float {
@@ -2568,20 +2570,11 @@ fun BottomIconBar(
         // columns aligned vertically across rows.
         val helpW = 32f
         val helpGap = 4f
-        // Second help glyph ❔ — a per-screen "what do these icons do?" page.
-        // Shown just left of ❓ when this screen has its own "<topic>_icons"
-        // help page AND more than 3 action icons (❓/❔ not counted).
-        // (Suppressed on useLegend screens — the overlay's red ❓ replaces it.)
-        val iconTopic = icons.helpTopic?.let { "${it}_icons" }
-            ?.takeIf { com.ai.ui.admin.HELP_TOPICS.containsKey(it) }
-        // White ❔ sits just left of the red ❓. On useLegend screens it opens
-        // the live icon-legend overlay (shown whenever there's ≥1 icon); on
-        // other screens it links to the static icon-table help page when the
-        // bar is crowded (>3 icons), as before. The red ❓ always navigates to
-        // the screen's help page.
-        val showLegendHelp = useLegend
-        val showIconPageHelp = !useLegend && iconTopic != null && actionSpecs.size > 3
-        val showSecondHelp = showLegendHelp || showIconPageHelp
+        // White ❔ sits just left of the red ❓ and opens the live
+        // "<screen> - icons" overlay (this screen's current bar icons). Shown
+        // on every screen with ≥1 non-help bar icon. The red ❓ always
+        // navigates to the screen's help page.
+        val showSecondHelp = useLegend
         val showScreenHelp = !suppressScreenTraceAndHelp
         val cell = 24                       // uniform column width (dp) — tight spacing
         // Wrap by WIDTH, not by a fixed per-row count: at the fixed
@@ -2630,12 +2623,9 @@ fun BottomIconBar(
                     BottomBarIconRow(rowSpecs, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
                     Spacer(modifier = Modifier.weight(1f))
                     if (isLast) {
-                        if (showLegendHelp) {
+                        if (showSecondHelp) {
                             // White ❔ → live "<screen> - icons" overlay.
                             TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale, contentDescription = "Icon legend")
-                        } else if (showIconPageHelp) {
-                            // White ❔ → static icon-table help page.
-                            TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale, contentDescription = "Icon help")
                         }
                         // Red ❓ → the screen's help page. Home bar mode
                         // moves this action to the persistent top bar.
