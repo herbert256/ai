@@ -80,6 +80,11 @@ internal data class ReportRuntimeState(
     val secondEnabled: Boolean,
     val secondState: InfoJobState,
     val secondTotal: Double,
+    /** Combined cost of every model's main response (the "report/prompt"
+     *  calls) — the "report" cross-link row's cost on the Get-info /
+     *  second-results screens. Same per-agent input+output costs the
+     *  Manage hub's per-model "report" rows show, summed. */
+    val mainResponseTotal: Double,
     val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
     val loadedReportPrompt: String,
     val loadedReportTitle: String?,
@@ -120,6 +125,8 @@ internal fun rememberReportRuntimeState(
     var secondEnabled by remember { mutableStateOf(false) }
     var secondState by remember { mutableStateOf(InfoJobState.DONE) }
     var secondTotal by remember { mutableStateOf(0.0) }
+    // Combined main-response cost of every model (report/prompt calls).
+    var mainResponseTotal by remember { mutableStateOf(0.0) }
     var costsFromDeletedItems by remember { mutableStateOf(0.0) }
 
     var reportIcon by remember { mutableStateOf<String?>(null) }
@@ -165,6 +172,7 @@ internal fun rememberReportRuntimeState(
             infoEnabled = false
             infoState = InfoJobState.DONE
             infoMetaTotal = 0.0
+            mainResponseTotal = 0.0
             agentRecordsByAgentId = emptyMap()
             loadedReportPrompt = ""
             loadedReportTitle = null
@@ -187,6 +195,9 @@ internal fun rememberReportRuntimeState(
                 ra.agentId to AgentModelTitle(ra.modelTitle, ra.modelTitleInputCost + ra.modelTitleOutputCost)
             } ?: emptyMap()
             agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
+            // "report" row cost = sum of every model's persisted main-response
+            // input+output cost (matches the Manage hub's per-model rows).
+            mainResponseTotal = r?.agents?.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
             val infoJobs = if (r != null) buildInfoJobs(
                 r, uiState.aiSettings, iconGenEnabled,
                 uiState.generalSettings.reportLanguageOn(),
@@ -389,6 +400,7 @@ internal fun rememberReportRuntimeState(
         secondEnabled = secondEnabled,
         secondState = secondState,
         secondTotal = secondTotal,
+        mainResponseTotal = mainResponseTotal,
         agentRecordsByAgentId = agentRecordsByAgentId,
         loadedReportPrompt = loadedReportPrompt,
         loadedReportTitle = loadedReportTitle,

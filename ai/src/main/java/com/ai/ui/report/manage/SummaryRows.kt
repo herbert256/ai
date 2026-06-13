@@ -40,9 +40,12 @@ import java.util.Locale
 // paints its own trailing divider, like every other list row.
 
 /** "report" row — links the Get-info / second-results screens back to the
- *  Manage hub: the report's icon + its (orange-line) title. */
+ *  Manage hub: the report's icon + its (orange-line) title. The trailing
+ *  [cost] is the combined main-response cost of every model (the sum of the
+ *  Manage hub's per-model "report" rows); always shown, like the other
+ *  cross-link rows. */
 @Composable
-internal fun ReportsSummaryRow(title: String, onClick: () -> Unit) {
+internal fun ReportsSummaryRow(title: String, cost: Double, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onClick() },
         verticalAlignment = Alignment.CenterVertically
@@ -55,6 +58,10 @@ internal fun ReportsSummaryRow(title: String, onClick: () -> Unit) {
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }
+        Text(
+            formatCents(cost), fontSize = 10.sp,
+            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
+        )
     }
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 }
@@ -77,18 +84,19 @@ internal fun InfoSummaryRow(state: InfoJobState, doneIcon: String?, cost: Double
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }
-        if (cost > 0.0) {
-            Text(
-                formatCents(cost), fontSize = 10.sp,
-                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
-            )
-        }
+        // Always shown — a 0 means every metadata job was a cache hit (or
+        // nothing has spent yet), matching the per-job rows on Get-info.
+        Text(
+            formatCents(cost), fontSize = 10.sp,
+            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
+        )
     }
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 }
 
 /** "second" row — aggregate status + total of every secondary result;
- *  tap → "Report - second results". */
+ *  tap → "Report - second results". The cost is always shown — 0 when no
+ *  secondary results have run yet. */
 @Composable
 internal fun SecondSummaryRow(state: InfoJobState, cost: Double, onClick: () -> Unit) {
     Row(
@@ -104,12 +112,11 @@ internal fun SecondSummaryRow(state: InfoJobState, cost: Double, onClick: () -> 
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }
-        if (cost > 0.0) {
-            Text(
-                formatCents(cost), fontSize = 10.sp,
-                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
-            )
-        }
+        // Always shown — 0 when there are no secondary results yet.
+        Text(
+            formatCents(cost), fontSize = 10.sp,
+            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
+        )
     }
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 }

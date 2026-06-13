@@ -89,6 +89,8 @@ internal fun ReportSecondResultsScreen(
     costDollars: Double,
     /** Stats-line tap → the report's costs screen. */
     onViewCosts: (() -> Unit)? = null,
+    /** Combined main-response cost of every model — the "report" row's cost. */
+    reportCost: Double = 0.0,
     /** Gate + aggregate state + total for the "info" cross-link row (same
      *  gate as the Manage hub's info row). */
     infoEnabled: Boolean = false,
@@ -158,7 +160,7 @@ internal fun ReportSecondResultsScreen(
             // itself (Manage hub) and the Get-info aggregate (same gate as
             // the Manage hub's info row).
             item(key = "row-reports") {
-                ReportsSummaryRow(reportTitle, onClick = onGoManage)
+                ReportsSummaryRow(reportTitle, cost = reportCost, onClick = onGoManage)
             }
             if (infoEnabled || infoMetaTotal > 0.0) {
                 item(key = "row-info") {
@@ -373,7 +375,10 @@ internal fun LazyListScope.secondaryResultRows(
                         } else 0.0
                     }
                 }
-                if (totalCost > 0.0) {
+                // A finished run with 0 cost was a cache hit — show the 0,
+                // like the per-job rows on Get-info. Running / errored rows
+                // stay blank (no settled cost yet).
+                if (totalCost > 0.0 || (!running && run.errorMessage == null)) {
                     Text(formatCents(totalCost), fontSize = 10.sp,
                         color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }

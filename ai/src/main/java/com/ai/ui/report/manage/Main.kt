@@ -398,6 +398,7 @@ fun ReportsScreen(
     val secondEnabled = runtime.secondEnabled
     val secondState = runtime.secondState
     val secondTotal = runtime.secondTotal
+    val mainResponseTotal = runtime.mainResponseTotal
     // The moment this report shows an error (a red ❌ on Manage / Get-info /
     // second-results — i.e. a failed info job, a failed secondary, or an errored
     // agent), force a Broken-work scan NOW so the ⚠️ top-bar warning appears
@@ -1751,6 +1752,7 @@ fun ReportsScreen(
             secondEnabled = secondEnabled,
             secondState = secondState,
             secondTotal = secondTotal,
+            mainResponseTotal = mainResponseTotal,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             onDismiss = onDismiss,

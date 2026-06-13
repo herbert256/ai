@@ -374,6 +374,8 @@ fun ReportGetInfoScreen(
     costDollars: Double,
     /** Stats-line tap → the report's costs screen. */
     onViewCosts: (() -> Unit)? = null,
+    /** Combined main-response cost of every model — the "report" row's cost. */
+    reportCost: Double = 0.0,
     /** Aggregate state + total for the "second" cross-link row. */
     secondState: InfoJobState = InfoJobState.DONE,
     secondTotal: Double = 0.0,
@@ -446,7 +448,7 @@ fun ReportGetInfoScreen(
             // Cross-link rows to the other two report screens: the report
             // itself (Manage hub) and the second-results aggregate.
             item(key = "row-reports") {
-                ReportsSummaryRow(reportTitle, onClick = onGoManage)
+                ReportsSummaryRow(reportTitle, cost = reportCost, onClick = onGoManage)
             }
             item(key = "row-second") {
                 SecondSummaryRow(secondState, cost = secondTotal, onClick = onGoSecond)
@@ -483,7 +485,11 @@ fun ReportGetInfoScreen(
                         }
                         Text(job.label, fontSize = 13.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    if (job.cost > 0.0) {
+                    // Show the cost on any completed job — a 0 means the job
+                    // was a cache hit (no LLM call billed), e.g. a language
+                    // icon served from the 7-day meta cache. Pending / running
+                    // / failed rows stay blank (no cost incurred yet).
+                    if (job.cost > 0.0 || job.state == InfoJobState.DONE) {
                         Text(formatCents(job.cost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                     }
                 }

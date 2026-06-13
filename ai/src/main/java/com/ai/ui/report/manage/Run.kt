@@ -102,6 +102,9 @@ internal fun ReportRunScreen(
     secondEnabled: Boolean = false,
     secondState: InfoJobState = InfoJobState.DONE,
     secondTotal: Double = 0.0,
+    /** Combined main-response cost of every model — the "report"
+     *  cross-link row's cost on Get-info / second-results. */
+    mainResponseTotal: Double = 0.0,
     hasPrevReport: Boolean,
     hasNextReport: Boolean,
     onDismiss: () -> Unit,
@@ -756,6 +759,7 @@ internal fun ReportRunScreen(
                     reportTitle = uiState.genericPromptTitleLong.ifBlank { uiState.genericPromptTitle },
                     costDollars = totalCostForBar,
                     onViewCosts = generationHandlers.onViewCosts,
+                    reportCost = mainResponseTotal,
                     secondState = secondState,
                     secondTotal = secondTotal,
                     onGoManage = goManageScreen,
@@ -805,6 +809,7 @@ internal fun ReportRunScreen(
                     reportTitle = uiState.genericPromptTitleLong.ifBlank { uiState.genericPromptTitle },
                     costDollars = totalCostForBar,
                     onViewCosts = generationHandlers.onViewCosts,
+                    reportCost = mainResponseTotal,
                     infoEnabled = infoEnabled,
                     infoState = infoState,
                     infoMetaTotal = infoMetaTotal,
