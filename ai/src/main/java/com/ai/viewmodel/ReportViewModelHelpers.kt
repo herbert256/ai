@@ -169,16 +169,21 @@ internal fun reportModelWorkers(report: Report): List<Worker> =
  *  have no picker surface: they always pass overrideWorkers = null, so
  *  SELECT_ONCE uses the persisted group when present while SELECT_EACH
  *  and a not-yet-picked SELECT_ONCE fall back to the configured chain. */
-internal fun resolveBatchSwarm(report: Report, configured: List<Worker>, overrideWorkers: List<Worker>?, alwaysPromptWorkers: Boolean = false): List<Worker> {
+internal fun resolveBatchSwarm(report: Report, configured: List<Worker>, overrideWorkers: List<Worker>?, alwaysPromptWorkers: Boolean = false, meta: Boolean = false): List<Worker> {
     val cfg = report.workerConfig
     // Rerank / Moderation opt out of the report's Worker-batches choice — they
-    // always run on the workers defined in their own prompt. Treat them as
-    // PROMPT mode so REPORT_MODELS / SELECT_ONCE never swap the pool.
-    val batches = if (alwaysPromptWorkers) com.ai.data.BatchWorkerMode.PROMPT else cfg.batches
+    // always run on the workers defined in their own prompt. Meta / Fan-in read
+    // the separate meta-* routing ([meta]); everything else reads batches/*.
+    val batches = when {
+        alwaysPromptWorkers -> com.ai.data.BatchWorkerMode.PROMPT
+        meta -> cfg.metaBatches
+        else -> cfg.batches
+    }
+    val pickedGroup = if (meta) cfg.metaBatchWorkers else cfg.batchWorkers
     return when {
         batches == com.ai.data.BatchWorkerMode.REPORT_MODELS -> reportModelWorkers(report)
         overrideWorkers != null -> overrideWorkers
-        batches == com.ai.data.BatchWorkerMode.SELECT_ONCE && cfg.batchWorkers.isNotEmpty() -> cfg.batchWorkers
+        batches == com.ai.data.BatchWorkerMode.SELECT_ONCE && pickedGroup.isNotEmpty() -> pickedGroup
         else -> configured
     }
 }
@@ -205,16 +210,22 @@ internal sealed class WorkerPlan {
 /** Maps the report's Worker-batches mode (plus the driving prompt's own
  *  *SELECT setting) onto a [WorkerPlan]. Used by every type-B launch
  *  site so the picker-vs-dispatch decision can't drift per kind. */
-internal fun workerPlanFor(cfg: com.ai.data.ReportWorkerConfig, prompt: com.ai.model.InternalPrompt?, alwaysPromptWorkers: Boolean = false): WorkerPlan {
+internal fun workerPlanFor(cfg: com.ai.data.ReportWorkerConfig, prompt: com.ai.model.InternalPrompt?, alwaysPromptWorkers: Boolean = false, meta: Boolean = false): WorkerPlan {
     // Rerank / Moderation ignore the report's batch mode and follow the prompt
-    // (which still asks at run time when the prompt itself is *SELECT).
-    val batches = if (alwaysPromptWorkers) com.ai.data.BatchWorkerMode.PROMPT else cfg.batches
+    // (which still asks at run time when the prompt itself is *SELECT). Meta /
+    // Fan-in read the separate meta-* routing.
+    val batches = when {
+        alwaysPromptWorkers -> com.ai.data.BatchWorkerMode.PROMPT
+        meta -> cfg.metaBatches
+        else -> cfg.batches
+    }
+    val pickedGroup = if (meta) cfg.metaBatchWorkers else cfg.batchWorkers
     return when (batches) {
         com.ai.data.BatchWorkerMode.REPORT_MODELS -> WorkerPlan.Resolved
         com.ai.data.BatchWorkerMode.SELECT_EACH ->
             WorkerPlan.NeedsPick(prompt?.workers ?: emptyList(), persistOnPick = false)
         com.ai.data.BatchWorkerMode.SELECT_ONCE ->
-            if (cfg.batchWorkers.isEmpty()) WorkerPlan.NeedsPick(prompt?.workers ?: emptyList(), persistOnPick = true)
+            if (pickedGroup.isEmpty()) WorkerPlan.NeedsPick(prompt?.workers ?: emptyList(), persistOnPick = true)
             else WorkerPlan.Resolved
         com.ai.data.BatchWorkerMode.PROMPT ->
             if (prompt?.modelSelection == com.ai.model.MODEL_SELECTION_SELECT)
@@ -240,10 +251,16 @@ internal fun com.ai.model.InternalPrompt.withOwnModelWorker(report: Report?, pro
  *  selection sub-choice on the select-workers screen). Fixed-judge
  *  grids (Judges / TransRank cells) and single-model pools ignore it —
  *  they have no pool pick to rotate. */
-internal fun workerScheduleFor(report: Report): WorkerSchedule =
-    if (report.workerConfig.batches == com.ai.data.BatchWorkerMode.REPORT_MODELS &&
-        report.workerConfig.workerSelection == com.ai.data.WorkerSelectionMode.ROUND_ROBIN
-    ) WorkerSchedule.RoundRobin(report.id) else WorkerSchedule.Random
+internal fun workerScheduleFor(report: Report, meta: Boolean = false): WorkerSchedule {
+    val cfg = report.workerConfig
+    val batches = if (meta) cfg.metaBatches else cfg.batches
+    val selection = if (meta) cfg.metaWorkerSelection else cfg.workerSelection
+    return if (batches == com.ai.data.BatchWorkerMode.REPORT_MODELS &&
+        selection == com.ai.data.WorkerSelectionMode.ROUND_ROBIN
+        // Distinct cursor key so the Meta/Fan-in rotation runs independently
+        // of the other batches' rotation on the same report.
+    ) WorkerSchedule.RoundRobin(if (meta) "${report.id}|meta" else report.id) else WorkerSchedule.Random
+}
 
 /** A single answer model as a one-element worker list. Used when the
  *  Model-info "Own model" mode wants THAT model — not a pool — to

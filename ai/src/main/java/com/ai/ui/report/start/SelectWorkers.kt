@@ -50,9 +50,10 @@ import com.ai.ui.shared.TitleBar
  * "Manage a report". A stack of collapsible cards (all collapsed on open)
  * configures, per report: the system prompt override, the API-parameter
  * presets, and who does the worker jobs — report info (icon / titles /
- * language), model info (per-model icons & titles), and the type-B worker
- * batches (Fan Meta, Translation, Tournament, Judges, Compare, Meta,
- * Fan-in). Rerank and Moderation are intentionally absent — they always
+ * language), model info (per-model icons & titles), the type-B worker
+ * batches (Fan Meta, Translation, Tournament, Judges, Compare), and a
+ * separate Meta card for the Meta + Fan-in batches (same option set, its
+ * own pool). Rerank and Moderation are intentionally absent — they always
  * run on the workers defined in their own prompt.
  *
  * One stateless composable serves two hosts: pre-generation (the
@@ -118,6 +119,7 @@ internal fun ReportSelectWorkersScreen(
     var reportInfoOpen by remember { mutableStateOf(false) }
     var modelInfoOpen by remember { mutableStateOf(false) }
     var batchesOpen by remember { mutableStateOf(false) }
+    var metaOpen by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
@@ -269,101 +271,148 @@ internal fun ReportSelectWorkersScreen(
         CollapsibleCard(
             icon = mi.ant,
             title = "Worker batches",
-            summary = when (config.batches) {
-                BatchWorkerMode.PROMPT -> "Prompt configuration"
-                BatchWorkerMode.REPORT_MODELS -> "Report models"
-                BatchWorkerMode.SELECT_EACH -> "User selectable for each batch"
-                BatchWorkerMode.SELECT_ONCE -> "One time selectable"
-            },
+            summary = batchModeSummary(config.batches),
             expanded = batchesOpen,
             onToggle = { batchesOpen = !batchesOpen }
         ) {
             Text(
-                "Fan Meta, Translation, Tournament, Judges, Compare, Meta, Fan-in",
+                "Fan Meta, Translation, Tournament, Judges, Compare",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            OptionRow(
-                selected = config.batches == BatchWorkerMode.PROMPT,
-                label = "Prompt configuration",
-                sublabel = "Each batch uses its Internal Prompt's workers (or its run-time picker).",
-                onSelect = { onConfigChange(config.copy(batches = BatchWorkerMode.PROMPT)) }
+            BatchRoutingOptions(
+                batches = config.batches,
+                workerSelection = config.workerSelection,
+                batchWorkers = config.batchWorkers,
+                agentNames = agentNames,
+                aiSettings = aiSettings,
+                onBatchesChange = { onConfigChange(config.copy(batches = it)) },
+                onWorkerSelectionChange = { onConfigChange(config.copy(workerSelection = it)) },
+                onBatchWorkersChange = { onConfigChange(config.copy(batchWorkers = it)) }
             )
-            OptionRow(
-                selected = config.batches == BatchWorkerMode.REPORT_MODELS,
-                label = "Report models",
-                sublabel = "Workers are this report's own answer models.",
-                onSelect = { onConfigChange(config.copy(batches = BatchWorkerMode.REPORT_MODELS)) }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        // ── Card: Meta ─────────────────────────────────────────────────
+        // Meta + Fan-in route on their own pool, separate from Worker
+        // batches; same option set.
+        CollapsibleCard(
+            icon = mi.meta,
+            title = "Meta",
+            summary = batchModeSummary(config.metaBatches),
+            expanded = metaOpen,
+            onToggle = { metaOpen = !metaOpen }
+        ) {
+            Text("Meta, Fan-in", fontSize = 12.sp, color = AppColors.TextTertiary)
+            BatchRoutingOptions(
+                batches = config.metaBatches,
+                workerSelection = config.metaWorkerSelection,
+                batchWorkers = config.metaBatchWorkers,
+                agentNames = agentNames,
+                aiSettings = aiSettings,
+                onBatchesChange = { onConfigChange(config.copy(metaBatches = it)) },
+                onWorkerSelectionChange = { onConfigChange(config.copy(metaWorkerSelection = it)) },
+                onBatchWorkersChange = { onConfigChange(config.copy(metaBatchWorkers = it)) }
             )
-            if (config.batches == BatchWorkerMode.REPORT_MODELS) {
-                Text("Worker selection", fontSize = 12.sp, color = AppColors.TextTertiary)
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    SegmentedButton(
-                        selected = config.workerSelection == WorkerSelectionMode.WHEN_AVAILABLE,
-                        onClick = { onConfigChange(config.copy(workerSelection = WorkerSelectionMode.WHEN_AVAILABLE)) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                    ) { Text("When available", fontSize = 13.sp) }
-                    SegmentedButton(
-                        selected = config.workerSelection == WorkerSelectionMode.ROUND_ROBIN,
-                        onClick = { onConfigChange(config.copy(workerSelection = WorkerSelectionMode.ROUND_ROBIN)) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                    ) { Text("Round robin", fontSize = 13.sp) }
-                }
-                Text(
-                    if (config.workerSelection == WorkerSelectionMode.ROUND_ROBIN)
-                        "Each worker gets the same share of work; failures fall through to the next worker."
-                    else "Fast models pick up more work.",
-                    fontSize = 11.sp, color = AppColors.TextDim
-                )
-            }
-            OptionRow(
-                selected = config.batches == BatchWorkerMode.SELECT_EACH,
-                label = "User selectable for each batch",
-                sublabel = "Pick the workers every time a batch starts.",
-                onSelect = { onConfigChange(config.copy(batches = BatchWorkerMode.SELECT_EACH)) }
-            )
-            OptionRow(
-                selected = config.batches == BatchWorkerMode.SELECT_ONCE,
-                label = "One time selectable, use for each batch",
-                sublabel = "Pick once at the first batch; reused for all later batches.",
-                onSelect = { onConfigChange(config.copy(batches = BatchWorkerMode.SELECT_ONCE)) }
-            )
-            if (config.batches == BatchWorkerMode.SELECT_ONCE) {
-                if (config.batchWorkers.isEmpty()) {
-                    Text(
-                        "You'll pick the workers when the first batch starts.",
-                        fontSize = 11.sp, color = AppColors.TextDim
-                    )
-                } else {
-                    // The group picked at the first batch — reviewable and
-                    // editable from the Manage 👷 re-edit.
-                    Text("Workers picked at the first batch", fontSize = 12.sp, color = AppColors.TextTertiary)
-                    config.batchWorkers.forEachIndexed { idx, w ->
-                        WorkerRowEditor(
-                            index = idx,
-                            worker = w,
-                            agentNames = agentNames,
-                            aiSettings = aiSettings,
-                            onChange = { nw ->
-                                onConfigChange(config.copy(
-                                    batchWorkers = config.batchWorkers.toMutableList().also { it[idx] = nw }
-                                ))
-                            },
-                            onRemove = {
-                                onConfigChange(config.copy(
-                                    batchWorkers = config.batchWorkers.toMutableList().also { it.removeAt(idx) }
-                                ))
-                            }
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = { onConfigChange(config.copy(batchWorkers = config.batchWorkers + Worker(agent = "*select"))) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = AppColors.outlinedButtonColors()
-                    ) { Text("+ Add worker", fontSize = 13.sp) }
-                }
-            }
         }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** Collapsed-header summary for a [BatchWorkerMode] — shared by the
+ *  Worker batches and Meta cards. */
+private fun batchModeSummary(mode: BatchWorkerMode): String = when (mode) {
+    BatchWorkerMode.PROMPT -> "Prompt configuration"
+    BatchWorkerMode.REPORT_MODELS -> "Report models"
+    BatchWorkerMode.SELECT_EACH -> "User selectable for each batch"
+    BatchWorkerMode.SELECT_ONCE -> "One time selectable"
+}
+
+/** The four batch-routing radio options (+ the Report-models worker-selection
+ *  sub-choice and the SELECT_ONCE worker editor) shared by the Worker batches
+ *  and Meta cards. Fully hoisted — the caller maps the chosen values back onto
+ *  whichever [ReportWorkerConfig] fields the card owns. */
+@Composable
+private fun ColumnScope.BatchRoutingOptions(
+    batches: BatchWorkerMode,
+    workerSelection: WorkerSelectionMode,
+    batchWorkers: List<Worker>,
+    agentNames: List<String>,
+    aiSettings: Settings,
+    onBatchesChange: (BatchWorkerMode) -> Unit,
+    onWorkerSelectionChange: (WorkerSelectionMode) -> Unit,
+    onBatchWorkersChange: (List<Worker>) -> Unit
+) {
+    OptionRow(
+        selected = batches == BatchWorkerMode.PROMPT,
+        label = "Prompt configuration",
+        sublabel = "Each batch uses its Internal Prompt's workers (or its run-time picker).",
+        onSelect = { onBatchesChange(BatchWorkerMode.PROMPT) }
+    )
+    OptionRow(
+        selected = batches == BatchWorkerMode.REPORT_MODELS,
+        label = "Report models",
+        sublabel = "Workers are this report's own answer models.",
+        onSelect = { onBatchesChange(BatchWorkerMode.REPORT_MODELS) }
+    )
+    if (batches == BatchWorkerMode.REPORT_MODELS) {
+        Text("Worker selection", fontSize = 12.sp, color = AppColors.TextTertiary)
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = workerSelection == WorkerSelectionMode.WHEN_AVAILABLE,
+                onClick = { onWorkerSelectionChange(WorkerSelectionMode.WHEN_AVAILABLE) },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+            ) { Text("When available", fontSize = 13.sp) }
+            SegmentedButton(
+                selected = workerSelection == WorkerSelectionMode.ROUND_ROBIN,
+                onClick = { onWorkerSelectionChange(WorkerSelectionMode.ROUND_ROBIN) },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+            ) { Text("Round robin", fontSize = 13.sp) }
+        }
+        Text(
+            if (workerSelection == WorkerSelectionMode.ROUND_ROBIN)
+                "Each worker gets the same share of work; failures fall through to the next worker."
+            else "Fast models pick up more work.",
+            fontSize = 11.sp, color = AppColors.TextDim
+        )
+    }
+    OptionRow(
+        selected = batches == BatchWorkerMode.SELECT_EACH,
+        label = "User selectable for each batch",
+        sublabel = "Pick the workers every time a batch starts.",
+        onSelect = { onBatchesChange(BatchWorkerMode.SELECT_EACH) }
+    )
+    OptionRow(
+        selected = batches == BatchWorkerMode.SELECT_ONCE,
+        label = "One time selectable, use for each batch",
+        sublabel = "Pick once at the first batch; reused for all later batches.",
+        onSelect = { onBatchesChange(BatchWorkerMode.SELECT_ONCE) }
+    )
+    if (batches == BatchWorkerMode.SELECT_ONCE) {
+        if (batchWorkers.isEmpty()) {
+            Text(
+                "You'll pick the workers when the first batch starts.",
+                fontSize = 11.sp, color = AppColors.TextDim
+            )
+        } else {
+            // The group picked at the first batch — reviewable and
+            // editable from the Manage 👷 re-edit.
+            Text("Workers picked at the first batch", fontSize = 12.sp, color = AppColors.TextTertiary)
+            batchWorkers.forEachIndexed { idx, w ->
+                WorkerRowEditor(
+                    index = idx,
+                    worker = w,
+                    agentNames = agentNames,
+                    aiSettings = aiSettings,
+                    onChange = { nw -> onBatchWorkersChange(batchWorkers.toMutableList().also { it[idx] = nw }) },
+                    onRemove = { onBatchWorkersChange(batchWorkers.toMutableList().also { it.removeAt(idx) }) }
+                )
+            }
+            OutlinedButton(
+                onClick = { onBatchWorkersChange(batchWorkers + Worker(agent = "*select")) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("+ Add worker", fontSize = 13.sp) }
+        }
     }
 }
 

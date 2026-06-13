@@ -1142,7 +1142,8 @@ fun ReportsScreen(
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
             launchWithWorkerPlan(
                 st.runtimeWorkerPick, context, st.screenScope, rid,
-                aiSettings.workerPromptByName("meta"), "Meta — pick workers"
+                aiSettings.workerPromptByName("meta"), "Meta — pick workers",
+                meta = true
             ) { picked -> onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, picked); goToSecondResults() }
         }
         return
@@ -1160,7 +1161,8 @@ fun ReportsScreen(
             fanInPickerSourceLanguage = null
             launchWithWorkerPlan(
                 st.runtimeWorkerPick, context, st.screenScope, rid,
-                aiSettings.workerPromptByName("fan-in"), "Fan-in — pick workers"
+                aiSettings.workerPromptByName("fan-in"), "Fan-in — pick workers",
+                meta = true
             ) { picked -> onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, picked) }
         }
         return

@@ -254,6 +254,14 @@ data class ReportWorkerConfig(
     val batchWorkers: List<com.ai.model.Worker> = emptyList(),
     /** Only meaningful when [batches] == REPORT_MODELS. */
     val workerSelection: WorkerSelectionMode = WorkerSelectionMode.WHEN_AVAILABLE,
+    /** Worker routing for the Meta + Fan-in batches — split out of [batches]
+     *  so they can draw from a different pool than the other type-B batches.
+     *  Same option set; the "Meta" card on Report - setup edits these three. */
+    val metaBatches: BatchWorkerMode = BatchWorkerMode.PROMPT,
+    /** Filled on the first Meta/Fan-in launch when [metaBatches] == SELECT_ONCE. */
+    val metaBatchWorkers: List<com.ai.model.Worker> = emptyList(),
+    /** Only meaningful when [metaBatches] == REPORT_MODELS. */
+    val metaWorkerSelection: WorkerSelectionMode = WorkerSelectionMode.WHEN_AVAILABLE,
 ) {
     /** Defaults any null sub-field read from a file written by hand or a
      *  truncated write (Gson's UnsafeAllocator bypasses constructor
@@ -266,6 +274,9 @@ data class ReportWorkerConfig(
         batches = (batches as BatchWorkerMode?) ?: BatchWorkerMode.PROMPT,
         batchWorkers = (batchWorkers as List<com.ai.model.Worker>?) ?: emptyList(),
         workerSelection = (workerSelection as WorkerSelectionMode?) ?: WorkerSelectionMode.WHEN_AVAILABLE,
+        metaBatches = (metaBatches as BatchWorkerMode?) ?: BatchWorkerMode.PROMPT,
+        metaBatchWorkers = (metaBatchWorkers as List<com.ai.model.Worker>?) ?: emptyList(),
+        metaWorkerSelection = (metaWorkerSelection as WorkerSelectionMode?) ?: WorkerSelectionMode.WHEN_AVAILABLE,
     )
 }
 

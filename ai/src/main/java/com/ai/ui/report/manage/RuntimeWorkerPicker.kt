@@ -69,11 +69,13 @@ internal fun launchWithWorkerPlan(
     /** Rerank / Moderation pass true: they ignore the report's Worker-batches
      *  choice and always follow the prompt's own workers. */
     alwaysPromptWorkers: Boolean = false,
+    /** Meta / Fan-in pass true: read + persist the separate meta-* routing. */
+    meta: Boolean = false,
     run: (List<Worker>?) -> Unit
 ) {
     scope.launch(Dispatchers.IO) {
         val cfg = ReportStorage.getReport(context, reportId)?.workerConfig ?: ReportWorkerConfig()
-        val plan = workerPlanFor(cfg, driver, alwaysPromptWorkers)
+        val plan = workerPlanFor(cfg, driver, alwaysPromptWorkers, meta)
         withContext(Dispatchers.Main) {
             when (plan) {
                 is WorkerPlan.NeedsPick -> runtimeWorkerPick.value = RuntimeWorkerPick(
@@ -82,7 +84,7 @@ internal fun launchWithWorkerPlan(
                     onConfirm = { picked ->
                         if (plan.persistOnPick) {
                             scope.launch(Dispatchers.IO) {
-                                val effective = ReportStorage.setBatchWorkersIfEmpty(context, reportId, picked)
+                                val effective = ReportStorage.setBatchWorkersIfEmpty(context, reportId, picked, meta)
                                 withContext(Dispatchers.Main) { run(effective) }
                             }
                         } else run(picked)

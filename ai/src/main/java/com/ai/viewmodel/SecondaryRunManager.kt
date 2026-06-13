@@ -89,7 +89,10 @@ class SecondaryRunManager(
         targetLanguage: String? = null, targetLanguageNative: String? = null,
         referenceLegend: String? = null, fanInOf: String? = null,
         scopeEncoded: String? = null,
-        paramsIds: List<String> = emptyList(), systemPromptId: String? = null
+        paramsIds: List<String> = emptyList(), systemPromptId: String? = null,
+        /** Meta / Fan-in pass true so the round-robin schedule reads the
+         *  separate meta routing instead of the general batches routing. */
+        meta: Boolean = false
     ) {
         val members = swarm.flatMap { aiSettings.expandWorker(it) }
         if (members.isEmpty()) {
@@ -104,7 +107,7 @@ class SecondaryRunManager(
         // Worker order: shuffled by default; under REPORT_MODELS + Round
         // robin a deterministic rotation from the shared per-report cursor,
         // so successive single-call kinds spread evenly across the pool.
-        val rotationStart = (workerScheduleFor(report) as? WorkerSchedule.RoundRobin)
+        val rotationStart = (workerScheduleFor(report, meta) as? WorkerSchedule.RoundRobin)
             ?.let { WorkerRotation.next(it.key) % members.size }
         val order = if (rotationStart != null) List(members.size) { (rotationStart + it) % members.size }
         else members.indices.shuffled()
@@ -1063,12 +1066,13 @@ class SecondaryRunManager(
                     }
                     runSecondaryViaSwarm(
                         context, reportId, SecondaryKind.META, metaPrompt,
-                        resolveBatchSwarm(report, configuredSwarm, overrideWorkers),
+                        resolveBatchSwarm(report, configuredSwarm, overrideWorkers, meta = true),
                         resolution.resolvedPrompt, aiSettings, report, base,
                         targetLanguage = sourceLanguage,
                         targetLanguageNative = resolution.languageNative,
                         fanInOf = metaPrompt.id,
-                        paramsIds = paramsIds, systemPromptId = systemPromptId
+                        paramsIds = paramsIds, systemPromptId = systemPromptId,
+                        meta = true
                     )
                 }
             } finally {
@@ -1443,12 +1447,13 @@ class SecondaryRunManager(
                 }
                 runSecondaryViaSwarm(
                     context, reportId, kind, metaPrompt,
-                    resolveBatchSwarm(report, configuredSwarm, overrideWorkers),
+                    resolveBatchSwarm(report, configuredSwarm, overrideWorkers, meta = true),
                     resolvedPrompt, aiSettings, report, base,
                     targetLanguage = seedLang.first, targetLanguageNative = seedLang.second,
                     referenceLegend = referenceLegend,
                     scopeEncoded = scopeChoice.encode(),
-                    paramsIds = paramsIds, systemPromptId = systemPromptId
+                    paramsIds = paramsIds, systemPromptId = systemPromptId,
+                    meta = true
                 )
 
                 // Phase 2: cross-translate the seed META to each non-seed

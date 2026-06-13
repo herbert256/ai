@@ -444,7 +444,7 @@ internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
     "🧽" to ("Clear" to "Clear the form."),
     "📎" to ("Attach" to "Attach an image."),
     "🚩" to ("Validate" to "Validate the prompt with a moderation model."),
-    "👷" to ("Worker configuration" to "Open Report - setup: choose the report's system prompt and parameters, who generates the report info (icon, titles, language), the per-model info (icons & titles), and which pool the worker batches (Meta / Fan-in / Tournament / Judges / Compare / Translation / Fan Meta) draw from — including Report models with When-available or Round-robin selection. Rerank and Moderation always use their own prompt's workers."),
+    "👷" to ("Worker configuration" to "Open Report - setup: choose the report's system prompt and parameters, who generates the report info (icon, titles, language), the per-model info (icons & titles), which pool the worker batches (Tournament / Judges / Compare / Translation / Fan Meta) draw from, and — on its own Meta card — the pool for Meta + Fan-in. Includes Report models with When-available or Round-robin selection. Rerank and Moderation always use their own prompt's workers."),
     "📋" to ("Copy" to "Copy to the clipboard."),
     "📌" to ("Pin" to "Pin to the top of the lists."),
     "📤" to ("Export" to "Export or share."),

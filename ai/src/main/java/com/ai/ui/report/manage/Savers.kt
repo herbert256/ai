@@ -211,8 +211,9 @@ internal val ReportWorkerConfigSaver: Saver<ReportWorkerConfig, Any> = listSaver
         fun flat(ws: List<Worker>) = ws.flatMap { listOf(it.agent, it.provider, it.model, it.flock, it.swarm) }
         listOf(
             cfg.reportInfo.name, cfg.modelInfo.name, cfg.batches.name, cfg.workerSelection.name,
-            cfg.reportInfoWorkers.size.toString(), cfg.batchWorkers.size.toString()
-        ) + flat(cfg.reportInfoWorkers) + flat(cfg.batchWorkers)
+            cfg.metaBatches.name, cfg.metaWorkerSelection.name,
+            cfg.reportInfoWorkers.size.toString(), cfg.batchWorkers.size.toString(), cfg.metaBatchWorkers.size.toString()
+        ) + flat(cfg.reportInfoWorkers) + flat(cfg.batchWorkers) + flat(cfg.metaBatchWorkers)
     },
     restore = { saved ->
         fun enumOr(name: String, fallback: String) = name.ifBlank { fallback }
@@ -223,15 +224,19 @@ internal val ReportWorkerConfigSaver: Saver<ReportWorkerConfig, Any> = listSaver
                 flock = saved[i + 3], swarm = saved[i + 4]
             ) else null
         }
-        val infoCount = saved.getOrNull(4)?.toIntOrNull() ?: 0
-        val batchCount = saved.getOrNull(5)?.toIntOrNull() ?: 0
+        val infoCount = saved.getOrNull(6)?.toIntOrNull() ?: 0
+        val batchCount = saved.getOrNull(7)?.toIntOrNull() ?: 0
+        val metaCount = saved.getOrNull(8)?.toIntOrNull() ?: 0
         ReportWorkerConfig(
             reportInfo = runCatching { ReportInfoMode.valueOf(enumOr(saved.getOrNull(0) ?: "", "PROMPT")) }.getOrDefault(ReportInfoMode.PROMPT),
             modelInfo = runCatching { ModelInfoMode.valueOf(enumOr(saved.getOrNull(1) ?: "", "PROMPT")) }.getOrDefault(ModelInfoMode.PROMPT),
             batches = runCatching { BatchWorkerMode.valueOf(enumOr(saved.getOrNull(2) ?: "", "PROMPT")) }.getOrDefault(BatchWorkerMode.PROMPT),
             workerSelection = runCatching { WorkerSelectionMode.valueOf(enumOr(saved.getOrNull(3) ?: "", "WHEN_AVAILABLE")) }.getOrDefault(WorkerSelectionMode.WHEN_AVAILABLE),
-            reportInfoWorkers = workersAt(6, infoCount),
-            batchWorkers = workersAt(6 + infoCount * 5, batchCount)
+            metaBatches = runCatching { BatchWorkerMode.valueOf(enumOr(saved.getOrNull(4) ?: "", "PROMPT")) }.getOrDefault(BatchWorkerMode.PROMPT),
+            metaWorkerSelection = runCatching { WorkerSelectionMode.valueOf(enumOr(saved.getOrNull(5) ?: "", "WHEN_AVAILABLE")) }.getOrDefault(WorkerSelectionMode.WHEN_AVAILABLE),
+            reportInfoWorkers = workersAt(9, infoCount),
+            batchWorkers = workersAt(9 + infoCount * 5, batchCount),
+            metaBatchWorkers = workersAt(9 + infoCount * 5 + batchCount * 5, metaCount)
         )
     }
 )

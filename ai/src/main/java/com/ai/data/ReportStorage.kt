@@ -877,16 +877,20 @@ object ReportStorage {
      *  type-B launches can never persist two different groups. Callers
      *  must run with whatever this returns. */
     fun setBatchWorkersIfEmpty(
-        context: Context, reportId: String, picked: List<com.ai.model.Worker>
+        context: Context, reportId: String, picked: List<com.ai.model.Worker>,
+        /** Persist into the Meta/Fan-in routing's [ReportWorkerConfig.metaBatchWorkers]
+         *  instead of the general [ReportWorkerConfig.batchWorkers]. */
+        meta: Boolean = false
     ): List<com.ai.model.Worker> {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock picked
             val cfg = report.workerConfig
-            if (cfg.batchWorkers.isNotEmpty()) return@withLock cfg.batchWorkers
-            report.workerConfig = cfg.copy(batchWorkers = picked)
+            val existing = if (meta) cfg.metaBatchWorkers else cfg.batchWorkers
+            if (existing.isNotEmpty()) return@withLock existing
+            report.workerConfig = if (meta) cfg.copy(metaBatchWorkers = picked) else cfg.copy(batchWorkers = picked)
             saveReport(report)
-            AuditLog.append(reportId, "Stored one-time batch workers (${picked.size} entries)")
+            AuditLog.append(reportId, "Stored one-time ${if (meta) "meta " else ""}batch workers (${picked.size} entries)")
             picked
         }
     }

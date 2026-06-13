@@ -363,9 +363,14 @@ Generate; `ReportStorage.setWorkerConfig`). Three cards:
 - **Worker batches** (`batches`: `PROMPT` | `REPORT_MODELS` |
   `SELECT_EACH` | `SELECT_ONCE` + `batchWorkers`,
   `workerSelection`: `WHEN_AVAILABLE` | `ROUND_ROBIN`) — the pool
-  for Fan Meta, Translation, Tournament, Judges, Compare, TransRank
-  **and** the single-call Rerank / Moderation / Meta / Fan-in (the
-  old Rerank/Moderation exemption is dropped).
+  for Fan Meta, Translation, Tournament, Judges, Compare, TransRank.
+  **Rerank / Moderation** are exempt (they always run on their own
+  prompt's workers). **Meta / Fan-in** route on their own mirror set
+  (`metaBatches` / `metaBatchWorkers` / `metaWorkerSelection`, same
+  option set) — the "Meta" card on Report - setup — so they can draw
+  from a different pool than the other batches. Resolution passes
+  `meta = true` to `resolveBatchSwarm` / `workerPlanFor` /
+  `workerScheduleFor` / `launchWithWorkerPlan` for those two.
 
 Batch-pool precedence lives in one place — `resolveBatchSwarm` /
 `InternalPrompt.withBatchWorkers`
