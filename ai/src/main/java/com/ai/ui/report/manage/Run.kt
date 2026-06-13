@@ -216,6 +216,7 @@ internal fun ReportRunScreen(
     val compareEnabled = compareMetaItems.isNotEmpty() && tournamentResponseCount >= 1
     var compareStep by rememberSaveable { mutableStateOf(0) }
     val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
+    val navigateToNewReport = com.ai.ui.shared.LocalNavigateToNewReport.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
     // isPinned produceState re-reads from disk and the 📌 tint flips
     // immediately (orange when pinned). Keyed on currentReportId so
@@ -493,6 +494,8 @@ internal fun ReportRunScreen(
             // View / Edit / Delete / Regenerate / Copy / Pin / Export + the
             // kept extras (Chat / Info / Trace / row-labels) are Manage-only.
             onInfo = if (manageLayer) currentReportId?.let { rid -> { navigateToReportInfo(rid) } } else null,
+            // ➕ → the "New Report" start screen (Manage layer only).
+            onNewReport = if (manageLayer) navigateToNewReport else null,
             onBackClick = onDismiss,
             onReload = if (manageLayer && currentReportId != null && isComplete) onRequestRegenerate else null,
             onTrace = if (manageLayer && currentReportId != null) generationHandlers.onTrace else null,

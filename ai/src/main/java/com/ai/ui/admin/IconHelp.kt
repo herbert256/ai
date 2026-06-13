@@ -38,6 +38,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("📥", "Import report", "Pick a report .zip and import it as a new report."),
     ),
     "report_run" to listOf(
+        Triple("🆕", "New report", "Start a new AI report (opens the New Report screen)."),
         Triple("🔗", "Meta", "Add a meta analysis to this report: a Meta prompt over the answers, or Compare with meta."),
         Triple("🔱", "Fan Out", "Open this report's Fan Out, or start a new one when none exists yet."),
         Triple("🥊", "Tournament", "Head-to-head tools: run a Tournament over the answers, or Judge the judges."),

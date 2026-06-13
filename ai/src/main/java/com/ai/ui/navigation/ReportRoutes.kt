@@ -434,6 +434,9 @@ internal fun NavGraphBuilder.reportRoutes(
                 com.ai.ui.shared.LocalNavigateToReportInfo provides { rid ->
                     navController.navigate(NavRoutes.aiReportInfo(rid))
                 },
+                com.ai.ui.shared.LocalNavigateToNewReport provides {
+                    navController.navigate(NavRoutes.AI_NEW_REPORT)
+                },
                 com.ai.ui.shared.LocalNavigateToReportModel provides { rid, aid ->
                     navController.navigate(NavRoutes.aiReportModel(rid, aid))
                 },
