@@ -2714,15 +2714,17 @@ private fun IconLegendOverlay(
                             // glyph still resolves its name + description.
                             val entry = legend[spec.legendKey] ?: com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[spec.legendKey]
                             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                                // No maxLines / ellipsis — let the name and
+                                // description wrap to as many lines as they need
+                                // rather than cutting off with "…".
                                 Text(
                                     entry?.first ?: spec.emoji,
-                                    color = AppColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                    color = AppColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
                                 )
                                 entry?.second?.takeIf { it.isNotBlank() }?.let { desc ->
                                     Text(
                                         desc, color = AppColors.TextTertiary, fontSize = 13.sp,
-                                        lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
+                                        lineHeight = 16.sp
                                     )
                                 }
                             }
