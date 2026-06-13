@@ -160,7 +160,7 @@ internal fun ReportSecondResultsScreen(
             // itself (Manage hub) and the Get-info aggregate (same gate as
             // the Manage hub's info row).
             item(key = "row-reports") {
-                ReportsSummaryRow(reportTitle, cost = reportCost, onClick = onGoManage)
+                ReportsSummaryRow(cost = reportCost, onClick = onGoManage)
             }
             if (infoEnabled || infoMetaTotal > 0.0) {
                 item(key = "row-info") {

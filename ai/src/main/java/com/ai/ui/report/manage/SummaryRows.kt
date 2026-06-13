@@ -40,12 +40,13 @@ import java.util.Locale
 // paints its own trailing divider, like every other list row.
 
 /** "report" row — links the Get-info / second-results screens back to the
- *  Manage hub: the report's icon + its (orange-line) title. The trailing
- *  [cost] is the combined main-response cost of every model (the sum of the
- *  Manage hub's per-model "report" rows); always shown, like the other
- *  cross-link rows. */
+ *  Manage hub: the report's icon + a fixed "Manage this report" label (the
+ *  report's own title already shows in the orange title-bar line). The
+ *  trailing [cost] is the combined main-response cost of every model (the
+ *  sum of the Manage hub's per-model "report" rows); always shown, like the
+ *  other cross-link rows. */
 @Composable
-internal fun ReportsSummaryRow(title: String, cost: Double, onClick: () -> Unit) {
+internal fun ReportsSummaryRow(cost: Double, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onClick() },
         verticalAlignment = Alignment.CenterVertically
@@ -54,7 +55,7 @@ internal fun ReportsSummaryRow(title: String, cost: Double, onClick: () -> Unit)
         RowTypeCell("report")
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                title, fontSize = 13.sp, color = AppColors.TextPrimary,
+                "Manage this report", fontSize = 13.sp, color = AppColors.TextPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }
@@ -107,7 +108,7 @@ internal fun SecondSummaryRow(state: InfoJobState, cost: Double, onClick: () -> 
         RowTypeCell("second")
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "rerank, meta, moderation, translate, fan-out, tournament, judges, compare, rank",
+                "Second results",
                 fontSize = 13.sp, color = AppColors.TextPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )

@@ -448,7 +448,7 @@ fun ReportGetInfoScreen(
             // Cross-link rows to the other two report screens: the report
             // itself (Manage hub) and the second-results aggregate.
             item(key = "row-reports") {
-                ReportsSummaryRow(reportTitle, cost = reportCost, onClick = onGoManage)
+                ReportsSummaryRow(cost = reportCost, onClick = onGoManage)
             }
             item(key = "row-second") {
                 SecondSummaryRow(secondState, cost = secondTotal, onClick = onGoSecond)
