@@ -21,6 +21,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -121,6 +122,7 @@ internal fun ReportSelectWorkersScreen(
     var modelInfoOpen by remember { mutableStateOf(false) }
     var batchesOpen by remember { mutableStateOf(false) }
     var metaOpen by remember { mutableStateOf(false) }
+    var secondResultsOpen by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
@@ -315,7 +317,57 @@ internal fun ReportSelectWorkersScreen(
                 onBatchWorkersChange = { onConfigChange(config.copy(metaBatchWorkers = it)) }
             )
         }
+        Spacer(Modifier.height(12.dp))
+
+        // ── Card: Second result options ────────────────────────────────
+        // Gates the intermediate screens shown when a Meta / Fan-out
+        // secondary is launched from the second-results hub. Both default
+        // off → the launch runs with the default scope and the prompt as
+        // configured, skipping those screens.
+        CollapsibleCard(
+            icon = mi.settings,
+            title = "Second result options",
+            summary = "Scope " + (if (config.secondResultSelectScope) "on" else "off") +
+                " · Params " + (if (config.secondResultRuntimeParams) "on" else "off"),
+            expanded = secondResultsOpen,
+            onToggle = { secondResultsOpen = !secondResultsOpen }
+        ) {
+            Text(
+                "When starting a Meta or Fan-out from the second results, show these steps first.",
+                fontSize = 12.sp, color = AppColors.TextTertiary
+            )
+            ToggleRow(
+                label = "Select scope",
+                sublabel = "Pick which reports / languages the run covers (else: all reports, all languages).",
+                checked = config.secondResultSelectScope,
+                onCheckedChange = { onConfigChange(config.copy(secondResultSelectScope = it)) }
+            )
+            ToggleRow(
+                label = "Runtime parameters",
+                sublabel = "Edit the prompt (and Fan-out's models) before running (else: run as configured).",
+                checked = config.secondResultRuntimeParams,
+                onCheckedChange = { onConfigChange(config.copy(secondResultRuntimeParams = it)) }
+            )
+        }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** A label + sublabel row with a trailing Material3 [Switch] — the boolean
+ *  counterpart to [OptionRow], used by the Second result options card. The
+ *  whole row toggles. */
+@Composable
+private fun ToggleRow(label: String, sublabel: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+            Text(sublabel, fontSize = 11.sp, color = AppColors.TextTertiary)
+        }
+        Spacer(Modifier.width(8.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

@@ -38,6 +38,72 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
+ * Decide what happens the instant a Meta / Fan-out prompt is picked from the
+ * second-results hub, honoring the report's "Second result options" toggles
+ * (read FRESH from disk — same convention as [launchWithWorkerPlan]).
+ *
+ * "Select scope" on → set [ReportsScreenState.secondaryScopeMetaPrompt] so the
+ * scope screen renders (the existing flow). Off → set the default scope and
+ * jump straight past it via [advanceAfterScope]. Branching HERE — rather than
+ * auto-skipping the already-rendered scope screen — is deliberate: never set
+ * `secondaryScopeMetaPrompt` for a skipped scope, or Android-back would
+ * re-render it and the launch would loop (the overlay back-stack rule).
+ */
+internal fun routeSecondaryPromptLaunch(
+    st: ReportsScreenState,
+    context: Context,
+    scope: CoroutineScope,
+    reportId: String,
+    prompt: InternalPrompt
+) {
+    scope.launch(Dispatchers.IO) {
+        val cfg = ReportStorage.getReport(context, reportId)?.workerConfig ?: ReportWorkerConfig()
+        withContext(Dispatchers.Main) {
+            if (cfg.secondResultSelectScope) {
+                st.secondaryScopeMetaPrompt.value = prompt
+            } else {
+                // Scope skipped → there's no scope screen to back into, so
+                // drop the fan-out prompt picker (it stays armed for the
+                // scope-on path so back returns to it). Harmless for Meta
+                // (its picker is already dismissed in onSelectPrompt).
+                st.showFanOutPicker.value = false
+                st.pendingSecondaryScope.value = com.ai.data.SecondaryScope.AllReports
+                st.pendingLanguageScope.value = com.ai.data.SecondaryLanguageScope.AllPresent
+                advanceAfterScope(st, prompt, cfg.secondResultRuntimeParams)
+            }
+        }
+    }
+}
+
+/**
+ * The step after the scope is settled (whether the scope screen ran or was
+ * skipped): show the run-time prompt editor when "Runtime parameters" is on,
+ * else jump straight to the run. Shared by [routeSecondaryPromptLaunch] and the
+ * scope screen's onContinue. Reads only [st]; call on the main thread.
+ *
+ *  - Meta:    editor → [ReportsScreenState.metaRunScreenPrompt] (MetaRunScreen)
+ *             skip   → [ReportsScreenState.secondaryPickerMetaPrompt] (worker plan + run)
+ *  - Fan-out: editor → [ReportsScreenState.fanOutConfirmMetaPrompt] (FanOutConfirmScreen)
+ *             skip   → [ReportsScreenState.fanOutDirectRunPrompt] (matrix run, engine defaults)
+ *
+ * The skip targets are exactly the states the editors' own "continue/run"
+ * callbacks set, so skipping just runs with the unedited prompt + defaults.
+ */
+internal fun advanceAfterScope(
+    st: ReportsScreenState,
+    prompt: InternalPrompt,
+    runtimeParams: Boolean
+) {
+    if (prompt.category == "fan_out") {
+        if (runtimeParams) st.fanOutConfirmMetaPrompt.value = prompt
+        else st.fanOutDirectRunPrompt.value = prompt
+    } else {
+        if (runtimeParams) st.metaRunScreenPrompt.value = prompt
+        else st.secondaryPickerMetaPrompt.value = prompt
+    }
+}
+
+/**
  * Type-B batch launch gate shared by every launch site (Meta, Fan-in,
  * Translate, Rerank, Moderation, Tournament, Judges, Compare, TransRank):
  * maps the report's Worker-batches mode (+ the driving prompt's own

@@ -676,6 +676,10 @@ fun ReportsScreen(
     // kicking off N answerers × S sources calls. The user can still
     // cancel from here if the count looks too high.
     var fanOutConfirmMetaPrompt by st.fanOutConfirmMetaPrompt
+    // Fan-out launched with "Runtime parameters" off: skip the confirm
+    // screen and run the matrix with engine defaults (all answerers × all
+    // sources). Consumed by the LaunchedEffect below.
+    var fanOutDirectRunPrompt by st.fanOutDirectRunPrompt
     // Fan_in run model picker. Triggered from the fan out detail
     // screen's "Combine reports and all fan out responses" button.
     var fanInPickerPrompt by st.fanInPickerPrompt
@@ -935,7 +939,10 @@ fun ReportsScreen(
             val agents: List<com.ai.data.ReportAgent>,
             val reranks: List<com.ai.data.SecondaryResult>,
             val languages: List<Pair<String, String?>>,
-            val totalReports: Int
+            val totalReports: Int,
+            /** Report's "Runtime parameters" toggle — decides whether the
+             *  scope step hands off to the prompt editor or straight to the run. */
+            val runtimeParams: Boolean
         )
         val scopeDataState = produceState<ScopeData?>(initialValue = null, rid) {
             value = withContext(Dispatchers.IO) {
@@ -954,7 +961,8 @@ fun ReportsScreen(
                         val l = tr.targetLanguage!!
                         if (l !in nativeByLang) nativeByLang[l] = tr.targetLanguageNative
                     }
-                ScopeData(successfulAgents, rr, nativeByLang.map { it.key to it.value }, successfulAgents.size)
+                ScopeData(successfulAgents, rr, nativeByLang.map { it.key to it.value }, successfulAgents.size,
+                    report?.workerConfig?.secondResultRuntimeParams ?: false)
             }
         }
         val sd = scopeDataState.value
@@ -983,8 +991,11 @@ fun ReportsScreen(
                     when (scopeMetaPrompt.category) {
                         "fan_out" -> {
                             // Run page picks initiators / responders, edits
-                            // the prompt, then confirms.
-                            fanOutConfirmMetaPrompt = scopeMetaPrompt
+                            // the prompt, then confirms — unless "Runtime
+                            // parameters" is off, then run the matrix straight
+                            // with engine defaults.
+                            if (sd.runtimeParams) fanOutConfirmMetaPrompt = scopeMetaPrompt
+                            else fanOutDirectRunPrompt = scopeMetaPrompt
                         }
                         "rerank" -> {
                             // Rerank has no editable prompt and no per-row
@@ -996,8 +1007,11 @@ fun ReportsScreen(
                             showModerationPicker = true
                         }
                         else -> {
-                            // Meta path: Scope → Run page (edit prompt) → model picker.
-                            metaRunScreenPrompt = scopeMetaPrompt
+                            // Meta path: Scope → Run page (edit prompt) → model
+                            // picker — unless "Runtime parameters" is off, then
+                            // skip the editor straight to the worker plan.
+                            if (sd.runtimeParams) metaRunScreenPrompt = scopeMetaPrompt
+                            else secondaryPickerMetaPrompt = scopeMetaPrompt
                         }
                     }
                 },
@@ -1077,6 +1091,55 @@ fun ReportsScreen(
                         key
                     )
                 }
+            )
+        }
+        return
+    }
+
+    // Fan-out with "Runtime parameters" off: no confirm screen — kick the
+    // matrix off with engine defaults (all answerers × the chosen sources,
+    // AllReports when scope was also skipped) via the same build dance as
+    // the confirm screen's onRun. One-shot, mirrors the secondaryPicker /
+    // rerank launch blocks below.
+    val fanOutDirectMp = fanOutDirectRunPrompt
+    if (fanOutDirectMp != null && currentReportId != null) {
+        val rid = currentReportId
+        LaunchedEffect(fanOutDirectMp) {
+            val sourceLanguage: String? = when (val ls = pendingLanguageScope) {
+                is com.ai.data.SecondaryLanguageScope.Selected ->
+                    ls.languages.firstOrNull()?.takeIf { it.isNotEmpty() }
+                com.ai.data.SecondaryLanguageScope.AllPresent -> null
+            }
+            val scope = pendingSecondaryScope
+            val selfRespond = fanOutSelfRespond
+            // Clear the whole fan-out launch stack before dispatch so a
+            // double-fire can't re-enter and back lands on main.
+            fanOutDirectRunPrompt = null
+            secondaryScopeMetaPrompt = null
+            showFanOutPicker = false
+            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+            val key = java.util.UUID.randomUUID().toString()
+            onBeginBuild(key, 0, "Building fan-out")
+            pendingBuildKey = key
+            pendingBuildNav = {
+                listKind = SecondaryKind.META
+                listFilterByName = fanOutDirectMp.name
+                listIsFanMeta = false
+            }
+            pendingBuildCancel = {
+                fanOutEngine?.deleteRun(context, com.ai.data.runKey(rid, fanOutDirectMp.id))
+                onClearBuild(key)
+                pendingBuildKey = null; pendingBuildNav = null; pendingBuildCancel = null
+            }
+            onRunFanOut(
+                rid, fanOutDirectMp,
+                scope,        // sources = chosen scope (AllReports default)
+                null,         // responders = all answerers
+                sourceLanguage,
+                emptyList(), null,
+                selfRespond,
+                key
             )
         }
         return

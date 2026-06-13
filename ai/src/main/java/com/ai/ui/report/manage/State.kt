@@ -143,6 +143,10 @@ internal class ReportsScreenState(
      *  from the scope screen to the run screen + engine. */
     val fanOutSelfRespond: MutableState<Boolean>,
     val fanOutConfirmMetaPrompt: MutableState<InternalPrompt?>,
+    /** Fan-out launched with "Runtime parameters" off: skips
+     *  [FanOutConfirmScreen] and runs the matrix with engine defaults. A
+     *  one-shot trigger consumed by a LaunchedEffect in ReportsScreen. */
+    val fanOutDirectRunPrompt: MutableState<InternalPrompt?>,
     val fanInPickerPrompt: MutableState<InternalPrompt?>,
     val fanInPickerSourceLanguage: MutableState<String?>,
     val showFanInPromptPicker: MutableState<Boolean>,
@@ -260,6 +264,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val pendingLanguageScope = rememberSaveable(stateSaver = SecondaryLanguageScopeSaver) { mutableStateOf<SecondaryLanguageScope>(SecondaryLanguageScope.AllPresent) }
     val fanOutSelfRespond = rememberSaveable { mutableStateOf(false) }
     val fanOutConfirmMetaPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
+    val fanOutDirectRunPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     val fanInPickerPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     val fanInPickerSourceLanguage = rememberSaveable { mutableStateOf<String?>(null) }
     val showFanInPromptPicker = rememberSaveable { mutableStateOf(false) }
@@ -351,6 +356,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         pendingLanguageScope,
         fanOutSelfRespond,
         fanOutConfirmMetaPrompt,
+        fanOutDirectRunPrompt,
         fanInPickerPrompt,
         fanInPickerSourceLanguage,
         showFanInPromptPicker,

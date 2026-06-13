@@ -37,6 +37,7 @@ internal fun ReportManageActionOverlays(
 ): Boolean {
     val currentReportId = uiState.currentReportId
     val aiSettings = uiState.aiSettings
+    val context = androidx.compose.ui.platform.LocalContext.current
     // 🗂️ "pick another report (filtered)" navigation for the overlays
     // below; each provides it with its own kind so the bottom-bar icon
     // returns to this same screen for the chosen report.
@@ -55,7 +56,9 @@ internal fun ReportManageActionOverlays(
                 reportId = rid,
                 isRunning = uiState.activeSecondaryBatches > 0,
                 metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-                onLaunchMetaPrompt = { st.secondaryScopeMetaPrompt.value = it },
+                onLaunchMetaPrompt = { prompt ->
+                    routeSecondaryPromptLaunch(st, context, st.screenScope, rid, prompt)
+                },
                 onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
                 onBack = { st.showMetaScreen.value = false },
                 onNavigateHome = onNavigateHome,
@@ -314,9 +317,9 @@ internal fun ReportManageActionOverlays(
                 titleText = "Run a Meta prompt",
                 category = "meta",
                 prompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-                onSelectPrompt = {
+                onSelectPrompt = { prompt ->
                     st.showMetaPicker.value = false
-                    st.secondaryScopeMetaPrompt.value = it
+                    currentReportId?.let { rid -> routeSecondaryPromptLaunch(st, context, st.screenScope, rid, prompt) }
                 },
                 onBack = { st.showMetaPicker.value = false },
                 onEditPrompts = {
@@ -342,7 +345,9 @@ internal fun ReportManageActionOverlays(
                 titleText = "Fan Out - prompt",
                 category = "fan_out",
                 prompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
-                onSelectPrompt = { st.secondaryScopeMetaPrompt.value = it },
+                onSelectPrompt = { prompt ->
+                    currentReportId?.let { rid -> routeSecondaryPromptLaunch(st, context, st.screenScope, rid, prompt) }
+                },
                 onBack = { st.showFanOutPicker.value = false },
                 onEditPrompts = {
                     st.showFanOutPicker.value = false

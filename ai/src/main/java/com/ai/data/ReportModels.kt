@@ -262,6 +262,17 @@ data class ReportWorkerConfig(
     val metaBatchWorkers: List<com.ai.model.Worker> = emptyList(),
     /** Only meaningful when [metaBatches] == REPORT_MODELS. */
     val metaWorkerSelection: WorkerSelectionMode = WorkerSelectionMode.WHEN_AVAILABLE,
+    /** "Second result options" card on Report - setup. When true, launching a
+     *  Meta / Fan-out secondary from the second-results hub first shows the
+     *  scope screen ([com.ai.ui.report.manage.SecondaryScopeScreen]); when
+     *  false (default) the launch uses the default scope (all reports / all
+     *  present languages) and skips it. */
+    val secondResultSelectScope: Boolean = false,
+    /** "Second result options" card on Report - setup. When true, launching a
+     *  Meta / Fan-out secondary first shows the run-time prompt editor
+     *  (MetaRunScreen / FanOutConfirmScreen); when false (default) the launch
+     *  runs with the prompt + engine defaults and skips it. */
+    val secondResultRuntimeParams: Boolean = false,
 ) {
     /** Defaults any null sub-field read from a file written by hand or a
      *  truncated write (Gson's UnsafeAllocator bypasses constructor
@@ -277,6 +288,8 @@ data class ReportWorkerConfig(
         metaBatches = (metaBatches as BatchWorkerMode?) ?: BatchWorkerMode.PROMPT,
         metaBatchWorkers = (metaBatchWorkers as List<com.ai.model.Worker>?) ?: emptyList(),
         metaWorkerSelection = (metaWorkerSelection as WorkerSelectionMode?) ?: WorkerSelectionMode.WHEN_AVAILABLE,
+        secondResultSelectScope = (secondResultSelectScope as Boolean?) ?: false,
+        secondResultRuntimeParams = (secondResultRuntimeParams as Boolean?) ?: false,
     )
 }
 
