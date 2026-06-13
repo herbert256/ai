@@ -378,10 +378,10 @@ class SecondaryRunManager(
                     }
                     runSecondaryViaSwarm(
                         context, reportId, SecondaryKind.MODERATION, moderationPrompt,
-                        // Worker-batches precedence — Moderation is no longer
-                        // exempt from REPORT_MODELS. Note a chat report model
-                        // can't serve /moderations; the help page calls this out.
-                        resolveBatchSwarm(report, moderationPrompt.workers, overrideWorkers),
+                        // Moderation always runs on the workers defined in its
+                        // own prompt — it opts out of the report's Worker-batches
+                        // choice (REPORT_MODELS / SELECT_*).
+                        resolveBatchSwarm(report, moderationPrompt.workers, overrideWorkers, alwaysPromptWorkers = true),
                         resolvedPrompt = "", aiSettings = aiSettings, report = report, base = base,
                         targetLanguage = sourceLanguage, targetLanguageNative = native
                     )

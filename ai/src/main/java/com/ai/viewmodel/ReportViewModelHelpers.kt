@@ -171,9 +171,9 @@ internal fun reportModelWorkers(report: Report): List<Worker> =
  *  and a not-yet-picked SELECT_ONCE fall back to the configured chain. */
 internal fun resolveBatchSwarm(report: Report, configured: List<Worker>, overrideWorkers: List<Worker>?, alwaysPromptWorkers: Boolean = false): List<Worker> {
     val cfg = report.workerConfig
-    // Rerank opts out of the report's Worker-batches choice — it always runs
-    // on the workers defined in its own prompt. Treat it as PROMPT mode so
-    // REPORT_MODELS / SELECT_ONCE never swap the pool.
+    // Rerank / Moderation opt out of the report's Worker-batches choice — they
+    // always run on the workers defined in their own prompt. Treat them as
+    // PROMPT mode so REPORT_MODELS / SELECT_ONCE never swap the pool.
     val batches = if (alwaysPromptWorkers) com.ai.data.BatchWorkerMode.PROMPT else cfg.batches
     return when {
         batches == com.ai.data.BatchWorkerMode.REPORT_MODELS -> reportModelWorkers(report)
@@ -185,7 +185,7 @@ internal fun resolveBatchSwarm(report: Report, configured: List<Worker>, overrid
 
 /** Prompt-shaped wrapper over [resolveBatchSwarm] — the drop-in the
  *  batch engines apply to their driving worker prompt. [alwaysPromptWorkers]
- *  forces the prompt's own workers (Rerank). */
+ *  forces the prompt's own workers (Rerank / Moderation). */
 internal fun com.ai.model.InternalPrompt.withBatchWorkers(report: Report, overrideWorkers: List<Worker>? = null, alwaysPromptWorkers: Boolean = false): com.ai.model.InternalPrompt =
     copy(workers = resolveBatchSwarm(report, workers, overrideWorkers, alwaysPromptWorkers))
 
@@ -206,7 +206,7 @@ internal sealed class WorkerPlan {
  *  *SELECT setting) onto a [WorkerPlan]. Used by every type-B launch
  *  site so the picker-vs-dispatch decision can't drift per kind. */
 internal fun workerPlanFor(cfg: com.ai.data.ReportWorkerConfig, prompt: com.ai.model.InternalPrompt?, alwaysPromptWorkers: Boolean = false): WorkerPlan {
-    // Rerank ignores the report's batch mode and follows the prompt
+    // Rerank / Moderation ignore the report's batch mode and follow the prompt
     // (which still asks at run time when the prompt itself is *SELECT).
     val batches = if (alwaysPromptWorkers) com.ai.data.BatchWorkerMode.PROMPT else cfg.batches
     return when (batches) {

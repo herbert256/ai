@@ -1254,11 +1254,12 @@ fun ReportsScreen(
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            // Moderation now follows the full Worker-batches plan (its old
-            // exemption from report-models-as-workers is dropped).
+            // Moderation always runs on its own prompt's workers — it ignores
+            // the report's Worker-batches choice (REPORT_MODELS / SELECT_*).
             launchWithWorkerPlan(
                 st.runtimeWorkerPick, context, st.screenScope, rid,
-                aiSettings.workerPromptByName("second-moderation"), "Moderation — pick workers"
+                aiSettings.workerPromptByName("second-moderation"), "Moderation — pick workers",
+                alwaysPromptWorkers = true
             ) { picked -> onRunModeration(rid, ls, picked); goToSecondResults() }
         }
         return

@@ -52,8 +52,8 @@ import com.ai.ui.shared.TitleBar
  * presets, and who does the worker jobs — report info (icon / titles /
  * language), model info (per-model icons & titles), and the type-B worker
  * batches (Fan Meta, Translation, Tournament, Judges, Compare, Meta,
- * Fan-in, Moderation). Rerank is intentionally absent — it always runs on
- * the workers defined in its own prompt.
+ * Fan-in). Rerank and Moderation are intentionally absent — they always
+ * run on the workers defined in their own prompt.
  *
  * One stateless composable serves two hosts: pre-generation (the
  * [onGenerate] "Generate report" button is the primary action, and the
@@ -290,7 +290,7 @@ internal fun ReportSelectWorkersScreen(
             onToggle = { batchesOpen = !batchesOpen }
         ) {
             Text(
-                "Fan Meta, Translation, Tournament, Judges, Compare, Moderation, Meta, Fan-in",
+                "Fan Meta, Translation, Tournament, Judges, Compare, Meta, Fan-in",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             OptionRow(

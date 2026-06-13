@@ -66,8 +66,8 @@ internal fun launchWithWorkerPlan(
     reportId: String,
     driver: InternalPrompt?,
     pickTitle: String,
-    /** Rerank passes true: it ignores the report's Worker-batches choice and
-     *  always follows the prompt's own workers. */
+    /** Rerank / Moderation pass true: they ignore the report's Worker-batches
+     *  choice and always follow the prompt's own workers. */
     alwaysPromptWorkers: Boolean = false,
     run: (List<Worker>?) -> Unit
 ) {
