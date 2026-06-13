@@ -561,8 +561,9 @@ val LocalAiSettings = compositionLocalOf { com.ai.model.Settings() }
  *  64 KB-ceiling reason as [LocalSystemPromptChange]. Default no-op. */
 val LocalNavigateToReportInfo = compositionLocalOf<(String) -> Unit> { {} }
 
-/** Opens the "New Report" start screen. Provided around the AI_REPORTS
- *  composable; the Manage hub's ➕ icon reads it. A CompositionLocal (not a
+/** Opens the "New Report" start hub (New report / Start with a previous
+ *  report / Start with an example prompt). Provided around the AI_REPORTS
+ *  composable; the Manage hub's 🆕 icon reads it. A CompositionLocal (not a
  *  threaded arg) for the same 64 KB-ceiling reason as [LocalNavigateToReportInfo].
  *  Default no-op. */
 val LocalNavigateToNewReport = compositionLocalOf<() -> Unit> { {} }

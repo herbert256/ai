@@ -494,7 +494,8 @@ internal fun ReportRunScreen(
             // View / Edit / Delete / Regenerate / Copy / Pin / Export + the
             // kept extras (Chat / Info / Trace / row-labels) are Manage-only.
             onInfo = if (manageLayer) currentReportId?.let { rid -> { navigateToReportInfo(rid) } } else null,
-            // ➕ → the "New Report" start screen (Manage layer only).
+            // 🆕 → the "New Report" start hub (New report / previous report /
+            // example prompt) — Manage layer only.
             onNewReport = if (manageLayer) navigateToNewReport else null,
             onBackClick = onDismiss,
             onReload = if (manageLayer && currentReportId != null && isComplete) onRequestRegenerate else null,
