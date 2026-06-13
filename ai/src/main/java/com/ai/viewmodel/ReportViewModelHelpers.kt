@@ -169,20 +169,25 @@ internal fun reportModelWorkers(report: Report): List<Worker> =
  *  have no picker surface: they always pass overrideWorkers = null, so
  *  SELECT_ONCE uses the persisted group when present while SELECT_EACH
  *  and a not-yet-picked SELECT_ONCE fall back to the configured chain. */
-internal fun resolveBatchSwarm(report: Report, configured: List<Worker>, overrideWorkers: List<Worker>?): List<Worker> {
+internal fun resolveBatchSwarm(report: Report, configured: List<Worker>, overrideWorkers: List<Worker>?, alwaysPromptWorkers: Boolean = false): List<Worker> {
     val cfg = report.workerConfig
+    // Rerank / Compare opt out of the report's Worker-batches choice — they
+    // always run on the workers defined in their own prompt. Treat them as
+    // PROMPT mode so REPORT_MODELS / SELECT_ONCE never swap the pool.
+    val batches = if (alwaysPromptWorkers) com.ai.data.BatchWorkerMode.PROMPT else cfg.batches
     return when {
-        cfg.batches == com.ai.data.BatchWorkerMode.REPORT_MODELS -> reportModelWorkers(report)
+        batches == com.ai.data.BatchWorkerMode.REPORT_MODELS -> reportModelWorkers(report)
         overrideWorkers != null -> overrideWorkers
-        cfg.batches == com.ai.data.BatchWorkerMode.SELECT_ONCE && cfg.batchWorkers.isNotEmpty() -> cfg.batchWorkers
+        batches == com.ai.data.BatchWorkerMode.SELECT_ONCE && cfg.batchWorkers.isNotEmpty() -> cfg.batchWorkers
         else -> configured
     }
 }
 
 /** Prompt-shaped wrapper over [resolveBatchSwarm] — the drop-in the
- *  batch engines apply to their driving worker prompt. */
-internal fun com.ai.model.InternalPrompt.withBatchWorkers(report: Report, overrideWorkers: List<Worker>? = null): com.ai.model.InternalPrompt =
-    copy(workers = resolveBatchSwarm(report, workers, overrideWorkers))
+ *  batch engines apply to their driving worker prompt. [alwaysPromptWorkers]
+ *  forces the prompt's own workers (Rerank / Compare). */
+internal fun com.ai.model.InternalPrompt.withBatchWorkers(report: Report, overrideWorkers: List<Worker>? = null, alwaysPromptWorkers: Boolean = false): com.ai.model.InternalPrompt =
+    copy(workers = resolveBatchSwarm(report, workers, overrideWorkers, alwaysPromptWorkers))
 
 /** UI-side decision for a type-B batch launch site: open the runtime
  *  worker picker first, or dispatch straight away (the engine-side
@@ -200,8 +205,11 @@ internal sealed class WorkerPlan {
 /** Maps the report's Worker-batches mode (plus the driving prompt's own
  *  *SELECT setting) onto a [WorkerPlan]. Used by every type-B launch
  *  site so the picker-vs-dispatch decision can't drift per kind. */
-internal fun workerPlanFor(cfg: com.ai.data.ReportWorkerConfig, prompt: com.ai.model.InternalPrompt?): WorkerPlan =
-    when (cfg.batches) {
+internal fun workerPlanFor(cfg: com.ai.data.ReportWorkerConfig, prompt: com.ai.model.InternalPrompt?, alwaysPromptWorkers: Boolean = false): WorkerPlan {
+    // Rerank / Compare ignore the report's batch mode and follow the prompt
+    // (which still asks at run time when the prompt itself is *SELECT).
+    val batches = if (alwaysPromptWorkers) com.ai.data.BatchWorkerMode.PROMPT else cfg.batches
+    return when (batches) {
         com.ai.data.BatchWorkerMode.REPORT_MODELS -> WorkerPlan.Resolved
         com.ai.data.BatchWorkerMode.SELECT_EACH ->
             WorkerPlan.NeedsPick(prompt?.workers ?: emptyList(), persistOnPick = false)
@@ -213,6 +221,7 @@ internal fun workerPlanFor(cfg: com.ai.data.ReportWorkerConfig, prompt: com.ai.m
                 WorkerPlan.NeedsPick(prompt.workers, persistOnPick = false)
             else WorkerPlan.Resolved
     }
+}
 
 /** Report-info card: when the report picked a custom worker group for
  *  the report icon / titles / language calls, swap it in. */

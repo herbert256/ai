@@ -110,10 +110,8 @@ fun NewReportScreen(
     // models drop the field).
     var reasoningEffort by remember { mutableStateOf("") }
     var reasoningMenuExpanded by remember { mutableStateOf(false) }
-    // Report-level Parameters / System prompt, set from the bottom-bar
-    // 🌡️ / 🎭 icons and carried into the report via UiState.
-    var showAdvancedParams by remember { mutableStateOf(false) }
-    var showSystemPromptDialog by remember { mutableStateOf(false) }
+    // Report-level Parameters / System prompt now live as cards on the
+    // "Report - setup" screen (step 3), not as icons here.
     // Optional moderation pre-check — when set, the prompt runs through
     // the chosen moderation model before any agent fires. Mirrors the
     // chat session screen.
@@ -181,31 +179,8 @@ fun NewReportScreen(
         }
     }
 
-    // 🌡️ report-level Parameters preset picker — full-screen overlay;
-    // the early return preserves this screen's remember state underneath.
-    // The picked presets resolve into the pre-gen override.
-    if (showAdvancedParams) {
-        com.ai.ui.shared.ParametersSelectScreen(
-            aiSettings = uiState.aiSettings,
-            selectedIds = uiState.reportParametersIds,
-            onConfirm = { viewModel.setReportParametersIds(it) },
-            onBack = { showAdvancedParams = false }, onNavigateHome = onNavigateHome
-        )
-        return
-    }
-    if (showSystemPromptDialog) {
-        com.ai.ui.shared.SystemPromptSelectScreen(
-            aiSettings = uiState.aiSettings,
-            selectedId = uiState.reportSystemPromptId,
-            onSelect = { viewModel.setReportSystemPromptId(it) },
-            onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome
-        )
-        return
-    }
-
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_new", title = "New Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack,
-            onParameters = { showAdvancedParams = true }, onSystemPrompt = { showSystemPromptDialog = true },
             onClear = { title = ""; prompt = ""; userTagBlock = ""; attachedImage = null },
             onAttach = { showAttachChooser = true },
             onValidatePrompt = { if (moderationModel == null) showModerationPicker = true else moderationModel = null },

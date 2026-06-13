@@ -23,10 +23,14 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.BatchWorkerMode
@@ -38,19 +42,25 @@ import com.ai.model.Settings
 import com.ai.model.Worker
 import com.ai.ui.settings.WorkerRowEditor
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
 
 /**
- * "Report - select workers" — the step between "Report - select models" and
- * "Manage a report". Three cards decide, per report, who does the worker
- * jobs: report info (icon / titles / language), model info (per-model icons
- * & titles), and the type-B worker batches (Fan Meta, Translation,
- * Tournament, Judges, Compare, TransRank, Rerank, Moderation, Meta, Fan-in).
+ * "Report - setup" — the step between "Report - select models" and
+ * "Manage a report". A stack of collapsible cards (all collapsed on open)
+ * configures, per report: the system prompt override, the API-parameter
+ * presets, and who does the worker jobs — report info (icon / titles /
+ * language), model info (per-model icons & titles), and the type-B worker
+ * batches (Fan Meta, Translation, Tournament, Judges, Meta, Fan-in,
+ * Moderation). Rerank and Compare are intentionally absent — they always
+ * run on the workers defined in their own prompt.
  *
  * One stateless composable serves two hosts: pre-generation (the
- * [onGenerate] "Generate report" button is the primary action) and the
- * Manage 👷 re-edit ([onSave] instead, no Generate). [config] is fully
- * hoisted — the caller owns persistence.
+ * [onGenerate] "Generate report" button is the primary action, and the
+ * System-prompt / Parameters cards show because their change callbacks are
+ * wired) and the Manage 👷 re-edit ([onSave] instead, no Generate; the two
+ * extra cards are hidden). [config] is fully hoisted — the caller owns
+ * persistence.
  */
 @Composable
 internal fun ReportSelectWorkersScreen(
@@ -59,23 +69,64 @@ internal fun ReportSelectWorkersScreen(
     onConfigChange: (ReportWorkerConfig) -> Unit,
     onGenerate: (() -> Unit)?,
     onSave: (() -> Unit)?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** Per-report system-prompt override. Wired only by the pre-generation
+     *  host; null callback → the System prompt card is hidden. */
+    systemPromptId: String? = null,
+    onSystemPromptChange: ((String?) -> Unit)? = null,
+    /** Per-report API-parameter preset ids. Wired only by the pre-generation
+     *  host; null callback → the Parameters card is hidden. */
+    parametersIds: List<String> = emptyList(),
+    onParametersChange: ((List<String>) -> Unit)? = null
 ) {
     androidx.activity.compose.BackHandler { onDismiss() }
+    val mi = LocalMetadataIcons.current
     val agentNames = remember(aiSettings) { aiSettings.agents.map { it.name } }
     // A CUSTOM report-info pick with no resolvable worker would strand the
     // icon / title / language calls — gate the primary action on it, the
     // same pre-flight the runtime worker picker applies.
     val canProceed = config.reportInfo != ReportInfoMode.CUSTOM ||
         config.reportInfoWorkers.any { aiSettings.resolveWorker(it) != null }
+
+    // The System-prompt / Parameters cards open the existing full-screen
+    // preset selectors as nested overlays (early return preserves this
+    // screen's remember state underneath — the overlay back-stack rule).
+    var showSysPromptPicker by remember { mutableStateOf(false) }
+    var showParamsPicker by remember { mutableStateOf(false) }
+    if (showSysPromptPicker && onSystemPromptChange != null) {
+        com.ai.ui.shared.SystemPromptSelectScreen(
+            aiSettings = aiSettings,
+            selectedId = systemPromptId,
+            onSelect = onSystemPromptChange,
+            onBack = { showSysPromptPicker = false }, onNavigateHome = onDismiss
+        )
+        return
+    }
+    if (showParamsPicker && onParametersChange != null) {
+        com.ai.ui.shared.ParametersSelectScreen(
+            aiSettings = aiSettings,
+            selectedIds = parametersIds,
+            onConfirm = onParametersChange,
+            onBack = { showParamsPicker = false }, onNavigateHome = onDismiss
+        )
+        return
+    }
+
+    // Per-card collapse state — every card starts collapsed.
+    var sysPromptOpen by remember { mutableStateOf(false) }
+    var paramsOpen by remember { mutableStateOf(false) }
+    var reportInfoOpen by remember { mutableStateOf(false) }
+    var modelInfoOpen by remember { mutableStateOf(false) }
+    var batchesOpen by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .verticalScroll(rememberScrollState()).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "report_select_workers",
-            title = "Report - select workers",
-            subject = "Workers for report info, model info and batches",
+            title = "Report - setup",
+            subject = "System prompt, parameters and workers",
             onBackClick = onDismiss
         )
         Spacer(Modifier.height(8.dp))
@@ -87,9 +138,64 @@ internal fun ReportSelectWorkersScreen(
         ) { Text(if (onGenerate != null) "Generate report" else "Save", maxLines = 1, softWrap = false) }
         Spacer(Modifier.height(12.dp))
 
-        // ── Card 1: Report info ────────────────────────────────────────
-        SectionCard {
-            Text("Report info", fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+        // ── Card: System prompt (pre-generation host only) ─────────────
+        if (onSystemPromptChange != null) {
+            val sysName = systemPromptId
+                ?.let { id -> aiSettings.systemPrompts.firstOrNull { it.id == id }?.name }
+            CollapsibleCard(
+                icon = mi.systemPrompt,
+                title = "System prompt",
+                summary = sysName ?: "Default (per-agent)",
+                expanded = sysPromptOpen,
+                onToggle = { sysPromptOpen = !sysPromptOpen }
+            ) {
+                Text(
+                    "Override the system prompt for every answer model in this report. " +
+                        "Leave on Default to keep each agent's own system prompt.",
+                    fontSize = 11.sp, color = AppColors.TextDim
+                )
+                OutlinedButton(
+                    onClick = { showSysPromptPicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text(if (sysName != null) "Change system prompt" else "Choose system prompt", fontSize = 13.sp) }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // ── Card: Parameters (pre-generation host only) ────────────────
+        if (onParametersChange != null) {
+            val activeParams = aiSettings.parameters
+                .filter { it.id in parametersIds }
+                .joinToString(", ") { it.name }
+            CollapsibleCard(
+                icon = mi.parameters,
+                title = "Parameters",
+                summary = activeParams.ifEmpty { "Default" },
+                expanded = paramsOpen,
+                onToggle = { paramsOpen = !paramsOpen }
+            ) {
+                Text(
+                    "API parameter presets (temperature, max tokens, …) applied to every call in this report.",
+                    fontSize = 11.sp, color = AppColors.TextDim
+                )
+                OutlinedButton(
+                    onClick = { showParamsPicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text(if (activeParams.isNotEmpty()) "Change parameters" else "Choose parameters", fontSize = 13.sp) }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // ── Card: Report info ──────────────────────────────────────────
+        CollapsibleCard(
+            icon = mi.reportIcon,
+            title = "Report info",
+            summary = if (config.reportInfo == ReportInfoMode.PROMPT) "Prompt configuration" else "Specify model or agent",
+            expanded = reportInfoOpen,
+            onToggle = { reportInfoOpen = !reportInfoOpen }
+        ) {
             Text("Icon, titles, language detection", fontSize = 12.sp, color = AppColors.TextTertiary)
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
@@ -140,9 +246,14 @@ internal fun ReportSelectWorkersScreen(
         }
         Spacer(Modifier.height(12.dp))
 
-        // ── Card 2: Model info ─────────────────────────────────────────
-        SectionCard {
-            Text("Model info", fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+        // ── Card: Model info ───────────────────────────────────────────
+        CollapsibleCard(
+            icon = mi.reportModelIcon,
+            title = "Model info",
+            summary = if (config.modelInfo == ModelInfoMode.OWN_MODEL) "Own model" else "Prompt configuration",
+            expanded = modelInfoOpen,
+            onToggle = { modelInfoOpen = !modelInfoOpen }
+        ) {
             Text("Per-model icons & titles", fontSize = 12.sp, color = AppColors.TextTertiary)
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
@@ -165,11 +276,21 @@ internal fun ReportSelectWorkersScreen(
         }
         Spacer(Modifier.height(12.dp))
 
-        // ── Card 3: Worker batches ─────────────────────────────────────
-        SectionCard {
-            Text("Worker batches", fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+        // ── Card: Worker batches ───────────────────────────────────────
+        CollapsibleCard(
+            icon = mi.ant,
+            title = "Worker batches",
+            summary = when (config.batches) {
+                BatchWorkerMode.PROMPT -> "Prompt configuration"
+                BatchWorkerMode.REPORT_MODELS -> "Report models"
+                BatchWorkerMode.SELECT_EACH -> "User selectable for each batch"
+                BatchWorkerMode.SELECT_ONCE -> "One time selectable"
+            },
+            expanded = batchesOpen,
+            onToggle = { batchesOpen = !batchesOpen }
+        ) {
             Text(
-                "Fan Meta, Translation, Tournament, Judges, Compare, Rerank, Moderation, Meta, Fan-in",
+                "Fan Meta, Translation, Tournament, Judges, Moderation, Meta, Fan-in",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             OptionRow(
@@ -257,17 +378,41 @@ internal fun ReportSelectWorkersScreen(
     }
 }
 
+/** Card with a tappable header (icon + title + current-selection summary +
+ *  ▸/▾ chevron) that expands to reveal [content]. All [ReportSelectWorkersScreen]
+ *  cards start collapsed so the screen opens as a compact summary. */
 @Composable
-private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
+private fun CollapsibleCard(
+    icon: String,
+    title: String,
+    summary: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            content = content
-        )
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(icon, fontSize = 18.sp, modifier = Modifier.padding(end = 10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+                    if (!expanded) {
+                        Text(summary, fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Text(if (expanded) "▾" else "▸", fontSize = 14.sp, color = AppColors.TextTertiary)
+            }
+            if (expanded) content()
+        }
     }
 }
 

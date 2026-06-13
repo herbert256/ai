@@ -1230,11 +1230,12 @@ fun ReportsScreen(
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            // Rerank now follows the full Worker-batches plan (its old
-            // exemption from report-models-as-workers is dropped).
+            // Rerank always runs on its own prompt's workers — it ignores the
+            // report's Worker-batches choice (REPORT_MODELS / SELECT_*).
             launchWithWorkerPlan(
                 st.runtimeWorkerPick, context, st.screenScope, rid,
-                aiSettings.workerPromptByName("second-rerank"), "Rerank — pick workers"
+                aiSettings.workerPromptByName("second-rerank"), "Rerank — pick workers",
+                alwaysPromptWorkers = true
             ) { picked -> onRunRerank(rid, ls, emptyList(), null, picked); goToSecondResults() }
         }
         return
@@ -1682,7 +1683,14 @@ fun ReportsScreen(
                     onGenerate(models, selectedParametersIds, st.pendingReportType.value, st.workerConfig.value)
                 },
                 onSave = null,
-                onDismiss = { st.showSelectWorkers.value = false }
+                onDismiss = { st.showSelectWorkers.value = false },
+                // System-prompt + Parameters cards — the report-level overrides
+                // that used to live behind the 🎭 / 🌡️ icons on New report and
+                // Report - select models.
+                systemPromptId = uiState.reportSystemPromptId,
+                onSystemPromptChange = onSystemPromptChange,
+                parametersIds = uiState.reportParametersIds,
+                onParametersChange = onParametersIdsChange
             )
         } else {
         com.ai.ui.report.start.ReportSelectModelsScreen(

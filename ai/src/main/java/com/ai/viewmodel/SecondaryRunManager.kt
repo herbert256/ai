@@ -297,9 +297,10 @@ class SecondaryRunManager(
                     }
                     runSecondaryViaSwarm(
                         context, reportId, SecondaryKind.RERANK, rerankPrompt,
-                        // Worker-batches precedence — Rerank is no longer
-                        // exempt from REPORT_MODELS (the old ♻️ carve-out).
-                        resolveBatchSwarm(report, rerankPrompt.workers, overrideWorkers),
+                        // Rerank always runs on the workers defined in its own
+                        // prompt — it opts out of the report's Worker-batches
+                        // choice (REPORT_MODELS / SELECT_*).
+                        resolveBatchSwarm(report, rerankPrompt.workers, overrideWorkers, alwaysPromptWorkers = true),
                         resolvedPrompt, aiSettings, report, base,
                         targetLanguage = sourceLanguage, targetLanguageNative = langCtx?.native,
                         paramsIds = paramsIds, systemPromptId = systemPromptId

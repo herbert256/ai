@@ -66,11 +66,14 @@ internal fun launchWithWorkerPlan(
     reportId: String,
     driver: InternalPrompt?,
     pickTitle: String,
+    /** Rerank / Compare pass true: they ignore the report's Worker-batches
+     *  choice and always follow the prompt's own workers. */
+    alwaysPromptWorkers: Boolean = false,
     run: (List<Worker>?) -> Unit
 ) {
     scope.launch(Dispatchers.IO) {
         val cfg = ReportStorage.getReport(context, reportId)?.workerConfig ?: ReportWorkerConfig()
-        val plan = workerPlanFor(cfg, driver)
+        val plan = workerPlanFor(cfg, driver, alwaysPromptWorkers)
         withContext(Dispatchers.Main) {
             when (plan) {
                 is WorkerPlan.NeedsPick -> runtimeWorkerPick.value = RuntimeWorkerPick(
