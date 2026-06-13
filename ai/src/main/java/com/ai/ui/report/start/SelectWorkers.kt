@@ -51,10 +51,11 @@ import com.ai.ui.shared.TitleBar
  * configures, per report: the system prompt override, the API-parameter
  * presets, and who does the worker jobs — report info (icon / titles /
  * language), model info (per-model icons & titles), the type-B worker
- * batches (Fan Meta, Translation, Tournament, Judges, Compare), and a
- * separate Meta card for the Meta + Fan-in batches (same option set, its
- * own pool). Rerank and Moderation are intentionally absent — they always
- * run on the workers defined in their own prompt.
+ * batches (Fan Meta, Translation, Tournament, Compare), and a separate
+ * Meta card for the Meta + Fan-in batches (same option set, its own pool).
+ * Rerank, Moderation and Judge-the-judges are intentionally absent — they
+ * run on the workers defined in their own prompt, not the Worker-batches
+ * pool (Judge-the-judges is a type-A fixed-judge batch).
  *
  * One stateless composable serves two hosts: pre-generation (the
  * [onGenerate] "Generate report" button is the primary action, and the
@@ -276,7 +277,7 @@ internal fun ReportSelectWorkersScreen(
             onToggle = { batchesOpen = !batchesOpen }
         ) {
             Text(
-                "Fan Meta, Translation, Tournament, Judges, Compare",
+                "Fan Meta, Translation, Tournament, Compare",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             BatchRoutingOptions(

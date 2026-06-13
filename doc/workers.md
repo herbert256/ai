@@ -363,9 +363,11 @@ Generate; `ReportStorage.setWorkerConfig`). Three cards:
 - **Worker batches** (`batches`: `PROMPT` | `REPORT_MODELS` |
   `SELECT_EACH` | `SELECT_ONCE` + `batchWorkers`,
   `workerSelection`: `WHEN_AVAILABLE` | `ROUND_ROBIN`) — the pool
-  for Fan Meta, Translation, Tournament, Judges, Compare, TransRank.
-  **Rerank / Moderation** are exempt (they always run on their own
-  prompt's workers). **Meta / Fan-in** route on their own mirror set
+  for Fan Meta, Translation, Tournament, Compare, TransRank.
+  **Rerank / Moderation / Judge-the-judges** are exempt — they pass
+  `alwaysPromptWorkers = true`, so they always run on their own
+  prompt's workers (Judge-the-judges is a type-A fixed-judge batch).
+  **Meta / Fan-in** route on their own mirror set
   (`metaBatches` / `metaBatchWorkers` / `metaWorkerSelection`, same
   option set) — the "Meta" card on Report - setup — so they can draw
   from a different pool than the other batches. Resolution passes

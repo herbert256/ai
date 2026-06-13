@@ -1052,7 +1052,10 @@ internal fun ReportRunScreen(
                             launchWithWorkerPlan(
                                 st.runtimeWorkerPick, context, st.screenScope, rid,
                                 aiSettings.workerPromptByName("tournament"),
-                                "Judge the judges — pick workers"
+                                "Judge the judges — pick workers",
+                                // Type-A fixed-judge batch — ignores the report's
+                                // Worker-batches choice, uses its own prompt's judges.
+                                alwaysPromptWorkers = true
                             ) { picked -> arm(picked) }
                         }
                         confirmJudgeJudges = false
