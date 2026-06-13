@@ -2729,49 +2729,9 @@ private fun IconLegendOverlay(
                         }
                         HorizontalDivider(color = AppColors.DividerDark)
                     }
-                    // The ❔ icons-help itself — the white question mark in the
-                    // bottom bar that opens this very list.
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable { onClose() }
-                            .padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
-                            Text(mi.helpLegend, fontSize = 30.sp, color = AppColors.TextPrimary)
-                        }
-                        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                            Text(
-                                "Icons help", color = AppColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                "Opens this list of the icons on the screen",
-                                color = AppColors.TextTertiary, fontSize = 13.sp, lineHeight = 16.sp
-                            )
-                        }
-                    }
-                    HorizontalDivider(color = AppColors.DividerDark)
-                    // The red ❓ screen-help glyph that also sits in the bottom bar.
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable { onClose(); navigateHelp(icons.helpTopic) }
-                            .padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
-                            Text(mi.help, fontSize = 30.sp, color = AppColors.DangerAccent)
-                        }
-                        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                            Text(
-                                "Screen help", color = AppColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                "Opens the help for the screen",
-                                color = AppColors.TextTertiary, fontSize = 13.sp, lineHeight = 16.sp
-                            )
-                        }
-                    }
-                    HorizontalDivider(color = AppColors.DividerDark)
+                    // The white ❔ (this list) and red ❓ (screen help) bottom-bar
+                    // glyphs are intentionally NOT listed here — a legend
+                    // shouldn't carry an entry for the icon that opens it.
                 }
                 // The overlay's own icons bar: just a red ❓ → the full icon table.
                 Row(
