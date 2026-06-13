@@ -321,8 +321,7 @@ internal fun ReportRunScreen(
                     }
                     launchWithWorkerPlan(
                         st.runtimeWorkerPick, context, st.screenScope, rid,
-                        comparePrompt, "Compare — pick workers",
-                        alwaysPromptWorkers = true
+                        comparePrompt, "Compare — pick workers"
                     ) { picked -> arm(picked) }
                 }
                 compareStep = 0

@@ -89,11 +89,10 @@ class CompareEngine internal constructor(
     override suspend fun redispatchRows(context: Context, runKey: CompareRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
         val report = ReportStorage.getReport(context, runKey) ?: return
-        // Compare always runs on the workers defined in its own prompt — it
-        // opts out of the report's Worker-batches choice. Holds on resume /
-        // Broken-work restart too (the hydrated prompt carries the configured
-        // swarm).
-        val prompt = run.comparePrompt.withBatchWorkers(report, alwaysPromptWorkers = true)
+        // The report's Worker-batches mode must hold on resume / Broken-work
+        // restart too — the hydrated prompt carries the CONFIGURED swarm, so
+        // re-scoring without the swap would pull in foreign workers.
+        val prompt = run.comparePrompt.withBatchWorkers(report)
         val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
             val c = cellsById[row.id] ?: return@mapNotNull null
@@ -177,9 +176,9 @@ class CompareEngine internal constructor(
         launchRun(context, reportId, buildKey, TRACE_CATEGORY) { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
-            // Compare always runs on its own prompt's workers — it opts out of
-            // the report's Worker-batches choice (a *SELECT prompt still picks).
-            val prompt = comparePromptById(aiSettings, promptId)?.withBatchWorkers(report, overrideWorkers, alwaysPromptWorkers = true)
+            // Worker-batches precedence: REPORT_MODELS > runtime pick >
+            // stored SELECT_ONCE pick > configured chain.
+            val prompt = comparePromptById(aiSettings, promptId)?.withBatchWorkers(report, overrideWorkers)
             if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                 AppLog.w("Compare", "meta_compare prompt not configured / no runnable workers — aborting")
                 return@launchRun
