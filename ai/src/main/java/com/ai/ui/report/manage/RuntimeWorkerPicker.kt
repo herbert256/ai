@@ -89,6 +89,25 @@ internal fun routeSecondaryPromptLaunch(
  * The skip targets are exactly the states the editors' own "continue/run"
  * callbacks set, so skipping just runs with the unedited prompt + defaults.
  */
+/**
+ * Read the report's "Runtime parameters" toggle FRESH from disk (same
+ * convention as [launchWithWorkerPlan]) and hand the result to [onResult] on
+ * the main thread. Used by the confirm-dialog launch sites (Compare / Fan-in /
+ * Tournament / Judge-the-judges / Translate / Rank-the-translators) to decide
+ * between the runtime prompt-edit screen and their existing direct launch.
+ */
+internal fun withRuntimeParamsFlag(
+    context: Context,
+    scope: CoroutineScope,
+    reportId: String,
+    onResult: (Boolean) -> Unit
+) {
+    scope.launch(Dispatchers.IO) {
+        val rt = ReportStorage.getReport(context, reportId)?.workerConfig?.secondResultRuntimeParams ?: false
+        withContext(Dispatchers.Main) { onResult(rt) }
+    }
+}
+
 internal fun advanceAfterScope(
     st: ReportsScreenState,
     prompt: InternalPrompt,

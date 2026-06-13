@@ -198,7 +198,7 @@ class JudgeEvalEngine internal constructor(
      *  answer-pairs, pre-create judges×matches CELL placeholders + one
      *  AGGREGATE placeholder, judge every cell with its fixed judge, then fold
      *  the verdicts into the per-judge agreement analysis. */
-    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? =
+    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null, overridePromptText: String? = null): Job? =
         launchRun(context, reportId, buildKey, "after/judges") { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
@@ -207,7 +207,11 @@ class JudgeEvalEngine internal constructor(
             // its completed MATCH rows — never a configurable worker pool. The
             // prompt supplies only the judging instructions. (overrideWorkers
             // is ignored: there is no worker selection for this batch.)
+            // [overridePromptText] is a run-only prompt-text edit from the
+            // runtime-params screen (shares the workers/tournament prompt;
+            // text only).
             val prompt = judgePrompt(aiSettings)
+                ?.let { if (overridePromptText != null) it.copy(text = overridePromptText) else it }
             if (prompt == null) {
                 AppLog.w("JudgeEval", "tournament prompt not configured — aborting")
                 return@launchRun

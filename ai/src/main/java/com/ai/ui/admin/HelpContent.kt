@@ -77,6 +77,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "report_manage" to listOf("help_glossary_operations", "help_costs", "concepts"),
     "report_html_preview" to listOf("help_glossary_operations", "help_translations"),
     "report_meta_run" to listOf("help_glossary_operations", "help_costs"),
+    "report_runtime_prompt" to listOf("help_glossary_operations", "help_costs"),
     "report_single_result" to listOf("help_glossary_operations", "help_costs"),
     "report_fan_out_confirm" to listOf("help_glossary_operations", "help_costs"),
 

@@ -279,6 +279,84 @@ internal fun MetaRunScreen(
     }
 }
 
+/** One prompt to edit on [SecondaryRuntimePromptScreen]: a field [label]
+ *  and the [InternalPrompt] whose text is being tweaked. */
+internal data class EditablePromptSpec(val label: String, val prompt: InternalPrompt)
+
+/** Shared run-time prompt editor for the secondary kinds that honour the
+ *  report's "Runtime parameters" toggle but have no dedicated run screen of
+ *  their own — Compare, Fan-in, Tournament, Judge-the-judges, Translate and
+ *  Rank-the-translators. One editable text field per [specs] entry (Translate
+ *  passes its body + title prompts; every other kind passes one).
+ *
+ *  [onRun] receives the edited prompt copies in [specs] order and whether to
+ *  persist them: **Run** edits for this run only (the saved Internal Prompt is
+ *  untouched); **Update prompt & run** also writes the edits back permanently.
+ *  Each edited copy keeps the original id / category / workers, so the engine's
+ *  withBatchWorkers resolution and the on-disk run records are unaffected. */
+@Composable
+internal fun SecondaryRuntimePromptScreen(
+    titleName: String,
+    specs: List<EditablePromptSpec>,
+    infoLine: String? = null,
+    onCancel: () -> Unit,
+    onRun: (edited: List<InternalPrompt>, persist: Boolean) -> Unit
+) {
+    BackHandler { onCancel() }
+    // One editable buffer per spec, reseeded when the launch target changes.
+    val editKey = specs.joinToString(",") { it.prompt.id }
+    val fields = remember(editKey) { specs.map { mutableStateOf(it.prompt.text) } }
+    val canRun = fields.all { it.value.isNotBlank() }
+    fun edited() = specs.mapIndexed { i, s -> s.prompt.copy(text = fields[i].value) }
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(
+            helpTopic = "report_runtime_prompt",
+            title = "Run $titleName", subject = "Tweak the prompt for this run",
+            onBackClick = onCancel
+        )
+        // Both CTAs hoisted to the top — one tap to advance regardless of how
+        // far the editable prompt(s) have scrolled. Android back = onCancel.
+        OutlinedButton(
+            onClick = { onRun(edited(), false) },
+            enabled = canRun,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Run", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { onRun(edited(), true) },
+            enabled = canRun,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Update prompt & run", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Edits here apply to this run only — the saved prompt template stays untouched. " +
+                    "Tap \"Update prompt & run\" to also save the changes for future runs.",
+                fontSize = 13.sp, color = AppColors.TextSecondary
+            )
+            if (infoLine != null) {
+                Text(infoLine, fontSize = 12.sp, color = AppColors.TextTertiary)
+            }
+            specs.forEachIndexed { i, s ->
+                Text("${s.label} (edit for this run)", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(
+                    value = fields[i].value,
+                    onValueChange = { fields[i].value = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedFieldColors(),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = AppColors.TextPrimary),
+                    minLines = 8
+                )
+            }
+        }
+    }
+}
+
 /** Extracted from [ReportsScreen] to dodge the JVM 64 KB
  *  per-method bytecode limit. Renders the fan-out Run screen:
  *  call-count summary, initiator / responder model picker cards,

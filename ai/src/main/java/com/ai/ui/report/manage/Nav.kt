@@ -670,11 +670,21 @@ fun ReportsScreenNav(
         onRunModeration = { reportId, languageScope, overrideWorkers ->
             reportViewModel.secondary.runModeration(context, reportId, languageScope, overrideWorkers)
         },
-        onRunTournament = { reportId, buildKey, overrideWorkers ->
-            reportViewModel.tournamentEngine.startRun(context, reportId, buildKey, overrideWorkers)
+        onRunTournament = { reportId, buildKey, overrideWorkers, overridePromptText ->
+            reportViewModel.tournamentEngine.startRun(context, reportId, buildKey, overrideWorkers, overridePromptText)
         },
-        onRunJudgeJudges = { reportId, buildKey, overrideWorkers ->
-            reportViewModel.judgeEvalEngine.startRun(context, reportId, buildKey, overrideWorkers)
+        onRunJudgeJudges = { reportId, buildKey, overrideWorkers, overridePromptText ->
+            reportViewModel.judgeEvalEngine.startRun(context, reportId, buildKey, overrideWorkers, overridePromptText)
+        },
+        onUpdateInternalPrompt = { edited ->
+            // Persist only the edited text onto the live prompt (preserving its
+            // workers etc.), then save — the "Update prompt" button on the
+            // runtime prompt-edit screen.
+            viewModel.updateSettings(aiSettings.copy(
+                internalPrompts = aiSettings.internalPrompts.map {
+                    if (it.id == edited.id) it.copy(text = edited.text) else it
+                }
+            ))
         },
         onDeleteTournamentRun = { reportId ->
             reportViewModel.tournamentEngine.deleteRun(context, reportId)
@@ -816,11 +826,13 @@ fun ReportsScreenNav(
             .toList(),
         deletingTranslationRunIds = reportViewModel.translation.deletingRuns.collectAsState().value,
         throttledTranslationItems = throttledTranslationItems,
-        onStartTranslation = { sourceId, langName, langNative, buildKey, overrideWorkers ->
+        onStartTranslation = { sourceId, langName, langNative, buildKey, overrideWorkers, overrideTextPromptText, overrideTitlePromptText ->
             // Returns the new run's id so Manage can land on the Translation
             // L1 page once the build stage finishes. overrideWorkers is set when
             // the translate-text prompt is *SELECT (user picked the workers).
-            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, buildKey, overrideWorkers).first
+            // overrideText/TitlePromptText are run-only prompt edits from the
+            // runtime-params screen.
+            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, buildKey, overrideWorkers, overrideTextPromptText, overrideTitlePromptText).first
         },
         batchBuildProgress = batchBuildProgress,
         onBeginBuild = { key, total, label -> viewModel.beginBuild(key, total, label) },
@@ -1014,7 +1026,7 @@ internal fun ConsumePendingBatchOpen(
 @Composable
 internal fun ConsumePendingJudgeJudges(
     armBuildStage: (String, String, () -> Unit, () -> Unit) -> Unit,
-    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?) -> Unit,
+    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit,
     onDeleteJudgeRun: (String) -> Unit,
 ) {
     val pending = com.ai.ui.shared.LocalPendingJudgeJudges.current
@@ -1029,7 +1041,7 @@ internal fun ConsumePendingJudgeJudges(
             { judgeOpen?.value = rid },
             { onDeleteJudgeRun(rid) }
         )
-        onRunJudgeJudges(rid, key, null)
+        onRunJudgeJudges(rid, key, null, null)
     }
 }
 

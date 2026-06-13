@@ -157,7 +157,13 @@ class TranslationRunManager(
         /** When non-null (the driving "translate-text" prompt is *SELECT), run
          *  the whole translation against these user-picked workers instead of
          *  the configured translate-text / translate-title chains. */
-        overrideWorkers: List<com.ai.model.Worker>? = null
+        overrideWorkers: List<com.ai.model.Worker>? = null,
+        /** Run-only prompt-text edits from the runtime-params screen: when
+         *  non-null, override the text of the workers/translate-text (body) and
+         *  workers/translate-title prompts for THIS run only (text only — the
+         *  workers come from the live prompts). */
+        overrideTextPromptText: String? = null,
+        overrideTitlePromptText: String? = null
     ): Pair<String, Job> {
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
@@ -323,7 +329,7 @@ class TranslationRunManager(
             // pick); the swarm spreads across every report-model.
             if (!dispatchTranslationItems(
                     context, sourceReportId, runId, sourceReport, itemsWithIds,
-                    targetLanguageName, overrideWorkers
+                    targetLanguageName, overrideWorkers, overrideTextPromptText, overrideTitlePromptText
                 )
             ) return@launch
 
@@ -368,12 +374,19 @@ class TranslationRunManager(
         sourceReport: Report,
         items: List<TranslationItem>,
         targetLanguageName: String,
-        overrideWorkers: List<com.ai.model.Worker>? = null
+        overrideWorkers: List<com.ai.model.Worker>? = null,
+        /** Run-only prompt-text edits from the runtime-params screen (null on
+         *  resume / cross-translate / missing-items paths). Text only — the
+         *  workers come from the live prompts. */
+        overrideTextPromptText: String? = null,
+        overrideTitlePromptText: String? = null
     ): Boolean {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val textPrompt = workerTranslatePrompt(aiSettings, title = false)
+            ?.let { if (overrideTextPromptText != null) it.copy(text = overrideTextPromptText) else it }
             ?.withBatchWorkers(sourceReport, overrideWorkers)
         val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
+            ?.let { if (overrideTitlePromptText != null) it.copy(text = overrideTitlePromptText) else it }
             ?.withBatchWorkers(sourceReport, overrideWorkers)
         // Worker-selection mode: round robin deals items across the
         // REPORT_MODELS pool so every report model translates ~the same

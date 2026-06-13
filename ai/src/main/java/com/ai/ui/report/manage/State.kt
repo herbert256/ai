@@ -147,6 +147,10 @@ internal class ReportsScreenState(
      *  [FanOutConfirmScreen] and runs the matrix with engine defaults. A
      *  one-shot trigger consumed by a LaunchedEffect in ReportsScreen. */
     val fanOutDirectRunPrompt: MutableState<InternalPrompt?>,
+    /** Runtime prompt-edit launch (Runtime parameters on) for the 6 kinds with
+     *  no dedicated run screen. One state, dispatched by kind across the two
+     *  mount blocks (ReportRunScreen / ReportsScreen). */
+    val runtimePromptReq: MutableState<RuntimePromptReq?>,
     val fanInPickerPrompt: MutableState<InternalPrompt?>,
     val fanInPickerSourceLanguage: MutableState<String?>,
     val showFanInPromptPicker: MutableState<Boolean>,
@@ -188,6 +192,33 @@ internal data class RuntimeWorkerPick(
     val initial: List<Worker>,
     val onConfirm: (List<Worker>) -> Unit,
     val onCancel: () -> Unit
+)
+
+/** A pending runtime prompt-edit launch for a secondary kind that honours the
+ *  report's "Runtime parameters" toggle but has no dedicated run screen of its
+ *  own — Compare / Fan-in / Tournament / Judge-the-judges / Translate /
+ *  Rank-the-translators. Carries the driving prompt(s) (one, or body + title for
+ *  Translate) plus the per-kind launch context. Set by each launch site when
+ *  the flag is on; consumed by a [SecondaryRuntimePromptScreen] mount in
+ *  ReportRunScreen (Compare / Tournament / Judges / TransRank) or ReportsScreen
+ *  (Fan-in / Translate). Transient launch state — deliberately not saveable
+ *  (mirrors the hoisted [com.ai.ui.report.manage.PendingRankRequest]). */
+/** Which secondary kind a [RuntimePromptReq] launches. Its own enum (not
+ *  [SecondaryKind], which has no Fan-in) so it can also drive the two-mount
+ *  split: COMPARE / TOURNAMENT / JUDGES / TRANSRANK mount in ReportRunScreen,
+ *  FAN_IN / TRANSLATE in ReportsScreen. */
+internal enum class RuntimePromptKind { COMPARE, FAN_IN, TOURNAMENT, JUDGES, TRANSLATE, TRANSRANK }
+
+internal data class RuntimePromptReq(
+    val kind: RuntimePromptKind,
+    val prompts: List<InternalPrompt>,
+    /** Compare: picked meta-result id. TransRank: source translation run id. */
+    val ctxId: String? = null,
+    /** Translate / TransRank: target language name + native name. */
+    val lang: String? = null,
+    val langNative: String? = null,
+    /** Fan-in: parent fan-out source language (null = Original). */
+    val sourceLanguage: String? = null
 )
 
 @Composable
@@ -265,6 +296,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val fanOutSelfRespond = rememberSaveable { mutableStateOf(false) }
     val fanOutConfirmMetaPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     val fanOutDirectRunPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
+    val runtimePromptReq = remember { mutableStateOf<RuntimePromptReq?>(null) }
     val fanInPickerPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     val fanInPickerSourceLanguage = rememberSaveable { mutableStateOf<String?>(null) }
     val showFanInPromptPicker = rememberSaveable { mutableStateOf(false) }
@@ -357,6 +389,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         fanOutSelfRespond,
         fanOutConfirmMetaPrompt,
         fanOutDirectRunPrompt,
+        runtimePromptReq,
         fanInPickerPrompt,
         fanInPickerSourceLanguage,
         showFanInPromptPicker,

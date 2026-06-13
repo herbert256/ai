@@ -227,8 +227,12 @@ fun ReportsScreen(
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onRunRerank: (String, com.ai.data.SecondaryLanguageScope, List<String>, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _, _, _ -> },
     onRunModeration: (String, com.ai.data.SecondaryLanguageScope, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
-    onRunTournament: (String, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
-    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
+    onRunTournament: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
+    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
+    /** Persist a run-only prompt edit ("Update prompt" on the runtime
+     *  prompt-edit screen): writes the edited text back to the saved
+     *  Internal Prompt. */
+    onUpdateInternalPrompt: (com.ai.model.InternalPrompt) -> Unit = { },
     onDeleteTournamentRun: (String) -> Unit = { },
     onDeleteJudgeRun: (String) -> Unit = { },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
@@ -267,7 +271,7 @@ fun ReportsScreen(
     /** Item ids currently parked on a provider rate / concurrency gate;
      *  feeds the translation L1 "Throttled" stat. */
     throttledTranslationItems: Set<String> = emptySet(),
-    onStartTranslation: (String, String, String, String?, List<com.ai.model.Worker>?) -> String? = { _, _, _, _, _ -> null },
+    onStartTranslation: (String, String, String, String?, List<com.ai.model.Worker>?, String?, String?) -> String? = { _, _, _, _, _, _, _ -> null },
     /** Build-stage progress for big batches, keyed by the UUID the launch
      *  site minted (collected from [AppViewModel.batchBuildProgress]). The
      *  blocking "Preparing…" overlay shows while `st.pendingBuildKey`'s
@@ -1212,6 +1216,72 @@ fun ReportsScreen(
         return
     }
 
+    // Runtime prompt-edit screen for Fan-in / Translate (Runtime parameters
+    // on). Edits the driving prompt(s) for this run — Translate shows its body
+    // + title prompts; "Update prompt & run" also persists. (Compare /
+    // Tournament / Judges / TransRank mount the same screen from ReportRunScreen.)
+    val rtReqMain = st.runtimePromptReq.value
+    if (rtReqMain != null && currentReportId != null &&
+        (rtReqMain.kind == RuntimePromptKind.FAN_IN || rtReqMain.kind == RuntimePromptKind.TRANSLATE)) {
+        val rid = currentReportId
+        val specs = if (rtReqMain.kind == RuntimePromptKind.TRANSLATE) {
+            buildList {
+                add(EditablePromptSpec("Body prompt", rtReqMain.prompts[0]))
+                rtReqMain.prompts.getOrNull(1)?.let { add(EditablePromptSpec("Title prompt", it)) }
+            }
+        } else rtReqMain.prompts.map { EditablePromptSpec("Prompt", it) }
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { st.runtimePromptReq.value = null }
+        ) {
+            SecondaryRuntimePromptScreen(
+                titleName = if (rtReqMain.kind == RuntimePromptKind.FAN_IN) "fan-in" else "translate to ${rtReqMain.lang}",
+                specs = specs,
+                onCancel = { st.runtimePromptReq.value = null },
+                onRun = { edited, persist ->
+                    st.runtimePromptReq.value = null
+                    if (persist) edited.forEach { onUpdateInternalPrompt(it) }
+                    when (rtReqMain.kind) {
+                        RuntimePromptKind.FAN_IN -> {
+                            val editedPrompt = rtReqMain.prompts[0].copy(text = edited[0].text)
+                            launchWithWorkerPlan(
+                                st.runtimeWorkerPick, context, st.screenScope, rid,
+                                aiSettings.workerPromptByName("fan-in"), "Fan-in — pick workers", meta = true
+                            ) { picked -> onRunFanIn(rid, editedPrompt, rtReqMain.sourceLanguage, emptyList(), null, picked) }
+                        }
+                        RuntimePromptKind.TRANSLATE -> {
+                            val bodyText = edited.getOrNull(0)?.text
+                            val titleText = edited.getOrNull(1)?.text
+                            val key = java.util.UUID.randomUUID().toString()
+                            val startWith = { ws: List<com.ai.model.Worker>? ->
+                                onBeginBuild(key, 0, "Translating to ${rtReqMain.lang}")
+                                pendingBuildKey = key
+                                val newRunId = onStartTranslation(rid, rtReqMain.lang!!, rtReqMain.langNative!!, key, ws, bodyText, titleText)
+                                if (newRunId.isNullOrBlank()) {
+                                    onClearBuild(key); pendingBuildKey = null
+                                } else {
+                                    pendingBuildNav = { openTranslationRunId = newRunId }
+                                    pendingBuildCancel = {
+                                        translationLifecycle.onDeleteRun(rid, newRunId)
+                                        onClearBuild(key)
+                                        pendingBuildKey = null; pendingBuildNav = null; pendingBuildCancel = null
+                                    }
+                                }
+                            }
+                            launchWithWorkerPlan(
+                                st.runtimeWorkerPick, context, st.screenScope, rid,
+                                aiSettings.workerPromptByName("translate-text"), "Translate — pick workers"
+                            ) { picked -> startWith(picked) }
+                        }
+                        else -> {}
+                    }
+                }
+            )
+        }
+        return
+    }
+
     // Fan-in now runs through the Fan-in worker swarm — no model picker.
     // The fan-out detail screen's inline preview picks up the placeholder
     // via the isBatching poll once the run kicks off.
@@ -1222,11 +1292,22 @@ fun ReportsScreen(
         LaunchedEffect(fanInPicker) {
             fanInPickerPrompt = null
             fanInPickerSourceLanguage = null
-            launchWithWorkerPlan(
-                st.runtimeWorkerPick, context, st.screenScope, rid,
-                aiSettings.workerPromptByName("fan-in"), "Fan-in — pick workers",
-                meta = true
-            ) { picked -> onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, picked) }
+            // Runtime parameters on → edit the fan-in prompt first (the mount
+            // below runs it); else launch straight onto the worker plan.
+            val rt = withContext(Dispatchers.IO) {
+                com.ai.data.ReportStorage.getReport(context, rid)?.workerConfig?.secondResultRuntimeParams ?: false
+            }
+            if (rt) {
+                st.runtimePromptReq.value = RuntimePromptReq(
+                    kind = RuntimePromptKind.FAN_IN, prompts = listOf(fanInPicker), sourceLanguage = srcLang
+                )
+            } else {
+                launchWithWorkerPlan(
+                    st.runtimeWorkerPick, context, st.screenScope, rid,
+                    aiSettings.workerPromptByName("fan-in"), "Fan-in — pick workers",
+                    meta = true
+                ) { picked -> onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, picked) }
+            }
         }
         return
     }
@@ -1248,32 +1329,47 @@ fun ReportsScreen(
                     showTranslateLanguagePicker = false
                     val rid = currentReportId
                     if (rid != null) {
-                        // Build stage: show the blocking "Preparing…" popup,
-                        // persist all placeholders, then land on the
-                        // Translation L1 page only once the build is done.
-                        val startWith = { ws: List<com.ai.model.Worker>? ->
-                            val key = java.util.UUID.randomUUID().toString()
-                            onBeginBuild(key, 0, "Translating to ${lang.name}")
-                            pendingBuildKey = key
-                            val newRunId = onStartTranslation(rid, lang.name, lang.native, key, ws)
-                            if (newRunId.isNullOrBlank()) {
-                                onClearBuild(key); pendingBuildKey = null
+                        // Runtime parameters on → edit the translate body + title
+                        // prompts first (the mount below runs it); else run
+                        // straight on the worker plan.
+                        withRuntimeParamsFlag(context, st.screenScope, rid) { rt ->
+                            val textP = aiSettings.workerPromptByName("translate-text")
+                            if (rt && textP != null) {
+                                val titleP = aiSettings.workerPromptByName("translate-title")
+                                st.runtimePromptReq.value = RuntimePromptReq(
+                                    kind = RuntimePromptKind.TRANSLATE,
+                                    prompts = listOfNotNull(textP, titleP),
+                                    lang = lang.name, langNative = lang.native
+                                )
                             } else {
-                                pendingBuildNav = { openTranslationRunId = newRunId }
-                                pendingBuildCancel = {
-                                    translationLifecycle.onDeleteRun(rid, newRunId)
-                                    onClearBuild(key)
-                                    pendingBuildKey = null; pendingBuildNav = null; pendingBuildCancel = null
+                                // Build stage: show the blocking "Preparing…"
+                                // popup, persist all placeholders, then land on
+                                // the Translation L1 page once the build is done.
+                                val key = java.util.UUID.randomUUID().toString()
+                                val startWith = { ws: List<com.ai.model.Worker>? ->
+                                    onBeginBuild(key, 0, "Translating to ${lang.name}")
+                                    pendingBuildKey = key
+                                    val newRunId = onStartTranslation(rid, lang.name, lang.native, key, ws, null, null)
+                                    if (newRunId.isNullOrBlank()) {
+                                        onClearBuild(key); pendingBuildKey = null
+                                    } else {
+                                        pendingBuildNav = { openTranslationRunId = newRunId }
+                                        pendingBuildCancel = {
+                                            translationLifecycle.onDeleteRun(rid, newRunId)
+                                            onClearBuild(key)
+                                            pendingBuildKey = null; pendingBuildNav = null; pendingBuildCancel = null
+                                        }
+                                    }
                                 }
+                                // Picker (per the report's Worker-batches mode /
+                                // the driving translate-text prompt's *SELECT)
+                                // applies to the whole run; else run straight.
+                                launchWithWorkerPlan(
+                                    st.runtimeWorkerPick, context, st.screenScope, rid,
+                                    aiSettings.workerPromptByName("translate-text"), "Translate — pick workers"
+                                ) { picked -> startWith(picked) }
                             }
                         }
-                        // Picker (per the report's Worker-batches mode / the
-                        // driving translate-text prompt's *SELECT) applies to
-                        // the whole run; else run straight.
-                        launchWithWorkerPlan(
-                            st.runtimeWorkerPick, context, st.screenScope, rid,
-                            aiSettings.workerPromptByName("translate-text"), "Translate — pick workers"
-                        ) { picked -> startWith(picked) }
                     }
                 },
                 onBack = { showTranslateLanguagePicker = false },
@@ -1834,6 +1930,7 @@ fun ReportsScreen(
             onChatWithReportPrompt = onChatWithReportPrompt,
             onRunTournament = onRunTournament,
             onRunJudgeJudges = onRunJudgeJudges,
+            onUpdateInternalPrompt = onUpdateInternalPrompt,
             onArmBuildStage = armBuildStage,
             onDeleteTournamentRun = onDeleteTournamentRun,
             onDeleteJudgeRun = onDeleteJudgeRun,

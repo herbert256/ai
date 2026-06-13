@@ -172,13 +172,17 @@ class CompareEngine internal constructor(
      *  Pre-creates agents×meta CELL placeholders (sentinel provider/model),
      *  publishes the run with all cells PENDING, then scores each cell through
      *  the worker batch. */
-    fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? =
+    fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null, overridePromptText: String? = null): Job? =
         launchRun(context, reportId, buildKey, TRACE_CATEGORY) { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
             // Worker-batches precedence: REPORT_MODELS > runtime pick >
-            // stored SELECT_ONCE pick > configured chain.
-            val prompt = comparePromptById(aiSettings, promptId)?.withBatchWorkers(report, overrideWorkers)
+            // stored SELECT_ONCE pick > configured chain. [overridePromptText] is
+            // a run-only prompt-text edit from the runtime-params screen — only
+            // the text is overridden; the workers come from the live prompt.
+            val prompt = comparePromptById(aiSettings, promptId)
+                ?.let { if (overridePromptText != null) it.copy(text = overridePromptText) else it }
+                ?.withBatchWorkers(report, overrideWorkers)
             if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                 AppLog.w("Compare", "meta_compare prompt not configured / no runnable workers — aborting")
                 return@launchRun

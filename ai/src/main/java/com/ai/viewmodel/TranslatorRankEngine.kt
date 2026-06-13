@@ -237,7 +237,8 @@ class TranslatorRankEngine internal constructor(
     fun startRun(
         context: Context, reportId: String, sourceTranslationRunId: String,
         langName: String, langNative: String,
-        buildKey: String? = null, overrideWorkers: List<Worker>? = null
+        buildKey: String? = null, overrideWorkers: List<Worker>? = null,
+        overridePromptText: String? = null
     ): Job? {
         val rk = transRankRunKey(reportId, sourceTranslationRunId)
         return launchRun(context, rk, buildKey, "transrank/rank") { runId ->
@@ -249,7 +250,10 @@ class TranslatorRankEngine internal constructor(
             // cappedCandidates' self-exclusion). There is no configurable judge
             // panel; the prompt supplies only the scoring instructions.
             // (overrideWorkers is ignored.)
+            // [overridePromptText] is a run-only prompt-text edit from the
+            // runtime-params screen (text only).
             val prompt = rankPrompt(aiSettings)
+                ?.let { if (overridePromptText != null) it.copy(text = overridePromptText) else it }
             if (prompt == null) {
                 AppLog.w("TransRank", "translate-rank prompt not configured — aborting")
                 return@launchRun

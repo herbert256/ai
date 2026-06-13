@@ -121,10 +121,13 @@ internal fun ReportRunScreen(
     runningInfoJobs: Set<String> = emptySet(),
     onChatWithReportPrompt: (String) -> Unit,
     /** Launch a worker-judged pairwise tournament on the report (reportId,
-     *  build-stage key). */
-    onRunTournament: (String, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
+     *  build-stage key, override workers, run-only prompt-text override). */
+    onRunTournament: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
     /** Launch the "Judge the judges" batch on the report. */
-    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
+    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
+    /** Persist a run-only prompt edit ("Update prompt" on the runtime
+     *  prompt-edit screen) back to the saved Internal Prompt. */
+    onUpdateInternalPrompt: (com.ai.model.InternalPrompt) -> Unit = { },
     /** Arm the build-stage popup: (buildKey, label, on-done nav, on-cancel). */
     onArmBuildStage: (String, String, () -> Unit, () -> Unit) -> Unit = { _, _, _, _ -> },
     /** Delete a tournament / judges run (build-stage Cancel cleanup). */
@@ -260,9 +263,20 @@ internal fun ReportRunScreen(
         val rid = currentReportId ?: return@handler
         val key = com.ai.data.transRankRunKey(rid, runId)
         if (translatorRankEngine?.runByKey(key) != null) { transRankOpenState?.value = key; return@handler }
-        // No worker picker — the judges are fixed: the translation models from
-        // the connected Translation batch rank each other.
-        pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+        // Runtime parameters on → edit the translate-rank prompt first (the
+        // mount runs it); else the shared confirm dialog. No worker picker
+        // either way — the judges are fixed: the translation models from the
+        // connected Translation batch rank each other.
+        val rp = aiSettings.workerPromptByName("translate-rank")
+        if (rp != null) {
+            withRuntimeParamsFlag(context, st.screenScope, rid) { rt ->
+                if (rt) st.runtimePromptReq.value = RuntimePromptReq(
+                    kind = RuntimePromptKind.TRANSRANK,
+                    prompts = listOf(rp), ctxId = runId, lang = ln, langNative = lnn
+                )
+                else pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+            }
+        } else pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
     }
     // The select callback is pulled from LocalSystemPromptChange so we
     // don't thread it through the call site as another arg.
@@ -325,23 +339,101 @@ internal fun ReportRunScreen(
                 val comparePrompt = compareMetaItems.firstOrNull { it.id == id }?.metaPromptName?.let { name ->
                     aiSettings.internalPrompts.firstOrNull { it.category == "meta_compare" && it.name.equals(name, ignoreCase = true) }
                 }
-                if (comparePrompt != null) {
-                    // Build stage: block behind "Preparing…" while the cell grid
-                    // is created, then open the L1 once done.
-                    val key = java.util.UUID.randomUUID().toString()
-                    val arm = { ws: List<com.ai.model.Worker>? ->
-                        onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
-                        compareEngine?.startRun(context, rid, listOf(id), comparePrompt.id, key, ws)
-                    }
-                    launchWithWorkerPlan(
-                        st.runtimeWorkerPick, context, st.screenScope, rid,
-                        comparePrompt, "Compare — pick workers"
-                    ) { picked -> arm(picked) }
-                }
                 compareStep = 0
+                if (comparePrompt != null && rid != null) {
+                    // Runtime parameters on → edit the compare prompt first
+                    // (the mount runs it); else launch straight.
+                    withRuntimeParamsFlag(context, st.screenScope, rid) { rt ->
+                        if (rt) {
+                            st.runtimePromptReq.value = RuntimePromptReq(
+                                kind = RuntimePromptKind.COMPARE,
+                                prompts = listOf(comparePrompt), ctxId = id
+                            )
+                        } else {
+                            // Build stage: block behind "Preparing…" while the
+                            // cell grid is created, then open the L1 once done.
+                            val key = java.util.UUID.randomUUID().toString()
+                            val arm = { ws: List<com.ai.model.Worker>? ->
+                                onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
+                                compareEngine?.startRun(context, rid, listOf(id), comparePrompt.id, key, ws)
+                            }
+                            launchWithWorkerPlan(
+                                st.runtimeWorkerPick, context, st.screenScope, rid,
+                                comparePrompt, "Compare — pick workers"
+                            ) { picked -> arm(picked) }
+                        }
+                    }
+                }
             },
             onBack = { compareStep = 0 },
             onNavigateHome = onDismiss
+        )
+        return
+    }
+    // Runtime prompt-edit screen for the kinds launched from here (Compare /
+    // Tournament / Judge-the-judges / Rank-the-translators) when the report's
+    // "Runtime parameters" toggle is on. Edits the driving prompt's text for
+    // this run; "Update prompt & run" also persists it. (Fan-in / Translate
+    // mount the same screen from ReportsScreen.)
+    val rtReq = st.runtimePromptReq.value
+    if (rtReq != null && currentReportId != null && rtReq.kind in setOf(
+            RuntimePromptKind.COMPARE, RuntimePromptKind.TOURNAMENT,
+            RuntimePromptKind.JUDGES, RuntimePromptKind.TRANSRANK)) {
+        val rid = currentReportId
+        val infoLine = when (rtReq.kind) {
+            RuntimePromptKind.TOURNAMENT ->
+                "$tournamentResponseCount answers · ${tournamentResponseCount * (tournamentResponseCount - 1)} head-to-head judgments"
+            RuntimePromptKind.JUDGES ->
+                "${(tournamentResponseCount * (tournamentResponseCount - 1) / 2).coerceAtMost(25)} head-to-head(s), judged by every judge model"
+            else -> null
+        }
+        val titleName = when (rtReq.kind) {
+            RuntimePromptKind.COMPARE -> "compare"
+            RuntimePromptKind.TOURNAMENT -> "tournament"
+            RuntimePromptKind.JUDGES -> "judge the judges"
+            else -> "rank the translators"
+        }
+        SecondaryRuntimePromptScreen(
+            titleName = titleName,
+            specs = rtReq.prompts.map { EditablePromptSpec("Prompt", it) },
+            infoLine = infoLine,
+            onCancel = { st.runtimePromptReq.value = null },
+            onRun = { edited, persist ->
+                st.runtimePromptReq.value = null
+                if (persist) edited.forEach { onUpdateInternalPrompt(it) }
+                val text = edited.firstOrNull()?.text
+                when (rtReq.kind) {
+                    RuntimePromptKind.COMPARE -> {
+                        val key = java.util.UUID.randomUUID().toString()
+                        val arm = { ws: List<com.ai.model.Worker>? ->
+                            onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
+                            compareEngine?.startRun(context, rid, listOf(rtReq.ctxId!!), rtReq.prompts[0].id, key, ws, text)
+                        }
+                        launchWithWorkerPlan(st.runtimeWorkerPick, context, st.screenScope, rid, rtReq.prompts[0], "Compare — pick workers") { picked -> arm(picked) }
+                    }
+                    RuntimePromptKind.TOURNAMENT -> {
+                        val key = java.util.UUID.randomUUID().toString()
+                        val arm = { ws: List<com.ai.model.Worker>? ->
+                            onArmBuildStage(key, "Building tournament", { tournamentOpenState?.value = rid }, { onDeleteTournamentRun(rid) })
+                            onRunTournament(rid, key, ws, text)
+                        }
+                        launchWithWorkerPlan(st.runtimeWorkerPick, context, st.screenScope, rid, aiSettings.workerPromptByName("tournament"), "Tournament — pick workers") { picked -> arm(picked) }
+                    }
+                    RuntimePromptKind.JUDGES -> {
+                        val key = java.util.UUID.randomUUID().toString()
+                        onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
+                        onRunJudgeJudges(rid, key, null, text)
+                    }
+                    RuntimePromptKind.TRANSRANK -> {
+                        val key = java.util.UUID.randomUUID().toString()
+                        onArmBuildStage(key, "Building translator ranking",
+                            { transRankOpenState?.value = com.ai.data.transRankRunKey(rid, rtReq.ctxId!!) },
+                            { translatorRankEngine?.deleteRun(context, com.ai.data.transRankRunKey(rid, rtReq.ctxId!!)) })
+                        translatorRankEngine?.startRun(context, rid, rtReq.ctxId!!, rtReq.lang!!, rtReq.langNative!!, key, null, text)
+                    }
+                    else -> {}
+                }
+            }
         )
         return
     }
@@ -946,11 +1038,25 @@ internal fun ReportRunScreen(
                     judgeJudgesEnabled = tournamentDone,
                     onTournament = {
                         showTournamentOverview = false
-                        confirmTournament = true
+                        val rid = currentReportId
+                        val tp = aiSettings.workerPromptByName("tournament")
+                        if (rid != null && tp != null) {
+                            withRuntimeParamsFlag(context, st.screenScope, rid) { rt ->
+                                if (rt) st.runtimePromptReq.value = RuntimePromptReq(RuntimePromptKind.TOURNAMENT, listOf(tp))
+                                else confirmTournament = true
+                            }
+                        } else confirmTournament = true
                     },
                     onJudgeJudges = {
                         showTournamentOverview = false
-                        confirmJudgeJudges = true
+                        val rid = currentReportId
+                        val jp = aiSettings.workerPromptByName("tournament")
+                        if (rid != null && jp != null) {
+                            withRuntimeParamsFlag(context, st.screenScope, rid) { rt ->
+                                if (rt) st.runtimePromptReq.value = RuntimePromptReq(RuntimePromptKind.JUDGES, listOf(jp))
+                                else confirmJudgeJudges = true
+                            }
+                        } else confirmJudgeJudges = true
                     },
                     onBack = { showTournamentOverview = false }
                 )
@@ -1022,7 +1128,7 @@ internal fun ReportRunScreen(
                             val key = java.util.UUID.randomUUID().toString()
                             val arm = { ws: List<com.ai.model.Worker>? ->
                                 onArmBuildStage(key, "Building tournament", { tournamentOpenState?.value = rid }, { onDeleteTournamentRun(rid) })
-                                onRunTournament(rid, key, ws)
+                                onRunTournament(rid, key, ws, null)
                             }
                             launchWithWorkerPlan(
                                 st.runtimeWorkerPick, context, st.screenScope, rid,
@@ -1062,7 +1168,7 @@ internal fun ReportRunScreen(
                             // No worker picker — the judges are fixed: the
                             // actual judges that ran the report's Tournament.
                             onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
-                            onRunJudgeJudges(rid, key, null)
+                            onRunJudgeJudges(rid, key, null, null)
                         }
                         confirmJudgeJudges = false
                     }) { androidx.compose.material3.Text("Run") }

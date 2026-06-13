@@ -174,13 +174,17 @@ class TournamentEngine internal constructor(
      *  placeholders (sentinel provider/model) + one AGGREGATE placeholder,
      *  publishes the run with all matches PENDING, runs each match through
      *  the worker batch, then folds the verdicts into the aggregate ranking. */
-    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null): Job? =
+    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null, overridePromptText: String? = null): Job? =
         launchRun(context, tournamentRunKey(reportId), buildKey, "after/tournament") { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
             // Worker-batches precedence: REPORT_MODELS > runtime pick > stored
-            // SELECT_ONCE pick > configured chain.
-            val prompt = tournamentPrompt(aiSettings)?.withBatchWorkers(report, overrideWorkers)
+            // SELECT_ONCE pick > configured chain. [overridePromptText] is a
+            // run-only prompt-text edit from the runtime-params screen (text only;
+            // workers come from the live prompt).
+            val prompt = tournamentPrompt(aiSettings)
+                ?.let { if (overridePromptText != null) it.copy(text = overridePromptText) else it }
+                ?.withBatchWorkers(report, overrideWorkers)
             if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                 AppLog.w("Tournament", "workers/tournament not configured — aborting")
                 return@launchRun
