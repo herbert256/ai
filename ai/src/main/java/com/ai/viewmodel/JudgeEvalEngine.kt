@@ -202,18 +202,23 @@ class JudgeEvalEngine internal constructor(
         launchRun(context, reportId, buildKey, "after/judges") { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
-            // Judge-the-judges is a type-A fixed-judge batch — it does NOT
-            // follow the report's Worker-batches choice. The judges are always
-            // the models configured on its own prompt's swarm (a *SELECT prompt
-            // still asks at run time).
-            val prompt = judgePrompt(aiSettings)?.withBatchWorkers(report, overrideWorkers, alwaysPromptWorkers = true)
+            // Judge-the-judges evaluates the ACTUAL judges that ran this
+            // report's Tournament — the distinct (provider, model) recorded on
+            // its completed MATCH rows — never a configurable worker pool. The
+            // prompt supplies only the judging instructions. (overrideWorkers
+            // is ignored: there is no worker selection for this batch.)
+            val prompt = judgePrompt(aiSettings)
             if (prompt == null) {
-                AppLog.w("JudgeEval", "workers/tournament prompt not configured — aborting")
+                AppLog.w("JudgeEval", "tournament prompt not configured — aborting")
                 return@launchRun
             }
-            val judges = resolveJudges(aiSettings, prompt)
+            val judges = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
+                .filter { it.tournamentRole == "MATCH" && it.providerId != com.ai.data.TOURNAMENT_PENDING_PROVIDER && it.model.isNotBlank() }
+                .map { it.providerId to it.model }
+                .distinct()
+                .map { (p, m) -> ResolvedJudge(Worker(provider = p, model = m), p, m) }
             if (judges.isEmpty()) {
-                AppLog.w("JudgeEval", "no resolvable judges in the prompt's swarm — aborting")
+                AppLog.w("JudgeEval", "no completed Tournament judges to evaluate — aborting")
                 return@launchRun
             }
             ReportStorage.bumpReportTimestamp(context, reportId)

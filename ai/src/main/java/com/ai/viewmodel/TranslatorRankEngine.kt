@@ -173,6 +173,13 @@ class TranslatorRankEngine internal constructor(
             }
     }
 
+    /** The judge panel for a translator-rank run: the distinct translation
+     *  models that produced [items] — they rank each other. */
+    private fun translatorJudges(items: List<ScorableItem>): List<ResolvedJudge> =
+        items
+            .map { ResolvedJudge(Worker(provider = it.translatorProviderId, model = it.translatorModel), it.translatorProviderId, it.translatorModel) }
+            .distinctBy { it.key }
+
     private data class CellCandidate(val item: ScorableItem, val judge: ResolvedJudge)
 
     /** Every (item × judge≠translator) pair, then capped to
@@ -206,10 +213,11 @@ class TranslatorRankEngine internal constructor(
     ): Int = withContext(Dispatchers.IO) {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val report = ReportStorage.getReport(context, reportId) ?: return@withContext 0
-        val prompt = rankPrompt(aiSettings)?.withBatchWorkers(report, overrideWorkers) ?: return@withContext 0
-        val judges = resolveJudges(aiSettings, prompt)
+        if (rankPrompt(aiSettings) == null) return@withContext 0
+        val items = scorableItems(context, report, sourceTranslationRunId)
+        val judges = translatorJudges(items)
         if (judges.isEmpty()) return@withContext 0
-        cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges, sourceTranslationRunId).size
+        cappedCandidates(items, judges, sourceTranslationRunId).size
     }
 
     private data class PendingCell(
@@ -235,22 +243,27 @@ class TranslatorRankEngine internal constructor(
         return launchRun(context, rk, buildKey, "transrank/rank") { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
-            // Worker-batches precedence decides the judge panel (REPORT_MODELS >
-            // runtime pick > stored SELECT_ONCE pick > configured chain).
-            val prompt = rankPrompt(aiSettings)?.withBatchWorkers(report, overrideWorkers)
+            // Rank-the-translators is judged BY the translators themselves: the
+            // actual translation models from the connected Translation batch
+            // rank each other (a model never scores its own translation — see
+            // cappedCandidates' self-exclusion). There is no configurable judge
+            // panel; the prompt supplies only the scoring instructions.
+            // (overrideWorkers is ignored.)
+            val prompt = rankPrompt(aiSettings)
             if (prompt == null) {
-                AppLog.w("TransRank", "workers/translate-rank prompt not configured — aborting")
+                AppLog.w("TransRank", "translate-rank prompt not configured — aborting")
                 return@launchRun
             }
-            val judges = resolveJudges(aiSettings, prompt)
+            val items = scorableItems(context, report, sourceTranslationRunId)
+            val judges = translatorJudges(items)
             if (judges.isEmpty()) {
-                AppLog.w("TransRank", "no resolvable judges in the swarm — aborting")
+                AppLog.w("TransRank", "no translators to rank in the connected Translation batch — aborting")
                 return@launchRun
             }
             // Cap each TRANSLATOR to at most TRANSRANK_CELLS_PER_TRANSLATOR
             // (item × judge) cells, so the whole batch is at most
             // (#translators × 25) — e.g. 10 translator models → ≤ 250.
-            val candidates = cappedCandidates(scorableItems(context, report, sourceTranslationRunId), judges, sourceTranslationRunId)
+            val candidates = cappedCandidates(items, judges, sourceTranslationRunId)
             val cellCount = candidates.size
             if (cellCount == 0) {
                 AppLog.w("TransRank", "nothing to rank (judges=${judges.size})")

@@ -197,6 +197,21 @@ internal fun ReportRunScreen(
     // 🏅 Rank the translators — engine + open-state (run key "$reportId|$translationRunId").
     val translatorRankEngine = com.ai.ui.shared.LocalTranslatorRankEngine.current
     val transRankOpenState = com.ai.ui.shared.LocalTransRankOpenState.current
+    // "Judge the judges" judges the actual judges that ran the report's
+    // Tournament, so it's only offered once that Tournament has finished. Read
+    // the tournament run (keyed by reportId), hydrating from disk so a
+    // completed run is known after a relaunch; done = every match settled.
+    val tournamentEngine = com.ai.ui.shared.LocalTournamentEngine.current
+    val tournamentRuns = tournamentEngine?.runs?.collectAsState()?.value ?: emptyMap()
+    LaunchedEffect(currentReportId) {
+        val rid = currentReportId
+        if (rid != null && tournamentEngine != null && tournamentEngine.runByKey(rid) == null) {
+            withContext(Dispatchers.IO) { tournamentEngine.hydrate(context, rid) }
+        }
+    }
+    val tournamentDone = currentReportId?.let { rid ->
+        tournamentRuns[rid]?.let { it.totalMatches > 0 && it.allTerminal }
+    } ?: false
     // Pending 🏅 launch (translationRunId, lang, native) → shared confirm
     // dialog. Hoisted into ReportsScreen (the pendingRank param) because the
     // runtime worker picker's early-return overlay unmounts THIS composable —
@@ -245,11 +260,9 @@ internal fun ReportRunScreen(
         val rid = currentReportId ?: return@handler
         val key = com.ai.data.transRankRunKey(rid, runId)
         if (translatorRankEngine?.runByKey(key) != null) { transRankOpenState?.value = key; return@handler }
-        launchWithWorkerPlan(
-            st.runtimeWorkerPick, context, st.screenScope, rid,
-            aiSettings.workerPromptByName("translate-rank"),
-            "Rank translators — pick workers"
-        ) { picked -> pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }
+        // No worker picker — the judges are fixed: the translation models from
+        // the connected Translation batch rank each other.
+        pendingRank.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
     }
     // The select callback is pulled from LocalSystemPromptChange so we
     // don't thread it through the call site as another arg.
@@ -928,8 +941,9 @@ internal fun ReportRunScreen(
                 ReportTournamentOverviewScreen(
                     // Tournament needs ≥2 responses; multiple judges allowed (not single-shot).
                     tournamentEnabled = tournamentResponseCount >= 2,
-                    // Judge-the-judges needs ≥2 responses to form a head-to-head pair.
-                    judgeJudgesEnabled = tournamentResponseCount >= 2,
+                    // Judge-the-judges evaluates the Tournament's judges, so it
+                    // stays greyed until that Tournament has finished.
+                    judgeJudgesEnabled = tournamentDone,
                     onTournament = {
                         showTournamentOverview = false
                         confirmTournament = true
@@ -1045,18 +1059,10 @@ internal fun ReportRunScreen(
                     androidx.compose.material3.TextButton(onClick = {
                         currentReportId.let { rid ->
                             val key = java.util.UUID.randomUUID().toString()
-                            val arm = { ws: List<com.ai.model.Worker>? ->
-                                onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
-                                onRunJudgeJudges(rid, key, ws)
-                            }
-                            launchWithWorkerPlan(
-                                st.runtimeWorkerPick, context, st.screenScope, rid,
-                                aiSettings.workerPromptByName("tournament"),
-                                "Judge the judges — pick workers",
-                                // Type-A fixed-judge batch — ignores the report's
-                                // Worker-batches choice, uses its own prompt's judges.
-                                alwaysPromptWorkers = true
-                            ) { picked -> arm(picked) }
+                            // No worker picker — the judges are fixed: the
+                            // actual judges that ran the report's Tournament.
+                            onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
+                            onRunJudgeJudges(rid, key, null)
                         }
                         confirmJudgeJudges = false
                     }) { androidx.compose.material3.Text("Run") }

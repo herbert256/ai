@@ -1430,15 +1430,9 @@ fun ReportsScreen(
                 onRankTranslators = { runId, ln, lnn ->
                     val key = com.ai.data.transRankRunKey(rid, runId)
                     if (transRankEngine?.runByKey(key) != null) transRankOpenState?.value = key
-                    else {
-                        // Any worker pick runs BEFORE the confirm so its
-                        // count matches the run (audit bug 6).
-                        launchWithWorkerPlan(
-                            st.runtimeWorkerPick, context, st.screenScope, rid,
-                            aiSettings.workerPromptByName("translate-rank"),
-                            "Rank translators — pick workers"
-                        ) { picked -> rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, picked) }
-                    }
+                    // No worker picker — the translation models from the
+                    // connected Translation batch rank each other.
+                    else rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
                 },
                 onBack = { openTranslationRunId = null }
             )
