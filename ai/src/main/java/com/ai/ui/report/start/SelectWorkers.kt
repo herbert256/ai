@@ -197,18 +197,18 @@ internal fun ReportSelectWorkersScreen(
             onToggle = { reportInfoOpen = !reportInfoOpen }
         ) {
             Text("Icon, titles, language detection", fontSize = 12.sp, color = AppColors.TextTertiary)
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = config.reportInfo == ReportInfoMode.PROMPT,
-                    onClick = { onConfigChange(config.copy(reportInfo = ReportInfoMode.PROMPT)) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                ) { Text("Prompt configuration", fontSize = 13.sp) }
-                SegmentedButton(
-                    selected = config.reportInfo == ReportInfoMode.CUSTOM,
-                    onClick = { onConfigChange(config.copy(reportInfo = ReportInfoMode.CUSTOM)) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                ) { Text("Specify model or agent", fontSize = 13.sp) }
-            }
+            OptionRow(
+                selected = config.reportInfo == ReportInfoMode.PROMPT,
+                label = "Prompt configuration",
+                sublabel = "The report-info worker prompts run on their configured chains.",
+                onSelect = { onConfigChange(config.copy(reportInfo = ReportInfoMode.PROMPT)) }
+            )
+            OptionRow(
+                selected = config.reportInfo == ReportInfoMode.CUSTOM,
+                label = "Specify model or agent",
+                sublabel = "Run them on your own ordered fallback chain of Model / Agent / Flock / Swarm.",
+                onSelect = { onConfigChange(config.copy(reportInfo = ReportInfoMode.CUSTOM)) }
+            )
             if (config.reportInfo == ReportInfoMode.CUSTOM) {
                 Text("Workers — ordered fallback chain", fontSize = 12.sp, color = AppColors.TextTertiary)
                 if (config.reportInfoWorkers.isEmpty()) {
@@ -237,11 +237,6 @@ internal fun ReportSelectWorkersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("+ Add worker", fontSize = 13.sp) }
-            } else {
-                Text(
-                    "The report-info worker prompts run on their configured chains.",
-                    fontSize = 11.sp, color = AppColors.TextDim
-                )
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -255,23 +250,17 @@ internal fun ReportSelectWorkersScreen(
             onToggle = { modelInfoOpen = !modelInfoOpen }
         ) {
             Text("Per-model icons & titles", fontSize = 12.sp, color = AppColors.TextTertiary)
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = config.modelInfo == ModelInfoMode.PROMPT,
-                    onClick = { onConfigChange(config.copy(modelInfo = ModelInfoMode.PROMPT)) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                ) { Text("Prompt configuration", fontSize = 13.sp) }
-                SegmentedButton(
-                    selected = config.modelInfo == ModelInfoMode.OWN_MODEL,
-                    onClick = { onConfigChange(config.copy(modelInfo = ModelInfoMode.OWN_MODEL)) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                ) { Text("Own model", fontSize = 13.sp) }
-            }
-            Text(
-                if (config.modelInfo == ModelInfoMode.OWN_MODEL)
-                    "Own model: each report model writes its own title and icon."
-                else "The model-info worker prompts run on their configured chains.",
-                fontSize = 11.sp, color = AppColors.TextDim
+            OptionRow(
+                selected = config.modelInfo == ModelInfoMode.PROMPT,
+                label = "Prompt configuration",
+                sublabel = "The model-info worker prompts run on their configured chains.",
+                onSelect = { onConfigChange(config.copy(modelInfo = ModelInfoMode.PROMPT)) }
+            )
+            OptionRow(
+                selected = config.modelInfo == ModelInfoMode.OWN_MODEL,
+                label = "Own model",
+                sublabel = "Each report model writes its own title and icon.",
+                onSelect = { onConfigChange(config.copy(modelInfo = ModelInfoMode.OWN_MODEL)) }
             )
         }
         Spacer(Modifier.height(12.dp))
