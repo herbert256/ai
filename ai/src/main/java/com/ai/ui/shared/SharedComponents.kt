@@ -2073,7 +2073,12 @@ private fun buildBottomBarIcons(
     /** Home-bar mode shows 📤 share in the persistent HomeIconBar, so skip it
      *  here to avoid showing it twice. 📋 copy is NOT hoisted — it stays in the
      *  bottom bar in both modes. */
-    suppressShare: Boolean = false
+    suppressShare: Boolean = false,
+    /** Home-bar mode (App home = Home bar): the Monitor-section jump group
+     *  (📡 Live dashboard / 🐞 API traces / 📜 Application log / 🧾 Audit /
+     *  📊 Statistics) is dropped from the bottom bar — the persistent top Home
+     *  bar + the Monitor hub already cover those jumps. */
+    homeBar: Boolean = false
 ): List<BottomBarIcon> = buildList {
     val D = com.ai.data.MetadataDefaults
     // ----- 1️⃣ 2️⃣ 3️⃣ report-screen switcher -----
@@ -2104,7 +2109,9 @@ private fun buildBottomBarIcons(
     // 📡 Live Dashboard, 🐞 API Traces, 📜 Application log, 🧾 Audit,
     // 📊 Statistics — get a quick-jump icon at the very start of the row so
     // the user can hop between sections without backing out to the hub.
-    icons.monitorNav?.let { mn ->
+    // Dropped entirely in Home-bar mode — the persistent top Home bar and the
+    // Monitor hub already provide these jumps.
+    if (!homeBar) icons.monitorNav?.let { mn ->
         // The screen's own part is skipped — its icon would just link to here.
         if (mn.active != MonitorPart.LIVE_DASHBOARD) add(BottomBarIcon(mi.liveDashboard, Color.Unspecified, mn.onLiveDashboard, 28, legendKey = D.LIVE_DASHBOARD))
         if (mn.active != MonitorPart.TRACES) add(BottomBarIcon(mi.traces, Color.Unspecified, mn.onTraces, 22, legendKey = D.TRACES))
@@ -2506,8 +2513,9 @@ fun BottomIconBar(
     // bar into the help layout: strip left-aligned, ❓ pinned right.
     val onHelp = icons?.onHelp
     val barIcons = LocalMetadataIcons.current
+    val homeBarMode = LocalHomeBarMode.current
     val specs = if (icons != null) {
-        buildBottomBarIcons(icons, barIcons, includeScreenTrace = !suppressScreenTraceAndHelp, suppressShare = suppressShare)
+        buildBottomBarIcons(icons, barIcons, includeScreenTrace = !suppressScreenTraceAndHelp, suppressShare = suppressShare, homeBar = homeBarMode)
     } else {
         emptyList()
     }
