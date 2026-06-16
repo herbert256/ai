@@ -50,13 +50,16 @@ import com.ai.ui.shared.TitleBar
  * "Report - setup" — the step between "Report - select models" and
  * "Manage a report". A stack of collapsible cards (all collapsed on open)
  * configures, per report: the system prompt override, the API-parameter
- * presets, and who does the worker jobs — report info (icon / titles /
- * language), model info (per-model icons & titles), the type-B worker
- * batches (Fan Meta, Translation, Tournament, Compare), and a separate
- * Meta card for the Meta + Fan-in batches (same option set, its own pool).
- * Rerank, Moderation and Judge-the-judges are intentionally absent — they
- * run on the workers defined in their own prompt, not the Worker-batches
- * pool (Judge-the-judges is a type-A fixed-judge batch).
+ * presets, the worker jobs (behind the Workers card, which opens the
+ * full-screen [ReportWorkersScreen]), and the second-result options.
+ *
+ * The four worker-routing cards — report info (icon / titles / language),
+ * model info (per-model icons & titles), the type-B Worker batches pool
+ * (Fan Meta, Translation, Tournament, Compare), and the separate Meta pool
+ * (Meta + Fan-in, same option set) — live on [ReportWorkersScreen], reached
+ * by tapping the Workers card here. Rerank, Moderation and Judge-the-judges
+ * are intentionally absent from that pool — they run on the workers defined
+ * in their own prompt (Judge-the-judges is a type-A fixed-judge batch).
  *
  * One stateless composable serves two hosts: pre-generation (the
  * [onGenerate] "Generate report" button is the primary action, and the
@@ -96,6 +99,19 @@ internal fun ReportSelectWorkersScreen(
     // screen's remember state underneath — the overlay back-stack rule).
     var showSysPromptPicker by remember { mutableStateOf(false) }
     var showParamsPicker by remember { mutableStateOf(false) }
+    // The Workers card opens its four routing cards on a full screen of
+    // their own (same early-return overlay; this screen's remember state
+    // survives underneath).
+    var showWorkers by remember { mutableStateOf(false) }
+    if (showWorkers) {
+        ReportWorkersScreen(
+            aiSettings = aiSettings,
+            config = config,
+            onConfigChange = onConfigChange,
+            onBack = { showWorkers = false }
+        )
+        return
+    }
     if (showSysPromptPicker && onSystemPromptChange != null) {
         com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings,
@@ -118,10 +134,6 @@ internal fun ReportSelectWorkersScreen(
     // Per-card collapse state — every card starts collapsed.
     var sysPromptOpen by remember { mutableStateOf(false) }
     var paramsOpen by remember { mutableStateOf(false) }
-    var reportInfoOpen by remember { mutableStateOf(false) }
-    var modelInfoOpen by remember { mutableStateOf(false) }
-    var batchesOpen by remember { mutableStateOf(false) }
-    var metaOpen by remember { mutableStateOf(false) }
     var secondResultsOpen by remember { mutableStateOf(false) }
 
     Column(
@@ -192,6 +204,90 @@ internal fun ReportSelectWorkersScreen(
             }
             Spacer(Modifier.height(12.dp))
         }
+
+        // ── Card: Workers (opens the full-screen worker setup) ─────────
+        // Report info / Model info / Worker batches / Meta moved off this
+        // screen into [ReportWorkersScreen] — tap to open it (early-return
+        // overlay above; this screen's remember state survives underneath).
+        NavCard(
+            icon = mi.worker,
+            title = "Workers",
+            summary = "Report info, model info, worker batches, Meta",
+            onClick = { showWorkers = true }
+        )
+        Spacer(Modifier.height(12.dp))
+
+        // ── Card: Second result options ────────────────────────────────
+        // Gates the intermediate screens shown when a Meta / Fan-out
+        // secondary is launched from the second-results hub. Both default
+        // off → the launch runs with the default scope and the prompt as
+        // configured, skipping those screens.
+        CollapsibleCard(
+            icon = mi.settings,
+            title = "Second result options",
+            summary = "Scope " + (if (config.secondResultSelectScope) "on" else "off") +
+                " · Params " + (if (config.secondResultRuntimeParams) "on" else "off"),
+            expanded = secondResultsOpen,
+            onToggle = { secondResultsOpen = !secondResultsOpen }
+        ) {
+            Text(
+                "When starting a Meta or Fan-out from the second results, show these steps first.",
+                fontSize = 12.sp, color = AppColors.TextTertiary
+            )
+            ToggleRow(
+                label = "Select scope",
+                sublabel = "Pick which reports / languages the run covers (else: all reports, all languages).",
+                checked = config.secondResultSelectScope,
+                onCheckedChange = { onConfigChange(config.copy(secondResultSelectScope = it)) }
+            )
+            ToggleRow(
+                label = "Runtime parameters",
+                sublabel = "Edit the prompt (and Fan-out's models) before running (else: run as configured).",
+                checked = config.secondResultRuntimeParams,
+                onCheckedChange = { onConfigChange(config.copy(secondResultRuntimeParams = it)) }
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/**
+ * "Workers" — the full-screen worker-setup step split out of the
+ * [ReportSelectWorkersScreen] "Workers" card. Holds the four worker-routing
+ * cards (Report info, Model info, the type-B Worker batches pool, and the
+ * separate Meta + Fan-in pool), each a collapsible card that opens collapsed.
+ * [config] is hoisted — the host (Report - setup) owns persistence; this
+ * screen only maps card edits back through [onConfigChange]. Opened as an
+ * early-return overlay, so the host's remember state survives underneath and
+ * [onBack] simply closes it.
+ */
+@Composable
+private fun ReportWorkersScreen(
+    aiSettings: Settings,
+    config: ReportWorkerConfig,
+    onConfigChange: (ReportWorkerConfig) -> Unit,
+    onBack: () -> Unit
+) {
+    androidx.activity.compose.BackHandler { onBack() }
+    val mi = LocalMetadataIcons.current
+    val agentNames = remember(aiSettings) { aiSettings.agents.map { it.name } }
+
+    var reportInfoOpen by remember { mutableStateOf(false) }
+    var modelInfoOpen by remember { mutableStateOf(false) }
+    var batchesOpen by remember { mutableStateOf(false) }
+    var metaOpen by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
+            .verticalScroll(rememberScrollState()).padding(16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "report_workers",
+            title = "Workers",
+            subject = "Report info, model info, batches",
+            onBackClick = onBack
+        )
+        Spacer(Modifier.height(12.dp))
 
         // ── Card: Report info ──────────────────────────────────────────
         CollapsibleCard(
@@ -317,38 +413,6 @@ internal fun ReportSelectWorkersScreen(
                 onBatchWorkersChange = { onConfigChange(config.copy(metaBatchWorkers = it)) }
             )
         }
-        Spacer(Modifier.height(12.dp))
-
-        // ── Card: Second result options ────────────────────────────────
-        // Gates the intermediate screens shown when a Meta / Fan-out
-        // secondary is launched from the second-results hub. Both default
-        // off → the launch runs with the default scope and the prompt as
-        // configured, skipping those screens.
-        CollapsibleCard(
-            icon = mi.settings,
-            title = "Second result options",
-            summary = "Scope " + (if (config.secondResultSelectScope) "on" else "off") +
-                " · Params " + (if (config.secondResultRuntimeParams) "on" else "off"),
-            expanded = secondResultsOpen,
-            onToggle = { secondResultsOpen = !secondResultsOpen }
-        ) {
-            Text(
-                "When starting a Meta or Fan-out from the second results, show these steps first.",
-                fontSize = 12.sp, color = AppColors.TextTertiary
-            )
-            ToggleRow(
-                label = "Select scope",
-                sublabel = "Pick which reports / languages the run covers (else: all reports, all languages).",
-                checked = config.secondResultSelectScope,
-                onCheckedChange = { onConfigChange(config.copy(secondResultSelectScope = it)) }
-            )
-            ToggleRow(
-                label = "Runtime parameters",
-                sublabel = "Edit the prompt (and Fan-out's models) before running (else: run as configured).",
-                checked = config.secondResultRuntimeParams,
-                onCheckedChange = { onConfigChange(config.copy(secondResultRuntimeParams = it)) }
-            )
-        }
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -465,6 +529,30 @@ private fun ColumnScope.BatchRoutingOptions(
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
             ) { Text("+ Add worker", fontSize = 13.sp) }
+        }
+    }
+}
+
+/** A tappable card (icon + title + summary + › chevron) that navigates to a
+ *  sub-screen instead of expanding inline — the › distinguishes it from the
+ *  ▸/▾ collapse affordance of [CollapsibleCard]. Used for the Workers entry
+ *  that opens [ReportWorkersScreen]. */
+@Composable
+private fun NavCard(icon: String, title: String, summary: String, onClick: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(icon, fontSize = 18.sp, modifier = Modifier.padding(end = 10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+                Text(summary, fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text("›", fontSize = 18.sp, color = AppColors.TextTertiary)
         }
     }
 }
