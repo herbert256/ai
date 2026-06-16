@@ -293,7 +293,7 @@ private fun ReportWorkersScreen(
         CollapsibleCard(
             icon = mi.reportIcon,
             title = "Report info",
-            summary = if (config.reportInfo == ReportInfoMode.PROMPT) "Prompt configuration" else "Specify model or agent",
+            summary = "Who generates the report's icon, titles and language",
             expanded = reportInfoOpen,
             onToggle = { reportInfoOpen = !reportInfoOpen }
         ) {
@@ -346,7 +346,7 @@ private fun ReportWorkersScreen(
         CollapsibleCard(
             icon = mi.reportModelIcon,
             title = "Model info",
-            summary = if (config.modelInfo == ModelInfoMode.OWN_MODEL) "Own model" else "Prompt configuration",
+            summary = "Who generates each answer's per-model title and icon",
             expanded = modelInfoOpen,
             onToggle = { modelInfoOpen = !modelInfoOpen }
         ) {
@@ -369,8 +369,8 @@ private fun ReportWorkersScreen(
         // ── Card: Worker batches ───────────────────────────────────────
         CollapsibleCard(
             icon = mi.ant,
-            title = "Worker batches",
-            summary = batchModeSummary(config.batches),
+            title = "Batches",
+            summary = "Workers for Fan Meta, Translation, Tournament, Compare",
             expanded = batchesOpen,
             onToggle = { batchesOpen = !batchesOpen }
         ) {
@@ -392,12 +392,12 @@ private fun ReportWorkersScreen(
         Spacer(Modifier.height(12.dp))
 
         // ── Card: Meta ─────────────────────────────────────────────────
-        // Meta + Fan-in route on their own pool, separate from Worker
-        // batches; same option set.
+        // Meta + Fan-in route on their own pool, separate from the Batches
+        // card; same option set.
         CollapsibleCard(
             icon = mi.meta,
             title = "Meta",
-            summary = batchModeSummary(config.metaBatches),
+            summary = "Workers for the Meta and Fan-in batches",
             expanded = metaOpen,
             onToggle = { metaOpen = !metaOpen }
         ) {
@@ -433,15 +433,6 @@ private fun ToggleRow(label: String, sublabel: String, checked: Boolean, onCheck
         Spacer(Modifier.width(8.dp))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
-}
-
-/** Collapsed-header summary for a [BatchWorkerMode] — shared by the
- *  Worker batches and Meta cards. */
-private fun batchModeSummary(mode: BatchWorkerMode): String = when (mode) {
-    BatchWorkerMode.PROMPT -> "Prompt configuration"
-    BatchWorkerMode.REPORT_MODELS -> "Report models"
-    BatchWorkerMode.SELECT_EACH -> "User selectable for each batch"
-    BatchWorkerMode.SELECT_ONCE -> "One time selectable"
 }
 
 /** The four batch-routing radio options (+ the Report-models worker-selection
