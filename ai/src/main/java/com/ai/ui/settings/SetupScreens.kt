@@ -166,6 +166,8 @@ fun ModelsSetupScreen(
         TitleBar(helpTopic = "setup_models", title = "Models setup", subject = "Models, types and manual overrides", onBackClick = onBack, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard(MetadataDefaults.SEARCH, "Search models", "Search every model across active providers; tap a row for its Model Info", "",
+                onClick = { onNavigate(SettingsSubScreen.AI_MODELS_SEARCH) }, enabled = hasActiveProvider)
             ModelsSetupNavCard(MetadataDefaults.MODEL_ICON, "Models", "Source and model list per active provider", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
             ModelsSetupNavCard(MetadataDefaults.LABEL, "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",

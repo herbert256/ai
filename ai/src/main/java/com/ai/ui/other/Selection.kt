@@ -167,7 +167,18 @@ internal fun ReportSelectModelsScreen(
      *  Parameters / System-prompt pick and routes the chosen model to THIS
      *  callback (with the picked ids) instead of [onConfirm]. Used by the
      *  secondary-operation pickers (Rerank / Meta / Fan-in). */
-    onSecondaryParamsConfirm: ((Pair<AppService, String>, List<String>, String?) -> Unit)? = null
+    onSecondaryParamsConfirm: ((Pair<AppService, String>, List<String>, String?) -> Unit)? = null,
+    /** Browse mode. When set, the picker stops being a selector: tapping a
+     *  row calls this with the (provider, model) pair instead of confirming
+     *  a pick, and no Recent / secondary-params affordances apply. The
+     *  "Search models" screen (AI Setup → Models setup) passes this to route
+     *  taps to the Model Info page so the catalog can be browsed with the
+     *  exact look of the +Model picker. */
+    onBrowse: ((Pair<AppService, String>) -> Unit)? = null,
+    /** TitleBar subject line + help topic — overridable so the browse
+     *  ("Search models") reuse can carry its own subtitle and help page. */
+    subject: String = "Add one model, with live pricing",
+    helpTopic: String = "report_pick_model"
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -265,7 +276,7 @@ internal fun ReportSelectModelsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_pick_model", title = titleText, subject = "Add one model, with live pricing", onBackClick = onBack,
+        TitleBar(helpTopic = helpTopic, title = titleText, subject = subject, onBackClick = onBack,
             onParameters = if (onSecondaryParamsConfirm != null) { { showSecParamsDialog = true } } else null,
             onSystemPrompt = if (onSecondaryParamsConfirm != null) { { showSecSystemPromptDialog = true } } else null)
 
@@ -336,8 +347,12 @@ internal fun ReportSelectModelsScreen(
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .clickable(enabled = !disabled) {
-                        onRecordRecent?.invoke(entry)
-                        confirmPick(entry)
+                        if (onBrowse != null) {
+                            onBrowse(entry)
+                        } else {
+                            onRecordRecent?.invoke(entry)
+                            confirmPick(entry)
+                        }
                     }
                     .padding(vertical = 8.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically

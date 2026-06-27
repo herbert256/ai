@@ -33,6 +33,7 @@ enum class SettingsSubScreen {
     MAIN, AI_PROVIDER_EDIT, AI_SETUP,
     AI_PROVIDERS,
     AI_MODELS_SETUP,
+    AI_MODELS_SEARCH,
     AI_MODELS, AI_MODEL_EDIT,
     AI_MODEL_TYPES,
     AI_MANUAL_MODEL_TYPES,
@@ -239,7 +240,8 @@ fun SettingsScreen(
                 currentSubScreen = if (from) SettingsSubScreen.AI_PROVIDER_EDIT else SettingsSubScreen.AI_MODELS
             }
             SettingsSubScreen.AI_MODELS, SettingsSubScreen.AI_MODEL_TYPES,
-            SettingsSubScreen.AI_MANUAL_MODEL_TYPES -> currentSubScreen = SettingsSubScreen.AI_MODELS_SETUP
+            SettingsSubScreen.AI_MANUAL_MODEL_TYPES,
+            SettingsSubScreen.AI_MODELS_SEARCH -> currentSubScreen = SettingsSubScreen.AI_MODELS_SETUP
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
@@ -453,6 +455,22 @@ fun SettingsScreen(
                 onBack = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it },
                 onHousekeeping = hkRefresh
+            )
+        }
+        SettingsSubScreen.AI_MODELS_SEARCH -> {
+            // Reuses the +Model report picker (ReportSelectModelsScreen) in
+            // browse mode so the look is byte-identical; taps route to the
+            // Model Info page via the same callback the per-provider model
+            // rows use, instead of confirming a selection.
+            com.ai.ui.other.ReportSelectModelsScreen(
+                aiSettings = aiSettings,
+                onConfirm = {},
+                onBack = goBack,
+                onNavigateHome = onNavigateHome,
+                titleText = "Search models",
+                subject = "Search every model — tap for info",
+                helpTopic = "setup_models_search",
+                onBrowse = { (provider, model) -> onNavigateToModelInfo(provider, model) }
             )
         }
         SettingsSubScreen.AI_WORKERS_SETUP -> {

@@ -524,12 +524,24 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "setup_models" to HelpContent(
         title = "Help - Models setup",
         cards = listOf(
-            HelpCard("Overview", "Sub-hub under AI Setup. Three cards: Models (per active provider), Model Types (default API path per type), Manual model types overrides (per-model type assignments)."),
+            HelpCard("Overview", "Sub-hub under AI Setup. First card: Search models (a cross-provider catalog browser). Then Models (per active provider), Model Types (default API path per type), Manual model types overrides, plus the model-state lists (cooldowns, blocked, test-excluded, inaccessible)."),
+            HelpCard("Search models", "Opens a full-catalog search that looks exactly like the +Model report picker — provider filter, search box, capability badges and live pricing — but tapping a row opens that model's Model Info page instead of selecting it. Disabled until at least one provider is active."),
             HelpCard("Models", "Disabled until you have at least one active provider. Drills into the per-provider model lists. Count = total models across active providers."),
             HelpCard("Model Types", "List of the 9 model kinds from ModelType.ALL with their default API paths. Count = number of types."),
             HelpCard("Manual model types overrides", "CRUD for (provider, model, type, capabilities) overrides that win over autodetection. Count = number of overrides currently saved."),
             HelpCard("Tips", "Resolution order at dispatch: per-provider Type paths (Provider edit → Definition · API) → Model Types defaults → ModelType.DEFAULT_PATHS hardcoded fallback."),
             HelpCard("Pitfalls", "If no provider is active the Models card stays grey-blue and unclickable."),
+        )
+    ),
+    "setup_models_search" to HelpContent(
+        title = "Help - Search models",
+        cards = listOf(
+            HelpCard("Overview", "A read-only, cross-provider model browser reached from the first card on Models setup. Identical layout to the +Model report picker (ReportSelectModelsScreen) — the difference is what a tap does: here it opens the model's Model Info page rather than adding it to a report."),
+            HelpCard("List", "Joins every active provider's catalog (plus on-device Local models when experimental features are on). Sorted by provider id, then model id."),
+            HelpCard("Provider filter", "Dropdown above the list — All Providers or one specific provider, with each provider's model count shown."),
+            HelpCard("Search field", "Matches against provider id and model id. The count line reads '<filtered> of <total> models'."),
+            HelpCard("Row", "Provider id, model id, capability badges (Vision / Web / Reasoning) and any advisory badges (cooldown / blocked / inaccessible), with per-token prompt / completion pricing on the right — red for real data, grey for DEFAULT."),
+            HelpCard("Tap a row", "Opens that (provider, model)'s Model Info page. Back returns here. No selection, no checkboxes — this is for browsing and inspecting, not building a report."),
         )
     ),
     "setup_workers" to HelpContent(
