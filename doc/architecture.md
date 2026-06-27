@@ -88,7 +88,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
                               │
                               ▼
             ┌──────────────────────────────────────────┐
-            │  External APIs (68 cloud providers)      │
+            │  External APIs (35 cloud providers)      │
             │  + 7 metadata repositories               │
             └──────────────────────────────────────────┘
 ```
@@ -311,9 +311,9 @@ stable id **and** the UI label **and** the SharedPreferences key prefix
 `id` string and reads it back through `findById`, so a persisted "Local"
 chat session round-trips.
 
-### `ProviderRegistry` — the 68 providers are an asset, not Kotlin
+### `ProviderRegistry` — the 35 providers are an asset, not Kotlin
 
-The 68 cloud providers are **not** hardcoded in Kotlin. They are bundled
+The 35 cloud providers are **not** hardcoded in Kotlin. They are bundled
 as **one JSON file per provider under `assets/providers/`** (51 files,
 each a bare `ProviderDefinition` object — no `{ "providers": [...] }`
 wrapper). `ProviderRegistry` is a mutable `object` that starts **empty**

@@ -256,26 +256,6 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Trial keys have a per-minute throttle that's tight on fan-out runs. The chat compatibility layer is newer than Cohere's native API — some niche params (`citation_quality`, structured `documents` arrays) only work via the native endpoints, which this app doesn't route to. Embed and Rerank are billed in \"search units\" — `RerankApiResult.billedSearchUnits` surfaces the count for cost tracking."),
         )
     ),
-    "provider_ai21" to HelpContent(
-        title = "Help - AI21 Labs",
-        cards = listOf(
-            HelpCard("Overview", "AI21 Labs — Tel Aviv-based foundation model lab, founded 2017. Famous for the Jurassic-1 / Jurassic-2 generation models and (more recently) the Jamba family — a hybrid State-Space-Model + Transformer architecture that scales gracefully to long context."),
-            HelpCard("Setup", "studio.ai21.com → API keys. Free trial credits; pay-as-you-go after."),
-            HelpCard("Models", "4 hardcoded fallback models: `jamba-mini` (default), `jamba-large`, `jamba-mini-1.7`, `jamba-large-1.7`. Live list at `/v1/models`. `openRouterName=ai21`."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level — no structural quirks. Pricing tier flow goes LiteLLM → models.dev → OpenRouter fallback. Jamba's hybrid arch shows up as faster latency on long contexts than a pure-Transformer model of similar size would have."),
-            HelpCard("Pitfalls", "AI21's older Jurassic API used a different request shape; you may see `/jurassic` references in old docs that won't work via this app's chat path. The `1.6` / `1.7` minor version split sometimes prices differently in tiers — manual override on Costs is the workaround."),
-        )
-    ),
-    "provider_dashscope" to HelpContent(
-        title = "Help - DashScope (Alibaba Qwen)",
-        cards = listOf(
-            HelpCard("Overview", "DashScope — Alibaba Cloud's model-as-a-service platform, hosting the Qwen family (their flagship LLMs) plus image / audio / embedding models. The bundled URL points at the international mirror (`dashscope-intl.aliyuncs.com/compatible-mode/`); the China-region service runs at `dashscope.aliyuncs.com`."),
-            HelpCard("Setup", "dashscope.console.aliyun.com → mint an API key. Requires an Alibaba Cloud account; international accounts can sign up directly. Free credit allowance; usage-based billing after."),
-            HelpCard("Models", "6 hardcoded fallback models: `qwen-plus` (default), `qwen-max`, `qwen-turbo`, `qwen-long`, `qwen3-235b-a22b`, `qwen-coder-plus`. Plus Qwen-VL (vision), QwQ (reasoning), embedding models. The compatible-mode base routes to OpenAI-shape; the native DashScope shape is different."),
-            HelpCard("Pricing & quirks", "`compatible-mode/` segment in the base URL is the OpenAI-shape gateway. No `defaultModelSource=API` set — the hardcoded fallback drives the picker until the user fetches. Pricing is competitive on Qwen-Plus / Turbo; Max is positioned against GPT-4o."),
-            HelpCard("Pitfalls", "The international vs China-region split matters — the international URL routes outside China but sometimes throttles harder. Some Qwen variants are gated by region (e.g. Qwen-Math is only on the China URL). Image / audio model ids show in `/v1/models` but route via different endpoints this app doesn't yet plumb."),
-        )
-    ),
     "provider_fireworks" to HelpContent(
         title = "Help - Fireworks AI",
         cards = listOf(
@@ -304,26 +284,6 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "5 hardcoded fallback models: `Meta-Llama-3.3-70B-Instruct` (default), `DeepSeek-R1`, `DeepSeek-V3-0324`, plus Qwen variants. Note the capitalised ids — SambaNova mirrors the upstream model author's casing exactly. Live list at `/v1/models`."),
             HelpCard("Pricing & quirks", "OpenAI-compatible. Pricing competitive; throughput high. No special dispatch quirks beyond the case-sensitive ids."),
             HelpCard("Pitfalls", "Case-sensitive model ids — `meta-llama-3.3-70b-instruct` (lowercase) returns 404; you need the capitalised form. Catalog smaller than Together / Fireworks. Some preview models gate behind enterprise tier."),
-        )
-    ),
-    "provider_baichuan" to HelpContent(
-        title = "Help - Baichuan",
-        cards = listOf(
-            HelpCard("Overview", "Baichuan Intelligence (百川智能) — Chinese AI lab founded 2023 by Wang Xiaochuan (Sogou founder). Authors of the Baichuan family of LLMs (Baichuan-1 through Baichuan-4-Turbo); strong on Chinese-language tasks plus general bilingual capability."),
-            HelpCard("Setup", "platform.baichuan-ai.com → API keys. China-region service; requires Chinese phone verification on most accounts. Free credit allowance; pay-as-you-go after."),
-            HelpCard("Models", "5 hardcoded fallback models: `Baichuan4-Turbo` (default), `Baichuan4`, `Baichuan4-Air`, `Baichuan3-Turbo`, `Baichuan3-Turbo-128k`. Capitalised ids — match the platform's exact casing. No live `defaultModelSource=API` set; bundled fallback drives the picker until refresh."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. No `openRouterName` or `litellmPrefix` — pricing tiers may have spotty coverage; manual override on Costs is the workaround for accurate cost tracking."),
-            HelpCard("Pitfalls", "China-region accounts mostly. Non-CN users sometimes see carrier-route latency; a local VPN often improves consistency. The Baichuan-3 family is being phased out in favor of Baichuan-4 — check the platform announcements before committing a saved Agent to a 3-class id."),
-        )
-    ),
-    "provider_stepfun" to HelpContent(
-        title = "Help - StepFun",
-        cards = listOf(
-            HelpCard("Overview", "StepFun (阶跃星辰) — Chinese AI lab founded 2023, behind the Step model family. Strong long-context performance (Step-2 up to 16k / 32k tokens) plus a multimodal Step-3 line. Known for Chinese-language coding and reasoning."),
-            HelpCard("Setup", "platform.stepfun.com → API keys. China-region; SMS verification typical. Free credits on signup."),
-            HelpCard("Models", "6 hardcoded fallback models: `step-2-16k` (default), `step-3`, `step-2-mini`, `step-1-8k`, plus a couple of vision variants. No `defaultModelSource=API` — fallback drives the picker."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. No external pricing-tier mirror — manual cost overrides recommended for accurate accounting. Step-3 multimodal pricing varies by image-token count."),
-            HelpCard("Pitfalls", "China-region. Some Step-3 multimodal calls require a different request shape this app doesn't yet plumb (the chat path handles text-only fine). The Step-1 family is older and being phased out."),
         )
     ),
     "provider_minimax" to HelpContent(
@@ -366,76 +326,6 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Same `huggingFaceApiKey` is used by both this provider AND the model-card info-provider — they're conceptually distinct but share the key. Gated models (Llama 3.1 70B, some Mistral fine-tunes) return 401 / 403 until you accept terms on the HF Hub. HF Pro subscription is separate from API credit cost."),
         )
     ),
-    "provider_lambda" to HelpContent(
-        title = "Help - Lambda Labs",
-        cards = listOf(
-            HelpCard("Overview", "Lambda Labs — GPU cloud company (founded 2012); also runs an inference API for open-weight models on their H100 / H200 fleet. Headquartered in San Francisco. Their Inference Cloud is a smaller catalog focused on currently-popular Llama, Mistral, and Hermes fine-tunes."),
-            HelpCard("Setup", "cloud.lambdalabs.com/api-keys → API keys. Need an existing Lambda Cloud account (mostly self-service signup; some enterprise gating). Pay-as-you-go."),
-            HelpCard("Models", "Default: `hermes-3-llama-3.1-405b-fp8`. Catalog is curated — Hermes fine-tunes, Llama 3.x, Mistral. `defaultModelSource=API` so picker auto-refreshes."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Pricing per-million is competitive on the FP8-quantized variants. No special dispatch quirks. No `openRouterName` / `litellmPrefix` — pricing falls through to OpenRouter cross-provider fallback or DEFAULT."),
-            HelpCard("Pitfalls", "Catalog small and rotates fast. The 405B FP8 default is fast but the FP8 quantization may differ from upstream FP16 quality on edge cases. Lambda's GPU cloud is a separate product — don't confuse Inference Cloud rate limits with GPU instance availability."),
-        )
-    ),
-    "provider_lepton" to HelpContent(
-        title = "Help - Lepton AI",
-        cards = listOf(
-            HelpCard("Overview", "Lepton AI — serverless model-serving platform, founded 2023 by ex-Alibaba / Caffe creators. Acquired by NVIDIA in 2025. Hosts Llama, Mistral, Gemma, Whisper, plus image/audio. Strong on cold-start performance."),
-            HelpCard("Setup", "dashboard.lepton.ai → API keys. Free credit allowance; pay-as-you-go after."),
-            HelpCard("Models", "4 hardcoded fallback models: `llama3-1-70b` (default), `llama3-1-8b`, `mistral-7b`, `gemma2-9b`. Note the dashed (not dotted) version naming — Lepton's catalog uses `llama3-1-70b` rather than `llama-3.1-70b`. No `defaultModelSource=API` set."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible. The dash-instead-of-dot naming is the only structural quirk. No `openRouterName` / `litellmPrefix` — pricing falls through to fallbacks."),
-            HelpCard("Pitfalls", "Naming convention catches new users — copying a `llama-3.1-70b` id from elsewhere returns 404 here; you need `llama3-1-70b`. The NVIDIA acquisition (2025) may eventually merge Lepton into NIM; URL stability not guaranteed long-term."),
-        )
-    ),
-    "provider_01ai" to HelpContent(
-        title = "Help - 01.AI (Yi)",
-        cards = listOf(
-            HelpCard("Overview", "01.AI (零一万物) — Chinese AI lab founded 2023 by Kai-Fu Lee (ex-Google China, Microsoft Research). Authors of the Yi model family — Yi-Lightning, Yi-Large, Yi-Medium, Yi-Spark — bilingual but optimized for Chinese."),
-            HelpCard("Setup", "platform.01.ai → API keys. China-region; SMS verification required for most accounts. Free credit allowance; pay-as-you-go after. The international URL `api.01.ai` is the public surface."),
-            HelpCard("Models", "4 hardcoded fallback models: `yi-lightning` (default), `yi-large`, `yi-medium`, `yi-spark`. `defaultModelSource=API` so picker auto-refreshes."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. No special dispatch quirks. Pricing falls through to OpenRouter cross-provider fallback."),
-            HelpCard("Pitfalls", "China-region. Some accounts are gated to China-only IP routing. Yi-Lightning is the headline cheap+fast model; Yi-Large positions against GPT-4o-mini / Claude Haiku."),
-        )
-    ),
-    "provider_doubao" to HelpContent(
-        title = "Help - Doubao (ByteDance)",
-        cards = listOf(
-            HelpCard("Overview", "Doubao (豆包) — ByteDance's AI model family, served via Volcano Engine (火山引擎). Hosted on `ark.cn-beijing.volces.com` — the Beijing region of Volcano Engine's API platform. The chat path is at `v3/chat/completions` (not the standard v1)."),
-            HelpCard("Setup", "console.volcengine.com (Volcano Engine console) → mint API key. Requires a Volcano Engine account; phone verification typical (Chinese SMS). Free credit allowance; usage-based billing after."),
-            HelpCard("Models", "4 hardcoded fallback models: `doubao-pro-32k` (default), `doubao-pro-128k`, `doubao-lite-32k`, `doubao-lite-128k`. Pro vs Lite tiers; 32k vs 128k context split."),
-            HelpCard("Pricing & quirks", "**`chat` path is `v3/chat/completions`** (not `v1/chat/completions`) — Volcano Engine's versioning is independent of OpenAI's. Otherwise OpenAI-compatible. China-region service; non-CN users may see carrier-routing variance."),
-            HelpCard("Pitfalls", "Path quirk catches users who hand-edit JSON — make sure the path stays `v3/chat/completions`. China-region; some carriers don't route to `volces.com` at all without configuration. Doubao-Pro-128k pricing is the same per-token as 32k but cache-policy differs."),
-        )
-    ),
-    "provider_reka" to HelpContent(
-        title = "Help - Reka",
-        cards = listOf(
-            HelpCard("Overview", "Reka AI — multimodal foundation-model lab founded 2022 by ex-DeepMind / Google Brain / Meta researchers. Headquartered in San Francisco. Reka-Core / Flash / Edge are their model tiers — all natively multimodal (text, image, video, audio)."),
-            HelpCard("Setup", "platform.reka.ai → API keys. Pay-as-you-go; commercial pricing similar to mid-tier frontier models."),
-            HelpCard("Models", "3 hardcoded fallback models: `reka-flash` (default), `reka-core`, `reka-edge`. Flash is the speed/cost balance; Core is the flagship; Edge is the smallest. No `defaultModelSource=API` set."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level for chat. Multimodal inputs (images, video) work but require image/video URLs or base64 the dispatcher already supports for vision. Pricing falls through to fallbacks."),
-            HelpCard("Pitfalls", "Catalog small (3 models). Native video understanding is a Reka strength but few app flows surface video input. Reka-Core gates behind higher-tier accounts on first signup."),
-        )
-    ),
-    "provider_writer" to HelpContent(
-        title = "Help - Writer",
-        cards = listOf(
-            HelpCard("Overview", "Writer Inc. — enterprise generative AI platform founded 2020. Authors of the Palmyra family — domain-tuned LLMs marketed for legal, medical, finance, marketing copy. Headquartered in San Francisco; primarily B2B."),
-            HelpCard("Setup", "app.writer.com → API keys. Enterprise-focused — most accounts come from a sales engagement; self-service signup gives a Free trial. Pay-as-you-go for production."),
-            HelpCard("Models", "2 hardcoded fallback models: `palmyra-x-004` (default), `palmyra-x-003-instruct`. Catalog small and curated. No `defaultModelSource=API` set; bundled list drives the picker."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Pricing falls through to fallbacks. Writer's strength is the enterprise sales / governance side, not unique API quirks."),
-            HelpCard("Pitfalls", "Self-service Free trial caps tightly; production requires the sales conversation. Domain-tuned models may behave differently from general-purpose Llama / GPT — prompt engineering targeted to that variant works best."),
-        )
-    ),
-    "provider_cloudflareworkersai" to HelpContent(
-        title = "Help - Cloudflare Workers AI",
-        cards = listOf(
-            HelpCard("Overview", "Cloudflare Workers AI — Cloudflare's serverless inference for open-weight models, running at the edge across their global network. Hosts a curated catalog of Llama, Mistral, Gemma, Phi, plus image / speech models. Free tier with generous monthly quotas; paid scaling integrated into the Workers / Pages platform."),
-            HelpCard("Setup", "dash.cloudflare.com → AI → Workers AI → API tokens. **You must replace `YOUR_ACCOUNT_ID` in the base URL** with your actual Cloudflare account id (visible on the right rail of the Workers dashboard) before keys work. Token + account-id together authorize the call."),
-            HelpCard("Models", "Default: `@cf/meta/llama-3.3-70b-instruct-fp8-fast`. Catalog uses Cloudflare-prefixed slash ids — `@cf/<owner>/<model>`. `defaultModelSource=API` so the picker auto-refreshes."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. The `@cf/<owner>/<model>` id convention is mandatory — bare ids return 404. The base URL `api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/` is the unique structural quirk."),
-            HelpCard("Pitfalls", "Forgetting to replace `YOUR_ACCOUNT_ID` is the most common setup failure — the placeholder ships verbatim in the bundled provider definition; first-run config requires editing it under Provider edit → Definition · Basics → Base URL. The free tier resets monthly. Some models are FP8 / FP16 quality-tradeoffs — the `-fast` suffix is FP8."),
-        )
-    ),
     "provider_deepinfra" to HelpContent(
         title = "Help - DeepInfra",
         cards = listOf(
@@ -466,46 +356,6 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Path quirks similar to DeepInfra — `chat/completions` / `models` (no `v1/` prefix on those parts). The `/v3/openai/` segment is stable but worth noting if you hand-edit URLs."),
         )
     ),
-    "provider_featherlessai" to HelpContent(
-        title = "Help - Featherless.ai",
-        cards = listOf(
-            HelpCard("Overview", "Featherless.ai — serverless host for HuggingFace open-weight models, founded 2024. Subscription-based pricing (flat monthly fee for unlimited usage on chosen tier) rather than per-token, making it distinctive in the open-weight serving space."),
-            HelpCard("Setup", "featherless.ai/account/api-keys → mint a key. Subscription tiers (Feather / Wing / Falcon-class) determine which models you can run; pay-monthly upfront."),
-            HelpCard("Models", "Default: `meta-llama/Meta-Llama-3.1-8B-Instruct`. Slash-prefixed ids matching HF Hub repo paths. `defaultModelSource=API` so picker auto-refreshes."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible. Subscription billing means token-based pricing tiers (LiteLLM, etc.) don't really apply — your cost is the flat monthly fee. Cost tables and Monitor → Statistics → Spend & usage still report token counts, but dollar conversion via per-token rates will not reflect actual subscription cost."),
-            HelpCard("Pitfalls", "Subscription model breaks token-based cost tracking — manual cost overrides set to $0 / $0 give a more honest view if you're on a flat plan. Some larger models (70B+) require higher tiers; the API returns a tier-error which surfaces as 403/402."),
-        )
-    ),
-    "provider_liquidai" to HelpContent(
-        title = "Help - Liquid AI",
-        cards = listOf(
-            HelpCard("Overview", "Liquid AI — Boston-based foundation-model lab, founded 2023 by MIT researchers. Famous for the LFM (Liquid Foundation Models) series — non-Transformer architectures derived from continuous-time recurrent networks. Strong performance per parameter, especially on long context."),
-            HelpCard("Setup", "platform.liquid.ai → API keys. Pay-as-you-go from signup; smaller free trial credit than larger providers."),
-            HelpCard("Models", "Default: `lfm-7b`. Catalog: LFM-7B, LFM-40B, plus instruct variants. `defaultModelSource=API` so picker auto-refreshes. Smaller catalog overall."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. The non-Transformer architecture is a Liquid AI selling point but transparent at the API level — calls look like any other chat completion. No special dispatch quirks."),
-            HelpCard("Pitfalls", "Smaller catalog and less-tested ecosystem mean fewer model lookups in LiteLLM / OpenRouter — pricing tiers may have spotty coverage. Cold-start latency varies."),
-        )
-    ),
-    "provider_llamaapi" to HelpContent(
-        title = "Help - Llama API (Meta)",
-        cards = listOf(
-            HelpCard("Overview", "Meta's official Llama API — direct hosted inference for the Llama family, run by Meta themselves. Distinct from Llama-on-other-providers (Together, Groq, Fireworks, …) which run open-weight derivatives. Beta product; integration with developer.meta.com."),
-            HelpCard("Setup", "llama.developer.meta.com → API keys. Beta / waitlist depending on signup timing; some accounts get instant access."),
-            HelpCard("Models", "Default: `Llama-4-Maverick-17B-128E-Instruct-FP8`. Catalog focuses on the Llama 4 family (Maverick, Scout) plus current Llama 3.x. `defaultModelSource=API` so picker auto-refreshes."),
-            HelpCard("Pricing & quirks", "Base URL is `api.llama.com/compat/` — the `/compat/` segment is the OpenAI-compatible gateway. Otherwise standard. No `litellmPrefix` / `openRouterName` — pricing falls through to fallbacks."),
-            HelpCard("Pitfalls", "Beta product means API stability isn't guaranteed across signups; expect occasional non-backwards-compatible changes. Same model id (Llama 3.3-70B, etc.) on this provider may price / perform differently from the Together / Groq / Fireworks hosted variants."),
-        )
-    ),
-    "provider_krutrim" to HelpContent(
-        title = "Help - Krutrim (Ola)",
-        cards = listOf(
-            HelpCard("Overview", "Ola Krutrim — Indian AI lab and inference platform, part of Ola Cabs founder Bhavish Aggarwal's tech portfolio. Founded 2023 with a focus on Indian-language understanding alongside general-purpose open-weight model serving."),
-            HelpCard("Setup", "cloud.olakrutrim.com/console → API keys. Indian-region service; international signups possible. Free credit allowance."),
-            HelpCard("Models", "Default: `Meta-Llama-3.1-70B-Instruct`. Catalog: open-weight Llama / Mistral / Qwen plus Krutrim's own multilingual models. `defaultModelSource=API` so picker auto-refreshes."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Pricing falls through to OpenRouter cross-provider fallback. Strong Indian-language support is a Krutrim differentiator."),
-            HelpCard("Pitfalls", "India-region routing means non-IN users may see latency variance. Smaller catalog than Together / Fireworks. Native Indian-language models exist but specific endpoints may not all be plumbed via the chat path."),
-        )
-    ),
     "provider_nebiusaistudio" to HelpContent(
         title = "Help - Nebius AI Studio",
         cards = listOf(
@@ -524,169 +374,6 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `deepseek-ai/DeepSeek-V3`. Slash-prefixed ids. Catalog: DeepSeek, Llama, Qwen, Mistral, plus Bittensor-native fine-tunes. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible. Base URL is `llm.chutes.ai/`. Decentralized compute can give variance in latency / quality across the same model id depending on which miner serves the request — Chutes routes to a chosen one but cold-starts vary."),
             HelpCard("Pitfalls", "Decentralized compute means quality / availability can vary turn-to-turn — for production fan-out, pricier centralized providers (Together / Fireworks) are more deterministic. The TAO billing surface is unusual; most users prefer the fiat top-up."),
-        )
-    ),
-    "provider_inferencenet" to HelpContent(
-        title = "Help - Inference.net",
-        cards = listOf(
-            HelpCard("Overview", "Inference.net — open-weight serverless inference, founded 2024. Hosts Llama, DeepSeek, Qwen on a low-priced compute pool. Headquartered in San Francisco."),
-            HelpCard("Setup", "inference.net/dashboard/api-keys → mint a key. Free credit allowance; pay-as-you-go after."),
-            HelpCard("Models", "Default: `meta-llama/llama-3.3-70b-instruct/fp-8`. Note the third path segment (`/fp-8`) — Inference.net's id convention encodes the quantization in the id itself. `defaultModelSource=API` so picker auto-refreshes."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible. The `/<owner>/<model>/<quant>` three-part id convention is the structural quirk — copy ids verbatim from their catalog. Pricing falls through to fallbacks."),
-            HelpCard("Pitfalls", "The quantization-in-id convention catches new users — `meta-llama/llama-3.3-70b-instruct` (without `/fp-8`) returns 404. Smaller catalog than Together / Fireworks; newer entrant means less LiteLLM coverage so pricing tiers may have gaps."),
-        )
-    ),
-    "provider_friendliai" to HelpContent(
-        title = "Help - FriendliAI",
-        cards = listOf(
-            HelpCard("Overview", "FriendliAI — Korean inference company (Friendli Suite). Serverless + dedicated endpoints on their own fast inference engine; hosts open models (Llama, Qwen, DeepSeek, GLM, MiniMax, EXAONE)."),
-            HelpCard("Setup", "friendli.ai → Friendli Suite → personal settings → Tokens. Free trial credits; pay-as-you-go after."),
-            HelpCard("Models", "OpenAI-compatible. Base `api.friendli.ai/serverless/`. Default `deepseek-ai/DeepSeek-V3.2`. The serverless catalog is small and curated (~8 models); dedicated endpoints can host anything from HuggingFace."),
-            HelpCard("Quirks", "Mixed id shapes — some bare (`meta-llama-3.1-8b-instruct`), some owner-prefixed (`zai-org/GLM-5.2`). Copy verbatim from `/serverless/v1/models`."),
-        )
-    ),
-    "provider_scaleway" to HelpContent(
-        title = "Help - Scaleway",
-        cards = listOf(
-            HelpCard("Overview", "Scaleway — French/European cloud (iliad group). Generative APIs = managed, OpenAI-compatible inference hosted in the EU (Paris), GDPR-friendly with EU data residency."),
-            HelpCard("Setup", "console.scaleway.com → IAM → API keys; the Secret Key is the bearer. Free beta tier with rate limits, paid as it GAs."),
-            HelpCard("Models", "Base `api.scaleway.ai/`. Default `llama-3.3-70b-instruct`. Catalog: Llama, Qwen3, gpt-oss, DeepSeek-R1-distill, Mistral, plus bge embeddings. Lowercase dashed ids."),
-            HelpCard("Quirks", "EU-hosted — good for data-residency needs. Region is implicit in the host."),
-        )
-    ),
-    "provider_ovhcloud" to HelpContent(
-        title = "Help - OVHcloud",
-        cards = listOf(
-            HelpCard("Overview", "OVHcloud — French/European cloud. AI Endpoints = managed OpenAI-compatible inference in the EU (Gravelines), with a strong sovereignty story."),
-            HelpCard("Setup", "endpoints.ai.cloud.ovh.net → create an API key in the OVHcloud manager. Free tier with rate caps, then pay-as-you-go."),
-            HelpCard("Models", "Base `oai.endpoints.kepler.ai.cloud.ovh.net/`. Default `Meta-Llama-3_3-70B-Instruct` — note the underscores in `3_3`. ~22 models incl. Qwen3.x, gpt-oss, Mistral, plus SDXL image."),
-            HelpCard("Quirks", "Mixed-case ids with underscores — copy verbatim. The catalog mixes in a few non-chat (image) models."),
-        )
-    ),
-    "provider_digitalocean" to HelpContent(
-        title = "Help - DigitalOcean",
-        cards = listOf(
-            HelpCard("Overview", "DigitalOcean Gradient AI (formerly the GenAI Platform) — serverless inference on DO. Fronts open models plus proxied OpenAI / Anthropic models behind one key."),
-            HelpCard("Setup", "cloud.digitalocean.com → Gradient / GenAI → model-access keys. Billed on your DigitalOcean account."),
-            HelpCard("Models", "Base `inference.do-ai.run/`. Default `llama3.3-70b-instruct`. Also `openai-gpt-4o`, `anthropic-claude-3.7-sonnet`, DeepSeek-R1-distill, Mistral-Nemo."),
-            HelpCard("Quirks", "Proxied frontier models use prefixed ids (`openai-…`, `anthropic-…`). Everything bills through DigitalOcean."),
-        )
-    ),
-    "provider_vultr" to HelpContent(
-        title = "Help - Vultr",
-        cards = listOf(
-            HelpCard("Overview", "Vultr — independent global cloud (GPU + serverless). Serverless Inference hosts open models with a simple key."),
-            HelpCard("Setup", "my.vultr.com → Inference → deploy a serverless inference and grab its API key. Pay-as-you-go."),
-            HelpCard("Models", "Base `api.vultrinference.com/`. Default `llama-3.3-70b-instruct-fp8`. Llama, DeepSeek-R1-distill, Qwen2.5-coder, Mistral."),
-            HelpCard("Quirks", "The FP8 quant is baked into the id (`-fp8`). Per-token billing on the Vultr account."),
-        )
-    ),
-    "provider_upstage" to HelpContent(
-        title = "Help - Upstage",
-        cards = listOf(
-            HelpCard("Overview", "Upstage — Korean AI company. The Solar family (Solar Pro 2 etc.) is strong at document understanding, OCR and structured extraction."),
-            HelpCard("Setup", "console.upstage.ai → API keys. Free trial credits, then pay-as-you-go."),
-            HelpCard("Models", "Base `api.upstage.ai/`. Default `solar-pro2`. Also `solar-pro`, `solar-mini`. The document-parse / OCR endpoints are separate products, not exposed here."),
-            HelpCard("Quirks", "OpenAI-compatible chat. Solar Pro 2 is a capable small-ish model; the doc-AI APIs live on different paths."),
-        )
-    ),
-    "provider_venice" to HelpContent(
-        title = "Help - Venice AI",
-        cards = listOf(
-            HelpCard("Overview", "Venice AI — privacy-first, uncensored inference. No prompt logging, crypto-friendly (VVV token / Pro). Hosts open models plus its own uncensored fine-tunes."),
-            HelpCard("Setup", "venice.ai → Settings → API. Pro subscription or pay-as-you-go; the key is the bearer."),
-            HelpCard("Models", "Base `api.venice.ai/api/` — note the `/api/` segment. Default `venice-uncensored-1-2`. ~90 models: GLM, Qwen3.x, Gemma, plus Venice uncensored / roleplay tunes."),
-            HelpCard("Quirks", "Privacy / no-logging is the selling point. Ids are dash-normalized (`zai-org-glm-5-2`)."),
-        )
-    ),
-    "provider_githubmodels" to HelpContent(
-        title = "Help - GitHub Models",
-        cards = listOf(
-            HelpCard("Overview", "GitHub Models — GitHub/Microsoft's model playground + inference API. A free (rate-limited) tier uses your GitHub token; one endpoint reaches OpenAI, Meta, DeepSeek, xAI, Mistral and Cohere models."),
-            HelpCard("Setup", "github.com/settings/tokens → a fine-grained PAT with the `models` read permission. The free tier has low per-minute/day limits; higher limits via paid / Azure."),
-            HelpCard("Models", "Base `models.github.ai/`, chat at `inference/chat/completions`, catalog at `catalog/models` (a bare array → `modelListFormat=array`). Publisher-prefixed ids (`openai/gpt-4o-mini`, `meta/Llama-3.3-70B-Instruct`). Default `openai/gpt-4o-mini`."),
-            HelpCard("Quirks", "Auth is a GitHub PAT (Bearer). Free tier is for experimentation — tight rate limits. Distinct from the deprecated `models.inference.ai.azure.com` host."),
-        )
-    ),
-    "provider_nanogpt" to HelpContent(
-        title = "Help - NanoGPT",
-        cards = listOf(
-            HelpCard("Overview", "NanoGPT — pay-per-prompt aggregator with no subscription. Huge catalog (600+) of text and image models; card or crypto top-up; privacy-leaning."),
-            HelpCard("Setup", "nano-gpt.com → API → key. Prepaid balance, charged per prompt."),
-            HelpCard("Models", "Base `nano-gpt.com/api/`. Default `openai/gpt-oss-120b`. 600+ ids across every major family, including `:thinking` / `:online` routing suffixes."),
-            HelpCard("Quirks", "Aggregator — NanoGPT sets the prices. Routing suffixes (`:thinking`) select variants. Pricing varies by upstream host."),
-        )
-    ),
-    "provider_ionet" to HelpContent(
-        title = "Help - io.net",
-        cards = listOf(
-            HelpCard("Overview", "io.net (io Intelligence) — a GPU DePIN (decentralized GPU network). OpenAI-compatible inference over open models at low cost."),
-            HelpCard("Setup", "ai.io.net → API keys. Free allowance, then pay-as-you-go."),
-            HelpCard("Models", "Base `api.intelligence.io.solutions/api/`. Default `deepseek-ai/DeepSeek-V3.2`. ~29 models — GLM, Kimi, Qwen3.6, DeepSeek-V4, MiniMax, gpt-oss."),
-            HelpCard("Quirks", "Decentralized GPU supply — cost-competitive but availability can vary. Owner-prefixed HuggingFace-style ids."),
-        )
-    ),
-    "provider_tinfoil" to HelpContent(
-        title = "Help - Tinfoil",
-        cards = listOf(
-            HelpCard("Overview", "Tinfoil — confidential / verifiable inference. Runs open models inside hardware enclaves (TEE) with attestation, so even the host can not read your prompts."),
-            HelpCard("Setup", "tinfoil.sh → dashboard → API key. Pay-as-you-go."),
-            HelpCard("Models", "Base `inference.tinfoil.sh/`. Default `llama3-3-70b`. ~16 — Llama, GLM, DeepSeek-V4, Qwen-VL, gpt-oss, plus Voxtral audio and doc-upload / websearch tools."),
-            HelpCard("Quirks", "Confidential compute is the differentiator (privacy / compliance). Dash-only ids (`glm-5-2`). A few non-chat entries (websearch, doc-upload)."),
-        )
-    ),
-    "provider_wandb" to HelpContent(
-        title = "Help - W&B Inference",
-        cards = listOf(
-            HelpCard("Overview", "Weights & Biases Inference — inference attached to the W&B (Weave) MLOps platform, so calls are traceable in W&B. Hosts open models."),
-            HelpCard("Setup", "wandb.ai/authorize → API key. Per-token billing; a team/project can be attached for tracing."),
-            HelpCard("Models", "Base `api.inference.wandb.ai/`. Default `meta-llama/Llama-3.3-70B-Instruct`. Llama, DeepSeek, gpt-oss, GLM, Qwen3, Kimi."),
-            HelpCard("Quirks", "OpenAI-compatible. Calls can be logged to W&B Weave via an `OpenAI-Project` header — the app does not send one, so your default project is used. HuggingFace-style ids."),
-        )
-    ),
-    "provider_clarifai" to HelpContent(
-        title = "Help - Clarifai",
-        cards = listOf(
-            HelpCard("Overview", "Clarifai — long-running AI platform (computer vision since 2013, now a full LLM / agent stack). Its OpenAI-compatible gateway fronts community + hosted models."),
-            HelpCard("Setup", "clarifai.com → Settings → Security → Personal Access Token (PAT). Free community tier; paid for hosted compute."),
-            HelpCard("Models", "Base `api.clarifai.com/v2/ext/openai/`. Models are referenced by Clarifai URL — e.g. the default `https://clarifai.com/openai/chat-completion/models/gpt-oss-120b`. After adding a key, fetch the list and copy exact ids."),
-            HelpCard("Quirks", "The full-URL model id is unusual — Model-Info navigation may not render for it (cosmetic), but chat works. Confirm ids against your Clarifai catalog."),
-        )
-    ),
-    "provider_cortecs" to HelpContent(
-        title = "Help - Cortecs",
-        cards = listOf(
-            HelpCard("Overview", "Cortecs — European inference aggregator / optimizer. Routes to the cheapest or fastest host per model; broad catalog (100+) of frontier and open models."),
-            HelpCard("Setup", "cortecs.ai → dashboard → API key. Pay-as-you-go."),
-            HelpCard("Models", "Base `api.cortecs.ai/`. Default `glm-5.2`. 100+ ids — GLM, Qwen3.6, DeepSeek-V4, Claude, Gemini, gpt-5.x, MiniMax. Short dotted ids (`qwen3.6-27b`)."),
-            HelpCard("Quirks", "Aggregator with dynamic routing — the effective host (and price) can shift per call."),
-        )
-    ),
-    "provider_sarvam" to HelpContent(
-        title = "Help - Sarvam",
-        cards = listOf(
-            HelpCard("Overview", "Sarvam AI — Indian sovereign-AI startup (government-backed). Indic-language-focused models, OpenAI-compatible."),
-            HelpCard("Setup", "dashboard.sarvam.ai → API keys. Free credits, then pay-as-you-go."),
-            HelpCard("Models", "Base `api.sarvam.ai/`. Default `sarvam-105b`. Small chat catalog (`sarvam-105b`, `sarvam-30b`); separate speech / translate Indic APIs are not exposed here."),
-            HelpCard("Quirks", "Strong on Indian languages. Tiny chat catalog; the speech / translation products live on different endpoints."),
-        )
-    ),
-    "provider_stackit" to HelpContent(
-        title = "Help - STACKIT",
-        cards = listOf(
-            HelpCard("Overview", "STACKIT — German sovereign cloud (Schwarz Group / Lidl). Model Serving = EU-hosted OpenAI-compatible inference with strict data residency."),
-            HelpCard("Setup", "portal.stackit.cloud → create a Model Serving auth token. Enterprise onboarding; EU billing."),
-            HelpCard("Models", "Base `api.openai-compat.model-serving.eu01.onstackit.cloud/`. Default `cortecs/Llama-3.3-70B-Instruct-FP8-Dynamic`. Llama, Mistral, Gemma, plus embeddings — fetch with a key to confirm exact ids."),
-            HelpCard("Quirks", "German / EU sovereignty is the point. Ids carry an optimizer/quant prefix (`cortecs/…-FP8-Dynamic`). The endpoint returns 403 without a token (no public list)."),
-        )
-    ),
-    "provider_regolo" to HelpContent(
-        title = "Help - Regolo",
-        cards = listOf(
-            HelpCard("Overview", "Regolo.ai — Italian / European sovereign inference (Seeweb). EU-hosted open models, GDPR-friendly."),
-            HelpCard("Setup", "regolo.ai → dashboard → API key. Free trial, then pay-as-you-go."),
-            HelpCard("Models", "Base `api.regolo.ai/`. Default `Llama-3.3-70B-Instruct`. Llama, Qwen3.x, gpt-oss, Gemma, Apertus, plus Whisper / OCR."),
-            HelpCard("Quirks", "EU / Italian data residency. Mixed id casing; a few non-chat (whisper, ocr) entries."),
         )
     ),
 )

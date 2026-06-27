@@ -121,57 +121,24 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.5-air` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm\|codegeex\|charglm`, 7 hardcoded models, `defaultModelSource=API`, `builtInEndpoints` (Chat Completions + Coding) |
 | **Moonshot** | `https://api.moonshot.ai/` | `https://platform.moonshot.ai/console/api-keys` | `kimi-latest` | `openRouterName=moonshot`, 4 hardcoded models, `defaultModelSource=API` |
 | **Cohere** | `https://api.cohere.ai/compatibility/` | `https://dashboard.cohere.com/` | `command-r7b-12-2024` | `openRouterName=cohere`, `auxHosts=[api.cohere.com]`, `maxCallsPerProviderPerMinute=19`, native `nativeRerankUrl=https://api.cohere.com/v2/rerank` + `nativeCapabilityUrl=https://api.cohere.com/v1/models` |
-| **AI21** | `https://api.ai21.com/` | `https://studio.ai21.com/` | `jamba-mini` | `openRouterName=ai21`, 4 hardcoded models |
-| **DashScope** | `https://dashscope-intl.aliyuncs.com/compatible-mode/` | `https://dashscope.console.aliyun.com/` | `qwen-plus` | 6 hardcoded models |
 | **Fireworks** | `https://api.fireworks.ai/inference/` | `https://app.fireworks.ai/` | `accounts/fireworks/models/gpt-oss-120b` | `defaultModelSource=API`, `maxCallsPerProviderPerMinute=12`, `maxConcurrentCallsPerProvider=2` |
 | **Cerebras** | `https://api.cerebras.ai/` | `https://cloud.cerebras.ai/` | `gpt-oss-120b` | `defaultModelSource=API` |
 | **SambaNova** | `https://api.sambanova.ai/` | `https://cloud.sambanova.ai/` | `Meta-Llama-3.3-70B-Instruct` | 5 hardcoded models |
-| **Baichuan** | `https://api.baichuan-ai.com/` | `https://platform.baichuan-ai.com/` | `Baichuan4-Turbo` | 5 hardcoded models |
-| **StepFun** | `https://api.stepfun.com/` | `https://platform.stepfun.com/` | `step-2-16k` | 6 hardcoded models, `defaultInactive=true` (ships visible-but-disabled; user flips it on) |
 | **MiniMax** | `https://api.minimax.io/` | `https://platform.minimax.io/` | `MiniMax-M2.1` | `openRouterName=minimax`, 4 hardcoded models |
 | **NVIDIA** | `https://integrate.api.nvidia.com/` | `https://build.nvidia.com/` | `meta/llama-3.3-70b-instruct` | `defaultModelSource=API`. The NIM catalog lists many models that 404 ("not found for account") until you enable them on build.nvidia.com — the default is a broadly-available one |
 | **Replicate** | `https://api.replicate.com/v1/` | `https://replicate.com/account/api-tokens` | `meta/meta-llama-3-8b-instruct` | `apiFormat=REPLICATE` — async predictions API (`POST v1/models/{owner}/{name}/predictions` with `Prefer: wait`), not OpenAI-compatible. 2 hardcoded models; chat models only |
 | **HuggingFace** | `https://api-inference.huggingface.co/` | `https://huggingface.co/settings/tokens` | `meta-llama/Llama-3.1-70B-Instruct` | 4 hardcoded models |
-| **Lambda** | `https://api.lambdalabs.com/` | `https://cloud.lambdalabs.com/api-keys` | `hermes-3-llama-3.1-405b-fp8` | `defaultModelSource=API` |
-| **Lepton** | `https://api.lepton.ai/` | `https://dashboard.lepton.ai/` | `llama3-1-70b` | 4 hardcoded models |
-| **01.AI** | `https://api.01.ai/` | `https://platform.01.ai/` | `yi-lightning` | `defaultModelSource=API`, 4 hardcoded models |
-| **Doubao** | `https://ark.cn-beijing.volces.com/api/` | `https://console.volcengine.com/` | `doubao-pro-32k` | `typePaths.chat=v3/chat/completions`, 4 hardcoded models |
-| **Reka** | `https://api.reka.ai/` | `https://platform.reka.ai/` | `reka-flash` | 3 hardcoded models |
-| **Writer** | `https://api.writer.com/` | `https://app.writer.com/` | `palmyra-x-004` | 2 hardcoded models |
-| **CloudflareWorkersAI** | `https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/` | `https://dash.cloudflare.com/` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | `defaultModelSource=API` — replace `YOUR_ACCOUNT_ID` in the base URL |
 | **DeepInfra** | `https://api.deepinfra.com/v1/openai/` | `https://deepinfra.com/dash/api_keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `typePaths.chat=chat/completions` + `typePaths.embedding=embeddings`, `modelsPath=models`, `defaultModelSource=API` |
 | **Hyperbolic** | `https://api.hyperbolic.xyz/` | `https://app.hyperbolic.xyz/settings` | `deepseek-ai/DeepSeek-V3-0324` | `defaultModelSource=API`. Small serverless LLM catalog (~5 models); large models cold-start slowly |
 | **Novita.ai** | `https://api.novita.ai/v3/openai/` | `https://novita.ai/settings/key-management` | `zai-org/glm-5.2` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API`. Self-hosts Z.AI's open-weight GLM-5.2 |
-| **Featherless.ai** | `https://api.featherless.ai/` | `https://featherless.ai/account/api-keys` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | `defaultModelSource=API` |
-| **LiquidAI** | `https://inference-1.liquid.ai/` | `https://platform.liquid.ai/` | `lfm-7b` | `defaultModelSource=API` |
-| **LlamaAPI** | `https://api.llama.com/compat/` | `https://llama.developer.meta.com/` | `Llama-4-Maverick-17B-128E-Instruct-FP8` | `defaultModelSource=API` |
-| **Krutrim** | `https://cloud.olakrutrim.com/` | `https://cloud.olakrutrim.com/console` | `Meta-Llama-3.1-70B-Instruct` | `defaultModelSource=API` |
 | **NebiusAIStudio** | `https://api.studio.nebius.com/` | `https://studio.nebius.com/settings/api-keys` | `zai-org/GLM-5.2` | `defaultModelSource=API`. Self-hosts Z.AI's open-weight GLM-5.2 (a reasoning model — needs room in `max_tokens`) |
 | **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `moonshotai/Kimi-K2.6-TEE` | `defaultModelSource=API` |
-| **Inference.net** | `https://api.inference.net/` | `https://inference.net/dashboard/api-keys` | `meta-llama/llama-3.3-70b-instruct/fp-8` | `defaultModelSource=API` |
-| **FriendliAI** | `https://api.friendli.ai/serverless/` | `https://friendli.ai/dashboard/setting/tokens` | `deepseek-ai/DeepSeek-V3.2` | serverless endpoints (Korea) |
-| **Scaleway** | `https://api.scaleway.ai/` | `https://console.scaleway.com/iam/api-keys` | `llama-3.3-70b-instruct` | EU-hosted (France); Secret Key is the bearer |
-| **OVHcloud** | `https://oai.endpoints.kepler.ai.cloud.ovh.net/` | `https://endpoints.ai.cloud.ovh.net/` | `Meta-Llama-3_3-70B-Instruct` | EU sovereign; underscored id `3_3` |
-| **DigitalOcean** | `https://inference.do-ai.run/` | `https://cloud.digitalocean.com/gen-ai/model-access-keys` | `llama3.3-70b-instruct` | Gradient AI; also proxies `openai-*` / `anthropic-*` |
-| **Vultr** | `https://api.vultrinference.com/` | `https://my.vultr.com/inference/` | `llama-3.3-70b-instruct-fp8` | serverless inference; FP8 in id |
-| **Upstage** | `https://api.upstage.ai/` | `https://console.upstage.ai/api-keys` | `solar-pro2` | Solar models, strong doc/OCR (Korea) |
-| **Venice** | `https://api.venice.ai/api/` | `https://venice.ai/settings/api` | `venice-uncensored-1-2` | privacy-first / uncensored; note `/api/` base segment |
-| **GitHubModels** | `https://models.github.ai/` | `https://github.com/settings/tokens` | `openai/gpt-4o-mini` | free tier via GitHub PAT; `typePaths.chat=inference/chat/completions`, `modelsPath=catalog/models`, `modelListFormat=array` |
-| **NanoGPT** | `https://nano-gpt.com/api/` | `https://nano-gpt.com/api` | `openai/gpt-oss-120b` | pay-per-prompt aggregator, 600+ models |
-| **io.net** | `https://api.intelligence.io.solutions/api/` | `https://ai.io.net/ai/api-keys` | `deepseek-ai/DeepSeek-V3.2` | decentralized GPU (DePIN) |
-| **Tinfoil** | `https://inference.tinfoil.sh/` | `https://tinfoil.sh/dashboard` | `llama3-3-70b` | confidential inference (TEE enclaves) |
-| **WandB** | `https://api.inference.wandb.ai/` | `https://wandb.ai/authorize` | `meta-llama/Llama-3.3-70B-Instruct` | W&B Weave-traceable inference |
-| **Clarifai** | `https://api.clarifai.com/v2/ext/openai/` | `https://clarifai.com/settings/security` | `https://clarifai.com/openai/chat-completion/models/gpt-oss-120b` | OpenAI-compat gateway; full-URL model ids |
-| **Cortecs** | `https://api.cortecs.ai/` | `https://cortecs.ai` | `glm-5.2` | EU aggregator, cheapest/fastest routing |
-| **Sarvam** | `https://api.sarvam.ai/` | `https://dashboard.sarvam.ai/admin` | `sarvam-105b` | Indic-language models (India) |
-| **STACKIT** | `https://api.openai-compat.model-serving.eu01.onstackit.cloud/` | `https://portal.stackit.cloud/` | `cortecs/Llama-3.3-70B-Instruct-FP8-Dynamic` | German sovereign cloud (Schwarz Group); 403 without token |
-| **Regolo** | `https://api.regolo.ai/` | `https://regolo.ai/` | `Llama-3.3-70B-Instruct` | EU sovereign (Italy) |
 
-**68 providers total** — 65 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
-(Anthropic), 1 `GOOGLE` (Google), 1 `REPLICATE` (Replicate). All 65
+**35 providers total** — 32 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
+(Anthropic), 1 `GOOGLE` (Google), 1 `REPLICATE` (Replicate). All 32
 OpenAI-compatible providers share the unified dispatch path; only
 Anthropic, Google and Replicate carry format-specific code. (The inline `// 28 providers` comment in
-`ApiFormat.kt` is stale — the real OpenAI-compatible count is 65.)
+`ApiFormat.kt` is stale — the real OpenAI-compatible count is 32.)
 
 ## Field reference
 
