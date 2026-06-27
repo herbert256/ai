@@ -1011,6 +1011,33 @@ object PricingCache {
     fun modelsDevMaxOutputTokens(provider: AppService, model: String): Int? =
         findModelsDevMeta(provider, model)?.maxOutputTokens
 
+    /** Same-provider-ONLY models.dev meta lookup. Matches the model under
+     *  THIS provider's own catalog key — exact id, declared litellmPrefix,
+     *  or `<provider.id>/<id>` — and deliberately skips the loose
+     *  cross-provider `endsWith` / bare-name buckets that [findModelsDevMeta]
+     *  falls through to. [defaultMaxTokens] uses the token-limit variants so
+     *  a reseller's context window (e.g. `submodel/…/DeepSeek-V3-0324`'s
+     *  75 000) can't masquerade as the caller's real limit. Not memoized —
+     *  called once per outbound API call, not per UI row. */
+    private fun findModelsDevMetaOwn(provider: AppService, model: String): ModelsDevMeta? {
+        val meta = modelsDevMeta ?: return null
+        meta[model]?.let { return it }
+        val target = normalizeModelId(model)
+        val declared = provider.litellmPrefix?.takeIf { it.isNotBlank() }?.let { "${normalizeModelId(it)}/$target" }
+        val byId = "${provider.id.lowercase()}/$target"
+        for ((k, v) in meta) {
+            val nk = normalizeModelId(k)
+            if (nk == target || (declared != null && nk == declared) || nk == byId) return v
+        }
+        return null
+    }
+
+    fun modelsDevMaxInputTokensOwn(provider: AppService, model: String): Int? =
+        findModelsDevMetaOwn(provider, model)?.maxInputTokens
+
+    fun modelsDevMaxOutputTokensOwn(provider: AppService, model: String): Int? =
+        findModelsDevMetaOwn(provider, model)?.maxOutputTokens
+
     /** Pretty-printed models.dev JSON entry for the (provider, model)
      *  pair, or null when unknown — drives the Models.dev raw-data
      *  button on Model Info, mirroring [getLiteLLMRawEntry]. */

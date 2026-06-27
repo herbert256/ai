@@ -12,6 +12,12 @@
     "openai/gpt-5.1"
   ],
   "id": "AtlasCloud",
+  "maxTokensDefaults": [
+    {
+      "pattern": { "contains": "deepseek-v3" },
+      "maxTokens": 8192
+    }
+  ],
   "mergeHardcodedModels": true,
   "modelListFormat": "object",
   "seedFieldName": "seed",

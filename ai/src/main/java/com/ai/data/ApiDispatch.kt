@@ -31,11 +31,41 @@ import okhttp3.RequestBody.Companion.toRequestBody
  */
 private const val INPUT_HEADROOM = 4_096
 
+/** Ceiling applied ONLY to a value derived from a loose, cross-provider
+ *  catalog match — a model served under the same id by a *different* host.
+ *  A provider's own /models self-report and a same-provider models.dev row
+ *  are trusted as-is; this only bounds the last-resort guess so an inflated
+ *  reseller window can't over-request. (models.dev's
+ *  `submodel/…/DeepSeek-V3-0324` reports a 75 000-token context → the old
+ *  code sent max_tokens=70904, which 400'd AtlasCloud.) */
+private const val LOOSE_MATCH_CEILING = 16_384
+
+private fun clampOutputToContext(out: Int, context: Int?): Int =
+    if (context != null && context > 0) out.coerceAtMost((context - INPUT_HEADROOM).coerceAtLeast(1_024)) else out
+
 internal fun defaultMaxTokens(service: AppService, model: String): Int {
+    // 1. Explicit per-(provider, model) rule wins (Anthropic families,
+    //    AtlasCloud DeepSeek-V3, …).
     service.maxTokensDefaults.resolveMaxTokens(model)?.let { return it }
+    // 2. The provider's OWN /models self-report (ModelCapabilities) —
+    //    authoritative when present: it's the actual host's limit, not a
+    //    cross-provider catalog guess. Reached statically via SettingsHolder
+    //    (defaultMaxTokens can't thread Settings through the dispatch stack).
+    com.ai.model.SettingsHolder.current?.getProvider(service)?.modelCapabilities?.get(model)?.let { caps ->
+        caps.maxOutputTokens?.takeIf { it > 0 }?.let { out ->
+            return clampOutputToContext(out, caps.contextLength ?: PricingCache.modelsDevMaxInputTokensOwn(service, model))
+        }
+    }
+    // 3. A SAME-PROVIDER models.dev row — the provider's own catalog entry,
+    //    never an arbitrary reseller that happens to list the same model id.
+    PricingCache.modelsDevMaxOutputTokensOwn(service, model)?.takeIf { it > 0 }?.let { out ->
+        return clampOutputToContext(out, PricingCache.modelsDevMaxInputTokensOwn(service, model))
+    }
+    // 4. Loose cross-provider match, last resort and bounded — keeps coverage
+    //    for resellers models.dev only knows under the model-maker's key,
+    //    without letting a stray window blow past what the host accepts.
     val out = PricingCache.modelsDevMaxOutputTokens(service, model)?.takeIf { it > 0 } ?: return 4_096
-    val context = PricingCache.modelsDevMaxInputTokens(service, model)?.takeIf { it > 0 }
-    return if (context != null) out.coerceAtMost((context - INPUT_HEADROOM).coerceAtLeast(1_024)) else out
+    return clampOutputToContext(out, PricingCache.modelsDevMaxInputTokens(service, model)).coerceAtMost(LOOSE_MATCH_CEILING)
 }
 
 /**
