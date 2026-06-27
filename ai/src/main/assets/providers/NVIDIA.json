@@ -2,7 +2,7 @@
   "adminUrl": "https://build.nvidia.com/",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://integrate.api.nvidia.com/",
-  "defaultModel": "nvidia/llama-3.1-nemotron-70b-instruct",
+  "defaultModel": "meta/llama-3.3-70b-instruct",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "NVIDIA",

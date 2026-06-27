@@ -125,7 +125,7 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **Baichuan** | `https://api.baichuan-ai.com/` | `https://platform.baichuan-ai.com/` | `Baichuan4-Turbo` | 5 hardcoded models |
 | **StepFun** | `https://api.stepfun.com/` | `https://platform.stepfun.com/` | `step-2-16k` | 6 hardcoded models, `defaultInactive=true` (ships visible-but-disabled; user flips it on) |
 | **MiniMax** | `https://api.minimax.io/` | `https://platform.minimax.io/` | `MiniMax-M2.1` | `openRouterName=minimax`, 4 hardcoded models |
-| **NVIDIA** | `https://integrate.api.nvidia.com/` | `https://build.nvidia.com/` | `nvidia/llama-3.1-nemotron-70b-instruct` | `defaultModelSource=API` |
+| **NVIDIA** | `https://integrate.api.nvidia.com/` | `https://build.nvidia.com/` | `meta/llama-3.3-70b-instruct` | `defaultModelSource=API`. The NIM catalog lists many models that 404 ("not found for account") until you enable them on build.nvidia.com — the default is a broadly-available one |
 | **Replicate** | `https://api.replicate.com/v1/` | `https://replicate.com/account/api-tokens` | `meta/meta-llama-3-70b-instruct` | `typePaths.chat=chat/completions`, 3 hardcoded models |
 | **HuggingFace** | `https://api-inference.huggingface.co/` | `https://huggingface.co/settings/tokens` | `meta-llama/Llama-3.1-70B-Instruct` | 4 hardcoded models |
 | **Lambda** | `https://api.lambdalabs.com/` | `https://cloud.lambdalabs.com/api-keys` | `hermes-3-llama-3.1-405b-fp8` | `defaultModelSource=API` |
