@@ -19,7 +19,7 @@ the per-report **API-call cost ledger** that drives all three.
 - **Above-200k tier** — when `inputTokens + cachedInputTokens +
   cacheCreationTokens > 200 000` and `promptPriceAbove200k` is set,
   the whole call switches to the high-context rates (Gemini 2.5/3
-  Pro, DashScope Qwen-Long, legacy Anthropic Sonnet 4, …). Each
+  Pro, legacy Anthropic Sonnet 4, …). Each
   `*Above200k` field falls back to its base sibling when null.
 - **`apiCost` shortcut** — if the provider returns a total, it is
   split pro-rata across input/output by the simple-rate baseline so

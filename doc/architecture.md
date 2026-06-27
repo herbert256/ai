@@ -336,14 +336,15 @@ crashed. Notable registry API: `getAll`, `findById`, `add`, `update`
 rebuilt from `baseUrl` + `auxHosts` on every `save()`, used by
 `ProviderThrottle` for per-provider rate/concurrency overrides.
 
-The 42 ids (each case-sensitive, doubling as the UI label):
-OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity,
-Together, OpenRouter, SiliconFlow, Z.AI, Moonshot, Cohere, AI21,
-DashScope, Fireworks, Cerebras, SambaNova, Baichuan, StepFun, MiniMax,
-NVIDIA, Replicate, HuggingFace, Lambda, Lepton, 01.AI, Doubao, Reka,
-Writer, CloudflareWorkersAI, DeepInfra, Hyperbolic, Novita.ai,
-Featherless.ai, LiquidAI, LlamaAPI, Krutrim, NebiusAIStudio, Chutes,
-Inference.net.
+The 35 bundled ids (each case-sensitive, doubling as the UI label):
+AI-ML-API, Anthropic, AtlasCloud, Baseten, Cerebras, Chutes, Cohere,
+DeepInfra, DeepSeek, Fireworks, GMI-Cloud, Glama, Google, Groq,
+HuggingFace, Hyperbolic, MergeGateway, MiniMax, Mistral, Moonshot,
+NVIDIA, NebiusAIStudio, Novita.ai, OpenAI, OpenRouter, Parasail,
+Perplexity, Replicate, Requesty, SambaNova, SiliconFlow, Together,
+VercelAIGateway, Z.AI, xAI. (The catalog was trimmed to only
+key-configured providers — the keyless-provider sweep dropped the 33
+that shipped without an API key.)
 
 ### One real ViewModel, two wrappers
 

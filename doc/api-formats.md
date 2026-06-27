@@ -169,8 +169,10 @@ Responses-API specifics (`OpenAiResponsesRequest`, `ApiModels.kt`):
   refuses non-positive divisors.
 - **Together** and **Google** set `modelListFormat=array` because their
   `/models` endpoints return a bare array instead of `{ "data": [...] }`.
-- **Cloudflare Workers AI** has `YOUR_ACCOUNT_ID` in its base URL — the
-  user replaces it before the provider becomes useful.
+  (A custom provider can still set the flag for the same reason — the
+  bundled Cloudflare Workers AI provider, which also used a
+  `YOUR_ACCOUNT_ID` base-URL placeholder, was dropped in the
+  keyless-provider sweep.)
 
 ## ANTHROPIC (Claude — 1 provider)
 

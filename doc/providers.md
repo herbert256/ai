@@ -189,11 +189,13 @@ A few non-default fields warrant explanation:
   list on refresh.
 - **`defaultModelSource`**: `"API"` or `"MANUAL"`. Determines whether
   the app fetches a live list or shows the hardcoded fallback.
-- **`defaultInactive`**: when `true` (StepFun only), the bootstrap
-  seeds `providerStates[id] = "inactive"` the **first** time the
-  provider is seen — so it ships visible in pickers but disabled until
-  the user explicitly flips it on. An install that has already touched
-  the provider's state keeps that state untouched.
+- **`defaultInactive`**: when `true`, the bootstrap seeds
+  `providerStates[id] = "inactive"` the **first** time the provider is
+  seen — so it ships visible in pickers but disabled until the user
+  explicitly flips it on. An install that has already touched the
+  provider's state keeps that state untouched. No bundled provider
+  currently sets it — StepFun did, but was dropped in the
+  keyless-provider sweep.
 - **`nativeRerankUrl` / `nativeModerationUrl` / `nativeCapabilityUrl`**:
   full URLs the rerank / moderation / capability dispatchers POST to
   instead of building a chat fallback. `nativeRerankUrl` is set on
@@ -270,5 +272,6 @@ The four provider states (`providerStates[id]`, persisted under the
 "Active" lists until it can prove it actually works. Refresh-all
 surfaces failed providers with a one-tap nav-to-edit so the user can
 fix bad configurations without hunting. A `defaultInactive` provider
-(StepFun) starts at `"inactive"` rather than `"not-used"` on its first
-bootstrap.
+would start at `"inactive"` rather than `"not-used"` on its first
+bootstrap — though none ship that way now (StepFun did before the
+keyless-provider sweep).
