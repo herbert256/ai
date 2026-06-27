@@ -68,15 +68,16 @@ fun SwarmEditScreen(
         // Same picker the New Report's "+Model" button uses — full-
         // screen, search + provider filter, with already-selected
         // members dimmed via [alreadyAdded] so the user can't double-
-        // add. Single-pick: returns one (provider, model) per
-        // open; the user re-opens the picker for each member.
+        // add. Multi-pick: each tap adds a member and the picker stays
+        // open (the just-added row dims), so several models can be
+        // collected in one visit; Back returns to the swarm.
         val already = remember(selectedMembers) {
             selectedMembers.map { it.provider to it.model }.toSet()
         }
         com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = aiSettings,
             alreadyAdded = already,
-            titleText = "Pick model for swarm",
+            titleText = "Pick models for swarm",
             onConfirm = { (provider, model) ->
                 val candidate = SwarmMember(provider, model)
                 // Case-insensitive dedupe as a defence-in-depth
@@ -89,7 +90,9 @@ fun SwarmEditScreen(
                 }) {
                     selectedMembers = (selectedMembers + candidate).sortedWith(memberOrder)
                 }
-                showModelPicker = false
+                // Stay on the picker so the user can keep adding models;
+                // the row they just tapped dims via [alreadyAdded]. They
+                // return to the swarm with Back when done.
             },
             onBack = { showModelPicker = false },
             onNavigateHome = onNavigateHome

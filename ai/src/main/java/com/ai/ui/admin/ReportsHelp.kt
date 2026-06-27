@@ -968,7 +968,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Recent section", "When the user has picked from any Report-section model picker before, the last 3 picks surface as a 'Recent' section above the main alphabetical list. Filters and search don't trim it — recents are a quick-access shortcut. Tapping a recent row also re-records it so the bump-to-front keeps ordering stable."),
             HelpCard("Already-added rows", "Rows passed in via alreadyAdded render at 0.4 alpha, are not clickable, and append ' · already added' next to capability badges."),
             HelpCard("Pricing column", "Per-token (×10⁶) prompt / completion, red for real data, grey badge for DEFAULT. Vision / Web / Reasoning badges sit before the price."),
-            HelpCard("Tap to confirm", "Single-select: tapping a row immediately fires onConfirm with the (provider, model) pair and the caller closes the picker. No multi-select, no batch confirm."),
+            HelpCard("Tap to confirm", "Usually single-select: tapping a row fires onConfirm with the (provider, model) pair and the caller closes the picker. Exception — the Swarm member picker (\"Pick models for swarm\") keeps the picker open so you can tap several models in one visit (each dims as it's added); Back returns to the swarm."),
         )
     ),
     "report_swarm_info" to HelpContent(

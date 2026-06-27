@@ -298,7 +298,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("System Prompt / Parameters", "Optional shared bundle applied to every member at run time. Buttons go purple when populated."),
             HelpCard("Member counter", "\"N members\" sits at the left of the action row; the blue \"+ Add model\" button on the right opens the same multi-row picker the New Report's +Model button uses (search + provider filter)."),
             HelpCard("Member cards", "One card per (provider, model) tuple. Provider name in blue, model id in white, plus capability badges (👁 vision / 🌐 web / 🧠 reasoning). The trailing red ✕ removes the member."),
-            HelpCard("Adding from the picker", "Already-added members render dimmed and ignore taps so a duplicate can't sneak in. Members are keyed on (provider.id, model) — case-insensitive on the model id."),
+            HelpCard("Adding from the picker", "Multi-select: tap as many models as you want — each is added to the swarm immediately and its row dims (already-added members ignore taps so a duplicate can't sneak in). Tap Back when you're done to return to the swarm. Members are keyed on (provider.id, model) — case-insensitive on the model id."),
             HelpCard("Pitfalls", "The picker only surfaces ACTIVE providers (those with a working API key). Models from inactive providers are hidden from the catalog."),
         )
     ),
