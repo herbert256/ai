@@ -469,9 +469,9 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
     "provider_nebiusaistudio" to HelpContent(
         title = "Help - Nebius AI Studio",
         cards = listOf(
-            HelpCard("Overview", "Nebius AI Studio — inference platform from Nebius (the AI-cloud arm of the former Yandex international assets). Headquartered in Amsterdam; runs a large GPU fleet across European data centers. Hosts Llama, DeepSeek, Qwen, Mistral, Mixtral."),
+            HelpCard("Overview", "Nebius AI Studio — inference platform from Nebius (the AI-cloud arm of the former Yandex international assets). Headquartered in Amsterdam; runs a large GPU fleet across European data centers. Hosts Llama, DeepSeek, Qwen, Mistral, and Z.AI's open-weight GLM (incl. self-hosted GLM-5.2 / 5.1 as `zai-org/GLM-5.2`)."),
             HelpCard("Setup", "studio.nebius.com/settings/api-keys → mint a key. Free credits on signup; pay-as-you-go after. Strong European data residency story for users with that preference."),
-            HelpCard("Models", "Default: `meta-llama/Meta-Llama-3.1-70B-Instruct`. Slash-prefixed ids matching HF Hub paths. `defaultModelSource=API` so picker auto-refreshes."),
+            HelpCard("Models", "Default: `zai-org/GLM-5.2` (Z.AI's open-weight flagship, run on Nebius's own GPUs — a reasoning model, so give it room in `max_tokens` or it spends the budget thinking and returns empty). Slash-prefixed ids matching HF Hub paths. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible. Base URL is `api.studio.nebius.com/`. Pricing competitive on the popular open-weight chat models. No `litellmPrefix` / `openRouterName` — pricing falls through."),
             HelpCard("Pitfalls", "Newer entrant — model catalog occasionally rotates as they add capacity for new ids. The Yandex history is irrelevant to data flow today (Nebius is a separate Netherlands-incorporated entity), but worth noting if procurement asks."),
         )

@@ -2,7 +2,7 @@
   "adminUrl": "https://studio.nebius.com/settings/api-keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.studio.nebius.com/",
-  "defaultModel": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+  "defaultModel": "zai-org/GLM-5.2",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "NebiusAIStudio",

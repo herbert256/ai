@@ -142,7 +142,7 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **LiquidAI** | `https://inference-1.liquid.ai/` | `https://platform.liquid.ai/` | `lfm-7b` | `defaultModelSource=API` |
 | **LlamaAPI** | `https://api.llama.com/compat/` | `https://llama.developer.meta.com/` | `Llama-4-Maverick-17B-128E-Instruct-FP8` | `defaultModelSource=API` |
 | **Krutrim** | `https://cloud.olakrutrim.com/` | `https://cloud.olakrutrim.com/console` | `Meta-Llama-3.1-70B-Instruct` | `defaultModelSource=API` |
-| **NebiusAIStudio** | `https://api.studio.nebius.com/` | `https://studio.nebius.com/settings/api-keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `defaultModelSource=API` |
+| **NebiusAIStudio** | `https://api.studio.nebius.com/` | `https://studio.nebius.com/settings/api-keys` | `zai-org/GLM-5.2` | `defaultModelSource=API`. Self-hosts Z.AI's open-weight GLM-5.2 (a reasoning model — needs room in `max_tokens`) |
 | **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `moonshotai/Kimi-K2.6-TEE` | `defaultModelSource=API` |
 | **Inference.net** | `https://api.inference.net/` | `https://inference.net/dashboard/api-keys` | `meta-llama/llama-3.3-70b-instruct/fp-8` | `defaultModelSource=API` |
 
