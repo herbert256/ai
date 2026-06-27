@@ -424,7 +424,7 @@ fun ModelInfoScreen(
         TitleBar(
             helpTopic = "model_info",
             title = "Model Info",
-            subject = modelName,
+            subject = "${provider.id} · $modelName",
             onBackClick = onNavigateBack,
             onOpenView = onOpenView,
             onTrace = if (ApiTracer.ladybugLinksEnabled && traceCount > 0) {
