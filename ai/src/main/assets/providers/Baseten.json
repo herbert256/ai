@@ -1,0 +1,23 @@
+{
+  "adminUrl": "https://app.baseten.co/settings/api_keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://inference.baseten.co/",
+  "defaultModel": "openai/gpt-oss-120b",
+  "defaultModelSource": "API",
+  "hardcodedModels": [
+    "openai/gpt-oss-120b",
+    "zai-org/GLM-5.2",
+    "moonshotai/Kimi-K2.6",
+    "deepseek-ai/DeepSeek-V4-Pro",
+    "nvidia/Nemotron-120B-A12B"
+  ],
+  "id": "Baseten",
+  "mergeHardcodedModels": true,
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

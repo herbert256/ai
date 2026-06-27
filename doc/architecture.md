@@ -88,7 +88,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
                               │
                               ▼
             ┌──────────────────────────────────────────┐
-            │  External APIs (49 cloud providers)      │
+            │  External APIs (50 cloud providers)      │
             │  + 7 metadata repositories               │
             └──────────────────────────────────────────┘
 ```
@@ -263,7 +263,7 @@ back-navigation be a single state mutation.
 Every cloud provider is an `AppService` with an `apiFormat` field —
 one of `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE` (the enum
 has exactly these four values). Dispatch always keys off the format, never
-off provider identity, so **46 of the 49 bundled providers share unified
+off provider identity, so **47 of the 50 bundled providers share unified
 code paths**; only the single `Anthropic` (`ANTHROPIC`), `Google`
 (`GOOGLE`) and `Replicate` (`REPLICATE`) providers have format-specific
 branches.
@@ -271,7 +271,7 @@ Adding an OpenAI-compatible provider is one new JSON file under
 `assets/providers/` (see [development.md](development.md)).
 
 > The inline comment in `ApiFormat.kt` that says "28 providers using
-> OpenAI-compatible" is stale — the real count is 46.
+> OpenAI-compatible" is stale — the real count is 47.
 
 `AppService` is a plain `class`, **not** a Kotlin `data class`: its
 `equals` / `hashCode` / `toString` are **id-only** (two `AppService`s
@@ -311,10 +311,10 @@ stable id **and** the UI label **and** the SharedPreferences key prefix
 `id` string and reads it back through `findById`, so a persisted "Local"
 chat session round-trips.
 
-### `ProviderRegistry` — the 49 providers are an asset, not Kotlin
+### `ProviderRegistry` — the 50 providers are an asset, not Kotlin
 
-The 49 cloud providers are **not** hardcoded in Kotlin. They are bundled
-as **one JSON file per provider under `assets/providers/`** (49 files,
+The 50 cloud providers are **not** hardcoded in Kotlin. They are bundled
+as **one JSON file per provider under `assets/providers/`** (50 files,
 each a bare `ProviderDefinition` object — no `{ "providers": [...] }`
 wrapper). `ProviderRegistry` is a mutable `object` that starts **empty**
 on a fresh install; the providers load on demand via

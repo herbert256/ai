@@ -4,7 +4,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
     "providers" to HelpContent(
         title = "Help - Providers",
         cards = listOf(
-            HelpCard("Overview", "List of every registered provider (49 bundled plus any user-added). The state of each row is shown by an emoji."),
+            HelpCard("Overview", "List of every registered provider (50 bundled plus any user-added). The state of each row is shown by an emoji."),
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
             HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
             HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
@@ -194,6 +194,16 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoints", "Base `api.parasail.io/`, chat `v1/chat/completions`, models `v1/models` (standard OpenAI object shape)."),
             HelpCard("Models", "Default `meta-llama/Llama-3.3-70B-Instruct`. Ids come in two flavours: HF-style (`zai-org/GLM-5.2`, `deepseek-ai/DeepSeek-V4-Pro`) and Parasail aliases (`parasail-glm-52`, `parasail-llama-33-70b-fp8`) — both work; the `*-FP8` variants are quantized. `defaultModelSource=API`; `mergeHardcodedModels=true` fallback (Llama / GLM / DeepSeek / Qwen / Kimi / gpt-oss)."),
             HelpCard("Pricing & quirks", "Open-weight serverless host — runs the weights on its own GPUs (a real self-hoster of GLM-5.2, not a router). No `litellmPrefix`/`openRouterName` — pricing falls through to the OpenRouter cross-provider catalog or DEFAULT. Cold-start latency on rarely-used models."),
+        )
+    ),
+    "provider_baseten" to HelpContent(
+        title = "Help - Baseten",
+        cards = listOf(
+            HelpCard("Overview", "Baseten (baseten.co) — production inference platform. Its **Model APIs** give one key access to a small curated catalog (~11) of frontier open-weight models — gpt-oss, GLM (self-hosted `zai-org/GLM-5.2`), Kimi K2.5/2.6/2.7, DeepSeek V4, NVIDIA Nemotron — no model deployment needed."),
+            HelpCard("Setup", "app.baseten.co/settings/api_keys → mint a key (the 🛠️ admin icon opens it). Drop-in OpenAI base-URL swap; `Authorization: Bearer`."),
+            HelpCard("Endpoints", "Base `inference.baseten.co/`, chat `v1/chat/completions`, models `v1/models` (standard OpenAI object shape, with `pricing`/`context_length` metadata). NB the Model-APIs host is `inference.baseten.co`, not `app`/`api.baseten.co` (which serve the console / your own dedicated deployments)."),
+            HelpCard("Models", "Default `openai/gpt-oss-120b`. Slash-prefixed HF-style ids (`zai-org/GLM-5.2`, `moonshotai/Kimi-K2.6`, `deepseek-ai/DeepSeek-V4-Pro`). `defaultModelSource=API` (the curated list is small); `mergeHardcodedModels=true` fallback. The catalog is the Model-APIs library, not Baseten's full deploy-your-own model universe."),
+            HelpCard("Pricing & quirks", "Model APIs bill per-million-tokens. No `litellmPrefix`/`openRouterName` — pricing falls through to the OpenRouter cross-provider catalog or DEFAULT. Separately, Baseten lets you deploy dedicated models on its GPUs (per-model `model-{id}.api.baseten.co` URLs) — those aren't reachable through this single Model-APIs provider entry."),
         )
     ),
     "provider_siliconflow" to HelpContent(
