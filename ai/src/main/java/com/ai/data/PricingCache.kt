@@ -620,12 +620,16 @@ object PricingCache {
 
     /** Reduce an already-normalized id to a bare model name: drop the
      *  owner / routing prefix (`zai-org/`, `doubleword/`, `cloudflare/@cf/zai-org/`),
-     *  a `:` routing tag (`...:flex`, `...:free`), and a trailing
-     *  quantization token (`-fp8`). Used ONLY for the lowest-priority
-     *  match bucket, so a price for the same model under a different host
-     *  or quant beats the 25/75 DEFAULT. */
-    private fun bareModelKey(normalized: String): String {
-        var t = normalized.substringAfterLast('/').substringBefore(':')
+     *  an `@region` deployment tag (Requesty's `azure/gpt-4.1-mini@eastus2`),
+     *  a `:` routing tag (`...:flex`, `...:free`), an optional [selfPrefix]
+     *  — the provider stamping its own name as a dash-prefix
+     *  (Parasail's `parasail-gpt-oss-120b`) — and a trailing quantization
+     *  token (`-fp8`). Used ONLY for the lowest-priority match bucket, so
+     *  a price for the same model under a different host / region / quant
+     *  beats the 25/75 DEFAULT. */
+    private fun bareModelKey(normalized: String, selfPrefix: String? = null): String {
+        var t = normalized.substringAfterLast('/').substringBefore(':').substringBefore('@')
+        if (selfPrefix != null && t.length > selfPrefix.length && t.startsWith(selfPrefix)) t = t.removePrefix(selfPrefix)
         val dash = t.lastIndexOf('-')
         if (dash > 0 && t.substring(dash + 1) in QUANT_SUFFIXES) t = t.substring(0, dash)
         return t
@@ -637,11 +641,13 @@ object PricingCache {
      *  prefix, (4) bare model name. (0–3) prevent picking
      *  azure/bedrock/vertex variants when the provider's own catalog row
      *  exists. (4) is the last resort: when the queried id carries an
-     *  owner/routing prefix or a quant/`:` suffix the catalogs don't use
-     *  (`zhipu/glm-5.2`, `doubleword/glm-5.2`, `zai-org/GLM-5.2-FP8`,
-     *  `…:flex`), it still matches the same model's price under a
-     *  different host instead of falling through to DEFAULT. Only enabled
-     *  when something was actually stripped, so plain ids are unaffected. */
+     *  owner/routing prefix, an `@region` / `:` tag, a `<self>-` prefix,
+     *  or a quant suffix the catalogs don't use (`zhipu/glm-5.2`,
+     *  `doubleword/glm-5.2`, `zai-org/GLM-5.2-FP8`, `…:flex`,
+     *  `azure/gpt-4.1-mini@eastus2`, `parasail-gpt-oss-120b`), it still
+     *  matches the same model's price under a different host instead of
+     *  falling through to DEFAULT. Only enabled when something was
+     *  actually stripped, so plain ids are unaffected. */
     private fun <V> findBestPrefixedMatch(
         map: Map<String, V>, provider: AppService, model: String,
         useLitellmPrefix: Boolean = false
@@ -650,7 +656,11 @@ object PricingCache {
         val declaredPrefix = if (useLitellmPrefix) provider.litellmPrefix else provider.openRouterName
         val targetDeclared = declaredPrefix?.let { "${normalizeModelId(it)}/$target" }
         val targetId = "${provider.id.lowercase()}/$target"
-        val bareTarget = bareModelKey(target)
+        // A provider stamping its own name as a dash-prefix (Parasail's
+        // `parasail-…`) is stripped too — only the provider's OWN id, so it
+        // can't over-strip an unrelated model name.
+        val selfPrefix = "${provider.id.lowercase()}-"
+        val bareTarget = bareModelKey(target, selfPrefix)
         // Bare matching is a deliberately loose fallback — only arm it when
         // the id actually had a prefix/suffix to strip and the remainder is
         // distinctive enough to not collide on a trivial token.
@@ -664,7 +674,7 @@ object PricingCache {
                 targetDeclared != null && k == targetDeclared -> 1
                 k == targetId -> 2
                 k.endsWith("/$target") -> 3
-                useBare && bareModelKey(k) == bareTarget -> 4
+                useBare && bareModelKey(k, selfPrefix) == bareTarget -> 4
                 else -> -1
             }
             if (priority < 0) continue
