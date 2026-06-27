@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -37,6 +39,15 @@ internal fun dlgFmtPrice(pricePerToken: Double): String {
 internal fun dlgFmtPriceM(perMillion: Double): String {
     return when { perMillion == 0.0 -> "0"; perMillion < 0.01 -> "<.01"; else -> "%.2f".format(perMillion) }
 }
+
+/** Saves a [ReportSelectModelsScreen] provider filter across a navigation
+ *  round-trip (e.g. Search models → Model Info → back) by its id; restores
+ *  via the registry, or null if that provider no longer exists. Used with
+ *  rememberSaveable so the filter survives the screen leaving composition. */
+private val ProviderFilterSaver: Saver<AppService?, String> = Saver(
+    save = { it?.id ?: "" },
+    restore = { id -> if (id.isEmpty()) null else AppService.findById(id) }
+)
 
 /** Full-screen agent picker. Mirror of [ReportSelectFlockScreen] \u2014
  *  search field + list of agents with effective model and per-call
@@ -214,11 +225,14 @@ internal fun ReportSelectModelsScreen(
     // Inaccessible rows previously hid from this picker; now they dim
     // and stay selectable just like the other two advisory states.
     val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
-    var search by remember { mutableStateOf("") }
+    // Filter state is rememberSaveable so it survives this screen leaving
+    // composition — e.g. the Search-models browse flow navigating to Model
+    // Info and back (the report/secondary overlay callers benefit too).
+    var search by rememberSaveable { mutableStateOf("") }
     val activeServices = aiSettings.getActiveServices()
-    var providerFilter by remember { mutableStateOf<AppService?>(null) }
+    var providerFilter by rememberSaveable(stateSaver = ProviderFilterSaver) { mutableStateOf<AppService?>(null) }
     var providerDropdownExpanded by remember { mutableStateOf(false) }
-    var typeOnly by remember { mutableStateOf(modelTypeFilter != null) }
+    var typeOnly by rememberSaveable { mutableStateOf(modelTypeFilter != null) }
 
     // Local models surface alongside remote providers under the
     // synthetic AppService.LOCAL. Source depends on the picker's
