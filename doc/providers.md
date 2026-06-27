@@ -137,7 +137,7 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **CloudflareWorkersAI** | `https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/` | `https://dash.cloudflare.com/` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | `defaultModelSource=API` — replace `YOUR_ACCOUNT_ID` in the base URL |
 | **DeepInfra** | `https://api.deepinfra.com/v1/openai/` | `https://deepinfra.com/dash/api_keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `typePaths.chat=chat/completions` + `typePaths.embedding=embeddings`, `modelsPath=models`, `defaultModelSource=API` |
 | **Hyperbolic** | `https://api.hyperbolic.xyz/` | `https://app.hyperbolic.xyz/settings` | `deepseek-ai/DeepSeek-V3` | `defaultModelSource=API` |
-| **Novita.ai** | `https://api.novita.ai/v3/openai/` | `https://novita.ai/settings/key-management` | `meta-llama/llama-3.1-70b-instruct` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API` |
+| **Novita.ai** | `https://api.novita.ai/v3/openai/` | `https://novita.ai/settings/key-management` | `zai-org/glm-5.2` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API`. Self-hosts Z.AI's open-weight GLM-5.2 |
 | **Featherless.ai** | `https://api.featherless.ai/` | `https://featherless.ai/account/api-keys` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | `defaultModelSource=API` |
 | **LiquidAI** | `https://inference-1.liquid.ai/` | `https://platform.liquid.ai/` | `lfm-7b` | `defaultModelSource=API` |
 | **LlamaAPI** | `https://api.llama.com/compat/` | `https://llama.developer.meta.com/` | `Llama-4-Maverick-17B-128E-Instruct-FP8` | `defaultModelSource=API` |

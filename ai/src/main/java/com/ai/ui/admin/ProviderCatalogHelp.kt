@@ -419,9 +419,9 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
     "provider_novitaai" to HelpContent(
         title = "Help - Novita.ai",
         cards = listOf(
-            HelpCard("Overview", "Novita.ai — open-weight serverless inference, founded 2023. Hosts Llama, Mistral, Qwen, DeepSeek; competitive per-token pricing on common open-weight models. Headquartered in Singapore."),
-            HelpCard("Setup", "novita.ai/settings/key-management → mint a key. Free credit allowance; pay-as-you-go after."),
-            HelpCard("Models", "Default: `meta-llama/llama-3.1-70b-instruct`. `chat` path is `chat/completions`; `modelsPath=models`. `defaultModelSource=API` so picker auto-refreshes."),
+            HelpCard("Overview", "Novita.ai — open-weight serverless inference, founded 2023. Hosts Llama, Mistral, Qwen, DeepSeek and Z.AI's GLM (incl. self-hosted GLM-5.2 as `zai-org/glm-5.2`); competitive per-token pricing on common open-weight models. Headquartered in Singapore."),
+            HelpCard("Setup", "novita.ai/settings/key-management → mint a key, then add credit (pay-as-you-go) — generation 403s with NOT_ENOUGH_BALANCE on an unfunded account even though the key lists models fine."),
+            HelpCard("Models", "Default: `zai-org/glm-5.2` (Z.AI's open-weight flagship, run on Novita's own GPUs). `chat` path is `chat/completions`; `modelsPath=models`. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "Base URL is `api.novita.ai/v3/openai/` — the `/v3/openai/` segment is the OpenAI-compatible gateway. Slash-prefixed ids. No `litellmPrefix` / `openRouterName` — pricing falls through."),
             HelpCard("Pitfalls", "Path quirks similar to DeepInfra — `chat/completions` / `models` (no `v1/` prefix on those parts). The `/v3/openai/` segment is stable but worth noting if you hand-edit URLs."),
         )
