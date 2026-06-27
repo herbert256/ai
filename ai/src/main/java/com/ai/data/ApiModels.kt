@@ -106,6 +106,23 @@ class FlexibleCostDeserializer : JsonDeserializer<Double?> {
     }
 }
 
+/** A provider's per-model `pricing` field shape varies wildly across
+ *  OpenAI-compatible catalogs — Together uses an `{input,output}` object,
+ *  others use `{prompt,completion}` strings, and some (Atlas Cloud) emit a
+ *  JSON *array* for certain models. A rigid `TogetherPricing` mapping throws
+ *  on the array shape and takes the WHOLE model-list parse down with it.
+ *  This tolerates anything: parse `{input,output}` when present, else null. */
+class LenientModelPricingDeserializer : JsonDeserializer<TogetherPricing?> {
+    override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): TogetherPricing? {
+        if (json == null || !json.isJsonObject) return null
+        return try {
+            val o = json.asJsonObject
+            fun num(k: String) = o.get(k)?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asDouble }.getOrNull() }
+            TogetherPricing(input = num("input"), output = num("output"))
+        } catch (_: Exception) { null }
+    }
+}
+
 // ============================================================================
 // OpenAI models — single request class with optional stream field
 // ============================================================================
@@ -495,7 +512,10 @@ data class OpenAiModel(
      *  /v1/models response (USD per 1M tokens). Used to seed the
      *  TOGETHER pricing tier so Together-hosted runs don't have to
      *  fall through to LiteLLM / models.dev / Helicone for prices
-     *  the provider already published. Other providers ship null. */
+     *  the provider already published. Other providers ship null —
+     *  or, like Atlas Cloud, ship a different/array shape, which the
+     *  lenient deserializer tolerates so it can't break the list parse. */
+    @JsonAdapter(LenientModelPricingDeserializer::class)
     val pricing: TogetherPricing? = null,
     /** Together AI's per-model chat-template config block — carries
      *  recommended stop tokens. Mirrored to ModelCapabilities.

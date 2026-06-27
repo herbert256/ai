@@ -13,7 +13,7 @@ the pricing tiers `litellmPrefix` / `openRouterName` / `pricingFromModelList`
 ## How the catalog loads
 
 The catalog is **one JSON file per provider** under `assets/providers/`
-— 47 files, each a bare `ProviderDefinition` object (no
+— 48 files, each a bare `ProviderDefinition` object (no
 `{"providers": [...]}` wrapper, no top-level `version`). It is **not**
 hardcoded in Kotlin. `ProviderRegistry` (`data/ProviderRegistry.kt`)
 is a mutable `object` that starts **empty** on a fresh install; the
@@ -113,6 +113,7 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **Glama** | `https://gateway.glama.ai/` | `https://glama.ai/settings/gateway` | `deepseek/deepseek-chat-v3` | OpenAI-compatible aggregator (~80 models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed ids, Anthropic in **dash** form; OpenAI ids carry a date suffix. `defaultModelSource=API`, `mergeHardcodedModels=true`, 4 hardcoded models. No Google models in the catalog |
 | **Requesty** | `https://router.requesty.ai/` | `https://app.requesty.ai/` | `google/gemini-2.5-flash-lite` | OpenAI-compatible router (500+ models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed ids (dash-form Anthropic); some ids carry routing suffixes (`:priority`/`:flex`). `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
 | **AI-ML-API** | `https://api.aimlapi.com/` | `https://aimlapi.com/app/keys` | `mistralai/mistral-nemo` | OpenAI-compatible aggregator (600+ chat/image/audio models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Catalog carries both dashed and dotted Anthropic aliases plus dated snapshots — live `v1/models` is the source of truth. `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
+| **AtlasCloud** | `https://api.atlascloud.ai/` | `https://www.atlascloud.ai/console/api-keys` | `deepseek-ai/DeepSeek-V3-0324` | OpenAI-compatible aggregator (~130 open-weight models incl. `zai-org/glm-5.2`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. The `/v1/models` body wraps the list as `{code,msg,data:[{id}]}` — parser reads `data[]`. `defaultModelSource=API`, `mergeHardcodedModels=true`, 5 hardcoded models. No `openRouterName`/`litellmPrefix` |
 | **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `Qwen/Qwen2.5-7B-Instruct` | `defaultModelSource=API`, 9 hardcoded models, `nativeRerankUrl=https://api.siliconflow.com/v1/rerank` |
 | **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.5-air` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm\|codegeex\|charglm`, 7 hardcoded models, `defaultModelSource=API`, `builtInEndpoints` (Chat Completions + Coding) |
 | **Moonshot** | `https://api.moonshot.ai/` | `https://platform.moonshot.ai/console/api-keys` | `kimi-latest` | `openRouterName=moonshot`, 4 hardcoded models, `defaultModelSource=API` |
@@ -146,10 +147,10 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `moonshotai/Kimi-K2.6-TEE` | `defaultModelSource=API` |
 | **Inference.net** | `https://api.inference.net/` | `https://inference.net/dashboard/api-keys` | `meta-llama/llama-3.3-70b-instruct/fp-8` | `defaultModelSource=API` |
 
-**47 providers total** — 45 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
-(Anthropic), 1 `GOOGLE` (Google). All 45 OpenAI-compatible providers
-share the unified dispatch path; only Anthropic and Google carry
-format-specific code. (The inline `// 28 providers` comment in
+**48 providers total** — 45 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
+(Anthropic), 1 `GOOGLE` (Google), 1 `REPLICATE` (Replicate). All 45
+OpenAI-compatible providers share the unified dispatch path; only
+Anthropic, Google and Replicate carry format-specific code. (The inline `// 28 providers` comment in
 `ApiFormat.kt` is stale — the real OpenAI-compatible count is 45.)
 
 ## Field reference

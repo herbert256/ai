@@ -9,9 +9,9 @@ having in the prompt window from the first turn.
 
 Android multi-provider AI app — reports, chat, dual chat, RAG
 knowledge bases, on-device LLM and embedder, share-target ingest.
-**47 cloud providers** across three API formats
-(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`); 45 share unified
-code paths via the format dispatch, only Anthropic and Google
+**48 cloud providers** across four API formats
+(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE`); 45 share unified
+code paths via the format dispatch, only Anthropic, Google and Replicate
 have format-specific code.
 
 | | |
@@ -50,7 +50,7 @@ Anything operational beyond this file is in `doc/`:
 - `doc/share-target.md` — `ACTION_SEND` plumbing
 - `doc/backup-restore.md` — backup zip format, validate-then-write restore, exclude/preserve list
 - `doc/persistent.md` — every prefs key, every file under `<filesDir>`
-- `doc/providers.md` — all 47 providers
+- `doc/providers.md` — all 48 providers
 - `doc/repositories.md` — the seven external metadata repos
 - `doc/help.md` — in-app Help system (per-screen topics, per-provider pages)
 - `doc/applog.md` + `doc/log-details.md` — the in-app file logger + every call site

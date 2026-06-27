@@ -4,7 +4,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
     "providers" to HelpContent(
         title = "Help - Providers",
         cards = listOf(
-            HelpCard("Overview", "List of every registered provider (47 bundled plus any user-added). The state of each row is shown by an emoji."),
+            HelpCard("Overview", "List of every registered provider (48 bundled plus any user-added). The state of each row is shown by an emoji."),
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
             HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
             HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
@@ -174,6 +174,16 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoints", "Base `api.aimlapi.com/`, chat `v1/chat/completions`, models `v1/models`."),
             HelpCard("Models", "Default `mistralai/mistral-nemo` (cheap Mistral). Slash-prefixed ids — the catalog carries BOTH dashed and dotted Anthropic aliases plus many dated snapshots, so the live `v1/models` list is the source of truth (`defaultModelSource=API`). `mergeHardcodedModels=true` Claude/GPT/Gemini/DeepSeek fallback."),
             HelpCard("Pitfalls", "Large, noisy catalog with duplicate/aliased ids — Refresh and search to find the exact id. Pricing falls through to the OpenRouter cross-provider catalog or DEFAULT."),
+        )
+    ),
+    "provider_atlascloud" to HelpContent(
+        title = "Help - Atlas Cloud",
+        cards = listOf(
+            HelpCard("Overview", "Atlas Cloud (atlascloud.ai) — an OpenAI-compatible aggregator serving ~130 open-weight models (DeepSeek, Qwen, Llama, Gemini, GPT, and Z.AI's GLM incl. `zai-org/glm-5.2`) behind one key."),
+            HelpCard("Setup", "atlascloud.ai/console/api-keys → mint a free key (the 🛠️ admin icon opens it). Drop-in OpenAI base-URL swap; `Authorization: Bearer`."),
+            HelpCard("Endpoints", "Base `api.atlascloud.ai/`, chat `v1/chat/completions`, models `v1/models`. NB the model list wraps the OpenAI shape as `{\"code\":200,\"msg\":\"succeed\",\"data\":[{\"id\":…}]}` — the parser reads `data[]` so it still loads; each entry carries `pricing`, `context_length`, modalities."),
+            HelpCard("Models", "Default `deepseek-ai/DeepSeek-V3-0324` (cheap DeepSeek). Slash-prefixed ids; Z.AI casing is inconsistent (`zai-org/GLM-4.6` vs `zai-org/glm-5.2`) so use the live list (`defaultModelSource=API`). `mergeHardcodedModels=true` DeepSeek/GLM/Qwen/Gemini/GPT fallback."),
+            HelpCard("Pitfalls", "Aggregator — the exact upstream that serves a request can vary. Some headline ids from other catalogs aren't present (e.g. `meta-llama/Meta-Llama-3.1-8B-Instruct` 404s); search the fetched list for the right id. No `openRouterName`/`litellmPrefix` — pricing falls through to the OpenRouter cross-provider catalog or DEFAULT."),
         )
     ),
     "provider_siliconflow" to HelpContent(

@@ -1,0 +1,23 @@
+{
+  "adminUrl": "https://www.atlascloud.ai/console/api-keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.atlascloud.ai/",
+  "defaultModel": "deepseek-ai/DeepSeek-V3-0324",
+  "defaultModelSource": "API",
+  "hardcodedModels": [
+    "deepseek-ai/DeepSeek-V3-0324",
+    "zai-org/glm-5.2",
+    "Qwen/Qwen3-235B-A22B-Instruct-2507",
+    "google/gemini-2.5-flash",
+    "openai/gpt-5.1"
+  ],
+  "id": "AtlasCloud",
+  "mergeHardcodedModels": true,
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}
