@@ -550,21 +550,10 @@ fun ProvidersScreen(
     val context = LocalContext.current
     val allProviders = AppService.entries
 
-    // Sort by state bucket (ok → error → inactive → other), then by id
-    // case-insensitively within each bucket. Working providers surface
-    // first so they're one tap away; broken / dormant / never-configured
-    // ones sink to the bottom.
-    val visibleProviders = remember(aiSettings, allProviders) {
-        allProviders.sortedWith(
-            compareBy<AppService> { p ->
-                when (aiSettings.getProviderState(p)) {
-                    "ok" -> 0
-                    "error" -> 1
-                    "inactive" -> 2
-                    else -> 3
-                }
-            }.thenBy { it.id.lowercase(java.util.Locale.ROOT) }
-        )
+    // Sort purely by provider name (case-insensitive), regardless of
+    // state — a plain alphabetical directory.
+    val visibleProviders = remember(allProviders) {
+        allProviders.sortedBy { it.id.lowercase(java.util.Locale.ROOT) }
     }
 
     var showAddDialog by remember { mutableStateOf(false) }
