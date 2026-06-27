@@ -15,9 +15,9 @@ wrapper classes constructed with an `AppViewModel` and delegating all
 state to it — they carry the `…ViewModel` name but are not androidx
 view models. Generation logic is split out into 8 engines and 5
 managers (plus a `BatchEngine` base, a `WorkerRunner`, and type/support
-files — the 24 files under `viewmodel/`). There are **42
+files — the 24 files under `viewmodel/`). There are **43
 cloud providers** loaded at runtime from one JSON file per provider
-under `assets/providers/` (40 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`, 1
+under `assets/providers/` (41 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`, 1
 `GOOGLE`) — they are not hardcoded — plus the synthetic on-device
 `AppService.LOCAL`. Seven
 external metadata repositories plus two provider self-report sources
@@ -135,7 +135,7 @@ and a manual override layer into one resolved view per
   provider catalog merge.
 
 ### Reference data
-- **[providers.md](providers.md)** — All 42 cloud providers from the
+- **[providers.md](providers.md)** — All 43 cloud providers from the
   per-provider JSON files under `assets/providers/` with base URL,
   admin URL, and non-default fields.
 - **[repositories.md](repositories.md)** — The seven external metadata
@@ -186,7 +186,7 @@ The documentation is hand-written — the code is the ultimate source of
 truth. When in doubt, the relevant files are:
 
 - `assets/providers/` — provider definitions, one JSON file per
-  provider (42 files, each a bare `ProviderDefinition` object — no
+  provider (43 files, each a bare `ProviderDefinition` object — no
   `{ "providers": [...] }` wrapper)
 - `assets/internal-prompts/` — Internal Prompts (Meta / Fan-out / Fan-in / Other internal)
 - `assets/examples.json` — Example Prompts library

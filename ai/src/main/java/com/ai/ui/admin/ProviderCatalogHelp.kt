@@ -4,7 +4,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
     "providers" to HelpContent(
         title = "Help - Providers",
         cards = listOf(
-            HelpCard("Overview", "List of every registered provider (42 bundled plus any user-added). The state of each row is shown by an emoji."),
+            HelpCard("Overview", "List of every registered provider (43 bundled plus any user-added). The state of each row is shown by an emoji."),
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
             HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
             HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
@@ -123,6 +123,17 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default in the app: `anthropic/claude-3.5-sonnet`. Catalog spans every major provider — model ids are slash-prefixed (`anthropic/claude-3-5-sonnet`, `meta-llama/llama-3.3-70b-instruct`, `google/gemini-2.0-flash`). `defaultModelSource=API` — picker reads the live `/v1/models` list, which is large (700+)."),
             HelpCard("Pricing & quirks", "`extractApiCost=true` — OpenRouter's response includes `usage.cost`, so the dispatcher pulls the exact per-call cost rather than computing from `tokens × unitPrice`. The same hostname (`openrouter.ai`) doubles as an info-provider; the trace category disambiguates AI calls from catalog fetches."),
             HelpCard("Pitfalls", "The slash-prefixed id is mandatory — using a bare id (e.g. `gpt-4o-mini`) returns 404. Their margin means costs can be a few percent above the upstream provider's published rate. Some upstream providers occasionally rate-limit OpenRouter as a whole; a 429 may be unrelated to YOUR usage. Free models (with `:free` suffix) come and go on short notice."),
+        )
+    ),
+    "provider_mergegateway" to HelpContent(
+        title = "Help - Merge Gateway",
+        cards = listOf(
+            HelpCard("Overview", "Merge Gateway (merge.dev) — a control-plane LLM gateway that routes one API across OpenAI, Anthropic, Google, AWS Bedrock and more, with smart routing, fallback, spend controls and observability. Like OpenRouter, a single key reaches every major model behind one endpoint."),
+            HelpCard("Setup", "gateway.merge.dev/settings/api-keys → mint a key (the 🛠️ admin icon opens it). One key replaces every per-provider signup; spend and budgets are managed in the Merge dashboard, not here."),
+            HelpCard("Endpoints", "Base URL `api-gateway.merge.dev/`. Chat goes to the OpenAI-compatible shim at `v1/openai/chat/completions`; the model list is fetched from the native `v1/models` (OpenAI object shape, `{\"data\":[{\"id\":…}]}`). Auth is `Authorization: Bearer`."),
+            HelpCard("Models", "Default in the app: `anthropic/claude-opus-4.8`. Catalog spans every routed provider — model ids are slash-prefixed (`anthropic/claude-opus-4.6`, `openai/gpt-5.2`, `google/gemini-2.5-pro`). `defaultModelSource=API` reads the live `v1/models` list; `mergeHardcodedModels=true` keeps a small bundled fallback (Claude / GPT / Gemini ids) visible before the first fetch."),
+            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. No `litellmPrefix` / `openRouterName` set — but the slash-prefixed ids match the OpenRouter cross-provider catalog directly, so pricing usually resolves through that fallback (else DEFAULT). Gateway margin/routing can shift the effective upstream provider per call."),
+            HelpCard("Pitfalls", "The slash-prefixed id is mandatory, exactly like OpenRouter — a bare id may 404. Which physical provider serves a request depends on Merge's routing/fallback policy, so latency and the exact upstream can vary call to call. Catalog ids change as Merge adds/retires models; Refresh the model list if the default looks stale."),
         )
     ),
     "provider_siliconflow" to HelpContent(

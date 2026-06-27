@@ -700,7 +700,7 @@ instead of created by the user.
 ### `ApiFormat` (enum)
 `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. The cloud dispatch keys
 off this in `when (service.apiFormat)` blocks (analyze / chat /
-fetchModels / streaming / auth / endpoint URL). Of the 42 bundled
+fetchModels / streaming / auth / endpoint URL). Of the 43 bundled
 providers, **40** are `OPENAI_COMPATIBLE` (sharing unified code), 1 is
 `ANTHROPIC`, 1 is `GOOGLE` — so only Anthropic and Google have
 format-specific branches. (The enum's source comment still says "28
@@ -1121,7 +1121,7 @@ Custom providers added by the user round-trip as `ProviderDefinition`
 JSON in the `provider_registry` prefs file.
 
 `ProviderRegistry` is a mutable `object` that starts **empty** on a
-fresh install — the 42 bundled providers are loaded on demand from
+fresh install — the 43 bundled providers are loaded on demand from
 `assets/providers.json` via `importFromAsset` (append-only), not
 hardcoded in Kotlin. `parseProvidersJson` filters out entries with a
 null/blank id or baseUrl. A `hostIndex` (rebuilt on every `save()` from
