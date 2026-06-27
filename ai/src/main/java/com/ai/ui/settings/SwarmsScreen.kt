@@ -30,6 +30,7 @@ fun SwarmEditScreen(
     /** 🗑 delete this swarm (Setup → Workers → Swarms edit). Null hides it. */
     onDelete: (() -> Unit)? = null
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val isEditing = swarm != null
     // Member rows are always kept sorted by provider id, then the DISPLAYED
     // (short) model name — both case-insensitive — so the list reads in the
@@ -184,12 +185,22 @@ fun SwarmEditScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(member.provider.id, fontSize = 13.sp, color = AppColors.InfoAccent,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                // Full, untruncated model id — long names wrap rather
+                                // than hiding which exact variant the member points at.
+                                Text(member.model, fontSize = 12.sp, color = AppColors.TextPrimary)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(com.ai.ui.shared.shortModelName(member.model), fontSize = 12.sp, color = AppColors.TextPrimary,
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(member.provider, member.model))
                                     com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(member.provider, member.model))
                                     com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(member.provider, member.model))
+                                    // Live input / output price per million tokens — same
+                                    // figures the model picker shows ("with live pricing").
+                                    val p = com.ai.data.PricingCache.getPricing(context, member.provider, member.model)
+                                    Text(
+                                        "  ${com.ai.ui.other.dlgFmtPrice(p.promptPrice)} / ${com.ai.ui.other.dlgFmtPrice(p.completionPrice)} \$/M",
+                                        fontSize = 10.sp,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        color = AppColors.TextTertiary
+                                    )
                                 }
                             }
                             IconButton(onClick = {
