@@ -114,7 +114,7 @@ Only **7 of the app's 10 SharedPreferences files** are backed up:
 | Pref file | What it carries |
 |---|---|
 | `eval_prefs` | The main store. All user-curated settings: API keys, per-provider model + endpoint config, agents / flocks / swarms / parameters / system prompts / internal prompts (stored under the legacy `ai_meta_prompts` key) / example prompts, blocked / test-excluded / inaccessible model lists, throttle limits, and per-screen recents (last report title/prompt, last selections, secondary-picker state). |
-| `provider_registry` | Custom provider definitions added or imported by the user, keyed by provider id. The 48 bundled providers come from `assets/providers/` (one JSON file per provider) at runtime, not from this file. |
+| `provider_registry` | Custom provider definitions added or imported by the user, keyed by provider id. The 49 bundled providers come from `assets/providers/` (one JSON file per provider) at runtime, not from this file. |
 | `pricing_cache` | Per-tier timestamps + the user's **manual** price overrides. The bulk pricing JSON itself lives in `files/pricing/` (below). |
 | `dual_chat_prefs` | Last-used Dual Chat configuration plus the recent-subjects / recent-prompts ring buffers. |
 | `huggingface_cache` | 7-day-TTL HuggingFace model-info lookups (positive **and** negative — a cached miss avoids a re-fetch storm on a model HF doesn't have). |

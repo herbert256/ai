@@ -4,7 +4,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
     "providers" to HelpContent(
         title = "Help - Providers",
         cards = listOf(
-            HelpCard("Overview", "List of every registered provider (48 bundled plus any user-added). The state of each row is shown by an emoji."),
+            HelpCard("Overview", "List of every registered provider (49 bundled plus any user-added). The state of each row is shown by an emoji."),
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
             HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
             HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
@@ -184,6 +184,16 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoints", "Base `api.atlascloud.ai/`, chat `v1/chat/completions`, models `v1/models`. NB the model list wraps the OpenAI shape as `{\"code\":200,\"msg\":\"succeed\",\"data\":[{\"id\":…}]}` — the parser reads `data[]` so it still loads; each entry carries `pricing`, `context_length`, modalities."),
             HelpCard("Models", "Default `deepseek-ai/DeepSeek-V3-0324` (cheap DeepSeek). Slash-prefixed ids; Z.AI casing is inconsistent (`zai-org/GLM-4.6` vs `zai-org/glm-5.2`) so use the live list (`defaultModelSource=API`). `mergeHardcodedModels=true` DeepSeek/GLM/Qwen/Gemini/GPT fallback."),
             HelpCard("Pitfalls", "Aggregator — the exact upstream that serves a request can vary. Some headline ids from other catalogs aren't present (e.g. `meta-llama/Meta-Llama-3.1-8B-Instruct` 404s); search the fetched list for the right id. No `openRouterName`/`litellmPrefix` — pricing falls through to the OpenRouter cross-provider catalog or DEFAULT."),
+        )
+    ),
+    "provider_parasail" to HelpContent(
+        title = "Help - Parasail",
+        cards = listOf(
+            HelpCard("Overview", "Parasail (parasail.io) — serverless open-weight inference at aggressive prices. ~70 models (Llama, DeepSeek V4, Qwen3, Kimi K2.6/2.7, gpt-oss, and Z.AI's GLM incl. self-hosted `zai-org/GLM-5.2`), free / dedicated tiers."),
+            HelpCard("Setup", "saas.parasail.io/keys → mint a key (the 🛠️ admin icon opens it). Drop-in OpenAI base-URL swap; `Authorization: Bearer`."),
+            HelpCard("Endpoints", "Base `api.parasail.io/`, chat `v1/chat/completions`, models `v1/models` (standard OpenAI object shape)."),
+            HelpCard("Models", "Default `meta-llama/Llama-3.3-70B-Instruct`. Ids come in two flavours: HF-style (`zai-org/GLM-5.2`, `deepseek-ai/DeepSeek-V4-Pro`) and Parasail aliases (`parasail-glm-52`, `parasail-llama-33-70b-fp8`) — both work; the `*-FP8` variants are quantized. `defaultModelSource=API`; `mergeHardcodedModels=true` fallback (Llama / GLM / DeepSeek / Qwen / Kimi / gpt-oss)."),
+            HelpCard("Pricing & quirks", "Open-weight serverless host — runs the weights on its own GPUs (a real self-hoster of GLM-5.2, not a router). No `litellmPrefix`/`openRouterName` — pricing falls through to the OpenRouter cross-provider catalog or DEFAULT. Cold-start latency on rarely-used models."),
         )
     ),
     "provider_siliconflow" to HelpContent(
