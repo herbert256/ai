@@ -18,8 +18,8 @@ import kotlinx.coroutines.withContext
  * Cached model pricing with layered lookup:
  * provider self-report (OpenRouter/Together for their own calls) > manual
  * OVERRIDE > curated bulk tiers (LiteLLM, models.dev, llm-prices,
- * Artificial Analysis) > OpenRouter cross-provider fallback > Requesty
- * cross-provider router > Helicone > DEFAULT.
+ * Artificial Analysis, llm-stats) > OpenRouter cross-provider fallback >
+ * Requesty cross-provider router > Helicone > DEFAULT.
  *
  * Manual overrides intentionally beat curated tiers so a user can correct a
  * stale catalog price without waiting for the upstream source to refresh.
@@ -54,6 +54,12 @@ object PricingCache {
     private const val KEY_REQUESTY_PRICING = "requesty_pricing"
     private const val KEY_REQUESTY_META = "requesty_meta"
     private const val KEY_REQUESTY_TIMESTAMP = "requesty_timestamp"
+    // llm-stats.com — curated catalog with per-provider pricing + benchmark
+    // scores (api.llm-stats.com/stats/v1/models). Needs an API key + Stats
+    // API onboarding. Paginated via next_cursor.
+    private const val KEY_LLMSTATS_PRICING = "llmstats_pricing"
+    private const val KEY_LLMSTATS_META = "llmstats_meta"
+    private const val KEY_LLMSTATS_TIMESTAMP = "llmstats_timestamp"
     private const val KEY_MANUAL_PRICING = "manual_pricing"
     /** Together AI native pricing — extracted from each model entry's
      *  `pricing.{input, output, cached_input}` block during a Together
@@ -103,6 +109,13 @@ object PricingCache {
     @Volatile private var requestyPricing: Map<String, ModelPricing>? = null
     @Volatile private var requestyMeta: Map<String, RequestyMeta>? = null
     @Volatile private var requestyTimestamp: Long = 0
+    /** llm-stats.com pricing — curated catalog keyed `<org>/<modelId>`.
+     *  Per-provider $/M prices collapsed to a single representative
+     *  (first-party when present, else cheapest). Sidecar carries the
+     *  benchmark `top_scores` + modalities. */
+    @Volatile private var llmStatsPricing: Map<String, ModelPricing>? = null
+    @Volatile private var llmStatsMeta: Map<String, LlmStatsMeta>? = null
+    @Volatile private var llmStatsTimestamp: Long = 0
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
     @Volatile private var modelsDevTimestamp: Long = 0
@@ -237,6 +250,7 @@ object PricingCache {
                 breakdown.helicone != null ||
                 breakdown.llmPrices != null ||
                 breakdown.artificialAnalysis != null ||
+                breakdown.llmStats != null ||
                 breakdown.openrouter != null ||
                 breakdown.requesty != null ||
                 matchesDefault ||
@@ -352,8 +366,9 @@ object PricingCache {
                 "preload done in ${System.currentTimeMillis() - t0}ms" +
                     " (litellm=${litellmPricing?.size ?: 0}, modelsDev=${modelsDevPricing?.size ?: 0}," +
                     " llmPrices=${llmPricesPricing?.size ?: 0}, aa=${aaPricing?.size ?: 0}," +
-                    " openrouter=${openRouterPricing?.size ?: 0}, requesty=${requestyPricing?.size ?: 0}," +
-                    " helicone=${heliconePricing?.size ?: 0}, manual=${manualPricing?.size ?: 0})"
+                    " llmStats=${llmStatsPricing?.size ?: 0}, openrouter=${openRouterPricing?.size ?: 0}," +
+                    " requesty=${requestyPricing?.size ?: 0}, helicone=${heliconePricing?.size ?: 0}," +
+                    " manual=${manualPricing?.size ?: 0})"
             )
         }
     }
@@ -439,6 +454,7 @@ object PricingCache {
         findModelsDevPricing(provider, model)?.let { return PricingMatch("MODELSDEV", it) }
         findLLMPricesPricing(provider, model)?.let { return PricingMatch("LLMPRICES", it) }
         findArtificialAnalysisPricing(provider, model)?.let { return PricingMatch("AA", it) }
+        findLlmStatsPricing(provider, model)?.let { return PricingMatch("LLMSTATS", it) }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER", it) }
         findRequestyPricing(provider, model)?.let { return PricingMatch("REQUESTY", it) }
         findHeliconePricing(provider, model)?.let { return PricingMatch("HELICONE", it) }
@@ -719,7 +735,7 @@ object PricingCache {
      *  ([fetchedAt] = 0 means never retrieved). */
     data class CatalogStat(val name: String, val entries: Int, val fetchedAt: Long)
 
-    /** Entry count + retrieval timestamp for each of the seven external pricing
+    /** Entry count + retrieval timestamp for each of the eight external pricing
      *  info-providers, in lookup-precedence order. Drives the Monitor hub's
      *  "Pricing cache" table. Cheap — map sizes + volatile longs. */
     fun catalogStats(context: Context): List<CatalogStat> {
@@ -729,6 +745,7 @@ object PricingCache {
             CatalogStat("models.dev", modelsDevPricing?.size ?: 0, modelsDevTimestamp),
             CatalogStat("llm-prices", llmPricesPricing?.size ?: 0, llmPricesTimestamp),
             CatalogStat("Artificial Analysis", aaPricing?.size ?: 0, aaTimestamp),
+            CatalogStat("llm-stats", llmStatsPricing?.size ?: 0, llmStatsTimestamp),
             CatalogStat("OpenRouter", openRouterPricing?.size ?: 0, openRouterTimestamp),
             CatalogStat("Requesty", requestyPricing?.size ?: 0, requestyTimestamp),
             CatalogStat("Helicone", heliconePricing?.size ?: 0, heliconeTimestamp),
@@ -745,6 +762,7 @@ object PricingCache {
         val helicone: ModelPricing?,
         val llmPrices: ModelPricing?,
         val artificialAnalysis: ModelPricing?,
+        val llmStats: ModelPricing?,
         val override: ModelPricing?,
         val openrouter: ModelPricing?,
         val requesty: ModelPricing?,
@@ -759,11 +777,12 @@ object PricingCache {
         val helicone = findHeliconePricing(provider, model)
         val llmPrices = findLLMPricesPricing(provider, model)
         val aa = findArtificialAnalysisPricing(provider, model)
+        val llmStats = findLlmStatsPricing(provider, model)
         val override = manualPricing?.get("${provider.id}:$model")
         val openrouter = findOpenRouterPricing(provider, model)
         val requesty = findRequestyPricing(provider, model)
         val together = findTogetherPricing(provider, model)
-        return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, override, openrouter, requesty, together, DEFAULT_PRICING)
+        return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, llmStats, override, openrouter, requesty, together, DEFAULT_PRICING)
     }
 
     /** True when two or more catalog tiers have pricing for this
@@ -776,7 +795,7 @@ object PricingCache {
      *  hasn't settled on a single number. */
     fun pricesConflict(context: Context, provider: AppService, model: String): Boolean {
         val br = getTierBreakdown(context, provider, model)
-        val tiers = listOfNotNull(br.litellm, br.modelsDev, br.helicone, br.llmPrices, br.artificialAnalysis, br.openrouter, br.requesty)
+        val tiers = listOfNotNull(br.litellm, br.modelsDev, br.helicone, br.llmPrices, br.artificialAnalysis, br.llmStats, br.openrouter, br.requesty)
         if (tiers.size < 2) return false
         fun close(a: Double, b: Double): Boolean {
             if (a == b) return true
@@ -833,6 +852,7 @@ object PricingCache {
             "llmprices" -> llmPricesPricing to llmPricesTimestamp
             "aa" -> aaPricing to aaTimestamp
             "requesty" -> requestyPricing to requestyTimestamp
+            "llmstats" -> llmStatsPricing to llmStatsTimestamp
             else -> return null
         }
         val map = cache ?: return null
@@ -1350,6 +1370,87 @@ object PricingCache {
         return pretty.toJson(mapOf("pricing" to pricing, "meta" to meta))
     }
 
+    // ============================================================================
+    // llm-stats.com — curated catalog: per-provider pricing + benchmark scores
+    // Endpoint: https://api.llm-stats.com/stats/v1/models  (paginated, cursor)
+    // Auth: Authorization: Bearer <key> (+ Stats API onboarding required)
+    // ============================================================================
+
+    /** Pull the llm-stats catalog and replace the LLMSTATS tier. The
+     *  endpoint is paginated (`next_cursor`), so this walks every page
+     *  (capped at 20) accumulating priced + meta entries. Returns the
+     *  number of priced entries, or null on auth / network / parse
+     *  failure (a blank key or the 403 `stats_api_access_denied` that
+     *  precedes Stats-API onboarding both yield null). */
+    suspend fun fetchLlmStatsOnline(context: Context, apiKey: String): Int? = withTraceCategory("pricing/llm-stats") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            AppLog.w("PricingCache", "llm-stats refresh skipped: missing API key")
+            return@withContext null
+        }
+        try {
+            val pricing = mutableMapOf<String, ModelPricing>()
+            val meta = mutableMapOf<String, LlmStatsMeta>()
+            var cursor: String? = null
+            var pages = 0
+            do {
+                val url = buildString {
+                    append("https://api.llm-stats.com/stats/v1/models?limit=200")
+                    cursor?.let { append("&cursor="); append(java.net.URLEncoder.encode(it, "UTF-8")) }
+                }
+                val json = ApiFactory.fetchUrlAsString(url, headers = mapOf("Authorization" to "Bearer $apiKey"))
+                if (json.isNullOrBlank()) break
+                val (p, m, next) = parseLlmStatsJson(json)
+                pricing.putAll(p); meta.putAll(m)
+                cursor = next?.takeIf { it.isNotBlank() }
+                pages++
+            } while (cursor != null && pages < 20)
+            AppLog.i("PricingCache", "llm-stats parse: ${pricing.size} priced, ${meta.size} meta entries ($pages pages)")
+            if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
+            synchronized(lock) {
+                llmStatsPricing = pricing
+                llmStatsMeta = meta
+                llmStatsTimestamp = System.currentTimeMillis()
+                saveBlob(context, KEY_LLMSTATS_PRICING, gson.toJson(pricing))
+                saveBlob(context, KEY_LLMSTATS_META, gson.toJson(meta))
+                getPrefs(context).edit { putLong(KEY_LLMSTATS_TIMESTAMP, llmStatsTimestamp) }
+            }
+            pricing.size
+        } catch (e: Exception) {
+            AppLog.e("PricingCache", "llm-stats refresh failed: ${e.message}", e)
+            null
+        }
+      }
+    }
+
+    /** llm-stats keys are `<org>/<modelId>` (creator-slug style, like AA),
+     *  so the lookup mirrors findArtificialAnalysisPricing. */
+    private fun findLlmStatsPricing(provider: AppService, model: String): ModelPricing? {
+        val pricing = llmStatsPricing ?: return null
+        pricing[model]?.let { return it }
+        return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { pricing[it] }
+    }
+
+    private fun findLlmStatsMeta(provider: AppService, model: String): LlmStatsMeta? {
+        val meta = llmStatsMeta ?: return null
+        meta[model]?.let { return it }
+        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
+    }
+
+    fun llmStatsSupportsVision(provider: AppService, model: String): Boolean? =
+        findLlmStatsMeta(provider, model)?.supportsVision
+
+    fun getLlmStatsRawEntry(context: Context, provider: AppService, model: String): String? {
+        ensureLoaded(context)
+        val pricing = findLlmStatsPricing(provider, model)
+        val meta = findLlmStatsMeta(provider, model)
+        if (pricing == null && meta == null) return null
+        val pretty = createAppGson(prettyPrint = true)
+        return pretty.toJson(mapOf("pricing" to pricing, "meta" to meta))
+    }
+
     suspend fun fetchOpenRouterPricing(apiKey: String): Map<String, ModelPricing> {
         if (apiKey.isBlank()) return emptyMap()
         return withTraceCategory("pricing/OpenRouter") {
@@ -1539,6 +1640,23 @@ object PricingCache {
             if (requestyPricing == null) requestyPricing = emptyMap()
             if (requestyMeta == null) requestyMeta = emptyMap()
         }
+        // llm-stats — pricing + benchmark/modality sidecar. Bundled asset
+        // ships a snapshot so the tier works on a fresh install before the
+        // user adds their key.
+        if (llmStatsPricing == null || llmStatsMeta == null) {
+            llmStatsTimestamp = getPrefs(context).getLong(KEY_LLMSTATS_TIMESTAMP, 0)
+            loadBlob(context, KEY_LLMSTATS_PRICING)?.let { json ->
+                try { llmStatsPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            }
+            loadBlob(context, KEY_LLMSTATS_META)?.let { json ->
+                try {
+                    val type = object : TypeToken<Map<String, LlmStatsMeta>>() {}.type
+                    llmStatsMeta = gson.fromJson(json, type)
+                } catch (_: Exception) {}
+            }
+            if (llmStatsPricing == null) llmStatsPricing = emptyMap()
+            if (llmStatsMeta == null) llmStatsMeta = emptyMap()
+        }
         // Once we've finished loading every tier, mark the cache
         // primed so the main-thread guard in ensureLoaded() stops
         // short-circuiting future getPricing calls. Previously only
@@ -1590,6 +1708,18 @@ object PricingCache {
         val outputSpeed: Double? = null,
         val firstChunkSeconds: Double? = null,
         val modelCreator: String? = null
+    )
+
+    /** Sidecar for the llm-stats tier — surfaces the data points that
+     *  distinguish it: the per-benchmark `top_scores` map (note: mixed
+     *  scales upstream, so stored raw and never collapsed to one index)
+     *  and the `modalities` list. [supportsVision] is derived from
+     *  modalities containing "image" and feeds the capability chain. */
+    data class LlmStatsMeta(
+        val supportsVision: Boolean? = null,
+        val modalities: List<String>? = null,
+        val organization: String? = null,
+        val topScores: Map<String, Double>? = null
     )
 
     /** Capability sidecar derived from Requesty's /v1/models flags.
@@ -1739,6 +1869,7 @@ object PricingCache {
             "Artificial Analysis" -> listOf(KEY_AA_PRICING, KEY_AA_META)
             "OpenRouter" -> listOf(KEY_OPENROUTER_PRICING)
             "Requesty" -> listOf(KEY_REQUESTY_PRICING, KEY_REQUESTY_META)
+            "llm-stats" -> listOf(KEY_LLMSTATS_PRICING, KEY_LLMSTATS_META)
             "Helicone" -> listOf(KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS)
             else -> emptyList()
         }
@@ -1750,6 +1881,7 @@ object PricingCache {
             "Artificial Analysis" -> KEY_AA_TIMESTAMP
             "OpenRouter" -> KEY_OPENROUTER_TIMESTAMP
             "Requesty" -> KEY_REQUESTY_TIMESTAMP
+            "llm-stats" -> KEY_LLMSTATS_TIMESTAMP
             "Helicone" -> KEY_HELICONE_TIMESTAMP
             else -> null
         }
@@ -1764,6 +1896,7 @@ object PricingCache {
             "Artificial Analysis" -> { aaPricing = null; aaMeta = null; aaTimestamp = 0 }
             "OpenRouter" -> { openRouterPricing = null; openRouterTimestamp = 0 }
             "Requesty" -> { requestyPricing = null; requestyMeta = null; requestyTimestamp = 0 }
+            "llm-stats" -> { llmStatsPricing = null; llmStatsMeta = null; llmStatsTimestamp = 0 }
             "Helicone" -> { heliconePricing = null; heliconePatterns = null; heliconeTimestamp = 0 }
         }
     }
@@ -1779,7 +1912,8 @@ object PricingCache {
             KEY_MODELS_DEV_PRICING, KEY_MODELS_DEV_META,
             KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS,
             KEY_LLMPRICES_PRICING, KEY_AA_PRICING, KEY_AA_META,
-            KEY_REQUESTY_PRICING, KEY_REQUESTY_META
+            KEY_REQUESTY_PRICING, KEY_REQUESTY_META,
+            KEY_LLMSTATS_PRICING, KEY_LLMSTATS_META
         )
         tierBlobs.forEach { key ->
             try { blobFile(context, key).delete() } catch (_: Exception) {}
@@ -1799,6 +1933,7 @@ object PricingCache {
             remove(KEY_LLMPRICES_TIMESTAMP)
             remove(KEY_AA_TIMESTAMP)
             remove(KEY_REQUESTY_TIMESTAMP)
+            remove(KEY_LLMSTATS_TIMESTAMP)
         }
         openRouterPricing = null; openRouterTimestamp = 0
         litellmPricing = null; litellmMeta = null; litellmTimestamp = 0
@@ -1807,6 +1942,7 @@ object PricingCache {
         llmPricesPricing = null; llmPricesTimestamp = 0
         aaPricing = null; aaMeta = null; aaTimestamp = 0
         requestyPricing = null; requestyMeta = null; requestyTimestamp = 0
+        llmStatsPricing = null; llmStatsMeta = null; llmStatsTimestamp = 0
         litellmMetaLookupCache.clear()
         modelsDevMetaLookupCache.clear()
         litellmPricingLookupCache.clear()
@@ -1853,6 +1989,8 @@ object PricingCache {
         aaMeta = null
         requestyPricing = null
         requestyMeta = null
+        llmStatsPricing = null
+        llmStatsMeta = null
         openRouterTimestamp = 0
         litellmTimestamp = 0
         modelsDevTimestamp = 0
@@ -1860,6 +1998,7 @@ object PricingCache {
         llmPricesTimestamp = 0
         aaTimestamp = 0
         requestyTimestamp = 0
+        llmStatsTimestamp = 0
         preloadCompleted = false
         litellmMetaLookupCache.clear()
         modelsDevMetaLookupCache.clear()

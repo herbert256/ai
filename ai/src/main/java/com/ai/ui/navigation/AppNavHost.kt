@@ -618,6 +618,7 @@ fun SettingsScreenNav(
         onSaveHuggingFaceApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(huggingFaceApiKey = it)) },
         onSaveOpenRouterApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = it)) },
         onSaveArtificialAnalysisApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(artificialAnalysisApiKey = it)) },
+        onSaveLlmStatsApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(llmStatsApiKey = it)) },
         onNavigateToCostConfig = onNavigateToCostConfig,
         onNavigateToHelpTopic = onNavigateToHelpTopic,
         onTestModelWithPrompt = { s, k, m, p -> viewModel.testModelWithPrompt(s, k, m, p) },

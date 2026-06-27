@@ -34,6 +34,7 @@ fun SetupScreen(
     huggingFaceApiKey: String = "",
     openRouterApiKey: String = "",
     aaApiKey: String = "",
+    llmStatsApiKey: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
@@ -41,6 +42,7 @@ fun SetupScreen(
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onSaveArtificialAnalysisApiKey: (String) -> Unit = {},
+    onSaveLlmStatsApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {}
 ) {
     BackHandler { onBackToSettings() }
@@ -57,10 +59,11 @@ fun SetupScreen(
     // badge count without an app restart.
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
     val costCount = remember(refreshTick) { PricingCache.getAllManualPricing(context).size }
-    val externalCount = remember(huggingFaceApiKey, openRouterApiKey, aaApiKey) {
+    val externalCount = remember(huggingFaceApiKey, openRouterApiKey, aaApiKey, llmStatsApiKey) {
         (if (huggingFaceApiKey.isNotBlank()) 1 else 0) +
         (if (openRouterApiKey.isNotBlank()) 1 else 0) +
-        (if (aaApiKey.isNotBlank()) 1 else 0)
+        (if (aaApiKey.isNotBlank()) 1 else 0) +
+        (if (llmStatsApiKey.isNotBlank()) 1 else 0)
     }
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
@@ -707,9 +710,11 @@ fun ExternalServicesScreen(
     huggingFaceApiKey: String,
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
+    llmStatsApiKey: String,
     onSaveHuggingFaceApiKey: (String) -> Unit,
     onSaveOpenRouterApiKey: (String) -> Unit,
     onSaveArtificialAnalysisApiKey: (String) -> Unit,
+    onSaveLlmStatsApiKey: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     /** Open the per-info-provider help topic. Each card's ℹ️ icon
@@ -720,6 +725,7 @@ fun ExternalServicesScreen(
     var hfKey by remember(huggingFaceApiKey) { mutableStateOf(huggingFaceApiKey) }
     var orKey by remember(openRouterApiKey) { mutableStateOf(openRouterApiKey) }
     var aaKey by remember(artificialAnalysisApiKey) { mutableStateOf(artificialAnalysisApiKey) }
+    var lsKey by remember(llmStatsApiKey) { mutableStateOf(llmStatsApiKey) }
 
     // Debounce keystrokes — every character was firing a prefs write,
     // so pasting a 96-char key wrote 96 times in rapid succession.
@@ -738,11 +744,16 @@ fun ExternalServicesScreen(
         kotlinx.coroutines.delay(400)
         if (aaKey != artificialAnalysisApiKey) onSaveArtificialAnalysisApiKey(aaKey)
     }
+    LaunchedEffect(lsKey) {
+        kotlinx.coroutines.delay(400)
+        if (lsKey != llmStatsApiKey) onSaveLlmStatsApiKey(lsKey)
+    }
     DisposableEffect(Unit) {
         onDispose {
             if (hfKey != huggingFaceApiKey) onSaveHuggingFaceApiKey(hfKey)
             if (orKey != openRouterApiKey) onSaveOpenRouterApiKey(orKey)
             if (aaKey != artificialAnalysisApiKey) onSaveArtificialAnalysisApiKey(aaKey)
+            if (lsKey != llmStatsApiKey) onSaveLlmStatsApiKey(lsKey)
         }
     }
 
@@ -774,6 +785,13 @@ fun ExternalServicesScreen(
                 description = "Pricing snapshot plus quality / speed scores. Free tier — sign up at artificialanalysis.ai/api",
                 topicId = "info_provider_artificial_analysis",
                 value = aaKey, onValueChange = { aaKey = it },
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            ExternalServiceCard(
+                name = "llm-stats",
+                description = "Pricing + benchmark scores. Free — sign up at llm-stats.com and complete the Stats-API onboarding (key 403s until then).",
+                topicId = "info_provider_llm_stats",
+                value = lsKey, onValueChange = { lsKey = it },
                 onNavigateToHelpTopic = onNavigateToHelpTopic
             )
         }

@@ -208,7 +208,8 @@ internal fun NavGraphBuilder.reportRoutes(
                     val updatedGs = current.generalSettings.copy(
                         huggingFaceApiKey = result.huggingFaceApiKey ?: current.generalSettings.huggingFaceApiKey,
                         openRouterApiKey = result.openRouterApiKey ?: current.generalSettings.openRouterApiKey,
-                        artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: current.generalSettings.artificialAnalysisApiKey
+                        artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: current.generalSettings.artificialAnalysisApiKey,
+                        llmStatsApiKey = result.llmStatsApiKey ?: current.generalSettings.llmStatsApiKey
                     )
                     if (updatedGs != current.generalSettings) appViewModel.updateGeneralSettings(updatedGs)
                     appViewModel.updateSettings(result.settings)

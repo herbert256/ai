@@ -362,6 +362,11 @@ fun ModelInfoViewScreen(
                 PricingCache.getRequestyRawEntry(context, provider, modelName)
             }
         }
+        val llmStatsRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getLlmStatsRawEntry(context, provider, modelName)
+            }
+        }
         val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
             value = withContext(Dispatchers.IO) {
                 PricingCache.getTierBreakdown(context, provider, modelName)
@@ -406,6 +411,7 @@ fun ModelInfoViewScreen(
                     llmPricesRaw = llmPricesRaw,
                     aaRaw = aaRaw,
                     requestyRaw = requestyRaw,
+                    llmStatsRaw = llmStatsRaw,
                     hfTrace = if (infoFlags.first) ({ onNavigateToTraceFiltered("info/huggingface", modelName) }) else null,
                     orTrace = if (infoFlags.second) ({ onNavigateToTraceFiltered("info/provider", null) }) else null,
                     onOpen = { name, body, url ->
@@ -659,6 +665,7 @@ private fun SourcesCard(
     llmPricesRaw: String?,
     aaRaw: String?,
     requestyRaw: String?,
+    llmStatsRaw: String?,
     hfTrace: (() -> Unit)? = null,
     orTrace: (() -> Unit)? = null,
     onOpen: (sourceName: String, body: String, calledUrl: String?) -> Unit
@@ -689,8 +696,11 @@ private fun SourcesCard(
         SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "Artificial Analysis", aaRaw) {
             onOpen("Artificial Analysis", aaRaw ?: "{}", "https://artificialanalysis.ai/api/v2/data/llms/models")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.web, "Requesty", requestyRaw, isLast = true) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.web, "Requesty", requestyRaw) {
             onOpen("Requesty", requestyRaw ?: "{}", "https://router.requesty.ai/v1/models")
+        }
+        SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "llm-stats", llmStatsRaw, isLast = true) {
+            onOpen("llm-stats", llmStatsRaw ?: "{}", "https://api.llm-stats.com/stats/v1/models")
         }
     }
 }
@@ -745,6 +755,7 @@ private fun CostsCard(tierBreakdown: PricingCache.TierBreakdown?) {
         tierBreakdown?.helicone?.let { "Helicone" to it },
         tierBreakdown?.llmPrices?.let { "llm-prices.com" to it },
         tierBreakdown?.artificialAnalysis?.let { "Artificial Analysis" to it },
+        tierBreakdown?.llmStats?.let { "llm-stats" to it },
         tierBreakdown?.openrouter?.let { "OpenRouter" to it },
         tierBreakdown?.requesty?.let { "Requesty" to it },
         tierBreakdown?.override?.let { "Override" to it }

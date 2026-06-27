@@ -16,6 +16,7 @@ data class ApiKeysImportResult(
     val huggingFaceApiKey: String? = null,
     val openRouterApiKey: String? = null,
     val artificialAnalysisApiKey: String? = null,
+    val llmStatsApiKey: String? = null,
     val imported: Int,
     val skipped: Int
 )
@@ -36,7 +37,8 @@ fun buildApiKeysJson(
     settings: Settings,
     huggingFaceApiKey: String,
     openRouterApiKey: String,
-    artificialAnalysisApiKey: String
+    artificialAnalysisApiKey: String,
+    llmStatsApiKey: String
 ): String {
     val keys = mutableMapOf<String, String>()
     for (service in AppService.entries) {
@@ -46,6 +48,7 @@ fun buildApiKeysJson(
     if (huggingFaceApiKey.isNotBlank()) keys["EXT_HUGGINGFACE"] = huggingFaceApiKey
     if (openRouterApiKey.isNotBlank()) keys["EXT_OPENROUTER"] = openRouterApiKey
     if (artificialAnalysisApiKey.isNotBlank()) keys["EXT_ARTIFICIALANALYSIS"] = artificialAnalysisApiKey
+    if (llmStatsApiKey.isNotBlank()) keys["EXT_LLMSTATS"] = llmStatsApiKey
     return createAppGson(prettyPrint = true).toJson(keys)
 }
 
@@ -66,6 +69,7 @@ fun applyApiKeysJson(json: String, currentSettings: Settings): ApiKeysImportResu
     var hf: String? = null
     var or: String? = null
     var aa: String? = null
+    var ls: String? = null
     var imported = 0
     var skipped = 0
     for (entry in obj.entrySet()) {
@@ -78,6 +82,7 @@ fun applyApiKeysJson(json: String, currentSettings: Settings): ApiKeysImportResu
             "EXT_HUGGINGFACE" -> { hf = key; imported++ }
             "EXT_OPENROUTER" -> { or = key; imported++ }
             "EXT_ARTIFICIALANALYSIS" -> { aa = key; imported++ }
+            "EXT_LLMSTATS" -> { ls = key; imported++ }
             else -> {
                 val service = AppService.entries.firstOrNull {
                     it.id.equals(id, ignoreCase = true)
@@ -86,5 +91,5 @@ fun applyApiKeysJson(json: String, currentSettings: Settings): ApiKeysImportResu
             }
         }
     }
-    return ApiKeysImportResult(updated, hf, or, aa, imported, skipped)
+    return ApiKeysImportResult(updated, hf, or, aa, ls, imported, skipped)
 }

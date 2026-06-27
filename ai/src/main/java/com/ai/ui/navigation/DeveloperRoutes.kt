@@ -956,9 +956,9 @@ internal fun NavGraphBuilder.developerRoutes(
 
 /** Dispatch a Caches → entry 🔄 that needs API keys / the view model: model
  *  lists via [AppViewModel.fetchModelsAwait], the OpenRouter supported-params +
- *  AA / OpenRouter pricing tiers via their small VM refresh methods. The
- *  key-free pricing tiers (LiteLLM / models.dev / llm-prices / Helicone)
- *  refresh inline in the descriptor and never reach here. */
+ *  AA / llm-stats / OpenRouter pricing tiers via their small VM refresh
+ *  methods. The key-free pricing tiers (LiteLLM / models.dev / llm-prices /
+ *  Helicone / Requesty) refresh inline in the descriptor and never reach here. */
 private fun cacheRefreshDispatcher(appViewModel: AppViewModel): suspend (String, String) -> Unit = { cacheId, entryId ->
     when (cacheId) {
         "modellists" -> AppService.findById(entryId)?.let { svc ->
@@ -967,6 +967,7 @@ private fun cacheRefreshDispatcher(appViewModel: AppViewModel): suspend (String,
         "params" -> appViewModel.refreshSupportedParamsCacheAwait()
         "pricing" -> when (entryId) {
             "Artificial Analysis" -> appViewModel.refreshAaPricingCacheAwait()
+            "llm-stats" -> appViewModel.refreshLlmStatsPricingCacheAwait()
             "OpenRouter" -> appViewModel.refreshOpenRouterPricingCacheAwait()
         }
     }

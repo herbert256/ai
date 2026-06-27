@@ -151,6 +151,11 @@ data class GeneralSettings(
      *  empty until the user pastes one in External Services. The Refresh
      *  screen disables the AA button while this is blank. */
     val artificialAnalysisApiKey: String = "",
+    /** API key for api.llm-stats.com/stats/v1/models — empty until the
+     *  user pastes one in External Services. Needs Stats-API onboarding
+     *  (the key returns 403 until that's done). The Refresh screen
+     *  disables the llm-stats button while this is blank. */
+    val llmStatsApiKey: String = "",
     val defaultEmail: String = "",
     /** Default API path per model type. Used when a provider doesn't declare a
      *  per-type override in its typePaths. Falls back to ModelType.DEFAULT_PATHS

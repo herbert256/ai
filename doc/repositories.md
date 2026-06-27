@@ -1,13 +1,13 @@
 # External Repositories
 
-The app consults **eight external metadata repositories** for model
-pricing, capabilities, and model-card information. Seven of them are
+The app consults **nine external metadata repositories** for model
+pricing, capabilities, and model-card information. Eight of them are
 *pricing/capability catalogs* that feed the layered
-`PricingCache.getPricing` lookup; the eighth (HuggingFace) is a
+`PricingCache.getPricing` lookup; the ninth (HuggingFace) is a
 lazy, per-model card-metadata source surfaced only on the Model Info
 screen.
 
-The seven catalog tiers all round-trip through the backup zip
+The eight catalog tiers all round-trip through the backup zip
 ([backup-restore.md](backup-restore.md)) and ship a **bundled
 snapshot** in `assets/info-providers/`, so a freshly installed (or
 freshly restored) device has working pricing *before* it ever hits
@@ -31,10 +31,11 @@ wins**:
 4. models.dev            (curated bulk)
 5. llm-prices.com        (curated bulk)
 6. Artificial Analysis   (curated bulk)
-7. OpenRouter cross-provider fallback (only for non-OpenRouter callers)
-8. Requesty              (cross-provider router catalog, keyless)
-9. Helicone              (last resort — known data-quality issues)
-10. DEFAULT_PRICING      ($25/M input, $75/M output)
+7. llm-stats             (curated bulk — needs API key + Stats-API onboarding)
+8. OpenRouter cross-provider fallback (only for non-OpenRouter callers)
+9. Requesty              (cross-provider router catalog, keyless)
+10. Helicone             (last resort — known data-quality issues)
+11. DEFAULT_PRICING      ($25/M input, $75/M output)
 ```
 
 Two things are easy to get wrong here, so spell them out:
@@ -67,7 +68,7 @@ obviously-wrong cost rather than free.
 |---|---|
 | `getPricingWithoutOverride` | skips step 2 (the manual override). Used by `cleanupRedundantManualOverrides` to decide whether an override would still win the live lookup. |
 | `lookupPricing` | context-free, in-memory-only mirror (same precedence incl. override-before-LiteLLM). Never touches disk and never blocks; returns `DEFAULT_PRICING` if the catalogs aren't loaded. Used by `Settings.recomputeCapabilities`. |
-| `getTierBreakdown` | computes **every** tier independently (returns a `TierBreakdown` with `litellm/modelsDev/helicone/llmPrices/artificialAnalysis/override/openrouter/requesty/together/default`). Drives the layered Costs view and the 🐞 pricing trace. |
+| `getTierBreakdown` | computes **every** tier independently (returns a `TierBreakdown` with `litellm/modelsDev/helicone/llmPrices/artificialAnalysis/llmStats/override/openrouter/requesty/together/default`). Drives the layered Costs view and the 🐞 pricing trace. |
 | `pricesConflict` | true when ≥ 2 catalog tiers disagree on prompt or completion price beyond a 1% tolerance (override + default excluded). Surfaces "catalog hasn't settled" rows in the AI Models filter. |
 
 ### Cold-window caveat
@@ -131,6 +132,7 @@ the next Refresh overwrites both file and timestamp. See
 | Helicone | `helicone_pricing.json` + `helicone_patterns.json` | `helicone_timestamp` | yes |
 | llm-prices | `llmprices_pricing.json` | `llmprices_timestamp` | yes |
 | Artificial Analysis | `aa_pricing_v2.json` + `aa_meta_v2.json` | `aa_timestamp_v2` | yes |
+| llm-stats | `llmstats_pricing.json` + `llmstats_meta.json` | `llmstats_timestamp` | yes |
 | Requesty | `requesty_pricing.json` + `requesty_meta.json` | `requesty_timestamp` | yes |
 | Together-native | `together_pricing.json` | `together_timestamp` | no (harvested at runtime) |
 
@@ -273,7 +275,33 @@ step-7 fallback. Together this is what makes OpenRouter's catalog
 - **Position:** last catalog tier before DEFAULT — kept only so we
   have *some* answer for a model no better source covers.
 
-## 7. Requesty
+## 7. llm-stats
+
+- **Endpoint:** `https://api.llm-stats.com/stats/v1/models` (by ZeroEval)
+- **Auth:** `Authorization: Bearer <key>`. The key also needs **Stats-API
+  onboarding** — until that's completed at llm-stats.com/developer the
+  endpoint returns `403 stats_api_access_denied` and the tier loads
+  nothing.
+- **Paginated:** walk `next_cursor` (the fetcher loops, ≤20 pages).
+- **Provides:**
+  - `providers[]` — each upstream provider's `input_price_per_m` /
+    `output_price_per_m` ($/M). Collapsed to **one** representative
+    price: the provider matching the model's own `organization.id`
+    (first-party) when present, else the cheapest by input rate.
+  - `top_scores` — per-benchmark scores. **Heterogeneous scales
+    upstream** (some 0–1, some in the hundreds), so stored raw in the
+    sidecar and never collapsed into a single quality index.
+  - `modalities` — `image` in the list drives the vision capability flag.
+- **Key format:** `<org-slug>/<modelId>` (creator-slug style, like AA);
+  the lookup mirrors `findArtificialAnalysisPricing`.
+- **Position:** step 7 in the precedence — a curated tier right after
+  Artificial Analysis, before the OpenRouter cross-provider fallback.
+- **Cache:** `<filesDir>/pricing/llmstats_pricing.json` +
+  `llmstats_meta.json` (scores + modalities sidecar);
+  `llmstats_timestamp` in `pricing_cache`. Bundled snapshot in
+  `assets/info-providers/` (82 priced / 323 meta at build time).
+
+## 8. Requesty
 
 - **Endpoint:** `https://router.requesty.ai/v1/models`
 - **Auth:** none (the public catalog returns every public/approved model)
@@ -296,9 +324,9 @@ step-7 fallback. Together this is what makes OpenRouter's catalog
   `requesty_meta.json` (capability sidecar); `requesty_timestamp` in
   `pricing_cache`. Bundled snapshot in `assets/info-providers/`.
 
-## 8. HuggingFace
+## 9. HuggingFace
 
-Unlike the seven catalog tiers, HuggingFace is **not** part of Refresh
+Unlike the eight catalog tiers, HuggingFace is **not** part of Refresh
 All, **not** bundled, and **not** a pricing source — it's a lazy,
 per-model card-metadata lookup.
 
@@ -334,11 +362,12 @@ full-screen progress page (`coroutineScope { catJob; wrkJob; join }`),
 after first clearing every provider-default agent and emptying the
 `default agents` flock:
 
-1. the **catalog phase** (`runCatalogPhase`) fans the **seven catalog
+1. the **catalog phase** (`runCatalogPhase`) fans the **eight catalog
    sources out in parallel** (`async(Dispatchers.IO)` + `awaitAll`,
-   because they touch disjoint disk paths). OpenRouter and Artificial
-   Analysis are skipped when their key is absent (Requesty is keyless,
-   so it always runs). When the catalogs
+   because they touch disjoint disk paths). OpenRouter, Artificial
+   Analysis and llm-stats are skipped when their key is absent (LiteLLM,
+   models.dev, llm-prices, Helicone and Requesty are keyless, so they
+   always run). When the catalogs
    settle it recomputes the precomputed vision / web-search /
    reasoning capability sets (`recomputeAllCapabilities`) and saves
    settings;
@@ -383,13 +412,13 @@ mine extra fields without forcing a re-fetch.
 
 ## Help & trace wiring
 
-Each repository has a help page (the eight `info_provider_*` topics
+Each repository has a help page (the nine `info_provider_*` topics
 in `ui/admin/InfoProviderHelp.kt`) deep-linked from every entry
 point: the ℹ icon beside a Source button on the Model Info screen,
 the per-tier card on the Refresh screen, and the Trace detail page
 when a captured trace matches a known fetch category. The
 trace→repository resolver is `infoProviderForTrace(url, category)`
-(`ui/admin/HelpScreen.kt`), backed by the canonical 8-entry
+(`ui/admin/HelpScreen.kt`), backed by the canonical 9-entry
 `INFO_PROVIDERS` list; OpenRouter's spec fetch is gated on
 `INFO_FETCH_CATEGORIES = {"OpenRouter model specs"}` plus a
 `pricing/` category prefix. See [help.md](help.md).

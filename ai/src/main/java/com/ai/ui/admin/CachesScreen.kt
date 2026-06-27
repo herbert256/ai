@@ -186,7 +186,7 @@ fun cacheRegistry(
     CacheDescriptor(
         id = "pricing", icon = "💲", title = "Pricing tiers", helpTopic = "cache_pricing",
         subject = "Per-source model pricing catalogs",
-        stats = { c -> val s = PricingCache.catalogStats(c); CacheStats(s.count { it.entries > 0 }, dirSize(c, "pricing"), "7 sources") },
+        stats = { c -> val s = PricingCache.catalogStats(c); CacheStats(s.count { it.entries > 0 }, dirSize(c, "pricing"), "8 sources") },
         list = { c ->
             PricingCache.catalogStats(c).map { s ->
                 CacheEntryVM(
@@ -201,9 +201,10 @@ fun cacheRegistry(
                         "models.dev" -> { ctx -> PricingCache.fetchModelsDevOnline(ctx) }
                         "llm-prices" -> { ctx -> PricingCache.fetchLLMPricesOnline(ctx) }
                         "Helicone" -> { ctx -> PricingCache.fetchHeliconeOnline(ctx) }
-                        // AA needs the AA key, OpenRouter pricing the OpenRouter
-                        // key — both routed through the view model.
-                        "Artificial Analysis", "OpenRouter" -> { _ -> onRefreshKeyed("pricing", s.name) }
+                        "Requesty" -> { ctx -> PricingCache.fetchRequestyOnline(ctx) }
+                        // AA / llm-stats need their API key, OpenRouter pricing the
+                        // OpenRouter key — all routed through the view model.
+                        "Artificial Analysis", "llm-stats", "OpenRouter" -> { _ -> onRefreshKeyed("pricing", s.name) }
                         else -> null
                     },
                     onDelete = { ctx -> PricingCache.deleteTier(ctx, s.name) },

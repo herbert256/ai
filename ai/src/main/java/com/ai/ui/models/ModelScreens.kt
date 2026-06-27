@@ -497,6 +497,11 @@ fun ModelInfoScreen(
                         PricingCache.getRequestyRawEntry(context, provider, modelName)
                     }
                 }
+                val llmStatsRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getLlmStatsRawEntry(context, provider, modelName)
+                    }
+                }
                 val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
                     value = withContext(Dispatchers.IO) {
                         PricingCache.getTierBreakdown(context, provider, modelName)
@@ -682,6 +687,7 @@ fun ModelInfoScreen(
                         val hasLLMPrices = llmPricesRaw != null
                         val hasAa = aaRaw != null
                         val hasRequesty = requestyRaw != null
+                        val hasLlmStats = llmStatsRaw != null
                         // Two rows of buttons in their own card — first the
                         // four catalog sources, then the three additional
                         // pricing tiers (Helicone / llm-prices.com / AA).
@@ -791,6 +797,18 @@ fun ModelInfoScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasRequesty) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("Requesty", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "llm-stats · $modelName", body = llmStatsRaw ?: "(no llm-stats data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_llm_stats"],
+                                                calledUrl = "https://api.llm-stats.com/stats/v1/models"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLlmStats) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("llm-stats", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedButton(
@@ -806,7 +824,8 @@ fun ModelInfoScreen(
                                             "Helicone" to heliconeRaw,
                                             "llm-prices.com" to llmPricesRaw,
                                             "Artificial Analysis" to aaRaw,
-                                            "Requesty" to requestyRaw
+                                            "Requesty" to requestyRaw,
+                                            "llm-stats" to llmStatsRaw
                                         )
                                         val body = sections.joinToString("\n\n") { (label, raw) ->
                                             "=== $label ===\n${raw ?: "(no $label data)"}"
@@ -832,6 +851,7 @@ fun ModelInfoScreen(
                             tierBreakdown?.helicone?.let { "Helicone" to it },
                             tierBreakdown?.llmPrices?.let { "llm-prices.com" to it },
                             tierBreakdown?.artificialAnalysis?.let { "Artificial Analysis" to it },
+                            tierBreakdown?.llmStats?.let { "llm-stats" to it },
                             tierBreakdown?.openrouter?.let { "OpenRouter" to it },
                             tierBreakdown?.requesty?.let { "Requesty" to it },
                             tierBreakdown?.override?.let { "Override" to it }

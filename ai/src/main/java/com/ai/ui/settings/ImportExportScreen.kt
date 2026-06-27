@@ -823,6 +823,7 @@ fun ImportExportScreen(
     huggingFaceApiKey: String,
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
+    llmStatsApiKey: String,
     onSave: (Settings) -> Unit,
     onSaveGeneral: (GeneralSettings) -> Unit,
     onBack: () -> Unit,
@@ -920,7 +921,7 @@ fun ImportExportScreen(
     // SAF-picked filesystem location.
 
     fun exportKeys() {
-        val json = buildApiKeysJson(aiSettings, huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey)
+        val json = buildApiKeysJson(aiSettings, huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey, llmStatsApiKey)
         // Count is just the populated key count — re-derive from the
         // payload to keep the toast in step with the helper's logic.
         val count = JsonParser.parseString(json).asJsonObject.size()
@@ -1202,7 +1203,8 @@ fun ImportExportScreen(
                     val updatedGs = generalSettings.copy(
                         huggingFaceApiKey = result.huggingFaceApiKey ?: generalSettings.huggingFaceApiKey,
                         openRouterApiKey = result.openRouterApiKey ?: generalSettings.openRouterApiKey,
-                        artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: generalSettings.artificialAnalysisApiKey
+                        artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: generalSettings.artificialAnalysisApiKey,
+                        llmStatsApiKey = result.llmStatsApiKey ?: generalSettings.llmStatsApiKey
                     )
                     if (updatedGs != generalSettings) onSaveGeneral(updatedGs)
                     onSave(result.settings)
@@ -1538,7 +1540,8 @@ fun ImportExportScreen(
                                 workingGs = workingGs.copy(
                                     huggingFaceApiKey = res.huggingFaceApiKey ?: workingGs.huggingFaceApiKey,
                                     openRouterApiKey = res.openRouterApiKey ?: workingGs.openRouterApiKey,
-                                    artificialAnalysisApiKey = res.artificialAnalysisApiKey ?: workingGs.artificialAnalysisApiKey
+                                    artificialAnalysisApiKey = res.artificialAnalysisApiKey ?: workingGs.artificialAnalysisApiKey,
+                                    llmStatsApiKey = res.llmStatsApiKey ?: workingGs.llmStatsApiKey
                                 )
                                 working = res.settings
                                 parts.add("${res.imported} keys")

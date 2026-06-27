@@ -81,4 +81,14 @@ internal val infoProviderHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Ids are `<vendor>/<model>` (OpenRouter-style), matched via the same prefix-bucket logic. Prices are already per-token (no \$/M conversion). Some upstream-specific routing tags (`:free`, `@region`) only resolve through the loose bare-match fallback."),
         )
     ),
+    "info_provider_llm_stats" to HelpContent(
+        title = "Help - llm-stats (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "llm-stats.com (by ZeroEval) is an independent catalog + benchmark aggregator. It publishes per-model metadata, per-provider pricing, and category benchmark scores. We use the pricing as a curated tier and keep the benchmark scores + modalities for the Model Info raw view."),
+            HelpCard("What we use it for", "Pricing tier right after Artificial Analysis in the layered lookup. Each model lists several providers, each with its own \$/M price — we collapse that to one representative rate (the model maker's own price when present, else the cheapest). Its `modalities` also feed the vision capability flag."),
+            HelpCard("Endpoint", "`https://api.llm-stats.com/stats/v1/models` — Bearer key, paginated via `next_cursor`. Refreshed on demand from Refresh → llm-stats (disabled until the key is set)."),
+            HelpCard("Freshness", "Independently measured / aggregated. A bundled snapshot ships with the app so the tier works before the first refresh."),
+            HelpCard("Pitfalls", "The key needs Stats-API onboarding — until you complete the request at llm-stats.com/developer it returns `403 stats_api_access_denied` and the tier stays empty. `top_scores` mixes benchmark scales upstream, so it's shown raw and never collapsed into a single quality index. Not every model carries pricing (catalog-only entries)."),
+        )
+    ),
 )

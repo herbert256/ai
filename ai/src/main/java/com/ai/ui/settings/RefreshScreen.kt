@@ -39,6 +39,7 @@ fun RefreshScreen(
     aiSettings: Settings,
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
+    llmStatsApiKey: String,
     onSave: (Settings) -> Unit,
     refreshAllState: RefreshAllState?,
     onStartRefreshAll: () -> Unit,
@@ -76,6 +77,7 @@ fun RefreshScreen(
     var llmPricesResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var aaResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var requestyResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var llmStatsResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var showOpenRouterDialog by rememberSaveable { mutableStateOf(false) }
     var showLiteLLMDialog by rememberSaveable { mutableStateOf(false) }
     var showModelsDevDialog by rememberSaveable { mutableStateOf(false) }
@@ -83,6 +85,7 @@ fun RefreshScreen(
     var showLLMPricesDialog by rememberSaveable { mutableStateOf(false) }
     var showAaDialog by rememberSaveable { mutableStateOf(false) }
     var showRequestyDialog by rememberSaveable { mutableStateOf(false) }
+    var showLlmStatsDialog by rememberSaveable { mutableStateOf(false) }
 
     fun launchTask(title: String, initialText: String = "", block: suspend () -> Unit) {
         runningTask?.cancel()
@@ -356,6 +359,33 @@ fun RefreshScreen(
         return
     }
 
+    if (showLlmStatsDialog) {
+        val n = llmStatsResult
+        val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("llmstats") else null
+        val description = when {
+            ok -> "Pulled llm-stats (per-provider pricing collapsed to a representative rate + benchmark scores). Curated tier right after Artificial Analysis."
+            llmStatsApiKey.isBlank() -> "Add the llm-stats API key under External Services first."
+            kept != null -> "Failed to fetch from api.llm-stats.com/stats/v1/models. The previously fetched catalog is still in use — see the rows below."
+            else -> "Failed to fetch from api.llm-stats.com/stats/v1/models. If the key is set, complete the Stats-API onboarding at llm-stats.com/developer (the key returns 403 until then)."
+        }
+        RefreshResultScreen(
+            titleText = "llm-stats",
+            description = description,
+            rows = listOfNotNull(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
+                ),
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
+                kept
+            ),
+            onBack = { showLlmStatsDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     // Each per-catalog refresh's core work lives in a suspend lambda
     // that captures the surrounding state. The Boolean parameter controls
     // whether the per-step result dialog opens at the end.
@@ -413,6 +443,14 @@ fun RefreshScreen(
         if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
         if (showDialogAtEnd) showRequestyDialog = true
     }
+    val runLlmStats: suspend (Boolean) -> Unit = { showDialogAtEnd ->
+        progressText = "Downloading api.llm-stats.com/stats/v1/models"
+        val n = PricingCache.fetchLlmStatsOnline(context, llmStatsApiKey)
+        llmStatsResult = n
+        // llm-stats modalities feed the vision capability flag.
+        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (showDialogAtEnd) showLlmStatsDialog = true
+    }
 
     // AI Info Providers sub-page lives as a full-screen overlay reached
     // via a NavCard on the main Refresh screen. Same early-return idiom
@@ -423,6 +461,7 @@ fun RefreshScreen(
             isAnyRunning = isAnyRunning,
             openRouterApiKey = openRouterApiKey,
             artificialAnalysisApiKey = artificialAnalysisApiKey,
+            llmStatsApiKey = llmStatsApiKey,
             onOpenRouter = { launchTask("Refreshing OpenRouter") { runOpenRouter(true) } },
             onLiteLLM = { launchTask("Refreshing LiteLLM") { runLiteLLM(true) } },
             onModelsDev = { launchTask("Refreshing models.dev") { runModelsDev(true) } },
@@ -430,6 +469,7 @@ fun RefreshScreen(
             onLLMPrices = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } },
             onArtificialAnalysis = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } },
             onRequesty = { launchTask("Refreshing Requesty") { runRequesty(true) } },
+            onLlmStats = { launchTask("Refreshing llm-stats") { runLlmStats(true) } },
             onNavigateToHelpTopic = onNavigateToHelpTopic,
             // Deep-linked entry has no 3-card parent to fall back to, so Back
             // pops the route (returns to Manage data); normal entry just closes
@@ -482,7 +522,7 @@ fun RefreshScreen(
             // sources with their own progress rows.
             RefreshAction(
                 label = "Info providers",
-                description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty).",
+                description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty).",
                 enabled = !isAnyRunning,
                 onClick = { subPage = RefreshSubPage.INFO_PROVIDERS }
             )
@@ -498,6 +538,7 @@ private fun InfoProvidersRefreshPage(
     isAnyRunning: Boolean,
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
+    llmStatsApiKey: String,
     onOpenRouter: () -> Unit,
     onLiteLLM: () -> Unit,
     onModelsDev: () -> Unit,
@@ -505,13 +546,14 @@ private fun InfoProvidersRefreshPage(
     onLLMPrices: () -> Unit,
     onArtificialAnalysis: () -> Unit,
     onRequesty: () -> Unit,
+    onLlmStats: () -> Unit,
     onNavigateToHelpTopic: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Seven pricing & capability catalogs", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Eight pricing & capability catalogs", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             RefreshAction(
                 label = "OpenRouter",
@@ -567,6 +609,14 @@ private fun InfoProvidersRefreshPage(
                 enabled = !isAnyRunning,
                 onClick = onRequesty,
                 helpTopic = "info_provider_requesty",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "llm-stats",
+                description = "Pull llm-stats (api.llm-stats.com) — per-provider pricing + benchmark scores. Needs the API key under External Services (and Stats-API onboarding).",
+                enabled = !isAnyRunning && llmStatsApiKey.isNotBlank(),
+                onClick = onLlmStats,
+                helpTopic = "info_provider_llm_stats",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
             )
         }

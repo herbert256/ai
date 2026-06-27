@@ -71,7 +71,7 @@ fun CostsMaintenanceScreen(
         val header = "provider,model,new_input_per_million,new_output_per_million," +
             "litellm_in,litellm_out,modelsdev_in,modelsdev_out," +
             "helicone_in,helicone_out,llmprices_in,llmprices_out," +
-            "aa_in,aa_out," +
+            "aa_in,aa_out,llmstats_in,llmstats_out," +
             "override_in,override_out,openrouter_in,openrouter_out," +
             "requesty_in,requesty_out," +
             "default_in,default_out"
@@ -82,7 +82,7 @@ fun CostsMaintenanceScreen(
         var kept = 0
         rows.forEach { (provider, model) ->
             val b = PricingCache.getTierBreakdown(context, provider, model)
-            if (filterCovered && (b.litellm != null || b.modelsDev != null || b.helicone != null || b.llmPrices != null || b.artificialAnalysis != null || b.openrouter != null || b.requesty != null)) return@forEach
+            if (filterCovered && (b.litellm != null || b.modelsDev != null || b.helicone != null || b.llmPrices != null || b.artificialAnalysis != null || b.llmStats != null || b.openrouter != null || b.requesty != null)) return@forEach
             kept++
             lines.add(
                 listOf(
@@ -92,6 +92,7 @@ fun CostsMaintenanceScreen(
                     fmt(b.helicone?.promptPrice), fmt(b.helicone?.completionPrice),
                     fmt(b.llmPrices?.promptPrice), fmt(b.llmPrices?.completionPrice),
                     fmt(b.artificialAnalysis?.promptPrice), fmt(b.artificialAnalysis?.completionPrice),
+                    fmt(b.llmStats?.promptPrice), fmt(b.llmStats?.completionPrice),
                     fmt(b.override?.promptPrice), fmt(b.override?.completionPrice),
                     fmt(b.openrouter?.promptPrice), fmt(b.openrouter?.completionPrice),
                     fmt(b.requesty?.promptPrice), fmt(b.requesty?.completionPrice),

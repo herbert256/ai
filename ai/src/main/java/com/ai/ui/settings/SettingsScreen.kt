@@ -100,6 +100,7 @@ fun SettingsScreen(
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onSaveArtificialAnalysisApiKey: (String) -> Unit = {},
+    onSaveLlmStatsApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
     onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
@@ -350,10 +351,12 @@ fun SettingsScreen(
                 aiSettings = aiSettings,
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
                 aaApiKey = generalSettings.artificialAnalysisApiKey,
+                llmStatsApiKey = generalSettings.llmStatsApiKey,
                 onBackToSettings = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }, onSave = onSaveAi,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
                 onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
+                onSaveLlmStatsApiKey = onSaveLlmStatsApiKey,
                 onNavigateToCostConfig = onNavigateToCostConfig
             )
         }
@@ -749,8 +752,10 @@ fun SettingsScreen(
             ExternalServicesScreen(
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
+                llmStatsApiKey = generalSettings.llmStatsApiKey,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
                 onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
+                onSaveLlmStatsApiKey = onSaveLlmStatsApiKey,
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onNavigateToHelpTopic = onNavigateToHelpTopic
             )
@@ -784,6 +789,7 @@ fun SettingsScreen(
                 generalSettings = generalSettings,
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
+                llmStatsApiKey = generalSettings.llmStatsApiKey,
                 onSave = onSaveAi,
                 onSaveGeneral = onSaveGeneral,
                 onBack = goBack, onNavigateHome = onNavigateHome,
@@ -798,6 +804,7 @@ fun SettingsScreen(
                 aiSettings = aiSettings,
                 openRouterApiKey = generalSettings.openRouterApiKey,
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
+                llmStatsApiKey = generalSettings.llmStatsApiKey,
                 onSave = onSaveAi,
                 refreshAllState = refreshAllState,
                 onStartRefreshAll = onStartRefreshAll,

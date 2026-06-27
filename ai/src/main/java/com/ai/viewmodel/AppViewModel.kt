@@ -1131,7 +1131,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     snap.aiSettings,
                     snap.generalSettings.huggingFaceApiKey,
                     snap.generalSettings.openRouterApiKey,
-                    snap.generalSettings.artificialAnalysisApiKey
+                    snap.generalSettings.artificialAnalysisApiKey,
+                    snap.generalSettings.llmStatsApiKey
                 )
                 tempFile.writeText(keysJson)
 
@@ -1182,6 +1183,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     result.huggingFaceApiKey?.let { gs = gs.copy(huggingFaceApiKey = it) }
                     result.openRouterApiKey?.let { gs = gs.copy(openRouterApiKey = it) }
                     result.artificialAnalysisApiKey?.let { gs = gs.copy(artificialAnalysisApiKey = it) }
+                    result.llmStatsApiKey?.let { gs = gs.copy(llmStatsApiKey = it) }
                     if (gs != _uiState.value.generalSettings) updateGeneralSettings(gs)
                     updateSettings(result.settings)
                     result.imported
@@ -1589,6 +1591,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { refreshAaPricingCacheAwait() }
     }
 
+    /** Re-fetch the llm-stats pricing tier — backs the 🔄 on the
+     *  Caches → Pricing tiers "llm-stats" row. */
+    suspend fun refreshLlmStatsPricingCacheAwait() {
+        val key = _uiState.value.generalSettings.llmStatsApiKey
+        withContext(Dispatchers.IO) {
+            PricingCache.fetchLlmStatsOnline(getApplication(), key)
+        }
+    }
+
     suspend fun refreshAaPricingCacheAwait() {
         val key = _uiState.value.generalSettings.artificialAnalysisApiKey
         withContext(Dispatchers.IO) {
@@ -1703,8 +1714,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val gs0 = _uiState.value.generalSettings
         val openRouterKey = gs0.openRouterApiKey
         val aaKey = gs0.artificialAnalysisApiKey
+        val llmStatsKey = gs0.llmStatsApiKey
         val openRouterEnabled = openRouterKey.isNotBlank()
         val aaEnabled = aaKey.isNotBlank()
+        val llmStatsEnabled = llmStatsKey.isNotBlank()
 
         val catalogSteps = listOf(
             CatalogStep("openrouter", "OpenRouter", if (openRouterEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped),
@@ -1713,6 +1726,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             CatalogStep("helicone", "Helicone"),
             CatalogStep("llmprices", "llm-prices.com"),
             CatalogStep("aa", "Artificial Analysis", if (aaEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped),
+            CatalogStep("llmstats", "llm-stats", if (llmStatsEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped),
             CatalogStep("requesty", "Requesty")
         )
         // Snapshot the testable provider set up-front. The clean-slate
@@ -1754,7 +1768,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                 // ---- Run catalogs + workers in parallel.
                 coroutineScope {
-                    val catJob = launch { runCatalogPhase(app, openRouterKey, aaKey, openRouterEnabled, aaEnabled) }
+                    val catJob = launch { runCatalogPhase(app, openRouterKey, aaKey, llmStatsKey, openRouterEnabled, aaEnabled, llmStatsEnabled) }
                     val wrkJob = launch { runWorkerPhase(testable) }
                     catJob.join(); wrkJob.join()
                 }
@@ -1839,8 +1853,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         app: Application,
         openRouterKey: String,
         aaKey: String,
+        llmStatsKey: String,
         openRouterEnabled: Boolean,
-        aaEnabled: Boolean
+        aaEnabled: Boolean,
+        llmStatsEnabled: Boolean
     ) {
         // Snapshot every tier's previous cache state BEFORE any fetch
         // starts — so the "kept previous N from Xago" detail on a failed
@@ -1929,6 +1945,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     else setCatalogStep("requesty", RefreshStepStatus.Failed("no entries · $prev"))
                 } catch (e: Exception) {
                     setCatalogStep("requesty", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            if (llmStatsEnabled) jobs += async(Dispatchers.IO) {
+                setCatalogStep("llmstats", RefreshStepStatus.Running())
+                val prev = previousDetail("llmstats")
+                try {
+                    val n = PricingCache.fetchLlmStatsOnline(app, llmStatsKey)
+                    if (n != null && n > 0) setCatalogStep("llmstats", RefreshStepStatus.Done("$n priced"))
+                    else setCatalogStep("llmstats", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("llmstats", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
             }
             jobs.awaitAll()

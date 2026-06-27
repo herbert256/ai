@@ -346,3 +346,72 @@ internal fun parseRequestyJson(json: String): Pair<Map<String, PricingCache.Mode
     }
     return pricing to meta
 }
+
+/** Parse one page of llm-stats `/stats/v1/models`
+ *  (`{"models":[…],"next_cursor":…,"total":…}`). Returns the page's
+ *  pricing + meta plus the `next_cursor` (null when exhausted) so the
+ *  caller can paginate.
+ *
+ *  Pricing is **per-provider** (`providers[].input_price_per_m` /
+ *  `output_price_per_m`, in $/M tokens). We collapse to one
+ *  representative price: the provider matching the model's own
+ *  organization (first-party) when present, else the cheapest by input
+ *  rate. Composite key `<org>/<modelId>` (creator-slug style, like AA).
+ *  `top_scores` is stored raw — its scales are heterogeneous upstream,
+ *  so it is NOT turned into a single quality index. */
+internal fun parseLlmStatsJson(
+    json: String
+): Triple<Map<String, PricingCache.ModelPricing>, Map<String, PricingCache.LlmStatsMeta>, String?> {
+    @Suppress("DEPRECATION")
+    val root = JsonParser().parse(json)
+    val empty = Triple(emptyMap<String, PricingCache.ModelPricing>(), emptyMap<String, PricingCache.LlmStatsMeta>(), null)
+    if (!root.isJsonObject) return empty
+    val obj = root.asJsonObject
+    val arr = obj.get("models")?.takeIf { it.isJsonArray }?.asJsonArray ?: return empty
+    val nextCursor = obj.get("next_cursor")?.takeIf { it.isJsonPrimitive }?.asString
+    val pricing = mutableMapOf<String, PricingCache.ModelPricing>()
+    val meta = mutableMapOf<String, PricingCache.LlmStatsMeta>()
+    for (el in arr) {
+        if (!el.isJsonObject) continue
+        val m = el.asJsonObject
+        val id = m.get("id")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+        val orgObj = m.get("organization")?.takeIf { it.isJsonObject }?.asJsonObject
+        val orgId = orgObj?.get("id")?.takeIf { it.isJsonPrimitive }?.asString
+        val orgName = orgObj?.get("name")?.takeIf { it.isJsonPrimitive }?.asString
+        val composite = if (!orgId.isNullOrBlank()) "${orgId.lowercase()}/$id" else id
+
+        // Collapse the providers[] array to one representative price:
+        // first-party (provider_id == org id) wins, else the cheapest.
+        val provs = m.get("providers")?.takeIf { it.isJsonArray }?.asJsonArray
+        data class Quote(val pid: String?, val inp: Double, val out: Double)
+        val quotes = provs?.mapNotNull { pe ->
+            if (!pe.isJsonObject) return@mapNotNull null
+            val po = pe.asJsonObject
+            val ip = po.get("input_price_per_m").numOrNull()
+            val op = po.get("output_price_per_m").numOrNull()
+            if (ip == null || op == null) null
+            else Quote(po.get("provider_id")?.takeIf { it.isJsonPrimitive }?.asString, ip, op)
+        }.orEmpty()
+        val chosen = quotes.firstOrNull { orgId != null && it.pid.equals(orgId, ignoreCase = true) }
+            ?: quotes.minByOrNull { it.inp }
+        if (chosen != null) {
+            pricing[composite] = PricingCache.ModelPricing(
+                modelId = id,
+                promptPrice = chosen.inp / 1_000_000.0,
+                completionPrice = chosen.out / 1_000_000.0,
+                source = "LLMSTATS"
+            )
+        }
+
+        val modalities = m.get("modalities")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.mapNotNull { if (it.isJsonPrimitive) it.asString else null }?.takeIf { it.isNotEmpty() }
+        val supportsVision = modalities?.any { it.equals("image", ignoreCase = true) }
+        val scores = m.get("top_scores")?.takeIf { it.isJsonObject }?.asJsonObject?.let { so ->
+            so.entrySet().mapNotNull { (k, v) -> v.numOrNull()?.let { k to it } }.toMap().takeIf { it.isNotEmpty() }
+        }
+        if (supportsVision != null || modalities != null || orgName != null || scores != null) {
+            meta[composite] = PricingCache.LlmStatsMeta(supportsVision, modalities, orgName, scores)
+        }
+    }
+    return Triple(pricing, meta, nextCursor)
+}

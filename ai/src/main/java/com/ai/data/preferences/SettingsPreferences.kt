@@ -101,6 +101,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
             openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
             artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
+            llmStatsApiKey = prefs.getString(KEY_LLMSTATS_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
             loggingMasterEnabled = prefs.getBoolean(KEY_LOGGING_MASTER_ENABLED, true),
@@ -191,6 +192,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
             putString(KEY_OPENROUTER_API_KEY, settings.openRouterApiKey)
             putString(KEY_AA_API_KEY, settings.artificialAnalysisApiKey)
+            putString(KEY_LLMSTATS_API_KEY, settings.llmStatsApiKey)
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
             putBoolean(KEY_LOGGING_MASTER_ENABLED, settings.loggingMasterEnabled)
@@ -1074,6 +1076,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_HUGGINGFACE_API_KEY = "huggingface_api_key"
         private const val KEY_OPENROUTER_API_KEY = "openrouter_api_key"
         private const val KEY_AA_API_KEY = "artificial_analysis_api_key"
+        private const val KEY_LLMSTATS_API_KEY = "llmstats_api_key"
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_TRACING_ENABLED = "tracing_enabled"

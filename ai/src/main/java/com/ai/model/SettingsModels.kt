@@ -499,6 +499,7 @@ data class Settings(
         com.ai.data.PricingCache.liteLLMSupportsVision(service, modelId)?.let { return it }
         com.ai.data.PricingCache.modelsDevSupportsVision(service, modelId)?.let { return it }
         com.ai.data.PricingCache.requestySupportsVision(service, modelId)?.let { return it }
+        com.ai.data.PricingCache.llmStatsSupportsVision(service, modelId)?.let { return it }
         return com.ai.data.ModelType.inferVision(modelId)
     }
 
