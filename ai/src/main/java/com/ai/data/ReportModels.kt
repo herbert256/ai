@@ -273,6 +273,12 @@ data class ReportWorkerConfig(
      *  (MetaRunScreen / FanOutConfirmScreen); when false (default) the launch
      *  runs with the prompt + engine defaults and skips it. */
     val secondResultRuntimeParams: Boolean = false,
+    /** "Use report models" switch on the Workers screen. When true the
+     *  Model info / Batches / Meta cards are hidden and forced to this
+     *  report's own answer models: [modelInfo] = OWN_MODEL, [batches] =
+     *  REPORT_MODELS with [workerSelection] = ROUND_ROBIN, [metaBatches] =
+     *  REPORT_MODELS. Default false (each card configured independently). */
+    val useReportModels: Boolean = false,
 ) {
     /** Defaults any null sub-field read from a file written by hand or a
      *  truncated write (Gson's UnsafeAllocator bypasses constructor
@@ -290,6 +296,7 @@ data class ReportWorkerConfig(
         metaWorkerSelection = (metaWorkerSelection as WorkerSelectionMode?) ?: WorkerSelectionMode.WHEN_AVAILABLE,
         secondResultSelectScope = (secondResultSelectScope as Boolean?) ?: false,
         secondResultRuntimeParams = (secondResultRuntimeParams as Boolean?) ?: false,
+        useReportModels = (useReportModels as Boolean?) ?: false,
     )
 }
 

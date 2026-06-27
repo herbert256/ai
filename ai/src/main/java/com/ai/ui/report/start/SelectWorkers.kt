@@ -342,6 +342,39 @@ private fun ReportWorkersScreen(
         }
         Spacer(Modifier.height(12.dp))
 
+        // ── Switch: Use report models ──────────────────────────────────
+        // Shortcut that routes the remaining worker jobs to this report's
+        // own answer models and hides the three cards below. On → modelInfo
+        // = OWN_MODEL, batches = REPORT_MODELS + ROUND_ROBIN, metaBatches =
+        // REPORT_MODELS. Off (default) → each card configured on its own.
+        Card(
+            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                ToggleRow(
+                    label = "Use report models",
+                    sublabel = "Model info → Own model · Batches → Report models & Round robin · Meta → Report models.",
+                    checked = config.useReportModels,
+                    onCheckedChange = { on ->
+                        onConfigChange(
+                            if (on) config.copy(
+                                useReportModels = true,
+                                modelInfo = ModelInfoMode.OWN_MODEL,
+                                batches = BatchWorkerMode.REPORT_MODELS,
+                                workerSelection = WorkerSelectionMode.ROUND_ROBIN,
+                                metaBatches = BatchWorkerMode.REPORT_MODELS
+                            ) else config.copy(useReportModels = false)
+                        )
+                    }
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        // The three cards below are hidden while "Use report models" is on —
+        // their values are forced by the switch above.
+        if (!config.useReportModels) {
         // ── Card: Model info ───────────────────────────────────────────
         CollapsibleCard(
             icon = mi.reportModelIcon,
@@ -414,6 +447,7 @@ private fun ReportWorkersScreen(
             )
         }
         Spacer(Modifier.height(16.dp))
+        } // end if (!config.useReportModels)
     }
 }
 

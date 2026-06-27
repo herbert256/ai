@@ -214,9 +214,9 @@ internal val ReportWorkerConfigSaver: Saver<ReportWorkerConfig, Any> = listSaver
             cfg.metaBatches.name, cfg.metaWorkerSelection.name,
             cfg.reportInfoWorkers.size.toString(), cfg.batchWorkers.size.toString(), cfg.metaBatchWorkers.size.toString()
         ) + flat(cfg.reportInfoWorkers) + flat(cfg.batchWorkers) + flat(cfg.metaBatchWorkers) +
-            // Two "Second result options" flags ride at the tail so the
-            // worker-row offsets above stay fixed.
-            listOf(cfg.secondResultSelectScope.toString(), cfg.secondResultRuntimeParams.toString())
+            // The trailing flags ride at the tail so the worker-row offsets
+            // above stay fixed.
+            listOf(cfg.secondResultSelectScope.toString(), cfg.secondResultRuntimeParams.toString(), cfg.useReportModels.toString())
     },
     restore = { saved ->
         fun enumOr(name: String, fallback: String) = name.ifBlank { fallback }
@@ -241,7 +241,8 @@ internal val ReportWorkerConfigSaver: Saver<ReportWorkerConfig, Any> = listSaver
             batchWorkers = workersAt(9 + infoCount * 5, batchCount),
             metaBatchWorkers = workersAt(9 + infoCount * 5 + batchCount * 5, metaCount),
             secondResultSelectScope = saved.getOrNull(9 + (infoCount + batchCount + metaCount) * 5)?.toBoolean() ?: false,
-            secondResultRuntimeParams = saved.getOrNull(10 + (infoCount + batchCount + metaCount) * 5)?.toBoolean() ?: false
+            secondResultRuntimeParams = saved.getOrNull(10 + (infoCount + batchCount + metaCount) * 5)?.toBoolean() ?: false,
+            useReportModels = saved.getOrNull(11 + (infoCount + batchCount + metaCount) * 5)?.toBoolean() ?: false
         )
     }
 )
