@@ -634,14 +634,16 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
         "info_provider_models_dev" to "Community catalog (LiteLLM fallback)",
         "info_provider_helicone" to "Pricing-only side product",
         "info_provider_llm_prices" to "Simon Willison's curated 10-vendor table",
-        "info_provider_artificial_analysis" to "Independent benchmarker (key required)"
+        "info_provider_artificial_analysis" to "Independent benchmarker (key required)",
+        "info_provider_llm_stats" to "Pricing + benchmark scores (key required)",
+        "info_provider_requesty" to "Cross-provider router catalog (keyless)"
     )
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text("Info providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "Third-party services the app reads model metadata + pricing from. Same seven that appear on Model Info → Sources. Tap a row for the details.",
+                "Third-party services the app reads model metadata + pricing from. The same set that appears on Model Info → Sources. Tap a row for the details.",
                 fontSize = 12.sp, color = AppColors.TextSecondary, lineHeight = 16.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -664,7 +666,7 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
     }
 }
 
-/** One row in the seven-strong directory of third-party "info
+/** One row in the directory of third-party "info
  *  providers" the app fetches model + pricing data from. The same
  *  set is surfaced as the Sources card on Model Info; this table is
  *  the single source of truth that the home Help directory, the
