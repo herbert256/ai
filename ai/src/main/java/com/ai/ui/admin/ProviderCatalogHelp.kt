@@ -411,9 +411,9 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Hyperbolic Labs — open-weight model serving plus image / audio APIs, founded 2023. Hosts DeepSeek, Llama, Qwen, Mistral, plus vision and TTS models. Compute is sourced from a mix of in-house and partner GPU capacity."),
             HelpCard("Setup", "app.hyperbolic.xyz/settings → API keys. Free credit allowance; pay-as-you-go after."),
-            HelpCard("Models", "Default: `deepseek-ai/DeepSeek-V3`. `defaultModelSource=API` so picker auto-refreshes. Catalog includes chat, image, audio, vision-language models."),
+            HelpCard("Models", "Default: `deepseek-ai/DeepSeek-V3-0324`. `defaultModelSource=API` so picker auto-refreshes. The serverless LLM list is small (~5: DeepSeek V3-0324 / R1 / R1-0528, Llama-3.3-70B, Qwen3-Coder-480B)."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Slash-prefixed ids. No `litellmPrefix` / `openRouterName` — pricing falls through to OpenRouter cross-provider fallback."),
-            HelpCard("Pitfalls", "Image / audio models live in the catalog but don't fit the chat dispatch path — only chat models work end-to-end here. Some preview models gate behind tier upgrades."),
+            HelpCard("Pitfalls", "Image / audio models live in the catalog but don't fit the chat dispatch path — only chat models work end-to-end here. Big models cold-start slowly, and the inference endpoint has been seen to return HTTP 500 (\"Internal Error, please report to us\") or hang even on a funded account while /v1/models and billing respond fine — a provider-side issue, retry or contact Hyperbolic."),
         )
     ),
     "provider_novitaai" to HelpContent(

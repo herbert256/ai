@@ -2,7 +2,7 @@
   "adminUrl": "https://app.hyperbolic.xyz/settings",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.hyperbolic.xyz/",
-  "defaultModel": "deepseek-ai/DeepSeek-V3",
+  "defaultModel": "deepseek-ai/DeepSeek-V3-0324",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Hyperbolic",

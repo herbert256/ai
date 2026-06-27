@@ -136,7 +136,7 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **Writer** | `https://api.writer.com/` | `https://app.writer.com/` | `palmyra-x-004` | 2 hardcoded models |
 | **CloudflareWorkersAI** | `https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/` | `https://dash.cloudflare.com/` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | `defaultModelSource=API` — replace `YOUR_ACCOUNT_ID` in the base URL |
 | **DeepInfra** | `https://api.deepinfra.com/v1/openai/` | `https://deepinfra.com/dash/api_keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `typePaths.chat=chat/completions` + `typePaths.embedding=embeddings`, `modelsPath=models`, `defaultModelSource=API` |
-| **Hyperbolic** | `https://api.hyperbolic.xyz/` | `https://app.hyperbolic.xyz/settings` | `deepseek-ai/DeepSeek-V3` | `defaultModelSource=API` |
+| **Hyperbolic** | `https://api.hyperbolic.xyz/` | `https://app.hyperbolic.xyz/settings` | `deepseek-ai/DeepSeek-V3-0324` | `defaultModelSource=API`. Small serverless LLM catalog (~5 models); large models cold-start slowly |
 | **Novita.ai** | `https://api.novita.ai/v3/openai/` | `https://novita.ai/settings/key-management` | `zai-org/glm-5.2` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API`. Self-hosts Z.AI's open-weight GLM-5.2 |
 | **Featherless.ai** | `https://api.featherless.ai/` | `https://featherless.ai/account/api-keys` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | `defaultModelSource=API` |
 | **LiquidAI** | `https://inference-1.liquid.ai/` | `https://platform.liquid.ai/` | `lfm-7b` | `defaultModelSource=API` |
