@@ -222,7 +222,7 @@ extend the `abstract class BatchEngine`; the managers
 ### A new OpenAI-compatible provider
 
 1. Add **one new JSON file** under `assets/providers/` — the bundled
-   catalog is now one file per provider (43 files), each a bare
+   catalog is now one file per provider (47 files), each a bare
    `ProviderDefinition` object (**no** `{"providers": [...]}` wrapper).
    Required: `id`, `baseUrl`, `adminUrl`, `defaultModel`. Optional:
    `apiFormat` (defaults to `OPENAI_COMPATIBLE`), `openRouterName`,
@@ -271,9 +271,9 @@ which only touches fields the user has *not* edited (gated by
 
 ### A non-OpenAI-compatible provider
 
-`ApiFormat` has exactly three values: `OPENAI_COMPATIBLE` (41 of the
-43 bundled providers), `ANTHROPIC` (just `Anthropic`), and `GOOGLE`
-(just `Google`). All 41 OpenAI-compatible providers share one set
+`ApiFormat` has exactly three values: `OPENAI_COMPATIBLE` (45 of the
+47 bundled providers), `ANTHROPIC` (just `Anthropic`), and `GOOGLE`
+(just `Google`). All 45 OpenAI-compatible providers share one set
 of code paths; only Anthropic and Google have format-specific
 branches. To add a genuinely different format:
 
@@ -652,7 +652,7 @@ unit tests verify code correctness, not feature correctness here.
 - **No single bundled catalog file.** The bundled assets are now split
   into per-item directories, each read by its own `*Seed` object:
   the provider catalog is `assets/providers/` (one bare
-  `ProviderDefinition` JSON per provider, 43 files); System Prompts
+  `ProviderDefinition` JSON per provider, 47 files); System Prompts
   are `assets/prompts/system/` (`SystemPromptSeed`); Example Prompts
   are `assets/prompts/examples/` (`ExamplePromptSeed`); Internal
   Prompts are `assets/internal-prompts/<Language>/<category>/`

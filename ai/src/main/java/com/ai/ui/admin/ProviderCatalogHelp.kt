@@ -4,7 +4,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
     "providers" to HelpContent(
         title = "Help - Providers",
         cards = listOf(
-            HelpCard("Overview", "List of every registered provider (43 bundled plus any user-added). The state of each row is shown by an emoji."),
+            HelpCard("Overview", "List of every registered provider (47 bundled plus any user-added). The state of each row is shown by an emoji."),
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
             HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
             HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
@@ -134,6 +134,46 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default in the app: `anthropic/claude-opus-4-8`. Catalog spans every routed provider — model ids are slash-prefixed. Note Anthropic ids use **dashes** for the version (`anthropic/claude-opus-4-8`, `anthropic/claude-sonnet-4-6`), while Google uses dots (`google/gemini-2.5-pro`, `google/gemini-3.5-flash`) and DeepSeek too (`deepseek/deepseek-v3.2`). `defaultModelSource=API` reads the live `v1/openai/models` list (200+ ids); `mergeHardcodedModels=true` keeps a small bundled Claude/Gemini/DeepSeek fallback visible before the first fetch. (The account's catalog may expose no `openai/*` ids — OpenAI models depend on Merge enabling them.)"),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. No `litellmPrefix` / `openRouterName` set — but the slash-prefixed ids match the OpenRouter cross-provider catalog directly, so pricing usually resolves through that fallback (else DEFAULT). Gateway margin/routing can shift the effective upstream provider per call."),
             HelpCard("Pitfalls", "The slash-prefixed id is mandatory, exactly like OpenRouter — a bare id may 404. Which physical provider serves a request depends on Merge's routing/fallback policy, so latency and the exact upstream can vary call to call. Catalog ids change as Merge adds/retires models; Refresh the model list if the default looks stale."),
+        )
+    ),
+    "provider_vercelaigateway" to HelpContent(
+        title = "Help - Vercel AI Gateway",
+        cards = listOf(
+            HelpCard("Overview", "Vercel AI Gateway — an OpenRouter-style cross-provider gateway. One key reaches ~300 models across OpenAI, Anthropic, Google, xAI, DeepSeek, etc. Vercel advertises **zero markup** (provider list prices) plus a small monthly free credit."),
+            HelpCard("Setup", "Create a key in the Vercel dashboard → AI Gateway → API keys (the 🛠️ admin icon opens it). Works with any OpenAI client by just changing the base URL; auth is `Authorization: Bearer`."),
+            HelpCard("Endpoints", "Base `ai-gateway.vercel.sh/`, OpenAI-compatible: chat `v1/chat/completions`, model list `v1/models` (standard `{\"data\":[{\"id\":…}]}`)."),
+            HelpCard("Models", "Default `anthropic/claude-opus-4.8`. Ids are `creator/model` slash-prefixed; note Anthropic ids here use **dots** (`anthropic/claude-opus-4.8`, `anthropic/claude-sonnet-4.6`), unlike the dash form some other gateways use. `defaultModelSource=API` drives the live picker; `mergeHardcodedModels=true` keeps a small Claude/GPT/Gemini/DeepSeek fallback."),
+            HelpCard("Pitfalls", "Slash-prefixed id mandatory. No `openRouterName`/`litellmPrefix` — pricing falls through to the OpenRouter cross-provider catalog (the ids match) or DEFAULT. Refresh the list if a default id looks stale."),
+        )
+    ),
+    "provider_glama" to HelpContent(
+        title = "Help - Glama",
+        cards = listOf(
+            HelpCard("Overview", "Glama Gateway — an OpenAI-compatible aggregator (glama.ai) with consolidated billing, load-balancing and fallbacks across ~80 models behind one key."),
+            HelpCard("Setup", "Mint a key under glama.ai → Settings → Gateway (the 🛠️ admin icon opens it). Standard `Authorization: Bearer`; drop-in OpenAI SDK base-URL swap."),
+            HelpCard("Endpoints", "Base `gateway.glama.ai/`, chat `v1/chat/completions`, models `v1/models` (OpenAI object shape)."),
+            HelpCard("Models", "Default `anthropic/claude-opus-4-6`. Slash-prefixed ids; Anthropic uses **dashes** (`anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-6`) and OpenAI ids carry a date suffix (`openai/gpt-5.4-2026-03-05`). `defaultModelSource=API`; `mergeHardcodedModels=true` Claude/GPT/DeepSeek fallback."),
+            HelpCard("Pitfalls", "Catalog is smaller than OpenRouter/Merge and Google models may be absent. Pricing falls through to the OpenRouter cross-provider catalog or DEFAULT."),
+        )
+    ),
+    "provider_requesty" to HelpContent(
+        title = "Help - Requesty",
+        cards = listOf(
+            HelpCard("Overview", "Requesty — an OpenAI-compatible LLM router (requesty.ai) over 500+ models with intelligent routing, fallbacks, caching, spend controls and observability behind one key."),
+            HelpCard("Setup", "Create a key in the Requesty app dashboard (the 🛠️ admin icon opens app.requesty.ai). Point any OpenAI client at the base URL; auth is `Authorization: Bearer`."),
+            HelpCard("Endpoints", "Base `router.requesty.ai/`, chat `v1/chat/completions`, models `v1/models`."),
+            HelpCard("Models", "Default `anthropic/claude-opus-4-8`. Slash-prefixed ids, Anthropic in **dash** form. Some ids carry routing suffixes like `:priority` / `:flex`. `defaultModelSource=API`; `mergeHardcodedModels=true` Claude/GPT/Gemini/DeepSeek fallback."),
+            HelpCard("Pitfalls", "Slash-prefixed id mandatory. The physical upstream depends on Requesty's routing policy. Pricing falls through to the OpenRouter cross-provider catalog or DEFAULT."),
+        )
+    ),
+    "provider_aimlapi" to HelpContent(
+        title = "Help - AI/ML API",
+        cards = listOf(
+            HelpCard("Overview", "AI/ML API (aimlapi.com) — an OpenAI-compatible aggregator exposing 600+ chat/image/audio models across every major provider behind one key."),
+            HelpCard("Setup", "Mint a key at aimlapi.com → app → keys (the 🛠️ admin icon opens it). Drop-in OpenAI base-URL swap; `Authorization: Bearer`."),
+            HelpCard("Endpoints", "Base `api.aimlapi.com/`, chat `v1/chat/completions`, models `v1/models`."),
+            HelpCard("Models", "Default `anthropic/claude-opus-4-8`. Slash-prefixed ids — the catalog carries BOTH dashed and dotted Anthropic aliases plus many dated snapshots, so the live `v1/models` list is the source of truth (`defaultModelSource=API`). `mergeHardcodedModels=true` Claude/GPT/Gemini/DeepSeek fallback."),
+            HelpCard("Pitfalls", "Large, noisy catalog with duplicate/aliased ids — Refresh and search to find the exact id. Pricing falls through to the OpenRouter cross-provider catalog or DEFAULT."),
         )
     ),
     "provider_siliconflow" to HelpContent(

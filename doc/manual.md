@@ -9,7 +9,7 @@ app, plus optional on-device LLMs and embedders.
 ## First run
 
 1. Install the APK and open it. On first launch the app imports a
-   default catalog of **43 cloud providers** from a bundled
+   default catalog of **47 cloud providers** from a bundled
    `providers.json` (the registry starts empty and is seeded on
    demand) and seeds Internal Prompts (Meta / Compare / Fan-out /
    Fan-in / Workers / Alt / fixed templates) from `internal-prompts/`,

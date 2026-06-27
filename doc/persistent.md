@@ -178,7 +178,7 @@ definition (`AppService.defaultModel` / `defaultModelSource`), so
 
 ### `provider_registry`
 The full provider registry, serialised by `ProviderRegistry`. Note
-the registry starts **empty** on a fresh install; the 43 bundled
+the registry starts **empty** on a fresh install; the 47 bundled
 providers are loaded on demand from `assets/providers.json` via
 `importFromAsset` and persisted here. Keys: `providers_json` (a JSON
 array of `ProviderDefinition`) and `initialized` (Boolean). On

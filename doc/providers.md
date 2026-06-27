@@ -13,7 +13,7 @@ the pricing tiers `litellmPrefix` / `openRouterName` / `pricingFromModelList`
 ## How the catalog loads
 
 The catalog is **one JSON file per provider** under `assets/providers/`
-— 43 files, each a bare `ProviderDefinition` object (no
+— 47 files, each a bare `ProviderDefinition` object (no
 `{"providers": [...]}` wrapper, no top-level `version`). It is **not**
 hardcoded in Kotlin. `ProviderRegistry` (`data/ProviderRegistry.kt`)
 is a mutable `object` that starts **empty** on a fresh install; the
@@ -109,6 +109,10 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **Together** | `https://api.together.xyz/` | `https://api.together.xyz/settings/api-keys` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | `modelListFormat=array`, `litellmPrefix=together_ai`, `modelFilter=chat\|instruct\|llama`, `defaultModelSource=API`, `pricingFromModelList=true` |
 | **OpenRouter** | `https://openrouter.ai/api/` | `https://openrouter.ai/keys` | `ibm-granite/granite-4.0-h-micro` | `extractApiCost=true`, `crossProviderModelList=true`, `defaultModelSource=API`, `maxCallsPerProviderPerMinute=90`, `maxConcurrentCallsPerProvider=8` |
 | **MergeGateway** | `https://api-gateway.merge.dev/` | `https://gateway.merge.dev/settings/api-keys` | `anthropic/claude-opus-4-8` | OpenRouter-style control-plane gateway (merge.dev). Both chat and models use the OpenAI-compat shim: `typePaths.chat=v1/openai/chat/completions`, `modelsPath=v1/openai/models` (the native `v1/models` is a different non-OpenAI schema — object-valued `aliases`, ids under `model` not `id` — that the shared parser can't read). Slash-prefixed cross-provider ids (`anthropic/…` use dashes, `google/…`/`deepseek/…` use dots). `defaultModelSource=API`, `mergeHardcodedModels=true`, **6 hardcoded models** (Claude / Gemini / DeepSeek). No `openRouterName`/`litellmPrefix` — the slash ids match the OpenRouter cross-provider pricing catalog directly |
+| **VercelAIGateway** | `https://ai-gateway.vercel.sh/` | `https://vercel.com/dashboard/ai-gateway/api-keys` | `anthropic/claude-opus-4.8` | Cross-provider gateway (~300 models, zero markup). Standard OpenAI shim: `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed `creator/model` ids — Anthropic here uses **dots** (`anthropic/claude-opus-4.8`). `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models. No `openRouterName`/`litellmPrefix` |
+| **Glama** | `https://gateway.glama.ai/` | `https://glama.ai/settings/gateway` | `anthropic/claude-opus-4-6` | OpenAI-compatible aggregator (~80 models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed ids, Anthropic in **dash** form; OpenAI ids carry a date suffix. `defaultModelSource=API`, `mergeHardcodedModels=true`, 4 hardcoded models. No Google models in the catalog |
+| **Requesty** | `https://router.requesty.ai/` | `https://app.requesty.ai/` | `anthropic/claude-opus-4-8` | OpenAI-compatible router (500+ models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed ids (dash-form Anthropic); some ids carry routing suffixes (`:priority`/`:flex`). `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
+| **AIMLAPI** | `https://api.aimlapi.com/` | `https://aimlapi.com/app/keys` | `anthropic/claude-opus-4-8` | OpenAI-compatible aggregator (600+ chat/image/audio models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Catalog carries both dashed and dotted Anthropic aliases plus dated snapshots — live `v1/models` is the source of truth. `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
 | **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `Qwen/Qwen2.5-7B-Instruct` | `defaultModelSource=API`, 9 hardcoded models, `nativeRerankUrl=https://api.siliconflow.com/v1/rerank` |
 | **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.5-air` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm\|codegeex\|charglm`, 7 hardcoded models, `defaultModelSource=API`, `builtInEndpoints` (Chat Completions + Coding) |
 | **Moonshot** | `https://api.moonshot.ai/` | `https://platform.moonshot.ai/console/api-keys` | `kimi-latest` | `openRouterName=moonshot`, 4 hardcoded models, `defaultModelSource=API` |
@@ -142,11 +146,11 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `moonshotai/Kimi-K2.6-TEE` | `defaultModelSource=API` |
 | **Inference.net** | `https://api.inference.net/` | `https://inference.net/dashboard/api-keys` | `meta-llama/llama-3.3-70b-instruct/fp-8` | `defaultModelSource=API` |
 
-**43 providers total** — 41 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
-(Anthropic), 1 `GOOGLE` (Google). All 41 OpenAI-compatible providers
+**47 providers total** — 45 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
+(Anthropic), 1 `GOOGLE` (Google). All 45 OpenAI-compatible providers
 share the unified dispatch path; only Anthropic and Google carry
 format-specific code. (The inline `// 28 providers` comment in
-`ApiFormat.kt` is stale — the real OpenAI-compatible count is 41.)
+`ApiFormat.kt` is stale — the real OpenAI-compatible count is 45.)
 
 ## Field reference
 
