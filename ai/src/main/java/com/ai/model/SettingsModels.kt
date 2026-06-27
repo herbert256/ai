@@ -557,6 +557,7 @@ data class Settings(
      *  drop it at dispatch. */
     private fun dispatchEmitsWebSearchTool(service: AppService, modelId: String): Boolean = when (service.apiFormat) {
         com.ai.data.ApiFormat.ANTHROPIC, com.ai.data.ApiFormat.GOOGLE -> true
+        com.ai.data.ApiFormat.REPLICATE -> false
         com.ai.data.ApiFormat.OPENAI_COMPATIBLE ->
             service.responsesApiPatterns.anyMatches(modelId) ||
                 com.ai.data.ModelType.infer(modelId) == com.ai.data.ModelType.RESPONSES

@@ -932,3 +932,53 @@ fun extractApiCost(usage: GeminiUsageMetadata?): Double? {
     usage.cost_usd?.total_cost?.let { return it }
     return null
 }
+
+// ============================================================================
+// Replicate predictions API (ApiFormat.REPLICATE)
+// ============================================================================
+
+/** Body of `POST /v1/models/{owner}/{name}/predictions`. The per-model input
+ *  schema varies, but the meta-llama / mistral instruct models take a flat
+ *  `prompt` (+ optional `system_prompt`) and the usual sampling knobs. */
+data class ReplicatePredictionRequest(val input: ReplicateInput)
+
+data class ReplicateInput(
+    val prompt: String,
+    val system_prompt: String? = null,
+    val max_tokens: Int? = null,
+    val temperature: Double? = null,
+    val top_p: Double? = null
+)
+
+/** A Replicate prediction. With `Prefer: wait` the POST returns the completed
+ *  object: `status` = succeeded/failed/processing, `output` = the result, and
+ *  `metrics` carries token counts. For LLMs `output` is an array of token
+ *  strings to join; some models return a single string instead — hence the
+ *  raw [com.google.gson.JsonElement]. */
+data class ReplicatePredictionResponse(
+    val id: String? = null,
+    val status: String? = null,
+    val output: com.google.gson.JsonElement? = null,
+    val error: String? = null,
+    val metrics: ReplicateMetrics? = null
+)
+
+data class ReplicateMetrics(
+    val input_token_count: Int? = null,
+    val output_token_count: Int? = null
+)
+
+/** Join the prediction `output` (array of token strings, or a single string)
+ *  into the generated text, or null when empty/absent. */
+fun ReplicatePredictionResponse.outputText(): String? {
+    val o = output ?: return null
+    val text = when {
+        o.isJsonArray -> o.asJsonArray.mapNotNull { e -> if (e.isJsonPrimitive) e.asString else null }.joinToString("")
+        o.isJsonPrimitive -> o.asString
+        else -> null
+    }
+    return text?.takeIf { it.isNotEmpty() }
+}
+
+fun ReplicateMetrics.toTokenUsage(): TokenUsage =
+    TokenUsage(inputTokens = input_token_count ?: 0, outputTokens = output_token_count ?: 0)

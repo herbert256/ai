@@ -35,6 +35,9 @@ fun AnalysisRepository.sendChatStream(
     when (service.apiFormat) {
         ApiFormat.ANTHROPIC -> streamAnthropic(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         ApiFormat.GOOGLE -> streamGemini(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        // Replicate has no OpenAI-style SSE stream; run the synchronous
+        // predictions call and emit the whole answer as one chunk.
+        ApiFormat.REPLICATE -> emit(sendChat(service, apiKey, model, messages, params, effectiveUrl))
         ApiFormat.OPENAI_COMPATIBLE -> streamOpenAi(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
     }
 }

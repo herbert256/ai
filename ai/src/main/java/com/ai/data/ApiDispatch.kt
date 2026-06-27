@@ -134,6 +134,7 @@ suspend fun AnalysisRepository.analyze(
                 when (service.apiFormat) {
                     ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
                     ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
+                    ApiFormat.REPLICATE -> analyzeReplicate(service, apiKey, prompt, model, params, imageBase64, imageMime)
                     ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
                 }
             }
@@ -174,6 +175,7 @@ suspend fun AnalysisRepository.sendChatResponse(
             when (service.apiFormat) {
                 ApiFormat.ANTHROPIC -> chatAnthropicResponse(service, apiKey, model, messages, params)
                 ApiFormat.GOOGLE -> chatGeminiResponse(service, apiKey, model, messages, params)
+                ApiFormat.REPLICATE -> chatReplicateResponse(service, apiKey, model, messages, params)
                 ApiFormat.OPENAI_COMPATIBLE -> chatOpenAiResponse(service, apiKey, model, messages, params, baseUrl)
             }
         }
@@ -219,6 +221,7 @@ suspend fun AnalysisRepository.fetchModelsWithKinds(
             when (service.apiFormat) {
                 ApiFormat.ANTHROPIC -> fetchModelsAnthropic(service, apiKey)
                 ApiFormat.GOOGLE -> fetchModelsGemini(service, apiKey)
+                ApiFormat.REPLICATE -> fetchModelsReplicate(service, apiKey)
                 ApiFormat.OPENAI_COMPATIBLE -> fetchModelsOpenAi(service, apiKey)
             }
         }
@@ -692,6 +695,7 @@ internal fun AnalysisRepository.dispatchUrl(service: AppService, model: String, 
         // host + the canonical path to avoid a doubled `/v1/messages/v1/messages`.
         ApiFormat.ANTHROPIC -> hostBaseOf(baseUrl) + "/v1/messages"
         ApiFormat.GOOGLE -> hostBaseOf(baseUrl) + "/v1beta/models/$model:generateContent"
+        ApiFormat.REPLICATE -> baseUrl.trimEnd('/') + "/models/$model/predictions"
     }
 } catch (_: Exception) { baseUrl }
 
@@ -952,6 +956,7 @@ internal suspend fun AnalysisRepository.analyzeAgentStreaming(
                 when (service.apiFormat) {
                     ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
                     ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
+                    ApiFormat.REPLICATE -> streamReplicateReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
                     ApiFormat.OPENAI_COMPATIBLE -> streamOpenAiReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
                 }
             }

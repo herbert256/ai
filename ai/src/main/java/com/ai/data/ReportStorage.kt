@@ -2009,11 +2009,13 @@ object ReportStorage {
         val usage = root.objectMember("usage")
             ?: root.objectMember("usageMetadata")
             ?: root.objectMember("response")?.objectMember("usage")
+            ?: root.objectMember("metrics")   // Replicate carries token counts under `metrics`
             ?: return null
         return try {
             when (provider.apiFormat) {
                 ApiFormat.ANTHROPIC -> gson.fromJson(usage, ClaudeUsage::class.java).toTokenUsage()
                 ApiFormat.GOOGLE -> gson.fromJson(usage, GeminiUsageMetadata::class.java).toTokenUsage()
+                ApiFormat.REPLICATE -> gson.fromJson(usage, ReplicateMetrics::class.java).toTokenUsage()
                 ApiFormat.OPENAI_COMPATIBLE -> gson.fromJson(usage, OpenAiUsage::class.java).toTokenUsage(provider)
             }
         } catch (_: Exception) {

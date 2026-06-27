@@ -59,6 +59,20 @@ interface ClaudeApi {
     ): Response<ClaudeModelsResponse>
 }
 
+/** Replicate async predictions API. The model id (owner/name) is part of
+ *  the path, so we pass the full URL via [@Url]. `Prefer: wait` makes the
+ *  POST block until the prediction completes and returns it inline — no
+ *  separate poll. */
+interface ReplicateApi {
+    @POST
+    suspend fun createPrediction(
+        @Url url: String,
+        @Header("Authorization") authorization: String,
+        @Header("Prefer") prefer: String,
+        @Body request: ReplicatePredictionRequest
+    ): Response<ReplicatePredictionResponse>
+}
+
 /** Google Gemini GenerativeAI API. */
 interface GeminiApi {
     @POST("v1beta/models/{model}:generateContent")
@@ -320,6 +334,7 @@ object ApiFactory {
 
     fun createOpenAiApi(baseUrl: String): OpenAiApi = getRetrofit(baseUrl, OpenAiApi::class.java.name).create(OpenAiApi::class.java)
     fun createClaudeApi(baseUrl: String): ClaudeApi = getRetrofit(baseUrl, ClaudeApi::class.java.name).create(ClaudeApi::class.java)
+    fun createReplicateApi(baseUrl: String): ReplicateApi = getRetrofit(baseUrl, ReplicateApi::class.java.name).create(ReplicateApi::class.java)
     fun createGeminiApi(baseUrl: String): GeminiApi = getRetrofit(baseUrl, GeminiApi::class.java.name).create(GeminiApi::class.java)
     fun createOpenAiCompatibleApi(baseUrl: String): OpenAiCompatibleApi = getRetrofit(baseUrl, OpenAiCompatibleApi::class.java.name).create(OpenAiCompatibleApi::class.java)
     fun createOpenRouterModelsApi(baseUrl: String): OpenRouterModelsApi = getRetrofit(baseUrl, OpenRouterModelsApi::class.java.name).create(OpenRouterModelsApi::class.java)
