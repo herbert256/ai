@@ -350,16 +350,19 @@ internal fun ReportSelectModelsScreen(
             val isNonTestable = provider.id != AppService.LOCAL.id &&
                 modelType in com.ai.data.ModelType.NON_TESTABLE_TYPES &&
                 modelType != modelTypeFilter
-            // Only an already-added row is non-selectable; advisory
-            // states (cooldown / blocked / inaccessible / non-testable)
-            // just dim.
+            // Only an already-added row is non-selectable. It reads as
+            // *selected* — a green wash + ✓ + full brightness — NOT as
+            // unavailable: advisory states (cooldown / blocked /
+            // inaccessible / non-testable) are the ones that dim to 0.4,
+            // so the two are visually distinct.
             val disabled = isAlreadyAdded
             val pricing = aiSettings.getModelPricing(provider, model)
                 ?: PricingCache.getPricing(context, provider, model)
             val real = pricing.source != "DEFAULT"
-            val rowAlpha = if (disabled || state.isDimmed || isNonTestable) 0.4f else 1f
+            val rowAlpha = if (state.isDimmed || isNonTestable) 0.4f else 1f
             Row(
                 modifier = Modifier.fillMaxWidth()
+                    .then(if (isAlreadyAdded) Modifier.background(AppColors.SuccessAccent.copy(alpha = 0.18f)) else Modifier)
                     .clickable(enabled = !disabled) {
                         if (onBrowse != null) {
                             onBrowse(entry)
@@ -380,6 +383,7 @@ internal fun ReportSelectModelsScreen(
                         com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
                         com.ai.ui.shared.ModelAdvisoryBadges(state)
                         com.ai.ui.shared.NonTestableBadge(isNonTestable)
+                        if (isAlreadyAdded) Text(" ✓", color = AppColors.SuccessAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                     com.ai.ui.shared.ModelAdvisoryCaptions(state)
                 }
