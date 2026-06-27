@@ -2,9 +2,10 @@
   "adminUrl": "https://aimlapi.com/app/keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.aimlapi.com/",
-  "defaultModel": "anthropic/claude-opus-4-8",
+  "defaultModel": "mistralai/mistral-nemo",
   "defaultModelSource": "API",
   "hardcodedModels": [
+    "mistralai/mistral-nemo",
     "anthropic/claude-opus-4-8",
     "anthropic/claude-sonnet-4-6",
     "openai/gpt-5",

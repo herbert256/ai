@@ -2,9 +2,10 @@
   "adminUrl": "https://app.requesty.ai/",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://router.requesty.ai/",
-  "defaultModel": "anthropic/claude-opus-4-8",
+  "defaultModel": "google/gemini-2.5-flash-lite",
   "defaultModelSource": "API",
   "hardcodedModels": [
+    "google/gemini-2.5-flash-lite",
     "anthropic/claude-opus-4-8",
     "anthropic/claude-sonnet-4-6",
     "openai/gpt-5",

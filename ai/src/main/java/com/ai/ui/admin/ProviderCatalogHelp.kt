@@ -142,7 +142,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Vercel AI Gateway — an OpenRouter-style cross-provider gateway. One key reaches ~300 models across OpenAI, Anthropic, Google, xAI, DeepSeek, etc. Vercel advertises **zero markup** (provider list prices) plus a small monthly free credit."),
             HelpCard("Setup", "Create a key in the Vercel dashboard → AI Gateway → API keys (the 🛠️ admin icon opens it). Works with any OpenAI client by just changing the base URL; auth is `Authorization: Bearer`."),
             HelpCard("Endpoints", "Base `ai-gateway.vercel.sh/`, OpenAI-compatible: chat `v1/chat/completions`, model list `v1/models` (standard `{\"data\":[{\"id\":…}]}`)."),
-            HelpCard("Models", "Default `anthropic/claude-opus-4.8`. Ids are `creator/model` slash-prefixed; note Anthropic ids here use **dots** (`anthropic/claude-opus-4.8`, `anthropic/claude-sonnet-4.6`), unlike the dash form some other gateways use. `defaultModelSource=API` drives the live picker; `mergeHardcodedModels=true` keeps a small Claude/GPT/Gemini/DeepSeek fallback."),
+            HelpCard("Models", "Default `openai/gpt-4.1-nano` (cheap OpenAI). Ids are `creator/model` slash-prefixed; note Anthropic ids here use **dots** (`anthropic/claude-opus-4.8`, `anthropic/claude-sonnet-4.6`), unlike the dash form some other gateways use. `defaultModelSource=API` drives the live picker; `mergeHardcodedModels=true` keeps a small Claude/GPT/Gemini/DeepSeek fallback."),
             HelpCard("Pitfalls", "Slash-prefixed id mandatory. No `openRouterName`/`litellmPrefix` — pricing falls through to the OpenRouter cross-provider catalog (the ids match) or DEFAULT. Refresh the list if a default id looks stale."),
         )
     ),
@@ -152,7 +152,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Glama Gateway — an OpenAI-compatible aggregator (glama.ai) with consolidated billing, load-balancing and fallbacks across ~80 models behind one key."),
             HelpCard("Setup", "Mint a key under glama.ai → Settings → Gateway (the 🛠️ admin icon opens it). Standard `Authorization: Bearer`; drop-in OpenAI SDK base-URL swap."),
             HelpCard("Endpoints", "Base `gateway.glama.ai/`, chat `v1/chat/completions`, models `v1/models` (OpenAI object shape)."),
-            HelpCard("Models", "Default `anthropic/claude-opus-4-6`. Slash-prefixed ids; Anthropic uses **dashes** (`anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-6`) and OpenAI ids carry a date suffix (`openai/gpt-5.4-2026-03-05`). `defaultModelSource=API`; `mergeHardcodedModels=true` Claude/GPT/DeepSeek fallback."),
+            HelpCard("Models", "Default `deepseek/deepseek-chat-v3` (cheap DeepSeek). Slash-prefixed ids; Anthropic uses **dashes** (`anthropic/claude-opus-4-6`, `anthropic/claude-sonnet-4-6`) and OpenAI ids carry a date suffix (`openai/gpt-5.4-2026-03-05`). `defaultModelSource=API`; `mergeHardcodedModels=true` Claude/GPT/DeepSeek fallback."),
             HelpCard("Pitfalls", "Catalog is smaller than OpenRouter/Merge and Google models may be absent. Pricing falls through to the OpenRouter cross-provider catalog or DEFAULT."),
         )
     ),
@@ -162,7 +162,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Requesty — an OpenAI-compatible LLM router (requesty.ai) over 500+ models with intelligent routing, fallbacks, caching, spend controls and observability behind one key."),
             HelpCard("Setup", "Create a key in the Requesty app dashboard (the 🛠️ admin icon opens app.requesty.ai). Point any OpenAI client at the base URL; auth is `Authorization: Bearer`."),
             HelpCard("Endpoints", "Base `router.requesty.ai/`, chat `v1/chat/completions`, models `v1/models`."),
-            HelpCard("Models", "Default `anthropic/claude-opus-4-8`. Slash-prefixed ids, Anthropic in **dash** form. Some ids carry routing suffixes like `:priority` / `:flex`. `defaultModelSource=API`; `mergeHardcodedModels=true` Claude/GPT/Gemini/DeepSeek fallback."),
+            HelpCard("Models", "Default `google/gemini-2.5-flash-lite` (cheap Google). Slash-prefixed ids, Anthropic in **dash** form. Some ids carry routing suffixes like `:priority` / `:flex`. `defaultModelSource=API`; `mergeHardcodedModels=true` Claude/GPT/Gemini/DeepSeek fallback."),
             HelpCard("Pitfalls", "Slash-prefixed id mandatory. The physical upstream depends on Requesty's routing policy. Pricing falls through to the OpenRouter cross-provider catalog or DEFAULT."),
         )
     ),
@@ -172,7 +172,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "AI-ML-API — the AI/ML API service (aimlapi.com), an OpenAI-compatible aggregator exposing 600+ chat/image/audio models across every major provider behind one key. (Named AI-ML-API, not AI/ML API, because a provider id can't contain a slash.)"),
             HelpCard("Setup", "Mint a key at aimlapi.com → app → keys (the 🛠️ admin icon opens it). Drop-in OpenAI base-URL swap; `Authorization: Bearer`."),
             HelpCard("Endpoints", "Base `api.aimlapi.com/`, chat `v1/chat/completions`, models `v1/models`."),
-            HelpCard("Models", "Default `anthropic/claude-opus-4-8`. Slash-prefixed ids — the catalog carries BOTH dashed and dotted Anthropic aliases plus many dated snapshots, so the live `v1/models` list is the source of truth (`defaultModelSource=API`). `mergeHardcodedModels=true` Claude/GPT/Gemini/DeepSeek fallback."),
+            HelpCard("Models", "Default `mistralai/mistral-nemo` (cheap Mistral). Slash-prefixed ids — the catalog carries BOTH dashed and dotted Anthropic aliases plus many dated snapshots, so the live `v1/models` list is the source of truth (`defaultModelSource=API`). `mergeHardcodedModels=true` Claude/GPT/Gemini/DeepSeek fallback."),
             HelpCard("Pitfalls", "Large, noisy catalog with duplicate/aliased ids — Refresh and search to find the exact id. Pricing falls through to the OpenRouter cross-provider catalog or DEFAULT."),
         )
     ),
