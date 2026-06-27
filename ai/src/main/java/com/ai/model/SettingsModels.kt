@@ -498,6 +498,7 @@ data class Settings(
         getProvider(service).modelCapabilities[modelId]?.supportsVision?.let { return it }
         com.ai.data.PricingCache.liteLLMSupportsVision(service, modelId)?.let { return it }
         com.ai.data.PricingCache.modelsDevSupportsVision(service, modelId)?.let { return it }
+        com.ai.data.PricingCache.requestySupportsVision(service, modelId)?.let { return it }
         return com.ai.data.ModelType.inferVision(modelId)
     }
 
@@ -545,6 +546,9 @@ data class Settings(
         if (emits) {
             com.ai.data.PricingCache.modelsDevSupportsToolCall(service, modelId)?.let { return it }
         }
+        // Requesty exposes a direct supports_web_search flag (not a proxy),
+        // so it's consulted unconditionally — same status as LiteLLM's.
+        com.ai.data.PricingCache.requestySupportsWebSearch(service, modelId)?.let { return it }
         return com.ai.data.ModelType.inferWebSearch(service, modelId)
     }
 
@@ -589,6 +593,8 @@ data class Settings(
         com.ai.data.PricingCache.liteLLMSupportsReasoning(service, modelId)?.let { return it }
         // Tier 6: models.dev `reasoning` boolean.
         com.ai.data.PricingCache.modelsDevSupportsReasoning(service, modelId)?.let { return it }
+        // Tier 7: Requesty `supports_reasoning` flag.
+        com.ai.data.PricingCache.requestySupportsReasoning(service, modelId)?.let { return it }
         return com.ai.data.ModelType.inferReasoning(service, modelId)
     }
 

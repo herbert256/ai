@@ -492,6 +492,11 @@ fun ModelInfoScreen(
                         PricingCache.getArtificialAnalysisRawEntry(context, provider, modelName)
                     }
                 }
+                val requestyRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getRequestyRawEntry(context, provider, modelName)
+                    }
+                }
                 val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
                     value = withContext(Dispatchers.IO) {
                         PricingCache.getTierBreakdown(context, provider, modelName)
@@ -676,6 +681,7 @@ fun ModelInfoScreen(
                         val hasHelicone = heliconeRaw != null
                         val hasLLMPrices = llmPricesRaw != null
                         val hasAa = aaRaw != null
+                        val hasRequesty = requestyRaw != null
                         // Two rows of buttons in their own card — first the
                         // four catalog sources, then the three additional
                         // pricing tiers (Helicone / llm-prices.com / AA).
@@ -772,6 +778,20 @@ fun ModelInfoScreen(
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("Artificial Analysis", fontSize = 10.sp, maxLines = 1, softWrap = false) }
                                 }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "Requesty · $modelName", body = requestyRaw ?: "(no Requesty data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_requesty"],
+                                                calledUrl = "https://router.requesty.ai/v1/models"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasRequesty) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("Requesty", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedButton(
                                     onClick = {
@@ -785,7 +805,8 @@ fun ModelInfoScreen(
                                             "models.dev" to modelsDevRaw,
                                             "Helicone" to heliconeRaw,
                                             "llm-prices.com" to llmPricesRaw,
-                                            "Artificial Analysis" to aaRaw
+                                            "Artificial Analysis" to aaRaw,
+                                            "Requesty" to requestyRaw
                                         )
                                         val body = sections.joinToString("\n\n") { (label, raw) ->
                                             "=== $label ===\n${raw ?: "(no $label data)"}"
@@ -812,6 +833,7 @@ fun ModelInfoScreen(
                             tierBreakdown?.llmPrices?.let { "llm-prices.com" to it },
                             tierBreakdown?.artificialAnalysis?.let { "Artificial Analysis" to it },
                             tierBreakdown?.openrouter?.let { "OpenRouter" to it },
+                            tierBreakdown?.requesty?.let { "Requesty" to it },
                             tierBreakdown?.override?.let { "Override" to it }
                         )
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {

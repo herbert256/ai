@@ -1712,7 +1712,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             CatalogStep("modelsdev", "models.dev"),
             CatalogStep("helicone", "Helicone"),
             CatalogStep("llmprices", "llm-prices.com"),
-            CatalogStep("aa", "Artificial Analysis", if (aaEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped)
+            CatalogStep("aa", "Artificial Analysis", if (aaEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped),
+            CatalogStep("requesty", "Requesty")
         )
         // Snapshot the testable provider set up-front. The clean-slate
         // step below rewrites flocks/agents, but the testable list is
@@ -1917,6 +1918,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     else setCatalogStep("aa", RefreshStepStatus.Failed("no entries · $prev"))
                 } catch (e: Exception) {
                     setCatalogStep("aa", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            jobs += async(Dispatchers.IO) {
+                setCatalogStep("requesty", RefreshStepStatus.Running())
+                val prev = previousDetail("requesty")
+                try {
+                    val n = PricingCache.fetchRequestyOnline(app)
+                    if (n != null && n > 0) setCatalogStep("requesty", RefreshStepStatus.Done("$n priced"))
+                    else setCatalogStep("requesty", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("requesty", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
             }
             jobs.awaitAll()

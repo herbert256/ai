@@ -18,8 +18,8 @@ import kotlinx.coroutines.withContext
  * Cached model pricing with layered lookup:
  * provider self-report (OpenRouter/Together for their own calls) > manual
  * OVERRIDE > curated bulk tiers (LiteLLM, models.dev, llm-prices,
- * Artificial Analysis) > OpenRouter cross-provider fallback > Helicone >
- * DEFAULT.
+ * Artificial Analysis) > OpenRouter cross-provider fallback > Requesty
+ * cross-provider router > Helicone > DEFAULT.
  *
  * Manual overrides intentionally beat curated tiers so a user can correct a
  * stale catalog price without waiting for the upstream source to refresh.
@@ -49,6 +49,11 @@ object PricingCache {
     private const val KEY_AA_PRICING = "aa_pricing_v2"
     private const val KEY_AA_META = "aa_meta_v2"
     private const val KEY_AA_TIMESTAMP = "aa_timestamp_v2"
+    // Requesty — cross-provider router catalog (router.requesty.ai/v1/models).
+    // Pricing (already per-token) + capability sidecar. No API key.
+    private const val KEY_REQUESTY_PRICING = "requesty_pricing"
+    private const val KEY_REQUESTY_META = "requesty_meta"
+    private const val KEY_REQUESTY_TIMESTAMP = "requesty_timestamp"
     private const val KEY_MANUAL_PRICING = "manual_pricing"
     /** Together AI native pricing — extracted from each model entry's
      *  `pricing.{input, output, cached_input}` block during a Together
@@ -92,6 +97,12 @@ object PricingCache {
      *  speed scores. Composite key `<host>/<modelId>` (lowercased). */
     @Volatile private var aaPricing: Map<String, ModelPricing>? = null
     @Volatile private var aaMeta: Map<String, ArtificialAnalysisMeta>? = null
+    /** Requesty router pricing — cross-provider aggregator, keyed
+     *  `<vendor>/<modelId>` (OpenRouter-style ids). Prices are already
+     *  per-token in the upstream JSON, so no $/M conversion. */
+    @Volatile private var requestyPricing: Map<String, ModelPricing>? = null
+    @Volatile private var requestyMeta: Map<String, RequestyMeta>? = null
+    @Volatile private var requestyTimestamp: Long = 0
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
     @Volatile private var modelsDevTimestamp: Long = 0
@@ -227,6 +238,7 @@ object PricingCache {
                 breakdown.llmPrices != null ||
                 breakdown.artificialAnalysis != null ||
                 breakdown.openrouter != null ||
+                breakdown.requesty != null ||
                 matchesDefault ||
                 matchesWithoutOverride
             if (shouldRemove) {
@@ -340,8 +352,8 @@ object PricingCache {
                 "preload done in ${System.currentTimeMillis() - t0}ms" +
                     " (litellm=${litellmPricing?.size ?: 0}, modelsDev=${modelsDevPricing?.size ?: 0}," +
                     " llmPrices=${llmPricesPricing?.size ?: 0}, aa=${aaPricing?.size ?: 0}," +
-                    " openrouter=${openRouterPricing?.size ?: 0}, helicone=${heliconePricing?.size ?: 0}," +
-                    " manual=${manualPricing?.size ?: 0})"
+                    " openrouter=${openRouterPricing?.size ?: 0}, requesty=${requestyPricing?.size ?: 0}," +
+                    " helicone=${heliconePricing?.size ?: 0}, manual=${manualPricing?.size ?: 0})"
             )
         }
     }
@@ -428,6 +440,7 @@ object PricingCache {
         findLLMPricesPricing(provider, model)?.let { return PricingMatch("LLMPRICES", it) }
         findArtificialAnalysisPricing(provider, model)?.let { return PricingMatch("AA", it) }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER", it) }
+        findRequestyPricing(provider, model)?.let { return PricingMatch("REQUESTY", it) }
         findHeliconePricing(provider, model)?.let { return PricingMatch("HELICONE", it) }
         return null
     }
@@ -706,7 +719,7 @@ object PricingCache {
      *  ([fetchedAt] = 0 means never retrieved). */
     data class CatalogStat(val name: String, val entries: Int, val fetchedAt: Long)
 
-    /** Entry count + retrieval timestamp for each of the six external pricing
+    /** Entry count + retrieval timestamp for each of the seven external pricing
      *  info-providers, in lookup-precedence order. Drives the Monitor hub's
      *  "Pricing cache" table. Cheap — map sizes + volatile longs. */
     fun catalogStats(context: Context): List<CatalogStat> {
@@ -717,6 +730,7 @@ object PricingCache {
             CatalogStat("llm-prices", llmPricesPricing?.size ?: 0, llmPricesTimestamp),
             CatalogStat("Artificial Analysis", aaPricing?.size ?: 0, aaTimestamp),
             CatalogStat("OpenRouter", openRouterPricing?.size ?: 0, openRouterTimestamp),
+            CatalogStat("Requesty", requestyPricing?.size ?: 0, requestyTimestamp),
             CatalogStat("Helicone", heliconePricing?.size ?: 0, heliconeTimestamp),
         )
     }
@@ -733,6 +747,7 @@ object PricingCache {
         val artificialAnalysis: ModelPricing?,
         val override: ModelPricing?,
         val openrouter: ModelPricing?,
+        val requesty: ModelPricing?,
         val together: ModelPricing?,
         val default: ModelPricing
     )
@@ -746,8 +761,9 @@ object PricingCache {
         val aa = findArtificialAnalysisPricing(provider, model)
         val override = manualPricing?.get("${provider.id}:$model")
         val openrouter = findOpenRouterPricing(provider, model)
+        val requesty = findRequestyPricing(provider, model)
         val together = findTogetherPricing(provider, model)
-        return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, override, openrouter, together, DEFAULT_PRICING)
+        return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, override, openrouter, requesty, together, DEFAULT_PRICING)
     }
 
     /** True when two or more catalog tiers have pricing for this
@@ -760,7 +776,7 @@ object PricingCache {
      *  hasn't settled on a single number. */
     fun pricesConflict(context: Context, provider: AppService, model: String): Boolean {
         val br = getTierBreakdown(context, provider, model)
-        val tiers = listOfNotNull(br.litellm, br.modelsDev, br.helicone, br.llmPrices, br.artificialAnalysis, br.openrouter)
+        val tiers = listOfNotNull(br.litellm, br.modelsDev, br.helicone, br.llmPrices, br.artificialAnalysis, br.openrouter, br.requesty)
         if (tiers.size < 2) return false
         fun close(a: Double, b: Double): Boolean {
             if (a == b) return true
@@ -816,6 +832,7 @@ object PricingCache {
             "helicone" -> heliconePricing to heliconeTimestamp
             "llmprices" -> llmPricesPricing to llmPricesTimestamp
             "aa" -> aaPricing to aaTimestamp
+            "requesty" -> requestyPricing to requestyTimestamp
             else -> return null
         }
         val map = cache ?: return null
@@ -1260,6 +1277,79 @@ object PricingCache {
         ))
     }
 
+    // ============================================================================
+    // Requesty — cross-provider router catalog (router.requesty.ai/v1/models)
+    // Auth: none (public models). Pricing already per-token + capability flags.
+    // ============================================================================
+
+    /** Pull Requesty's `/v1/models` catalog and replace the REQUESTY tier.
+     *  Keyless (the public catalog returns every approved/public model).
+     *  Returns the number of priced entries, or null on network/parse
+     *  failure. */
+    suspend fun fetchRequestyOnline(context: Context): Int? = withTraceCategory("pricing/Requesty") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val json = ApiFactory.fetchUrlAsString("https://router.requesty.ai/v1/models")
+            if (json.isNullOrBlank()) {
+                AppLog.w("PricingCache", "Requesty refresh: empty / failed response")
+                return@withContext null
+            }
+            val (pricing, meta) = parseRequestyJson(json)
+            AppLog.i("PricingCache", "Requesty parse: ${pricing.size} priced, ${meta.size} meta entries")
+            if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
+            synchronized(lock) {
+                requestyPricing = pricing
+                requestyMeta = meta
+                requestyTimestamp = System.currentTimeMillis()
+                saveBlob(context, KEY_REQUESTY_PRICING, gson.toJson(pricing))
+                saveBlob(context, KEY_REQUESTY_META, gson.toJson(meta))
+                getPrefs(context).edit { putLong(KEY_REQUESTY_TIMESTAMP, requestyTimestamp) }
+            }
+            pricing.size
+        } catch (e: Exception) {
+            AppLog.e("PricingCache", "Requesty refresh failed: ${e.message}", e)
+            null
+        }
+      }
+    }
+
+    /** Requesty ids are `<vendor>/<modelId>` (OpenRouter-style), so we
+     *  resolve them exactly like findOpenRouterPricing — exact key, then
+     *  the provider's openRouterName prefix, then the bucketed scan. */
+    private fun findRequestyPricing(provider: AppService, model: String): ModelPricing? {
+        val pricing = requestyPricing ?: return null
+        pricing[model]?.let { return it }
+        provider.openRouterName?.let { prefix -> pricing["$prefix/$model"]?.let { return it } }
+        return findBestPrefixedMatch(pricing, provider, model)
+            ?: findLatestAliasKey(pricing.keys, model, provider.openRouterName, provider.id.lowercase())?.let { pricing[it] }
+    }
+
+    private fun findRequestyMeta(provider: AppService, model: String): RequestyMeta? {
+        val meta = requestyMeta ?: return null
+        meta[model]?.let { return it }
+        provider.openRouterName?.let { prefix -> meta["$prefix/$model"]?.let { return it } }
+        return findBestPrefixedMatch(meta, provider, model)
+            ?: findLatestAliasKey(meta.keys, model, provider.openRouterName, provider.id.lowercase())?.let { meta[it] }
+    }
+
+    fun requestySupportsVision(provider: AppService, model: String): Boolean? =
+        findRequestyMeta(provider, model)?.supportsVision
+
+    fun requestySupportsReasoning(provider: AppService, model: String): Boolean? =
+        findRequestyMeta(provider, model)?.supportsReasoning
+
+    fun requestySupportsWebSearch(provider: AppService, model: String): Boolean? =
+        findRequestyMeta(provider, model)?.supportsWebSearch
+
+    fun getRequestyRawEntry(context: Context, provider: AppService, model: String): String? {
+        ensureLoaded(context)
+        val pricing = findRequestyPricing(provider, model)
+        val meta = findRequestyMeta(provider, model)
+        if (pricing == null && meta == null) return null
+        val pretty = createAppGson(prettyPrint = true)
+        return pretty.toJson(mapOf("pricing" to pricing, "meta" to meta))
+    }
+
     suspend fun fetchOpenRouterPricing(apiKey: String): Map<String, ModelPricing> {
         if (apiKey.isBlank()) return emptyMap()
         return withTraceCategory("pricing/OpenRouter") {
@@ -1432,6 +1522,23 @@ object PricingCache {
             if (aaPricing == null) aaPricing = emptyMap()
             if (aaMeta == null) aaMeta = emptyMap()
         }
+        // Requesty — pricing + capability sidecar. Bundled asset ships a
+        // snapshot, so a fresh install has Requesty pricing before the
+        // first refresh (same as the other curated tiers).
+        if (requestyPricing == null || requestyMeta == null) {
+            requestyTimestamp = getPrefs(context).getLong(KEY_REQUESTY_TIMESTAMP, 0)
+            loadBlob(context, KEY_REQUESTY_PRICING)?.let { json ->
+                try { requestyPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            }
+            loadBlob(context, KEY_REQUESTY_META)?.let { json ->
+                try {
+                    val type = object : TypeToken<Map<String, RequestyMeta>>() {}.type
+                    requestyMeta = gson.fromJson(json, type)
+                } catch (_: Exception) {}
+            }
+            if (requestyPricing == null) requestyPricing = emptyMap()
+            if (requestyMeta == null) requestyMeta = emptyMap()
+        }
         // Once we've finished loading every tier, mark the cache
         // primed so the main-thread guard in ensureLoaded() stops
         // short-circuiting future getPricing calls. Previously only
@@ -1483,6 +1590,20 @@ object PricingCache {
         val outputSpeed: Double? = null,
         val firstChunkSeconds: Double? = null,
         val modelCreator: String? = null
+    )
+
+    /** Capability sidecar derived from Requesty's /v1/models flags.
+     *  vision / reasoning / web-search feed the layered capability chain
+     *  (after models.dev); computer-use / tool-calling / token limits are
+     *  kept for the raw Model-Info view. */
+    data class RequestyMeta(
+        val supportsVision: Boolean? = null,
+        val supportsReasoning: Boolean? = null,
+        val supportsComputerUse: Boolean? = null,
+        val supportsToolCalling: Boolean? = null,
+        val supportsWebSearch: Boolean? = null,
+        val maxInputTokens: Int? = null,
+        val maxOutputTokens: Int? = null
     )
 
     /** Capability sidecar derived from models.dev's per-model JSON. The
@@ -1617,6 +1738,7 @@ object PricingCache {
             "llm-prices" -> listOf(KEY_LLMPRICES_PRICING)
             "Artificial Analysis" -> listOf(KEY_AA_PRICING, KEY_AA_META)
             "OpenRouter" -> listOf(KEY_OPENROUTER_PRICING)
+            "Requesty" -> listOf(KEY_REQUESTY_PRICING, KEY_REQUESTY_META)
             "Helicone" -> listOf(KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS)
             else -> emptyList()
         }
@@ -1627,6 +1749,7 @@ object PricingCache {
             "llm-prices" -> KEY_LLMPRICES_TIMESTAMP
             "Artificial Analysis" -> KEY_AA_TIMESTAMP
             "OpenRouter" -> KEY_OPENROUTER_TIMESTAMP
+            "Requesty" -> KEY_REQUESTY_TIMESTAMP
             "Helicone" -> KEY_HELICONE_TIMESTAMP
             else -> null
         }
@@ -1640,6 +1763,7 @@ object PricingCache {
             "llm-prices" -> { llmPricesPricing = null; llmPricesTimestamp = 0 }
             "Artificial Analysis" -> { aaPricing = null; aaMeta = null; aaTimestamp = 0 }
             "OpenRouter" -> { openRouterPricing = null; openRouterTimestamp = 0 }
+            "Requesty" -> { requestyPricing = null; requestyMeta = null; requestyTimestamp = 0 }
             "Helicone" -> { heliconePricing = null; heliconePatterns = null; heliconeTimestamp = 0 }
         }
     }
@@ -1654,7 +1778,8 @@ object PricingCache {
             KEY_OPENROUTER_PRICING, KEY_LITELLM_PRICING, KEY_LITELLM_META,
             KEY_MODELS_DEV_PRICING, KEY_MODELS_DEV_META,
             KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS,
-            KEY_LLMPRICES_PRICING, KEY_AA_PRICING, KEY_AA_META
+            KEY_LLMPRICES_PRICING, KEY_AA_PRICING, KEY_AA_META,
+            KEY_REQUESTY_PRICING, KEY_REQUESTY_META
         )
         tierBlobs.forEach { key ->
             try { blobFile(context, key).delete() } catch (_: Exception) {}
@@ -1673,6 +1798,7 @@ object PricingCache {
             remove(KEY_HELICONE_TIMESTAMP)
             remove(KEY_LLMPRICES_TIMESTAMP)
             remove(KEY_AA_TIMESTAMP)
+            remove(KEY_REQUESTY_TIMESTAMP)
         }
         openRouterPricing = null; openRouterTimestamp = 0
         litellmPricing = null; litellmMeta = null; litellmTimestamp = 0
@@ -1680,6 +1806,7 @@ object PricingCache {
         heliconePricing = null; heliconePatterns = null; heliconeTimestamp = 0
         llmPricesPricing = null; llmPricesTimestamp = 0
         aaPricing = null; aaMeta = null; aaTimestamp = 0
+        requestyPricing = null; requestyMeta = null; requestyTimestamp = 0
         litellmMetaLookupCache.clear()
         modelsDevMetaLookupCache.clear()
         litellmPricingLookupCache.clear()
@@ -1724,12 +1851,15 @@ object PricingCache {
         llmPricesPricing = null
         aaPricing = null
         aaMeta = null
+        requestyPricing = null
+        requestyMeta = null
         openRouterTimestamp = 0
         litellmTimestamp = 0
         modelsDevTimestamp = 0
         heliconeTimestamp = 0
         llmPricesTimestamp = 0
         aaTimestamp = 0
+        requestyTimestamp = 0
         preloadCompleted = false
         litellmMetaLookupCache.clear()
         modelsDevMetaLookupCache.clear()

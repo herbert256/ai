@@ -71,4 +71,14 @@ internal val infoProviderHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "API key is mandatory; without it the catalog never loads and AA stays absent from the layered lookup. Some niche models aren't covered."),
         )
     ),
+    "info_provider_requesty" to HelpContent(
+        title = "Help - Requesty (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "Requesty is a cross-provider LLM router — one endpoint in front of 500+ models from dozens of upstream providers. As a side effect it publishes a public model catalog with per-token pricing and capability flags, which we read as a pricing + capability tier."),
+            HelpCard("What we use it for", "Pricing + capability fallback. Sits just after the OpenRouter cross-provider fallback in the layered lookup (before Helicone), so it backfills models the curated tiers and OpenRouter miss. Its vision / reasoning / web-search flags also feed the capability chain after models.dev. No data is ever sent to Requesty — we only read the public catalog."),
+            HelpCard("Endpoint", "`https://router.requesty.ai/v1/models` — anonymous, JSON, no API key. Returns every public model. Refreshed on demand from Refresh → Requesty (and as part of Refresh all)."),
+            HelpCard("Freshness", "Requesty curates aggressively to keep their router catalog current, so prices track upstream changes well. A bundled snapshot ships with the app, so Requesty pricing works on a fresh install before the first refresh."),
+            HelpCard("Pitfalls", "Ids are `<vendor>/<model>` (OpenRouter-style), matched via the same prefix-bucket logic. Prices are already per-token (no \$/M conversion). Some upstream-specific routing tags (`:free`, `@region`) only resolve through the loose bare-match fallback."),
+        )
+    ),
 )

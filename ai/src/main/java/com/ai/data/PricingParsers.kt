@@ -297,3 +297,52 @@ internal fun parseArtificialAnalysisJson(json: String): Pair<Map<String, Pricing
     }
     return pricing to meta
 }
+
+/** Parse Requesty's `/v1/models` response (`{"object":"list","data":[…]}`).
+ *  Model ids are `<vendor>/<modelId>` and prices are ALREADY per-token
+ *  (e.g. 0.000005 = $5/M), so — unlike the $/M tiers — there is no
+ *  divide-by-1M conversion. Pricing keyed by the id verbatim; sidecar
+ *  carries the capability flags + token limits. */
+internal fun parseRequestyJson(json: String): Pair<Map<String, PricingCache.ModelPricing>, Map<String, PricingCache.RequestyMeta>> {
+    @Suppress("DEPRECATION")
+    val rootEl = JsonParser().parse(json)
+    val arr = when {
+        rootEl.isJsonObject -> rootEl.asJsonObject.get("data")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?: return emptyMap<String, PricingCache.ModelPricing>() to emptyMap()
+        rootEl.isJsonArray -> rootEl.asJsonArray
+        else -> return emptyMap<String, PricingCache.ModelPricing>() to emptyMap()
+    }
+    val pricing = mutableMapOf<String, PricingCache.ModelPricing>()
+    val meta = mutableMapOf<String, PricingCache.RequestyMeta>()
+    for (el in arr) {
+        if (!el.isJsonObject) continue
+        val m = el.asJsonObject
+        val id = m.get("id")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+        val ic = m.get("input_price").numOrNull()
+        val oc = m.get("output_price").numOrNull()
+        if (ic != null && oc != null) {
+            pricing[id] = PricingCache.ModelPricing(
+                modelId = id,
+                promptPrice = ic,
+                completionPrice = oc,
+                source = "REQUESTY",
+                cachedReadPrice = m.get("cached_price").numOrNull(),
+                cachedWritePrice = m.get("caching_price").numOrNull()
+            )
+        }
+        fun bool(key: String): Boolean? =
+            m.get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
+        val vision = bool("supports_vision")
+        val reasoning = bool("supports_reasoning")
+        val computerUse = bool("supports_computer_use")
+        val toolCalling = bool("supports_tool_calling")
+        val webSearch = bool("supports_web_search")
+        val ctx = m.get("context_window").intOrNull()
+        val out = m.get("max_output_tokens").intOrNull()
+        if (vision != null || reasoning != null || computerUse != null || toolCalling != null ||
+            webSearch != null || ctx != null || out != null) {
+            meta[id] = PricingCache.RequestyMeta(vision, reasoning, computerUse, toolCalling, webSearch, ctx, out)
+        }
+    }
+    return pricing to meta
+}

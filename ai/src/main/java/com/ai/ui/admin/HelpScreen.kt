@@ -822,6 +822,11 @@ internal val INFO_PROVIDERS: List<InfoProviderRef> = listOf(
         topicId = "info_provider_artificial_analysis",
         displayName = "Artificial Analysis",
         hostnames = listOf("artificialanalysis.ai")
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_requesty",
+        displayName = "Requesty",
+        hostnames = listOf("router.requesty.ai", "requesty.ai")
     )
 )
 
@@ -834,10 +839,10 @@ private val INFO_FETCH_CATEGORIES = setOf("OpenRouter model specs")
 private fun isInfoFetchCategory(category: String?): Boolean =
     category != null && (category in INFO_FETCH_CATEGORIES || category.startsWith("pricing/"))
 
-/** Resolve a URL to one of the 7 info providers. Matches by host
+/** Resolve a URL to one of the 8 info providers. Matches by host
  *  first, then disambiguates via [InfoProviderRef.urlPathPrefix] for
  *  hosts shared by multiple providers (raw.githubusercontent.com).
- *  Returns null when the URL doesn't belong to any of the 7. */
+ *  Returns null when the URL doesn't belong to any of the 8. */
 fun infoProviderForUrl(url: String?): InfoProviderRef? {
     if (url.isNullOrBlank()) return null
     val (host, path) = try {
@@ -851,7 +856,7 @@ fun infoProviderForUrl(url: String?): InfoProviderRef? {
     }
 }
 
-/** Resolve a captured trace's URL + category to one of the 7
+/** Resolve a captured trace's URL + category to one of the 8
  *  providers. For dual-purpose services (OpenRouter), the category
  *  must be one of [INFO_FETCH_CATEGORIES]; otherwise a chat
  *  completion would hijack the ℹ️. */

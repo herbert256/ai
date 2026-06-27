@@ -186,7 +186,7 @@ fun cacheRegistry(
     CacheDescriptor(
         id = "pricing", icon = "💲", title = "Pricing tiers", helpTopic = "cache_pricing",
         subject = "Per-source model pricing catalogs",
-        stats = { c -> val s = PricingCache.catalogStats(c); CacheStats(s.count { it.entries > 0 }, dirSize(c, "pricing"), "6 sources") },
+        stats = { c -> val s = PricingCache.catalogStats(c); CacheStats(s.count { it.entries > 0 }, dirSize(c, "pricing"), "7 sources") },
         list = { c ->
             PricingCache.catalogStats(c).map { s ->
                 CacheEntryVM(

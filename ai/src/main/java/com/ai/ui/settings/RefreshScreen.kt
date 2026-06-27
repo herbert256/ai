@@ -75,12 +75,14 @@ fun RefreshScreen(
     var heliconeResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var llmPricesResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var aaResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var requestyResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var showOpenRouterDialog by rememberSaveable { mutableStateOf(false) }
     var showLiteLLMDialog by rememberSaveable { mutableStateOf(false) }
     var showModelsDevDialog by rememberSaveable { mutableStateOf(false) }
     var showHeliconeDialog by rememberSaveable { mutableStateOf(false) }
     var showLLMPricesDialog by rememberSaveable { mutableStateOf(false) }
     var showAaDialog by rememberSaveable { mutableStateOf(false) }
+    var showRequestyDialog by rememberSaveable { mutableStateOf(false) }
 
     fun launchTask(title: String, initialText: String = "", block: suspend () -> Unit) {
         runningTask?.cancel()
@@ -329,6 +331,31 @@ fun RefreshScreen(
         return
     }
 
+    if (showRequestyDialog) {
+        val n = requestyResult
+        val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("requesty") else null
+        RefreshResultScreen(
+            titleText = "Requesty",
+            description = when {
+                ok -> "Pulled the Requesty router catalog (per-token pricing + capability flags). Cross-provider fallback after OpenRouter, before Helicone — also feeds vision / reasoning / web-search capability flags."
+                kept != null -> "Failed to fetch from router.requesty.ai/v1/models. The previously fetched catalog is still in use — see the rows below."
+                else -> "Failed to fetch from router.requesty.ai/v1/models. Check connectivity and try again."
+            },
+            rows = listOfNotNull(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
+                ),
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
+                kept
+            ),
+            onBack = { showRequestyDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     // Each per-catalog refresh's core work lives in a suspend lambda
     // that captures the surrounding state. The Boolean parameter controls
     // whether the per-step result dialog opens at the end.
@@ -377,6 +404,15 @@ fun RefreshScreen(
         aaResult = n
         if (showDialogAtEnd) showAaDialog = true
     }
+    val runRequesty: suspend (Boolean) -> Unit = { showDialogAtEnd ->
+        progressText = "Downloading router.requesty.ai/v1/models"
+        val n = PricingCache.fetchRequestyOnline(context)
+        requestyResult = n
+        // Requesty carries vision / reasoning / web-search flags — refresh
+        // the precomputed capability sets so list renders pick them up.
+        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (showDialogAtEnd) showRequestyDialog = true
+    }
 
     // AI Info Providers sub-page lives as a full-screen overlay reached
     // via a NavCard on the main Refresh screen. Same early-return idiom
@@ -393,6 +429,7 @@ fun RefreshScreen(
             onHelicone = { launchTask("Refreshing Helicone") { runHelicone(true) } },
             onLLMPrices = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } },
             onArtificialAnalysis = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } },
+            onRequesty = { launchTask("Refreshing Requesty") { runRequesty(true) } },
             onNavigateToHelpTopic = onNavigateToHelpTopic,
             // Deep-linked entry has no 3-card parent to fall back to, so Back
             // pops the route (returns to Manage data); normal entry just closes
@@ -445,7 +482,7 @@ fun RefreshScreen(
             // sources with their own progress rows.
             RefreshAction(
                 label = "Info providers",
-                description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis).",
+                description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty).",
                 enabled = !isAnyRunning,
                 onClick = { subPage = RefreshSubPage.INFO_PROVIDERS }
             )
@@ -467,13 +504,14 @@ private fun InfoProvidersRefreshPage(
     onHelicone: () -> Unit,
     onLLMPrices: () -> Unit,
     onArtificialAnalysis: () -> Unit,
+    onRequesty: () -> Unit,
     onNavigateToHelpTopic: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Six pricing & capability catalogs", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Seven pricing & capability catalogs", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             RefreshAction(
                 label = "OpenRouter",
@@ -521,6 +559,14 @@ private fun InfoProvidersRefreshPage(
                 enabled = !isAnyRunning && artificialAnalysisApiKey.isNotBlank(),
                 onClick = onArtificialAnalysis,
                 helpTopic = "info_provider_artificial_analysis",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "Requesty",
+                description = "Pull the Requesty router catalog (router.requesty.ai/v1/models) — per-token pricing + capability flags. Keyless cross-provider fallback after OpenRouter.",
+                enabled = !isAnyRunning,
+                onClick = onRequesty,
+                helpTopic = "info_provider_requesty",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
             )
         }

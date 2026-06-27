@@ -51,7 +51,7 @@ Anything operational beyond this file is in `doc/`:
 - `doc/backup-restore.md` — backup zip format, validate-then-write restore, exclude/preserve list
 - `doc/persistent.md` — every prefs key, every file under `<filesDir>`
 - `doc/providers.md` — all 35 providers
-- `doc/repositories.md` — the seven external metadata repos
+- `doc/repositories.md` — the eight external metadata repos
 - `doc/help.md` — in-app Help system (per-screen topics, per-provider pages)
 - `doc/applog.md` + `doc/log-details.md` — the in-app file logger + every call site
 - `doc/README.md` — index with reading order

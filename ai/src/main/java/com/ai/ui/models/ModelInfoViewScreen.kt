@@ -357,6 +357,11 @@ fun ModelInfoViewScreen(
                 PricingCache.getArtificialAnalysisRawEntry(context, provider, modelName)
             }
         }
+        val requestyRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getRequestyRawEntry(context, provider, modelName)
+            }
+        }
         val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
             value = withContext(Dispatchers.IO) {
                 PricingCache.getTierBreakdown(context, provider, modelName)
@@ -400,6 +405,7 @@ fun ModelInfoViewScreen(
                     heliconeRaw = heliconeRaw,
                     llmPricesRaw = llmPricesRaw,
                     aaRaw = aaRaw,
+                    requestyRaw = requestyRaw,
                     hfTrace = if (infoFlags.first) ({ onNavigateToTraceFiltered("info/huggingface", modelName) }) else null,
                     orTrace = if (infoFlags.second) ({ onNavigateToTraceFiltered("info/provider", null) }) else null,
                     onOpen = { name, body, url ->
@@ -652,6 +658,7 @@ private fun SourcesCard(
     heliconeRaw: String?,
     llmPricesRaw: String?,
     aaRaw: String?,
+    requestyRaw: String?,
     hfTrace: (() -> Unit)? = null,
     orTrace: (() -> Unit)? = null,
     onOpen: (sourceName: String, body: String, calledUrl: String?) -> Unit
@@ -679,8 +686,11 @@ private fun SourcesCard(
         SourceRow(com.ai.data.MetadataIconsHolder.current.cost, "llm-prices", llmPricesRaw) {
             onOpen("llm-prices", llmPricesRaw ?: "{}", "https://raw.githubusercontent.com/simonw/llm-prices/main/data/")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "Artificial Analysis", aaRaw, isLast = true) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "Artificial Analysis", aaRaw) {
             onOpen("Artificial Analysis", aaRaw ?: "{}", "https://artificialanalysis.ai/api/v2/data/llms/models")
+        }
+        SourceRow(com.ai.data.MetadataIconsHolder.current.web, "Requesty", requestyRaw, isLast = true) {
+            onOpen("Requesty", requestyRaw ?: "{}", "https://router.requesty.ai/v1/models")
         }
     }
 }
@@ -736,6 +746,7 @@ private fun CostsCard(tierBreakdown: PricingCache.TierBreakdown?) {
         tierBreakdown?.llmPrices?.let { "llm-prices.com" to it },
         tierBreakdown?.artificialAnalysis?.let { "Artificial Analysis" to it },
         tierBreakdown?.openrouter?.let { "OpenRouter" to it },
+        tierBreakdown?.requesty?.let { "Requesty" to it },
         tierBreakdown?.override?.let { "Override" to it }
     )
     SectionCard(title = "Costs (per million tokens)") {
