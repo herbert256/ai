@@ -611,11 +611,37 @@ object PricingCache {
         return resolved
     }
 
+    /** Quantization / packaging tokens a host appends to a model id that
+     *  the price catalogs don't carry (the quant variant is billed at the
+     *  base model's rate). Stripped only for the last-resort bare match. */
+    private val QUANT_SUFFIXES = setOf(
+        "fp8", "fp16", "bf16", "fp4", "int8", "int4", "awq", "gptq", "gguf", "mlx", "w8a8", "w4a16"
+    )
+
+    /** Reduce an already-normalized id to a bare model name: drop the
+     *  owner / routing prefix (`zai-org/`, `doubleword/`, `cloudflare/@cf/zai-org/`),
+     *  a `:` routing tag (`...:flex`, `...:free`), and a trailing
+     *  quantization token (`-fp8`). Used ONLY for the lowest-priority
+     *  match bucket, so a price for the same model under a different host
+     *  or quant beats the 25/75 DEFAULT. */
+    private fun bareModelKey(normalized: String): String {
+        var t = normalized.substringAfterLast('/').substringBefore(':')
+        val dash = t.lastIndexOf('-')
+        if (dash > 0 && t.substring(dash + 1) in QUANT_SUFFIXES) t = t.substring(0, dash)
+        return t
+    }
+
     /** Bucket-rank a [target]-matching scan over [map] and return the
      *  highest-priority value, where buckets are: (0) bare key, (1)
      *  declared prefix, (2) provider.id.lowercase()/, (3) any other
-     *  prefix. This prevents picking azure/bedrock/vertex variants when
-     *  the provider's own catalog row exists for the same model. */
+     *  prefix, (4) bare model name. (0–3) prevent picking
+     *  azure/bedrock/vertex variants when the provider's own catalog row
+     *  exists. (4) is the last resort: when the queried id carries an
+     *  owner/routing prefix or a quant/`:` suffix the catalogs don't use
+     *  (`zhipu/glm-5.2`, `doubleword/glm-5.2`, `zai-org/GLM-5.2-FP8`,
+     *  `…:flex`), it still matches the same model's price under a
+     *  different host instead of falling through to DEFAULT. Only enabled
+     *  when something was actually stripped, so plain ids are unaffected. */
     private fun <V> findBestPrefixedMatch(
         map: Map<String, V>, provider: AppService, model: String,
         useLitellmPrefix: Boolean = false
@@ -624,8 +650,13 @@ object PricingCache {
         val declaredPrefix = if (useLitellmPrefix) provider.litellmPrefix else provider.openRouterName
         val targetDeclared = declaredPrefix?.let { "${normalizeModelId(it)}/$target" }
         val targetId = "${provider.id.lowercase()}/$target"
+        val bareTarget = bareModelKey(target)
+        // Bare matching is a deliberately loose fallback — only arm it when
+        // the id actually had a prefix/suffix to strip and the remainder is
+        // distinctive enough to not collide on a trivial token.
+        val useBare = bareTarget != target && bareTarget.length > 2
         @Suppress("UNCHECKED_CAST")
-        val buckets = arrayOfNulls<Any>(4) as Array<V?>
+        val buckets = arrayOfNulls<Any>(5) as Array<V?>
         for ((key, value) in map) {
             val k = normalizeModelId(key)
             val priority = when {
@@ -633,6 +664,7 @@ object PricingCache {
                 targetDeclared != null && k == targetDeclared -> 1
                 k == targetId -> 2
                 k.endsWith("/$target") -> 3
+                useBare && bareModelKey(k) == bareTarget -> 4
                 else -> -1
             }
             if (priority < 0) continue
