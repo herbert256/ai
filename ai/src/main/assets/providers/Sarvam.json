@@ -1,0 +1,19 @@
+{
+  "adminUrl": "https://dashboard.sarvam.ai/admin",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.sarvam.ai/",
+  "defaultModel": "sarvam-105b",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "sarvam-105b",
+    "sarvam-30b"
+  ],
+  "id": "Sarvam",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

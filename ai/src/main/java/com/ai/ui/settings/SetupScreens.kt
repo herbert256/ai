@@ -579,7 +579,7 @@ fun ProvidersScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "providers", title = "Providers", subject = "42 built-in plus your own providers", onBackClick = onBackToAiSetup, onHousekeeping = onHousekeeping)
+        TitleBar(helpTopic = "providers", title = "Providers", subject = "68 built-in plus your own providers", onBackClick = onBackToAiSetup, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             visibleProviders.forEach { provider ->

@@ -340,7 +340,7 @@ need fixing, not this doc:
   (`SetupScreens.kt:219`). See `workers.md`.
 
 The **Providers** subtitle "42 built-in plus your own providers"
-(`SetupScreens.kt:561`) is accurate: the bundled catalog has 51 cloud
+(`SetupScreens.kt:561`) is accurate: the bundled catalog has 68 cloud
 providers (loaded at runtime from `assets/providers.json`, not hardcoded),
 plus any custom providers you add.
 

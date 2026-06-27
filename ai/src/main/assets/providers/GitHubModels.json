@@ -1,0 +1,22 @@
+{
+  "adminUrl": "https://github.com/settings/tokens",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://models.github.ai/",
+  "defaultModel": "openai/gpt-4o-mini",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "openai/gpt-4o-mini",
+    "openai/gpt-4.1",
+    "meta/Llama-3.3-70B-Instruct",
+    "deepseek/DeepSeek-V3-0324"
+  ],
+  "id": "GitHubModels",
+  "modelListFormat": "array",
+  "modelsPath": "catalog/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "inference/chat/completions"
+  }
+}

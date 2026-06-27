@@ -1,0 +1,21 @@
+{
+  "adminUrl": "https://tinfoil.sh/dashboard",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://inference.tinfoil.sh/",
+  "defaultModel": "llama3-3-70b",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "llama3-3-70b",
+    "deepseek-v4-pro",
+    "glm-5-2",
+    "gpt-oss-120b"
+  ],
+  "id": "Tinfoil",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

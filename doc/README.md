@@ -135,7 +135,7 @@ and a manual override layer into one resolved view per
   provider catalog merge.
 
 ### Reference data
-- **[providers.md](providers.md)** — All 51 cloud providers from the
+- **[providers.md](providers.md)** — All 68 cloud providers from the
   per-provider JSON files under `assets/providers/` with base URL,
   admin URL, and non-default fields.
 - **[repositories.md](repositories.md)** — The seven external metadata

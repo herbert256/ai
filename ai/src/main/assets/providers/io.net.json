@@ -1,0 +1,21 @@
+{
+  "adminUrl": "https://ai.io.net/ai/api-keys",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.intelligence.io.solutions/api/",
+  "defaultModel": "deepseek-ai/DeepSeek-V3.2",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "deepseek-ai/DeepSeek-V3.2",
+    "zai-org/GLM-5.2",
+    "Qwen/Qwen3.6-27B",
+    "openai/gpt-oss-120b"
+  ],
+  "id": "io.net",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

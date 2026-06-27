@@ -1,0 +1,21 @@
+{
+  "adminUrl": "https://regolo.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.regolo.ai/",
+  "defaultModel": "Llama-3.3-70B-Instruct",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "Llama-3.3-70B-Instruct",
+    "gpt-oss-120b",
+    "qwen3.6-27b",
+    "gemma4-31b"
+  ],
+  "id": "Regolo",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

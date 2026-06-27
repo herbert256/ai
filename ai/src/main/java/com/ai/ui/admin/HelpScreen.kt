@@ -758,7 +758,24 @@ private val CLOUD_PROVIDER_TAGLINES: Map<String, String> = mapOf(
     "provider_krutrim" to "Ola Krutrim — India-region open-weight inference",
     "provider_nebiusaistudio" to "Nebius AI Studio — Llama / DeepSeek / Qwen",
     "provider_chutes" to "Chutes — Bittensor-backed open-weight serving",
-    "provider_inferencenet" to "Inference.net — open-weight serverless inference"
+    "provider_inferencenet" to "Inference.net — open-weight serverless inference",
+    "provider_friendliai" to "FriendliAI — fast serverless endpoints (Korea)",
+    "provider_scaleway" to "Scaleway — EU-hosted Generative APIs (France)",
+    "provider_ovhcloud" to "OVHcloud AI Endpoints — EU sovereign inference",
+    "provider_digitalocean" to "DigitalOcean Gradient — serverless inference",
+    "provider_vultr" to "Vultr — serverless open-weight inference",
+    "provider_upstage" to "Upstage — Solar models, strong doc/OCR (Korea)",
+    "provider_venice" to "Venice AI — privacy-first, uncensored inference",
+    "provider_githubmodels" to "GitHub Models — free tier via your GitHub token",
+    "provider_nanogpt" to "NanoGPT — pay-per-prompt aggregator, 600+ models",
+    "provider_ionet" to "io.net — decentralized GPU (DePIN) inference",
+    "provider_tinfoil" to "Tinfoil — confidential inference in TEE enclaves",
+    "provider_wandb" to "W&B Inference — Weave-traceable open-weight serving",
+    "provider_clarifai" to "Clarifai — OpenAI-compat gateway, URL model ids",
+    "provider_cortecs" to "Cortecs — EU aggregator, cheapest/fastest routing",
+    "provider_sarvam" to "Sarvam — Indic-language models (India)",
+    "provider_stackit" to "STACKIT — German sovereign cloud (Schwarz Group)",
+    "provider_regolo" to "Regolo — EU sovereign inference (Italy)"
 )
 
 /** Directory card listing every registered cloud provider. Mirrors

@@ -149,12 +149,29 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **NebiusAIStudio** | `https://api.studio.nebius.com/` | `https://studio.nebius.com/settings/api-keys` | `zai-org/GLM-5.2` | `defaultModelSource=API`. Self-hosts Z.AI's open-weight GLM-5.2 (a reasoning model — needs room in `max_tokens`) |
 | **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `moonshotai/Kimi-K2.6-TEE` | `defaultModelSource=API` |
 | **Inference.net** | `https://api.inference.net/` | `https://inference.net/dashboard/api-keys` | `meta-llama/llama-3.3-70b-instruct/fp-8` | `defaultModelSource=API` |
+| **FriendliAI** | `https://api.friendli.ai/serverless/` | `https://friendli.ai/dashboard/setting/tokens` | `deepseek-ai/DeepSeek-V3.2` | serverless endpoints (Korea) |
+| **Scaleway** | `https://api.scaleway.ai/` | `https://console.scaleway.com/iam/api-keys` | `llama-3.3-70b-instruct` | EU-hosted (France); Secret Key is the bearer |
+| **OVHcloud** | `https://oai.endpoints.kepler.ai.cloud.ovh.net/` | `https://endpoints.ai.cloud.ovh.net/` | `Meta-Llama-3_3-70B-Instruct` | EU sovereign; underscored id `3_3` |
+| **DigitalOcean** | `https://inference.do-ai.run/` | `https://cloud.digitalocean.com/gen-ai/model-access-keys` | `llama3.3-70b-instruct` | Gradient AI; also proxies `openai-*` / `anthropic-*` |
+| **Vultr** | `https://api.vultrinference.com/` | `https://my.vultr.com/inference/` | `llama-3.3-70b-instruct-fp8` | serverless inference; FP8 in id |
+| **Upstage** | `https://api.upstage.ai/` | `https://console.upstage.ai/api-keys` | `solar-pro2` | Solar models, strong doc/OCR (Korea) |
+| **Venice** | `https://api.venice.ai/api/` | `https://venice.ai/settings/api` | `venice-uncensored-1-2` | privacy-first / uncensored; note `/api/` base segment |
+| **GitHubModels** | `https://models.github.ai/` | `https://github.com/settings/tokens` | `openai/gpt-4o-mini` | free tier via GitHub PAT; `typePaths.chat=inference/chat/completions`, `modelsPath=catalog/models`, `modelListFormat=array` |
+| **NanoGPT** | `https://nano-gpt.com/api/` | `https://nano-gpt.com/api` | `openai/gpt-oss-120b` | pay-per-prompt aggregator, 600+ models |
+| **io.net** | `https://api.intelligence.io.solutions/api/` | `https://ai.io.net/ai/api-keys` | `deepseek-ai/DeepSeek-V3.2` | decentralized GPU (DePIN) |
+| **Tinfoil** | `https://inference.tinfoil.sh/` | `https://tinfoil.sh/dashboard` | `llama3-3-70b` | confidential inference (TEE enclaves) |
+| **WandB** | `https://api.inference.wandb.ai/` | `https://wandb.ai/authorize` | `meta-llama/Llama-3.3-70B-Instruct` | W&B Weave-traceable inference |
+| **Clarifai** | `https://api.clarifai.com/v2/ext/openai/` | `https://clarifai.com/settings/security` | `https://clarifai.com/openai/chat-completion/models/gpt-oss-120b` | OpenAI-compat gateway; full-URL model ids |
+| **Cortecs** | `https://api.cortecs.ai/` | `https://cortecs.ai` | `glm-5.2` | EU aggregator, cheapest/fastest routing |
+| **Sarvam** | `https://api.sarvam.ai/` | `https://dashboard.sarvam.ai/admin` | `sarvam-105b` | Indic-language models (India) |
+| **STACKIT** | `https://api.openai-compat.model-serving.eu01.onstackit.cloud/` | `https://portal.stackit.cloud/` | `cortecs/Llama-3.3-70B-Instruct-FP8-Dynamic` | German sovereign cloud (Schwarz Group); 403 without token |
+| **Regolo** | `https://api.regolo.ai/` | `https://regolo.ai/` | `Llama-3.3-70B-Instruct` | EU sovereign (Italy) |
 
-**51 providers total** — 48 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
-(Anthropic), 1 `GOOGLE` (Google), 1 `REPLICATE` (Replicate). All 48
+**68 providers total** — 65 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
+(Anthropic), 1 `GOOGLE` (Google), 1 `REPLICATE` (Replicate). All 65
 OpenAI-compatible providers share the unified dispatch path; only
 Anthropic, Google and Replicate carry format-specific code. (The inline `// 28 providers` comment in
-`ApiFormat.kt` is stale — the real OpenAI-compatible count is 48.)
+`ApiFormat.kt` is stale — the real OpenAI-compatible count is 65.)
 
 ## Field reference
 
