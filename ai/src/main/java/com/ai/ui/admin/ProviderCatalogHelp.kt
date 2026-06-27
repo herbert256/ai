@@ -167,9 +167,9 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_aimlapi" to HelpContent(
-        title = "Help - AI/ML API",
+        title = "Help - AI-ML-API",
         cards = listOf(
-            HelpCard("Overview", "AI/ML API (aimlapi.com) — an OpenAI-compatible aggregator exposing 600+ chat/image/audio models across every major provider behind one key."),
+            HelpCard("Overview", "AI-ML-API — the AI/ML API service (aimlapi.com), an OpenAI-compatible aggregator exposing 600+ chat/image/audio models across every major provider behind one key. (Named AI-ML-API, not AI/ML API, because a provider id can't contain a slash.)"),
             HelpCard("Setup", "Mint a key at aimlapi.com → app → keys (the 🛠️ admin icon opens it). Drop-in OpenAI base-URL swap; `Authorization: Bearer`."),
             HelpCard("Endpoints", "Base `api.aimlapi.com/`, chat `v1/chat/completions`, models `v1/models`."),
             HelpCard("Models", "Default `anthropic/claude-opus-4-8`. Slash-prefixed ids — the catalog carries BOTH dashed and dotted Anthropic aliases plus many dated snapshots, so the live `v1/models` list is the source of truth (`defaultModelSource=API`). `mergeHardcodedModels=true` Claude/GPT/Gemini/DeepSeek fallback."),

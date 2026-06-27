@@ -12,7 +12,7 @@
     "google/gemini-2.5-flash",
     "deepseek/deepseek-chat-v3.1"
   ],
-  "id": "AIMLAPI",
+  "id": "AI-ML-API",
   "mergeHardcodedModels": true,
   "modelListFormat": "object",
   "seedFieldName": "seed",
