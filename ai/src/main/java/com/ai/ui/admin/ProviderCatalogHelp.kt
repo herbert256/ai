@@ -4,7 +4,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
     "providers" to HelpContent(
         title = "Help - Providers",
         cards = listOf(
-            HelpCard("Overview", "List of every registered provider (50 bundled plus any user-added). The state of each row is shown by an emoji."),
+            HelpCard("Overview", "List of every registered provider (51 bundled plus any user-added). The state of each row is shown by an emoji."),
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
             HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
             HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
@@ -204,6 +204,16 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoints", "Base `inference.baseten.co/`, chat `v1/chat/completions`, models `v1/models` (standard OpenAI object shape, with `pricing`/`context_length` metadata). NB the Model-APIs host is `inference.baseten.co`, not `app`/`api.baseten.co` (which serve the console / your own dedicated deployments)."),
             HelpCard("Models", "Default `openai/gpt-oss-120b`. Slash-prefixed HF-style ids (`zai-org/GLM-5.2`, `moonshotai/Kimi-K2.6`, `deepseek-ai/DeepSeek-V4-Pro`). `defaultModelSource=API` (the curated list is small); `mergeHardcodedModels=true` fallback. The catalog is the Model-APIs library, not Baseten's full deploy-your-own model universe."),
             HelpCard("Pricing & quirks", "Model APIs bill per-million-tokens. No `litellmPrefix`/`openRouterName` — pricing falls through to the OpenRouter cross-provider catalog or DEFAULT. Separately, Baseten lets you deploy dedicated models on its GPUs (per-model `model-{id}.api.baseten.co` URLs) — those aren't reachable through this single Model-APIs provider entry."),
+        )
+    ),
+    "provider_gmicloud" to HelpContent(
+        title = "Help - GMI-Cloud",
+        cards = listOf(
+            HelpCard("Overview", "GMI Cloud (gmicloud.ai) — serverless GPU inference, OpenAI-compatible, ~66 open-weight models (DeepSeek V3/V4, Qwen 3.5/3.7, Kimi K2.x, gpt-oss/gpt-5.x, and Z.AI's GLM incl. self-hosted `zai-org/GLM-5.2-FP8`). Free endpoint → serverless → dedicated H100/H200 on one consistent API."),
+            HelpCard("Setup", "console.gmicloud.ai → create an Inference-Engine API key (the 🛠️ admin icon opens the console). The key is a JWT; send it as `Authorization: Bearer`. **Add credit** — an unfunded account lists models fine but generation returns HTTP 402 \"Insufficient balance\"."),
+            HelpCard("Endpoints", "Base `api.gmi-serving.com/` (note: the *serving* host, not `gmicloud.ai`), chat `v1/chat/completions`, models `v1/models` (standard OpenAI object shape with `pricing`/`context_length`)."),
+            HelpCard("Models", "Default `deepseek-ai/DeepSeek-V3.2`. Slash-prefixed HF-style ids; GLM ships as `-FP8` quantized (`zai-org/GLM-5.2-FP8`, no plain `GLM-5.2`). `defaultModelSource=API`; `mergeHardcodedModels=true` DeepSeek/GLM/Qwen/Kimi/gpt-oss fallback."),
+            HelpCard("Pitfalls", "Generation needs a funded account (402 otherwise). No `litellmPrefix`/`openRouterName` — pricing falls through to the OpenRouter cross-provider catalog or DEFAULT. Id is `GMI-Cloud` (dash, not slash — a slash would break the Model Info route)."),
         )
     ),
     "provider_siliconflow" to HelpContent(

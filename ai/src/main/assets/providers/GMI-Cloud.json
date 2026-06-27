@@ -1,0 +1,24 @@
+{
+  "adminUrl": "https://console.gmicloud.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.gmi-serving.com/",
+  "defaultModel": "deepseek-ai/DeepSeek-V3.2",
+  "defaultModelSource": "API",
+  "hardcodedModels": [
+    "deepseek-ai/DeepSeek-V3.2",
+    "zai-org/GLM-5.2-FP8",
+    "Qwen/Qwen3.5-122B-A10B",
+    "moonshotai/Kimi-K2.6",
+    "deepseek-ai/DeepSeek-V4-Pro",
+    "openai/gpt-5.5"
+  ],
+  "id": "GMI-Cloud",
+  "mergeHardcodedModels": true,
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

@@ -13,7 +13,7 @@ the pricing tiers `litellmPrefix` / `openRouterName` / `pricingFromModelList`
 ## How the catalog loads
 
 The catalog is **one JSON file per provider** under `assets/providers/`
-— 50 files, each a bare `ProviderDefinition` object (no
+— 51 files, each a bare `ProviderDefinition` object (no
 `{"providers": [...]}` wrapper, no top-level `version`). It is **not**
 hardcoded in Kotlin. `ProviderRegistry` (`data/ProviderRegistry.kt`)
 is a mutable `object` that starts **empty** on a fresh install; the
@@ -116,6 +116,7 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **AtlasCloud** | `https://api.atlascloud.ai/` | `https://www.atlascloud.ai/console/api-keys` | `deepseek-ai/DeepSeek-V3-0324` | OpenAI-compatible aggregator (~130 open-weight models incl. `zai-org/glm-5.2`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. The `/v1/models` body wraps the list as `{code,msg,data:[{id}]}` — parser reads `data[]`. `defaultModelSource=API`, `mergeHardcodedModels=true`, 5 hardcoded models. No `openRouterName`/`litellmPrefix` |
 | **Parasail** | `https://api.parasail.io/` | `https://saas.parasail.io/keys` | `meta-llama/Llama-3.3-70B-Instruct` | Serverless open-weight host (~70 models; self-hosts `zai-org/GLM-5.2`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Ids in two flavours: HF-style (`zai-org/GLM-5.2`) and Parasail aliases (`parasail-glm-52`), `*-FP8` = quantized. `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
 | **Baseten** | `https://inference.baseten.co/` | `https://app.baseten.co/settings/api_keys` | `openai/gpt-oss-120b` | Model-APIs inference host — small curated catalog (~11: gpt-oss, GLM incl. self-hosted `zai-org/GLM-5.2`, Kimi, DeepSeek-V4, Nemotron). Host is `inference.baseten.co` (not `app`/`api.baseten.co`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. `defaultModelSource=API`, `mergeHardcodedModels=true`, 5 hardcoded models |
+| **GMI-Cloud** | `https://api.gmi-serving.com/` | `https://console.gmicloud.ai/` | `deepseek-ai/DeepSeek-V3.2` | Serverless GPU inference (~66 models; self-hosts `zai-org/GLM-5.2-FP8`). Host is `api.gmi-serving.com`, JWT bearer key. `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. GLM ships `-FP8`-quantized. `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models. Dash id (slash would break the Model Info route) |
 | **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `Qwen/Qwen2.5-7B-Instruct` | `defaultModelSource=API`, 9 hardcoded models, `nativeRerankUrl=https://api.siliconflow.com/v1/rerank` |
 | **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.5-air` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm\|codegeex\|charglm`, 7 hardcoded models, `defaultModelSource=API`, `builtInEndpoints` (Chat Completions + Coding) |
 | **Moonshot** | `https://api.moonshot.ai/` | `https://platform.moonshot.ai/console/api-keys` | `kimi-latest` | `openRouterName=moonshot`, 4 hardcoded models, `defaultModelSource=API` |
@@ -149,11 +150,11 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `moonshotai/Kimi-K2.6-TEE` | `defaultModelSource=API` |
 | **Inference.net** | `https://api.inference.net/` | `https://inference.net/dashboard/api-keys` | `meta-llama/llama-3.3-70b-instruct/fp-8` | `defaultModelSource=API` |
 
-**50 providers total** — 47 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
-(Anthropic), 1 `GOOGLE` (Google), 1 `REPLICATE` (Replicate). All 47
+**51 providers total** — 48 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
+(Anthropic), 1 `GOOGLE` (Google), 1 `REPLICATE` (Replicate). All 48
 OpenAI-compatible providers share the unified dispatch path; only
 Anthropic, Google and Replicate carry format-specific code. (The inline `// 28 providers` comment in
-`ApiFormat.kt` is stale — the real OpenAI-compatible count is 47.)
+`ApiFormat.kt` is stale — the real OpenAI-compatible count is 48.)
 
 ## Field reference
 

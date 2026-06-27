@@ -1,6 +1,6 @@
 # API Formats
 
-Four dispatch paths cover all 50 bundled cloud providers. Identity is
+Four dispatch paths cover all 51 bundled cloud providers. Identity is
 **always** keyed off `service.apiFormat` — never off provider id —
 which is why adding an OpenAI-compatible provider is usually a single
 JSON file under `assets/providers/`.
@@ -13,12 +13,12 @@ The enum has exactly four values (`ApiFormat.kt`). Provider
 definitions are now one JSON file per provider under
 `assets/providers/` (each file a bare `ProviderDefinition`, no
 `{ "providers": [...] }` wrapper), loaded via
-`ProviderRegistry.importFromAsset`. Across the 50 provider files,
-**47 are `OPENAI_COMPATIBLE`, 1 is `ANTHROPIC` (the `Anthropic`
+`ProviderRegistry.importFromAsset`. Across the 51 provider files,
+**48 are `OPENAI_COMPATIBLE`, 1 is `ANTHROPIC` (the `Anthropic`
 provider), 1 is `GOOGLE` (the `Google` provider), 1 is `REPLICATE` (the
 `Replicate` provider)**. The inline
 `// 28 providers…` comment in `ApiFormat.kt` is stale — the real
-OpenAI-compatible count is 47.
+OpenAI-compatible count is 48.
 
 Dispatch lives in `com.ai.data.ApiDispatch`; chat streaming in
 `com.ai.data.ApiStreaming`. Every public entry point switches on a
@@ -43,7 +43,7 @@ Only `ANTHROPIC` and `GOOGLE` carry format-specific code. The 40
 dispatchers — per-provider behaviour is data, driven by `AppService`
 fields read from each provider's JSON file under `assets/providers/`.
 
-## OPENAI_COMPATIBLE (default — 47 of 50 providers)
+## OPENAI_COMPATIBLE (default — 48 of 51 providers)
 
 The familiar OpenAI Chat Completions wire format. Bearer-token auth.
 Request/response shapes are `OpenAiRequest` / `OpenAiResponse` in
