@@ -23,7 +23,7 @@ have format-specific code.
 | Persistence | SharedPreferences + JSON files in `<filesDir>` |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |
-| Size | ~153,000 LOC across 389 Kotlin files (88 data, 273 ui, 25 viewmodel, 2 model, 1 entry) |
+| Size | ~159,000 LOC across 404 Kotlin files (96 data, 278 ui, 27 viewmodel, 2 model, 1 entry) |
 
 ## Documentation
 
