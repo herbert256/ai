@@ -559,6 +559,70 @@ fun ModelInfoScreen(
                         PricingCache.getTierBreakdown(context, provider, modelName)
                     }
                 }
+                // Capability sidecars from each info provider — drive the
+                // per-source detail cards further down. Loaded off the main
+                // thread; each card hides when its meta is null.
+                val aaMeta by produceState<PricingCache.ArtificialAnalysisMeta?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) { PricingCache.getArtificialAnalysisMeta(provider, modelName) }
+                }
+                val llmStatsMeta by produceState<PricingCache.LlmStatsMeta?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) { PricingCache.getLlmStatsMeta(provider, modelName) }
+                }
+                val modelsDevMeta by produceState<PricingCache.ModelsDevMeta?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) { PricingCache.getModelsDevMeta(provider, modelName) }
+                }
+                val requestyMeta by produceState<PricingCache.RequestyMeta?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) { PricingCache.getRequestyMeta(provider, modelName) }
+                }
+                val trueFoundryMeta by produceState<PricingCache.TrueFoundryMeta?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) { PricingCache.getTrueFoundryMeta(provider, modelName) }
+                }
+                val liteLLMMeta by produceState<PricingCache.LiteLLMMeta?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) { PricingCache.getLiteLLMMeta(provider, modelName) }
+                }
+                val genaiPricesMeta by produceState<PricingCache.GenaiPricesMeta?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) { PricingCache.getGenaiPricesMeta(provider, modelName) }
+                }
+                // CloudPrice live detail, parsed into label/value detail rows +
+                // capability flags for the two CloudPrice cards.
+                val cloudPriceData = remember(cloudPriceRaw) {
+                    cloudPriceRaw?.let { raw ->
+                        runCatching { com.google.gson.JsonParser.parseString(raw).asJsonObject.getAsJsonObject("data") }.getOrNull()
+                    }
+                }
+                val cloudPriceRows: List<Pair<String, String>> = remember(cloudPriceData) {
+                    val d = cloudPriceData ?: return@remember emptyList()
+                    fun s(k: String) = d.get(k)?.takeIf { it.isJsonPrimitive && !it.isJsonNull }?.asString?.takeIf { it.isNotBlank() }
+                    fun i(k: String) = d.get(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
+                    buildList {
+                        s("family")?.let { add("Family" to it) }
+                        s("tier")?.let { add("Tier" to it) }
+                        s("version")?.let { add("Version" to it) }
+                        s("type")?.let { add("Type" to it) }
+                        s("tokenizer")?.let { add("Tokenizer" to it) }
+                        (d.getAsJsonObject("modalities"))?.let { m ->
+                            val inp = m.getAsJsonArray("input")?.mapNotNull { e -> e.asString }?.joinToString(", ")
+                            val out = m.getAsJsonArray("output")?.mapNotNull { e -> e.asString }?.joinToString(", ")
+                            if (!inp.isNullOrBlank() && !out.isNullOrBlank()) add("Modalities" to "$inp → $out")
+                        }
+                        i("context_window")?.let { add("Context Window" to formatCompactNumber(it.toLong())) }
+                        i("max_output_tokens")?.let { add("Max Output" to formatCompactNumber(it.toLong())) }
+                        d.getAsJsonArray("supported_reasoning_efforts")?.mapNotNull { it.asString }?.takeIf { it.isNotEmpty() }
+                            ?.let { add("Reasoning efforts" to it.joinToString(", ")) }
+                        s("knowledge_cutoff")?.let { add("Knowledge cutoff" to it) }
+                        s("training_data_cutoff")?.let { add("Training cutoff" to it) }
+                        s("release_date")?.let { add("Released" to it) }
+                        s("earliest_deprecation_date")?.let { add("Earliest deprecation" to it) }
+                        d.get("deprecated")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean?.let { if (it) add("Deprecated" to "Yes") }
+                        i("provider_count")?.let { add("Providers serving" to it.toString()) }
+                        i("tool_use_system_prompt_tokens")?.let { if (it > 0) add("Tool-use overhead" to "$it tok") }
+                    }
+                }
+                val cloudPriceCaps: List<Pair<String, Boolean>> = remember(cloudPriceData) {
+                    cloudPriceData?.getAsJsonObject("capabilities")?.entrySet()?.mapNotNull { (k, v) ->
+                        if (v.isJsonPrimitive && v.asJsonPrimitive.isBoolean) k to v.asBoolean else null
+                    } ?: emptyList()
+                }
                 val blockedReason = aiSettings.blockedModels
                     .firstOrNull { it.providerId == provider.id && it.model == modelName }?.reason
                 val inaccessibleReason = aiSettings.inaccessibleModels
@@ -1269,6 +1333,127 @@ fun ModelInfoScreen(
                         item {
                             ModelInfoSection("Tags", "HuggingFace", onNavigateToHelpTopic) {
                                 Text(tags.joinToString(", "), fontSize = 12.sp, color = AppColors.TextTertiary)
+                            }
+                        }
+                    }
+
+                    // ───────── Extra per-info-provider detail cards ─────────
+                    // Each hides when its source has no data for this model.
+
+                    // CloudPrice — details (release / cutoff / deprecation dates,
+                    // family / tier / version, tokenizer, modalities, limits).
+                    if (cloudPriceRows.isNotEmpty()) {
+                        item {
+                            ModelInfoSection("CloudPrice details", "CloudPrice", onNavigateToHelpTopic) {
+                                cloudPriceRows.forEach { (label, value) -> ModelInfoRow(label, value) }
+                            }
+                        }
+                    }
+
+                    // CloudPrice — full capability flags.
+                    if (cloudPriceCaps.isNotEmpty()) {
+                        item {
+                            ModelInfoSection("CloudPrice capabilities", "CloudPrice", onNavigateToHelpTopic) {
+                                cloudPriceCaps.forEach { (key, on) ->
+                                    ModelInfoRow(key.replace('_', ' ').replaceFirstChar { it.uppercase() }, if (on) "Yes" else "No")
+                                }
+                            }
+                        }
+                    }
+
+                    // Artificial Analysis — benchmark + speed scores.
+                    aaMeta?.let { aa ->
+                        if (aa.intelligenceIndex != null || aa.outputSpeed != null || aa.firstChunkSeconds != null || aa.modelCreator != null) {
+                            item {
+                                ModelInfoSection("Benchmarks", "Artificial Analysis", onNavigateToHelpTopic) {
+                                    aa.intelligenceIndex?.let { ModelInfoRow("Intelligence Index", String.format(Locale.US, "%.1f", it)) }
+                                    aa.outputSpeed?.let { ModelInfoRow("Output Speed", String.format(Locale.US, "%.1f tok/s", it)) }
+                                    aa.firstChunkSeconds?.let { ModelInfoRow("Time to First Token", String.format(Locale.US, "%.2f s", it)) }
+                                    aa.modelCreator?.let { ModelInfoRow("Creator", it) }
+                                }
+                            }
+                        }
+                    }
+
+                    // llm-stats — per-category benchmark scores + modalities.
+                    llmStatsMeta?.let { ls ->
+                        val scores = ls.topScores
+                        if (!scores.isNullOrEmpty() || !ls.modalities.isNullOrEmpty() || ls.organization != null) {
+                            item {
+                                ModelInfoSection("Benchmark scores", "llm-stats", onNavigateToHelpTopic) {
+                                    ls.organization?.let { ModelInfoRow("Organization", it) }
+                                    ls.modalities?.takeIf { it.isNotEmpty() }?.let { ModelInfoRow("Modalities", it.joinToString(", ")) }
+                                    scores?.toSortedMap()?.forEach { (k, v) ->
+                                        ModelInfoRow(k.replace('_', ' ').replaceFirstChar { it.uppercase() }, String.format(Locale.US, "%.2f", v))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // models.dev — capability flags + token limits.
+                    modelsDevMeta?.let { md ->
+                        item {
+                            ModelInfoSection("models.dev", "models.dev", onNavigateToHelpTopic) {
+                                md.supportsVision?.let { ModelInfoRow("Vision", if (it) "Yes" else "No") }
+                                md.supportsToolCall?.let { ModelInfoRow("Tool calling", if (it) "Yes" else "No") }
+                                md.supportsReasoning?.let { ModelInfoRow("Reasoning", if (it) "Yes" else "No") }
+                                md.maxInputTokens?.let { ModelInfoRow("Context", formatCompactNumber(it.toLong())) }
+                                md.maxOutputTokens?.let { ModelInfoRow("Max Output", formatCompactNumber(it.toLong())) }
+                            }
+                        }
+                    }
+
+                    // Requesty — capability flags + token limits.
+                    requestyMeta?.let { rq ->
+                        item {
+                            ModelInfoSection("Requesty", "Requesty", onNavigateToHelpTopic) {
+                                rq.supportsVision?.let { ModelInfoRow("Vision", if (it) "Yes" else "No") }
+                                rq.supportsReasoning?.let { ModelInfoRow("Reasoning", if (it) "Yes" else "No") }
+                                rq.supportsToolCalling?.let { ModelInfoRow("Tool calling", if (it) "Yes" else "No") }
+                                rq.supportsWebSearch?.let { ModelInfoRow("Web search", if (it) "Yes" else "No") }
+                                rq.supportsComputerUse?.let { ModelInfoRow("Computer use", if (it) "Yes" else "No") }
+                                rq.maxInputTokens?.let { ModelInfoRow("Context", formatCompactNumber(it.toLong())) }
+                                rq.maxOutputTokens?.let { ModelInfoRow("Max Output", formatCompactNumber(it.toLong())) }
+                            }
+                        }
+                    }
+
+                    // TrueFoundry — capability flags + token limits.
+                    trueFoundryMeta?.let { tf ->
+                        item {
+                            ModelInfoSection("TrueFoundry", "TrueFoundry", onNavigateToHelpTopic) {
+                                tf.supportsVision?.let { ModelInfoRow("Vision", if (it) "Yes" else "No") }
+                                tf.supportsToolCalling?.let { ModelInfoRow("Tool calling", if (it) "Yes" else "No") }
+                                tf.supportsReasoning?.let { ModelInfoRow("Reasoning", if (it) "Yes" else "No") }
+                                tf.maxInputTokens?.let { ModelInfoRow("Context", formatCompactNumber(it.toLong())) }
+                                tf.maxOutputTokens?.let { ModelInfoRow("Max Output", formatCompactNumber(it.toLong())) }
+                            }
+                        }
+                    }
+
+                    // LiteLLM — mode, endpoints, and feature flags.
+                    liteLLMMeta?.let { ll ->
+                        item {
+                            ModelInfoSection("LiteLLM", "LiteLLM", onNavigateToHelpTopic) {
+                                ll.mode?.let { ModelInfoRow("Mode", it) }
+                                ll.supportedEndpoints?.takeIf { it.isNotEmpty() }?.let { ModelInfoRow("Endpoints", it.joinToString(", ")) }
+                                ll.supportsVision?.let { ModelInfoRow("Vision", if (it) "Yes" else "No") }
+                                ll.supportsWebSearch?.let { ModelInfoRow("Web search", if (it) "Yes" else "No") }
+                                ll.supportsReasoning?.let { ModelInfoRow("Reasoning", if (it) "Yes" else "No") }
+                                ll.supportsSystemMessages?.let { ModelInfoRow("System messages", if (it) "Yes" else "No") }
+                                ll.supportsResponseSchema?.let { ModelInfoRow("Response schema", if (it) "Yes" else "No") }
+                                ll.supportsNativeStreaming?.let { ModelInfoRow("Native streaming", if (it) "Yes" else "No") }
+                                ll.toolUseSystemPromptTokens?.let { if (it > 0) ModelInfoRow("Tool-use overhead", "$it tok") }
+                            }
+                        }
+                    }
+
+                    // genai-prices — context window.
+                    genaiPricesMeta?.maxInputTokens?.let { ctx ->
+                        item {
+                            ModelInfoSection("genai-prices", "genai-prices", onNavigateToHelpTopic) {
+                                ModelInfoRow("Context Window", formatCompactNumber(ctx.toLong()))
                             }
                         }
                     }

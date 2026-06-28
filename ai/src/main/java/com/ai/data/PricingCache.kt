@@ -1851,6 +1851,17 @@ object PricingCache {
     fun cloudPriceMaxInputTokens(provider: AppService, model: String): Int? =
         findCloudPriceMeta(provider, model)?.maxInputTokens
 
+    // ── Public capability-sidecar getters for the Model Info detail cards.
+    //    Each returns null when the tier is disabled or has no entry for the
+    //    (provider, model), so the corresponding card auto-hides. ──
+    fun getLiteLLMMeta(provider: AppService, model: String): LiteLLMMeta? = findLiteLLMMeta(provider, model)
+    fun getModelsDevMeta(provider: AppService, model: String): ModelsDevMeta? = findModelsDevMeta(provider, model)
+    fun getArtificialAnalysisMeta(provider: AppService, model: String): ArtificialAnalysisMeta? = findArtificialAnalysisMeta(provider, model)
+    fun getLlmStatsMeta(provider: AppService, model: String): LlmStatsMeta? = findLlmStatsMeta(provider, model)
+    fun getRequestyMeta(provider: AppService, model: String): RequestyMeta? = findRequestyMeta(provider, model)
+    fun getTrueFoundryMeta(provider: AppService, model: String): TrueFoundryMeta? = findTrueFoundryMeta(provider, model)
+    fun getGenaiPricesMeta(provider: AppService, model: String): GenaiPricesMeta? = findGenaiPricesMeta(provider, model)
+
     suspend fun fetchOpenRouterPricing(apiKey: String): Map<String, ModelPricing> {
         if (apiKey.isBlank()) return emptyMap()
         return withTraceCategory("pricing/OpenRouter") {
