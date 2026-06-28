@@ -1,0 +1,26 @@
+{
+  "adminUrl": "https://modelstudio.console.alibabacloud.com/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://ws-dft0j6dsrm76r6ud.eu-central-1.maas.aliyuncs.com/compatible-mode/",
+  "defaultModel": "qwen3.7-plus",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "qwen3.7-plus",
+    "qwen3.7-max",
+    "qwen3-max",
+    "qwen3-32b",
+    "glm-5.2",
+    "deepseek-v4-pro",
+    "kimi-k2.5"
+  ],
+  "id": "Alibaba",
+  "mergeHardcodedModels": true,
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}
