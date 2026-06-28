@@ -841,6 +841,18 @@ internal fun NavGraphBuilder.developerRoutes(
                             rowIds = rowIds
                         )
                         reportViewModel.secondary.refreshBrokenBatches(brokenWorkContext)
+                        // If the batch we just acted on belongs to the report
+                        // open underneath (we came here from its Manage screen
+                        // via the ⚠️ badge), re-restore its in-memory state so
+                        // the X/Y count + rows reflect the delete/restart the
+                        // instant we navigate back. Without this the Manage
+                        // screen showed a stale count until it was left and
+                        // re-entered. Guarded on currentReportId so acting on a
+                        // *different* report's batch never clobbers the active
+                        // report's state.
+                        if (batch.reportId == appViewModel.uiState.value.currentReportId) {
+                            reportViewModel.restoreCompletedReport(brokenWorkContext, batch.reportId)
+                        }
                     } finally {
                         withContext(Dispatchers.Main) {
                             busyBrokenWorkActions = busyBrokenWorkActions - actionKey
