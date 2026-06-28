@@ -1923,6 +1923,13 @@ private fun renderTrimmedEmoji(emoji: String, renderPx: Int): android.graphics.B
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = android.graphics.Paint.Align.CENTER
         textSize = renderPx * 0.82f
+        // Monochrome glyphs (chess pieces ♔♚♟, ★, ☂, suit pips, …) are drawn
+        // in this paint colour; without an explicit colour they default to
+        // BLACK and vanish on the dark title bar (the report-icon slot looked
+        // empty for any report whose generated icon was a text-symbol rather
+        // than a colour emoji). White matches the title text and is ignored by
+        // colour-emoji glyphs (those carry their own bitmap colours).
+        color = android.graphics.Color.WHITE
     }
     val fm = paint.fontMetrics
     canvas.drawText(emoji, renderPx / 2f, renderPx / 2f - (fm.ascent + fm.descent) / 2f, paint)
