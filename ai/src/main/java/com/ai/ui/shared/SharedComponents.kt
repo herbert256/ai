@@ -2247,7 +2247,6 @@ fun HomeIconBar(
         add { TitleBarIcon(mi.reportIcon, Color.Unspecified, onReports, width = w, heightDp = h, fontSize = fs, contentDescription = "Reports") }
         add { TitleBarIcon(mi.chat, Color.Unspecified, onChat, width = w, heightDp = h, fontSize = fs, contentDescription = "Chat") }
         add { TitleBarIcon(mi.liveDashboard, Color.Unspecified, onMonitor, width = w, heightDp = h, fontSize = fs, contentDescription = "Monitor") }
-        add { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs, contentDescription = "Housekeeping") }
         // 📜 Application log — sits before 🐞 Traces (the two were swapped).
         add { TitleBarIcon(mi.appLog, Color.Unspecified, onAppLog, width = w, heightDp = h, fontSize = fs, contentDescription = "Application log") }
         // Traces: always present; grayed + inert when the "Show Ladybug icons"
@@ -2257,6 +2256,8 @@ fun HomeIconBar(
             TitleBarIcon(mi.traces, Color.Unspecified, if (tracesActive) traceAction else ({}), width = w, heightDp = h, fontSize = fs,
                 alpha = if (tracesActive) 1f else 0.35f, contentDescription = "API traces")
         }
+        // Housekeeping sits right after Traces.
+        add { TitleBarIcon(mi.housekeeping, Color.Unspecified, onHousekeeping, width = w, heightDp = h, fontSize = fs, contentDescription = "Housekeeping") }
         // AI Setup sits right before Settings.
         add { TitleBarIcon(mi.agent, Color.Unspecified, onSetup, width = w, heightDp = h, fontSize = fs, contentDescription = "AI setup") }
         add { TitleBarIcon(mi.settings, Color.Unspecified, onSettings, width = w, heightDp = h, fontSize = fs, contentDescription = "Settings") }
