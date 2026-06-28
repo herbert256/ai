@@ -207,11 +207,16 @@ internal fun SelectionOverlayDialogs(
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
             alreadyAdded = already,
+            titleText = "Pick Models",
+            subject = "Add one or more models, with live pricing",
             recentEntries = recentReportPairs,
             onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
+            // Multi-select: add the picked model and STAY on the picker,
+            // mirroring the swarm-edit model picker. The just-added row
+            // dims via [already] (recomputed from the target list) so it
+            // can't be double-added; the user taps Back when finished.
             onConfirm = { (prov, m) ->
                 addToActiveTarget(listOf(toReportModel(prov, m)))
-                showSelectAllModels = false
             },
             onBack = { showSelectAllModels = false },
             onNavigateHome = onNavigateHome

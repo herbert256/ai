@@ -958,9 +958,9 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_pick_model" to HelpContent(
-        title = "Help - Pick model",
+        title = "Help - Pick models",
         cards = listOf(
-            HelpCard("Overview", "Full-screen single-select model picker reached by +Model on the New AI Report selection phase, and by the secondary-result launchers (Meta / Fan-out / Fan-in / Translate / Rerank) when they need a model."),
+            HelpCard("Overview", "Full-screen model picker reached by +Model on the New AI Report selection phase — now multi-select like the Swarm member picker: tap as many models as you want (each dims as it's added) and Back returns with all of them. The same screen also backs the secondary-result launchers (Meta / Fan-out / Fan-in / Translate / Rerank), which stay single-select."),
             HelpCard("List", "Joins every active provider's catalog."),
             HelpCard("Provider filter", "Dropdown above the list — All Providers or one specific provider (count shown next to each name)."),
             HelpCard("Type filter", "When opened with a modelTypeFilter (RERANK / MODERATION / EMBEDDING / etc.), a checkbox '<Type> models only' is shown ON by default — untick to widen to the full catalog."),
@@ -968,7 +968,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Recent section", "When the user has picked from any Report-section model picker before, the last 3 picks surface as a 'Recent' section above the main alphabetical list. Filters and search don't trim it — recents are a quick-access shortcut. Tapping a recent row also re-records it so the bump-to-front keeps ordering stable."),
             HelpCard("Already-added rows", "Rows passed in via alreadyAdded render at 0.4 alpha, are not clickable, and append ' · already added' next to capability badges."),
             HelpCard("Pricing column", "Per-token (×10⁶) prompt / completion, red for real data, grey badge for DEFAULT. Vision / Web / Reasoning badges sit before the price."),
-            HelpCard("Tap to confirm", "Usually single-select: tapping a row fires onConfirm with the (provider, model) pair and the caller closes the picker. Exception — the Swarm member picker (\"Pick models for swarm\") keeps the picker open so you can tap several models in one visit (each dims as it's added); Back returns to the swarm."),
+            HelpCard("Tap to confirm", "On the New AI Report +Model picker (and the Find-icons / Translation model pickers) it's multi-select like the Swarm member picker (\"Pick models for swarm\"): tapping a row adds that (provider, model) and keeps the picker open so you can tap several in one visit (each dims as it's added); Back returns with all of them. The secondary-result launchers (Meta / Fan-out / Fan-in / Translate / Rerank) stay single-select — one tap confirms and closes."),
         )
     ),
     "report_swarm_info" to HelpContent(
