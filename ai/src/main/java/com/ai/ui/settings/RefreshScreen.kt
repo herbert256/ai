@@ -459,6 +459,7 @@ fun RefreshScreen(
     if (subPage == RefreshSubPage.INFO_PROVIDERS) {
         InfoProvidersRefreshPage(
             isAnyRunning = isAnyRunning,
+            aiSettings = aiSettings,
             openRouterApiKey = openRouterApiKey,
             artificialAnalysisApiKey = artificialAnalysisApiKey,
             llmStatsApiKey = llmStatsApiKey,
@@ -536,6 +537,7 @@ private enum class RefreshSubPage { INFO_PROVIDERS }
 @Composable
 private fun InfoProvidersRefreshPage(
     isAnyRunning: Boolean,
+    aiSettings: Settings,
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
     llmStatsApiKey: String,
@@ -558,7 +560,7 @@ private fun InfoProvidersRefreshPage(
             RefreshAction(
                 label = "OpenRouter",
                 description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
-                enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
+                enabled = !isAnyRunning && openRouterApiKey.isNotBlank() && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.OPENROUTER.id),
                 onClick = onOpenRouter,
                 helpTopic = "info_provider_openrouter",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
@@ -566,7 +568,7 @@ private fun InfoProvidersRefreshPage(
             RefreshAction(
                 label = "LiteLLM",
                 description = "Download model_prices_and_context_window.json from BerriAI/litellm — the primary source for pricing and capability flags.",
-                enabled = !isAnyRunning,
+                enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.LITELLM.id),
                 onClick = onLiteLLM,
                 helpTopic = "info_provider_litellm",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
@@ -574,7 +576,7 @@ private fun InfoProvidersRefreshPage(
             RefreshAction(
                 label = "models.dev",
                 description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
-                enabled = !isAnyRunning,
+                enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.MODELS_DEV.id),
                 onClick = onModelsDev,
                 helpTopic = "info_provider_models_dev",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
@@ -582,7 +584,7 @@ private fun InfoProvidersRefreshPage(
             RefreshAction(
                 label = "Helicone",
                 description = "Pull Helicone's pricing aggregator (helicone.ai/api/llm-costs). Pricing-only fallback after LiteLLM and models.dev.",
-                enabled = !isAnyRunning,
+                enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.HELICONE.id),
                 onClick = onHelicone,
                 helpTopic = "info_provider_helicone",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
@@ -590,7 +592,7 @@ private fun InfoProvidersRefreshPage(
             RefreshAction(
                 label = "llm-prices.com",
                 description = "Pull Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers.",
-                enabled = !isAnyRunning,
+                enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.LLM_PRICES.id),
                 onClick = onLLMPrices,
                 helpTopic = "info_provider_llm_prices",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
@@ -598,7 +600,7 @@ private fun InfoProvidersRefreshPage(
             RefreshAction(
                 label = "Artificial Analysis",
                 description = "Pull Artificial Analysis (pricing + intelligence_index + output speed). Needs the API key under External Services.",
-                enabled = !isAnyRunning && artificialAnalysisApiKey.isNotBlank(),
+                enabled = !isAnyRunning && artificialAnalysisApiKey.isNotBlank() && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.ARTIFICIAL_ANALYSIS.id),
                 onClick = onArtificialAnalysis,
                 helpTopic = "info_provider_artificial_analysis",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
@@ -606,7 +608,7 @@ private fun InfoProvidersRefreshPage(
             RefreshAction(
                 label = "Requesty",
                 description = "Pull the Requesty router catalog (router.requesty.ai/v1/models) — per-token pricing + capability flags. Keyless cross-provider fallback after OpenRouter.",
-                enabled = !isAnyRunning,
+                enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.REQUESTY.id),
                 onClick = onRequesty,
                 helpTopic = "info_provider_requesty",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
@@ -614,7 +616,7 @@ private fun InfoProvidersRefreshPage(
             RefreshAction(
                 label = "llm-stats",
                 description = "Pull llm-stats (api.llm-stats.com) — per-provider pricing + benchmark scores. Needs the API key under External Services (and Stats-API onboarding).",
-                enabled = !isAnyRunning && llmStatsApiKey.isNotBlank(),
+                enabled = !isAnyRunning && llmStatsApiKey.isNotBlank() && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.LLM_STATS.id),
                 onClick = onLlmStats,
                 helpTopic = "info_provider_llm_stats",
                 onNavigateToHelpTopic = onNavigateToHelpTopic

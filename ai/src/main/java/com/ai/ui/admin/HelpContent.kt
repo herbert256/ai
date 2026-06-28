@@ -228,6 +228,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "developer_select_model" to listOf("help_glossary_blocks"),
     "developer_select_endpoint" to listOf("help_home_ai_providers"),
     "external_services" to listOf("help_home_info_providers", "help_home_ai_providers"),
+    "info_providers_setup" to listOf("help_home_info_providers", "refresh_info_providers"),
     "external_intent" to listOf("help_privacy", "help_glossary_operations"),
 
     // ===== Settings =====

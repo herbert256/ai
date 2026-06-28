@@ -1292,6 +1292,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(settings) }
     }
 
+    private var infoProviderRecomputeJob: kotlinx.coroutines.Job? = null
+
+    /** Persist the set of DISABLED info providers (AI Setup → Info
+     *  providers). The toggle itself is published + saved IMMEDIATELY
+     *  (cheap) so it sticks even if the user navigates away. The capability/
+     *  price snapshots are then recomputed OFF the main thread (inline ANR'd —
+     *  it scans the catalogs for every model). SettingsHolder is updated
+     *  before the recompute so PricingCache's gated finders see the new
+     *  state. Any in-flight recompute is cancelled first, so when the user
+     *  flips several checkboxes quickly the LAST one wins (no stale save). */
+    fun setDisabledInfoProviders(disabled: Set<String>) {
+        val base = _uiState.value.aiSettings.copy(disabledInfoProviders = disabled)
+        com.ai.model.SettingsHolder.current = base
+        updateSettings(base)   // publish + persist the toggle now (off-main save)
+        infoProviderRecomputeJob?.cancel()
+        infoProviderRecomputeJob = viewModelScope.launch(Dispatchers.IO) {
+            val recomputed = base.recomputeAllCapabilities()
+            com.ai.model.SettingsHolder.current = recomputed
+            _uiState.update { it.copy(aiSettings = recomputed) }
+            settingsPrefs.saveSettings(recomputed)
+        }
+    }
+
     /** Mirror the bundled `test-model` internal prompt's body into
      *  [com.ai.data.AnalysisRepository.TEST_PROMPT] so every OK-probe
      *  call site (ApiDispatch.testModel, ModelTestEngine, the
@@ -1715,19 +1738,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val openRouterKey = gs0.openRouterApiKey
         val aaKey = gs0.artificialAnalysisApiKey
         val llmStatsKey = gs0.llmStatsApiKey
-        val openRouterEnabled = openRouterKey.isNotBlank()
-        val aaEnabled = aaKey.isNotBlank()
-        val llmStatsEnabled = llmStatsKey.isNotBlank()
+        // A catalog source runs only when it's both configured (key, where
+        // needed) AND switched on under AI Setup → Info providers.
+        val settings0 = _uiState.value.aiSettings
+        fun ipOn(p: com.ai.data.InfoProvider) = settings0.isInfoProviderEnabled(p.id)
+        val openRouterEnabled = openRouterKey.isNotBlank() && ipOn(com.ai.data.InfoProvider.OPENROUTER)
+        val aaEnabled = aaKey.isNotBlank() && ipOn(com.ai.data.InfoProvider.ARTIFICIAL_ANALYSIS)
+        val llmStatsEnabled = llmStatsKey.isNotBlank() && ipOn(com.ai.data.InfoProvider.LLM_STATS)
+        fun stepStatus(on: Boolean) = if (on) RefreshStepStatus.Pending else RefreshStepStatus.Skipped
 
         val catalogSteps = listOf(
-            CatalogStep("openrouter", "OpenRouter", if (openRouterEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped),
-            CatalogStep("litellm", "LiteLLM"),
-            CatalogStep("modelsdev", "models.dev"),
-            CatalogStep("helicone", "Helicone"),
-            CatalogStep("llmprices", "llm-prices.com"),
-            CatalogStep("aa", "Artificial Analysis", if (aaEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped),
-            CatalogStep("llmstats", "llm-stats", if (llmStatsEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped),
-            CatalogStep("requesty", "Requesty")
+            CatalogStep("openrouter", "OpenRouter", stepStatus(openRouterEnabled)),
+            CatalogStep("litellm", "LiteLLM", stepStatus(ipOn(com.ai.data.InfoProvider.LITELLM))),
+            CatalogStep("modelsdev", "models.dev", stepStatus(ipOn(com.ai.data.InfoProvider.MODELS_DEV))),
+            CatalogStep("helicone", "Helicone", stepStatus(ipOn(com.ai.data.InfoProvider.HELICONE))),
+            CatalogStep("llmprices", "llm-prices.com", stepStatus(ipOn(com.ai.data.InfoProvider.LLM_PRICES))),
+            CatalogStep("aa", "Artificial Analysis", stepStatus(aaEnabled)),
+            CatalogStep("llmstats", "llm-stats", stepStatus(llmStatsEnabled)),
+            CatalogStep("requesty", "Requesty", stepStatus(ipOn(com.ai.data.InfoProvider.REQUESTY)))
         )
         // Snapshot the testable provider set up-front. The clean-slate
         // step below rewrites flocks/agents, but the testable list is
@@ -1881,7 +1909,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     setCatalogStep("openrouter", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
             }
-            jobs += async(Dispatchers.IO) {
+            if (PricingCache.isInfoProviderEnabled(com.ai.data.InfoProvider.LITELLM)) jobs += async(Dispatchers.IO) {
                 setCatalogStep("litellm", RefreshStepStatus.Running())
                 val prev = previousDetail("litellm")
                 try {
@@ -1892,7 +1920,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     setCatalogStep("litellm", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
             }
-            jobs += async(Dispatchers.IO) {
+            if (PricingCache.isInfoProviderEnabled(com.ai.data.InfoProvider.MODELS_DEV)) jobs += async(Dispatchers.IO) {
                 setCatalogStep("modelsdev", RefreshStepStatus.Running())
                 val prev = previousDetail("modelsdev")
                 try {
@@ -1903,7 +1931,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     setCatalogStep("modelsdev", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
             }
-            jobs += async(Dispatchers.IO) {
+            if (PricingCache.isInfoProviderEnabled(com.ai.data.InfoProvider.HELICONE)) jobs += async(Dispatchers.IO) {
                 setCatalogStep("helicone", RefreshStepStatus.Running())
                 val prev = previousDetail("helicone")
                 try {
@@ -1914,7 +1942,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     setCatalogStep("helicone", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
             }
-            jobs += async(Dispatchers.IO) {
+            if (PricingCache.isInfoProviderEnabled(com.ai.data.InfoProvider.LLM_PRICES)) jobs += async(Dispatchers.IO) {
                 setCatalogStep("llmprices", RefreshStepStatus.Running())
                 val prev = previousDetail("llmprices")
                 try {
@@ -1936,7 +1964,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     setCatalogStep("aa", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
             }
-            jobs += async(Dispatchers.IO) {
+            if (PricingCache.isInfoProviderEnabled(com.ai.data.InfoProvider.REQUESTY)) jobs += async(Dispatchers.IO) {
                 setCatalogStep("requesty", RefreshStepStatus.Running())
                 val prev = previousDetail("requesty")
                 try {

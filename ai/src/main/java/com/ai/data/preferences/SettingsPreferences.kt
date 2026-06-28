@@ -317,7 +317,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             blockedModels = loadList(KEY_AI_BLOCKED_MODELS, TypeTokens.listBlockedModelType),
             testExcludedModels = loadList(KEY_AI_TEST_EXCLUDED_MODELS, TypeTokens.listTestExcludedModelType),
             inaccessibleModels = loadList(KEY_AI_INACCESSIBLE_MODELS, TypeTokens.listInaccessibleModelType),
-            defaultMetaItems = loadList(KEY_AI_DEFAULT_META_ITEMS, TypeTokens.listDefaultMetaItemType)
+            defaultMetaItems = loadList(KEY_AI_DEFAULT_META_ITEMS, TypeTokens.listDefaultMetaItemType),
+            disabledInfoProviders = loadJsonStringSet(KEY_AI_DISABLED_INFO_PROVIDERS)
         )
     }
 
@@ -433,6 +434,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AI_TEST_EXCLUDED_MODELS, if (settings.testExcludedModels.isEmpty()) null else gson.toJson(settings.testExcludedModels))
             putString(KEY_AI_INACCESSIBLE_MODELS, if (settings.inaccessibleModels.isEmpty()) null else gson.toJson(settings.inaccessibleModels))
             putString(KEY_AI_DEFAULT_META_ITEMS, if (settings.defaultMetaItems.isEmpty()) null else gson.toJson(settings.defaultMetaItems))
+            putString(KEY_AI_DISABLED_INFO_PROVIDERS, if (settings.disabledInfoProviders.isEmpty()) null else gson.toJson(settings.disabledInfoProviders.toList()))
         }
     }
 
@@ -1144,6 +1146,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AI_TEST_EXCLUDED_MODELS = "ai_test_excluded_models"
         private const val KEY_AI_INACCESSIBLE_MODELS = "ai_inaccessible_models"
         private const val KEY_AI_DEFAULT_META_ITEMS = "ai_default_meta_items"
+        private const val KEY_AI_DISABLED_INFO_PROVIDERS = "ai_disabled_info_providers"
         const val KEY_LAST_AI_REPORT_TITLE = "last_ai_report_title"
         const val KEY_LAST_AI_REPORT_PROMPT = "last_ai_report_prompt"
         private const val FILE_USAGE_STATS = "usage-stats.json"

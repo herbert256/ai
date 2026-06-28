@@ -171,6 +171,7 @@ fun ModelInfoViewScreen(
     }
     val hfInfo by produceState<HuggingFaceModelInfo?>(initialValue = null, provider, modelName) {
         value = withContext(Dispatchers.IO) {
+            if (!aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.HUGGINGFACE.id)) return@withContext null
             val cached = HuggingFaceCache.get(context, provider.id, modelName)
             if (cached != null) return@withContext cached.info
             if (huggingFaceApiKey.isBlank()) {
@@ -412,6 +413,7 @@ fun ModelInfoViewScreen(
                     aaRaw = aaRaw,
                     requestyRaw = requestyRaw,
                     llmStatsRaw = llmStatsRaw,
+                    enabled = { aiSettings.isInfoProviderEnabled(it) },
                     hfTrace = if (infoFlags.first) ({ onNavigateToTraceFiltered("info/huggingface", modelName) }) else null,
                     orTrace = if (infoFlags.second) ({ onNavigateToTraceFiltered("info/provider", null) }) else null,
                     onOpen = { name, body, url ->
@@ -666,6 +668,8 @@ private fun SourcesCard(
     aaRaw: String?,
     requestyRaw: String?,
     llmStatsRaw: String?,
+    /** Info providers switched off under AI Setup are hidden here. */
+    enabled: (String) -> Boolean,
     hfTrace: (() -> Unit)? = null,
     orTrace: (() -> Unit)? = null,
     onOpen: (sourceName: String, body: String, calledUrl: String?) -> Unit
@@ -675,31 +679,31 @@ private fun SourcesCard(
     // source opens [ParsedSourceOverlay]; tapping an absent row is
     // a no-op (the row is faded so the user reads it as inactive).
     SectionCard(title = "Sources") {
-        SourceRow(com.ai.data.MetadataIconsHolder.current.huggingface, "HuggingFace", hfRaw, onTrace = hfTrace) {
+        if (enabled("huggingface")) SourceRow(com.ai.data.MetadataIconsHolder.current.huggingface, "HuggingFace", hfRaw, onTrace = hfTrace) {
             onOpen("HuggingFace", hfRaw ?: "{}", "https://huggingface.co/api/models")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.web, "OpenRouter", orRaw, onTrace = orTrace) {
+        if (enabled("openrouter")) SourceRow(com.ai.data.MetadataIconsHolder.current.web, "OpenRouter", orRaw, onTrace = orTrace) {
             onOpen("OpenRouter", orRaw ?: "{}", "https://openrouter.ai/api/v1/models")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.bookmark, "LiteLLM", liteLLMRaw) {
+        if (enabled("litellm")) SourceRow(com.ai.data.MetadataIconsHolder.current.bookmark, "LiteLLM", liteLLMRaw) {
             onOpen("LiteLLM", liteLLMRaw ?: "{}", "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.packageBox, "models.dev", modelsDevRaw) {
+        if (enabled("modelsdev")) SourceRow(com.ai.data.MetadataIconsHolder.current.packageBox, "models.dev", modelsDevRaw) {
             onOpen("models.dev", modelsDevRaw ?: "{}", "https://models.dev/api.json")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.hot, "Helicone", heliconeRaw) {
+        if (enabled("helicone")) SourceRow(com.ai.data.MetadataIconsHolder.current.hot, "Helicone", heliconeRaw) {
             onOpen("Helicone", heliconeRaw ?: "{}", "https://www.helicone.ai/api/llm-costs")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.cost, "llm-prices", llmPricesRaw) {
+        if (enabled("llmprices")) SourceRow(com.ai.data.MetadataIconsHolder.current.cost, "llm-prices", llmPricesRaw) {
             onOpen("llm-prices", llmPricesRaw ?: "{}", "https://raw.githubusercontent.com/simonw/llm-prices/main/data/")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "Artificial Analysis", aaRaw) {
+        if (enabled("aa")) SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "Artificial Analysis", aaRaw) {
             onOpen("Artificial Analysis", aaRaw ?: "{}", "https://artificialanalysis.ai/api/v2/data/llms/models")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.web, "Requesty", requestyRaw) {
+        if (enabled("requesty")) SourceRow(com.ai.data.MetadataIconsHolder.current.web, "Requesty", requestyRaw) {
             onOpen("Requesty", requestyRaw ?: "{}", "https://router.requesty.ai/v1/models")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "llm-stats", llmStatsRaw, isLast = true) {
+        if (enabled("llmstats")) SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "llm-stats", llmStatsRaw, isLast = true) {
             onOpen("llm-stats", llmStatsRaw ?: "{}", "https://api.llm-stats.com/stats/v1/models")
         }
     }

@@ -338,8 +338,18 @@ data class Settings(
     val blockedModels: List<BlockedModel> = emptyList(),
     val testExcludedModels: List<TestExcludedModel> = emptyList(),
     val inaccessibleModels: List<InaccessibleModel> = emptyList(),
-    val defaultMetaItems: List<DefaultMetaItem> = emptyList()
+    val defaultMetaItems: List<DefaultMetaItem> = emptyList(),
+    /** Info providers (external pricing/capability catalogs) the user has
+     *  switched OFF on AI Setup → Info providers. Stored as the DISABLED
+     *  set (empty = all enabled) so a newly-added provider defaults on and
+     *  existing installs (key absent) keep every source. Keyed by
+     *  [com.ai.data.InfoProvider.id]. */
+    val disabledInfoProviders: Set<String> = emptySet()
 ) {
+    /** True when info provider [id] (an [com.ai.data.InfoProvider.id]) is
+     *  enabled — i.e. NOT in [disabledInfoProviders]. */
+    fun isInfoProviderEnabled(id: String): Boolean = id !in disabledInfoProviders
+
     fun getProviderState(service: AppService): String {
         val stored = providerStates[service.id]
         if (stored == "inactive") return "inactive"

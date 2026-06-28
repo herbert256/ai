@@ -440,6 +440,16 @@ object PricingCache {
 
     private data class PricingMatch(val tier: String, val pricing: ModelPricing)
 
+    /** True when info provider [p] is enabled in the live settings. Reads
+     *  [com.ai.model.SettingsHolder] (the same static mirror defaultMaxTokens
+     *  uses) and defaults to ENABLED when settings aren't loaded yet, so a
+     *  cold-start lookup never silently drops a tier. The per-provider
+     *  finders return null when their tier is disabled, which gates pricing,
+     *  capabilities, token-limits, the tier breakdown and the raw-entry
+     *  getters in one place. */
+    internal fun isInfoProviderEnabled(p: InfoProvider): Boolean =
+        com.ai.model.SettingsHolder.current?.let { p.id !in it.disabledInfoProviders } ?: true
+
     private fun findPricingMatch(
         provider: AppService,
         model: String,
@@ -447,6 +457,9 @@ object PricingCache {
     ): PricingMatch? {
         val isOpenRouter = provider.crossProviderModelList
         val isTogether = provider.pricingFromModelList
+        // OpenRouter SELF-report (caller IS OpenRouter) is the provider
+        // pricing its own call, not a third-party catalog — intentionally
+        // NOT gated by the OpenRouter info-provider toggle.
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER-SELF", it) }
         if (isTogether) findTogetherPricing(provider, model)?.let { return PricingMatch("TOGETHER-SELF", it) }
         if (includeOverride) manualPricing?.get("${provider.id}:$model")?.let { return PricingMatch("OVERRIDE", it) }
@@ -455,7 +468,9 @@ object PricingCache {
         findLLMPricesPricing(provider, model)?.let { return PricingMatch("LLMPRICES", it) }
         findArtificialAnalysisPricing(provider, model)?.let { return PricingMatch("AA", it) }
         findLlmStatsPricing(provider, model)?.let { return PricingMatch("LLMSTATS", it) }
-        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER", it) }
+        // Cross-provider OpenRouter fallback IS gated by the toggle.
+        if (!isOpenRouter && isInfoProviderEnabled(InfoProvider.OPENROUTER))
+            findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER", it) }
         findRequestyPricing(provider, model)?.let { return PricingMatch("REQUESTY", it) }
         findHeliconePricing(provider, model)?.let { return PricingMatch("HELICONE", it) }
         return null
@@ -559,6 +574,7 @@ object PricingCache {
      *  Memoized per (provider, model); the cache is cleared when the
      *  underlying catalog reloads. */
     private fun findLiteLLMMeta(provider: AppService, model: String): LiteLLMMeta? {
+        if (!isInfoProviderEnabled(InfoProvider.LITELLM)) return null
         val meta = litellmMeta ?: return null
         val cacheKey = "${provider.id}|$model"
         val cached = litellmMetaLookupCache[cacheKey]
@@ -625,6 +641,7 @@ object PricingCache {
     }
 
     private fun findLiteLLMPricing(provider: AppService, model: String): ModelPricing? {
+        if (!isInfoProviderEnabled(InfoProvider.LITELLM)) return null
         val pricing = litellmPricing ?: return null
         val cacheKey = "${provider.id}|$model"
         val cached = litellmPricingLookupCache[cacheKey]
@@ -779,7 +796,10 @@ object PricingCache {
         val aa = findArtificialAnalysisPricing(provider, model)
         val llmStats = findLlmStatsPricing(provider, model)
         val override = manualPricing?.get("${provider.id}:$model")
-        val openrouter = findOpenRouterPricing(provider, model)
+        // Gate the OpenRouter cross-provider tier the same way findPricingMatch
+        // does — but keep showing it when the caller IS OpenRouter (self-report).
+        val openrouter = if (provider.crossProviderModelList || isInfoProviderEnabled(InfoProvider.OPENROUTER))
+            findOpenRouterPricing(provider, model) else null
         val requesty = findRequestyPricing(provider, model)
         val together = findTogetherPricing(provider, model)
         return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, llmStats, override, openrouter, requesty, together, DEFAULT_PRICING)
@@ -975,6 +995,7 @@ object PricingCache {
      *  per-token unit. */
 
     private fun findModelsDevPricing(provider: AppService, model: String): ModelPricing? {
+        if (!isInfoProviderEnabled(InfoProvider.MODELS_DEV)) return null
         val pricing = modelsDevPricing ?: return null
         pricing[model]?.let { return it }
         return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
@@ -982,6 +1003,7 @@ object PricingCache {
     }
 
     private fun findModelsDevMeta(provider: AppService, model: String): ModelsDevMeta? {
+        if (!isInfoProviderEnabled(InfoProvider.MODELS_DEV)) return null
         val meta = modelsDevMeta ?: return null
         val cacheKey = "${provider.id}|$model"
         val cached = modelsDevMetaLookupCache[cacheKey]
@@ -1020,6 +1042,7 @@ object PricingCache {
      *  75 000) can't masquerade as the caller's real limit. Not memoized —
      *  called once per outbound API call, not per UI row. */
     private fun findModelsDevMetaOwn(provider: AppService, model: String): ModelsDevMeta? {
+        if (!isInfoProviderEnabled(InfoProvider.MODELS_DEV)) return null
         val meta = modelsDevMeta ?: return null
         meta[model]?.let { return it }
         val target = normalizeModelId(model)
@@ -1135,6 +1158,7 @@ object PricingCache {
     }
 
     private fun findHeliconePricing(provider: AppService, model: String): ModelPricing? {
+        if (!isInfoProviderEnabled(InfoProvider.HELICONE)) return null
         val exact = heliconePricing ?: return null
         exact[model]?.let { return it }
         findBestPrefixedMatch(exact, provider, model, useLitellmPrefix = true)?.let { return it }
@@ -1223,6 +1247,7 @@ object PricingCache {
     }
 
     private fun findLLMPricesPricing(provider: AppService, model: String): ModelPricing? {
+        if (!isInfoProviderEnabled(InfoProvider.LLM_PRICES)) return null
         val pricing = llmPricesPricing ?: return null
         pricing[model]?.let { return it }
         return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
@@ -1299,6 +1324,7 @@ object PricingCache {
     }
 
     private fun findArtificialAnalysisPricing(provider: AppService, model: String): ModelPricing? {
+        if (!isInfoProviderEnabled(InfoProvider.ARTIFICIAL_ANALYSIS)) return null
         val pricing = aaPricing ?: return null
         pricing[model]?.let { return it }
         return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
@@ -1306,6 +1332,7 @@ object PricingCache {
     }
 
     private fun findArtificialAnalysisMeta(provider: AppService, model: String): ArtificialAnalysisMeta? {
+        if (!isInfoProviderEnabled(InfoProvider.ARTIFICIAL_ANALYSIS)) return null
         val meta = aaMeta ?: return null
         meta[model]?.let { return it }
         return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
@@ -1364,6 +1391,7 @@ object PricingCache {
      *  resolve them exactly like findOpenRouterPricing — exact key, then
      *  the provider's openRouterName prefix, then the bucketed scan. */
     private fun findRequestyPricing(provider: AppService, model: String): ModelPricing? {
+        if (!isInfoProviderEnabled(InfoProvider.REQUESTY)) return null
         val pricing = requestyPricing ?: return null
         pricing[model]?.let { return it }
         provider.openRouterName?.let { prefix -> pricing["$prefix/$model"]?.let { return it } }
@@ -1372,6 +1400,7 @@ object PricingCache {
     }
 
     private fun findRequestyMeta(provider: AppService, model: String): RequestyMeta? {
+        if (!isInfoProviderEnabled(InfoProvider.REQUESTY)) return null
         val meta = requestyMeta ?: return null
         meta[model]?.let { return it }
         provider.openRouterName?.let { prefix -> meta["$prefix/$model"]?.let { return it } }
@@ -1453,6 +1482,7 @@ object PricingCache {
     /** llm-stats keys are `<org>/<modelId>` (creator-slug style, like AA),
      *  so the lookup mirrors findArtificialAnalysisPricing. */
     private fun findLlmStatsPricing(provider: AppService, model: String): ModelPricing? {
+        if (!isInfoProviderEnabled(InfoProvider.LLM_STATS)) return null
         val pricing = llmStatsPricing ?: return null
         pricing[model]?.let { return it }
         return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
@@ -1460,6 +1490,7 @@ object PricingCache {
     }
 
     private fun findLlmStatsMeta(provider: AppService, model: String): LlmStatsMeta? {
+        if (!isInfoProviderEnabled(InfoProvider.LLM_STATS)) return null
         val meta = llmStatsMeta ?: return null
         meta[model]?.let { return it }
         return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)

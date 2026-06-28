@@ -325,6 +325,7 @@ fun ModelInfoScreen(
     var hfMatchedId by remember(provider, modelName) { mutableStateOf<String?>(null) }
     val hfInfo by produceState<HuggingFaceModelInfo?>(initialValue = null, provider, modelName) {
         value = withContext(Dispatchers.IO) {
+            if (!aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.HUGGINGFACE.id)) return@withContext null
             val cached = HuggingFaceCache.get(context, provider.id, modelName)
             if (cached != null) return@withContext cached.info
             if (huggingFaceApiKey.isBlank()) {
@@ -688,6 +689,18 @@ fun ModelInfoScreen(
                         val hasAa = aaRaw != null
                         val hasRequesty = requestyRaw != null
                         val hasLlmStats = llmStatsRaw != null
+                        // Info providers the user switched off are hidden, not
+                        // shown as empty/red. (Their tier rows in Costs already
+                        // drop out because the gated finders return null.)
+                        val enHF = aiSettings.isInfoProviderEnabled("huggingface")
+                        val enOR = aiSettings.isInfoProviderEnabled("openrouter")
+                        val enLiteLLM = aiSettings.isInfoProviderEnabled("litellm")
+                        val enModelsDev = aiSettings.isInfoProviderEnabled("modelsdev")
+                        val enHelicone = aiSettings.isInfoProviderEnabled("helicone")
+                        val enLLMPrices = aiSettings.isInfoProviderEnabled("llmprices")
+                        val enAa = aiSettings.isInfoProviderEnabled("aa")
+                        val enRequesty = aiSettings.isInfoProviderEnabled("requesty")
+                        val enLlmStats = aiSettings.isInfoProviderEnabled("llmstats")
                         // Two rows of buttons in their own card — first the
                         // four catalog sources, then the three additional
                         // pricing tiers (Helicone / llm-prices.com / AA).
@@ -695,7 +708,7 @@ fun ModelInfoScreen(
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Sources", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Button(
+                                    if (enHF) Button(
                                         onClick = {
                                             val body = info?.huggingFaceInfo?.let { gson.toJson(it) } ?: "(no HuggingFace data)"
                                             rawView = RawView(
@@ -708,7 +721,7 @@ fun ModelInfoScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("HuggingFace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    Button(
+                                    if (enOR) Button(
                                         onClick = {
                                             val body = info?.openRouterInfo?.let { gson.toJson(it) } ?: "(no OpenRouter data)"
                                             rawView = RawView(
@@ -721,7 +734,7 @@ fun ModelInfoScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("OpenRouter", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    Button(
+                                    if (enLiteLLM) Button(
                                         onClick = {
                                             rawView = RawView(
                                                 title = "LiteLLM · $modelName", body = liteLLMRaw ?: "(no LiteLLM data)",
@@ -733,7 +746,7 @@ fun ModelInfoScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("LiteLLM", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    Button(
+                                    if (enModelsDev) Button(
                                         onClick = {
                                             rawView = RawView(
                                                 title = "models.dev · $modelName", body = modelsDevRaw ?: "(no models.dev data)",
@@ -747,7 +760,7 @@ fun ModelInfoScreen(
                                     ) { Text("models.dev", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                 }
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Button(
+                                    if (enHelicone) Button(
                                         onClick = {
                                             rawView = RawView(
                                                 title = "Helicone · $modelName", body = heliconeRaw ?: "(no Helicone data)",
@@ -759,7 +772,7 @@ fun ModelInfoScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasHelicone) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("Helicone", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    Button(
+                                    if (enLLMPrices) Button(
                                         onClick = {
                                             rawView = RawView(
                                                 title = "llm-prices.com · $modelName", body = llmPricesRaw ?: "(no llm-prices data)",
@@ -771,7 +784,7 @@ fun ModelInfoScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasLLMPrices) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("llm-prices", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    Button(
+                                    if (enAa) Button(
                                         onClick = {
                                             rawView = RawView(
                                                 title = "Artificial Analysis · $modelName", body = aaRaw ?: "(no Artificial Analysis data)",
@@ -785,7 +798,7 @@ fun ModelInfoScreen(
                                     ) { Text("Artificial Analysis", fontSize = 10.sp, maxLines = 1, softWrap = false) }
                                 }
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Button(
+                                    if (enRequesty) Button(
                                         onClick = {
                                             rawView = RawView(
                                                 title = "Requesty · $modelName", body = requestyRaw ?: "(no Requesty data)",
@@ -797,7 +810,7 @@ fun ModelInfoScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasRequesty) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("Requesty", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    Button(
+                                    if (enLlmStats) Button(
                                         onClick = {
                                             rawView = RawView(
                                                 title = "llm-stats · $modelName", body = llmStatsRaw ?: "(no llm-stats data)",
@@ -816,16 +829,16 @@ fun ModelInfoScreen(
                                         // Concatenate every source's raw JSON into one
                                         // pretty-printed dump — saves tapping seven
                                         // buttons in turn when comparing entries.
-                                        val sections = listOf(
-                                            "HuggingFace" to info?.huggingFaceInfo?.let { gson.toJson(it) },
-                                            "OpenRouter" to info?.openRouterInfo?.let { gson.toJson(it) },
-                                            "LiteLLM" to liteLLMRaw,
-                                            "models.dev" to modelsDevRaw,
-                                            "Helicone" to heliconeRaw,
-                                            "llm-prices.com" to llmPricesRaw,
-                                            "Artificial Analysis" to aaRaw,
-                                            "Requesty" to requestyRaw,
-                                            "llm-stats" to llmStatsRaw
+                                        val sections = listOfNotNull(
+                                            ("HuggingFace" to info?.huggingFaceInfo?.let { gson.toJson(it) }).takeIf { enHF },
+                                            ("OpenRouter" to info?.openRouterInfo?.let { gson.toJson(it) }).takeIf { enOR },
+                                            ("LiteLLM" to liteLLMRaw).takeIf { enLiteLLM },
+                                            ("models.dev" to modelsDevRaw).takeIf { enModelsDev },
+                                            ("Helicone" to heliconeRaw).takeIf { enHelicone },
+                                            ("llm-prices.com" to llmPricesRaw).takeIf { enLLMPrices },
+                                            ("Artificial Analysis" to aaRaw).takeIf { enAa },
+                                            ("Requesty" to requestyRaw).takeIf { enRequesty },
+                                            ("llm-stats" to llmStatsRaw).takeIf { enLlmStats }
                                         )
                                         val body = sections.joinToString("\n\n") { (label, raw) ->
                                             "=== $label ===\n${raw ?: "(no $label data)"}"

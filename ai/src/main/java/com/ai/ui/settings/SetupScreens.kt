@@ -91,6 +91,11 @@ fun SetupScreen(
                 onClick = onNavigateToCostConfig)
             SetupNavCard(MetadataDefaults.KEY, "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
+            run {
+                val infoOn = com.ai.data.InfoProvider.entries.count { aiSettings.isInfoProviderEnabled(it.id) }
+                SetupNavCard(MetadataDefaults.INFO, "Info providers", "Pricing & capability catalogs the app may use", "$infoOn",
+                    onClick = { onNavigate(SettingsSubScreen.AI_INFO_PROVIDERS) })
+            }
             SetupNavCard(MetadataDefaults.SETTINGS, "App settings", "App-wide & report-model default system prompt / parameters", "",
                 onClick = { onNavigate(SettingsSubScreen.AI_APP_SETTINGS) })
             // "Default meta items" moved to Settings → Generation & behaviour →
@@ -826,6 +831,64 @@ private fun ExternalServiceCard(
                 label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors()
             )
+        }
+    }
+}
+
+// ===== Info providers (enable/disable the catalogs the app uses) =====
+
+/** Lets the user switch each of the [com.ai.data.InfoProvider] catalogs
+ *  on/off. An unchecked source is not used anywhere (pricing, capability
+ *  flags, token limits) and is skipped on Refresh. State is the DISABLED
+ *  set (checked = enabled = id NOT in the set); each toggle persists
+ *  immediately via [onSetDisabledInfoProviders] (which also recomputes the
+ *  capability/price snapshots). */
+@Composable
+fun InfoProvidersSetupScreen(
+    disabledInfoProviders: Set<String>,
+    onSetDisabledInfoProviders: (Set<String>) -> Unit,
+    onBack: () -> Unit,
+    onNavigateToHelpTopic: (String) -> Unit = {}
+) {
+    BackHandler { onBack() }
+    var disabled by remember(disabledInfoProviders) { mutableStateOf(disabledInfoProviders) }
+    fun apply(new: Set<String>) { disabled = new; onSetDisabledInfoProviders(new) }
+    Column(
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(helpTopic = "info_providers_setup", title = "Info providers", subject = "Pick which catalogs the app uses", onBackClick = onBack)
+        Text(
+            "External catalogs the app reads model pricing, capability flags (vision / web-search / reasoning) and context limits from. Unchecked sources are not used anywhere and are skipped on Refresh.",
+            fontSize = 12.sp, color = AppColors.TextTertiary, lineHeight = 16.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { apply(emptySet()) }) { Text("Enable all", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            TextButton(onClick = { apply(com.ai.data.InfoProvider.ALL_IDS) }) { Text("Disable all", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            com.ai.data.InfoProvider.entries.forEach { ip ->
+                val checked = ip.id !in disabled
+                val toggle = { apply(if (checked) disabled + ip.id else disabled - ip.id) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { toggle() }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = checked, onCheckedChange = { toggle() },
+                        colors = CheckboxDefaults.colors(checkedColor = AppColors.InfoAccent)
+                    )
+                    Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
+                        Text(ip.displayName, fontSize = 14.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(ip.tagline, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = { onNavigateToHelpTopic(ip.helpTopic) }, modifier = Modifier.size(28.dp)) {
+                        Text(com.ai.data.MetadataIconsHolder.current.info, fontSize = 16.sp)
+                    }
+                }
+                HorizontalDivider(color = AppColors.DividerDark)
+            }
         }
     }
 }

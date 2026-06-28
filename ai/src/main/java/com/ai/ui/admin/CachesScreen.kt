@@ -196,16 +196,26 @@ fun cacheRegistry(
                         if (s.fetchedAt > 0) age(s.fetchedAt) else "never fetched",
                     viewContent = "Source: ${s.name}\nEntries: ${s.entries}\n" +
                         "Fetched: ${if (s.fetchedAt > 0) DateUtils.formatDateTime(c, s.fetchedAt, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME) else "never"}",
-                    onRefresh = when (s.name) {
-                        "LiteLLM" -> { ctx -> PricingCache.fetchLiteLLMPricingOnline(ctx) }
-                        "models.dev" -> { ctx -> PricingCache.fetchModelsDevOnline(ctx) }
-                        "llm-prices" -> { ctx -> PricingCache.fetchLLMPricesOnline(ctx) }
-                        "Helicone" -> { ctx -> PricingCache.fetchHeliconeOnline(ctx) }
-                        "Requesty" -> { ctx -> PricingCache.fetchRequestyOnline(ctx) }
-                        // AA / llm-stats need their API key, OpenRouter pricing the
-                        // OpenRouter key — all routed through the view model.
-                        "Artificial Analysis", "llm-stats", "OpenRouter" -> { _ -> onRefreshKeyed("pricing", s.name) }
-                        else -> null
+                    onRefresh = run {
+                        // No refresh button for a provider switched off under
+                        // AI Setup → Info providers (it wouldn't be used anyway).
+                        val ipId = when (s.name) {
+                            "LiteLLM" -> "litellm"; "models.dev" -> "modelsdev"; "llm-prices" -> "llmprices"
+                            "Artificial Analysis" -> "aa"; "llm-stats" -> "llmstats"; "OpenRouter" -> "openrouter"
+                            "Requesty" -> "requesty"; "Helicone" -> "helicone"; else -> null
+                        }
+                        val ipEnabled = ipId == null || (com.ai.model.SettingsHolder.current?.isInfoProviderEnabled(ipId) ?: true)
+                        if (!ipEnabled) null else when (s.name) {
+                            "LiteLLM" -> { ctx -> PricingCache.fetchLiteLLMPricingOnline(ctx) }
+                            "models.dev" -> { ctx -> PricingCache.fetchModelsDevOnline(ctx) }
+                            "llm-prices" -> { ctx -> PricingCache.fetchLLMPricesOnline(ctx) }
+                            "Helicone" -> { ctx -> PricingCache.fetchHeliconeOnline(ctx) }
+                            "Requesty" -> { ctx -> PricingCache.fetchRequestyOnline(ctx) }
+                            // AA / llm-stats need their API key, OpenRouter pricing the
+                            // OpenRouter key — all routed through the view model.
+                            "Artificial Analysis", "llm-stats", "OpenRouter" -> { _ -> onRefreshKeyed("pricing", s.name) }
+                            else -> null
+                        }
                     },
                     onDelete = { ctx -> PricingCache.deleteTier(ctx, s.name) },
                 )

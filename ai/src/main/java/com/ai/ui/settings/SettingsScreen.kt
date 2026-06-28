@@ -47,6 +47,7 @@ enum class SettingsSubScreen {
     AI_INTERNAL_PROMPTS, AI_INTERNAL_PROMPT_EDIT,
     AI_EXAMPLE_PROMPTS, AI_EXAMPLE_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
+    AI_INFO_PROVIDERS,
     AI_APP_SETTINGS,
     AI_DEFAULT_META_ITEMS,
     AI_PROMPTS_SETUP,
@@ -101,6 +102,7 @@ fun SettingsScreen(
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onSaveArtificialAnalysisApiKey: (String) -> Unit = {},
     onSaveLlmStatsApiKey: (String) -> Unit = {},
+    onSetDisabledInfoProviders: (Set<String>) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
     onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
@@ -271,6 +273,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_LOCAL_MODELS_SETUP,
             SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_EXTERNAL_SERVICES,
+            SettingsSubScreen.AI_INFO_PROVIDERS,
             SettingsSubScreen.AI_APP_SETTINGS,
             SettingsSubScreen.AI_MODEL_COOLDOWNS,
             SettingsSubScreen.AI_BLOCKED_MODELS,
@@ -757,6 +760,14 @@ fun SettingsScreen(
                 onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
                 onSaveLlmStatsApiKey = onSaveLlmStatsApiKey,
                 onBack = goBack, onNavigateHome = onNavigateHome,
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+        }
+        SettingsSubScreen.AI_INFO_PROVIDERS -> {
+            InfoProvidersSetupScreen(
+                disabledInfoProviders = aiSettings.disabledInfoProviders,
+                onSetDisabledInfoProviders = onSetDisabledInfoProviders,
+                onBack = goBack,
                 onNavigateToHelpTopic = onNavigateToHelpTopic
             )
         }

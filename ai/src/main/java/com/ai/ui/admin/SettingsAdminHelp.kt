@@ -458,6 +458,16 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "These are NOT LLM provider keys — adding an OpenAI / Anthropic key here will not register the provider. Use Settings → AI Setup → Providers for that."),
         )
     ),
+    "info_providers_setup" to HelpContent(
+        title = "Help - Info providers",
+        cards = listOf(
+            HelpCard("Overview", "Switch each of the 9 external catalogs (LiteLLM, models.dev, llm-prices, Artificial Analysis, llm-stats, OpenRouter, Requesty, Helicone, HuggingFace) on or off. Checked = the app may use it; default is all on. Each toggle saves immediately."),
+            HelpCard("What 'off' means", "An unchecked source is not consulted ANYWHERE — pricing lookups, capability flags (vision / web-search / reasoning) and context/output-token limits all skip it, and it's skipped on Refresh (no network). On Model Info its Source button + Costs row disappear."),
+            HelpCard("Why turn one off", "Drop a catalog you find inaccurate for your models so it stops winning the layered price lookup, or stop a source you don't want the app hitting over the network."),
+            HelpCard("OpenRouter nuance", "Turning OpenRouter off disables its cross-provider price/capability catalog. It does NOT change pricing for calls you make THROUGH OpenRouter as your own provider (that's the provider billing its own call)."),
+            HelpCard("ℹ per row", "The ℹ on each row opens that provider's detail page (endpoint, what it provides, pitfalls)."),
+        )
+    ),
     "refresh" to HelpContent(
         title = "Help - Refresh",
         cards = listOf(
