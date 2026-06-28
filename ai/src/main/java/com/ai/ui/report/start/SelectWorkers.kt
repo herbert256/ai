@@ -354,7 +354,7 @@ private fun ReportWorkersScreen(
             Column(modifier = Modifier.padding(16.dp)) {
                 ToggleRow(
                     label = "Use report models",
-                    sublabel = "Model info → Own model · Batches → Report models & Round robin · Meta → Report models.",
+                    sublabel = "Model info → Own model · Batches → Report models & Round robin · Meta → Report models & Round robin.",
                     checked = config.useReportModels,
                     onCheckedChange = { on ->
                         onConfigChange(
@@ -363,7 +363,8 @@ private fun ReportWorkersScreen(
                                 modelInfo = ModelInfoMode.OWN_MODEL,
                                 batches = BatchWorkerMode.REPORT_MODELS,
                                 workerSelection = WorkerSelectionMode.ROUND_ROBIN,
-                                metaBatches = BatchWorkerMode.REPORT_MODELS
+                                metaBatches = BatchWorkerMode.REPORT_MODELS,
+                                metaWorkerSelection = WorkerSelectionMode.ROUND_ROBIN
                             ) else config.copy(useReportModels = false)
                         )
                     }
