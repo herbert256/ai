@@ -90,6 +90,10 @@ object BackupManager {
      *  we don't re-hit HuggingFace for models that were already known to be
      *  absent / present. */
     private const val HUGGINGFACE_CACHE_PREFS = "huggingface_cache"
+    /** Per-model CloudPrice detail lookups (sibling of the HuggingFace cache) —
+     *  preserved across a restore so a restored device keeps its negative /
+     *  positive per-model results instead of re-hitting CloudPrice. */
+    private const val CLOUDPRICE_MODEL_CACHE_PREFS = "cloudprice_model_cache"
     /** Rate-limited (provider, model) cooldowns benched by a >1h 429.
      *  Worth preserving across a restore — a restored device should
      *  keep skipping a model that's still inside its quota window. */
@@ -105,7 +109,7 @@ object BackupManager {
      *  excluded — it doesn't make sense to restore on a different device. */
     private val PREFS_TO_BACKUP = listOf(
         MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS, DUAL_CHAT_PREFS, HUGGINGFACE_CACHE_PREFS,
-        MODEL_COOLDOWNS_PREFS, VIEW_SCREEN_PREFS
+        CLOUDPRICE_MODEL_CACHE_PREFS, MODEL_COOLDOWNS_PREFS, VIEW_SCREEN_PREFS
     )
 
     /** Top-level filesDir subdirs we never copy into a backup zip and never

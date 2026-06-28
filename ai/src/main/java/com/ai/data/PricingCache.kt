@@ -1851,13 +1851,6 @@ object PricingCache {
     fun cloudPriceMaxInputTokens(provider: AppService, model: String): Int? =
         findCloudPriceMeta(provider, model)?.maxInputTokens
 
-    fun getCloudPriceRawEntry(context: Context, provider: AppService, model: String): String? {
-        ensureLoaded(context)
-        val meta = findCloudPriceMeta(provider, model) ?: return null
-        val pretty = createAppGson(prettyPrint = true)
-        return pretty.toJson(mapOf("meta" to meta))
-    }
-
     suspend fun fetchOpenRouterPricing(apiKey: String): Map<String, ModelPricing> {
         if (apiKey.isBlank()) return emptyMap()
         return withTraceCategory("pricing/OpenRouter") {

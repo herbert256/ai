@@ -513,9 +513,33 @@ fun ModelInfoScreen(
                         PricingCache.getTrueFoundryRawEntry(context, provider, modelName)
                     }
                 }
+                // CloudPrice — lazy per-model detail lookup, mirroring the
+                // HuggingFace block above: check the per-model cache, else hit
+                // /api/v1/models/{id} live (bare id + dash<->dot variants),
+                // cache the result (incl. a negative cache on 404), and show
+                // the raw JSON. Retrofit-based, so a 404 is a silent
+                // isSuccessful == false — no error toast.
                 val cloudPriceRaw by produceState<String?>(initialValue = null, provider, modelName) {
                     value = withContext(Dispatchers.IO) {
-                        PricingCache.getCloudPriceRawEntry(context, provider, modelName)
+                        if (!aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.CLOUDPRICE.id)) return@withContext null
+                        com.ai.data.CloudPriceModelCache.get(context, provider.id, modelName)?.let { return@withContext it.json }
+                        val variants = sequenceOf(modelName, modelName.replace('-', '.'), modelName.replace('.', '-')).distinct()
+                        var found: String? = null
+                        for (cand in variants) {
+                            try {
+                                val resp = com.ai.data.withTraceCategory("info/cloudprice") {
+                                    ApiFactory.createCloudPriceApi().getModel(cand)
+                                }
+                                if (resp.isSuccessful) {
+                                    found = resp.body()?.string()?.let { raw ->
+                                        runCatching { com.ai.data.createAppGson(prettyPrint = true).toJson(com.google.gson.JsonParser.parseString(raw)) }.getOrDefault(raw)
+                                    }
+                                    break
+                                }
+                            } catch (_: Exception) {}
+                        }
+                        com.ai.data.CloudPriceModelCache.put(context, provider.id, modelName, found)
+                        found
                     }
                 }
                 val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
@@ -874,7 +898,7 @@ fun ModelInfoScreen(
                                             rawView = RawView(
                                                 title = "CloudPrice · $modelName", body = cloudPriceRaw ?: "(no CloudPrice data)",
                                                 provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_cloudprice"],
-                                                calledUrl = "https://ai.cloudprice.net/api/v1/models"
+                                                calledUrl = "https://ai.cloudprice.net/api/v1/models/$modelName"
                                             )
                                         },
                                         modifier = Modifier.weight(1f),

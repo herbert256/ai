@@ -51,6 +51,7 @@ import com.ai.data.ApiFactory
 import com.ai.data.AppService
 import com.ai.data.ChatHistoryManager
 import com.ai.data.ChatSession
+import com.ai.data.CloudPriceModelCache
 import com.ai.data.HuggingFaceCache
 import com.ai.data.HuggingFaceModelInfo
 import com.ai.data.OpenRouterModelInfo
@@ -378,9 +379,41 @@ fun ModelInfoViewScreen(
                 PricingCache.getTrueFoundryRawEntry(context, provider, modelName)
             }
         }
-        val cloudPriceRaw by produceState<String?>(initialValue = null, provider, modelName) {
+        // CloudPrice — lazy per-model detail lookup, mirroring the
+        // HuggingFace block above: check the per-model cache, else hit
+        // `/api/v1/models/{id}` live (trying dash<->dot id variants),
+        // cache the result (incl. a negative cache on 404), and surface
+        // the raw JSON on the Sources card. Retrofit-based, so a 404 is a
+        // silent `isSuccessful == false` — no error toast.
+        val cloudPriceLive by produceState<String?>(initialValue = null, provider, modelName) {
             value = withContext(Dispatchers.IO) {
-                PricingCache.getCloudPriceRawEntry(context, provider, modelName)
+                if (!aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.CLOUDPRICE.id)) return@withContext null
+                CloudPriceModelCache.get(context, provider.id, modelName)?.let { return@withContext it.json }
+                val variants = sequenceOf(modelName, modelName.replace('-', '.'), modelName.replace('.', '-')).distinct()
+                var found: String? = null
+                for (cand in variants) {
+                    try {
+                        val resp = com.ai.data.withTracerTags(category = "info/cloudprice", model = modelName) {
+                            ApiFactory.createCloudPriceApi().getModel(cand)
+                        }
+                        if (resp.isSuccessful) {
+                            found = resp.body()?.string()?.let { raw ->
+                                runCatching { com.ai.data.createAppGson(prettyPrint = true).toJson(com.google.gson.JsonParser.parseString(raw)) }.getOrDefault(raw)
+                            }
+                            break
+                        }
+                    } catch (_: Exception) {}
+                }
+                CloudPriceModelCache.put(context, provider.id, modelName, found)
+                found
+            }
+        }
+        // Whether an info/cloudprice trace exists for this model — drives the
+        // 🐞 link on the CloudPrice source row. Keyed on the live result so it
+        // re-evaluates once the fetch above has recorded its trace.
+        val cpTraceExists by produceState(false, modelName, cloudPriceLive) {
+            value = withContext(Dispatchers.IO) {
+                com.ai.data.ApiTracer.getTraceFiles().any { it.category == "info/cloudprice" && it.model == modelName }
             }
         }
         val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
@@ -430,10 +463,11 @@ fun ModelInfoViewScreen(
                     llmStatsRaw = llmStatsRaw,
                     genaiPricesRaw = genaiPricesRaw,
                     trueFoundryRaw = trueFoundryRaw,
-                    cloudPriceRaw = cloudPriceRaw,
+                    cloudPriceRaw = cloudPriceLive,
                     enabled = { aiSettings.isInfoProviderEnabled(it) },
                     hfTrace = if (infoFlags.first) ({ onNavigateToTraceFiltered("info/huggingface", modelName) }) else null,
                     orTrace = if (infoFlags.second) ({ onNavigateToTraceFiltered("info/provider", null) }) else null,
+                    cpTrace = if (cpTraceExists) ({ onNavigateToTraceFiltered("info/cloudprice", modelName) }) else null,
                     onOpen = { name, body, url ->
                         sourceOverlay = SourceOverlayState(name, body, url)
                     }
@@ -693,6 +727,7 @@ private fun SourcesCard(
     enabled: (String) -> Boolean,
     hfTrace: (() -> Unit)? = null,
     orTrace: (() -> Unit)? = null,
+    cpTrace: (() -> Unit)? = null,
     onOpen: (sourceName: String, body: String, calledUrl: String?) -> Unit
 ) {
     // Vertical list of clickable source rows. Each row carries an
@@ -733,7 +768,7 @@ private fun SourcesCard(
         if (enabled("truefoundry")) SourceRow(com.ai.data.MetadataIconsHolder.current.packageBox, "TrueFoundry", trueFoundryRaw) {
             onOpen("TrueFoundry", trueFoundryRaw ?: "{}", "https://github.com/truefoundry/models")
         }
-        if (enabled("cloudprice")) SourceRow(com.ai.data.MetadataIconsHolder.current.web, "CloudPrice", cloudPriceRaw, isLast = true) {
+        if (enabled("cloudprice")) SourceRow(com.ai.data.MetadataIconsHolder.current.web, "CloudPrice", cloudPriceRaw, isLast = true, onTrace = cpTrace) {
             onOpen("CloudPrice", cloudPriceRaw ?: "{}", "https://ai.cloudprice.net/api/v1/models")
         }
     }

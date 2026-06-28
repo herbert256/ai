@@ -207,6 +207,19 @@ interface HuggingFaceApi {
     ): Response<HuggingFaceModelInfo>
 }
 
+/** CloudPrice per-model detail (capabilities, modalities, context window,
+ *  deprecation, provider ids). Keyless. Returns the raw JSON body — the
+ *  object is large and we only display it on Model Info, so there's no typed
+ *  model. A non-2xx (e.g. 404 for a model CloudPrice doesn't carry) surfaces
+ *  as `Response.isSuccessful == false` with no log/toast — the caller treats
+ *  it as a cached miss, exactly like the HuggingFace lookup. */
+interface CloudPriceApi {
+    @GET("api/v1/models/{id}")
+    suspend fun getModel(
+        @Path("id", encoded = true) id: String
+    ): Response<okhttp3.ResponseBody>
+}
+
 // ============================================================================
 // ApiFactory — creates cached Retrofit instances
 // ============================================================================
@@ -364,4 +377,5 @@ object ApiFactory {
     fun createCohereRerankApi(): CohereRerankApi = getRetrofit("https://api.cohere.com/", CohereRerankApi::class.java.name).create(CohereRerankApi::class.java)
     fun createMistralModerationApi(): MistralModerationApi = getRetrofit("https://api.mistral.ai/", MistralModerationApi::class.java.name).create(MistralModerationApi::class.java)
     fun createHuggingFaceApi(): HuggingFaceApi = getRetrofit("https://huggingface.co/api/", HuggingFaceApi::class.java.name).create(HuggingFaceApi::class.java)
+    fun createCloudPriceApi(): CloudPriceApi = getRetrofit("https://ai.cloudprice.net/", CloudPriceApi::class.java.name).create(CloudPriceApi::class.java)
 }
