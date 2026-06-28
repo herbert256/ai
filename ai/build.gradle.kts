@@ -82,6 +82,16 @@ android {
         buildConfigField("int", "NETWORK_READ_TIMEOUT_SEC", "240")
         buildConfigField("int", "NETWORK_NONSTREAMING_READ_TIMEOUT_SEC", "120")
         buildConfigField("int", "NETWORK_WRITE_TIMEOUT_SEC", "30")
+        // Hard wall-clock ceiling for ONE whole network call (connect +
+        // write + read + interceptor retries). Unlike the per-read timeouts
+        // above, this bounds the TOTAL call, so a streaming response whose
+        // server keeps the SSE connection alive with keepalive/whitespace
+        // (resetting the read timeout forever) can't pin its throttle permit
+        // and host slot indefinitely — which is what hung a report's primary
+        // worker phase (the only fan-out lacking the per-item BATCH timeout
+        // below). Generous so it never clips a legitimately slow long stream;
+        // it's a last-resort floor against an otherwise-unbounded hang.
+        buildConfigField("int", "NETWORK_CALL_TIMEOUT_SEC", "900")
         // Wall-clock ceiling for ONE batch item — a fan-out pair, a
         // translation item, a tournament match, a judge / compare /
         // transrank cell. Bounds the whole per-item call (worker-chain

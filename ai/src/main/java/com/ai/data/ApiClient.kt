@@ -293,6 +293,14 @@ object ApiFactory {
         .connectTimeout(com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .readTimeout(com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .writeTimeout(com.ai.BuildConfig.NETWORK_WRITE_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
+        // Total-call ceiling: a per-read timeout never fires on a hung stream
+        // that the server keeps alive with keepalives, so without this a wedged
+        // call holds its ProviderThrottle permit forever and the run never
+        // finishes (the frozen-throttle stall). Bounds the whole call so a hang
+        // eventually errors the agent, releases the permit, and lets the run
+        // complete (and surface as broken work). Generous — see the BuildConfig
+        // comment — so legitimate slow streams are never clipped.
+        .callTimeout(com.ai.BuildConfig.NETWORK_CALL_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .build()
 
     private val callFactory = ContextTaggingCallFactory(okHttpClient)
