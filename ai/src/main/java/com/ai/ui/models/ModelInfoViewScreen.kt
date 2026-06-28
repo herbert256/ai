@@ -416,6 +416,17 @@ fun ModelInfoViewScreen(
                 com.ai.data.ApiTracer.getTraceFiles().any { it.category == "info/cloudprice" && it.model == modelName }
             }
         }
+        // CloudPrice model description (data.description from the live detail) —
+        // drives the conditional CloudPrice Description card after OpenRouter's.
+        val cloudPriceDescription = remember(cloudPriceLive) {
+            cloudPriceLive?.let { raw ->
+                runCatching {
+                    com.google.gson.JsonParser.parseString(raw).asJsonObject
+                        .getAsJsonObject("data")?.get("description")
+                        ?.takeIf { it.isJsonPrimitive }?.asString
+                }.getOrNull()?.takeIf { it.isNotBlank() }
+            }
+        }
         val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
             value = withContext(Dispatchers.IO) {
                 PricingCache.getTierBreakdown(context, provider, modelName)
@@ -483,6 +494,19 @@ fun ModelInfoViewScreen(
             // 5) Description (OpenRouter, conditional).
             orInfo?.description?.let { desc ->
                 item { SectionCard(title = "Description") { Text(desc, fontSize = 13.sp, color = AppColors.TextSecondary) } }
+            }
+
+            // 5b) Description (CloudPrice, conditional) — right after OpenRouter's.
+            cloudPriceDescription?.let { desc ->
+                item {
+                    SectionCard(title = "Description") {
+                        Text(desc, fontSize = 13.sp, color = AppColors.TextSecondary)
+                        Text(
+                            "Source: CloudPrice", fontSize = 10.sp, color = AppColors.TextTertiary,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
             }
 
             // 6) Technical specs.

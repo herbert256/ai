@@ -542,6 +542,18 @@ fun ModelInfoScreen(
                         found
                     }
                 }
+                // CloudPrice model description, parsed from the live detail
+                // JSON (data.description). Drives the conditional CloudPrice
+                // "Description" card after the OpenRouter one.
+                val cloudPriceDescription = remember(cloudPriceRaw) {
+                    cloudPriceRaw?.let { raw ->
+                        runCatching {
+                            com.google.gson.JsonParser.parseString(raw).asJsonObject
+                                .getAsJsonObject("data")?.get("description")
+                                ?.takeIf { it.isJsonPrimitive }?.asString
+                        }.getOrNull()?.takeIf { it.isNotBlank() }
+                    }
+                }
                 val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
                     value = withContext(Dispatchers.IO) {
                         PricingCache.getTierBreakdown(context, provider, modelName)
@@ -1197,6 +1209,17 @@ fun ModelInfoScreen(
                     info?.openRouterInfo?.description?.let { desc ->
                         item {
                             ModelInfoSection("Description", "OpenRouter", onNavigateToHelpTopic) {
+                                Text(desc, fontSize = 13.sp, color = AppColors.TextSecondary)
+                            }
+                        }
+                    }
+
+                    // CloudPrice description (conditional — only when the live
+                    // per-model lookup returned a description). Sits right after
+                    // the OpenRouter one.
+                    cloudPriceDescription?.let { desc ->
+                        item {
+                            ModelInfoSection("Description", "CloudPrice", onNavigateToHelpTopic) {
                                 Text(desc, fontSize = 13.sp, color = AppColors.TextSecondary)
                             }
                         }
