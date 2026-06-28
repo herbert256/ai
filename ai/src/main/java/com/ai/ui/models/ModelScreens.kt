@@ -1181,15 +1181,13 @@ fun ModelInfoScreen(
                     // title-bar 🐞 icon opens the same model-filtered
                     // trace list when traceCount > 0.
 
-                    // Usage entry for this provider/model (cumulative across reports + chats).
-                    item {
-                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
-                                val ue = usageEntry
-                                if (ue == null) {
-                                    Text("No usage recorded yet for this model", fontSize = 12.sp, color = AppColors.TextTertiary)
-                                } else {
+                    // Usage entry for this provider/model (cumulative across
+                    // reports + chats). Hidden entirely when there's no usage yet.
+                    usageEntry?.let { ue ->
+                        item {
+                            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("Usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                     Text(
                                         "${ue.callCount} calls, ${formatCompactNumber(ue.inputTokens)} in / ${formatCompactNumber(ue.outputTokens)} out",
                                         fontSize = 13.sp, color = AppColors.TextPrimary
@@ -1295,14 +1293,6 @@ fun ModelInfoScreen(
                                     ) { Text("Ask the model to introduce itself", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                                 }
                             }
-                        }
-                    }
-
-                    // No info fallback
-                    if (info?.openRouterInfo == null && info?.huggingFaceInfo == null && aiDescription == null && !isAiLoading) {
-                        item {
-                            Text("No information found for this model. Ensure OpenRouter and HuggingFace API keys are configured.",
-                                fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(16.dp))
                         }
                     }
 

@@ -550,14 +550,12 @@ fun ModelInfoViewScreen(
                 }
             }
 
-            // 9) AI Usage — cumulative counter (now aggregating
-            //    across every UsageStats kind for this (provider, model)).
-            item {
-                SectionCard(title = "Usage") {
-                    val ue = usageEntry
-                    if (ue == null) {
-                        Text("No usage recorded yet for this model.", fontSize = 12.sp, color = AppColors.TextTertiary)
-                    } else {
+            // 9) AI Usage — cumulative counter (aggregating across every
+            //    UsageStats kind for this (provider, model)). Hidden entirely
+            //    when there's no usage yet.
+            usageEntry?.let { ue ->
+                item {
+                    SectionCard(title = "Usage") {
                         Text(
                             "${ue.callCount} calls · ${formatCompactNumber(ue.inputTokens)} in / ${formatCompactNumber(ue.outputTokens)} out",
                             fontSize = 13.sp, color = AppColors.TextPrimary
