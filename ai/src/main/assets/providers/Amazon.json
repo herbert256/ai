@@ -1,0 +1,25 @@
+{
+  "adminUrl": "https://eu-central-1.console.aws.amazon.com/bedrock-mantle/?region=eu-central-1",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://bedrock-mantle.eu-central-1.api.aws/",
+  "defaultModel": "openai.gpt-oss-120b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "hardcodedModels": [
+    "openai.gpt-oss-120b",
+    "qwen.qwen3-235b-a22b-2507",
+    "mistral.devstral-2-123b",
+    "google.gemma-4-31b",
+    "minimax.minimax-m2.5",
+    "nvidia.nemotron-super-3-120b"
+  ],
+  "id": "Amazon",
+  "mergeHardcodedModels": true,
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}
