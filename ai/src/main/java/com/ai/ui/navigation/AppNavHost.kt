@@ -273,8 +273,16 @@ fun AppNavHost(
     val restartLockContext = LocalContext.current
     val homeBarEnabled = rootUiStateForLayout.generalSettings.appHomeMode == AppHomeMode.HOME_BAR
     val navigateHomeBarRoute: (String) -> Unit = { route ->
+        // When the tapped section icon targets the route we're already on,
+        // the destination may be showing an inner sub-screen — SettingsScreen
+        // (AI_SETUP / SETTINGS) keeps its own `currentSubScreen` in
+        // rememberSaveable, so launchSingleTop alone is a no-op and would
+        // strand the user on the sub-screen. popUpTo + inclusive destroys the
+        // entry (clearing its saved state) so it recreates at its hub.
+        val onSameRoute = navController.currentDestination?.route == route
         navController.navigate(route) {
             launchSingleTop = true
+            if (onSameRoute) popUpTo(route) { inclusive = true }
         }
     }
     // The bottom icon bar is now the fixed layout (the old top-bar
