@@ -1,18 +1,19 @@
 # External Repositories
 
-The app consults **nine external metadata repositories** for model
-pricing, capabilities, and model-card information. Eight of them are
-*pricing/capability catalogs* that feed the layered
-`PricingCache.getPricing` lookup; the ninth (HuggingFace) is a
-lazy, per-model card-metadata source surfaced only on the Model Info
-screen.
+The app consults **twelve external metadata repositories** for model
+pricing, capabilities, and model-card information. Ten of them are
+*pricing catalogs* that feed the layered `PricingCache.getPricing`
+lookup. The other two are capability/metadata-only and stay out of
+the price lookup: **CloudPrice** (a bulk capability + context catalog,
+cached like the others) and **HuggingFace** (a lazy, per-model
+card-metadata source surfaced only on the Model Info screen).
 
-The eight catalog tiers all round-trip through the backup zip
+The catalog tiers all round-trip through the backup zip
 ([backup-restore.md](backup-restore.md)) and ship a **bundled
 snapshot** in `assets/info-providers/`, so a freshly installed (or
-freshly restored) device has working pricing *before* it ever hits
-the network. (HuggingFace is not bundled — it caches lazily into its
-own SharedPreferences file.)
+freshly restored) device has working pricing/capabilities *before* it
+ever hits the network. (HuggingFace is not bundled — it caches lazily
+into its own SharedPreferences file.)
 
 ## Lookup precedence
 
@@ -34,9 +35,17 @@ wins**:
 7. llm-stats             (curated bulk — needs API key + Stats-API onboarding)
 8. OpenRouter cross-provider fallback (only for non-OpenRouter callers)
 9. Requesty              (cross-provider router catalog, keyless)
-10. Helicone             (last resort — known data-quality issues)
-11. DEFAULT_PRICING      ($25/M input, $75/M output)
+10. genai-prices         (Pydantic's curated catalog, keyless)
+11. TrueFoundry          (community model registry, keyless)
+12. Helicone             (last resort — known data-quality issues)
+13. DEFAULT_PRICING      ($25/M input, $75/M output)
 ```
+
+genai-prices and TrueFoundry are broad community catalogs added as
+fallbacks *above* the last-resort Helicone tier; they don't perturb
+the precedence of the established tiers above them. **CloudPrice is
+not in this list** — its bulk model list carries no inline pricing, so
+it contributes capability flags only (see §11 below).
 
 Two things are easy to get wrong here, so spell them out:
 
@@ -324,9 +333,77 @@ step-7 fallback. Together this is what makes OpenRouter's catalog
   `requesty_meta.json` (capability sidecar); `requesty_timestamp` in
   `pricing_cache`. Bundled snapshot in `assets/info-providers/`.
 
-## 9. HuggingFace
+## 9. genai-prices
 
-Unlike the eight catalog tiers, HuggingFace is **not** part of Refresh
+- **Endpoint:** `https://raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json`
+- **Auth:** none (single public data file).
+- **Provides:** Pydantic's curated price catalog — a JSON array of
+  providers, each with a `models` list carrying `prices`
+  (`input_mtok` / `output_mtok` / `cache_read_mtok` /
+  `cache_write_mtok`, in **$/M tokens** → divided by 1M) and a
+  `context_window` (kept in the sidecar for the token-limit chain).
+  `prices` may be a conditional array (date/tier variants) — we take
+  the unconstrained (base) entry; per-field `TieredPrices` objects
+  degrade to "missing".
+- **Key format:** `<provider>/<modelId>` (like models.dev), matched
+  via the prefix-bucket scan.
+- **Position:** step 10 in the precedence — a keyless community
+  fallback after Requesty, before TrueFoundry / Helicone.
+- **Cache:** `<filesDir>/pricing/genaiprices_pricing.json` +
+  `genaiprices_meta.json`; `genaiprices_timestamp` in `pricing_cache`.
+  Bundled snapshot in `assets/info-providers/`.
+
+## 10. TrueFoundry
+
+- **Endpoint:** `https://github.com/truefoundry/models/archive/refs/heads/main.tar.gz`
+- **Auth:** none. There is no consolidated data file upstream (one YAML
+  per model), so the refresh **downloads the whole-repo `.tar.gz`** via
+  `ApiFactory.fetchUrlAsBytes`, then streams it through
+  `GZIPInputStream` → commons-compress `TarArchiveInputStream`, parsing
+  each `providers/<provider>/<model>.yaml` with SnakeYAML one entry at a
+  time (skipping each provider's `default.yaml`).
+- **Provides:** per-model `costs` (`input_cost_per_token` /
+  `output_cost_per_token` / `cache_read_input_token_cost` — **already
+  per-token**), `limits` (context / output), `modalities` (image →
+  vision), `features` (`function_calling` → tool-calling), `thinking`
+  (→ reasoning). vision / tool-calling / reasoning feed the capability
+  chain.
+- **Key format:** `<provider>/<modelId>` from the repo's directory
+  layout, matched via the prefix-bucket scan.
+- **Position:** step 11 in the precedence — a keyless community
+  fallback after genai-prices, before Helicone.
+- **Cache:** `<filesDir>/pricing/truefoundry_pricing.json` +
+  `truefoundry_meta.json`; `truefoundry_timestamp` in `pricing_cache`.
+  Bundled snapshot in `assets/info-providers/`. The refresh is heavier
+  than the JSON catalogs (archive download + on-device unzip + ~1000
+  YAML parses).
+
+## 11. CloudPrice
+
+Like HuggingFace, CloudPrice is **not** a pricing source — its bulk
+`/models` list carries no inline pricing (prices live behind per-model
+calculator endpoints). It contributes **capabilities + context only**,
+so it never joins the layered price lookup. Unlike HuggingFace it is a
+bulk, eagerly-cached, bundled catalog (not lazy/per-model).
+
+- **Endpoint:** `https://ai.cloudprice.net/api/v1/models?page_size=100`,
+  paginated via `pagination.next_token` (capped at 40 pages).
+- **Auth:** none.
+- **Provides:** per model — `modalities` (image → vision),
+  `context_window`, `max_output_tokens`, and a `capabilities` block
+  (`function_calling` → tool-calling, `reasoning`, `web_search`,
+  `computer_use`). These feed the capability chain
+  (`Settings.isVisionCapable` / `isWebSearchCapable` /
+  `isReasoningCapable`).
+- **Key format:** `<creator>/<name>` (creator-slug style, like AA),
+  matched via the prefix-bucket scan.
+- **Cache:** `<filesDir>/pricing/cloudprice_meta.json` (no pricing
+  blob); `cloudprice_timestamp` in `pricing_cache`. Bundled snapshot in
+  `assets/info-providers/`.
+
+## 12. HuggingFace
+
+Unlike the catalog tiers, HuggingFace is **not** part of Refresh
 All, **not** bundled, and **not** a pricing source — it's a lazy,
 per-model card-metadata lookup.
 
@@ -362,12 +439,12 @@ full-screen progress page (`coroutineScope { catJob; wrkJob; join }`),
 after first clearing every provider-default agent and emptying the
 `default agents` flock:
 
-1. the **catalog phase** (`runCatalogPhase`) fans the **eight catalog
+1. the **catalog phase** (`runCatalogPhase`) fans the **eleven catalog
    sources out in parallel** (`async(Dispatchers.IO)` + `awaitAll`,
    because they touch disjoint disk paths). OpenRouter, Artificial
    Analysis and llm-stats are skipped when their key is absent (LiteLLM,
-   models.dev, llm-prices, Helicone and Requesty are keyless, so they
-   always run). When the catalogs
+   models.dev, llm-prices, Helicone, Requesty, genai-prices, TrueFoundry
+   and CloudPrice are keyless, so they always run). When the catalogs
    settle it recomputes the precomputed vision / web-search /
    reasoning capability sets (`recomputeAllCapabilities`) and saves
    settings;
@@ -412,13 +489,13 @@ mine extra fields without forcing a re-fetch.
 
 ## Help & trace wiring
 
-Each repository has a help page (the nine `info_provider_*` topics
+Each repository has a help page (the twelve `info_provider_*` topics
 in `ui/admin/InfoProviderHelp.kt`) deep-linked from every entry
 point: the ℹ icon beside a Source button on the Model Info screen,
 the per-tier card on the Refresh screen, and the Trace detail page
 when a captured trace matches a known fetch category. The
 trace→repository resolver is `infoProviderForTrace(url, category)`
-(`ui/admin/HelpScreen.kt`), backed by the canonical 9-entry
+(`ui/admin/HelpScreen.kt`), backed by the canonical 12-entry
 `INFO_PROVIDERS` list; OpenRouter's spec fetch is gated on
 `INFO_FETCH_CATEGORIES = {"OpenRouter model specs"}` plus a
 `pricing/` category prefix. See [help.md](help.md).

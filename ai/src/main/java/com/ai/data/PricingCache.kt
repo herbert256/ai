@@ -60,6 +60,23 @@ object PricingCache {
     private const val KEY_LLMSTATS_PRICING = "llmstats_pricing"
     private const val KEY_LLMSTATS_META = "llmstats_meta"
     private const val KEY_LLMSTATS_TIMESTAMP = "llmstats_timestamp"
+    // genai-prices — Pydantic's curated catalog (raw.githubusercontent.com/
+    // pydantic/genai-prices/main/prices/data_slim.json). $/M pricing +
+    // context window. Keyless. Composite key <provider>/<modelId>.
+    private const val KEY_GENAIPRICES_PRICING = "genaiprices_pricing"
+    private const val KEY_GENAIPRICES_META = "genaiprices_meta"
+    private const val KEY_GENAIPRICES_TIMESTAMP = "genaiprices_timestamp"
+    // TrueFoundry — community model registry (github.com/truefoundry/models).
+    // Per-model YAML pulled as the whole-repo tar.gz and unpacked on-device.
+    // Per-token pricing + capability sidecar. Keyless.
+    private const val KEY_TRUEFOUNDRY_PRICING = "truefoundry_pricing"
+    private const val KEY_TRUEFOUNDRY_META = "truefoundry_meta"
+    private const val KEY_TRUEFOUNDRY_TIMESTAMP = "truefoundry_timestamp"
+    // CloudPrice — capabilities + context catalog (ai.cloudprice.net/api/v1/
+    // models, paginated). Metadata ONLY — no inline pricing in the bulk list,
+    // so it never joins the layered price lookup. Keyless.
+    private const val KEY_CLOUDPRICE_META = "cloudprice_meta"
+    private const val KEY_CLOUDPRICE_TIMESTAMP = "cloudprice_timestamp"
     private const val KEY_MANUAL_PRICING = "manual_pricing"
     /** Together AI native pricing — extracted from each model entry's
      *  `pricing.{input, output, cached_input}` block during a Together
@@ -116,6 +133,23 @@ object PricingCache {
     @Volatile private var llmStatsPricing: Map<String, ModelPricing>? = null
     @Volatile private var llmStatsMeta: Map<String, LlmStatsMeta>? = null
     @Volatile private var llmStatsTimestamp: Long = 0
+    /** genai-prices pricing — Pydantic's curated catalog keyed
+     *  `<provider>/<modelId>`. $/M prices converted to per-token; sidecar
+     *  carries the context window for the token-limit chain. */
+    @Volatile private var genaiPricesPricing: Map<String, ModelPricing>? = null
+    @Volatile private var genaiPricesMeta: Map<String, GenaiPricesMeta>? = null
+    @Volatile private var genaiPricesTimestamp: Long = 0
+    /** TrueFoundry pricing — community registry keyed `<provider>/<modelId>`.
+     *  Prices are already per-token in the upstream YAML; sidecar carries the
+     *  capability flags + token limits. */
+    @Volatile private var trueFoundryPricing: Map<String, ModelPricing>? = null
+    @Volatile private var trueFoundryMeta: Map<String, TrueFoundryMeta>? = null
+    @Volatile private var trueFoundryTimestamp: Long = 0
+    /** CloudPrice capability sidecar — keyed `<creator>/<name>`. Metadata
+     *  only (vision / reasoning / tool-calling / web-search / computer-use +
+     *  context window); there is no CloudPrice pricing map. */
+    @Volatile private var cloudPriceMeta: Map<String, CloudPriceMeta>? = null
+    @Volatile private var cloudPriceTimestamp: Long = 0
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
     @Volatile private var modelsDevTimestamp: Long = 0
@@ -253,6 +287,8 @@ object PricingCache {
                 breakdown.llmStats != null ||
                 breakdown.openrouter != null ||
                 breakdown.requesty != null ||
+                breakdown.genaiPrices != null ||
+                breakdown.trueFoundry != null ||
                 matchesDefault ||
                 matchesWithoutOverride
             if (shouldRemove) {
@@ -367,8 +403,9 @@ object PricingCache {
                     " (litellm=${litellmPricing?.size ?: 0}, modelsDev=${modelsDevPricing?.size ?: 0}," +
                     " llmPrices=${llmPricesPricing?.size ?: 0}, aa=${aaPricing?.size ?: 0}," +
                     " llmStats=${llmStatsPricing?.size ?: 0}, openrouter=${openRouterPricing?.size ?: 0}," +
-                    " requesty=${requestyPricing?.size ?: 0}, helicone=${heliconePricing?.size ?: 0}," +
-                    " manual=${manualPricing?.size ?: 0})"
+                    " requesty=${requestyPricing?.size ?: 0}, genaiPrices=${genaiPricesPricing?.size ?: 0}," +
+                    " trueFoundry=${trueFoundryPricing?.size ?: 0}, cloudPrice=${cloudPriceMeta?.size ?: 0}," +
+                    " helicone=${heliconePricing?.size ?: 0}, manual=${manualPricing?.size ?: 0})"
             )
         }
     }
@@ -472,6 +509,11 @@ object PricingCache {
         if (!isOpenRouter && isInfoProviderEnabled(InfoProvider.OPENROUTER))
             findOpenRouterPricing(provider, model)?.let { return PricingMatch("OPENROUTER", it) }
         findRequestyPricing(provider, model)?.let { return PricingMatch("REQUESTY", it) }
+        // genai-prices + TrueFoundry are broad community catalogs added as
+        // fallbacks above the last-resort Helicone tier; they don't perturb
+        // the precedence of the established tiers above.
+        findGenaiPricesPricing(provider, model)?.let { return PricingMatch("GENAIPRICES", it) }
+        findTrueFoundryPricing(provider, model)?.let { return PricingMatch("TRUEFOUNDRY", it) }
         findHeliconePricing(provider, model)?.let { return PricingMatch("HELICONE", it) }
         return null
     }
@@ -752,9 +794,10 @@ object PricingCache {
      *  ([fetchedAt] = 0 means never retrieved). */
     data class CatalogStat(val name: String, val entries: Int, val fetchedAt: Long)
 
-    /** Entry count + retrieval timestamp for each of the eight external pricing
-     *  info-providers, in lookup-precedence order. Drives the Monitor hub's
-     *  "Pricing cache" table. Cheap — map sizes + volatile longs. */
+    /** Entry count + retrieval timestamp for each external pricing / capability
+     *  info-provider, in lookup-precedence order. Drives the Monitor hub's
+     *  "Pricing cache" table. Cheap — map sizes + volatile longs. CloudPrice
+     *  is metadata-only, so its count is meta entries, not priced models. */
     fun catalogStats(context: Context): List<CatalogStat> {
         ensureLoaded(context)
         return listOf(
@@ -765,6 +808,9 @@ object PricingCache {
             CatalogStat("llm-stats", llmStatsPricing?.size ?: 0, llmStatsTimestamp),
             CatalogStat("OpenRouter", openRouterPricing?.size ?: 0, openRouterTimestamp),
             CatalogStat("Requesty", requestyPricing?.size ?: 0, requestyTimestamp),
+            CatalogStat("genai-prices", genaiPricesPricing?.size ?: 0, genaiPricesTimestamp),
+            CatalogStat("TrueFoundry", trueFoundryPricing?.size ?: 0, trueFoundryTimestamp),
+            CatalogStat("CloudPrice", cloudPriceMeta?.size ?: 0, cloudPriceTimestamp),
             CatalogStat("Helicone", heliconePricing?.size ?: 0, heliconeTimestamp),
         )
     }
@@ -783,6 +829,8 @@ object PricingCache {
         val override: ModelPricing?,
         val openrouter: ModelPricing?,
         val requesty: ModelPricing?,
+        val genaiPrices: ModelPricing?,
+        val trueFoundry: ModelPricing?,
         val together: ModelPricing?,
         val default: ModelPricing
     )
@@ -801,8 +849,10 @@ object PricingCache {
         val openrouter = if (provider.crossProviderModelList || isInfoProviderEnabled(InfoProvider.OPENROUTER))
             findOpenRouterPricing(provider, model) else null
         val requesty = findRequestyPricing(provider, model)
+        val genaiPrices = findGenaiPricesPricing(provider, model)
+        val trueFoundry = findTrueFoundryPricing(provider, model)
         val together = findTogetherPricing(provider, model)
-        return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, llmStats, override, openrouter, requesty, together, DEFAULT_PRICING)
+        return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, llmStats, override, openrouter, requesty, genaiPrices, trueFoundry, together, DEFAULT_PRICING)
     }
 
     /** True when two or more catalog tiers have pricing for this
@@ -815,7 +865,7 @@ object PricingCache {
      *  hasn't settled on a single number. */
     fun pricesConflict(context: Context, provider: AppService, model: String): Boolean {
         val br = getTierBreakdown(context, provider, model)
-        val tiers = listOfNotNull(br.litellm, br.modelsDev, br.helicone, br.llmPrices, br.artificialAnalysis, br.llmStats, br.openrouter, br.requesty)
+        val tiers = listOfNotNull(br.litellm, br.modelsDev, br.helicone, br.llmPrices, br.artificialAnalysis, br.llmStats, br.openrouter, br.requesty, br.genaiPrices, br.trueFoundry)
         if (tiers.size < 2) return false
         fun close(a: Double, b: Double): Boolean {
             if (a == b) return true
@@ -873,6 +923,9 @@ object PricingCache {
             "aa" -> aaPricing to aaTimestamp
             "requesty" -> requestyPricing to requestyTimestamp
             "llmstats" -> llmStatsPricing to llmStatsTimestamp
+            "genaiprices" -> genaiPricesPricing to genaiPricesTimestamp
+            "truefoundry" -> trueFoundryPricing to trueFoundryTimestamp
+            "cloudprice" -> cloudPriceMeta to cloudPriceTimestamp
             else -> return null
         }
         val map = cache ?: return null
@@ -1509,6 +1562,302 @@ object PricingCache {
         return pretty.toJson(mapOf("pricing" to pricing, "meta" to meta))
     }
 
+    // ============================================================================
+    // genai-prices — Pydantic's curated price catalog (keyless)
+    // Endpoint: raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json
+    // ============================================================================
+
+    /** Pull genai-prices' consolidated catalog and replace the GENAIPRICES
+     *  tier. Keyless single-file fetch. Returns the number of priced entries,
+     *  or null on network / parse failure. */
+    suspend fun fetchGenaiPricesOnline(context: Context): Int? = withTraceCategory("pricing/genai-prices") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val json = ApiFactory.fetchUrlAsString("https://raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json")
+            if (json.isNullOrBlank()) {
+                AppLog.w("PricingCache", "genai-prices refresh: empty / failed response")
+                return@withContext null
+            }
+            val (pricing, meta) = parseGenaiPricesJson(json)
+            AppLog.i("PricingCache", "genai-prices parse: ${pricing.size} priced, ${meta.size} meta entries")
+            if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
+            synchronized(lock) {
+                genaiPricesPricing = pricing
+                genaiPricesMeta = meta
+                genaiPricesTimestamp = System.currentTimeMillis()
+                saveBlob(context, KEY_GENAIPRICES_PRICING, gson.toJson(pricing))
+                saveBlob(context, KEY_GENAIPRICES_META, gson.toJson(meta))
+                getPrefs(context).edit { putLong(KEY_GENAIPRICES_TIMESTAMP, genaiPricesTimestamp) }
+            }
+            pricing.size
+        } catch (e: Exception) {
+            AppLog.e("PricingCache", "genai-prices refresh failed: ${e.message}", e)
+            null
+        }
+      }
+    }
+
+    /** genai-prices keys are `<provider>/<modelId>` (like models.dev), so the
+     *  lookup mirrors findModelsDevPricing. */
+    private fun findGenaiPricesPricing(provider: AppService, model: String): ModelPricing? {
+        if (!isInfoProviderEnabled(InfoProvider.GENAI_PRICES)) return null
+        val pricing = genaiPricesPricing ?: return null
+        pricing[model]?.let { return it }
+        return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { pricing[it] }
+    }
+
+    private fun findGenaiPricesMeta(provider: AppService, model: String): GenaiPricesMeta? {
+        if (!isInfoProviderEnabled(InfoProvider.GENAI_PRICES)) return null
+        val meta = genaiPricesMeta ?: return null
+        meta[model]?.let { return it }
+        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
+    }
+
+    fun genaiPricesMaxInputTokens(provider: AppService, model: String): Int? =
+        findGenaiPricesMeta(provider, model)?.maxInputTokens
+
+    fun getGenaiPricesRawEntry(context: Context, provider: AppService, model: String): String? {
+        ensureLoaded(context)
+        val pricing = findGenaiPricesPricing(provider, model)
+        val meta = findGenaiPricesMeta(provider, model)
+        if (pricing == null && meta == null) return null
+        val pretty = createAppGson(prettyPrint = true)
+        return pretty.toJson(mapOf("pricing" to pricing, "meta" to meta))
+    }
+
+    // ============================================================================
+    // TrueFoundry — community model registry (keyless), per-model YAML pulled
+    // as the whole-repo tar.gz and unpacked on-device.
+    // Endpoint: github.com/truefoundry/models/archive/refs/heads/main.tar.gz
+    // ============================================================================
+
+    /** Download the TrueFoundry repo archive, stream-unpack the per-model
+     *  YAML, and replace the TRUEFOUNDRY tier. The archive is processed one
+     *  tar entry at a time so peak memory stays low. Returns the number of
+     *  priced entries, or null on network / parse failure. */
+    suspend fun fetchTrueFoundryOnline(context: Context): Int? = withTraceCategory("pricing/TrueFoundry") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val bytes = ApiFactory.fetchUrlAsBytes("https://github.com/truefoundry/models/archive/refs/heads/main.tar.gz")
+            if (bytes == null || bytes.isEmpty()) {
+                AppLog.w("PricingCache", "TrueFoundry refresh: empty / failed download")
+                return@withContext null
+            }
+            val (pricing, meta) = parseTrueFoundryArchive(bytes)
+            AppLog.i("PricingCache", "TrueFoundry parse: ${pricing.size} priced, ${meta.size} meta entries (${bytes.size} archive bytes)")
+            if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
+            synchronized(lock) {
+                trueFoundryPricing = pricing
+                trueFoundryMeta = meta
+                trueFoundryTimestamp = System.currentTimeMillis()
+                saveBlob(context, KEY_TRUEFOUNDRY_PRICING, gson.toJson(pricing))
+                saveBlob(context, KEY_TRUEFOUNDRY_META, gson.toJson(meta))
+                getPrefs(context).edit { putLong(KEY_TRUEFOUNDRY_TIMESTAMP, trueFoundryTimestamp) }
+            }
+            pricing.size
+        } catch (e: Exception) {
+            AppLog.e("PricingCache", "TrueFoundry refresh failed: ${e.message}", e)
+            null
+        }
+      }
+    }
+
+    /** Walk the gzipped tarball, parsing every `providers/<provider>/<model>.yaml`
+     *  (skipping each provider's `default.yaml`, which carries provider-level
+     *  params, not a model). Keys are `<provider>/<model>`; prices are already
+     *  per-token in the YAML. TarArchiveInputStream bounds each entry, so
+     *  `readBytes()` reads exactly the current file. */
+    private fun parseTrueFoundryArchive(bytes: ByteArray): Pair<Map<String, ModelPricing>, Map<String, TrueFoundryMeta>> {
+        val pricing = mutableMapOf<String, ModelPricing>()
+        val meta = mutableMapOf<String, TrueFoundryMeta>()
+        val yaml = org.yaml.snakeyaml.Yaml()
+        java.util.zip.GZIPInputStream(java.io.ByteArrayInputStream(bytes)).use { gz ->
+            org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gz).use { tar ->
+                var entry = tar.nextEntry
+                while (entry != null) {
+                    val name = entry.name
+                    if (!entry.isDirectory && name.endsWith(".yaml") && name.contains("/providers/") &&
+                        !name.endsWith("/default.yaml")) {
+                        val afterProviders = name.substringAfter("/providers/")
+                        val parts = afterProviders.split("/")
+                        if (parts.size == 2) {
+                            val providerDir = parts[0]
+                            val text = tar.readBytes().toString(Charsets.UTF_8)
+                            runCatching {
+                                @Suppress("UNCHECKED_CAST")
+                                val root = yaml.load<Any?>(text) as? Map<String, Any?>
+                                if (root != null) trueFoundryEntry(providerDir, root, pricing, meta)
+                            }
+                        }
+                    }
+                    entry = tar.nextEntry
+                }
+            }
+        }
+        return pricing to meta
+    }
+
+    private fun trueFoundryEntry(
+        providerDir: String,
+        root: Map<String, Any?>,
+        pricing: MutableMap<String, ModelPricing>,
+        meta: MutableMap<String, TrueFoundryMeta>
+    ) {
+        val modelId = (root["model"] as? String)?.takeIf { it.isNotBlank() } ?: return
+        val composite = "$providerDir/$modelId"
+        fun num(v: Any?): Double? = when (v) {
+            is Number -> v.toDouble()
+            is String -> v.trim().toDoubleOrNull()
+            else -> null
+        }
+        // costs: list of { region, input_cost_per_token, output_cost_per_token,
+        // cache_read_input_token_cost }. Prefer region "*", else the first.
+        val costs = root["costs"] as? List<*>
+        val costRow = (costs?.firstOrNull { (it as? Map<*, *>)?.get("region") == "*" }
+            ?: costs?.firstOrNull()) as? Map<*, *>
+        if (costRow != null) {
+            val ic = num(costRow["input_cost_per_token"])
+            val oc = num(costRow["output_cost_per_token"])
+            if (ic != null || oc != null) {
+                pricing[composite] = ModelPricing(
+                    modelId = modelId,
+                    promptPrice = ic ?: 0.0,
+                    completionPrice = oc ?: 0.0,
+                    source = "TRUEFOUNDRY",
+                    cachedReadPrice = num(costRow["cache_read_input_token_cost"])
+                )
+            }
+        }
+        val features = (root["features"] as? List<*>)?.mapNotNull { it as? String }
+        val modalitiesIn = ((root["modalities"] as? Map<*, *>)?.get("input") as? List<*>)?.mapNotNull { it as? String }
+        val limits = root["limits"] as? Map<*, *>
+        val supportsVision = modalitiesIn?.any { it.equals("image", ignoreCase = true) }
+        val supportsToolCalling = features?.any { it.equals("function_calling", ignoreCase = true) }
+        val supportsReasoning = (root["thinking"] as? Boolean)
+            ?: (features?.any { it.equals("reasoning", ignoreCase = true) })?.takeIf { it }
+        val ctx = (limits?.get("context_window") as? Number)?.toInt()
+            ?: (limits?.get("max_input_tokens") as? Number)?.toInt()
+        val out = (limits?.get("max_output_tokens") as? Number)?.toInt()
+        if (supportsVision != null || supportsToolCalling != null || supportsReasoning != null || ctx != null || out != null) {
+            meta[composite] = TrueFoundryMeta(supportsVision, supportsToolCalling, supportsReasoning, ctx, out)
+        }
+    }
+
+    private fun findTrueFoundryPricing(provider: AppService, model: String): ModelPricing? {
+        if (!isInfoProviderEnabled(InfoProvider.TRUEFOUNDRY)) return null
+        val pricing = trueFoundryPricing ?: return null
+        pricing[model]?.let { return it }
+        return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { pricing[it] }
+    }
+
+    private fun findTrueFoundryMeta(provider: AppService, model: String): TrueFoundryMeta? {
+        if (!isInfoProviderEnabled(InfoProvider.TRUEFOUNDRY)) return null
+        val meta = trueFoundryMeta ?: return null
+        meta[model]?.let { return it }
+        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
+    }
+
+    fun trueFoundrySupportsVision(provider: AppService, model: String): Boolean? =
+        findTrueFoundryMeta(provider, model)?.supportsVision
+
+    fun trueFoundrySupportsToolCalling(provider: AppService, model: String): Boolean? =
+        findTrueFoundryMeta(provider, model)?.supportsToolCalling
+
+    fun trueFoundrySupportsReasoning(provider: AppService, model: String): Boolean? =
+        findTrueFoundryMeta(provider, model)?.supportsReasoning
+
+    fun trueFoundryMaxInputTokens(provider: AppService, model: String): Int? =
+        findTrueFoundryMeta(provider, model)?.maxInputTokens
+
+    fun getTrueFoundryRawEntry(context: Context, provider: AppService, model: String): String? {
+        ensureLoaded(context)
+        val pricing = findTrueFoundryPricing(provider, model)
+        val meta = findTrueFoundryMeta(provider, model)
+        if (pricing == null && meta == null) return null
+        val pretty = createAppGson(prettyPrint = true)
+        return pretty.toJson(mapOf("pricing" to pricing, "meta" to meta))
+    }
+
+    // ============================================================================
+    // CloudPrice — capabilities + context catalog (keyless, paginated).
+    // Metadata ONLY: the bulk /models list carries no inline pricing, so
+    // CloudPrice never joins the layered price lookup.
+    // Endpoint: ai.cloudprice.net/api/v1/models?page_size=100&next_token=…
+    // ============================================================================
+
+    /** Walk every page of CloudPrice's /models list (paginated via
+     *  pagination.next_token, capped at 40 pages) and replace the CloudPrice
+     *  capability sidecar. Returns the number of meta entries, or null on
+     *  network / parse failure. */
+    suspend fun fetchCloudPriceOnline(context: Context): Int? = withTraceCategory("pricing/CloudPrice") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val meta = mutableMapOf<String, CloudPriceMeta>()
+            var token: String? = null
+            var pages = 0
+            do {
+                val url = buildString {
+                    append("https://ai.cloudprice.net/api/v1/models?page_size=100")
+                    token?.let { append("&next_token="); append(java.net.URLEncoder.encode(it, "UTF-8")) }
+                }
+                val json = ApiFactory.fetchUrlAsString(url)
+                if (json.isNullOrBlank()) break
+                val (m, next) = parseCloudPriceJson(json)
+                meta.putAll(m)
+                token = next
+                pages++
+            } while (token != null && pages < 40)
+            AppLog.i("PricingCache", "CloudPrice parse: ${meta.size} meta entries ($pages pages)")
+            if (meta.isEmpty()) return@withContext null
+            synchronized(lock) {
+                cloudPriceMeta = meta
+                cloudPriceTimestamp = System.currentTimeMillis()
+                saveBlob(context, KEY_CLOUDPRICE_META, gson.toJson(meta))
+                getPrefs(context).edit { putLong(KEY_CLOUDPRICE_TIMESTAMP, cloudPriceTimestamp) }
+            }
+            meta.size
+        } catch (e: Exception) {
+            AppLog.e("PricingCache", "CloudPrice refresh failed: ${e.message}", e)
+            null
+        }
+      }
+    }
+
+    /** CloudPrice keys are `<creator>/<name>` (creator-slug style, like AA). */
+    private fun findCloudPriceMeta(provider: AppService, model: String): CloudPriceMeta? {
+        if (!isInfoProviderEnabled(InfoProvider.CLOUDPRICE)) return null
+        val meta = cloudPriceMeta ?: return null
+        meta[model]?.let { return it }
+        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
+    }
+
+    fun cloudPriceSupportsVision(provider: AppService, model: String): Boolean? =
+        findCloudPriceMeta(provider, model)?.supportsVision
+
+    fun cloudPriceSupportsReasoning(provider: AppService, model: String): Boolean? =
+        findCloudPriceMeta(provider, model)?.supportsReasoning
+
+    fun cloudPriceSupportsWebSearch(provider: AppService, model: String): Boolean? =
+        findCloudPriceMeta(provider, model)?.supportsWebSearch
+
+    fun cloudPriceSupportsToolCalling(provider: AppService, model: String): Boolean? =
+        findCloudPriceMeta(provider, model)?.supportsToolCalling
+
+    fun cloudPriceMaxInputTokens(provider: AppService, model: String): Int? =
+        findCloudPriceMeta(provider, model)?.maxInputTokens
+
+    fun getCloudPriceRawEntry(context: Context, provider: AppService, model: String): String? {
+        ensureLoaded(context)
+        val meta = findCloudPriceMeta(provider, model) ?: return null
+        val pretty = createAppGson(prettyPrint = true)
+        return pretty.toJson(mapOf("meta" to meta))
+    }
+
     suspend fun fetchOpenRouterPricing(apiKey: String): Map<String, ModelPricing> {
         if (apiKey.isBlank()) return emptyMap()
         return withTraceCategory("pricing/OpenRouter") {
@@ -1715,6 +2064,51 @@ object PricingCache {
             if (llmStatsPricing == null) llmStatsPricing = emptyMap()
             if (llmStatsMeta == null) llmStatsMeta = emptyMap()
         }
+        // genai-prices — pricing + context-window sidecar. Bundled asset ships
+        // a snapshot so the tier works on a fresh install before the first
+        // refresh.
+        if (genaiPricesPricing == null || genaiPricesMeta == null) {
+            genaiPricesTimestamp = getPrefs(context).getLong(KEY_GENAIPRICES_TIMESTAMP, 0)
+            loadBlob(context, KEY_GENAIPRICES_PRICING)?.let { json ->
+                try { genaiPricesPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            }
+            loadBlob(context, KEY_GENAIPRICES_META)?.let { json ->
+                try {
+                    val type = object : TypeToken<Map<String, GenaiPricesMeta>>() {}.type
+                    genaiPricesMeta = gson.fromJson(json, type)
+                } catch (_: Exception) {}
+            }
+            if (genaiPricesPricing == null) genaiPricesPricing = emptyMap()
+            if (genaiPricesMeta == null) genaiPricesMeta = emptyMap()
+        }
+        // TrueFoundry — pricing + capability sidecar. Bundled asset ships a
+        // snapshot (the live refresh downloads the whole-repo tar.gz).
+        if (trueFoundryPricing == null || trueFoundryMeta == null) {
+            trueFoundryTimestamp = getPrefs(context).getLong(KEY_TRUEFOUNDRY_TIMESTAMP, 0)
+            loadBlob(context, KEY_TRUEFOUNDRY_PRICING)?.let { json ->
+                try { trueFoundryPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            }
+            loadBlob(context, KEY_TRUEFOUNDRY_META)?.let { json ->
+                try {
+                    val type = object : TypeToken<Map<String, TrueFoundryMeta>>() {}.type
+                    trueFoundryMeta = gson.fromJson(json, type)
+                } catch (_: Exception) {}
+            }
+            if (trueFoundryPricing == null) trueFoundryPricing = emptyMap()
+            if (trueFoundryMeta == null) trueFoundryMeta = emptyMap()
+        }
+        // CloudPrice — capability sidecar only (no pricing). Bundled asset
+        // ships a snapshot so the capability flags work on a fresh install.
+        if (cloudPriceMeta == null) {
+            cloudPriceTimestamp = getPrefs(context).getLong(KEY_CLOUDPRICE_TIMESTAMP, 0)
+            loadBlob(context, KEY_CLOUDPRICE_META)?.let { json ->
+                try {
+                    val type = object : TypeToken<Map<String, CloudPriceMeta>>() {}.type
+                    cloudPriceMeta = gson.fromJson(json, type)
+                } catch (_: Exception) {}
+            }
+            if (cloudPriceMeta == null) cloudPriceMeta = emptyMap()
+        }
         // Once we've finished loading every tier, mark the cache
         // primed so the main-thread guard in ensureLoaded() stops
         // short-circuiting future getPricing calls. Previously only
@@ -1778,6 +2172,36 @@ object PricingCache {
         val modalities: List<String>? = null,
         val organization: String? = null,
         val topScores: Map<String, Double>? = null
+    )
+
+    /** Sidecar for the genai-prices tier — carries only the context window
+     *  (the catalog has no capability flags), used by the token-limit chain. */
+    data class GenaiPricesMeta(
+        val maxInputTokens: Int? = null
+    )
+
+    /** Capability sidecar derived from TrueFoundry's per-model YAML
+     *  (`features` / `modalities` / `thinking` / `limits`). vision /
+     *  tool-calling / reasoning feed the layered capability chain. */
+    data class TrueFoundryMeta(
+        val supportsVision: Boolean? = null,
+        val supportsToolCalling: Boolean? = null,
+        val supportsReasoning: Boolean? = null,
+        val maxInputTokens: Int? = null,
+        val maxOutputTokens: Int? = null
+    )
+
+    /** Capability sidecar derived from CloudPrice's /models capabilities
+     *  block + modalities. CloudPrice carries no pricing in the bulk list, so
+     *  this is the tier's only contribution — it feeds the capability chain. */
+    data class CloudPriceMeta(
+        val supportsVision: Boolean? = null,
+        val supportsReasoning: Boolean? = null,
+        val supportsToolCalling: Boolean? = null,
+        val supportsWebSearch: Boolean? = null,
+        val supportsComputerUse: Boolean? = null,
+        val maxInputTokens: Int? = null,
+        val maxOutputTokens: Int? = null
     )
 
     /** Capability sidecar derived from Requesty's /v1/models flags.
@@ -1928,6 +2352,9 @@ object PricingCache {
             "OpenRouter" -> listOf(KEY_OPENROUTER_PRICING)
             "Requesty" -> listOf(KEY_REQUESTY_PRICING, KEY_REQUESTY_META)
             "llm-stats" -> listOf(KEY_LLMSTATS_PRICING, KEY_LLMSTATS_META)
+            "genai-prices" -> listOf(KEY_GENAIPRICES_PRICING, KEY_GENAIPRICES_META)
+            "TrueFoundry" -> listOf(KEY_TRUEFOUNDRY_PRICING, KEY_TRUEFOUNDRY_META)
+            "CloudPrice" -> listOf(KEY_CLOUDPRICE_META)
             "Helicone" -> listOf(KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS)
             else -> emptyList()
         }
@@ -1940,6 +2367,9 @@ object PricingCache {
             "OpenRouter" -> KEY_OPENROUTER_TIMESTAMP
             "Requesty" -> KEY_REQUESTY_TIMESTAMP
             "llm-stats" -> KEY_LLMSTATS_TIMESTAMP
+            "genai-prices" -> KEY_GENAIPRICES_TIMESTAMP
+            "TrueFoundry" -> KEY_TRUEFOUNDRY_TIMESTAMP
+            "CloudPrice" -> KEY_CLOUDPRICE_TIMESTAMP
             "Helicone" -> KEY_HELICONE_TIMESTAMP
             else -> null
         }
@@ -1955,6 +2385,9 @@ object PricingCache {
             "OpenRouter" -> { openRouterPricing = null; openRouterTimestamp = 0 }
             "Requesty" -> { requestyPricing = null; requestyMeta = null; requestyTimestamp = 0 }
             "llm-stats" -> { llmStatsPricing = null; llmStatsMeta = null; llmStatsTimestamp = 0 }
+            "genai-prices" -> { genaiPricesPricing = null; genaiPricesMeta = null; genaiPricesTimestamp = 0 }
+            "TrueFoundry" -> { trueFoundryPricing = null; trueFoundryMeta = null; trueFoundryTimestamp = 0 }
+            "CloudPrice" -> { cloudPriceMeta = null; cloudPriceTimestamp = 0 }
             "Helicone" -> { heliconePricing = null; heliconePatterns = null; heliconeTimestamp = 0 }
         }
     }
@@ -1971,7 +2404,10 @@ object PricingCache {
             KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS,
             KEY_LLMPRICES_PRICING, KEY_AA_PRICING, KEY_AA_META,
             KEY_REQUESTY_PRICING, KEY_REQUESTY_META,
-            KEY_LLMSTATS_PRICING, KEY_LLMSTATS_META
+            KEY_LLMSTATS_PRICING, KEY_LLMSTATS_META,
+            KEY_GENAIPRICES_PRICING, KEY_GENAIPRICES_META,
+            KEY_TRUEFOUNDRY_PRICING, KEY_TRUEFOUNDRY_META,
+            KEY_CLOUDPRICE_META
         )
         tierBlobs.forEach { key ->
             try { blobFile(context, key).delete() } catch (_: Exception) {}
@@ -1992,6 +2428,9 @@ object PricingCache {
             remove(KEY_AA_TIMESTAMP)
             remove(KEY_REQUESTY_TIMESTAMP)
             remove(KEY_LLMSTATS_TIMESTAMP)
+            remove(KEY_GENAIPRICES_TIMESTAMP)
+            remove(KEY_TRUEFOUNDRY_TIMESTAMP)
+            remove(KEY_CLOUDPRICE_TIMESTAMP)
         }
         openRouterPricing = null; openRouterTimestamp = 0
         litellmPricing = null; litellmMeta = null; litellmTimestamp = 0
@@ -2001,6 +2440,9 @@ object PricingCache {
         aaPricing = null; aaMeta = null; aaTimestamp = 0
         requestyPricing = null; requestyMeta = null; requestyTimestamp = 0
         llmStatsPricing = null; llmStatsMeta = null; llmStatsTimestamp = 0
+        genaiPricesPricing = null; genaiPricesMeta = null; genaiPricesTimestamp = 0
+        trueFoundryPricing = null; trueFoundryMeta = null; trueFoundryTimestamp = 0
+        cloudPriceMeta = null; cloudPriceTimestamp = 0
         litellmMetaLookupCache.clear()
         modelsDevMetaLookupCache.clear()
         litellmPricingLookupCache.clear()
@@ -2049,6 +2491,11 @@ object PricingCache {
         requestyMeta = null
         llmStatsPricing = null
         llmStatsMeta = null
+        genaiPricesPricing = null
+        genaiPricesMeta = null
+        trueFoundryPricing = null
+        trueFoundryMeta = null
+        cloudPriceMeta = null
         openRouterTimestamp = 0
         litellmTimestamp = 0
         modelsDevTimestamp = 0
@@ -2057,6 +2504,9 @@ object PricingCache {
         aaTimestamp = 0
         requestyTimestamp = 0
         llmStatsTimestamp = 0
+        genaiPricesTimestamp = 0
+        trueFoundryTimestamp = 0
+        cloudPriceTimestamp = 0
         preloadCompleted = false
         litellmMetaLookupCache.clear()
         modelsDevMetaLookupCache.clear()

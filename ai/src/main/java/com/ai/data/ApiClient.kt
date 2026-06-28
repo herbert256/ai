@@ -332,6 +332,28 @@ object ApiFactory {
         }
     }
 
+    /** Plain GET that returns the raw response body as a ByteArray — used by
+     *  the TrueFoundry tier to download the whole-repo `.tar.gz` archive for
+     *  on-device unpacking. Follows redirects (the GitHub archive URL bounces
+     *  to codeload) and goes through the same TracingInterceptor as
+     *  [fetchUrlAsString]. */
+    fun fetchUrlAsBytes(url: String, headers: Map<String, String> = emptyMap()): ByteArray? {
+        return try {
+            val builder = okhttp3.Request.Builder().url(url).get()
+            headers.forEach { (k, v) -> builder.addHeader(k, v) }
+            rawFetchClient.newCall(builder.build().withCapturedOkHttpCallContext()).execute().use { resp ->
+                if (resp.isSuccessful) resp.body.bytes()
+                else {
+                    AppLog.w("ApiClient", "fetchUrlAsBytes non-2xx ${resp.code} for $url")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            AppLog.w("ApiClient", "fetchUrlAsBytes failed for $url: ${e.message}")
+            null
+        }
+    }
+
     fun createOpenAiApi(baseUrl: String): OpenAiApi = getRetrofit(baseUrl, OpenAiApi::class.java.name).create(OpenAiApi::class.java)
     fun createClaudeApi(baseUrl: String): ClaudeApi = getRetrofit(baseUrl, ClaudeApi::class.java.name).create(ClaudeApi::class.java)
     fun createReplicateApi(baseUrl: String): ReplicateApi = getRetrofit(baseUrl, ReplicateApi::class.java.name).create(ReplicateApi::class.java)

@@ -172,11 +172,15 @@ Two non-obvious conventions:
 - **Pricing layered lookup precedence** (in `PricingCache.getPricing`):
   provider self-report (OpenRouter when caller is OpenRouter,
   Together when caller is Together) → manual override → LiteLLM →
-  models.dev → llm-prices → Artificial Analysis → OpenRouter
-  cross-provider fallback → Helicone → DEFAULT. Manual override
-  comes **before** the curated tiers — a user adding a manual
-  override specifically to correct a stale catalog entry would
-  otherwise be silently ignored.
+  models.dev → llm-prices → Artificial Analysis → llm-stats →
+  OpenRouter cross-provider fallback → Requesty → genai-prices →
+  TrueFoundry → Helicone → DEFAULT. Manual override comes **before**
+  the curated tiers — a user adding a manual override specifically to
+  correct a stale catalog entry would otherwise be silently ignored.
+  **CloudPrice** is an info-provider too but capabilities-only (no
+  pricing), so it's absent from this chain — like HuggingFace it only
+  feeds the capability lookups. 12 info-provider repos total (10
+  pricing catalogs + CloudPrice + HuggingFace); see `doc/repositories.md`.
 - **`PricingCache.ensureLoaded` short-circuits on the main
   thread** when called before `preloadCompleted`. UI callers
   get `DEFAULT_PRICING` during the cold window — recomposition

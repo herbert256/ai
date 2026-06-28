@@ -415,3 +415,119 @@ internal fun parseLlmStatsJson(
     }
     return Triple(pricing, meta, nextCursor)
 }
+
+/** Parse Pydantic genai-prices' `data_slim.json` — a JSON **array** of
+ *  providers, each `{ id, name, models:[ { id, context_window, prices } ] }`.
+ *  Prices are in **\$/M tokens** (`input_mtok`, `output_mtok`,
+ *  `cache_read_mtok`, `cache_write_mtok`) so we divide by 1M, mirroring
+ *  models.dev. Composite key `<provider>/<modelId>`.
+ *
+ *  `prices` is usually a flat object but can be a **conditional array**
+ *  (date / tier variants); we take the unconstrained entry (else the last)
+ *  and read its `prices`. Individual `*_mtok` fields can themselves be a
+ *  TieredPrices object instead of a number — `numOrNull()` returns null for
+ *  those, so a tiered field degrades to "missing" rather than aborting the
+ *  row. Sidecar carries the context window for the token-limit chain. */
+internal fun parseGenaiPricesJson(json: String): Pair<Map<String, PricingCache.ModelPricing>, Map<String, PricingCache.GenaiPricesMeta>> {
+    @Suppress("DEPRECATION")
+    val rootEl = JsonParser().parse(json)
+    val empty = emptyMap<String, PricingCache.ModelPricing>() to emptyMap<String, PricingCache.GenaiPricesMeta>()
+    val providers = when {
+        rootEl.isJsonArray -> rootEl.asJsonArray
+        rootEl.isJsonObject -> rootEl.asJsonObject.get("providers")?.takeIf { it.isJsonArray }?.asJsonArray ?: return empty
+        else -> return empty
+    }
+    val pricing = mutableMapOf<String, PricingCache.ModelPricing>()
+    val meta = mutableMapOf<String, PricingCache.GenaiPricesMeta>()
+    for (provEl in providers) {
+        if (!provEl.isJsonObject) continue
+        val prov = provEl.asJsonObject
+        val provId = prov.get("id")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+        val models = prov.get("models")?.takeIf { it.isJsonArray }?.asJsonArray ?: continue
+        for (mEl in models) {
+            if (!mEl.isJsonObject) continue
+            val m = mEl.asJsonObject
+            val id = m.get("id")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+            val composite = "$provId/$id"
+            // prices: flat object, or a conditional array (take the
+            // unconstrained entry, else the last) — then read its `prices`.
+            val pricesEl = m.get("prices")
+            val priceObj: JsonObject? = when {
+                pricesEl == null -> null
+                pricesEl.isJsonObject -> pricesEl.asJsonObject
+                pricesEl.isJsonArray -> {
+                    val arr = pricesEl.asJsonArray
+                    val chosen = arr.lastOrNull { it.isJsonObject && it.asJsonObject.get("constraint")?.isJsonNull != false }
+                        ?: arr.lastOrNull { it.isJsonObject }
+                    chosen?.asJsonObject?.get("prices")?.takeIf { it.isJsonObject }?.asJsonObject
+                }
+                else -> null
+            }
+            if (priceObj != null) {
+                val ic = priceObj.get("input_mtok").numOrNull()
+                val oc = priceObj.get("output_mtok").numOrNull()
+                if (ic != null || oc != null) {
+                    pricing[composite] = PricingCache.ModelPricing(
+                        modelId = id,
+                        promptPrice = (ic ?: 0.0) / 1_000_000.0,
+                        completionPrice = (oc ?: 0.0) / 1_000_000.0,
+                        source = "GENAIPRICES",
+                        cachedReadPrice = priceObj.get("cache_read_mtok").numOrNull()?.div(1_000_000.0),
+                        cachedWritePrice = priceObj.get("cache_write_mtok").numOrNull()?.div(1_000_000.0)
+                    )
+                }
+            }
+            val ctx = m.get("context_window").intOrNull()
+            if (ctx != null) meta[composite] = PricingCache.GenaiPricesMeta(maxInputTokens = ctx)
+        }
+    }
+    return pricing to meta
+}
+
+/** Parse one page of CloudPrice's `/api/v1/models`
+ *  (`{ "data":[…], "pagination":{ "next_token":…, "has_next":… } }`).
+ *  CloudPrice's bulk list carries capabilities + context but **no inline
+ *  pricing** (that lives behind per-model endpoints), so this is a
+ *  capabilities-only tier — no ModelPricing is produced. Returns the page's
+ *  meta map plus the next pagination token (null when exhausted) so the
+ *  caller can walk every page. Composite key `<creator>/<name>` (creator-slug
+ *  style, like AA / llm-stats). */
+internal fun parseCloudPriceJson(json: String): Pair<Map<String, PricingCache.CloudPriceMeta>, String?> {
+    @Suppress("DEPRECATION")
+    val root = JsonParser().parse(json)
+    val empty = emptyMap<String, PricingCache.CloudPriceMeta>() to null
+    if (!root.isJsonObject) return empty
+    val obj = root.asJsonObject
+    val arr = obj.get("data")?.takeIf { it.isJsonArray }?.asJsonArray ?: return empty
+    val pag = obj.get("pagination")?.takeIf { it.isJsonObject }?.asJsonObject
+    val hasNext = pag?.get("has_next")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean ?: false
+    val nextToken = pag?.get("next_token")?.takeIf { it.isJsonPrimitive }?.asString
+        ?.takeIf { hasNext && it.isNotBlank() }
+    val meta = mutableMapOf<String, PricingCache.CloudPriceMeta>()
+    for (el in arr) {
+        if (!el.isJsonObject) continue
+        val m = el.asJsonObject
+        val name = m.get("name")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+        val creator = m.get("creator")?.takeIf { it.isJsonPrimitive }?.asString
+        val composite = if (!creator.isNullOrBlank()) "${creator.lowercase()}/$name" else name
+        val inputModalities = m.get("modalities")?.takeIf { it.isJsonObject }?.asJsonObject
+            ?.get("input")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.mapNotNull { if (it.isJsonPrimitive) it.asString else null }
+        val supportsVision = inputModalities?.any { it.equals("image", ignoreCase = true) }
+        val caps = m.get("capabilities")?.takeIf { it.isJsonObject }?.asJsonObject
+        fun cap(key: String): Boolean? =
+            caps?.get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
+        val ctx = m.get("context_window").intOrNull()
+        val out = m.get("max_output_tokens").intOrNull()
+        meta[composite] = PricingCache.CloudPriceMeta(
+            supportsVision = supportsVision,
+            supportsReasoning = cap("reasoning"),
+            supportsToolCalling = cap("function_calling"),
+            supportsWebSearch = cap("web_search"),
+            supportsComputerUse = cap("computer_use"),
+            maxInputTokens = ctx,
+            maxOutputTokens = out
+        )
+    }
+    return meta to nextToken
+}

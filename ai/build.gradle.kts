@@ -244,8 +244,14 @@ dependencies {
     // Apache Commons Compress — used by the Local LLM import flow to
     // unwrap a .task file from a downloaded .zip / .tar / .tar.gz /
     // .tgz archive. Kaggle ships some Gemma bundles as .tgz; this
-    // saves the user a round-trip through a desktop unzipper.
+    // saves the user a round-trip through a desktop unzipper. Also
+    // unpacks the TrueFoundry info-provider's whole-repo .tar.gz.
     implementation("org.apache.commons:commons-compress:1.28.0")
+
+    // SnakeYAML — parses the TrueFoundry info-provider's per-model YAML
+    // files (extracted from the repo .tar.gz above) into pricing +
+    // capability tiers. No other YAML in the app.
+    implementation("org.yaml:snakeyaml:2.3")
 
     // PDFBox-Android — Apache PDFBox port for Android. Used by the
     // Knowledge ingestion pipeline to extract text from .pdf files

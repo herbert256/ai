@@ -23,6 +23,9 @@ enum class InfoProvider(
     LLM_STATS("llmstats", "llm-stats", "info_provider_llm_stats", "Pricing + benchmark scores (key required)"),
     OPENROUTER("openrouter", "OpenRouter", "info_provider_openrouter", "Aggregator catalog + per-model specs"),
     REQUESTY("requesty", "Requesty", "info_provider_requesty", "Cross-provider router catalog (keyless)"),
+    GENAI_PRICES("genaiprices", "genai-prices", "info_provider_genai_prices", "Pydantic's curated price catalog (keyless)"),
+    TRUEFOUNDRY("truefoundry", "TrueFoundry", "info_provider_truefoundry", "Community model registry (keyless)"),
+    CLOUDPRICE("cloudprice", "CloudPrice", "info_provider_cloudprice", "Capabilities + context catalog (keyless)"),
     HELICONE("helicone", "Helicone", "info_provider_helicone", "Pricing-only side product"),
     HUGGINGFACE("huggingface", "HuggingFace", "info_provider_huggingface", "Model cards · context · license");
 

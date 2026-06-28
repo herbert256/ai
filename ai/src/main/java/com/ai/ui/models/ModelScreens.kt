@@ -503,6 +503,21 @@ fun ModelInfoScreen(
                         PricingCache.getLlmStatsRawEntry(context, provider, modelName)
                     }
                 }
+                val genaiPricesRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getGenaiPricesRawEntry(context, provider, modelName)
+                    }
+                }
+                val trueFoundryRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getTrueFoundryRawEntry(context, provider, modelName)
+                    }
+                }
+                val cloudPriceRaw by produceState<String?>(initialValue = null, provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        PricingCache.getCloudPriceRawEntry(context, provider, modelName)
+                    }
+                }
                 val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
                     value = withContext(Dispatchers.IO) {
                         PricingCache.getTierBreakdown(context, provider, modelName)
@@ -689,6 +704,9 @@ fun ModelInfoScreen(
                         val hasAa = aaRaw != null
                         val hasRequesty = requestyRaw != null
                         val hasLlmStats = llmStatsRaw != null
+                        val hasGenaiPrices = genaiPricesRaw != null
+                        val hasTrueFoundry = trueFoundryRaw != null
+                        val hasCloudPrice = cloudPriceRaw != null
                         // Info providers the user switched off are hidden, not
                         // shown as empty/red. (Their tier rows in Costs already
                         // drop out because the gated finders return null.)
@@ -701,6 +719,9 @@ fun ModelInfoScreen(
                         val enAa = aiSettings.isInfoProviderEnabled("aa")
                         val enRequesty = aiSettings.isInfoProviderEnabled("requesty")
                         val enLlmStats = aiSettings.isInfoProviderEnabled("llmstats")
+                        val enGenaiPrices = aiSettings.isInfoProviderEnabled("genaiprices")
+                        val enTrueFoundry = aiSettings.isInfoProviderEnabled("truefoundry")
+                        val enCloudPrice = aiSettings.isInfoProviderEnabled("cloudprice")
                         // Two rows of buttons in their own card — first the
                         // four catalog sources, then the three additional
                         // pricing tiers (Helicone / llm-prices.com / AA).
@@ -823,6 +844,44 @@ fun ModelInfoScreen(
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("llm-stats", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                 }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (enGenaiPrices) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "genai-prices · $modelName", body = genaiPricesRaw ?: "(no genai-prices data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_genai_prices"],
+                                                calledUrl = "https://raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasGenaiPrices) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("genai-prices", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enTrueFoundry) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "TrueFoundry · $modelName", body = trueFoundryRaw ?: "(no TrueFoundry data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_truefoundry"],
+                                                calledUrl = "https://github.com/truefoundry/models"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasTrueFoundry) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("TrueFoundry", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enCloudPrice) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "CloudPrice · $modelName", body = cloudPriceRaw ?: "(no CloudPrice data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_cloudprice"],
+                                                calledUrl = "https://ai.cloudprice.net/api/v1/models"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasCloudPrice) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("CloudPrice", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedButton(
                                     onClick = {
@@ -838,7 +897,10 @@ fun ModelInfoScreen(
                                             ("llm-prices.com" to llmPricesRaw).takeIf { enLLMPrices },
                                             ("Artificial Analysis" to aaRaw).takeIf { enAa },
                                             ("Requesty" to requestyRaw).takeIf { enRequesty },
-                                            ("llm-stats" to llmStatsRaw).takeIf { enLlmStats }
+                                            ("llm-stats" to llmStatsRaw).takeIf { enLlmStats },
+                                            ("genai-prices" to genaiPricesRaw).takeIf { enGenaiPrices },
+                                            ("TrueFoundry" to trueFoundryRaw).takeIf { enTrueFoundry },
+                                            ("CloudPrice" to cloudPriceRaw).takeIf { enCloudPrice }
                                         )
                                         val body = sections.joinToString("\n\n") { (label, raw) ->
                                             "=== $label ===\n${raw ?: "(no $label data)"}"
@@ -867,6 +929,8 @@ fun ModelInfoScreen(
                             tierBreakdown?.llmStats?.let { "llm-stats" to it },
                             tierBreakdown?.openrouter?.let { "OpenRouter" to it },
                             tierBreakdown?.requesty?.let { "Requesty" to it },
+                            tierBreakdown?.genaiPrices?.let { "genai-prices" to it },
+                            tierBreakdown?.trueFoundry?.let { "TrueFoundry" to it },
                             tierBreakdown?.override?.let { "Override" to it }
                         )
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {

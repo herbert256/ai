@@ -41,3 +41,9 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# SnakeYAML — reflective constructors / introspectors used when parsing the
+# TrueFoundry info-provider YAML. We only load into plain Map/List, but keep
+# the library intact and silence the optional desktop-only deps it references.
+-keep class org.yaml.snakeyaml.** { *; }
+-dontwarn org.yaml.snakeyaml.**

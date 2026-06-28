@@ -75,9 +75,16 @@ wins:
 | 5 | models.dev | `MODELSDEV` | curated bulk |
 | 6 | llm-prices | `LLMPRICES` | curated bulk |
 | 7 | Artificial Analysis | `AA` | curated bulk |
-| 8 | OpenRouter cross-provider | `OPENROUTER` | only for non-OpenRouter callers |
-| 9 | Helicone | `HELICONE` | last resort (known data-quality issues) |
-| 10 | DEFAULT | `DEFAULT` | `ModelPricing("default", 25e-6, 75e-6)` = **$25/M in, $75/M out** |
+| 8 | llm-stats | `LLMSTATS` | curated bulk (key + Stats-API onboarding) |
+| 9 | OpenRouter cross-provider | `OPENROUTER` | only for non-OpenRouter callers |
+| 10 | Requesty | `REQUESTY` | cross-provider router catalog, keyless |
+| 11 | genai-prices | `GENAIPRICES` | Pydantic's curated catalog, keyless |
+| 12 | TrueFoundry | `TRUEFOUNDRY` | community model registry, keyless |
+| 13 | Helicone | `HELICONE` | last resort (known data-quality issues) |
+| 14 | DEFAULT | `DEFAULT` | `ModelPricing("default", 25e-6, 75e-6)` = **$25/M in, $75/M out** |
+
+(**CloudPrice** is a capabilities-only info-provider — no pricing — so
+it never appears in this lookup; it feeds the capability chain only.)
 
 Two precedence facts are easy to get wrong (the class-level KDoc at
 `PricingCache.kt:17-26` now describes the full layered order correctly,
@@ -429,11 +436,11 @@ re-read after each write. Overrides round-trip through the backup zip
 `getTierBreakdown` also backs the per-model layered-cost view and the
 🐞 pricing trace; `pricesConflict` (`data/PricingCache.kt:719`) flags
 when ≥2 catalog tiers disagree by >1 % (override + default excluded),
-and `catalogStats` (`data/PricingCache.kt:670`) lists the six bulk
-tiers in lookup order with entry counts + timestamps for the Monitor
-hub. `clearInfoProviderTiers` wipes the six catalog tiers but preserves
-manual + Together-native pricing; `deleteTier` drops one named tier;
-`clearAll` wipes everything.
+and `catalogStats` lists the info-provider catalog tiers (incl. the
+capabilities-only CloudPrice) in lookup order with entry counts +
+timestamps for the Monitor hub. `clearInfoProviderTiers` wipes the
+catalog tiers but preserves manual + Together-native pricing;
+`deleteTier` drops one named tier; `clearAll` wipes everything.
 
 ## Related docs
 

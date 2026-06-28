@@ -186,7 +186,7 @@ fun cacheRegistry(
     CacheDescriptor(
         id = "pricing", icon = "💲", title = "Pricing tiers", helpTopic = "cache_pricing",
         subject = "Per-source model pricing catalogs",
-        stats = { c -> val s = PricingCache.catalogStats(c); CacheStats(s.count { it.entries > 0 }, dirSize(c, "pricing"), "8 sources") },
+        stats = { c -> val s = PricingCache.catalogStats(c); CacheStats(s.count { it.entries > 0 }, dirSize(c, "pricing"), "11 sources") },
         list = { c ->
             PricingCache.catalogStats(c).map { s ->
                 CacheEntryVM(
@@ -202,7 +202,9 @@ fun cacheRegistry(
                         val ipId = when (s.name) {
                             "LiteLLM" -> "litellm"; "models.dev" -> "modelsdev"; "llm-prices" -> "llmprices"
                             "Artificial Analysis" -> "aa"; "llm-stats" -> "llmstats"; "OpenRouter" -> "openrouter"
-                            "Requesty" -> "requesty"; "Helicone" -> "helicone"; else -> null
+                            "Requesty" -> "requesty"; "Helicone" -> "helicone"
+                            "genai-prices" -> "genaiprices"; "TrueFoundry" -> "truefoundry"; "CloudPrice" -> "cloudprice"
+                            else -> null
                         }
                         val ipEnabled = ipId == null || (com.ai.model.SettingsHolder.current?.isInfoProviderEnabled(ipId) ?: true)
                         if (!ipEnabled) null else when (s.name) {
@@ -211,6 +213,9 @@ fun cacheRegistry(
                             "llm-prices" -> { ctx -> PricingCache.fetchLLMPricesOnline(ctx) }
                             "Helicone" -> { ctx -> PricingCache.fetchHeliconeOnline(ctx) }
                             "Requesty" -> { ctx -> PricingCache.fetchRequestyOnline(ctx) }
+                            "genai-prices" -> { ctx -> PricingCache.fetchGenaiPricesOnline(ctx) }
+                            "TrueFoundry" -> { ctx -> PricingCache.fetchTrueFoundryOnline(ctx) }
+                            "CloudPrice" -> { ctx -> PricingCache.fetchCloudPriceOnline(ctx) }
                             // AA / llm-stats need their API key, OpenRouter pricing the
                             // OpenRouter key — all routed through the view model.
                             "Artificial Analysis", "llm-stats", "OpenRouter" -> { _ -> onRefreshKeyed("pricing", s.name) }

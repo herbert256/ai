@@ -636,7 +636,10 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
         "info_provider_llm_prices" to "Simon Willison's curated 10-vendor table",
         "info_provider_artificial_analysis" to "Independent benchmarker (key required)",
         "info_provider_llm_stats" to "Pricing + benchmark scores (key required)",
-        "info_provider_requesty" to "Cross-provider router catalog (keyless)"
+        "info_provider_requesty" to "Cross-provider router catalog (keyless)",
+        "info_provider_genai_prices" to "Pydantic's curated price catalog (keyless)",
+        "info_provider_truefoundry" to "Community model registry (keyless)",
+        "info_provider_cloudprice" to "Capabilities + context catalog (keyless)"
     )
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -834,6 +837,22 @@ internal val INFO_PROVIDERS: List<InfoProviderRef> = listOf(
         topicId = "info_provider_llm_stats",
         displayName = "llm-stats",
         hostnames = listOf("api.llm-stats.com", "llm-stats.com")
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_genai_prices",
+        displayName = "genai-prices",
+        hostnames = listOf("raw.githubusercontent.com"),
+        urlPathPrefix = "/pydantic/genai-prices/"
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_truefoundry",
+        displayName = "TrueFoundry",
+        hostnames = listOf("github.com", "codeload.github.com")
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_cloudprice",
+        displayName = "CloudPrice",
+        hostnames = listOf("ai.cloudprice.net", "cloudprice.net")
     )
 )
 

@@ -1755,7 +1755,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             CatalogStep("llmprices", "llm-prices.com", stepStatus(ipOn(com.ai.data.InfoProvider.LLM_PRICES))),
             CatalogStep("aa", "Artificial Analysis", stepStatus(aaEnabled)),
             CatalogStep("llmstats", "llm-stats", stepStatus(llmStatsEnabled)),
-            CatalogStep("requesty", "Requesty", stepStatus(ipOn(com.ai.data.InfoProvider.REQUESTY)))
+            CatalogStep("requesty", "Requesty", stepStatus(ipOn(com.ai.data.InfoProvider.REQUESTY))),
+            CatalogStep("genaiprices", "genai-prices", stepStatus(ipOn(com.ai.data.InfoProvider.GENAI_PRICES))),
+            CatalogStep("truefoundry", "TrueFoundry", stepStatus(ipOn(com.ai.data.InfoProvider.TRUEFOUNDRY))),
+            CatalogStep("cloudprice", "CloudPrice", stepStatus(ipOn(com.ai.data.InfoProvider.CLOUDPRICE)))
         )
         // Snapshot the testable provider set up-front. The clean-slate
         // step below rewrites flocks/agents, but the testable list is
@@ -1973,6 +1976,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     else setCatalogStep("requesty", RefreshStepStatus.Failed("no entries · $prev"))
                 } catch (e: Exception) {
                     setCatalogStep("requesty", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            if (PricingCache.isInfoProviderEnabled(com.ai.data.InfoProvider.GENAI_PRICES)) jobs += async(Dispatchers.IO) {
+                setCatalogStep("genaiprices", RefreshStepStatus.Running())
+                val prev = previousDetail("genaiprices")
+                try {
+                    val n = PricingCache.fetchGenaiPricesOnline(app)
+                    if (n != null && n > 0) setCatalogStep("genaiprices", RefreshStepStatus.Done("$n priced"))
+                    else setCatalogStep("genaiprices", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("genaiprices", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            if (PricingCache.isInfoProviderEnabled(com.ai.data.InfoProvider.TRUEFOUNDRY)) jobs += async(Dispatchers.IO) {
+                setCatalogStep("truefoundry", RefreshStepStatus.Running())
+                val prev = previousDetail("truefoundry")
+                try {
+                    val n = PricingCache.fetchTrueFoundryOnline(app)
+                    if (n != null && n > 0) setCatalogStep("truefoundry", RefreshStepStatus.Done("$n priced"))
+                    else setCatalogStep("truefoundry", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("truefoundry", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            if (PricingCache.isInfoProviderEnabled(com.ai.data.InfoProvider.CLOUDPRICE)) jobs += async(Dispatchers.IO) {
+                setCatalogStep("cloudprice", RefreshStepStatus.Running())
+                val prev = previousDetail("cloudprice")
+                try {
+                    val n = PricingCache.fetchCloudPriceOnline(app)
+                    if (n != null && n > 0) setCatalogStep("cloudprice", RefreshStepStatus.Done("$n models"))
+                    else setCatalogStep("cloudprice", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("cloudprice", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
             }
             if (llmStatsEnabled) jobs += async(Dispatchers.IO) {

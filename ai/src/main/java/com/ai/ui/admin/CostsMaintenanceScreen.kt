@@ -73,7 +73,8 @@ fun CostsMaintenanceScreen(
             "helicone_in,helicone_out,llmprices_in,llmprices_out," +
             "aa_in,aa_out,llmstats_in,llmstats_out," +
             "override_in,override_out,openrouter_in,openrouter_out," +
-            "requesty_in,requesty_out," +
+            "requesty_in,requesty_out,genaiprices_in,genaiprices_out," +
+            "truefoundry_in,truefoundry_out," +
             "default_in,default_out"
         val rows = aiSettings.getActiveServices()
             .flatMap { svc -> aiSettings.getModels(svc).map { svc to it } }
@@ -82,7 +83,7 @@ fun CostsMaintenanceScreen(
         var kept = 0
         rows.forEach { (provider, model) ->
             val b = PricingCache.getTierBreakdown(context, provider, model)
-            if (filterCovered && (b.litellm != null || b.modelsDev != null || b.helicone != null || b.llmPrices != null || b.artificialAnalysis != null || b.llmStats != null || b.openrouter != null || b.requesty != null)) return@forEach
+            if (filterCovered && (b.litellm != null || b.modelsDev != null || b.helicone != null || b.llmPrices != null || b.artificialAnalysis != null || b.llmStats != null || b.openrouter != null || b.requesty != null || b.genaiPrices != null || b.trueFoundry != null)) return@forEach
             kept++
             lines.add(
                 listOf(
@@ -96,6 +97,8 @@ fun CostsMaintenanceScreen(
                     fmt(b.override?.promptPrice), fmt(b.override?.completionPrice),
                     fmt(b.openrouter?.promptPrice), fmt(b.openrouter?.completionPrice),
                     fmt(b.requesty?.promptPrice), fmt(b.requesty?.completionPrice),
+                    fmt(b.genaiPrices?.promptPrice), fmt(b.genaiPrices?.completionPrice),
+                    fmt(b.trueFoundry?.promptPrice), fmt(b.trueFoundry?.completionPrice),
                     fmt(b.default.promptPrice), fmt(b.default.completionPrice)
                 ).joinToString(",")
             )

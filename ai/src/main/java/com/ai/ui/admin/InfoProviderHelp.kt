@@ -91,4 +91,34 @@ internal val infoProviderHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "The key needs Stats-API onboarding — until you complete the request at llm-stats.com/developer it returns `403 stats_api_access_denied` and the tier stays empty. `top_scores` mixes benchmark scales upstream, so it's shown raw and never collapsed into a single quality index. Not every model carries pricing (catalog-only entries)."),
         )
     ),
+    "info_provider_genai_prices" to HelpContent(
+        title = "Help - genai-prices (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "genai-prices is a Pydantic open-source project that tracks LLM API pricing across 30+ providers, with historic and tiered prices. We read its consolidated price catalog as a pricing tier (we don't use the Python package — just the published JSON)."),
+            HelpCard("What we use it for", "Pricing fallback. Sits just after Requesty in the layered lookup (before Helicone), backfilling models the curated tiers miss. Same shape as models.dev — provider → models → \$/M prices, plus a context window we keep for the token-limit chain. No data is ever sent to genai-prices."),
+            HelpCard("Endpoint", "`https://raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json` — a single file, no auth. Refreshed on demand from Refresh → genai-prices (and as part of Refresh all)."),
+            HelpCard("Freshness", "Maintained alongside the Pydantic project with historic price tracking, so it's reasonably current. A bundled snapshot ships with the app, so the tier works on a fresh install before the first refresh."),
+            HelpCard("Pitfalls", "Keys are `<provider>/<model>` (like models.dev), matched via the prefix-bucket logic. Prices are \$/M tokens (converted to per-token on load). A few models use conditional / tiered pricing — we take the unconstrained (base) rate and skip per-tier variants."),
+        )
+    ),
+    "info_provider_truefoundry" to HelpContent(
+        title = "Help - TrueFoundry (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "TrueFoundry publishes an open, community-maintained model registry on GitHub — one YAML file per model across ~20 providers, with per-token pricing, capability features, modalities, and token limits. We read it as a pricing + capability tier."),
+            HelpCard("What we use it for", "Pricing + capability fallback. Sits just before Helicone in the layered lookup. Its vision / tool-calling / reasoning flags also feed the capability chain. Prices are already per-token in the YAML (no \$/M conversion)."),
+            HelpCard("Endpoint", "`https://github.com/truefoundry/models` — there's no single data file, so Refresh downloads the whole-repo `.tar.gz` archive and unpacks + parses the per-model YAML on-device. Keyless. This download is larger than the other catalogs."),
+            HelpCard("Freshness", "Community-driven via pull requests. A bundled snapshot ships with the app so the tier works before the first refresh; the live refresh re-downloads the current repo."),
+            HelpCard("Pitfalls", "Keys are `<provider>/<model>` from the repo's directory layout. The refresh is heavier than the JSON catalogs (archive download + on-device unzip + YAML parse of ~1000 files). Provider-level `default.yaml` files are skipped — only per-model files carry costs."),
+        )
+    ),
+    "info_provider_cloudprice" to HelpContent(
+        title = "Help - CloudPrice (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "CloudPrice (ai.cloudprice.net) is a unified LLM specs / pricing / cost-calculator API covering ~2800 models. We use only its model catalog: capability flags, modalities, and context windows."),
+            HelpCard("What we use it for", "Capabilities only — NOT a pricing tier. CloudPrice's bulk model list carries no inline pricing (its prices live behind per-model calculator endpoints), so it never joins the cost lookup. Its vision / tool-calling / reasoning / web-search flags + context windows feed the capability chain, like a richer HuggingFace."),
+            HelpCard("Endpoint", "`https://ai.cloudprice.net/api/v1/models` — anonymous, paginated via `next_token`. Refreshed on demand from Refresh → CloudPrice (and as part of Refresh all)."),
+            HelpCard("Freshness", "Aggregated catalog, updated regularly upstream. A bundled snapshot ships with the app so the capability flags work on a fresh install before the first refresh."),
+            HelpCard("Pitfalls", "Capabilities only — you'll never see CloudPrice in the per-model Costs breakdown, by design. Keys are `<creator>/<name>`, matched via the prefix-bucket logic. The bulk list is paginated, so a refresh walks several pages."),
+        )
+    ),
 )

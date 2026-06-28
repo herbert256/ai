@@ -368,6 +368,21 @@ fun ModelInfoViewScreen(
                 PricingCache.getLlmStatsRawEntry(context, provider, modelName)
             }
         }
+        val genaiPricesRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getGenaiPricesRawEntry(context, provider, modelName)
+            }
+        }
+        val trueFoundryRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getTrueFoundryRawEntry(context, provider, modelName)
+            }
+        }
+        val cloudPriceRaw by produceState<String?>(initialValue = null, provider, modelName) {
+            value = withContext(Dispatchers.IO) {
+                PricingCache.getCloudPriceRawEntry(context, provider, modelName)
+            }
+        }
         val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
             value = withContext(Dispatchers.IO) {
                 PricingCache.getTierBreakdown(context, provider, modelName)
@@ -413,6 +428,9 @@ fun ModelInfoViewScreen(
                     aaRaw = aaRaw,
                     requestyRaw = requestyRaw,
                     llmStatsRaw = llmStatsRaw,
+                    genaiPricesRaw = genaiPricesRaw,
+                    trueFoundryRaw = trueFoundryRaw,
+                    cloudPriceRaw = cloudPriceRaw,
                     enabled = { aiSettings.isInfoProviderEnabled(it) },
                     hfTrace = if (infoFlags.first) ({ onNavigateToTraceFiltered("info/huggingface", modelName) }) else null,
                     orTrace = if (infoFlags.second) ({ onNavigateToTraceFiltered("info/provider", null) }) else null,
@@ -668,6 +686,9 @@ private fun SourcesCard(
     aaRaw: String?,
     requestyRaw: String?,
     llmStatsRaw: String?,
+    genaiPricesRaw: String?,
+    trueFoundryRaw: String?,
+    cloudPriceRaw: String?,
     /** Info providers switched off under AI Setup are hidden here. */
     enabled: (String) -> Boolean,
     hfTrace: (() -> Unit)? = null,
@@ -703,8 +724,17 @@ private fun SourcesCard(
         if (enabled("requesty")) SourceRow(com.ai.data.MetadataIconsHolder.current.web, "Requesty", requestyRaw) {
             onOpen("Requesty", requestyRaw ?: "{}", "https://router.requesty.ai/v1/models")
         }
-        if (enabled("llmstats")) SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "llm-stats", llmStatsRaw, isLast = true) {
+        if (enabled("llmstats")) SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "llm-stats", llmStatsRaw) {
             onOpen("llm-stats", llmStatsRaw ?: "{}", "https://api.llm-stats.com/stats/v1/models")
+        }
+        if (enabled("genaiprices")) SourceRow(com.ai.data.MetadataIconsHolder.current.cost, "genai-prices", genaiPricesRaw) {
+            onOpen("genai-prices", genaiPricesRaw ?: "{}", "https://raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json")
+        }
+        if (enabled("truefoundry")) SourceRow(com.ai.data.MetadataIconsHolder.current.packageBox, "TrueFoundry", trueFoundryRaw) {
+            onOpen("TrueFoundry", trueFoundryRaw ?: "{}", "https://github.com/truefoundry/models")
+        }
+        if (enabled("cloudprice")) SourceRow(com.ai.data.MetadataIconsHolder.current.web, "CloudPrice", cloudPriceRaw, isLast = true) {
+            onOpen("CloudPrice", cloudPriceRaw ?: "{}", "https://ai.cloudprice.net/api/v1/models")
         }
     }
 }
@@ -762,6 +792,8 @@ private fun CostsCard(tierBreakdown: PricingCache.TierBreakdown?) {
         tierBreakdown?.llmStats?.let { "llm-stats" to it },
         tierBreakdown?.openrouter?.let { "OpenRouter" to it },
         tierBreakdown?.requesty?.let { "Requesty" to it },
+        tierBreakdown?.genaiPrices?.let { "genai-prices" to it },
+        tierBreakdown?.trueFoundry?.let { "TrueFoundry" to it },
         tierBreakdown?.override?.let { "Override" to it }
     )
     SectionCard(title = "Costs (per million tokens)") {

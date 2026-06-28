@@ -78,6 +78,9 @@ fun RefreshScreen(
     var aaResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var requestyResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var llmStatsResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var genaiPricesResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var trueFoundryResult by rememberSaveable { mutableStateOf<Int?>(null) }
+    var cloudPriceResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var showOpenRouterDialog by rememberSaveable { mutableStateOf(false) }
     var showLiteLLMDialog by rememberSaveable { mutableStateOf(false) }
     var showModelsDevDialog by rememberSaveable { mutableStateOf(false) }
@@ -86,6 +89,9 @@ fun RefreshScreen(
     var showAaDialog by rememberSaveable { mutableStateOf(false) }
     var showRequestyDialog by rememberSaveable { mutableStateOf(false) }
     var showLlmStatsDialog by rememberSaveable { mutableStateOf(false) }
+    var showGenaiPricesDialog by rememberSaveable { mutableStateOf(false) }
+    var showTrueFoundryDialog by rememberSaveable { mutableStateOf(false) }
+    var showCloudPriceDialog by rememberSaveable { mutableStateOf(false) }
 
     fun launchTask(title: String, initialText: String = "", block: suspend () -> Unit) {
         runningTask?.cancel()
@@ -386,6 +392,81 @@ fun RefreshScreen(
         return
     }
 
+    if (showGenaiPricesDialog) {
+        val n = genaiPricesResult
+        val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("genaiprices") else null
+        RefreshResultScreen(
+            titleText = "genai-prices",
+            description = when {
+                ok -> "Pulled Pydantic's genai-prices catalog (per-\$M pricing + context windows). Community fallback after Requesty, before Helicone."
+                kept != null -> "Failed to fetch from raw.githubusercontent.com/pydantic/genai-prices. The previously fetched catalog is still in use — see the rows below."
+                else -> "Failed to fetch the genai-prices data file. Check connectivity and try again."
+            },
+            rows = listOfNotNull(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
+                ),
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
+                kept
+            ),
+            onBack = { showGenaiPricesDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    if (showTrueFoundryDialog) {
+        val n = trueFoundryResult
+        val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("truefoundry") else null
+        RefreshResultScreen(
+            titleText = "TrueFoundry",
+            description = when {
+                ok -> "Downloaded the TrueFoundry model registry (whole-repo archive, unpacked on-device) — per-token pricing + capability flags. Community fallback before Helicone."
+                kept != null -> "Failed to download the TrueFoundry repo archive. The previously fetched catalog is still in use — see the rows below."
+                else -> "Failed to download github.com/truefoundry/models. Check connectivity and try again (this download is larger than the other catalogs)."
+            },
+            rows = listOfNotNull(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
+                ),
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
+                kept
+            ),
+            onBack = { showTrueFoundryDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    if (showCloudPriceDialog) {
+        val n = cloudPriceResult
+        val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("cloudprice") else null
+        RefreshResultScreen(
+            titleText = "CloudPrice",
+            description = when {
+                ok -> "Pulled CloudPrice's model catalog (capabilities + context windows). Capabilities-only — CloudPrice carries no pricing, so it stays out of the cost lookup."
+                kept != null -> "Failed to fetch from ai.cloudprice.net/api/v1/models. The previously fetched catalog is still in use — see the rows below."
+                else -> "Failed to fetch from ai.cloudprice.net/api/v1/models. Check connectivity and try again."
+            },
+            rows = listOfNotNull(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
+                ),
+                RefreshResultRow("Models", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
+                kept
+            ),
+            onBack = { showCloudPriceDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     // Each per-catalog refresh's core work lives in a suspend lambda
     // that captures the surrounding state. The Boolean parameter controls
     // whether the per-step result dialog opens at the end.
@@ -451,6 +532,29 @@ fun RefreshScreen(
         if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
         if (showDialogAtEnd) showLlmStatsDialog = true
     }
+    val runGenaiPrices: suspend (Boolean) -> Unit = { showDialogAtEnd ->
+        progressText = "Downloading pydantic/genai-prices data_slim.json"
+        val n = PricingCache.fetchGenaiPricesOnline(context)
+        genaiPricesResult = n
+        if (showDialogAtEnd) showGenaiPricesDialog = true
+    }
+    val runTrueFoundry: suspend (Boolean) -> Unit = { showDialogAtEnd ->
+        progressText = "Downloading the TrueFoundry repo archive"
+        val n = PricingCache.fetchTrueFoundryOnline(context)
+        trueFoundryResult = n
+        // TrueFoundry carries vision / tool / reasoning flags — refresh the
+        // precomputed capability sets so list renders pick them up.
+        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (showDialogAtEnd) showTrueFoundryDialog = true
+    }
+    val runCloudPrice: suspend (Boolean) -> Unit = { showDialogAtEnd ->
+        progressText = "Downloading ai.cloudprice.net/api/v1/models"
+        val n = PricingCache.fetchCloudPriceOnline(context)
+        cloudPriceResult = n
+        // CloudPrice capability flags feed the capability chain.
+        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (showDialogAtEnd) showCloudPriceDialog = true
+    }
 
     // AI Info Providers sub-page lives as a full-screen overlay reached
     // via a NavCard on the main Refresh screen. Same early-return idiom
@@ -471,6 +575,9 @@ fun RefreshScreen(
             onArtificialAnalysis = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } },
             onRequesty = { launchTask("Refreshing Requesty") { runRequesty(true) } },
             onLlmStats = { launchTask("Refreshing llm-stats") { runLlmStats(true) } },
+            onGenaiPrices = { launchTask("Refreshing genai-prices") { runGenaiPrices(true) } },
+            onTrueFoundry = { launchTask("Refreshing TrueFoundry") { runTrueFoundry(true) } },
+            onCloudPrice = { launchTask("Refreshing CloudPrice") { runCloudPrice(true) } },
             onNavigateToHelpTopic = onNavigateToHelpTopic,
             // Deep-linked entry has no 3-card parent to fall back to, so Back
             // pops the route (returns to Manage data); normal entry just closes
@@ -523,7 +630,7 @@ fun RefreshScreen(
             // sources with their own progress rows.
             RefreshAction(
                 label = "Info providers",
-                description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty).",
+                description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice).",
                 enabled = !isAnyRunning,
                 onClick = { subPage = RefreshSubPage.INFO_PROVIDERS }
             )
@@ -549,13 +656,16 @@ private fun InfoProvidersRefreshPage(
     onArtificialAnalysis: () -> Unit,
     onRequesty: () -> Unit,
     onLlmStats: () -> Unit,
+    onGenaiPrices: () -> Unit,
+    onTrueFoundry: () -> Unit,
+    onCloudPrice: () -> Unit,
     onNavigateToHelpTopic: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Eight pricing & capability catalogs", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Eleven pricing & capability catalogs", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             RefreshAction(
                 label = "OpenRouter",
@@ -619,6 +729,30 @@ private fun InfoProvidersRefreshPage(
                 enabled = !isAnyRunning && llmStatsApiKey.isNotBlank() && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.LLM_STATS.id),
                 onClick = onLlmStats,
                 helpTopic = "info_provider_llm_stats",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "genai-prices",
+                description = "Pull Pydantic's genai-prices catalog (raw.githubusercontent.com/pydantic/genai-prices) — curated \$/M pricing + context windows. Keyless community fallback after Requesty.",
+                enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.GENAI_PRICES.id),
+                onClick = onGenaiPrices,
+                helpTopic = "info_provider_genai_prices",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "TrueFoundry",
+                description = "Download the TrueFoundry model registry (github.com/truefoundry/models) — per-token pricing + capability flags. Keyless; pulls the whole-repo archive and unpacks it on-device, so this download is larger than the others.",
+                enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.TRUEFOUNDRY.id),
+                onClick = onTrueFoundry,
+                helpTopic = "info_provider_truefoundry",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "CloudPrice",
+                description = "Pull CloudPrice's catalog (ai.cloudprice.net) — capabilities + context windows only (no pricing). Keyless; feeds the vision / tool / reasoning capability flags.",
+                enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.CLOUDPRICE.id),
+                onClick = onCloudPrice,
+                helpTopic = "info_provider_cloudprice",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
             )
         }
