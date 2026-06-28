@@ -9,8 +9,8 @@ having in the prompt window from the first turn.
 
 Android multi-provider AI app — reports, chat, dual chat, RAG
 knowledge bases, on-device LLM and embedder, share-target ingest.
-**37 cloud providers** across four API formats
-(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE`); 34 share unified
+**36 cloud providers** across four API formats
+(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE`); 33 share unified
 code paths via the format dispatch, only Anthropic, Google and Replicate
 have format-specific code.
 
