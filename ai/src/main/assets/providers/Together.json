@@ -2,7 +2,7 @@
   "adminUrl": "https://api.together.xyz/settings/api-keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.together.xyz/",
-  "defaultModel": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+  "defaultModel": "Qwen/Qwen2.5-7B-Instruct-Turbo",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Together",

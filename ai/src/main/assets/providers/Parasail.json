@@ -2,7 +2,7 @@
   "adminUrl": "https://saas.parasail.io/keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.parasail.io/",
-  "defaultModel": "meta-llama/Llama-3.3-70B-Instruct",
+  "defaultModel": "arcee-ai/Trinity-Large-Thinking",
   "defaultModelSource": "API",
   "hardcodedModels": [
     "meta-llama/Llama-3.3-70B-Instruct",

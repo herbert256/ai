@@ -2,7 +2,7 @@
   "adminUrl": "https://app.baseten.co/settings/api_keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://inference.baseten.co/",
-  "defaultModel": "openai/gpt-oss-120b",
+  "defaultModel": "moonshotai/Kimi-K2.5",
   "defaultModelSource": "API",
   "hardcodedModels": [
     "openai/gpt-oss-120b",

@@ -2,7 +2,7 @@
   "adminUrl": "https://cloud.siliconflow.com/account/ak",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.siliconflow.com/",
-  "defaultModel": "Qwen/Qwen2.5-7B-Instruct",
+  "defaultModel": "ByteDance-Seed/Seed-OSS-36B-Instruct",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "hardcodedModels": [

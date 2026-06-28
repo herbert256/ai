@@ -2,7 +2,7 @@
   "adminUrl": "https://gateway.merge.dev/settings/api-keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api-gateway.merge.dev/",
-  "defaultModel": "anthropic/claude-opus-4-8",
+  "defaultModel": "ai21/jamba-1-5-large",
   "defaultModelSource": "API",
   "hardcodedModels": [
     "anthropic/claude-opus-4-8",

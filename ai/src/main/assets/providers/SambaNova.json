@@ -2,7 +2,7 @@
   "adminUrl": "https://cloud.sambanova.ai/",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.sambanova.ai/",
-  "defaultModel": "Meta-Llama-3.3-70B-Instruct",
+  "defaultModel": "gemma-4-31B-it",
   "extractApiCost": false,
   "hardcodedModels": [
     "Meta-Llama-3.3-70B-Instruct",

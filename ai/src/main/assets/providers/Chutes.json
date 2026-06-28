@@ -2,7 +2,7 @@
   "adminUrl": "https://chutes.ai/app/api",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://llm.chutes.ai/",
-  "defaultModel": "moonshotai/Kimi-K2.6-TEE",
+  "defaultModel": "google/gemma-4-31B-turbo-TEE",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Chutes",

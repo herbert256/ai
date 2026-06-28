@@ -2,7 +2,7 @@
   "adminUrl": "https://eu-central-1.console.aws.amazon.com/bedrock-mantle/?region=eu-central-1",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://bedrock-mantle.eu-central-1.api.aws/",
-  "defaultModel": "openai.gpt-oss-120b",
+  "defaultModel": "qwen.qwen3-next-80b-a3b-instruct",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "hardcodedModels": [

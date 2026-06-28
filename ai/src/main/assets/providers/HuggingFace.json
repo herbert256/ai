@@ -2,7 +2,7 @@
   "adminUrl": "https://huggingface.co/settings/tokens",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://router.huggingface.co/",
-  "defaultModel": "meta-llama/Llama-3.3-70B-Instruct",
+  "defaultModel": "deepseek-ai/DeepSeek-V3.1",
   "extractApiCost": false,
   "hardcodedModels": [
     "meta-llama/Llama-3.3-70B-Instruct",

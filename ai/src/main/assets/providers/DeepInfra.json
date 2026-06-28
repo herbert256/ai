@@ -2,7 +2,7 @@
   "adminUrl": "https://deepinfra.com/dash/api_keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.deepinfra.com/v1/openai/",
-  "defaultModel": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+  "defaultModel": "stepfun-ai/Step-3.7-Flash",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "DeepInfra",

@@ -2,7 +2,7 @@
   "adminUrl": "https://www.atlascloud.ai/console/api-keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.atlascloud.ai/",
-  "defaultModel": "deepseek-ai/DeepSeek-V3-0324",
+  "defaultModel": "bytedance/doubao-seed-2.0-pro-260215",
   "defaultModelSource": "API",
   "hardcodedModels": [
     "deepseek-ai/DeepSeek-V3-0324",

@@ -2,7 +2,7 @@
   "adminUrl": "https://app.requesty.ai/",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://router.requesty.ai/",
-  "defaultModel": "google/gemini-2.5-flash-lite",
+  "defaultModel": "openai-responses/gpt-4.1-nano",
   "defaultModelSource": "API",
   "hardcodedModels": [
     "google/gemini-2.5-flash-lite",

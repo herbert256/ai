@@ -2,7 +2,7 @@
   "adminUrl": "https://console.gmicloud.ai/",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.gmi-serving.com/",
-  "defaultModel": "deepseek-ai/DeepSeek-V3.2",
+  "defaultModel": "XiaomiMiMo/MiMo-V2.5-Pro",
   "defaultModelSource": "API",
   "hardcodedModels": [
     "deepseek-ai/DeepSeek-V3.2",

@@ -2,7 +2,7 @@
   "adminUrl": "https://vercel.com/dashboard/ai-gateway/api-keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://ai-gateway.vercel.sh/",
-  "defaultModel": "openai/gpt-4.1-nano",
+  "defaultModel": "arcee-ai/trinity-mini",
   "defaultModelSource": "API",
   "hardcodedModels": [
     "openai/gpt-4.1-nano",

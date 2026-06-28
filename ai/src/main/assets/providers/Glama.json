@@ -2,7 +2,7 @@
   "adminUrl": "https://glama.ai/settings/gateway",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://gateway.glama.ai/",
-  "defaultModel": "deepseek/deepseek-chat-v3",
+  "defaultModel": "zai/glm-4.6",
   "defaultModelSource": "API",
   "hardcodedModels": [
     "deepseek/deepseek-chat-v3",

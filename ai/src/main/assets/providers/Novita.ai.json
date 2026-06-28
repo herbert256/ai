@@ -2,7 +2,7 @@
   "adminUrl": "https://novita.ai/settings/key-management",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.novita.ai/v3/openai/",
-  "defaultModel": "zai-org/glm-5.2",
+  "defaultModel": "inclusionai/ling-2.6-flash",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Novita.ai",
