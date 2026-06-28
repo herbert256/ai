@@ -91,6 +91,18 @@ fun HousekeepingScreen(
                     onClick = onNavigateToImportExport
                 )
             }
+            // Manage data — the merged hub of every wholesale-state operation
+            // (update catalogs/workers, or clear data and reset app state),
+            // each subject pairing its refresh and reset actions on one card.
+            // Sits just under Export & Import as a primary recovery tool.
+            item {
+                IconLinkCard(
+                    icon = MetadataDefaults.RELOAD,
+                    title = "Manage data",
+                    subtitle = "Refresh catalogs/workers, or clear data and reset app state",
+                    onClick = onNavigateToManageData
+                )
+            }
             if (hasActiveProvider && hasTrimmable) {
                 item {
                     IconLinkCard(
@@ -154,18 +166,6 @@ fun HousekeepingScreen(
                     title = "Caches",
                     subtitle = "Browse and manage every on-disk cache",
                     onClick = onNavigateToCaches
-                )
-            }
-            // Manage data lives at the bottom — the merged hub of every
-            // wholesale-state operation (update catalogs/workers, or clear
-            // data and reset app state), each subject pairing its refresh
-            // and reset actions on one card.
-            item {
-                IconLinkCard(
-                    icon = MetadataDefaults.RELOAD,
-                    title = "Manage data",
-                    subtitle = "Refresh catalogs/workers, or clear data and reset app state",
-                    onClick = onNavigateToManageData
                 )
             }
             item { Spacer(Modifier.height(24.dp)) }
