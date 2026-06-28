@@ -2827,14 +2827,15 @@ class IconGenerationManager(
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
                 val aiSettings = appViewModel.uiState.value.aiSettings
-                // Worker-batches REPORT_MODELS: each fan-out pair's icon/title
-                // is written by the model that produced THAT fan-out answer
-                // (resolved per pair, below) — here we only need the template
-                // to exist. Other modes resolve the batch pool up front
-                // (engine-internal launch: SELECT_ONCE uses the persisted
-                // group when present, otherwise the configured chain).
+                // Model info → Own model: each fan-out pair's icon/title is
+                // written by the model that produced THAT fan-out answer
+                // (resolved per pair, below) — same rule as the per-answer
+                // title/icon, so it's gated on the Model-info card, not the
+                // Batches card. Here we only need the fan-meta template to
+                // exist; otherwise the fan-meta prompt's configured workers
+                // (resolved via the Batches pool) write the title/icon.
                 val report = ReportStorage.getReport(context, reportId)
-                val ownModelPairs = report?.workerConfig?.batches == com.ai.data.BatchWorkerMode.REPORT_MODELS
+                val ownModelPairs = report?.workerConfig?.modelInfo == com.ai.data.ModelInfoMode.OWN_MODEL
                 val effBatchPrompt = if (report != null && fanMetaPrompt != null)
                     fanMetaPrompt.withBatchWorkers(report) else fanMetaPrompt
                 if (effBatchPrompt == null ||
@@ -2934,10 +2935,10 @@ class IconGenerationManager(
         context: Context, reportId: String, pair: SecondaryResult,
         fanMetaPrompt: InternalPrompt, aiSettings: Settings, fanRunId: String,
         iconRefreshCoalescer: FanMetaIconRefreshCoalescer,
-        /** Worker-batches REPORT_MODELS: the fan-out answer's OWN model
-         *  writes its icon/title (a one-worker swarm of
-         *  pair.providerId/model) — rotation is a no-op on a one-model
-         *  pool, so this batch keeps the Random schedule. */
+        /** Model info → Own model: the fan-out answer's OWN model writes its
+         *  icon/title (a one-worker swarm of pair.providerId/model) — rotation
+         *  is a no-op on a one-model pool, so this batch keeps the Random
+         *  schedule. */
         ownModelPairs: Boolean = false
     ) {
         val started = System.currentTimeMillis()

@@ -96,7 +96,10 @@ the metadata flows: Report info = `CUSTOM` swaps the report icon /
 short+long title / language prompts' chains for the per-report group
 (`withReportInfoWorkers`); Model info = `OWN_MODEL` has each answer
 model write its own title + icon (`withOwnModelWorker` →
-`singleModelWorker`). The `WorkerRunner` shuffle still applies
+`singleModelWorker`) — and the same rule extends to the per-fan-out-pair
+Fan-Meta batch, where each pair's own model writes its title + icon
+(`runFanMetaBatch`'s `ownModelPairs`, gated on `modelInfo`, not the
+Batches card). The `WorkerRunner` shuffle still applies
 within a multi-member group. See
 [datastructures.md](datastructures.md).
 
