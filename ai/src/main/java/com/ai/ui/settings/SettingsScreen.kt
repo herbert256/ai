@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 enum class SettingsSubScreen {
     MAIN, AI_PROVIDER_EDIT, AI_SETUP,
     AI_PROVIDERS,
+    AI_PROVIDERS_PREDEFINED,
     AI_MODELS_SETUP,
     AI_MODELS_SEARCH,
     AI_MODELS, AI_MODEL_EDIT,
@@ -217,6 +218,11 @@ fun SettingsScreen(
     // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
     // pressing back returns to the provider edit rather than the Models list.
     var modelEditFromProvider by remember { mutableStateOf(false) }
+    // True when the open Provider edit screen was reached from the
+    // "Add provider - predefined" picker, so back returns there (and the
+    // just-keyed provider has dropped off that list) instead of jumping
+    // to the main Providers list.
+    var providerEditFromPredefined by remember { mutableStateOf(false) }
     // Providers-list scroll position — hoisted to SettingsScreen because
     // the sub-screen `when` block destroys ProvidersScreen's composition
     // entirely on navigation into AI_PROVIDER_EDIT, throwing any
@@ -224,6 +230,12 @@ fun SettingsScreen(
     // switch, so a remember here keeps the list scrolled where the user
     // left it. ScrollState.Saver also keeps it across process death.
     val providersListScrollState = androidx.compose.runtime.saveable.rememberSaveable(
+        saver = androidx.compose.foundation.ScrollState.Saver
+    ) { androidx.compose.foundation.ScrollState(0) }
+    // Same hoisting for the predefined-provider picker, so scrolling
+    // it, opening a provider to set a key, and coming back keeps the
+    // scroll position.
+    val predefinedProvidersScrollState = androidx.compose.runtime.saveable.rememberSaveable(
         saver = androidx.compose.foundation.ScrollState.Saver
     ) { androidx.compose.foundation.ScrollState(0) }
 
@@ -237,7 +249,12 @@ fun SettingsScreen(
         when (currentSubScreen) {
             SettingsSubScreen.MAIN -> onBack()
             SettingsSubScreen.AI_SETUP -> if (initialSubScreen == SettingsSubScreen.AI_SETUP) onBack() else currentSubScreen = SettingsSubScreen.MAIN
-            SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            SettingsSubScreen.AI_PROVIDER_EDIT -> {
+                val fromPredefined = providerEditFromPredefined
+                providerEditFromPredefined = false
+                currentSubScreen = if (fromPredefined) SettingsSubScreen.AI_PROVIDERS_PREDEFINED else SettingsSubScreen.AI_PROVIDERS
+            }
+            SettingsSubScreen.AI_PROVIDERS_PREDEFINED -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             SettingsSubScreen.AI_MODEL_EDIT -> {
                 val from = modelEditFromProvider
                 modelEditFromProvider = false
@@ -371,6 +388,7 @@ fun SettingsScreen(
                 scrollState = providersListScrollState,
                 onHousekeeping = hkRefresh,
                 onProviderSelected = { selectedProviderId = it.id; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
+                onAddPredefined = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS_PREDEFINED },
                 onAddProvider = { name ->
                     // Stub provider — every other field is empty / default;
                     // the user fills the rest in on the existing edit
@@ -383,6 +401,18 @@ fun SettingsScreen(
                         selectedProviderId = name
                         currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
                     }
+                }
+            )
+        }
+        SettingsSubScreen.AI_PROVIDERS_PREDEFINED -> {
+            PredefinedProvidersScreen(
+                aiSettings = aiSettings, onBack = goBack, onBackToHome = onNavigateHome,
+                scrollState = predefinedProvidersScrollState,
+                onHousekeeping = hkRefresh,
+                onProviderSelected = {
+                    selectedProviderId = it.id
+                    providerEditFromPredefined = true
+                    currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
                 }
             )
         }

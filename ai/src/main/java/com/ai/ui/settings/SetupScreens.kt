@@ -555,6 +555,7 @@ fun ProvidersScreen(
     onBackToHome: () -> Unit,
     onProviderSelected: (AppService) -> Unit,
     onAddProvider: (String) -> Unit = {},
+    onAddPredefined: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
     /** Hoisted by SettingsScreen so it survives the sub-screen `when`
      *  block tearing this composable down whenever the user opens a
@@ -563,14 +564,16 @@ fun ProvidersScreen(
     scrollState: androidx.compose.foundation.ScrollState = androidx.compose.foundation.rememberScrollState()
 ) {
     BackHandler { onBackToAiSetup() }
-    val context = LocalContext.current
     val allProviders = AppService.entries
 
-    // Sort purely by provider name (case-insensitive), regardless of
-    // state — a plain alphabetical directory.
-    val visibleProviders = remember(allProviders) {
-        allProviders.sortedBy { it.id.lowercase(java.util.Locale.ROOT) }
-    }
+    // This screen now shows only the providers you've actually
+    // configured (an API key is set). The rest live behind the
+    // "Add provider - predefined" button. Computed inline (not
+    // remember'd) so it drops a provider the moment its key is set
+    // on the edit screen and we navigate back here.
+    val keyedProviders = allProviders
+        .filter { aiSettings.getApiKey(it).isNotBlank() }
+        .sortedBy { it.id.lowercase(java.util.Locale.ROOT) }
 
     var showAddDialog by remember { mutableStateOf(false) }
     if (showAddDialog) {
@@ -584,57 +587,126 @@ fun ProvidersScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "providers", title = "Providers", subject = "35 built-in plus your own providers", onBackClick = onBackToAiSetup, onHousekeeping = onHousekeeping)
+        TitleBar(helpTopic = "providers", title = "Providers", subject = "${keyedProviders.size} with an API key set", onBackClick = onBackToAiSetup, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            visibleProviders.forEach { provider ->
-                val state = aiSettings.getProviderState(provider)
-                val mi = LocalMetadataIcons.current
-                val stateEmoji = when (state) {
-                    "ok" -> mi.key
-                    "error" -> mi.statusFailed
-                    "inactive" -> mi.sleep
-                    else -> mi.whiteCircle
-                }
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onProviderSelected(provider) },
-                    colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(vertical = 6.dp)) {
-                            Text(provider.id, fontSize = 15.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
-                            if (state == "ok") {
-                                val model = aiSettings.getModel(provider)
-                                if (model.isNotBlank()) Text(com.ai.ui.shared.shortModelName(model), fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                        Text(stateEmoji, fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))
-                        IconButton(
-                            onClick = { openProviderAdminUrl(context, provider) },
-                            enabled = provider.adminUrl.isNotBlank()
-                        ) {
-                            Text(
-                                com.ai.data.MetadataIconsHolder.current.tools,
-                                fontSize = 18.sp,
-                                modifier = if (provider.adminUrl.isNotBlank()) Modifier else Modifier.alpha(0.3f)
-                            )
-                        }
-                    }
-                }
+            if (keyedProviders.isEmpty()) {
+                Text(
+                    "No providers have an API key yet. Tap \"Add provider - predefined\" to pick one of the built-in providers and set it up.",
+                    fontSize = 13.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
             }
-            // Add sits at the bottom — the typical flow is "scroll the
-            // list to confirm what you want isn't already there, then
-            // add a new entry", so the action lands under the user's
-            // thumb after the scan.
+            keyedProviders.forEach { provider ->
+                ProviderRow(provider = provider, aiSettings = aiSettings, onClick = { onProviderSelected(provider) })
+            }
+            // The two add actions sit at the bottom — the typical flow is
+            // "scan your configured providers, then add another", so the
+            // buttons land under the user's thumb after the scan. "new"
+            // mirrors the old single button (empty custom stub → edit);
+            // "predefined" opens the picker of registry providers that
+            // don't have a key yet.
             Spacer(modifier = Modifier.height(4.dp))
             OutlinedButton(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
-            ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
+            ) { Text("+ Add provider - new", maxLines = 1, softWrap = false) }
+            OutlinedButton(
+                onClick = onAddPredefined,
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("+ Add provider - predefined", maxLines = 1, softWrap = false) }
+        }
+    }
+}
+
+/** One provider row, shared by the Providers list and the predefined
+ *  picker. Shows the id, the configured default model (only when the
+ *  provider is fully set up / "ok"), the state emoji, and a 🛠️ button
+ *  that opens the provider's admin / signup console. */
+@Composable
+private fun ProviderRow(
+    provider: AppService,
+    aiSettings: Settings,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val state = aiSettings.getProviderState(provider)
+    val mi = LocalMetadataIcons.current
+    val stateEmoji = when (state) {
+        "ok" -> mi.key
+        "error" -> mi.statusFailed
+        "inactive" -> mi.sleep
+        else -> mi.whiteCircle
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(vertical = 6.dp)) {
+                Text(provider.id, fontSize = 15.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+                if (state == "ok") {
+                    val model = aiSettings.getModel(provider)
+                    if (model.isNotBlank()) Text(com.ai.ui.shared.shortModelName(model), fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Text(stateEmoji, fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))
+            IconButton(
+                onClick = { openProviderAdminUrl(context, provider) },
+                enabled = provider.adminUrl.isNotBlank()
+            ) {
+                Text(
+                    com.ai.data.MetadataIconsHolder.current.tools,
+                    fontSize = 18.sp,
+                    modifier = if (provider.adminUrl.isNotBlank()) Modifier else Modifier.alpha(0.3f)
+                )
+            }
+        }
+    }
+}
+
+/** "Add provider - predefined" — every registered provider that does
+ *  NOT have an API key set yet (the 55+ bundled ones you haven't
+ *  configured). Tapping a row opens the same Provider edit screen used
+ *  everywhere else, so the user just drops in a key and tests. Once a
+ *  key is set the provider moves to the main Providers list. */
+@Composable
+fun PredefinedProvidersScreen(
+    aiSettings: Settings,
+    onBack: () -> Unit,
+    onBackToHome: () -> Unit,
+    onProviderSelected: (AppService) -> Unit,
+    onHousekeeping: (() -> Unit)? = null,
+    scrollState: androidx.compose.foundation.ScrollState = androidx.compose.foundation.rememberScrollState()
+) {
+    BackHandler { onBack() }
+    val allProviders = AppService.entries
+    val unkeyed = allProviders
+        .filter { aiSettings.getApiKey(it).isBlank() }
+        .sortedBy { it.id.lowercase(java.util.Locale.ROOT) }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(helpTopic = "providers_predefined", title = "Add provider - predefined", subject = "${unkeyed.size} without an API key — tap to set one up", onBackClick = onBack, onHousekeeping = onHousekeeping)
+
+        Column(modifier = Modifier.weight(1f).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (unkeyed.isEmpty()) {
+                Text(
+                    "Every registered provider already has an API key set.",
+                    fontSize = 13.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            }
+            unkeyed.forEach { provider ->
+                ProviderRow(provider = provider, aiSettings = aiSettings, onClick = { onProviderSelected(provider) })
+            }
+            Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }

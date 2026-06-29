@@ -144,6 +144,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "provider_card_patterns" to listOf("help_home_ai_providers"),
     "provider_card_endpoints" to listOf("help_home_ai_providers", "concepts"),
     "providers" to listOf("help_home_ai_providers", "help_getting_started", "help_privacy"),
+    "providers_predefined" to listOf("providers", "help_home_ai_providers"),
     "provider_edit" to listOf("help_home_ai_providers", "help_costs"),
 
     // ===== Info providers =====

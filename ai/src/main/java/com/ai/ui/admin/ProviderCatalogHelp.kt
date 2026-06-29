@@ -4,11 +4,21 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
     "providers" to HelpContent(
         title = "Help - Providers",
         cards = listOf(
-            HelpCard("Overview", "List of every registered provider (51 bundled plus any user-added). The state of each row is shown by an emoji."),
-            HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
-            HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
+            HelpCard("Overview", "Lists only the providers you've actually configured — the ones with an API key set. Every other registered provider (the bundled catalog you haven't set up yet) lives behind the \"Add provider - predefined\" button. Each row's state is shown by an emoji."),
+            HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled — still has a key, so it stays on this list). The subtitle counts how many providers have a key set."),
+            HelpCard("Sort order", "Sorted by id case-insensitively — a plain alphabetical directory of your configured providers."),
             HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
-            HelpCard("Add provider", "The green \"+ Add provider\" button at the bottom opens a single-field name dialog. The name becomes the provider id (spaces stripped). Confirming registers an empty stub via ProviderRegistry.add and jumps straight to the same Provider edit screen used for the bundled providers — fill in the base URL / default model / API format there."),
+            HelpCard("Add provider - new", "Opens a single-field name dialog. The name becomes the provider id (spaces stripped). Confirming registers an empty stub via ProviderRegistry.add and jumps straight to the Provider edit screen — fill in the base URL / default model / API format there. Use this for a provider that isn't in the bundled catalog."),
+            HelpCard("Add provider - predefined", "Opens a picker of every registered provider that doesn't have a key yet (see the \"Help - Add provider - predefined\" topic). Pick one, set its key, and it moves onto this list."),
+        )
+    ),
+    "providers_predefined" to HelpContent(
+        title = "Help - Add provider - predefined",
+        cards = listOf(
+            HelpCard("Overview", "Reached from Providers → \"Add provider - predefined\". Lists every registered provider that does NOT have an API key set yet — the bundled catalog (base URL, paths and API format already filled in) waiting to be configured."),
+            HelpCard("Item rows", "Same row layout as the Providers list (id, state ⭕, and the 🛠️ admin / signup link). All rows here are \"not-used\" (⭕) by definition. Tap the 🛠️ icon first if you still need to sign up and mint a key."),
+            HelpCard("Set one up", "Tapping a row opens the standard Provider edit screen for that provider. Paste an API key and Test — on success the provider gains a key and drops off this list, appearing on the main Providers list instead."),
+            HelpCard("Back", "Back returns here (not to the main Providers list) so you can set up several providers in a row. Back from this screen returns to Providers."),
         )
     ),
     "provider_edit" to HelpContent(
