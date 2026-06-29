@@ -217,12 +217,12 @@ fun SettingsScreen(
     }
     // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
     // pressing back returns to the provider edit rather than the Models list.
-    var modelEditFromProvider by remember { mutableStateOf(false) }
+    var modelEditFromProvider by rememberSaveable { mutableStateOf(false) }
     // True when the open Provider edit screen was reached from the
     // "Add provider - predefined" picker, so back returns there (and the
     // just-keyed provider has dropped off that list) instead of jumping
     // to the main Providers list.
-    var providerEditFromPredefined by remember { mutableStateOf(false) }
+    var providerEditFromPredefined by rememberSaveable { mutableStateOf(false) }
     // Providers-list scroll position — hoisted to SettingsScreen because
     // the sub-screen `when` block destroys ProvidersScreen's composition
     // entirely on navigation into AI_PROVIDER_EDIT, throwing any
