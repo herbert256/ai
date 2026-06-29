@@ -63,6 +63,11 @@ private fun versionKey(modelId: String): String = modelId.substringAfterLast('/'
  *  version-group screen (gpt → 5.2, 5.5, 4o, …) before the flat list. */
 private const val VERSION_GROUP_THRESHOLD = 25
 
+/** Tapping a base-model row opens its Versions screen (grouping included) —
+ *  except for a small family (fewer than this many distinct versions/models),
+ *  where it jumps straight to the flat Models list instead. */
+private const val MODELS_DIRECT_THRESHOLD = 15
+
 /** Model id reduced to its model form for sub-grouping: namespace stripped,
  *  Bedrock "vendor." and dash routing prefixes always removed (unlike
  *  [canonicalModelName], this never collapses to the vendor). */
@@ -375,9 +380,17 @@ fun ModelStatisticsScreen(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Three independently tappable columns → three drill modes.
+                    // Three independently tappable columns. The Model name opens
+                    // the versions overview (grouped when large); a small family
+                    // skips straight to the flat Models list.
                     Text(g.baseName,
-                        modifier = Modifier.weight(1f).clickable { drill = listOf(Drill.Models(g)) },
+                        modifier = Modifier.weight(1f).clickable {
+                            drill = listOf(when {
+                                g.versionCount < MODELS_DIRECT_THRESHOLD -> Drill.Models(g)
+                                g.versionCount > VERSION_GROUP_THRESHOLD -> Drill.VersionGroups(g)
+                                else -> Drill.Versions(g)
+                            })
+                        },
                         fontSize = 14.sp, color = AppColors.TextPrimary,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${g.versionCount}",
