@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://www.orcarouter.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.orcarouter.ai/",
+  "defaultModel": "deepseek/deepseek-v4-flash",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "OrcaRouter",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

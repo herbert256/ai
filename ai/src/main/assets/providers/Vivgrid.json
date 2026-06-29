@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://vivgrid.com/docs/quick-start",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.vivgrid.com/",
+  "defaultModel": "gpt-5.4-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Vivgrid",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

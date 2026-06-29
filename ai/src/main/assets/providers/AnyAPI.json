@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.anyapi.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.anyapi.ai/",
+  "defaultModel": "openai/gpt-4-turbo",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "AnyAPI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

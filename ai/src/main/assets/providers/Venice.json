@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://docs.venice.ai/api-reference/api-spec",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.venice.ai/",
+  "defaultModel": "qwen3-4b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Venice",
+  "modelListFormat": "object",
+  "modelsPath": "api/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "api/v1/chat/completions"
+  }
+}

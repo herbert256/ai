@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://docs.github.com/en/rest/models/inference",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://models.github.ai/",
+  "defaultModel": "openai/gpt-4.1-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "GitHubModels",
+  "modelListFormat": "array",
+  "modelsPath": "catalog/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "inference/chat/completions"
+  }
+}

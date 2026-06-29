@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://io.net/docs/reference/ai-models/get-started-with-io-intelligence-api",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.intelligence.io.solutions/",
+  "defaultModel": "meta-llama/Llama-3.3-70B-Instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "IONet",
+  "modelListFormat": "object",
+  "modelsPath": "api/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "api/v1/chat/completions"
+  }
+}

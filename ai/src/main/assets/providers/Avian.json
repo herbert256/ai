@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://avian.io/docs/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.avian.io/",
+  "defaultModel": "deepseek/deepseek-v3.2",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Avian",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

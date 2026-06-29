@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.lambda.ai/public-cloud/lambda-inference-api/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.lambda.ai/",
+  "defaultModel": "llama3.1-8b-instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Lambda",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

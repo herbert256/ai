@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://friendli.ai/docs/guides/serverless_endpoints/openai-compatibility",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.friendli.ai/",
+  "defaultModel": "meta-llama/Llama-3.1-8B-Instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "FriendliAI",
+  "modelListFormat": "object",
+  "modelsPath": "serverless/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "serverless/v1/chat/completions"
+  }
+}

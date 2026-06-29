@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://help.ovhcloud.com/csm/en-public-cloud-ai-endpoints-getting-started?id=kb_article_view&sysparm_article=KB0065403",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://oai.endpoints.kepler.ai.cloud.ovh.net/",
+  "defaultModel": "Mistral-7B-Instruct-v0.3",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "OVHcloud",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

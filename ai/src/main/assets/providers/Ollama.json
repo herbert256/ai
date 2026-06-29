@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.ollama.com/api/openai-compatibility",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://ollama.com/",
+  "defaultModel": "gpt-oss:20b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Ollama",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

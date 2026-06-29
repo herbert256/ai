@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.crusoecloud.com/quickstart/getting-started-with-managed-inference",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.inference.crusoecloud.com/",
+  "defaultModel": "openai/gpt-oss-120b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Crusoe",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

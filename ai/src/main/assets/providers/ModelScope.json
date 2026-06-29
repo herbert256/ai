@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://modelscope.cn/docs/model-service/API-Inference/intro",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api-inference.modelscope.cn/",
+  "defaultModel": "Qwen/Qwen2.5-72B-Instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "ModelScope",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

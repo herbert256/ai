@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.wafer.ai/serverless/setup",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://pass.wafer.ai/",
+  "defaultModel": "deepseek-v4-flash",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Wafer",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

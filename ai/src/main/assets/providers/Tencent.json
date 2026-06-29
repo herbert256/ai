@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://cloud.tencent.com/document/product/1729/111007",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.hunyuan.cloud.tencent.com/",
+  "defaultModel": "hunyuan-lite",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Tencent",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://tensormesh.mintlify.app/ai-sdk/guides/provider-configuration",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://serverless.tensormesh.ai/",
+  "defaultModel": "openai/gpt-oss-20b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "TensorMesh",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.digitalocean.com/products/inference/how-to/use-chat-completions-api/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://inference.do-ai.run/",
+  "defaultModel": "openai-gpt-4o-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "DigitalOcean",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

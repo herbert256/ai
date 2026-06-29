@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://docs.frogbot.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://app.frogbot.ai/",
+  "defaultModel": "claude-haiku-4-5",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Frogbot",
+  "modelListFormat": "object",
+  "modelsPath": "api/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "api/v1/chat/completions"
+  }
+}

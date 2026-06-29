@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://abacus.ai/help/developer-platform/route-llm/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://routellm.abacus.ai/",
+  "defaultModel": "gpt-4o-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "AbacusAI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.doubleword.ai/inference-api/creating-an-api-key",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.doubleword.ai/",
+  "defaultModel": "openai-gpt-oss-20b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Doubleword",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

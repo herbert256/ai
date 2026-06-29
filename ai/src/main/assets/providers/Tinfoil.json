@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.tinfoil.sh/sdk/direct-api-access",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://inference.tinfoil.sh/",
+  "defaultModel": "gpt-oss-120b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Tinfoil",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

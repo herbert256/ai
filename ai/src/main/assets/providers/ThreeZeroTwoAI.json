@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://doc-en.302.ai/api-207705104",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.302.ai/",
+  "defaultModel": "gpt-4o-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "ThreeZeroTwoAI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

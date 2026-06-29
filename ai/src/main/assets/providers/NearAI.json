@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.near.ai/cloud/guides/openai-compatibility/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://cloud-api.near.ai/",
+  "defaultModel": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "NearAI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

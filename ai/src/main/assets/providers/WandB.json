@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.wandb.ai/inference/api-reference/chat-completions",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.inference.wandb.ai/",
+  "defaultModel": "meta-llama/Llama-3.1-8B-Instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "WandB",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

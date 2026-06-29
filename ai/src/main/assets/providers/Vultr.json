@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://docs.vultr.com/how-to-use-vultr-serverless-inference-in-python",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.vultrinference.com/",
+  "defaultModel": "qwen2.5-32b-instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Vultr",
+  "modelListFormat": "object",
+  "modelsPath": "v1/chat/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

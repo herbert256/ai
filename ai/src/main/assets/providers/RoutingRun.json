@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.routing.run/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.routing.run/",
+  "defaultModel": "qwen3.5-9b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "RoutingRun",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

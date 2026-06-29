@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://opencode.ai/docs/zen/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://opencode.ai/",
+  "defaultModel": "deepseek-v4-flash",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "OpenCodeZen",
+  "modelListFormat": "object",
+  "modelsPath": "zen/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "zen/v1/chat/completions"
+  }
+}

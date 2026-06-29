@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.helicone.ai/rest/ai-gateway/post-v1-chat-completions",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://ai-gateway.helicone.ai/",
+  "defaultModel": "gpt-4o-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "HeliconeGateway",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

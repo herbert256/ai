@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://kilo.ai/docs/gateway/api-reference",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.kilo.ai/",
+  "defaultModel": "google/gemini-3.1-flash-lite",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "KiloCode",
+  "modelListFormat": "object",
+  "modelsPath": "api/gateway/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "api/gateway/chat/completions"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.litellm.ai/docs/providers/llamagate",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.llamagate.dev/",
+  "defaultModel": "llama-3.1-8b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "LlamaGate",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

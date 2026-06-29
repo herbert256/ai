@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://docs.clarifai.com/compute/inference/open-ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.clarifai.com/",
+  "defaultModel": "openai/chat-completion/models/gpt-oss-120b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Clarifai",
+  "modelListFormat": "object",
+  "modelsPath": "v2/ext/openai/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v2/ext/openai/v1/chat/completions"
+  }
+}

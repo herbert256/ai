@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://docs.jiekou.ai/docs/models/reference-authentication",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.jiekou.ai/",
+  "defaultModel": "qwen/qwen-2.5-72b-instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Jiekou",
+  "modelListFormat": "object",
+  "modelsPath": "openai/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "openai/v1/chat/completions"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://developer.qiniu.com/aitokenapi",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.qnaigc.com/",
+  "defaultModel": "qwen-turbo",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "QiniuAI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

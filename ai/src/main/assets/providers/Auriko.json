@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.auriko.ai/quickstart",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.auriko.ai/",
+  "defaultModel": "gpt-4o",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Auriko",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

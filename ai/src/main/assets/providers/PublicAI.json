@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://platform.publicai.co/docs",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.publicai.co/",
+  "defaultModel": "swiss-ai/apertus-8b-instruct",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "PublicAI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

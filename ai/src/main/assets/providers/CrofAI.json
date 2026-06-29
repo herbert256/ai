@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://github.com/nahcrof-code/crofAI",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://crof.ai/",
+  "defaultModel": "glm-4.7-flash",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "CrofAI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

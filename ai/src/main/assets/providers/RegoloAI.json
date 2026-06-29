@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.regolo.ai/",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.regolo.ai/",
+  "defaultModel": "qwen3.5-9b",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "RegoloAI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

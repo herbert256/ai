@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://docs.fastrouter.ai/api-reference/chat-completions",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.fastrouter.ai/",
+  "defaultModel": "openai/gpt-4o-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "FastRouter",
+  "modelListFormat": "object",
+  "modelsPath": "api/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "api/v1/chat/completions"
+  }
+}

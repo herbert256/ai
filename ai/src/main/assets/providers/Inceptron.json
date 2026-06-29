@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.inceptron.io/introduction",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.inceptron.io/",
+  "defaultModel": "MiniMaxAI/MiniMax-M2.5",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Inceptron",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.llmgateway.io/quick-start",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.llmgateway.io/",
+  "defaultModel": "gpt-4o",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "LLMGateway",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

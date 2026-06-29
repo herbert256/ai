@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://zenmux.ai/docs/api/overview.html",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://zenmux.ai/",
+  "defaultModel": "deepseek/deepseek-chat",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "ZenMux",
+  "modelListFormat": "object",
+  "modelsPath": "api/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "api/v1/chat/completions"
+  }
+}

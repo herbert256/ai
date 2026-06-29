@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.poolside.ai/openai-api/chat/create-chat-completion",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://inference.poolside.ai/",
+  "defaultModel": "poolside/laguna-xs.2",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Poolside",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

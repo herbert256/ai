@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.evroc.com/products/think/concepts.html",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://models.think.evroc.com/",
+  "defaultModel": "mistralai/Ministral-8B-Instruct-2410",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Evroc",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "adminUrl": "https://docs.ai21.com/reference/jamba-1-6-api-ref",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.ai21.com/",
+  "defaultModel": "jamba-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "AI21",
+  "modelListFormat": "object",
+  "modelsPath": "studio/v1/models",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "studio/v1/chat/completions"
+  }
+}

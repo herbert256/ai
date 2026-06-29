@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.libertai.io/apis/text/usage.html",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.libertai.io/",
+  "defaultModel": "hermes-3-8b-tee",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "LibertAI",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

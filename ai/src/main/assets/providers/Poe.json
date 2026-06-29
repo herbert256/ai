@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://creator.poe.com/docs/external-applications/openai-compatible-api",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://api.poe.com/",
+  "defaultModel": "gpt-5.4-nano",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "Poe",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}

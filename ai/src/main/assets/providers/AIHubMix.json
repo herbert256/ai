@@ -1,0 +1,16 @@
+{
+  "adminUrl": "https://docs.aihubmix.com/en/api/Aihubmix-Integration",
+  "apiFormat": "OPENAI_COMPATIBLE",
+  "baseUrl": "https://aihubmix.com/",
+  "defaultModel": "gpt-4o-mini",
+  "defaultModelSource": "API",
+  "extractApiCost": false,
+  "id": "AIHubMix",
+  "modelListFormat": "object",
+  "seedFieldName": "seed",
+  "supportsCitations": false,
+  "supportsSearchRecency": false,
+  "typePaths": {
+    "chat": "v1/chat/completions"
+  }
+}
