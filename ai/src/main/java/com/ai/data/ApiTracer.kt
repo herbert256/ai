@@ -226,7 +226,12 @@ object ApiTracer {
                         // place instead of duplicating it.
                         current.map { if (it.filename == resolvedFilename) info else it }
                     } else {
-                        current + info
+                        // Dedupe by filename: a concurrent getTraceFiles() can
+                        // rebuild the cache from disk (including this just-written
+                        // file) in the window between the disk write and taking
+                        // this lock, so a plain `current + info` would list the
+                        // trace twice. filterNot makes the append idempotent.
+                        current.filterNot { it.filename == resolvedFilename } + info
                     }
                     // Re-sort rather than prepend: trace.timestamp is set
                     // at request-issue time but saveTrace runs at
