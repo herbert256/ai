@@ -75,17 +75,25 @@ private fun versionNorm(modelId: String): String {
     return id
 }
 
-/** The version sub-group a single version falls under within its base family:
- *  the first token after the base name. gpt-5.2-mini → "5.2", gpt-4o → "4o",
- *  gpt-oss-120b → "oss", qwen3-coder → "3", o3-mini → "o3". */
+/** The version sub-group a single version falls under within its base family.
+ *  Prefer the first model-NAME token — a word naming the line/tier (opus,
+ *  sonnet, oss, image) — over an embedded version number, because the number
+ *  isn't always in the same place: claude-4-opus and claude-opus-4 both group
+ *  under "opus". When there's no name, fall back to the first version number
+ *  (gpt-5.2-mini → "5.2", gpt-4o → "4o"), then to the first token. Everything
+ *  from '@' on is dropped first so an Azure/Vertex deployment region
+ *  (gpt-5.5@eastus2, gemini-2.5-flash@europe-west1) doesn't become a group. */
 private fun versionSubGroup(baseName: String, modelId: String): String {
     val norm = versionNorm(modelId)
     val rest = (if (norm.startsWith(baseName)) norm.substring(baseName.length) else norm)
         .trimStart('-', '_', '.', ':', ' ')
-    // Split on '@' too so an Azure region / deployment suffix (gpt-5.5@eastus2)
-    // doesn't fork the version into its own group.
-    val tok = rest.split('-', '_', ':', ' ', '@').firstOrNull().orEmpty()
-    return tok.ifBlank { norm }
+        .substringBefore('@')
+    val tokens = rest.split('-', '_', ':', ' ').filter { it.isNotBlank() }
+    if (tokens.isEmpty()) return norm
+    fun isVersionTok(t: String) = t[0].isDigit() || (t[0] == 'v' && t.length > 1 && t[1].isDigit())
+    return tokens.firstOrNull { !isVersionTok(it) && it !in VARIANT_TOKENS }
+        ?: tokens.firstOrNull { isVersionTok(it) }
+        ?: tokens.first()
 }
 
 /** Leading numeric value of a sub-group key, for version-descending sort
