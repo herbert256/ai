@@ -916,18 +916,25 @@ class RegenerateBatchEngine internal constructor(
 
         // FAN_META — fan-out pair rows that previously had a title
         // and/or icon (or an error). One task per pair; one worker
-        // call regenerates both.
+        // call regenerates both. Gate on fanMetaOn() (== the master
+        // metadata switch) exactly like the dispatcher runFanMetaBatch,
+        // which returns null when it's off: without this gate the phase
+        // would blank every pair's good title/icon in resetRowsForPhase,
+        // never dispatch a worker, and hang to the 30-minute safety-net
+        // timeout — the same failure the AGENTS skip-comment guards against.
         val fanMetaRows = fanOutRows.filter {
             !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() ||
                 !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank()
         }
-        for (row in fanMetaRows) {
-            tasks += RegenerateTask(
-                rowId = row.id,
-                phase = RegeneratePhase.FAN_META,
-                label = "meta: " + shortModelName(row.model),
-                state = RegenerateTaskState.WAITING
-            )
+        if (generalSettings.fanMetaOn()) {
+            for (row in fanMetaRows) {
+                tasks += RegenerateTask(
+                    rowId = row.id,
+                    phase = RegeneratePhase.FAN_META,
+                    label = "meta: " + shortModelName(row.model),
+                    state = RegenerateTaskState.WAITING
+                )
+            }
         }
 
         // TOURNAMENT — one task per per-match row. The AGGREGATE row is
