@@ -833,12 +833,29 @@ fun ExternalServicesScreen(
         kotlinx.coroutines.delay(400)
         if (lsKey != llmStatsApiKey) onSaveLlmStatsApiKey(lsKey)
     }
+    // The onDispose flush must read the LATEST values, not the delegates
+    // captured at first composition: after the first debounced save the
+    // prop changes and `remember(prop)` swaps in a fresh MutableState, so a
+    // closure pinned to the original would compare two stale-and-equal
+    // values and silently drop edits made just before a fast back-press.
+    val curHf by androidx.compose.runtime.rememberUpdatedState(hfKey)
+    val curHfProp by androidx.compose.runtime.rememberUpdatedState(huggingFaceApiKey)
+    val saveHf by androidx.compose.runtime.rememberUpdatedState(onSaveHuggingFaceApiKey)
+    val curOr by androidx.compose.runtime.rememberUpdatedState(orKey)
+    val curOrProp by androidx.compose.runtime.rememberUpdatedState(openRouterApiKey)
+    val saveOr by androidx.compose.runtime.rememberUpdatedState(onSaveOpenRouterApiKey)
+    val curAa by androidx.compose.runtime.rememberUpdatedState(aaKey)
+    val curAaProp by androidx.compose.runtime.rememberUpdatedState(artificialAnalysisApiKey)
+    val saveAa by androidx.compose.runtime.rememberUpdatedState(onSaveArtificialAnalysisApiKey)
+    val curLs by androidx.compose.runtime.rememberUpdatedState(lsKey)
+    val curLsProp by androidx.compose.runtime.rememberUpdatedState(llmStatsApiKey)
+    val saveLs by androidx.compose.runtime.rememberUpdatedState(onSaveLlmStatsApiKey)
     DisposableEffect(Unit) {
         onDispose {
-            if (hfKey != huggingFaceApiKey) onSaveHuggingFaceApiKey(hfKey)
-            if (orKey != openRouterApiKey) onSaveOpenRouterApiKey(orKey)
-            if (aaKey != artificialAnalysisApiKey) onSaveArtificialAnalysisApiKey(aaKey)
-            if (lsKey != llmStatsApiKey) onSaveLlmStatsApiKey(lsKey)
+            if (curHf != curHfProp) saveHf(curHf)
+            if (curOr != curOrProp) saveOr(curOr)
+            if (curAa != curAaProp) saveAa(curAa)
+            if (curLs != curLsProp) saveLs(curLs)
         }
     }
 
