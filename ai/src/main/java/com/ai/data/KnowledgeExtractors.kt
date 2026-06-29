@@ -393,6 +393,7 @@ internal object KnowledgeExtractors {
         val rowCells = mutableListOf<String>()
         val cellText = StringBuilder()
         var inP = false
+        var cellRepeat = 1
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
@@ -403,7 +404,20 @@ internal object KnowledgeExtractors {
                         sb.append("[sheet ").append(sheetIdx).append("]\n")
                     }
                     "table-row" -> rowCells.clear()
-                    "table-cell" -> cellText.clear()
+                    "table-cell" -> {
+                        cellText.clear()
+                        // A single physical cell can stand in for N columns via
+                        // table:number-columns-repeated; without expanding it,
+                        // repeated/empty runs collapse and everything after
+                        // shifts left. Namespace-agnostic local-name lookup.
+                        cellRepeat = 1
+                        for (i in 0 until parser.attributeCount) {
+                            if (parser.getAttributeName(i) == "number-columns-repeated") {
+                                cellRepeat = parser.getAttributeValue(i).toIntOrNull()?.coerceAtLeast(1) ?: 1
+                                break
+                            }
+                        }
+                    }
                     "p" -> inP = true
                 }
                 XmlPullParser.TEXT -> if (inP) cellText.append(parser.text)
@@ -415,8 +429,17 @@ internal object KnowledgeExtractors {
                         // on. Trim later when emitting the row.
                         if (cellText.isNotEmpty() && !cellText.endsWith(" ")) cellText.append(' ')
                     }
-                    "table-cell" -> rowCells += cellText.toString().trim()
+                    "table-cell" -> {
+                        val value = cellText.toString().trim()
+                        // Expand repeated cells; cap empty runs so a trailing
+                        // number-columns-repeated="1024" can't blow up the row.
+                        val count = if (value.isEmpty()) cellRepeat.coerceAtMost(64) else cellRepeat
+                        repeat(count) { rowCells += value }
+                    }
                     "table-row" -> {
+                        // Drop trailing blank padding (from repeated empties)
+                        // before emitting so rows don't end in long tab runs.
+                        while (rowCells.isNotEmpty() && rowCells.last().isBlank()) rowCells.removeAt(rowCells.lastIndex)
                         if (rowCells.any { it.isNotBlank() }) {
                             sb.append(rowCells.joinToString("\t")).append('\n')
                         }
