@@ -137,6 +137,7 @@ private data class ModelInfoData(
 
 // ===== Model Info Screen =====
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ModelInfoScreen(
     provider: AppService,
@@ -654,15 +655,20 @@ fun ModelInfoScreen(
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Actions", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // FlowRow + content-width buttons so every label
+                                // ("Create Agent" etc.) shows in full and wraps to
+                                // the next line if they don't all fit on one row.
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     OutlinedButton(
                                         onClick = { onStartChat(provider, modelName) },
-                                        modifier = Modifier.weight(1f),
                                         colors = AppColors.outlinedButtonColors()
                                     ) { Text("Start Chat", maxLines = 1, softWrap = false) }
                                     OutlinedButton(
                                         onClick = { showAgentEdit = true },
-                                        modifier = Modifier.weight(1f),
                                         colors = AppColors.outlinedButtonColors()
                                     ) { Text("Create Agent", maxLines = 1, softWrap = false) }
                                     if (isProviderActive) {
@@ -680,7 +686,6 @@ fun ModelInfoScreen(
                                                 }
                                             },
                                             enabled = !testRunning,
-                                            modifier = Modifier.weight(1f),
                                             colors = AppColors.outlinedButtonColors()
                                         ) { Text(if (testRunning) "Testing…" else "Test", maxLines = 1, softWrap = false) }
                                     }
@@ -788,231 +793,6 @@ fun ModelInfoScreen(
                         }
                     }
 
-                    // Catalog raw-data buttons — green when the source has an
-                    // entry for this (provider, model), red otherwise.
-                    // Tapping opens the pretty-printed JSON in a sub-screen
-                    // so the user can inspect the full record (capability
-                    // flags, context window, multi-modal pricing, etc.).
-                    item {
-                        val gson = remember { com.ai.data.createAppGson(prettyPrint = true) }
-                        val hasHF = info?.huggingFaceInfo != null
-                        val hasOR = info?.openRouterInfo != null
-                        val hasLiteLLM = liteLLMRaw != null
-                        val hasModelsDev = modelsDevRaw != null
-                        val hasHelicone = heliconeRaw != null
-                        val hasLLMPrices = llmPricesRaw != null
-                        val hasAa = aaRaw != null
-                        val hasRequesty = requestyRaw != null
-                        val hasLlmStats = llmStatsRaw != null
-                        val hasGenaiPrices = genaiPricesRaw != null
-                        val hasTrueFoundry = trueFoundryRaw != null
-                        val hasCloudPrice = cloudPriceRaw != null
-                        // Info providers the user switched off are hidden, not
-                        // shown as empty/red. (Their tier rows in Costs already
-                        // drop out because the gated finders return null.)
-                        val enHF = aiSettings.isInfoProviderEnabled("huggingface")
-                        val enOR = aiSettings.isInfoProviderEnabled("openrouter")
-                        val enLiteLLM = aiSettings.isInfoProviderEnabled("litellm")
-                        val enModelsDev = aiSettings.isInfoProviderEnabled("modelsdev")
-                        val enHelicone = aiSettings.isInfoProviderEnabled("helicone")
-                        val enLLMPrices = aiSettings.isInfoProviderEnabled("llmprices")
-                        val enAa = aiSettings.isInfoProviderEnabled("aa")
-                        val enRequesty = aiSettings.isInfoProviderEnabled("requesty")
-                        val enLlmStats = aiSettings.isInfoProviderEnabled("llmstats")
-                        val enGenaiPrices = aiSettings.isInfoProviderEnabled("genaiprices")
-                        val enTrueFoundry = aiSettings.isInfoProviderEnabled("truefoundry")
-                        val enCloudPrice = aiSettings.isInfoProviderEnabled("cloudprice")
-                        // Two rows of buttons in their own card — first the
-                        // four catalog sources, then the three additional
-                        // pricing tiers (Helicone / llm-prices.com / AA).
-                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Sources", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    if (enHF) Button(
-                                        onClick = {
-                                            val body = info?.huggingFaceInfo?.let { gson.toJson(it) } ?: "(no HuggingFace data)"
-                                            rawView = RawView(
-                                                title = "HuggingFace · $modelName", body = body,
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_huggingface"],
-                                                calledUrl = "https://huggingface.co/api/models/${hfMatchedId ?: modelName}"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("HuggingFace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    if (enOR) Button(
-                                        onClick = {
-                                            val body = info?.openRouterInfo?.let { gson.toJson(it) } ?: "(no OpenRouter data)"
-                                            rawView = RawView(
-                                                title = "OpenRouter · $modelName", body = body,
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_openrouter"],
-                                                calledUrl = "https://openrouter.ai/api/v1/models/$modelName/endpoints"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("OpenRouter", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    if (enLiteLLM) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "LiteLLM · $modelName", body = liteLLMRaw ?: "(no LiteLLM data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_litellm"],
-                                                calledUrl = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("LiteLLM", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    if (enModelsDev) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "models.dev · $modelName", body = modelsDevRaw ?: "(no models.dev data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_models_dev"],
-                                                calledUrl = "https://models.dev/api.json"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasModelsDev) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("models.dev", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    if (enHelicone) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "Helicone · $modelName", body = heliconeRaw ?: "(no Helicone data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_helicone"],
-                                                calledUrl = "https://www.helicone.ai/api/llm-costs"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasHelicone) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("Helicone", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    if (enLLMPrices) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "llm-prices.com · $modelName", body = llmPricesRaw ?: "(no llm-prices data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_llm_prices"],
-                                                calledUrl = "https://raw.githubusercontent.com/simonw/llm-prices/main/data/${provider.id.lowercase()}.json"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLLMPrices) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("llm-prices", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    if (enAa) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "Artificial Analysis · $modelName", body = aaRaw ?: "(no Artificial Analysis data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_artificial_analysis"],
-                                                calledUrl = "https://artificialanalysis.ai/api/v2/data/llms/models"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasAa) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("Artificial Analysis", fontSize = 10.sp, maxLines = 1, softWrap = false) }
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    if (enRequesty) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "Requesty · $modelName", body = requestyRaw ?: "(no Requesty data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_requesty"],
-                                                calledUrl = "https://router.requesty.ai/v1/models"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasRequesty) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("Requesty", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    if (enLlmStats) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "llm-stats · $modelName", body = llmStatsRaw ?: "(no llm-stats data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_llm_stats"],
-                                                calledUrl = "https://api.llm-stats.com/stats/v1/models"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLlmStats) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("llm-stats", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    if (enGenaiPrices) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "genai-prices · $modelName", body = genaiPricesRaw ?: "(no genai-prices data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_genai_prices"],
-                                                calledUrl = "https://raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasGenaiPrices) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("genai-prices", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    if (enTrueFoundry) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "TrueFoundry · $modelName", body = trueFoundryRaw ?: "(no TrueFoundry data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_truefoundry"],
-                                                calledUrl = "https://github.com/truefoundry/models"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasTrueFoundry) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("TrueFoundry", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    if (enCloudPrice) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "CloudPrice · $modelName", body = cloudPriceRaw ?: "(no CloudPrice data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_cloudprice"],
-                                                calledUrl = "https://ai.cloudprice.net/api/v1/models/$modelName"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasCloudPrice) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("CloudPrice", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                OutlinedButton(
-                                    onClick = {
-                                        // Concatenate every source's raw JSON into one
-                                        // pretty-printed dump — saves tapping seven
-                                        // buttons in turn when comparing entries.
-                                        val sections = listOfNotNull(
-                                            ("HuggingFace" to info?.huggingFaceInfo?.let { gson.toJson(it) }).takeIf { enHF },
-                                            ("OpenRouter" to info?.openRouterInfo?.let { gson.toJson(it) }).takeIf { enOR },
-                                            ("LiteLLM" to liteLLMRaw).takeIf { enLiteLLM },
-                                            ("models.dev" to modelsDevRaw).takeIf { enModelsDev },
-                                            ("Helicone" to heliconeRaw).takeIf { enHelicone },
-                                            ("llm-prices.com" to llmPricesRaw).takeIf { enLLMPrices },
-                                            ("Artificial Analysis" to aaRaw).takeIf { enAa },
-                                            ("Requesty" to requestyRaw).takeIf { enRequesty },
-                                            ("llm-stats" to llmStatsRaw).takeIf { enLlmStats },
-                                            ("genai-prices" to genaiPricesRaw).takeIf { enGenaiPrices },
-                                            ("TrueFoundry" to trueFoundryRaw).takeIf { enTrueFoundry },
-                                            ("CloudPrice" to cloudPriceRaw).takeIf { enCloudPrice }
-                                        )
-                                        val body = sections.joinToString("\n\n") { (label, raw) ->
-                                            "=== $label ===\n${raw ?: "(no $label data)"}"
-                                        }
-                                        rawView = RawView(title = "All sources · $modelName", body = body)
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = AppColors.outlinedButtonColors()
-                                ) { Text("Show all", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-                            }
-                        }
-                    }
 
                     // Per-tier price snapshot — LiteLLM / OpenRouter / Override
                     // shown as $/M-token rows when populated. Default tier is
@@ -1546,6 +1326,232 @@ fun ModelInfoScreen(
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // Catalog raw-data buttons — green when the source has an
+                    // entry for this (provider, model), red otherwise.
+                    // Tapping opens the pretty-printed JSON in a sub-screen
+                    // so the user can inspect the full record (capability
+                    // flags, context window, multi-modal pricing, etc.).
+                    item {
+                        val gson = remember { com.ai.data.createAppGson(prettyPrint = true) }
+                        val hasHF = info?.huggingFaceInfo != null
+                        val hasOR = info?.openRouterInfo != null
+                        val hasLiteLLM = liteLLMRaw != null
+                        val hasModelsDev = modelsDevRaw != null
+                        val hasHelicone = heliconeRaw != null
+                        val hasLLMPrices = llmPricesRaw != null
+                        val hasAa = aaRaw != null
+                        val hasRequesty = requestyRaw != null
+                        val hasLlmStats = llmStatsRaw != null
+                        val hasGenaiPrices = genaiPricesRaw != null
+                        val hasTrueFoundry = trueFoundryRaw != null
+                        val hasCloudPrice = cloudPriceRaw != null
+                        // Info providers the user switched off are hidden, not
+                        // shown as empty/red. (Their tier rows in Costs already
+                        // drop out because the gated finders return null.)
+                        val enHF = aiSettings.isInfoProviderEnabled("huggingface")
+                        val enOR = aiSettings.isInfoProviderEnabled("openrouter")
+                        val enLiteLLM = aiSettings.isInfoProviderEnabled("litellm")
+                        val enModelsDev = aiSettings.isInfoProviderEnabled("modelsdev")
+                        val enHelicone = aiSettings.isInfoProviderEnabled("helicone")
+                        val enLLMPrices = aiSettings.isInfoProviderEnabled("llmprices")
+                        val enAa = aiSettings.isInfoProviderEnabled("aa")
+                        val enRequesty = aiSettings.isInfoProviderEnabled("requesty")
+                        val enLlmStats = aiSettings.isInfoProviderEnabled("llmstats")
+                        val enGenaiPrices = aiSettings.isInfoProviderEnabled("genaiprices")
+                        val enTrueFoundry = aiSettings.isInfoProviderEnabled("truefoundry")
+                        val enCloudPrice = aiSettings.isInfoProviderEnabled("cloudprice")
+                        // Two rows of buttons in their own card — first the
+                        // four catalog sources, then the three additional
+                        // pricing tiers (Helicone / llm-prices.com / AA).
+                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Sources", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (enHF) Button(
+                                        onClick = {
+                                            val body = info?.huggingFaceInfo?.let { gson.toJson(it) } ?: "(no HuggingFace data)"
+                                            rawView = RawView(
+                                                title = "HuggingFace · $modelName", body = body,
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_huggingface"],
+                                                calledUrl = "https://huggingface.co/api/models/${hfMatchedId ?: modelName}"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("HuggingFace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enOR) Button(
+                                        onClick = {
+                                            val body = info?.openRouterInfo?.let { gson.toJson(it) } ?: "(no OpenRouter data)"
+                                            rawView = RawView(
+                                                title = "OpenRouter · $modelName", body = body,
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_openrouter"],
+                                                calledUrl = "https://openrouter.ai/api/v1/models/$modelName/endpoints"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("OpenRouter", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enLiteLLM) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "LiteLLM · $modelName", body = liteLLMRaw ?: "(no LiteLLM data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_litellm"],
+                                                calledUrl = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("LiteLLM", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enModelsDev) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "models.dev · $modelName", body = modelsDevRaw ?: "(no models.dev data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_models_dev"],
+                                                calledUrl = "https://models.dev/api.json"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasModelsDev) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("models.dev", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (enHelicone) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "Helicone · $modelName", body = heliconeRaw ?: "(no Helicone data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_helicone"],
+                                                calledUrl = "https://www.helicone.ai/api/llm-costs"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasHelicone) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("Helicone", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enLLMPrices) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "llm-prices.com · $modelName", body = llmPricesRaw ?: "(no llm-prices data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_llm_prices"],
+                                                calledUrl = "https://raw.githubusercontent.com/simonw/llm-prices/main/data/${provider.id.lowercase()}.json"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLLMPrices) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("llm-prices", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enAa) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "Artificial Analysis · $modelName", body = aaRaw ?: "(no Artificial Analysis data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_artificial_analysis"],
+                                                calledUrl = "https://artificialanalysis.ai/api/v2/data/llms/models"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasAa) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("Artificial Analysis", fontSize = 10.sp, maxLines = 1, softWrap = false) }
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (enRequesty) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "Requesty · $modelName", body = requestyRaw ?: "(no Requesty data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_requesty"],
+                                                calledUrl = "https://router.requesty.ai/v1/models"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasRequesty) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("Requesty", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enLlmStats) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "llm-stats · $modelName", body = llmStatsRaw ?: "(no llm-stats data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_llm_stats"],
+                                                calledUrl = "https://api.llm-stats.com/stats/v1/models"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLlmStats) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("llm-stats", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (enGenaiPrices) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "genai-prices · $modelName", body = genaiPricesRaw ?: "(no genai-prices data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_genai_prices"],
+                                                calledUrl = "https://raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasGenaiPrices) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("genai-prices", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enTrueFoundry) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "TrueFoundry · $modelName", body = trueFoundryRaw ?: "(no TrueFoundry data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_truefoundry"],
+                                                calledUrl = "https://github.com/truefoundry/models"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasTrueFoundry) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("TrueFoundry", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                    if (enCloudPrice) Button(
+                                        onClick = {
+                                            rawView = RawView(
+                                                title = "CloudPrice · $modelName", body = cloudPriceRaw ?: "(no CloudPrice data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_cloudprice"],
+                                                calledUrl = "https://ai.cloudprice.net/api/v1/models/$modelName"
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasCloudPrice) AppColors.SuccessAccent else AppColors.DangerAccent),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                    ) { Text("CloudPrice", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        // Concatenate every source's raw JSON into one
+                                        // pretty-printed dump — saves tapping seven
+                                        // buttons in turn when comparing entries.
+                                        val sections = listOfNotNull(
+                                            ("HuggingFace" to info?.huggingFaceInfo?.let { gson.toJson(it) }).takeIf { enHF },
+                                            ("OpenRouter" to info?.openRouterInfo?.let { gson.toJson(it) }).takeIf { enOR },
+                                            ("LiteLLM" to liteLLMRaw).takeIf { enLiteLLM },
+                                            ("models.dev" to modelsDevRaw).takeIf { enModelsDev },
+                                            ("Helicone" to heliconeRaw).takeIf { enHelicone },
+                                            ("llm-prices.com" to llmPricesRaw).takeIf { enLLMPrices },
+                                            ("Artificial Analysis" to aaRaw).takeIf { enAa },
+                                            ("Requesty" to requestyRaw).takeIf { enRequesty },
+                                            ("llm-stats" to llmStatsRaw).takeIf { enLlmStats },
+                                            ("genai-prices" to genaiPricesRaw).takeIf { enGenaiPrices },
+                                            ("TrueFoundry" to trueFoundryRaw).takeIf { enTrueFoundry },
+                                            ("CloudPrice" to cloudPriceRaw).takeIf { enCloudPrice }
+                                        )
+                                        val body = sections.joinToString("\n\n") { (label, raw) ->
+                                            "=== $label ===\n${raw ?: "(no $label data)"}"
+                                        }
+                                        rawView = RawView(title = "All sources · $modelName", body = body)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = AppColors.outlinedButtonColors()
+                                ) { Text("Show all", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
                     }
