@@ -106,11 +106,17 @@ fun BackupRestoreScreen(
                                     restartMessage = "Restored ${s.prefsFiles} prefs + ${s.dataFiles} files"
                                 },
                                 onFailure = {
-                                    Toast.makeText(
-                                        context,
-                                        "Restore failed: ${it.javaClass.simpleName}: ${it.message} — existing data left unchanged.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
+                                    // Only reassure "data left unchanged" for a
+                                    // pre-wipe failure. RestoreAfterWipeException
+                                    // means the destructive wipe already ran, so
+                                    // the data is gone/incomplete — tell the user
+                                    // to re-run instead of falsely reassuring.
+                                    val msg = if (it is com.ai.data.RestoreAfterWipeException) {
+                                        "Restore failed after the data wipe — your data may be incomplete. Re-run restore from the same backup file."
+                                    } else {
+                                        "Restore failed: ${it.javaClass.simpleName}: ${it.message} — existing data left unchanged."
+                                    }
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                                 }
                             )
                         }

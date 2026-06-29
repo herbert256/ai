@@ -57,6 +57,14 @@ import java.util.zip.ZipOutputStream
  * the next launch reads everything from disk fresh. We don't try to
  * live-reload here.
  */
+
+/** Thrown when a restore fails AFTER the destructive filesDir/cacheDir wipe
+ *  has begun. Lets the UI avoid telling the user their data is intact when it
+ *  has in fact been destroyed/half-restored. Pre-wipe failures (bad manifest,
+ *  validation, cap, zero data files) propagate as their original exception. */
+class RestoreAfterWipeException(cause: Throwable) : Exception(
+    "Restore failed after the data wipe: ${cause.message}", cause)
+
 object BackupManager {
 
     private const val MANIFEST_VERSION = 1
@@ -264,18 +272,28 @@ object BackupManager {
             // half-restored state pointing at nothing.
             val prefsRestored = applyPrefsOnly(context, staged)
             AppLog.d("Backup", "prefs applied: $prefsRestored file(s)")
-            clearFilesDirForRestore(context.filesDir)
-            AppLog.d("Backup", "filesDir wiped (except excludes)")
-            // Wipe cacheDir too, but preserve the temp zip we're
-            // currently restoring from — deleting it mid-restore would
-            // be safe (we've already read its bytes into [staged]) but
-            // preserving it keeps the finally below well-defined.
-            clearCacheDirForRestore(context.cacheDir, preserve = setOf(tempZip.name))
-            AppLog.d("Backup", "cacheDir wiped (preserving ${tempZip.name})")
-            val filesRestored = applyFilesOnly(context, staged)
-            AppLog.d("Backup", "files applied: $filesRestored entries")
-            AppLog.i("Backup", "← restore done in ${System.currentTimeMillis() - t0}ms (prefs=$prefsRestored files=$filesRestored)")
-            RestoreSummary(version = version, prefsFiles = prefsRestored, dataFiles = filesRestored)
+            // Everything from here is post-wipe and destructive: any failure
+            // means data is gone / half-restored, so re-throw as
+            // RestoreAfterWipeException and let the UI drop the "data left
+            // unchanged" reassurance. Staging + the zero-files floor above
+            // already caught the recoverable cases before this point.
+            try {
+                clearFilesDirForRestore(context.filesDir)
+                AppLog.d("Backup", "filesDir wiped (except excludes)")
+                // Wipe cacheDir too, but preserve the temp zip we're
+                // currently restoring from — deleting it mid-restore would
+                // be safe (we've already read its bytes into [staged]) but
+                // preserving it keeps the finally below well-defined.
+                clearCacheDirForRestore(context.cacheDir, preserve = setOf(tempZip.name))
+                AppLog.d("Backup", "cacheDir wiped (preserving ${tempZip.name})")
+                val filesRestored = applyFilesOnly(context, staged)
+                AppLog.d("Backup", "files applied: $filesRestored entries")
+                AppLog.i("Backup", "← restore done in ${System.currentTimeMillis() - t0}ms (prefs=$prefsRestored files=$filesRestored)")
+                RestoreSummary(version = version, prefsFiles = prefsRestored, dataFiles = filesRestored)
+            } catch (e: Throwable) {
+                AppLog.e("Backup", "Restore failed AFTER wipe: ${e.message}")
+                throw RestoreAfterWipeException(e)
+            }
         } finally {
             tempZip.delete()
         }
