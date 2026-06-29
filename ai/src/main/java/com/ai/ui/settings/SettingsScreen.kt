@@ -59,6 +59,7 @@ enum class SettingsSubScreen {
     AI_BLOCKED_MODELS,
     AI_TEST_EXCLUDED_MODELS,
     AI_INACCESSIBLE_MODELS,
+    AI_MODEL_STATISTICS,
     AI_IMPORT_EXPORT,
     AI_REFRESH,
     // Four preference buckets carved out of the main Settings screen
@@ -244,7 +245,8 @@ fun SettingsScreen(
             }
             SettingsSubScreen.AI_MODELS, SettingsSubScreen.AI_MODEL_TYPES,
             SettingsSubScreen.AI_MANUAL_MODEL_TYPES,
-            SettingsSubScreen.AI_MODELS_SEARCH -> currentSubScreen = SettingsSubScreen.AI_MODELS_SETUP
+            SettingsSubScreen.AI_MODELS_SEARCH,
+            SettingsSubScreen.AI_MODEL_STATISTICS -> currentSubScreen = SettingsSubScreen.AI_MODELS_SETUP
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
@@ -560,6 +562,12 @@ fun SettingsScreen(
                 aiSettings = aiSettings, onSave = onSaveAi,
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onHousekeeping = hkTest
+            )
+        }
+        SettingsSubScreen.AI_MODEL_STATISTICS -> {
+            com.ai.ui.models.ModelStatisticsScreen(
+                aiSettings = aiSettings,
+                onBack = goBack
             )
         }
         SettingsSubScreen.AI_AGENTS -> {

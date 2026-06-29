@@ -1,6 +1,18 @@
 package com.ai.ui.admin
 
 internal val modelsHelp: Map<String, HelpContent> = mapOf(
+    "model_statistics" to HelpContent(
+        title = "Help - Model statistics",
+        cards = listOf(
+            HelpCard("Overview", "AI Setup → Models → Model statistics. A read-only table that collapses every model across all active providers down to its base name, so you can see at a glance which models are widely available and how many versions of each exist."),
+            HelpCard("Model column", "The base model name — the model id with its provider/namespace prefix and its version information stripped. So z-ai/glm-5.2, z-ai/glm-5.1 and the bare glm-5.1 all fold to glm."),
+            HelpCard("Versions column", "How many distinct versions of that base model exist across the catalog. The namespace prefix is ignored first, so z-ai/glm-5.1 and glm-5.1 count as one version; glm-5.2 + glm-5.1 → 2."),
+            HelpCard("Providers column", "How many distinct active providers carry any version of that base model. OpenRouter + AtlasCloud + Z-AI all offering some glm → 3."),
+            HelpCard("How the base name is found", "The namespace before the last / is dropped, then the name is cut at the first separator (- _ : or space) followed by an optional v and a digit: glm-5.2 → glm, claude-haiku-4-5 → claude-haiku, deepseek-v4 → deepseek. A dot is not a separator so 5.2 stays one version. Model naming has no standard, so the split is a best-effort heuristic."),
+            HelpCard("Sorting", "Most provider coverage first, then most versions, then name. The base name is lower-cased so casing differences fold together."),
+            HelpCard("Source", "Counts come from each active provider's current model list (the same list the model pickers use). A provider you haven't refreshed yet contributes only its default model — refresh it from its per-provider settings to fill in the catalog."),
+        )
+    ),
     "models_per_provider" to HelpContent(
         title = "Help - Provider — Models",
         cards = listOf(

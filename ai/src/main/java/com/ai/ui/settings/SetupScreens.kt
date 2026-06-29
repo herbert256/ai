@@ -168,6 +168,12 @@ fun ModelsSetupScreen(
         value = withContext(Dispatchers.IO) { com.ai.data.local.LocalLlm.availableLlms(context).size }
     }
     val cooldownCount by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+    // Distinct base-model count for the Model-statistics card — computed
+    // off-main (the grouping walks every active provider's model list) so
+    // the hub doesn't stutter on resume.
+    val baseModelCount by produceState(0, refreshTick, aiSettings) {
+        value = withContext(Dispatchers.IO) { com.ai.ui.models.computeModelStatistics(aiSettings).size }
+    }
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -194,6 +200,8 @@ fun ModelsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_TEST_EXCLUDED_MODELS) })
             ModelsSetupNavCard(MetadataDefaults.STATUS_LOCKED, "Inaccessible models", "Not reachable on this account — dimmed in every model picker", "${aiSettings.inaccessibleModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_INACCESSIBLE_MODELS) })
+            ModelsSetupNavCard(MetadataDefaults.CHART, "Model statistics", "Base models grouped by name — version count and provider coverage", "$baseModelCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_MODEL_STATISTICS) }, enabled = hasActiveProvider)
         }
     }
 }
