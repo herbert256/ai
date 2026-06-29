@@ -981,14 +981,19 @@ internal suspend fun AnalysisRepository.analyzeAgentStreaming(
     onDelta: (String) -> Unit
 ): AnalysisResponse = withContext(Dispatchers.IO) {
     auditApiCall(service, model, baseUrl) {
+        // No withApiCallTimeout here: the full SSE body is drained inside
+        // these stream*Report calls (collectStreamResponse), and wrapping
+        // that drain in the streaming-OPEN coroutine deadline (~300s) clips
+        // a healthy long report mid-stream and discards the accumulated
+        // text. The body is already bounded by OkHttp's 900s callTimeout
+        // plus the per-chunk streaming read timeout — exactly as the chat
+        // streaming path (sendChatStream) relies on.
         withHostGate(baseUrl) {
-            withApiCallTimeout(streamingOpen = true) {
-                when (service.apiFormat) {
-                    ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
-                    ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
-                    ApiFormat.REPLICATE -> streamReplicateReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
-                    ApiFormat.OPENAI_COMPATIBLE -> streamOpenAiReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
-                }
+            when (service.apiFormat) {
+                ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
+                ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
+                ApiFormat.REPLICATE -> streamReplicateReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
+                ApiFormat.OPENAI_COMPATIBLE -> streamOpenAiReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
             }
         }
     }
