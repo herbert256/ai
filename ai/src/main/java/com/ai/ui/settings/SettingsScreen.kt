@@ -483,7 +483,15 @@ fun SettingsScreen(
                     },
                     onNavigateToTrace = onNavigateToTrace
                 )
-            } ?: goBack()
+            } ?: run {
+                // Provider id no longer resolves (removed/renamed, or a
+                // cold-launch race before registry bootstrap). Navigate away
+                // once via LaunchedEffect rather than mutating currentSubScreen
+                // during the composition pass — calling goBack() inline writes
+                // snapshot state mid-compose and re-fires every frame until the
+                // id resolves. Mirrors the AI_PROVIDER_EDIT branch.
+                androidx.compose.runtime.LaunchedEffect(selectedProviderId) { goBack() }
+            }
         }
         SettingsSubScreen.AI_MODELS_SETUP -> {
             ModelsSetupScreen(
