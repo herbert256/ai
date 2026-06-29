@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -194,6 +197,9 @@ private fun plural(n: Int, noun: String) = "$n $noun${if (n == 1) "" else "s"}"
 /** A drill-down frame. The stack only ever grows by one (column tap or a
  *  deeper row tap) and shrinks by one (back), so the back-stack layers
  *  rather than replaces. */
+/** Sortable column of the stats table. */
+private enum class StatSort { MODEL, VERSIONS, PROVIDERS }
+
 private sealed interface Drill {
     val group: ModelStatGroup
     data class Models(override val group: ModelStatGroup) : Drill
@@ -215,6 +221,9 @@ fun ModelStatisticsScreen(
         value = withContext(Dispatchers.IO) { computeModelStatistics(aiSettings) }
     }
     var drill by remember { mutableStateOf<List<Drill>>(emptyList()) }
+    var query by remember { mutableStateOf("") }
+    var sortCol by remember { mutableStateOf(StatSort.VERSIONS) }   // start: Versions ↓
+    var sortDesc by remember { mutableStateOf(true) }
     if (drill.isNotEmpty()) {
         ModelStatDrill(
             frame = drill.last(),
@@ -234,6 +243,11 @@ fun ModelStatisticsScreen(
             subject = "Base models, versions and provider coverage",
             onBackClick = onBack
         )
+        // Jump back to the top whenever the sort or the search changes, so the
+        // new #1 row is actually visible (a keyed LazyColumn would otherwise
+        // keep the previously-shown row pinned in place).
+        val listState = rememberLazyListState()
+        LaunchedEffect(sortCol, sortDesc, query) { runCatching { listState.scrollToItem(0) } }
         val list = stats
         if (list == null) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -241,8 +255,38 @@ fun ModelStatisticsScreen(
             }
             return@Column
         }
+        val verW = 92.dp
+        val provW = 100.dp
+        // Filter (base name or any member model id) then sort by the active column.
+        val shown = run {
+            val q = query.trim().lowercase()
+            val filtered = if (q.isEmpty()) list else list.filter { g ->
+                g.baseName.contains(q) || g.entries.any { it.second.lowercase().contains(q) }
+            }
+            when (sortCol) {
+                StatSort.MODEL -> filtered.sortedBy { it.baseName }.let { if (sortDesc) it.reversed() else it }
+                StatSort.VERSIONS -> filtered.sortedWith(
+                    (if (sortDesc) compareByDescending<ModelStatGroup> { it.versionCount }
+                    else compareBy<ModelStatGroup> { it.versionCount }).thenBy { it.baseName })
+                StatSort.PROVIDERS -> filtered.sortedWith(
+                    (if (sortDesc) compareByDescending<ModelStatGroup> { it.providerCount }
+                    else compareBy<ModelStatGroup> { it.providerCount }).thenBy { it.baseName })
+            }
+        }
+        fun setSort(col: StatSort) {
+            if (sortCol == col) sortDesc = !sortDesc else { sortCol = col; sortDesc = col != StatSort.MODEL }
+        }
+        fun arrow(col: StatSort) = if (sortCol == col) (if (sortDesc) " ↓" else " ↑") else ""
+
+        OutlinedTextField(
+            value = query, onValueChange = { query = it },
+            label = { Text("Search models") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+        )
         Text(
-            "${plural(list.size, "base model")} across all active providers · tap a column to drill in",
+            (if (query.isBlank()) plural(list.size, "base model")
+            else "${shown.size} of ${list.size} base models") +
+                " · tap a header to sort, a cell to drill in",
             fontSize = 11.sp, color = AppColors.TextTertiary,
             modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
         )
@@ -250,12 +294,18 @@ fun ModelStatisticsScreen(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Model", modifier = Modifier.weight(1f), fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold, color = AppColors.TextSecondary)
-            Text("Versions", modifier = Modifier.width(78.dp), textAlign = TextAlign.End,
-                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextSecondary)
-            Text("Providers", modifier = Modifier.width(88.dp), textAlign = TextAlign.End,
-                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextSecondary)
+            Text("Model" + arrow(StatSort.MODEL),
+                modifier = Modifier.weight(1f).clickable { setSort(StatSort.MODEL) },
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = if (sortCol == StatSort.MODEL) AppColors.InfoAccent else AppColors.TextSecondary)
+            Text("Versions" + arrow(StatSort.VERSIONS),
+                modifier = Modifier.width(verW).clickable { setSort(StatSort.VERSIONS) },
+                textAlign = TextAlign.End, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = if (sortCol == StatSort.VERSIONS) AppColors.InfoAccent else AppColors.TextSecondary)
+            Text("Providers" + arrow(StatSort.PROVIDERS),
+                modifier = Modifier.width(provW).clickable { setSort(StatSort.PROVIDERS) },
+                textAlign = TextAlign.End, maxLines = 1, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = if (sortCol == StatSort.PROVIDERS) AppColors.InfoAccent else AppColors.TextSecondary)
         }
         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         if (list.isEmpty()) {
@@ -265,11 +315,18 @@ fun ModelStatisticsScreen(
             }
             return@Column
         }
+        if (shown.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("No base models match \"$query\".", fontSize = 13.sp, color = AppColors.TextTertiary)
+            }
+            return@Column
+        }
         LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            items(list, key = { it.baseName }) { g ->
+            items(shown, key = { it.baseName }) { g ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -280,11 +337,11 @@ fun ModelStatisticsScreen(
                         fontSize = 14.sp, color = AppColors.TextPrimary,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${g.versionCount}",
-                        modifier = Modifier.width(78.dp).clickable { drill = listOf(Drill.Versions(g)) },
+                        modifier = Modifier.width(verW).clickable { drill = listOf(Drill.Versions(g)) },
                         textAlign = TextAlign.End, fontSize = 14.sp,
                         fontFamily = FontFamily.Monospace, color = AppColors.InfoAccent)
                     Text("${g.providerCount}",
-                        modifier = Modifier.width(88.dp).clickable { drill = listOf(Drill.Providers(g)) },
+                        modifier = Modifier.width(provW).clickable { drill = listOf(Drill.Providers(g)) },
                         textAlign = TextAlign.End, fontSize = 14.sp,
                         fontFamily = FontFamily.Monospace, color = AppColors.InfoAccent)
                 }
