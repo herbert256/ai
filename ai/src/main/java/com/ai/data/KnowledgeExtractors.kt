@@ -640,12 +640,15 @@ internal object KnowledgeChunker {
                 while (cursor < p.length) {
                     val end = (cursor + maxCharsPerChunk).coerceAtMost(p.length)
                     val piece = p.substring(cursor, end)
-                    if (carry.isNotEmpty()) {
-                        out.add("$carry\n\n$piece".trim())
-                    } else {
-                        out.add(piece.trim())
+                    // Guard empties like flush() does: a whitespace-only slice
+                    // would otherwise become a blank chunk → HTTP 400 from a
+                    // remote /v1/embeddings call → the whole document fails to
+                    // index. Only carry non-blank content forward.
+                    val emitted = (if (carry.isNotEmpty()) "$carry\n\n$piece" else piece).trim()
+                    if (emitted.isNotEmpty()) {
+                        out.add(emitted)
+                        carry = emitted.takeLast(overlapChars)
                     }
-                    carry = piece.takeLast(overlapChars)
                     cursor = end
                 }
                 continue
