@@ -81,8 +81,16 @@ private val VARIANT_TOKENS = setOf(
  *  zai.glm / zai-glm → glm; tiny-aya-earth → aya), while autoglm-phone is
  *  left alone (its segment is `autoglm`, not `glm`). Plain editable lists —
  *  add entries to condense further. */
-private val PREFIX_RULES = listOf("wan", "command", "flux", "gemini", "claude", "gpt", "grok", "sonar", "qwen", "glm")
+private val PREFIX_RULES = listOf("wan", "command", "flux", "gemini", "claude", "gpt", "grok", "sonar", "qwen", "glm",
+    "voyage", "whisper", "veo", "titan", "rerank")
 private val SEGMENT_RULES = listOf("glm", "aya", "nemotron")
+
+/** Dash-joined routing prefixes that are never themselves a model family —
+ *  strip the prefix and group by what follows (parasail-qwen → qwen,
+ *  parasail-gpt-oss → gpt). Distinct from [VENDOR_NAMESPACES] (dot-joined);
+ *  only add a token here when nothing is ever literally named that, so it
+ *  can't swallow a real model (e.g. mistral-small must NOT be in here). */
+private val DASH_NAMESPACES = setOf("parasail")
 
 /** Bedrock-style "vendor.model" namespaces: a dot-joined creator prefix
  *  (mistral.ministral, nvidia.nemotron, openai.gpt-oss, amazon.nova,
@@ -154,6 +162,13 @@ internal fun canonicalModelName(modelId: String): String {
             val restFirst = rest.split('-', '_', ':', ' ').firstOrNull().orEmpty()
             id = if (isVersionOrVariantToken(restFirst)) vendor else rest
         }
+    }
+    // Strip a dash-joined routing prefix (parasail-qwen → qwen).
+    val dash = id.indexOf('-')
+    if (dash > 0) {
+        val ns = id.substring(0, dash)
+        val rest = id.substring(dash + 1)
+        if (ns in DASH_NAMESPACES && rest.isNotEmpty()) id = rest
     }
     return canonicalBaseName(baseModelName(id))
 }
