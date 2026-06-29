@@ -277,9 +277,32 @@ internal object KnowledgeExtractors {
         return out
     }
 
+    /** Decode the column part of an A1-style cell reference (e.g. "B" from
+     *  "B3", "AA" from "AA10") to a 0-based column index; null when the ref
+     *  is absent or unparseable, in which case the caller appends
+     *  sequentially. */
+    private fun xlsxColumnIndex(ref: String?): Int? {
+        if (ref.isNullOrEmpty()) return null
+        var idx = 0
+        var seen = false
+        for (ch in ref) {
+            val v = when (ch) {
+                in 'A'..'Z' -> ch - 'A'
+                in 'a'..'z' -> ch - 'a'
+                else -> break // reached the row-number digits
+            }
+            idx = idx * 26 + (v + 1)
+            seen = true
+        }
+        return if (seen) idx - 1 else null
+    }
+
     /** Walk a single sheet, emit one tab-separated row per <row>.
      *  Cell types: t="s" → resolve via [sharedStrings]; t="inlineStr"
-     *  → text under <is><t>; everything else → text of <v> as-is. */
+     *  → text under <is><t>; everything else → text of <v> as-is.
+     *  Sparse sheets omit empty <c> elements, so we honor each cell's `r`
+     *  reference and pad missing columns — otherwise every value after a
+     *  gap shifts left and mis-aligns against the header row. */
     private fun parseXlsxSheet(stream: InputStream, sharedStrings: List<String>): String {
         val factory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }
         val parser = factory.newPullParser()
@@ -289,6 +312,7 @@ internal object KnowledgeExtractors {
         var inV = false
         var inInlineT = false
         var cellType: String? = null
+        var cellCol: Int? = null
         val cellText = StringBuilder()
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
@@ -297,6 +321,7 @@ internal object KnowledgeExtractors {
                     "row" -> rowCells.clear()
                     "c" -> {
                         cellType = parser.getAttributeValue(null, "t")
+                        cellCol = xlsxColumnIndex(parser.getAttributeValue(null, "r"))
                         cellText.clear()
                     }
                     "v" -> inV = true
@@ -313,6 +338,10 @@ internal object KnowledgeExtractors {
                         val resolved = if (cellType == "s") {
                             raw.toIntOrNull()?.let { sharedStrings.getOrNull(it) } ?: ""
                         } else raw
+                        // Pad up to the cell's declared column so a sparse
+                        // sheet keeps its columns aligned; null ref → append.
+                        val col = cellCol
+                        if (col != null) { while (rowCells.size < col) rowCells += "" }
                         rowCells += resolved
                     }
                     "row" -> {
