@@ -81,12 +81,26 @@ private val VARIANT_TOKENS = setOf(
  *  zai.glm / zai-glm → glm; tiny-aya-earth → aya), while autoglm-phone is
  *  left alone (its segment is `autoglm`, not `glm`). Plain editable lists —
  *  add entries to condense further. */
-private val PREFIX_RULES = listOf("wan", "command", "flux", "gemini", "claude", "gpt", "grok", "sonar")
-private val SEGMENT_RULES = listOf("glm", "aya")
+private val PREFIX_RULES = listOf("wan", "command", "flux", "gemini", "claude", "gpt", "grok", "sonar", "qwen", "glm")
+private val SEGMENT_RULES = listOf("glm", "aya", "nemotron")
+
+/** Bedrock-style "vendor.model" namespaces: a dot-joined creator prefix
+ *  (mistral.ministral, nvidia.nemotron, openai.gpt-oss, amazon.nova,
+ *  qwen.qwen3, zai.glm, …). Stripped so the model — not the routing vendor —
+ *  drives the grouping. Only these known creators and only the dot form, so
+ *  a model whose name itself carries a dot (flux.1) is left untouched. */
+private val VENDOR_NAMESPACES = setOf(
+    "amazon", "anthropic", "mistral", "meta", "cohere", "ai21", "stability", "deepseek",
+    "qwen", "minimax", "nvidia", "openai", "writer", "zai", "twelvelabs", "luma",
+    "bytedance", "moonshotai", "alibaba", "microsoft", "ibm", "google", "perplexity",
+    "xai", "baidu", "tencent", "nous", "allenai", "upstage"
+)
 
 private fun canonicalBaseName(base: String): String {
     for (p in PREFIX_RULES)
         if (base == p || (base.length > p.length && base.startsWith(p) && !base[p.length].isLetter())) return p
+    // OpenAI reasoning line o1 / o3 / o4 (incl. o3-mini, o4-mini@region) → one row.
+    if (base.length >= 2 && base[0] == 'o' && base[1].isDigit()) return "o-series"
     val segs = base.split('-', '.', '_')
     for (s in SEGMENT_RULES) if (s in segs) return s
     return base
@@ -126,8 +140,23 @@ internal fun baseModelName(modelId: String): String {
 }
 
 /** Generic base name + the hard-coded family collapses. This is the key
- *  every (provider, model) pair is grouped under on the screen. */
-internal fun canonicalModelName(modelId: String): String = canonicalBaseName(baseModelName(modelId))
+ *  every (provider, model) pair is grouped under on the screen. First strips
+ *  a Bedrock-style "vendor." prefix: if what follows starts with a
+ *  version-like token the vendor IS the family (deepseek.r1 → deepseek),
+ *  otherwise the model name follows it (mistral.ministral → ministral). */
+internal fun canonicalModelName(modelId: String): String {
+    var id = modelId.substringAfterLast('/').lowercase().trim()
+    val dot = id.indexOf('.')
+    if (dot > 0) {
+        val vendor = id.substring(0, dot)
+        val rest = id.substring(dot + 1)
+        if (vendor in VENDOR_NAMESPACES && rest.isNotEmpty()) {
+            val restFirst = rest.split('-', '_', ':', ' ').firstOrNull().orEmpty()
+            id = if (isVersionOrVariantToken(restFirst)) vendor else rest
+        }
+    }
+    return canonicalBaseName(baseModelName(id))
+}
 
 /** Aggregate every (provider, model) pair across all active providers into
  *  per-canonical-base groups, retaining the underlying pairs so the
