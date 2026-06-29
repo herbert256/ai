@@ -36,30 +36,61 @@ import kotlinx.coroutines.withContext
  *  versions exist for it and how many distinct providers carry it. */
 data class ModelStat(val baseName: String, val versions: Int, val providers: Int)
 
-/** Strip a model id down to its base name — the part that identifies
- *  the *model*, with the provider/org namespace and the version
- *  information removed. Used to group "the same model, different
- *  version / different provider" together on the Model statistics
+/** Word-shaped tokens that, when they appear as a `-`/`_`/`:`/space
+ *  segment, mark the start of size / variant / qualifier information
+ *  rather than the model name — everything from there on is dropped when
+ *  computing the base name. Numeric size + precision tags (70b, a3b,
+ *  fp8, int4) and dates all carry a digit and are caught separately, so
+ *  this set only needs the word-shaped variants. Extend freely. */
+private val VARIANT_TOKENS = setOf(
+    "instruct", "instruction", "chat", "it", "hf", "base", "turbo",
+    "mini", "nano", "micro", "small", "medium", "large", "xl", "xxl",
+    "pro", "plus", "air", "flash", "lite", "thinking", "reasoning",
+    "reasoner", "preview", "exp", "experimental", "beta", "latest",
+    "coder", "code", "vl", "vlm", "vision", "next", "max", "ultra",
+    "fast", "distill", "moe", "online", "tools", "tee", "awq", "gptq",
+    "gguf", "bnb"
+)
+
+/** A token starts version / size / variant info when it carries a digit
+ *  (5.2, k2.6, 70b, v4, r1, 2024, 4o, a3b, fp8) or is a known variant
+ *  word ([VARIANT_TOKENS]). */
+private fun isVersionOrVariantToken(token: String): Boolean =
+    token.any(Char::isDigit) || token in VARIANT_TOKENS
+
+/** Strip a model id down to its base name — the part that identifies the
+ *  *model*, with the provider/org namespace, the version, and any size /
+ *  variant qualifiers removed. Groups "the same model — different
+ *  version / size / variant / provider" together on the Model statistics
  *  screen.
  *
  *  Steps:
  *   1. Drop the namespace prefix — everything up to and including the
- *      last `/` (so `z-ai/glm-5.2` → `glm-5.2`,
+ *      last `/` — then lower-case (`z-ai/glm-5.2` → `glm-5.2`,
  *      `accounts/fireworks/models/deepseek-v4` → `deepseek-v4`).
- *   2. Cut at the first version marker — a separator (`-` `_` `:` or
- *      whitespace) followed by an optional `v`/`V` and a digit. So
- *      `glm-5.2` → `glm`, `claude-haiku-4-5` → `claude-haiku`,
- *      `deepseek-v4` → `deepseek`, `o1-2024-12-17` → `o1`.
- *   3. Lower-case so casing differences fold together.
+ *   2. Split on `-` `_` `:` and whitespace (a `.` is NOT a separator, so
+ *      a version like `5.2` / `k2.6` stays one token).
+ *   3. Always keep the first token as the name root (it may itself carry
+ *      an attached version such as `qwen3` / `phi3` — left intact), then
+ *      append the following tokens until the first version-or-variant
+ *      token, stopping there.
  *
- *  Imperfect by nature (model naming has no standard), but it matches
- *  the common `name-version` shape; a `.` is intentionally NOT a
- *  separator so `5.2` stays one version token. */
+ *  Examples: `glm-5.2` → `glm`, `kimi-k2.7-code` → `kimi`,
+ *  `qwen3-coder` → `qwen3`, `deepseek-r1` → `deepseek`,
+ *  `llama-3.3-70b-instruct` → `llama`, `gpt-oss-120b` → `gpt-oss`,
+ *  `command-r` → `command-r`. Heuristic by nature — model naming has no
+ *  standard; tune [VARIANT_TOKENS] to taste. */
 internal fun baseModelName(modelId: String): String {
-    val afterSlash = modelId.substringAfterLast('/')
-    val marker = Regex("[-_:\\s][vV]?\\d").find(afterSlash)
-    val base = if (marker != null) afterSlash.substring(0, marker.range.first) else afterSlash
-    return base.trim().lowercase()
+    val afterSlash = modelId.substringAfterLast('/').lowercase().trim()
+    if (afterSlash.isEmpty()) return ""
+    val tokens = afterSlash.split('-', '_', ':', ' ').filter { it.isNotBlank() }
+    if (tokens.isEmpty()) return afterSlash
+    val base = StringBuilder(tokens.first())
+    for (tok in tokens.drop(1)) {
+        if (isVersionOrVariantToken(tok)) break
+        base.append('-').append(tok)
+    }
+    return base.toString()
 }
 
 /** Aggregate every (provider, model) pair across all active providers
@@ -85,11 +116,7 @@ internal fun computeModelStatistics(aiSettings: Settings): List<ModelStat> {
     }
     return groups
         .map { (base, acc) -> ModelStat(base, acc.versionKeys.size, acc.providerIds.size) }
-        .sortedWith(
-            compareByDescending<ModelStat> { it.providers }
-                .thenByDescending { it.versions }
-                .thenBy { it.baseName }
-        )
+        .sortedBy { it.baseName }
 }
 
 /** AI Setup → Models → Model statistics. Read-only table grouping the
