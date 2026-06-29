@@ -35,7 +35,7 @@ private fun formatPrice(pricePerToken: Double): String {
     return when {
         perMillion == 0.0 -> "0.00"
         perMillion < 0.01 -> "<0.01"
-        else -> "%.2f".format(perMillion)
+        else -> String.format(java.util.Locale.US, "%.2f", perMillion)
     }
 }
 

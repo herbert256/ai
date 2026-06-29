@@ -33,11 +33,11 @@ import com.ai.ui.shared.TitleBar
  *  reuse the same formatting in its dialog rows. */
 internal fun dlgFmtPrice(pricePerToken: Double): String {
     val m = pricePerToken * 1_000_000
-    return when { m == 0.0 -> "0"; m < 0.01 -> "<.01"; else -> "%.2f".format(m) }
+    return when { m == 0.0 -> "0"; m < 0.01 -> "<.01"; else -> String.format(java.util.Locale.US, "%.2f", m) }
 }
 
 internal fun dlgFmtPriceM(perMillion: Double): String {
-    return when { perMillion == 0.0 -> "0"; perMillion < 0.01 -> "<.01"; else -> "%.2f".format(perMillion) }
+    return when { perMillion == 0.0 -> "0"; perMillion < 0.01 -> "<.01"; else -> String.format(java.util.Locale.US, "%.2f", perMillion) }
 }
 
 /** Saves a [ReportSelectModelsScreen] provider filter across a navigation

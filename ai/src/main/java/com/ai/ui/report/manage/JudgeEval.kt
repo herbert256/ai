@@ -730,7 +730,7 @@ private fun pct(v: Double): String = "${(v * 100).toInt()}%"
 /** Total API time, compact: "12.3s" or "1.5m". */
 private fun fmtSecs(ms: Long): String {
     val s = ms / 1000.0
-    return if (s >= 60) "%.1fm".format(s / 60.0) else "%.1fs".format(s)
+    return if (s >= 60) String.format(java.util.Locale.US, "%.1fm", s / 60.0) else String.format(java.util.Locale.US, "%.1fs", s)
 }
 
 private fun agreementColor(v: Double): Color = when {

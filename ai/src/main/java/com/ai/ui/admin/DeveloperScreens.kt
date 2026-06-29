@@ -121,7 +121,7 @@ fun ApiTestScreen(
                     filtered.forEach { m ->
                         val pricing = remember(m) { PricingCache.getPricing(context, selectedProvider, m) }
                         val real = pricing.source != "DEFAULT"
-                        val priceText = if (real) "${"%.2f".format(pricing.promptPrice * 1_000_000)} / ${"%.2f".format(pricing.completionPrice * 1_000_000)} per 1M"
+                        val priceText = if (real) "${String.format(java.util.Locale.US, "%.2f", pricing.promptPrice * 1_000_000)} / ${String.format(java.util.Locale.US, "%.2f", pricing.completionPrice * 1_000_000)} per 1M"
                         else "no pricing"
                         Column(
                             modifier = Modifier.fillMaxWidth().clickable { model = m; showModelDialog = false }

@@ -724,7 +724,7 @@ fun DualChatSessionScreen(
 private fun CostLabel(name: String, costCents: Double, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.widthIn(max = 100.dp)) {
         Text(name, fontSize = 10.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("%.4f c".format(costCents), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color, fontFamily = FontFamily.Monospace)
+        Text(String.format(java.util.Locale.US, "%.4f c", costCents), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color, fontFamily = FontFamily.Monospace)
     }
 }
 

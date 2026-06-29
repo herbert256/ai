@@ -1024,7 +1024,7 @@ fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
                 listOf(
                     CostCell(com.ai.ui.shared.shortModelName(g.model ?: ""), AppColors.TextPrimary, mono = true, end = false, weight = 2f),
                     CostCell(g.calls.toString(), AppColors.TextPrimary, mono = true, end = true, weight = 1f),
-                    CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1f),
+                    CostCell(String.format(Locale.US, "%.2f ¢", g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1f),
                 )
             },
             onRowTap = { g -> popup = CostPopup.ModelGroup(g) },
@@ -1124,7 +1124,7 @@ fun ReportApiCallsScreen(report: Report, onBack: () -> Unit, onNavigateToTraceFi
                             listOf(
                                 CostCell(r.type, costTypeColor(r.type), mono = false, end = false, weight = 1f),
                                 CostCell(com.ai.ui.shared.shortModelName(r.model), AppColors.TextPrimary, mono = true, end = false, weight = 2f),
-                                CostCell("%.2f ¢".format(r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
+                                CostCell(String.format(Locale.US, "%.2f ¢", r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
                             )
                         },
                         onRowTap = { r -> popup = CostPopup.Call(r) },
@@ -1426,8 +1426,8 @@ private fun CostTypeGroupedSection(
             ) {
                 CostCellText(CostCell("${if (isOpen) "▾" else "▸"} ${g.prefix}", costTypeColor(g.prefix), mono = false, end = false, weight = weights[0], bold = true))
                 CostCellText(CostCell(g.calls.toString(), AppColors.TextPrimary, mono = true, end = true, weight = weights[1]))
-                CostCellText(CostCell("%,d".format(g.inputTokens + g.outputTokens), AppColors.TextPrimary, mono = true, end = true, weight = weights[2]))
-                CostCellText(CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = weights[3]))
+                CostCellText(CostCell(String.format(Locale.US, "%,d", g.inputTokens + g.outputTokens), AppColors.TextPrimary, mono = true, end = true, weight = weights[2]))
+                CostCellText(CostCell(String.format(Locale.US, "%.2f ¢", g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = weights[3]))
             }
             // Members — indented; tap opens that type's per-call breakdown.
             if (isOpen) {
@@ -1440,8 +1440,8 @@ private fun CostTypeGroupedSection(
                     ) {
                         CostCellText(CostCell("      ${m.key}", costTypeColor(m.key), mono = false, end = false, weight = weights[0]))
                         CostCellText(CostCell(m.calls.toString(), AppColors.TextPrimary, mono = true, end = true, weight = weights[1]))
-                        CostCellText(CostCell("%,d".format(m.inputTokens + m.outputTokens), AppColors.TextPrimary, mono = true, end = true, weight = weights[2]))
-                        CostCellText(CostCell("%.2f ¢".format(m.inputCents + m.outputCents), tColor, mono = true, end = true, weight = weights[3]))
+                        CostCellText(CostCell(String.format(Locale.US, "%,d", m.inputTokens + m.outputTokens), AppColors.TextPrimary, mono = true, end = true, weight = weights[2]))
+                        CostCellText(CostCell(String.format(Locale.US, "%.2f ¢", m.inputCents + m.outputCents), tColor, mono = true, end = true, weight = weights[3]))
                     }
                 }
             }
@@ -1459,8 +1459,8 @@ private fun CostTypeGroupedSection(
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             CostCellText(CostCell("Total", tColor, mono = false, end = false, weight = weights[0], bold = true))
             CostCellText(CostCell(totalRows.toString(), tColor, mono = true, end = true, weight = weights[1], bold = true))
-            CostCellText(CostCell("%,d".format(totalTokens), tColor, mono = true, end = true, weight = weights[2], bold = true))
-            CostCellText(CostCell("%.2f ¢".format(totalCents), tColor, mono = true, end = true, weight = weights[3], bold = true))
+            CostCellText(CostCell(String.format(Locale.US, "%,d", totalTokens), tColor, mono = true, end = true, weight = weights[2], bold = true))
+            CostCellText(CostCell(String.format(Locale.US, "%.2f ¢", totalCents), tColor, mono = true, end = true, weight = weights[3], bold = true))
         }
     }
 }
@@ -1572,18 +1572,18 @@ private fun buildGroupBody(g: GroupTotal): String {
     return buildString {
         appendLine(callsStr)
         appendLine()
-        appendLine("in  tokens: %,d".format(g.inputTokens))
-        appendLine("out tokens: %,d".format(g.outputTokens))
+        appendLine(String.format(Locale.US, "in  tokens: %,d", g.inputTokens))
+        appendLine(String.format(Locale.US, "out tokens: %,d", g.outputTokens))
         appendLine()
-        appendLine("in  ¢: %.4f".format(g.inputCents))
-        appendLine("out ¢: %.4f".format(g.outputCents))
-        append("total: %.4f ¢".format(total))
+        appendLine(String.format(Locale.US, "in  ¢: %.4f", g.inputCents))
+        appendLine(String.format(Locale.US, "out ¢: %.4f", g.outputCents))
+        append(String.format(Locale.US, "total: %.4f ¢", total))
     }
 }
 
 private fun buildCallBody(r: CostRow): String {
     val total = r.inputCents + r.outputCents
-    val durStr = r.durationMs?.let { "%.1fs".format(it / 1000.0) } ?: "—"
+    val durStr = r.durationMs?.let { String.format(Locale.US, "%.1fs", it / 1000.0) } ?: "—"
     val tierStr = if (r.tier.isBlank()) "—" else r.tier
     return buildString {
         appendLine("provider: ${r.providerDisplay}")
@@ -1591,12 +1591,12 @@ private fun buildCallBody(r: CostRow): String {
         appendLine("tier:     $tierStr")
         appendLine("duration: $durStr")
         appendLine()
-        appendLine("in  tokens: %,d".format(r.inputTokens))
-        appendLine("out tokens: %,d".format(r.outputTokens))
+        appendLine(String.format(Locale.US, "in  tokens: %,d", r.inputTokens))
+        appendLine(String.format(Locale.US, "out tokens: %,d", r.outputTokens))
         appendLine()
-        appendLine("in  ¢: %.4f".format(r.inputCents))
-        appendLine("out ¢: %.4f".format(r.outputCents))
-        append("total: %.4f ¢".format(total))
+        appendLine(String.format(Locale.US, "in  ¢: %.4f", r.inputCents))
+        appendLine(String.format(Locale.US, "out ¢: %.4f", r.outputCents))
+        append(String.format(Locale.US, "total: %.4f ¢", total))
     }
 }
 
