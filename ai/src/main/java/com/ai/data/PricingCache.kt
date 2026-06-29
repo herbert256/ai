@@ -356,7 +356,10 @@ object PricingCache {
         val inCost = usage.inputTokens * pIn +
             usage.cachedInputTokens * pCacheR +
             usage.cacheCreationTokens * pCacheW
-        val outCost = usage.outputTokens * pOut
+        // Reasoning tokens are billed at the output rate. Only Gemini
+        // populates reasoningTokens separately (OpenAI/Anthropic fold theirs
+        // into outputTokens already), so adding the term can't double-count.
+        val outCost = (usage.outputTokens + usage.reasoningTokens) * pOut
         // apiCost shortcut: if the API ships a total, split it pro-rata
         // by the simple-rate baseline so callers that need the two
         // halves still get a consistent split.
@@ -364,7 +367,7 @@ object PricingCache {
             val baseIn = usage.inputTokens * pricing.promptPrice +
                 usage.cachedInputTokens * (pricing.cachedReadPrice ?: pricing.promptPrice) +
                 usage.cacheCreationTokens * (pricing.cachedWritePrice ?: pricing.promptPrice)
-            val baseOut = usage.outputTokens * pricing.completionPrice
+            val baseOut = (usage.outputTokens + usage.reasoningTokens) * pricing.completionPrice
             val baseTotal = baseIn + baseOut
             return if (baseTotal > 0.0) {
                 val ratioIn = baseIn / baseTotal
