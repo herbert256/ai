@@ -71,6 +71,11 @@ class TournamentEngine internal constructor(
     override val itemNoun = "match"
     override fun reportIdOf(runKey: TournamentRunKey) = runKey
     override fun runKeysForReport(reportId: String) = listOf(reportId)
+    // A match pits two report answers and is scored by a judge — drop it if
+    // either competitor is gone OR the removed model was the judge.
+    override fun itemMatchesModel(item: MatchState, providerId: String, model: String, agentIds: Set<String>) =
+        item.responseAId in agentIds || item.responseBId in agentIds ||
+            item.judgeModel == "$providerId/$model"
     override fun terminalizeItem(item: MatchState, message: String) =
         item.copy(status = MatchStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun itemFromRow(row: SecondaryResult) = row.toMatchState()

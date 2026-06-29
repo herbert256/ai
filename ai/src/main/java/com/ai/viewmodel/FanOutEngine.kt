@@ -1974,6 +1974,14 @@ class FanOutEngine internal constructor(
         ReportStorage.bumpReportTimestamp(context, run.reportId)
     }
 
+    /** Drop [providerId]/[model] (as answerer OR source agent) from every
+     *  fan-out run of [reportId] — the FanOut half of the "Use report models"
+     *  unified model removal. Awaits each per-run delete. */
+    suspend fun deleteModelFromReport(context: Context, reportId: String, providerId: String, model: String) {
+        val keys = _runs.value.filterValues { it.reportId == reportId }.keys.toList()
+        keys.forEach { deleteModelFromRun(context, it, providerId, model).join() }
+    }
+
     // -----------------------------------------------------------------
     // Resume on report open
     // -----------------------------------------------------------------

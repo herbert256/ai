@@ -291,12 +291,11 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
             onDismissRequest = { confirmDeleteJudge = null },
             title = { Text("Remove judge?") },
             text = {
-                Text("Remove ${shortModelName2(mdl)} from this batch AND from the judges' swarm? Its verdicts are deleted from this run, and future Tournaments / Judge-the-judges runs will no longer use it.")
+                Text("Remove ${shortModelName2(mdl)}? Its verdicts are deleted from this run. If this report uses its own models, it's also removed from the report and all its batches; otherwise it's dropped from the judges' swarm so future Tournaments / Judge-the-judges runs won't use it.")
             },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
-                    engine.removeJudgeFromSwarm(prov, mdl)
-                    engine.deleteJudgeFromRun(context, reportId, prov, mdl)
+                    engine.onUserRemoveJudge(context, reportId, prov, mdl)
                     confirmDeleteJudge = null
                     level = 1
                 }) { Text("Remove") }

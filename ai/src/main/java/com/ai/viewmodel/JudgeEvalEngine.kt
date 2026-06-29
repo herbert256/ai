@@ -75,6 +75,11 @@ class JudgeEvalEngine internal constructor(
     override val itemNoun = "cell"
     override fun reportIdOf(runKey: JudgeEvalRunKey) = runKey
     override fun runKeysForReport(reportId: String) = listOf(reportId)
+    // A judge cell has a judge (provider/model) AND judges a pair of report
+    // answers — drop it if the removed model is the judge OR either response.
+    override fun itemMatchesModel(item: JudgeCellState, providerId: String, model: String, agentIds: Set<String>) =
+        (item.judgeProviderId.equals(providerId, ignoreCase = true) && item.judgeModel == model) ||
+            item.responseAId in agentIds || item.responseBId in agentIds
     override fun terminalizeItem(item: JudgeCellState, message: String) =
         item.copy(status = JudgeCellStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun itemFromRow(row: SecondaryResult) = row.toJudgeCellState()
@@ -507,6 +512,23 @@ class JudgeEvalEngine internal constructor(
             recomputeAggregate(context, reportId)
             ReportStorage.bumpReportTimestamp(context, reportId)
             AppLog.i("JudgeEval", "Removed judge $judgeKey from run on $reportId (${cells.size} cells)")
+        }
+
+    /** The UI "remove judge" action. When the report uses report models the
+     *  judges ARE the report's answer models, so removing one removes it from
+     *  the report AND every batch (the global swarm is intentionally left
+     *  alone — it's shared and unused while REPORT_MODELS drives the pool).
+     *  Otherwise it's a plain judge removal: drop from the prompt swarm + run. */
+    fun onUserRemoveJudge(context: Context, reportId: String, providerId: String, model: String): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val usesReportModels =
+                ReportStorage.getReport(context, reportId)?.workerConfig?.useReportModels == true
+            if (usesReportModels) {
+                reportViewModel.removeReportModelEverywhere(context, reportId, providerId, model).join()
+            } else {
+                removeJudgeFromSwarm(providerId, model)
+                deleteJudgeFromRun(context, reportId, providerId, model).join()
+            }
         }
 
     /** Add a judge (provider/model) to the prompt's worker swarm — the inverse

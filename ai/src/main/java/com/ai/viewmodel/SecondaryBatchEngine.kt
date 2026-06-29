@@ -491,6 +491,32 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         ReportStorage.bumpReportTimestamp(context, reportId)
     }
 
+    /** Does [item] belong to the report model ([providerId], [model])?
+     *  [agentIds] are the report agentIds carrying that (provider, model),
+     *  for engines whose items reference the answer by agentId (Compare:
+     *  the scored agent; Tournament: either competitor) rather than by the
+     *  judge/translator provider+model (JudgeEval, TransRank). Default never
+     *  matches — an engine opts in by overriding. Used only to propagate a
+     *  report-model removal across batches when "Use report models" is on. */
+    protected open fun itemMatchesModel(
+        item: ItemState, providerId: String, model: String, agentIds: Set<String>
+    ): Boolean = false
+
+    /** Drop every item belonging to report model ([providerId], [model]) from
+     *  all of [reportId]'s runs — the batch half of the "Use report models"
+     *  unified-removal: cancels the items' coroutines, deletes their rows,
+     *  rolls spend into the deleted-items tally, and recomputes/drops each run.
+     *  Idempotent and a no-op for engines that don't override [itemMatchesModel]. */
+    suspend fun removeModelFromReport(
+        context: Context, reportId: String, providerId: String, model: String, agentIds: Set<String>
+    ) {
+        runKeysForReport(reportId).forEach { key ->
+            if (_runs.value.containsKey(key)) {
+                removeItemsMatching(context, key) { itemMatchesModel(it, providerId, model, agentIds) }
+            }
+        }
+    }
+
     /** Run-end finalizer for startRun's `finally`: stamp every leftover stale
      *  row "Interrupted" (disk + in-memory), clear its [BatchResume] attempt
      *  counter, and recompute the aggregate from the settled items so an

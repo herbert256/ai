@@ -2895,6 +2895,24 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // thread — this is fired from a UI click and was blocking it.
         // Returns the Job so Broken-work recovery can join the removal.
         return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            // "Use report models" unifies the report's answer models with the
+            // batch pools — removing one model must remove it from the report
+            // AND every batch. Delegate to the unified path in that mode.
+            val report = ReportStorage.getReport(context, reportId)
+            val agent = report?.agents?.firstOrNull { it.agentId == agentId }
+            if (report?.workerConfig?.useReportModels == true && agent != null) {
+                removeReportModelEverywhereInternal(context, reportId, agent.provider, agent.model)
+            } else {
+                removeAgentInternal(context, reportId, agentId)
+            }
+        }
+    }
+
+    /** Remove ONE agent from a report (storage + in-memory results flow + the
+     *  genericReportsSelectedAgents set). Does not touch batches — callers that
+     *  need the batch cascade go through [removeReportModelEverywhereInternal].*/
+    private suspend fun removeAgentInternal(context: Context, reportId: String, agentId: String) {
+        run {
             val removedStatus = ReportStorage.getReport(context, reportId)
                 ?.agents
                 ?.firstOrNull { it.agentId == agentId }
@@ -2941,6 +2959,39 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             }
         }
+    }
+
+    /** Public entry for the batch UIs: under "Use report models", remove a
+     *  report model (provider, model) from the report's agents AND from every
+     *  batch. Returns the Job so callers can join. */
+    fun removeReportModelEverywhere(context: Context, reportId: String, providerId: String, model: String): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            removeReportModelEverywhereInternal(context, reportId, providerId, model)
+        }
+
+    /** Remove report model (provider, model) from the report's agents and then
+     *  prune it from every batch run of the report — FanOut pairs (answerer or
+     *  source), Judge cells (judge or either response), Tournament matches
+     *  (either competitor), Compare cells (scored agent) and TranslatorRank
+     *  score cells (translator). Idempotent. The GLOBAL judge swarm is left
+     *  untouched: it's shared across reports and isn't consulted while
+     *  REPORT_MODELS drives the batch pool from the report's own agents. */
+    private suspend fun removeReportModelEverywhereInternal(
+        context: Context, reportId: String, providerId: String, model: String
+    ) {
+        val report = ReportStorage.getReport(context, reportId) ?: return
+        val agentIds = report.agents
+            .filter { it.provider.equals(providerId, ignoreCase = true) && it.model == model }
+            .map { it.agentId }
+            .toSet()
+        // Report agents first (storage + TRANSLATE orphan cascade + uiState).
+        agentIds.forEach { removeAgentInternal(context, reportId, it) }
+        // Then every batch (each call is idempotent / a no-op when absent).
+        fanOutEngine.deleteModelFromReport(context, reportId, providerId, model)
+        judgeEvalEngine.removeModelFromReport(context, reportId, providerId, model, agentIds)
+        tournamentEngine.removeModelFromReport(context, reportId, providerId, model, agentIds)
+        compareEngine.removeModelFromReport(context, reportId, providerId, model, agentIds)
+        translatorRankEngine.removeModelFromReport(context, reportId, providerId, model, agentIds)
     }
 
     /** Generate (or regenerate) the AI title for one user note. Called from
