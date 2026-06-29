@@ -826,6 +826,23 @@ internal fun NavGraphBuilder.developerRoutes(
             val brokenWorkScope = rememberCoroutineScope()
             val broken by appViewModel.brokenBatches.collectAsState()
             var busyBrokenWorkActions by remember { mutableStateOf<Set<String>>(emptySet()) }
+            // Re-detect broken work on every resume of this screen, not just on
+            // first entry. The user may go deeper (into a report / model / trace)
+            // and resolve something — when they return, the list must reflect
+            // that rather than keep showing stale broken items. The screen
+            // updates live off appViewModel.brokenBatches once the scan lands.
+            val brokenWorkOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            DisposableEffect(brokenWorkOwner) {
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                        brokenWorkScope.launch {
+                            try { reportViewModel.secondary.refreshBrokenBatches(brokenWorkContext) } catch (_: Exception) {}
+                        }
+                    }
+                }
+                brokenWorkOwner.lifecycle.addObserver(observer)
+                onDispose { brokenWorkOwner.lifecycle.removeObserver(observer) }
+            }
             fun launchBrokenWorkAction(batch: BrokenBatch, mode: BrokenItemMode, restart: Boolean, rowIds: Set<String>? = null) {
                 val actionKey = brokenWorkActionKey(batch, mode, rowIds.orEmpty())
                 if (actionKey in busyBrokenWorkActions) return
