@@ -811,7 +811,10 @@ fun ProviderSettingsScreen(
             supportsCitations = defSupportsCitations,
             supportsSearchRecency = defSupportsSearchRecency,
             extractApiCost = defExtractApiCost,
-            costTicksDivisor = defCostTicksDivisor.trim().toDoubleOrNull()?.takeIf { it > 0.0 },
+            // Normalise comma decimals before parsing: on a comma-decimal
+            // locale (nl-NL) "2,5".toDoubleOrNull() is null, which would
+            // silently drop the divisor. Match the rest of the codebase.
+            costTicksDivisor = defCostTicksDivisor.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it > 0.0 },
             modelListFormat = defModelListFormat,
             // Persist a regex only if it actually compiles. A bad
             // pattern (`*`, `[unclosed`) would otherwise blow up at
