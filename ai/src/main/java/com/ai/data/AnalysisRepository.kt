@@ -538,6 +538,13 @@ class AnalysisRepository {
      *  pattern config. */
     internal fun usesResponsesApi(service: AppService, model: String): Boolean {
         if (service.responsesApiPatterns.anyMatches(model)) return true
-        return ModelType.infer(model) == ModelType.RESPONSES
+        // Name-based RESPONSES inference is a fallback ONLY for providers that
+        // actually expose a Responses API (they declare responsesApiPatterns —
+        // currently just OpenAI). Chat-only OpenAI-compatible gateways (Poe,
+        // Vivgrid, and most aggregators) serve gpt-5 / o3 / o4 ids over
+        // /v1/chat/completions and have no /v1/responses endpoint, so inferring
+        // RESPONSES for them sends every call to a non-existent path → 404.
+        return service.responsesApiPatterns.isNotEmpty() &&
+            ModelType.infer(model) == ModelType.RESPONSES
     }
 }
