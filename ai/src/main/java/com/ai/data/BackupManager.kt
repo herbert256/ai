@@ -307,7 +307,8 @@ object BackupManager {
                 // weird/extra path in the zip doesn't allocate bytes
                 // for nothing.
                 val keep = name == "manifest.json"
-                    || (name.startsWith("prefs/") && name.endsWith(".json"))
+                    || (name.startsWith("prefs/") && name.endsWith(".json")
+                        && name.removePrefix("prefs/").removeSuffix(".json") in PREFS_TO_BACKUP)
                     || name.startsWith("files/")
                     || name.startsWith("cache/")
                 if (!keep) { zip.closeEntry(); continue }
@@ -397,8 +398,14 @@ object BackupManager {
         for ((name, bytes) in staged) {
             if (name.startsWith("prefs/") && name.endsWith(".json")) {
                 val prefsName = name.removePrefix("prefs/").removeSuffix(".json")
-                if (prefsName.isNotBlank()) {
+                // Allowlist guard: only commit known prefs files. A crafted
+                // entry with a path separator would make getSharedPreferences
+                // throw mid-apply (after earlier prefs were already cleared),
+                // and an arbitrary name would create a junk shared_prefs file.
+                if (prefsName in PREFS_TO_BACKUP) {
                     applyPrefs(context, prefsName, bytes); prefsRestored++
+                } else if (prefsName.isNotBlank()) {
+                    AppLog.w("Backup", "Skipping prefs entry not in allowlist: $prefsName")
                 }
             }
         }
