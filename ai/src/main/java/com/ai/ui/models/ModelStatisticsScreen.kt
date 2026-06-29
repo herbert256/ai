@@ -59,6 +59,40 @@ data class ModelStatGroup(
  *  lower-cased. */
 private fun versionKey(modelId: String): String = modelId.substringAfterLast('/').lowercase().trim()
 
+/** Above this many distinct versions, the Versions drill inserts a
+ *  version-group screen (gpt → 5.2, 5.5, 4o, …) before the flat list. */
+private const val VERSION_GROUP_THRESHOLD = 25
+
+/** Model id reduced to its model form for sub-grouping: namespace stripped,
+ *  Bedrock "vendor." and dash routing prefixes always removed (unlike
+ *  [canonicalModelName], this never collapses to the vendor). */
+private fun versionNorm(modelId: String): String {
+    var id = modelId.substringAfterLast('/').lowercase().trim()
+    val dot = id.indexOf('.')
+    if (dot > 0 && id.substring(0, dot) in VENDOR_NAMESPACES) id = id.substring(dot + 1)
+    val dash = id.indexOf('-')
+    if (dash > 0 && id.substring(0, dash) in DASH_NAMESPACES) id = id.substring(dash + 1)
+    return id
+}
+
+/** The version sub-group a single version falls under within its base family:
+ *  the first token after the base name. gpt-5.2-mini → "5.2", gpt-4o → "4o",
+ *  gpt-oss-120b → "oss", qwen3-coder → "3", o3-mini → "o3". */
+private fun versionSubGroup(baseName: String, modelId: String): String {
+    val norm = versionNorm(modelId)
+    val rest = (if (norm.startsWith(baseName)) norm.substring(baseName.length) else norm)
+        .trimStart('-', '_', '.', ':', ' ')
+    // Split on '@' too so an Azure region / deployment suffix (gpt-5.5@eastus2)
+    // doesn't fork the version into its own group.
+    val tok = rest.split('-', '_', ':', ' ', '@').firstOrNull().orEmpty()
+    return tok.ifBlank { norm }
+}
+
+/** Leading numeric value of a sub-group key, for version-descending sort
+ *  (5.5 > 5.2 > 4o; non-numeric like "oss" sort last). */
+private fun verVal(s: String): Double =
+    Regex("^\\d+(\\.\\d+)?").find(s)?.value?.toDoubleOrNull() ?: -1.0
+
 /** Word-shaped tokens that, when they appear as a `-`/`_`/`:`/space
  *  segment, mark the start of size / variant / qualifier information
  *  rather than the model name — everything from there on is dropped when
@@ -204,6 +238,8 @@ private sealed interface Drill {
     val group: ModelStatGroup
     data class Models(override val group: ModelStatGroup) : Drill
     data class Versions(override val group: ModelStatGroup) : Drill
+    data class VersionGroups(override val group: ModelStatGroup) : Drill
+    data class VersionsInGroup(override val group: ModelStatGroup, val subGroup: String) : Drill
     data class Providers(override val group: ModelStatGroup) : Drill
     data class ProvidersForVersion(override val group: ModelStatGroup, val versionKey: String) : Drill
     data class VersionsForProvider(override val group: ModelStatGroup, val providerId: String) : Drill
@@ -337,7 +373,9 @@ fun ModelStatisticsScreen(
                         fontSize = 14.sp, color = AppColors.TextPrimary,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${g.versionCount}",
-                        modifier = Modifier.width(verW).clickable { drill = listOf(Drill.Versions(g)) },
+                        modifier = Modifier.width(verW).clickable {
+                            drill = listOf(if (g.versionCount > VERSION_GROUP_THRESHOLD) Drill.VersionGroups(g) else Drill.Versions(g))
+                        },
                         textAlign = TextAlign.End, fontSize = 14.sp,
                         fontFamily = FontFamily.Monospace, color = AppColors.InfoAccent)
                     Text("${g.providerCount}",
@@ -376,6 +414,8 @@ private fun ModelStatDrill(
     val subject: String = when (frame) {
         is Drill.Models -> "${g.baseName} · models"
         is Drill.Versions -> "${g.baseName} · versions"
+        is Drill.VersionGroups -> "${g.baseName} · version groups"
+        is Drill.VersionsInGroup -> "${g.baseName} ${frame.subGroup} · versions"
         is Drill.Providers -> "${g.baseName} · providers"
         is Drill.ProvidersForVersion -> "${frame.versionKey} · providers"
         is Drill.VersionsForProvider -> "${frame.providerId} · ${g.baseName} versions"
@@ -388,6 +428,27 @@ private fun ModelStatDrill(
                 DrillRowSpec("${prov.id}|$model", model, prov.id, null) { navToModelInfo(prov, model) }
             }
         is Drill.Versions -> g.entries.groupBy { versionKey(it.second) }
+            .entries.sortedBy { it.key }
+            .map { (vk, es) ->
+                val label = es.first().second.substringAfterLast('/').trim()
+                val provs = es.mapTo(HashSet()) { it.first.id }.size
+                DrillRowSpec("v|$vk", label, null, plural(provs, "provider")) {
+                    onPush(Drill.ProvidersForVersion(g, vk))
+                }
+            }
+        is Drill.VersionGroups -> {
+            val bySub = g.entries.groupBy { versionSubGroup(g.baseName, it.second) }
+            bySub.keys.sortedWith(compareByDescending<String> { verVal(it) }.thenBy { it })
+                .map { sub ->
+                    val vers = bySub.getValue(sub).mapTo(HashSet()) { versionKey(it.second) }.size
+                    DrillRowSpec("g|$sub", sub, null, plural(vers, "version")) {
+                        onPush(Drill.VersionsInGroup(g, sub))
+                    }
+                }
+        }
+        is Drill.VersionsInGroup -> g.entries
+            .filter { versionSubGroup(g.baseName, it.second) == frame.subGroup }
+            .groupBy { versionKey(it.second) }
             .entries.sortedBy { it.key }
             .map { (vk, es) ->
                 val label = es.first().second.substringAfterLast('/').trim()
@@ -419,8 +480,9 @@ private fun ModelStatDrill(
     }
 
     val noun = when (frame) {
-        is Drill.Versions, is Drill.VersionsForProvider -> "version"
+        is Drill.Versions, is Drill.VersionsForProvider, is Drill.VersionsInGroup -> "version"
         is Drill.Providers, is Drill.ProvidersForVersion -> "provider"
+        is Drill.VersionGroups -> "group"
         is Drill.Models -> "model"
     }
 
