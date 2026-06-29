@@ -182,8 +182,10 @@ fun ModelsSetupScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard(MetadataDefaults.SEARCH, "Search models", "Search every model across active providers; tap a row for its Model Info", "",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS_SEARCH) }, enabled = hasActiveProvider)
-            ModelsSetupNavCard(MetadataDefaults.MODEL_ICON, "Models", "Source and model list per active provider", "$modelCount",
+            ModelsSetupNavCard(MetadataDefaults.MODEL_ICON, "Providers / Models", "Source and model list per active provider", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
+            ModelsSetupNavCard(MetadataDefaults.CHART, "Model statistics", "Base models grouped by name — version count and provider coverage", "$baseModelCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_MODEL_STATISTICS) }, enabled = hasActiveProvider)
             ModelsSetupNavCard(MetadataDefaults.LABEL, "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
             ModelsSetupNavCard(MetadataDefaults.ADD_NOTE, "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
@@ -200,8 +202,6 @@ fun ModelsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_TEST_EXCLUDED_MODELS) })
             ModelsSetupNavCard(MetadataDefaults.STATUS_LOCKED, "Inaccessible models", "Not reachable on this account — dimmed in every model picker", "${aiSettings.inaccessibleModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_INACCESSIBLE_MODELS) })
-            ModelsSetupNavCard(MetadataDefaults.CHART, "Model statistics", "Base models grouped by name — version count and provider coverage", "$baseModelCount",
-                onClick = { onNavigate(SettingsSubScreen.AI_MODEL_STATISTICS) }, enabled = hasActiveProvider)
         }
     }
 }
