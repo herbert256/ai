@@ -184,7 +184,7 @@ fun ModelsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS_SEARCH) }, enabled = hasActiveProvider)
             ModelsSetupNavCard(MetadataDefaults.MODEL_ICON, "Providers / Models", "Source and model list per active provider", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
-            ModelsSetupNavCard(MetadataDefaults.CHART, "Model statistics", "Base models grouped by name — version count and provider coverage", "$baseModelCount",
+            ModelsSetupNavCard(MetadataDefaults.CHART, "Base models", "Every model grouped by base name — version count and provider coverage", "$baseModelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_STATISTICS) }, enabled = hasActiveProvider)
             ModelsSetupNavCard(MetadataDefaults.LABEL, "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })

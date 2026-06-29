@@ -2,9 +2,9 @@ package com.ai.ui.admin
 
 internal val modelsHelp: Map<String, HelpContent> = mapOf(
     "model_statistics" to HelpContent(
-        title = "Help - Model statistics",
+        title = "Help - Base models",
         cards = listOf(
-            HelpCard("Overview", "AI Setup → Models → Model statistics. A table that collapses every model across all active providers down to its base name, so you can see at a glance which models are widely available and how many versions of each exist. Each of the three columns drills into a relevant sub-screen."),
+            HelpCard("Overview", "AI Setup → Models → Base models. A table that collapses every model across all active providers down to its base name, so you can see at a glance which models are widely available and how many versions of each exist. Each of the three columns drills into a relevant sub-screen."),
             HelpCard("Model column", "The base model name — the model id with its provider/namespace prefix and its version information stripped. So z-ai/glm-5.2, z-ai/glm-5.1 and the bare glm-5.1 all fold to glm."),
             HelpCard("Versions column", "How many distinct versions of that base model exist across the catalog. The namespace prefix is ignored first, so z-ai/glm-5.1 and glm-5.1 count as one version; glm-5.2 + glm-5.1 → 2."),
             HelpCard("Providers column", "How many distinct active providers carry any version of that base model. OpenRouter + AtlasCloud + Z-AI all offering some glm → 3."),

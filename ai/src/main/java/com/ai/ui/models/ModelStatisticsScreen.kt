@@ -283,8 +283,8 @@ fun ModelStatisticsScreen(
     ) {
         TitleBar(
             helpTopic = "model_statistics",
-            title = "Model statistics",
-            subject = "Base models, versions and provider coverage",
+            title = "Base models",
+            subject = "Versions and provider coverage per family",
             onBackClick = onBack
         )
         // Jump back to the top whenever the sort or the search changes, so the
@@ -500,7 +500,7 @@ private fun ModelStatDrill(
     ) {
         TitleBar(
             helpTopic = "model_statistics",
-            title = "Model statistics",
+            title = "Base models",
             subject = subject,
             onBackClick = onBack
         )
