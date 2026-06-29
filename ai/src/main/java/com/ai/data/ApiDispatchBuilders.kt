@@ -63,9 +63,9 @@ internal fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService,
             choices.firstOrNull()?.message?.contentAsString()
                 ?: choices.firstOrNull()?.message?.reasoning_content
                 ?: choices.firstOrNull()?.message?.reasoning
-                ?: choices.firstNotNullOfOrNull { it.message.contentAsString() }
-                ?: choices.firstNotNullOfOrNull { it.message.reasoning_content }
-                ?: choices.firstNotNullOfOrNull { it.message.reasoning }
+                ?: choices.firstNotNullOfOrNull { it.message?.contentAsString() }
+                ?: choices.firstNotNullOfOrNull { it.message?.reasoning_content }
+                ?: choices.firstNotNullOfOrNull { it.message?.reasoning }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.toTokenUsage(service)
