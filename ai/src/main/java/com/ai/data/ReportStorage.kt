@@ -281,7 +281,11 @@ object ReportStorage {
             if (tokenUsage != null && !duplicateSuccessForTrace) {
                 agent.tokenUsage = TokenUsage(
                     inputTokens = (agent.tokenUsage?.inputTokens ?: 0) + tokenUsage.inputTokens,
-                    outputTokens = (agent.tokenUsage?.outputTokens ?: 0) + tokenUsage.outputTokens
+                    outputTokens = (agent.tokenUsage?.outputTokens ?: 0) + tokenUsage.outputTokens,
+                    apiCost = tokenUsage.apiCost ?: agent.tokenUsage?.apiCost,
+                    cachedInputTokens = (agent.tokenUsage?.cachedInputTokens ?: 0) + tokenUsage.cachedInputTokens,
+                    cacheCreationTokens = (agent.tokenUsage?.cacheCreationTokens ?: 0) + tokenUsage.cacheCreationTokens,
+                    reasoningTokens = (agent.tokenUsage?.reasoningTokens ?: 0) + tokenUsage.reasoningTokens
                 )
             }
             if (cost != null && !duplicateSuccessForTrace) {
