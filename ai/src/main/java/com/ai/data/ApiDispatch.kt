@@ -140,7 +140,7 @@ private suspend fun <T> withHostGate(baseUrl: String, dispatch: suspend () -> T)
     }
 }
 
-private fun resolveHostForGate(baseUrl: String): String =
+internal fun resolveHostForGate(baseUrl: String): String =
     runCatching { java.net.URI(baseUrl).host?.takeIf { it.isNotBlank() } }.getOrNull()
         ?: baseUrl.toHttpUrlOrNull()?.host.orEmpty()
 

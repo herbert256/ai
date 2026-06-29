@@ -1,7 +1,9 @@
 package com.ai.data
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
@@ -21,24 +23,54 @@ fun AnalysisRepository.sendChatStream(
     messages: List<ChatMessage>,
     params: ChatParameters,
     baseUrl: String? = null
-): Flow<String> = flow {
+): Flow<String> {
     val effectiveUrl = baseUrl ?: service.baseUrl
-    // LiteLLM gating: when the model is known not to support native SSE
-    // streaming, route through the non-streaming sendChat path and emit
-    // the full response as a single chunk. The chat UI's accumulator
-    // sees one large appended chunk instead of an empty stream.
-    if (PricingCache.liteLLMSupportsNativeStreaming(service, model) == false) {
-        val full = sendChat(service, apiKey, model, messages, params, effectiveUrl)
-        emit(full)
-        return@flow
+    val inner: Flow<String> = flow {
+        // LiteLLM gating: when the model is known not to support native SSE
+        // streaming, route through the non-streaming sendChat path and emit
+        // the full response as a single chunk. The chat UI's accumulator
+        // sees one large appended chunk instead of an empty stream.
+        if (PricingCache.liteLLMSupportsNativeStreaming(service, model) == false) {
+            val full = sendChat(service, apiKey, model, messages, params, effectiveUrl)
+            emit(full)
+            return@flow
+        }
+        when (service.apiFormat) {
+            ApiFormat.ANTHROPIC -> streamAnthropic(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            ApiFormat.GOOGLE -> streamGemini(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            // Replicate has no OpenAI-style SSE stream; run the synchronous
+            // predictions call and emit the whole answer as one chunk.
+            ApiFormat.REPLICATE -> emit(sendChat(service, apiKey, model, messages, params, effectiveUrl))
+            ApiFormat.OPENAI_COMPATIBLE -> streamOpenAi(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        }
     }
-    when (service.apiFormat) {
-        ApiFormat.ANTHROPIC -> streamAnthropic(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
-        ApiFormat.GOOGLE -> streamGemini(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
-        // Replicate has no OpenAI-style SSE stream; run the synchronous
-        // predictions call and emit the whole answer as one chunk.
-        ApiFormat.REPLICATE -> emit(sendChat(service, apiKey, model, messages, params, effectiveUrl))
-        ApiFormat.OPENAI_COMPATIBLE -> streamOpenAi(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+    return inner.gatedByHost(effectiveUrl)
+}
+
+/** Hold the per-host concurrency permit for the WHOLE lifetime of a chat SSE
+ *  stream, mirroring the coroutine-layer gate the report path uses
+ *  (`withHostGate`). The OkHttp [ProviderThrottleInterceptor] only holds its
+ *  permit for the header window (until `chain.proceed` returns), so without
+ *  this a streaming chat would release the cap the moment headers arrive and
+ *  several streams could run past `maxConcurrentCallsPerProvider`. Setting
+ *  `permitPreAcquired` makes the interceptor skip its own (header-window-only)
+ *  acquire, so the single coroutine-held permit covers open + body drain.
+ *  Uses channelFlow because the permit must be installed via withContext,
+ *  and a plain `flow {}` forbids emitting across that context switch. */
+private fun Flow<String>.gatedByHost(baseUrl: String): Flow<String> = channelFlow {
+    val host = resolveHostForGate(baseUrl)
+    if (ProviderThrottle.permitPreAcquired.get() == true || host.isBlank()) {
+        // Already gated by an outer flow, or host unresolvable — pass through.
+        collect { send(it) }
+        return@channelFlow
+    }
+    val releaser = ProviderThrottle.acquireOrWait(host)
+    try {
+        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+            collect { send(it) }
+        }
+    } finally {
+        releaser.release()
     }
 }
 
