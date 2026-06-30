@@ -57,8 +57,6 @@ internal fun RerankDetailScreen(
     val context = LocalContext.current
     val aiSettings = com.ai.ui.shared.LocalAiSettings.current
     val modelSwitch = com.ai.ui.shared.LocalSecondaryModelSwitch.current
-    val providerService = AppService.findById(result.providerId)
-    val provider = providerService?.id ?: result.providerId
     // "second-rerank" → "rerank"; a user-renamed rerank prompt passes through.
     val title = result.metaPromptName?.takeIf { it.isNotBlank() }
         ?.let { com.ai.data.secondaryPromptDisplayName(it) }
@@ -87,7 +85,15 @@ internal fun RerankDetailScreen(
     val resultFresh by produceState<SecondaryResult?>(null, result.id, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, result.reportId, result.id) }
     }
-    val displayContent = resultFresh?.content ?: result.content
+    // Render everything a model switch can change from the fresh on-disk row
+    // (provider/model included) so the switch reflects without a remount —
+    // otherwise the stale provider/model from the list mount would keep
+    // pointing the title bar's Model Info / trace / delete dialog at the
+    // pre-switch model. Mirrors ModerationDetailScreen's `eff`.
+    val eff = resultFresh ?: result
+    val providerService = AppService.findById(eff.providerId)
+    val provider = providerService?.id ?: eff.providerId
+    val displayContent = eff.content
 
     // id → "provider / model" map (success-ordered, 1-based) — the rerank table
     // resolves each bracketed [N] back to a real model name through it.
@@ -119,7 +125,7 @@ internal fun RerankDetailScreen(
     if (modelSwitch != null && showChangeActions) {
         ResponseChangeActionsScreen(
             title = "Change result",
-            subject = com.ai.ui.shared.modelLabel(provider, result.model, separator = " / "),
+            subject = com.ai.ui.shared.modelLabel(provider, eff.model, separator = " / "),
             actions = listOf(
                 ResponseChangeAction(
                     icon = com.ai.data.MetadataIconsHolder.current.reload,
@@ -193,7 +199,7 @@ internal fun RerankDetailScreen(
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename) } } else null,
             onDelete = { confirmDelete = true },
             onOpenView = onOpenViewJump,
-            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
+            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, eff.model) } } else null,
             onCopy = displayContent?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "rerank result") }
             },
@@ -210,7 +216,7 @@ internal fun RerankDetailScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(com.ai.ui.shared.shortModelName(result.model), fontSize = 13.sp, color = AppColors.InfoAccent,
+            Text(com.ai.ui.shared.shortModelName(eff.model), fontSize = 13.sp, color = AppColors.InfoAccent,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
         }
@@ -246,7 +252,7 @@ internal fun RerankDetailScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this ${title.lowercase()}?") },
-            text = { Text(com.ai.ui.shared.modelLabel(provider, result.model)) },
+            text = { Text(com.ai.ui.shared.modelLabel(provider, eff.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
                     Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)

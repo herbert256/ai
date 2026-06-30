@@ -69,8 +69,6 @@ internal fun MetaDetailScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val providerService = AppService.findById(result.providerId)
-    val provider = providerService?.id ?: result.providerId
     val title = result.metaPromptName?.takeIf { it.isNotBlank() }
         ?: com.ai.data.legacyKindDisplayName(result.kind)
     var confirmDelete by remember { mutableStateOf(false) }
@@ -111,6 +109,13 @@ internal fun MetaDetailScreen(
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, result.reportId, result.id) }
     }
     val originalContent = resultFresh?.content ?: result.content
+    // Provider/model from the fresh on-disk row so a "Switch model / agent"
+    // reflects everywhere without a remount — the title bar's Model Info,
+    // the refine-in-chat call, and the delete dialog all read this instead
+    // of the stale snapshot. Mirrors ModerationDetailScreen/RerankDetailScreen.
+    val eff = resultFresh ?: result
+    val providerService = AppService.findById(eff.providerId)
+    val provider = providerService?.id ?: eff.providerId
 
     val langTabs = remember(translates, result.id, result.targetLanguage, reportLanguageName) {
         val mineTranslates = translates.filter {
@@ -258,7 +263,7 @@ internal fun MetaDetailScreen(
     val modelSwitch = com.ai.ui.shared.LocalSecondaryModelSwitch.current
     val modelSwitchStates by (modelSwitch?.states ?: emptyModelSwitchStatesFlow).collectAsState()
     val modelSwitchState = modelSwitchStates[com.ai.viewmodel.ModelSwitchState.key(result.reportId, result.id)]
-    val metaModelLabel = com.ai.ui.shared.modelLabel(provider, result.model, separator = " / ")
+    val metaModelLabel = com.ai.ui.shared.modelLabel(provider, eff.model, separator = " / ")
     val resolvedMetaPrompt by produceState<String?>(initialValue = null, result.reportId, result.id, secDataVersion) {
         value = metaEditManager?.resolveMetaPrompt(context, result.reportId, result.id)
     }
@@ -451,7 +456,7 @@ internal fun MetaDetailScreen(
         AgentChatScreen(
             titleBarSubject = title,
             service = providerService,
-            model = result.model,
+            model = eff.model,
             agentIdForKey = null,
             initialMessages = (resultFresh?.chatMessages ?: result.chatMessages).ifEmpty { seed },
             initialParams = com.ai.data.ChatParameters(),
@@ -494,7 +499,7 @@ internal fun MetaDetailScreen(
                 else confirmDelete = true
             },
             onOpenView = onOpenViewJump,
-            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
+            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, eff.model) } } else null,
             // 🗣️ refine-in-place lives under ✏️ → Chat now; the title bar
             // keeps only 💬 continue-in-chat (separate Chat-section flow).
             onChat = if (hasContent) { { continueMetaInChat(result.reportId, result.id, activeLangName) } } else null,
@@ -525,7 +530,7 @@ internal fun MetaDetailScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(com.ai.ui.shared.shortModelName(result.model), fontSize = 13.sp, color = AppColors.InfoAccent,
+            Text(com.ai.ui.shared.shortModelName(eff.model), fontSize = 13.sp, color = AppColors.InfoAccent,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
         }
@@ -569,7 +574,7 @@ internal fun MetaDetailScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this ${title.lowercase()}?") },
-            text = { Text(com.ai.ui.shared.modelLabel(provider, result.model)) },
+            text = { Text(com.ai.ui.shared.modelLabel(provider, eff.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
                     Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
