@@ -2912,6 +2912,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  genericReportsSelectedAgents set). Does not touch batches — callers that
      *  need the batch cascade go through [removeReportModelEverywhereInternal].*/
     private suspend fun removeAgentInternal(context: Context, reportId: String, agentId: String) {
+        // Cancel any in-flight per-agent work BEFORE the storage delete below,
+        // so a zombie write can't land for an agent that's about to be gone
+        // (and its later spend isn't silently dropped from cost accounting).
+        temperatureSweep.cancel(TemperatureSweepState.key(reportId, agentId))
+        reasoningEffortSweep.cancel(ReasoningEffortSweepState.key(reportId, agentId))
+        webSearchReplay.cancel(WebSearchReplayState.key(reportId, agentId))
+        promptEditReplay.cancel(PromptEditReplayState.key(reportId, agentId))
+        agentIconFanOutJobs.remove(agentIconJobKey(reportId, agentId))?.cancel()
         run {
             val removedStatus = ReportStorage.getReport(context, reportId)
                 ?.agents
