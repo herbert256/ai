@@ -284,12 +284,19 @@ internal fun LazyListScope.secondaryResultRows(
                             }
                         } else rowIcon
                         if (emoji != null) {
+                            // resolvedPrompt can be null here (e.g. a rowIcon
+                            // override survives its source Internal Prompt
+                            // being deleted) — only wire the tap when there's
+                            // a prompt to navigate to, so a stale override
+                            // still renders but never crashes on tap.
                             Text(
                                 emoji, fontSize = 16.sp,
                                 modifier = Modifier
                                     .width(24.dp)
-                                    .clickable {
-                                        onOpenInternalPromptIconDetailForRow(resolvedPrompt!!, run.id)
+                                    .let { base ->
+                                        if (resolvedPrompt != null) base.clickable {
+                                            onOpenInternalPromptIconDetailForRow(resolvedPrompt, run.id)
+                                        } else base
                                     }
                             )
                         } else {
