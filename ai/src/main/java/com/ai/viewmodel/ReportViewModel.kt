@@ -2986,6 +2986,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             .toSet()
         // Report agents first (storage + TRANSLATE orphan cascade + uiState).
         agentIds.forEach { removeAgentInternal(context, reportId, it) }
+        // Each engine only prunes runs already present in its in-memory
+        // _runs map — hydrate from disk first so a batch the user hasn't
+        // opened this session (and is therefore still empty in-memory) isn't
+        // silently skipped by the sweep below.
+        fanOutEngine.hydrate(context, reportId)
+        judgeEvalEngine.hydrate(context, reportId)
+        tournamentEngine.hydrate(context, reportId)
+        compareEngine.hydrate(context, reportId)
+        translatorRankEngine.hydrate(context, reportId)
         // Then every batch (each call is idempotent / a no-op when absent).
         fanOutEngine.deleteModelFromReport(context, reportId, providerId, model)
         judgeEvalEngine.removeModelFromReport(context, reportId, providerId, model, agentIds)
