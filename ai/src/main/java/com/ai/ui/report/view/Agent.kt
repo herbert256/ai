@@ -122,33 +122,6 @@ fun ReportsViewScreen(
     val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
     val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
-    // Normalise / dedupe — Original ("") is always present so the
-    // pager has at least one page to render.
-    val languages = remember(availableLanguages) {
-        val seen = linkedSetOf<String>()
-        seen += ""
-        availableLanguages.forEach { seen += it }
-        seen.toList()
-    }
-    val initialLangIdx = remember(languages, initialLanguage) {
-        languages.indexOf(initialLanguage ?: "").coerceAtLeast(0)
-    }
-    val langPagerState = rememberWrapPager(languages.size, initialLangIdx)
-    val activeLanguage = if (languages.isEmpty()) ""
-        else languages[langPagerState.currentPage.wrapTo(languages.size)]
-    val activeLangState = androidx.compose.runtime.rememberUpdatedState(activeLanguage)
-    var pendingFanOutChoice by remember { mutableStateOf<PendingFanOutRunChoice?>(null) }
-    val scope = rememberCoroutineScope()
-    // Tapping the prompt card's language flag advances to the next
-    // language, wrapping past the last back to the first (the pager is
-    // a wrap pager, so currentPage + 1 is always valid).
-    val advanceLanguage: () -> Unit = {
-        scope.launch { langPagerState.animateScrollToPage(langPagerState.currentPage + 1) }
-    }
-    androidx.activity.compose.BackHandler {
-        onBack(activeLangState.value.ifBlank { null })
-    }
-
     data class Loaded(
         val report: Report?,
         // Per-language → per-agent body override. Original ("") not
@@ -204,6 +177,54 @@ fun ReportsViewScreen(
     }
     val loaded = loadedState.value
     val report = loaded.report
+
+    // Normalise / dedupe — Original ("") is always present so the pager
+    // has at least one page to render. Tracks the loaded report's own
+    // translated-language set (falling back to the parent-supplied
+    // [availableLanguages] until that load arrives) so swiping the title
+    // bar to a different report picks up THAT report's languages instead
+    // of leaking the previous report's translation tabs — mirrors
+    // PromptViewScreen / MetaViewScreen / FanInViewScreen / FanOutViewScreen.
+    val languages = remember(availableLanguages, loaded.translatedByLang) {
+        val seen = linkedSetOf<String>()
+        seen += ""
+        if (loaded.translatedByLang.isNotEmpty()) {
+            loaded.translatedByLang.keys.forEach { seen += it }
+        } else {
+            availableLanguages.forEach { seen += it }
+        }
+        seen.toList()
+    }
+    val initialLangIdx = remember(languages, initialLanguage) {
+        languages.indexOf(initialLanguage ?: "").coerceAtLeast(0)
+    }
+    val langPagerState = rememberWrapPager(languages.size, initialLangIdx)
+    // rememberWrapPager only seeds the initial page once — it doesn't
+    // re-seek when `languages` changes later (translations finish loading,
+    // or a report swap swaps in a different language set) — so re-centre
+    // once per report once the language set is current.
+    var langCenteredFor by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(currentReportId, languages, initialLanguage) {
+        if (langCenteredFor != currentReportId) {
+            val target = languages.indexOf(initialLanguage ?: "").coerceAtLeast(0)
+            langPagerState.scrollToPage(wrapCenterPage(languages.size, target))
+            langCenteredFor = currentReportId
+        }
+    }
+    val activeLanguage = if (languages.isEmpty()) ""
+        else languages[langPagerState.currentPage.wrapTo(languages.size)]
+    val activeLangState = androidx.compose.runtime.rememberUpdatedState(activeLanguage)
+    var pendingFanOutChoice by remember { mutableStateOf<PendingFanOutRunChoice?>(null) }
+    val scope = rememberCoroutineScope()
+    // Tapping the prompt card's language flag advances to the next
+    // language, wrapping past the last back to the first (the pager is
+    // a wrap pager, so currentPage + 1 is always valid).
+    val advanceLanguage: () -> Unit = {
+        scope.launch { langPagerState.animateScrollToPage(langPagerState.currentPage + 1) }
+    }
+    androidx.activity.compose.BackHandler {
+        onBack(activeLangState.value.ifBlank { null })
+    }
     val translatedByAgentId = loaded.translatedByLang[activeLanguage].orEmpty()
     val translatedTitleByAgentId = loaded.agentTitleByLang[activeLanguage].orEmpty()
 
