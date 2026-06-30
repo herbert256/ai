@@ -974,7 +974,12 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val updated = report.copy(
-                title = newTitle, titleLong = titleLong, titleErrorMessage = null,
+                // titleLong falls back to the existing value on null/blank so a
+                // transient failure of just the long-title half of this call
+                // (the short + long worker calls fire concurrently) doesn't
+                // clobber a previously-good long title — mirrors
+                // updateReportLanguageIcon's languageIconModel fallback.
+                title = newTitle, titleLong = titleLong ?: report.titleLong, titleErrorMessage = null,
                 titleInputTokens = report.titleInputTokens + shortInputTokens,
                 titleOutputTokens = report.titleOutputTokens + shortOutputTokens,
                 titleInputCost = report.titleInputCost + shortInputCost,
