@@ -61,9 +61,12 @@ class CompareEngine internal constructor(
     override val itemNoun = "cell"
     override fun reportIdOf(runKey: CompareRunKey) = runKey
     override fun runKeysForReport(reportId: String) = listOf(reportId)
-    // A compare cell scores one report answer — match by its agentId.
+    // A compare cell scores one report answer — match by its agentId. It can
+    // also have been scored BY a removed report model when worker-batches =
+    // REPORT_MODELS (the cell's judgeModel), mirroring Tournament's analogous
+    // override.
     override fun itemMatchesModel(item: CompareCellState, providerId: String, model: String, agentIds: Set<String>) =
-        item.agentId in agentIds
+        item.agentId in agentIds || item.judgeModel == "$providerId/$model"
     override fun terminalizeItem(item: CompareCellState, message: String) =
         item.copy(status = CompareCellStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun itemFromRow(row: SecondaryResult) = row.toCompareCellState()
