@@ -355,8 +355,13 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) })
         }
         composable(NavRoutes.AI_NEW_REPORT_WITH_PARAMS) { entry ->
-            val title = try { java.net.URLDecoder.decode(entry.arguments?.getString("title") ?: "", "UTF-8") } catch (_: Exception) { "" }
-            val prompt = try { java.net.URLDecoder.decode(entry.arguments?.getString("prompt") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            // Navigation Compose already decodes path-segment arguments once
+            // (NavDeepLink.getMatchingPathArguments calls Uri.decode() before
+            // populating this Bundle) — decoding again here double-decoded a
+            // literal '%' in the title/prompt and threw, silently swallowed
+            // into an empty string by the catch below.
+            val title = entry.arguments?.getString("title") ?: ""
+            val prompt = entry.arguments?.getString("prompt") ?: ""
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToReports = { navController.navigate(NavRoutes.aiReports()) },
@@ -682,7 +687,12 @@ internal fun NavGraphBuilder.reportRoutes(
         composable(NavRoutes.AI_REPORT_MODEL) { entry ->
             val rid = entry.arguments?.getString("reportId") ?: ""
             // Encoded in NavRoutes.aiReportModel (swarm/fan-out ids carry '/').
-            val aid = try { java.net.URLDecoder.decode(entry.arguments?.getString("agentId") ?: "", "UTF-8") } catch (_: Exception) { entry.arguments?.getString("agentId") ?: "" }
+            // Navigation Compose already decodes this path segment once;
+            // decoding it again here turned a literal '+' into a space
+            // (URLDecoder, unlike Navigation's Uri.decode, treats '+' as an
+            // encoded space) and could throw on a literal '%', corrupting
+            // the agentId lookup below.
+            val aid = entry.arguments?.getString("agentId") ?: ""
             val rmContext = LocalContext.current
             val rmScope = rememberCoroutineScope()
             val temperatureSweepStates by reportViewModel.temperatureSweepStates.collectAsState()
