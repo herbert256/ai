@@ -416,6 +416,11 @@ fun ReportModelScreen(
     var confirmReload by remember { mutableStateOf(false) }
     val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
     val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
+    // The title-bar subtitle on this screen always shows the provider name
+    // and the full (un-shortened) model id, regardless of the global
+    // model-name layout; the orange subtitle shrinks to a smaller font when
+    // the combined string is too long to fit on one line.
+    val agentTitleLabel = "${provider.id} — ${agent.model}"
     var showAgentChat by remember { mutableStateOf(false) }
 
     if (showResponseChangeActions) {
@@ -557,7 +562,7 @@ fun ReportModelScreen(
             helpTopic = "report_single_result",
             title = "Model response",
             reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
-            subject = agentLabel,
+            subject = agentTitleLabel,
             subjectProviderService = provider,
             subjectModel = agent.model,
             onBackClick = onBack,

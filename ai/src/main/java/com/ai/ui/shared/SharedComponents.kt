@@ -1877,11 +1877,18 @@ internal fun AppTopBarChrome(
                                 else -> base
                             }
                         }
+                    // Orange subtitle shrinks one step (15.3 → 12.2sp) when the
+                    // text overflows a single line — same measure-and-flip pattern
+                    // as the white title above — before falling back to ellipsis.
+                    var secondLineFits by remember(secondLine) { mutableStateOf(true) }
                     Text(
                         text = secondLine, color = AppColors.SubTitle,
-                        fontSize = 15.3.sp, fontWeight = FontWeight.SemiBold,
+                        fontSize = if (secondLineFits) 15.3.sp else 12.2.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center, modifier = textMod
+                        textAlign = TextAlign.Center,
+                        onTextLayout = { result -> if (secondLineFits && result.hasVisualOverflow) secondLineFits = false },
+                        modifier = textMod
                     )
                     secondTrailing()
                 }
