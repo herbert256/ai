@@ -484,13 +484,17 @@ object ReportStorage {
             return
         }
         val dir = reportsDir ?: return
-        lock.withLock {
+        val deleted = lock.withLock {
             val target = File(dir, "$reportId.json")
             if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
                 AppLog.w("ReportStorage", "Refusing to delete report that escapes reportsDir: $reportId")
-                return@withLock
+                return@withLock false
             }
             target.delete()
+        }
+        if (!deleted) {
+            AppLog.w("ReportStorage", "Failed to delete report file for $reportId; skipping cascade")
+            return
         }
         // Cascade: drop any rerank/summary meta-results associated with the
         // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
