@@ -106,10 +106,7 @@ internal fun buildEveryItems(
      *  un-grays once translations exist. */
     translates: List<com.ai.data.SecondaryResult> = emptyList()
 ): Map<String, List<EveryItem>> {
-    val nameToCat = aiSettings.internalPrompts.associate { it.name to it.category.lowercase() }
     val promptByName = aiSettings.internalPrompts.associateBy { it.name }
-    fun categoryOf(row: com.ai.data.SecondaryResult): String? =
-        row.metaPromptName?.let { nameToCat[it] }
 
     // Meta rows: collapse multi-language groups into ONE EveryItem
     // per metaPromptName. Single-language groups keep their direct
@@ -139,8 +136,14 @@ internal fun buildEveryItems(
     // run laid out alongside the rest of the grid.
     fun fold(lang: String): String =
         if (reportLanguageName != null && lang == reportLanguageName) "" else lang
+    // Bucket by the row's OWN fan-out/fan-in markers, not by looking up its
+    // prompt name in a global name→category map — Internal Prompt names are
+    // only unique within (category, name), so e.g. "Compare" can legally
+    // exist as both a plain Meta prompt and a Fan-in prompt, and a
+    // name-keyed map would collapse to whichever one happens to be later in
+    // Settings, misrouting the other's rows into the wrong tile.
     val meta = secondaryRuns
-        .filter { it.kind == SecondaryKind.META && categoryOf(it) == "meta" }
+        .filter { it.kind == SecondaryKind.META && it.fanOutSourceAgentId == null && it.fanInOf == null }
         .map { row ->
             val name = row.metaPromptName ?: "Meta"
             val prompt = promptByName[name]
@@ -172,7 +175,7 @@ internal fun buildEveryItems(
             open = { lang -> onOpenSecondaryRun(row.id, lang) }
         ) }
     val fanIn = secondaryRuns
-        .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_in" }
+        .filter { it.kind == SecondaryKind.META && it.fanInOf != null }
         .map { row -> EveryItem(
             label = row.metaPromptName ?: "Fan-in",
             prompt = row.metaPromptName?.let { promptByName[it] },
@@ -183,7 +186,7 @@ internal fun buildEveryItems(
     // SecondaryResultsScreen with nameFilter set; the screen
     // auto-renders the L2 fan-out drill-in.
     val fanOut = secondaryRuns
-        .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_out" }
+        .filter { it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null }
         .mapNotNull { it.metaPromptName }
         .distinct()
         .map { name ->
