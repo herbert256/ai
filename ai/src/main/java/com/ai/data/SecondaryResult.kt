@@ -383,7 +383,10 @@ object SecondaryResultStorage {
             }
             val current = readCachedOrDisk(reportId, target) ?: return@withLock null
             val next = mutator(current)
-            target.writeTextAtomic(gson.toJson(next))
+            if (!target.writeTextAtomic(gson.toJson(next))) {
+                AppLog.e("SecondaryResultStorage", "Failed to update result $resultId")
+                return@withLock null
+            }
             rememberCachedResult(reportId, target, next)
             next
         } ?: return null
@@ -532,7 +535,10 @@ object SecondaryResultStorage {
             // Caller-controlled overwrites that don't want
             // accumulation should write via [save] instead.
             val toWrite = mergeCostFromCurrent(readCachedOrDisk(result.reportId, target), result)
-            target.writeTextAtomic(gson.toJson(toWrite))
+            if (!target.writeTextAtomic(gson.toJson(toWrite))) {
+                AppLog.e("SecondaryResultStorage", "Failed to save result ${result.id}")
+                return false
+            }
             rememberCachedResult(result.reportId, target, toWrite)
         }
         SecondaryDataVersion.bump(result.reportId, result.kind)
@@ -613,7 +619,10 @@ object SecondaryResultStorage {
                 inputCost = (current.inputCost ?: 0.0) + inputCost,
                 outputCost = (current.outputCost ?: 0.0) + outputCost
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -641,7 +650,10 @@ object SecondaryResultStorage {
                 iconInputCost = current.iconInputCost + inputCost,
                 iconOutputCost = current.iconOutputCost + outputCost
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -672,7 +684,10 @@ object SecondaryResultStorage {
                 iconRunId = iconRunId ?: current.iconRunId,
                 iconPromptUsed = promptUsed ?: current.iconPromptUsed
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -699,7 +714,10 @@ object SecondaryResultStorage {
                 iconRunId = iconRunId ?: current.iconRunId,
                 iconPromptUsed = promptUsed ?: current.iconPromptUsed
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -728,7 +746,10 @@ object SecondaryResultStorage {
                 iconPromptUsed = current.iconPromptUsed ?: promptUsed,
                 timestamp = System.currentTimeMillis()
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump(reportId, SecondaryKind.META)
@@ -752,7 +773,10 @@ object SecondaryResultStorage {
             if (!target.exists()) return
             val current = readCachedOrDisk(reportId, target) ?: return
             val updated = current.copy(icon = icon)
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -782,7 +806,10 @@ object SecondaryResultStorage {
                 // what made a deleted/regenerated Fan Meta reappear.
                 iconRunId = null
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -814,7 +841,10 @@ object SecondaryResultStorage {
                 iconInputCost = 0.0,
                 iconOutputCost = 0.0
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -844,7 +874,10 @@ object SecondaryResultStorage {
                 titleOutputCost = current.titleOutputCost + outputCost,
                 titleModel = model ?: current.titleModel
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -872,7 +905,10 @@ object SecondaryResultStorage {
                 titleDurationMs = durationMs ?: current.titleDurationMs,
                 titleModel = model ?: current.titleModel
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -898,7 +934,10 @@ object SecondaryResultStorage {
                 titlePromptUsed = promptUsed ?: current.titlePromptUsed,
                 titleModel = model ?: current.titleModel
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -948,7 +987,10 @@ object SecondaryResultStorage {
                 iconRunId = iconRunId,
                 iconPromptUsed = promptUsed
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump(reportId, SecondaryKind.META)
@@ -985,7 +1027,10 @@ object SecondaryResultStorage {
                     iconPromptUsed = current.iconPromptUsed ?: promptUsed,
                     timestamp = System.currentTimeMillis()
                 )
-                target.writeTextAtomic(gson.toJson(updated))
+                if (!target.writeTextAtomic(gson.toJson(updated))) {
+                    AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                    continue
+                }
                 rememberCachedResult(reportId, target, updated)
                 changed = true
                 written++
@@ -1013,7 +1058,10 @@ object SecondaryResultStorage {
             // "a titles batch was started here", resurrecting a deleted/
             // regenerated Fan Meta title.
             val updated = current.copy(title = null, titleErrorMessage = null, titleRunId = null)
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -1044,7 +1092,10 @@ object SecondaryResultStorage {
                 titleOutputCost = 0.0,
                 titleModel = null
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -1072,7 +1123,10 @@ object SecondaryResultStorage {
                 // Bump timestamp so the dispatcher sees a fresh row.
                 timestamp = System.currentTimeMillis()
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
     }
@@ -1112,7 +1166,10 @@ object SecondaryResultStorage {
                 durationMs = durationMs,
                 traceFile = traceFile ?: current.traceFile
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump(reportId, SecondaryKind.TOURNAMENT)
@@ -1149,7 +1206,10 @@ object SecondaryResultStorage {
                 durationMs = durationMs,
                 traceFile = traceFile ?: current.traceFile
             )
-            target.writeTextAtomic(gson.toJson(updated))
+            if (!target.writeTextAtomic(gson.toJson(updated))) {
+                AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
+                return
+            }
             rememberCachedResult(reportId, target, updated)
         }
         SecondaryDataVersion.bump(reportId, SecondaryKind.COMPARE)
