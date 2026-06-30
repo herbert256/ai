@@ -1767,7 +1767,11 @@ class SecondaryRunManager(
         }
     }
 
-    fun deleteSecondaryResult(context: Context, reportId: String, resultId: String) {
+    /** Returns the Job so callers that need to await/join it can — every
+     *  existing call site fires it off as a statement, matching the other
+     *  delete methods (bulkDeleteSecondaryResults, deleteRun) in this file. */
+    fun deleteSecondaryResult(context: Context, reportId: String, resultId: String): Job =
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
         // Read the row's cost + kind BEFORE deleting so we can carry
         // the cost into the report's costsFromDeletedItems tally and
         // decide whether to cascade. The user dropped the row from
@@ -1803,7 +1807,7 @@ class SecondaryRunManager(
         ReportStorage.bumpReportTimestamp(context, reportId)
         // Deleting an errored row is a fix — re-scan broken work now so the ⚠️
         // badge + Broken-work screen clear at once, not on the next 30s sweep.
-        appViewModel.viewModelScope.launch { try { refreshBrokenBatches(context) } catch (_: Exception) {} }
+        try { refreshBrokenBatches(context) } catch (_: Exception) {}
     }
 
     /** Bulk-delete every secondary result row in [resultIds] off the
