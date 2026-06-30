@@ -19,7 +19,10 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Shared template for the four sibling batch engines whose items are
@@ -466,7 +469,14 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  the aggregate over what's left or — when nothing is left — deletes the
      *  aggregate row and drops the whole run (an empty run would otherwise
      *  read as never-terminal). */
+    // One Mutex per run key — serializes concurrent removeItemsMatching calls
+    // on the same run (e.g. a manual "remove failed cells" tap racing the
+    // removeModelFromReport cascade) so overlapping victims can't have their
+    // cost double-counted into the report's deleted-items tally.
+    private val removeLocks = ConcurrentHashMap<RunKey, Mutex>()
+
     protected suspend fun removeItemsMatching(context: Context, runKey: RunKey, predicate: (ItemState) -> Boolean) {
+        removeLocks.getOrPut(runKey) { Mutex() }.withLock {
         val run = _runs.value[runKey] ?: return
         val victims = run.items.values.filter(predicate)
         if (victims.isEmpty()) return
@@ -489,6 +499,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         }
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
         ReportStorage.bumpReportTimestamp(context, reportId)
+        }
     }
 
     /** Does [item] belong to the report model ([providerId], [model])?
