@@ -1944,14 +1944,23 @@ class FanOutEngine internal constructor(
         context: Context,
         runKey: FanOutRunKey,
         providerId: String,
-        model: String
+        model: String,
+        /** Agent ids for (providerId, model) as they existed BEFORE the
+         *  report's matching agents were removed — pass this from a cascade
+         *  that already deleted them (re-deriving from disk would find
+         *  nothing, since the agents are already gone). Null (the manual
+         *  per-pair removal UI) re-derives from the live report, which
+         *  still has the agents at that point. */
+        knownAgentIds: Set<String>? = null
     ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
         val run = _runs.value[runKey] ?: return@launch
-        val report = ReportStorage.getReport(context, run.reportId) ?: return@launch
-        val matchingAgentIds = report.agents
-            .filter { it.provider.equals(providerId, ignoreCase = true) && it.model == model }
-            .map { it.agentId }
-            .toSet()
+        val matchingAgentIds = knownAgentIds ?: run {
+            val report = ReportStorage.getReport(context, run.reportId) ?: return@launch
+            report.agents
+                .filter { it.provider.equals(providerId, ignoreCase = true) && it.model == model }
+                .map { it.agentId }
+                .toSet()
+        }
         val victims = run.pairs.values.filter {
             (it.providerId.equals(providerId, ignoreCase = true) && it.model == model) ||
                 (it.sourceAgentId in matchingAgentIds)
@@ -1976,10 +1985,15 @@ class FanOutEngine internal constructor(
 
     /** Drop [providerId]/[model] (as answerer OR source agent) from every
      *  fan-out run of [reportId] — the FanOut half of the "Use report models"
-     *  unified model removal. Awaits each per-run delete. */
-    suspend fun deleteModelFromReport(context: Context, reportId: String, providerId: String, model: String) {
+     *  unified model removal. Awaits each per-run delete. [agentIds], when
+     *  passed, are the matching agent ids as they existed before the caller
+     *  removed them from the report (see [deleteModelFromRun]). */
+    suspend fun deleteModelFromReport(
+        context: Context, reportId: String, providerId: String, model: String,
+        agentIds: Set<String>? = null
+    ) {
         val keys = _runs.value.filterValues { it.reportId == reportId }.keys.toList()
-        keys.forEach { deleteModelFromRun(context, it, providerId, model).join() }
+        keys.forEach { deleteModelFromRun(context, it, providerId, model, agentIds).join() }
     }
 
     // -----------------------------------------------------------------

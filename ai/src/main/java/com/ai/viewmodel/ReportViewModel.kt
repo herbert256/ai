@@ -2996,7 +2996,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         compareEngine.hydrate(context, reportId)
         translatorRankEngine.hydrate(context, reportId)
         // Then every batch (each call is idempotent / a no-op when absent).
-        fanOutEngine.deleteModelFromReport(context, reportId, providerId, model)
+        // agentIds were computed above, before removeAgentInternal deleted
+        // them — FanOut needs them passed in since it can no longer find
+        // them by re-reading the (now agent-less) report from disk.
+        fanOutEngine.deleteModelFromReport(context, reportId, providerId, model, agentIds)
         judgeEvalEngine.removeModelFromReport(context, reportId, providerId, model, agentIds)
         tournamentEngine.removeModelFromReport(context, reportId, providerId, model, agentIds)
         compareEngine.removeModelFromReport(context, reportId, providerId, model, agentIds)
