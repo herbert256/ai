@@ -2528,6 +2528,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         translation.cancelAllForReport(reportId)
         temperatureSweep.cancelByPrefix(fanOutPrefix)
         reasoningEffortSweep.cancelByPrefix(fanOutPrefix)
+        webSearchReplay.cancelByPrefix(fanOutPrefix)
+        promptEditReplay.cancelByPrefix(fanOutPrefix)
         // Synchronous: the async cancel() returns before its launch body
         // cancels the orchestrator, so the batch could still be dispatching
         // when we delete below.
