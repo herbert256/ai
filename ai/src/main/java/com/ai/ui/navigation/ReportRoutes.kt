@@ -624,6 +624,7 @@ internal fun NavGraphBuilder.reportRoutes(
                 com.ai.ui.report.view.ReportPickerScreen(
                     reportViewModel = reportViewModel,
                     onBack = safePopBack,
+                    viewChrome = true,
                     currentReportId = appViewModel.uiState.value.currentReportId,
                     onOpenReportView = { rid ->
                         pickScope.launch {

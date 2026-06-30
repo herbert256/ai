@@ -39,6 +39,7 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.data.loadExampleIndex
 import com.ai.ui.hub.rememberExampleOpener
 import com.ai.ui.hub.rememberHomeReportLists
+import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
@@ -78,7 +79,14 @@ fun ReportPickerScreen(
     /** When set, this report (the one the 🗂️ was tapped on) is omitted
      *  from every bucket — you can't "pick another report" and land back
      *  on the one you're already on. */
-    currentReportId: String? = null
+    currentReportId: String? = null,
+    /** When true, render the View family's 3-row top bar ([ViewTitleBar]) —
+     *  which also publishes the View bottom-bar spec, so AppNavHost shows the
+     *  View bottom icon bar and suppresses the Home bar — instead of the
+     *  generic Manage-style [TitleBar] + generic bottom bar. The View hub's
+     *  🗂️ opens it this way; the Manage screens' filtered 🗂️ keep the
+     *  generic chrome. */
+    viewChrome: Boolean = false
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -139,18 +147,35 @@ fun ReportPickerScreen(
     val ordered = cards.filter { it.entries.isNotEmpty() }
 
     Column(
-        modifier = Modifier.fillMaxSize()
-            .background(AppColors.AppBackground)
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
     ) {
-        TitleBar(
-            title = screenTitle,
-            subject = subject,
-            helpTopic = "report_picker",
-            onBackClick = onBack
-        )
+        if (viewChrome) {
+            // View hub entry: the View family's 3-row top bar — white screen
+            // title + the description as the orange line. It publishes the
+            // View bottom-bar spec, so the View bottom icon bar renders (red
+            // ❓ help) and the Home bar is suppressed, matching every View
+            // screen. No 🔧/🗂️ — this *is* the picker.
+            ViewTitleBar(
+                screenTitle = screenTitle,
+                reportTitle = subject,
+                subject = null,
+                reportId = null,
+                helpTopic = "report_picker",
+                onBack = onBack
+            )
+        } else {
+            TitleBar(
+                title = screenTitle,
+                subject = subject,
+                helpTopic = "report_picker",
+                onBackClick = onBack,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            )
+        }
         Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(Modifier.height(8.dp))
