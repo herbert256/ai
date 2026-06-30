@@ -180,7 +180,13 @@ fun MetaViewScreen(
     val displayedEmoji = rowIcon ?: cachedIcon ?: com.ai.data.MetadataIconsHolder.current.reportModelIcon
     val modelLabel = row?.model?.let { shortModelName(it) }.orEmpty()
 
-    val metaFilter: ViewSwipeFilter? = metaPromptName?.let { ViewSwipeFilter.HasMeta(metaPromptName = it) }
+    // Excludes fan-out / fan-in rows so a same-named Fan-out pair or Fan-in
+    // combined row (legal — Internal Prompt names are only unique within
+    // their own category) can't be swiped into and misrendered here as a
+    // plain Meta result.
+    val metaFilter: ViewSwipeFilter? = metaPromptName?.let {
+        ViewSwipeFilter.HasMeta(metaPromptName = it, excludeFanIn = true, excludeFanOut = true)
+    }
     val onSwipePrevAction: (() -> Boolean)? = metaFilter?.let { filter -> {
         val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, filter)
         if (m != null) { currentReportId = m.reportId; m.resultId?.let { currentResultId = it }; switchReport?.invoke(m.reportId); true } else false

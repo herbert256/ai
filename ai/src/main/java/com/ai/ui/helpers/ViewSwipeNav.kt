@@ -28,6 +28,13 @@ sealed class ViewSwipeFilter {
         val metaPromptName: String,
         val requireFanIn: Boolean = false,
         val requireFanOut: Boolean = false,
+        /** When true, a fan-in combined-report row (fanInOf != null) never
+         *  matches — the plain Meta screen sets this so its swipe can't land
+         *  on a same-named Fan-in row and misrender it as a holistic result. */
+        val excludeFanIn: Boolean = false,
+        /** Same as [excludeFanIn] but for fan-out pair rows
+         *  (fanOutSourceAgentId != null). */
+        val excludeFanOut: Boolean = false,
     ) : ViewSwipeFilter()
     /** Translate — the kind-only variant of [HasKind] returns the
      *  first row's translationRunId so [TranslateViewScreen] can
@@ -102,7 +109,9 @@ private fun matchOn(
         val pick: SecondaryResult? = rows.firstOrNull { r ->
             r.metaPromptName == filter.metaPromptName &&
                 (!filter.requireFanIn || r.fanInOf != null) &&
-                (!filter.requireFanOut || r.fanOutSourceAgentId != null)
+                (!filter.requireFanOut || r.fanOutSourceAgentId != null) &&
+                (!filter.excludeFanIn || r.fanInOf == null) &&
+                (!filter.excludeFanOut || r.fanOutSourceAgentId == null)
         }
         pick?.let { SwipeMatch(reportId = reportId, resultId = it.id) }
     }
