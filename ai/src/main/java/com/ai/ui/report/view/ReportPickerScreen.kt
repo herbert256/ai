@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -155,14 +156,22 @@ fun ReportPickerScreen(
             // View bottom-bar spec, so the View bottom icon bar renders (red
             // ❓ help) and the Home bar is suppressed, matching every View
             // screen. No 🔧/🗂️ — this *is* the picker.
-            ViewTitleBar(
-                screenTitle = screenTitle,
-                reportTitle = subject,
-                subject = null,
-                reportId = null,
-                helpTopic = "report_picker",
-                onBack = onBack
-            )
+            //
+            // ViewTitleBar's chrome relies on the ambient 16dp side/top
+            // padding every other call site supplies (AppTopBarChrome widens
+            // its row by 10dp each side and shifts the whole bar up by 16dp
+            // to reclaim it) — without this wrapper the bar renders outside
+            // the screen bounds.
+            Box(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+                ViewTitleBar(
+                    screenTitle = screenTitle,
+                    reportTitle = subject,
+                    subject = null,
+                    reportId = null,
+                    helpTopic = "report_picker",
+                    onBack = onBack
+                )
+            }
         } else {
             TitleBar(
                 title = screenTitle,
