@@ -810,16 +810,21 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
+            // The alt-pick candidates don't carry their own trace file, so the
+            // prior trace file would otherwise keep pointing at the now-
+            // superseded title's trace — clear it rather than mislead.
             val updated = if (long) report.copy(
                 titleLong = title.takeIf { it.isNotBlank() },
                 titleLongModel = model,
                 titleLongPromptUsed = "report_title_long_alt",
+                titleLongTraceFile = null,
                 timestamp = System.currentTimeMillis()
             ) else report.copy(
                 title = title,
                 titleModel = model,
                 titlePromptUsed = "report_title_alt",
                 titleErrorMessage = null,
+                titleTraceFile = null,
                 timestamp = System.currentTimeMillis()
             )
             saveReport(updated)
@@ -1091,6 +1096,10 @@ object ReportStorage {
             saveReport(report.copy(
                 icon = icon, iconErrorMessage = null, iconModel = iconModel,
                 iconPromptUsed = promptUsed ?: report.iconPromptUsed,
+                // The alt-pick candidates don't carry their own trace file, so
+                // the prior iconTraceFile would otherwise keep pointing at the
+                // now-superseded icon's trace — clear it rather than mislead.
+                iconTraceFile = null,
                 timestamp = System.currentTimeMillis()
             ))
             true
