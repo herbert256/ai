@@ -852,7 +852,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Provider-specific fields (e.g. Anthropic ignores frequency/presence penalty) are silently dropped server-side — check the trace if behaviour surprises you."),
         )
     ),
-    "report_export" to HelpContent(
+    "report_export_sheet" to HelpContent(
         title = "Help - Export report",
         cards = listOf(
             HelpCard("Overview", "Pick a format, a detail level, and a target (where the export lands), then tap the green Export button at the top of the page to commit. The purple Export-all-zip button sits right next to it for one-shot bulk export."),
