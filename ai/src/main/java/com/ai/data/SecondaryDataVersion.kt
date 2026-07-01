@@ -44,6 +44,10 @@ object SecondaryDataVersion {
             reportVersions[id]?.update { it + 1 }
             if (kind != null) kindVersions[kindKey(id, kind)]?.update { it + 1 }
         }
+        // Also tick the global flow, like ReportDataVersion.bump — screens
+        // that key on the global version (e.g. Statistics → Reports) never
+        // refreshed on individual row completions/deletes otherwise.
+        _version.update { it + 1 }
     }
 
     fun bumpReport(reportId: String?) {
@@ -54,6 +58,7 @@ object SecondaryDataVersion {
                 if (key.startsWith("$id|")) flow.update { it + 1 }
             }
         }
+        _version.update { it + 1 }
     }
 
     fun bumpMany(scopes: Iterable<Pair<String, SecondaryKind>>) {
@@ -71,6 +76,7 @@ object SecondaryDataVersion {
                 kindVersions[kindKey(reportId, kind)]?.update { it + 1 }
             }
         }
+        _version.update { it + 1 }
     }
 
     private fun kindKey(reportId: String, kind: SecondaryKind): String = "$reportId|${kind.name}"
