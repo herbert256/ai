@@ -764,6 +764,13 @@ class TranslationRunManager(
             if (persistedRowId != null) {
                 val existing = SecondaryResultStorage.get(context, reportId, persistedRowId)
                 if (existing != null) {
+                    // save() is a plain overwrite, so the replaced translation's
+                    // own spend is about to be dropped from the row. Roll it into
+                    // costsFromDeletedItems first (house invariant) so the report
+                    // total stays whole — mirrors SecondaryModelSwitchManager's
+                    // reload-replace accounting.
+                    val priorCost = existing.fullCost()
+                    if (priorCost > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, priorCost)
                     val pricing = PricingCache.getPricing(context, candidate.provider, candidate.model)
                     val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, pricing) }
                         ?: (0.0 to candidate.cost)
