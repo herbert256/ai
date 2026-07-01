@@ -1770,7 +1770,12 @@ class FanOutEngine internal constructor(
             val pair = run.pairs[pk] ?: continue
             val source = agentsById[pair.sourceAgentId] ?: continue
             val current = SecondaryResultStorage.get(context, run.reportId, pair.id) ?: continue
-            clearedCostDelta += current.fullCost()
+            // Only the RESPONSE spend is cleared here — the `cleared` copy
+            // keeps the Fan-Meta title/icon fields and their costs on the
+            // live row (they aren't re-run by a pair rerun). Rolling the full
+            // cost into deleted-items double-counted the title/icon: once in
+            // the tally, once still on the row.
+            clearedCostDelta += (current.inputCost ?: 0.0) + (current.outputCost ?: 0.0)
             val cleared = current.copy(
                 content = null, errorMessage = null, inputCost = null, outputCost = null,
                 durationMs = null, httpStatusCode = null, tokenUsage = null, timestamp = System.currentTimeMillis(),
