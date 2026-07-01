@@ -122,7 +122,15 @@ suspend fun importReportFromUri(context: Context, uri: Uri): String {
             val agents = saved?.agents.orEmpty()
             val missingProviders = agents.map { it.provider }.distinct()
                 .count { AppService.findById(it) == null }
-            val missingAgents = agents.count { it.agentId !in currentAgentIds }
+            // Direct-model / swarm rows carry a synthetic "swarm:provider:model"
+            // agentId that never appears in Settings.agents — and the
+            // regenerate path parses those ids itself without needing an
+            // Agent record. Counting them as "missing" falsely warned on
+            // every such row (the common case) even on the install that
+            // created the bundle. Only real saved-Agent rows can be missing.
+            val missingAgents = agents.count {
+                !it.agentId.startsWith("swarm:") && it.agentId !in currentAgentIds
+            }
             val base = "Imported AI Report \"${summary.title}\" (${summary.secondaryCount} secondaries, ${summary.traceCount} traces)"
             base + buildString {
                 if (missingProviders > 0) append(" · $missingProviders providers missing")
