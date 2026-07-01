@@ -2459,6 +2459,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         judgeEvalEngine.cancelAllForReport(reportId)
         // Compare-with-meta runs + per-cell coroutines likewise.
         compareEngine.cancelAllForReport(reportId)
+        // Rank-the-translators runs + per-cell coroutines likewise — the one
+        // batch engine missing from this teardown, so a delete mid-rank left
+        // its judge cells firing billed calls against the gone report and
+        // its run entry lingering in _runs for the session.
+        translatorRankEngine.cancelAllForReport(reportId)
         // Plain-meta edit sweeps / replays (MetaDetailScreen ✏️) likewise.
         metaEditManager.cancelAllForReport(reportId)
         // "Switch model / agent" preview candidates for any secondary kind.
