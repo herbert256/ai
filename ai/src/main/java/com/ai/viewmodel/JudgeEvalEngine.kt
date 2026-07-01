@@ -483,26 +483,33 @@ class JudgeEvalEngine internal constructor(
      *  agreement aggregate over the remaining judges. */
     fun deleteJudgeFromRun(context: Context, reportId: String, providerId: String, model: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val judgeKey = "$providerId/$model"
-            val cells = run.cells.values.filter { it.judgeKey == judgeKey }
-            if (cells.isEmpty()) return@launch
-            // Disk-truth costs (in-memory state can lag a just-settled call).
-            val costDelta = cells.sumOf {
-                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            // Under the per-run remove mutex — this re-implements the
+            // read-costs → delete → bump sequence, so without the lock it
+            // could race removeItemsMatching / deleteRun on the same run and
+            // double-count the overlap into costsFromDeletedItems (the race
+            // 51058a9ab serialized only for removeItemsMatching-vs-itself).
+            withRemoveLock(reportId) {
+                val run = _runs.value[reportId] ?: return@withRemoveLock
+                val judgeKey = "$providerId/$model"
+                val cells = run.cells.values.filter { it.judgeKey == judgeKey }
+                if (cells.isEmpty()) return@withRemoveLock
+                // Disk-truth costs (in-memory state can lag a just-settled call).
+                val costDelta = cells.sumOf {
+                    SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+                }
+                cells.forEach { c ->
+                    itemJobOf(c.id)?.cancelAndJoin()
+                    SecondaryResultStorage.delete(context, reportId, c.id)
+                }
+                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+                _runs.update { runs ->
+                    val r = runs[reportId] ?: return@update runs
+                    runs + (reportId to r.copy(cells = r.cells.filterValues { it.judgeKey != judgeKey }))
+                }
+                recomputeAggregate(context, reportId)
+                ReportStorage.bumpReportTimestamp(context, reportId)
+                AppLog.i("JudgeEval", "Removed judge $judgeKey from run on $reportId (${cells.size} cells)")
             }
-            cells.forEach { c ->
-                itemJobOf(c.id)?.cancelAndJoin()
-                SecondaryResultStorage.delete(context, reportId, c.id)
-            }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            _runs.update { runs ->
-                val r = runs[reportId] ?: return@update runs
-                runs + (reportId to r.copy(cells = r.cells.filterValues { it.judgeKey != judgeKey }))
-            }
-            recomputeAggregate(context, reportId)
-            ReportStorage.bumpReportTimestamp(context, reportId)
-            AppLog.i("JudgeEval", "Removed judge $judgeKey from run on $reportId (${cells.size} cells)")
         }
 
     /** The UI "remove judge" action. When the report uses report models the

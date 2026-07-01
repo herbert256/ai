@@ -257,17 +257,22 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         val runJob = runJobOf(runKey)
         val itemJobs = run.items.values.mapNotNull { itemJobOf(it.id) }
         return deleteRunDeferred(appViewModel.viewModelScope, runKey, runJob, itemJobs) {
-            // Disk-truth costs: the run was dropped from _runs before the join,
-            // so an in-flight item that settled during the cancel never
-            // mirrored into this snapshot — the rows are read-then-deleted
-            // anyway, so sum what's actually on them.
-            val costDelta = run.items.values.sumOf {
-                SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+            // Under the per-run remove mutex so this cost-rolling delete can't
+            // race a concurrent removeItemsMatching on the same run and
+            // double-count the overlap into costsFromDeletedItems.
+            withRemoveLock(runKey) {
+                // Disk-truth costs: the run was dropped from _runs before the join,
+                // so an in-flight item that settled during the cancel never
+                // mirrored into this snapshot — the rows are read-then-deleted
+                // anyway, so sum what's actually on them.
+                val costDelta = run.items.values.sumOf {
+                    SecondaryResultStorage.get(context, reportId, it.id)?.fullCost() ?: it.totalCost
+                }
+                run.items.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+                aggregateRowIdOf(run)?.let { SecondaryResultStorage.delete(context, reportId, it) }
+                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+                ReportStorage.bumpReportTimestamp(context, reportId)
             }
-            run.items.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            aggregateRowIdOf(run)?.let { SecondaryResultStorage.delete(context, reportId, it) }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, reportId)
         }
     }
 
@@ -507,6 +512,13 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
     // removeModelFromReport cascade) so overlapping victims can't have their
     // cost double-counted into the report's deleted-items tally.
     private val removeLocks = ConcurrentHashMap<RunKey, Mutex>()
+
+    /** Run [block] under [runKey]'s remove mutex so a cost-rolling delete
+     *  can't race removeItemsMatching (or a sibling engine's own delete) on
+     *  the same run and double-count into costsFromDeletedItems. Used by
+     *  deleteRun's disk sweep and JudgeEvalEngine.deleteJudgeFromRun. */
+    protected suspend fun <T> withRemoveLock(runKey: RunKey, block: suspend () -> T): T =
+        removeLocks.getOrPut(runKey) { Mutex() }.withLock { block() }
 
     protected suspend fun removeItemsMatching(context: Context, runKey: RunKey, predicate: (ItemState) -> Boolean) {
         removeLocks.getOrPut(runKey) { Mutex() }.withLock {
