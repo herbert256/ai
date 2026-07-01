@@ -5,8 +5,8 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.asContextElement
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -58,7 +58,7 @@ import kotlinx.coroutines.withTimeout
  * race fix), and the whole batch is awaited in a [coroutineScope] — so a
  * body that throws cancels its siblings, exactly as before.
  *
- * Must be called from inside a coroutine (it suspends on `awaitAll`).
+ * Must be called from inside a coroutine (it suspends until every item settles).
  *
  * @param items     the work items.
  * @param hostOf    resolves an item's provider host; an item that returns
@@ -215,7 +215,23 @@ internal suspend fun <T> runThrottledBatch(
             register(item, deferred)
             deferred.start()
             deferred
-        }.awaitAll()
+        }.forEach { deferred ->
+            // Await each item individually instead of awaitAll():
+            // awaitAll rethrows the FIRST cancellation it sees, so
+            // cancelling one registered item deferred (the engines'
+            // removeItemsMatching / deleteJudgeFromRun cancelAndJoin on
+            // a removed model or judge) tore down this coroutineScope —
+            // every sibling item died mid-flight and got stamped
+            // "Interrupted". A child's own cancellation is expected
+            // teardown of that ONE item; only cancellation of the batch
+            // itself (cancelRun / report delete) may propagate, which
+            // ensureActive() rethrows.
+            try {
+                deferred.await()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                kotlin.coroutines.coroutineContext.ensureActive()
+            }
+        }
     }
 }
 
