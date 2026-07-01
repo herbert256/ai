@@ -17,7 +17,7 @@ secondary kinds: rerank / moderation / meta + fan-out / fan-in
 `runMetaPrompt` / `runFanInPrompt`, delegating the fan-out
 lifecycle to `FanOutEngine`), tournament / judges / compare
 (`TournamentEngine` / `JudgeEvalEngine` / `CompareEngine`), and
-translation (`TranslationRunManager`, state in `_translationRuns`).
+translation (`TranslationRunManager`, state in `translationRuns`).
 The `viewModelScope` lifetime makes that work survive in-app
 navigation, configuration changes, and short backgrounding — but
 it does **not** survive:
@@ -32,10 +32,10 @@ null). These are now **detected but not auto-fixed**:
 
 - `SecondaryRunManager.startBackgroundBrokenScan` runs a read-only
   scan at app start and every 30s across every report newer than 7
-  days, classifying interrupted work (`detectBrokenForReport` /
-  `classifyBrokenRow`, plus `RegenerateBatchEngine.detectBroken` and
-  each engine's `inFlightRowIds()`). It publishes a
-  `List<BrokenReport>` to `AppViewModel.brokenReports`; its Job is
+  days, classifying interrupted work (`detectBrokenBatchesForReport`
+  → `BrokenWorkPolicy.detectBatches`, plus `RegenerateBatchEngine.detectBroken`
+  and each engine's `inFlightRowIds()`). It publishes a
+  `List<BrokenBatch>` to `AppViewModel.brokenBatches`; its Job is
   stored on `AppViewModel.backgroundResumeSweepJob`. While non-empty
   the top-bar AI logo becomes a ⚠️ opening `BrokenWorkScreen`.
 - `SecondaryRunManager.resumeStaleRunsForReport` (cross-kind) and the
@@ -67,7 +67,7 @@ Sketch:
 - Tap → open the relevant Report screen.
 - POST_NOTIFICATIONS permission prompt on Android 13+.
 - Service runs the coroutines on its own scope; the ViewModel
-  drives state via the same `_agentResults` / `_translationRuns`
+  drives state via the same `_agentResults` / `translationRuns`
   flows it already exposes.
 
 Tradeoffs / open questions:
