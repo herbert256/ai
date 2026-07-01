@@ -36,7 +36,7 @@ internal fun ReportIconFlowOverlays(
     onPickPairIcon: (reportId: String, pairId: String, emoji: String) -> Unit,
     onRestartPairIconFanOut: (reportId: String, pairId: String) -> Unit,
     pairTitleFanOutByPair: Map<String, List<TitleCandidate>>,
-    onStartPairTitleFanOut: (reportId: String, pairId: String, models: List<ReportModel>) -> Unit,
+    onStartPairTitleFanOut: (reportId: String, pairId: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit,
     onPickPairTitle: (reportId: String, pairId: String, title: String, model: String) -> Unit,
     onRestartPairTitleFanOut: (reportId: String, pairId: String) -> Unit,
     onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean, paramsIds: List<String>, systemPromptId: String?) -> Unit,

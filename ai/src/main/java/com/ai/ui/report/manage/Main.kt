@@ -160,7 +160,7 @@ fun ReportsScreen(
      *  "Find alternative title" button. Routed to
      *  [ReportViewModel.startPairTitleFanOut /
      *  pickPairTitleAlternative / restartPairTitleFanOut]. */
-    onStartPairTitleFanOut: (reportId: String, pairId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    onStartPairTitleFanOut: (reportId: String, pairId: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit = { _, _, _, _, _ -> },
     onPickPairTitle: (reportId: String, pairId: String, title: String, model: String) -> Unit = { _, _, _, _ -> },
     onRestartPairTitleFanOut: (reportId: String, pairId: String) -> Unit = { _, _ -> },
     pairTitleFanOutByPair: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),

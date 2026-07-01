@@ -136,7 +136,7 @@ internal fun FindIconsPickerRouter(
     onStartInternalPromptIconFanOut: (com.ai.model.InternalPrompt, List<ReportModel>, List<String>, String?) -> Unit,
     onStartAgentIconFanOut: (String, String, List<ReportModel>) -> Unit,
     onStartPairIconFanOut: (String, String, List<ReportModel>) -> Unit,
-    onStartPairTitleFanOut: (String, String, List<ReportModel>) -> Unit,
+    onStartPairTitleFanOut: (String, String, List<ReportModel>, List<String>, String?) -> Unit,
     onStartIconFanOut: (String, String, List<ReportModel>) -> Unit,
     onAddAgent: () -> Unit,
     onAddFlock: () -> Unit,
@@ -159,7 +159,7 @@ internal fun FindIconsPickerRouter(
     if (autoDispatchModels.isNotEmpty()) {
         LaunchedEffect(autoDispatchModels) {
             when {
-                targetPairTitleId != null -> onStartPairTitleFanOut(reportId, targetPairTitleId, autoDispatchModels)
+                targetPairTitleId != null -> onStartPairTitleFanOut(reportId, targetPairTitleId, autoDispatchModels, emptyList(), null)
                 targetTitleFor != null -> onStartTitleFanOut(targetTitleFor, autoDispatchModels, emptyList(), null)
                 targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, autoDispatchModels, emptyList(), null)
                 targetLanguageIcon -> languageIconCallbacks.onStartFanOut(reportId, genericPromptText, autoDispatchModels)
@@ -186,7 +186,7 @@ internal fun FindIconsPickerRouter(
         onClearAll = onClearAll,
         onAction = {
             when {
-                targetPairTitleId != null -> onStartPairTitleFanOut(reportId, targetPairTitleId, models)
+                targetPairTitleId != null -> onStartPairTitleFanOut(reportId, targetPairTitleId, models, emptyList(), null)
                 targetLanguageIcon -> languageIconCallbacks.onStartFanOut(reportId, genericPromptText, models)
                 targetLanguage != null -> translationIconCallbacks.onStartFanOut(targetLanguage, models)
                 targetPairId != null -> onStartPairIconFanOut(reportId, targetPairId, models)
@@ -199,7 +199,7 @@ internal fun FindIconsPickerRouter(
         onActionWithParams = if (targetTitleFor != null || targetPairTitleId != null || targetPrompt != null) {
             { pIds, spId ->
                 when {
-                    targetPairTitleId != null -> onStartPairTitleFanOut(reportId, targetPairTitleId, models)
+                    targetPairTitleId != null -> onStartPairTitleFanOut(reportId, targetPairTitleId, models, pIds, spId)
                     targetTitleFor != null -> onStartTitleFanOut(targetTitleFor, models, pIds, spId)
                     targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, models, pIds, spId)
                 }

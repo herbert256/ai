@@ -568,8 +568,8 @@ fun ReportsScreenNav(
             reportViewModel.iconGen.restartPairIconFanOut(rid, pairId)
         },
         pairIconFanOutByPair = pairIconFanOutByPair,
-        onStartPairTitleFanOut = { rid, pairId, models ->
-            reportViewModel.iconGen.startPairTitleFanOut(context, rid, pairId, models, aiSettings)
+        onStartPairTitleFanOut = { rid, pairId, models, pIds, spId ->
+            reportViewModel.iconGen.startPairTitleFanOut(context, rid, pairId, models, aiSettings, pIds, spId)
         },
         onResolveAltPrompt = { flow ->
             reportViewModel.iconGen.resolveAltPrompt(context, aiSettings, flow)
