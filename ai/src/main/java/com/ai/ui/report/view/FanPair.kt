@@ -107,19 +107,21 @@ fun FanOutPairViewScreen(
     val pairs = loaded.pairs
 
     val pagerState = rememberWrapPager(pairs.size, 0)
-    // Once the pair list has loaded, jump the pager to the tapped
-    // pair. Keyed on (pairs, sourceAgentId, answererProviderId,
-    // answererModel) so a different deep-link recomputes the target.
+    // Once the pair list has loaded, jump the pager to the tapped pair.
+    // Keyed on (pairs, sourceAgentId, answererProviderId, answererModel)
+    // so a different deep-link recomputes the target. Always scroll to the
+    // CENTRED page (no "already there" guard): the pager was created while
+    // pairs was empty, so it sits on the uncentred page 0 — and when the
+    // tapped pair IS index 0 the guard treated it as already-there and left
+    // it uncentred, so a backward swipe hit the span edge ("No more pairs").
     LaunchedEffect(pairs, sourceAgentId, answererProviderId, answererModel) {
         if (pairs.isNotEmpty()) {
             val idx = pairs.indexOfFirst {
                 it.fanOutSourceAgentId == sourceAgentId &&
                     it.providerId == answererProviderId &&
                     it.model == answererModel
-            }
-            if (idx >= 0 && idx != pagerState.currentPage.wrapTo(pairs.size)) {
-                pagerState.scrollToPage(wrapCenterPage(pairs.size, idx))
-            }
+            }.coerceAtLeast(0)
+            pagerState.scrollToPage(wrapCenterPage(pairs.size, idx))
         }
     }
 

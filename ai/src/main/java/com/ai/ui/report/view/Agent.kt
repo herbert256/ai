@@ -237,16 +237,21 @@ fun ReportsViewScreen(
     val advanceModel: () -> Unit = {
         scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
     }
-    // When called with an initialAgentId, jump to that agent's page
-    // once the report has finished loading and the pager has its real
-    // count. Keyed on (agents, initialAgentId) so the jump only fires
-    // when the target arrives — not on every recomposition.
-    androidx.compose.runtime.LaunchedEffect(agents, initialAgentId) {
-        if (initialAgentId != null && agents.isNotEmpty()) {
-            val idx = agents.indexOfFirst { it.agentId == initialAgentId }
-            if (idx >= 0 && idx != pagerState.currentPage.wrapTo(agents.size)) {
-                pagerState.scrollToPage(wrapCenterPage(agents.size, idx))
-            }
+    // rememberWrapPager only seeds the centred start page once, at first
+    // composition — while `agents` is still empty (produceState initial),
+    // so it fixes initialPage=0. Once the real count arrives the pager is
+    // wrappable but sitting on the UNcentred page 0, so a backward swipe
+    // hits the span edge ("No more models") instead of wrapping. Re-centre
+    // once per report (also fixes the arbitrary landing after a title-bar
+    // report swap) — same pattern as the language pager above.
+    var modelsCenteredFor by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(currentReportId, agents, initialAgentId) {
+        if (modelsCenteredFor != currentReportId && agents.isNotEmpty()) {
+            val idx = initialAgentId
+                ?.let { id -> agents.indexOfFirst { it.agentId == id } }
+                ?.takeIf { it >= 0 } ?: 0
+            pagerState.scrollToPage(wrapCenterPage(agents.size, idx))
+            modelsCenteredFor = currentReportId
         }
     }
     val activeAgent = agents.getOrNull(pagerState.currentPage.wrapTo(agents.size))

@@ -200,15 +200,21 @@ fun FanOutViewScreen(
     val initiatorIds: List<String> = remember(pairsByInitiator) { pairsByInitiator.keys.toList() }
 
     val initiatorPagerState = rememberWrapPager(initiatorIds.size, 0)
-    // Land on the requested initiator (the model that was on screen in
-    // "Model reports") once the run has loaded and the pager has its
-    // real count. Keyed so it fires only when the target arrives.
-    LaunchedEffect(initiatorIds, initialInitiatorAgentId) {
-        if (initialInitiatorAgentId != null && initiatorIds.isNotEmpty()) {
-            val idx = initiatorIds.indexOf(initialInitiatorAgentId)
-            if (idx >= 0 && idx != initiatorPagerState.currentPage.wrapTo(initiatorIds.size)) {
-                initiatorPagerState.scrollToPage(wrapCenterPage(initiatorIds.size, idx))
-            }
+    // rememberWrapPager seeds the centred start page only at first
+    // composition, while initiatorIds is still empty — fixing initialPage=0.
+    // Once the real count arrives the pager is wrappable but sitting on the
+    // UNcentred page 0, so a backward swipe hits the span edge ("No more
+    // initiators") instead of wrapping. Re-centre once per report (also
+    // fixes the arbitrary landing after a report swap) — onto the requested
+    // initiator if given, else the first.
+    var initCenteredFor by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentReportId, initiatorIds, initialInitiatorAgentId) {
+        if (initCenteredFor != currentReportId && initiatorIds.isNotEmpty()) {
+            val idx = initialInitiatorAgentId
+                ?.let { id -> initiatorIds.indexOf(id) }
+                ?.takeIf { it >= 0 } ?: 0
+            initiatorPagerState.scrollToPage(wrapCenterPage(initiatorIds.size, idx))
+            initCenteredFor = currentReportId
         }
     }
     val activeInitiatorId: String? = initiatorIds.getOrNull(
