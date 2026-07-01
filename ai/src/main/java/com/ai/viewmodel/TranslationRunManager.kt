@@ -986,6 +986,8 @@ class TranslationRunManager(
         runId: String,
         rowFilter: (SecondaryResult) -> Boolean
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+        // Register so a report delete cancels this dispatch (see startMissingTranslations).
+        if (runJobOf(runId)?.isActive != true) coroutineContext[Job]?.let { registerRunJob(runId, it) }
         val rows = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId && rowFilter(it) }
@@ -1083,6 +1085,9 @@ class TranslationRunManager(
         // gated by the run/item Job cancellation (BatchEngine cancelRun).
         cancelTranslation(runId)
         _runs.update { it - runId }
+        // Register the restart job (superseding the just-cancelled one) so a
+        // report delete cancels it — see startMissingTranslations.
+        coroutineContext[Job]?.let { registerRunJob(runId, it) }
 
         val existing = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
@@ -1135,6 +1140,9 @@ class TranslationRunManager(
         try {
             cancelTranslation(runId)
             _runs.update { it - runId }
+            // Register the continue job (superseding the just-cancelled one)
+            // so a report delete cancels it — see startMissingTranslations.
+            coroutineContext[Job]?.let { registerRunJob(runId, it) }
             val rows = SecondaryResultStorage
                 .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
                 .filter { translationRunGroupingId(it) == runId }
@@ -1181,6 +1189,10 @@ class TranslationRunManager(
         // Dedupe the 30s background sweep racing a screen-reopen relaunch
         // (replaces the old activeTranslationRunIds snapshot guard).
         if (!beginResumeScan(runId)) return@launch
+        // Register so a report delete cancels this dispatch (e5f538c95 did
+        // this for translateMissingItems; the resume/restart/continue paths
+        // were left unregistered → orphan billed calls after a delete).
+        if (runJobOf(runId)?.isActive != true) coroutineContext[Job]?.let { registerRunJob(runId, it) }
         try {
         val existing = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
@@ -1640,6 +1652,11 @@ class TranslationRunManager(
         if (runId == null) {
             AppLog.w("Meta-xlate", "No existing translation run for $targetLanguageName — skipping cross-translate")
             return
+        }
+        // Register this dispatch (runs on the caller's coroutine) so a report
+        // delete cancels it — see startMissingTranslations.
+        if (runJobOf(runId)?.isActive != true) {
+            kotlin.coroutines.coroutineContext[Job]?.let { registerRunJob(runId, it) }
         }
 
         // Build placeholder TRANSLATE rows on disk so a process kill
