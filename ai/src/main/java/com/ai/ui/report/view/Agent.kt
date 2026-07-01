@@ -185,13 +185,17 @@ fun ReportsViewScreen(
     // bar to a different report picks up THAT report's languages instead
     // of leaking the previous report's translation tabs — mirrors
     // PromptViewScreen / MetaViewScreen / FanInViewScreen / FanOutViewScreen.
-    val languages = remember(availableLanguages, loaded.translatedByLang) {
+    val languages = remember(availableLanguages, loaded.translatedByLang, loaded.report) {
         val seen = linkedSetOf<String>()
         seen += ""
-        if (loaded.translatedByLang.isNotEmpty()) {
-            loaded.translatedByLang.keys.forEach { seen += it }
-        } else {
-            availableLanguages.forEach { seen += it }
+        when {
+            loaded.translatedByLang.isNotEmpty() -> loaded.translatedByLang.keys.forEach { seen += it }
+            // Empty translatedByLang means EITHER still-loading OR this report
+            // genuinely has none. Only fall back to the mount-time
+            // availableLanguages prop while STILL loading (loaded.report ==
+            // null) — once loaded, a translation-less report B must not keep
+            // showing report A's tabs (each rendering B's original text).
+            loaded.report == null -> availableLanguages.forEach { seen += it }
         }
         seen.toList()
     }

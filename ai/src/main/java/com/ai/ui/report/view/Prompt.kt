@@ -113,13 +113,15 @@ fun PromptViewScreen(
     // parent-supplied [availableLanguages] until the loaded
     // translations arrive, then tracks the loaded set so a swiped-in
     // new report's pager carries that report's own languages.
-    val languages = remember(availableLanguages, loaded.translatedByLang) {
+    val languages = remember(availableLanguages, loaded.translatedByLang, loaded.report) {
         val seen = linkedSetOf<String>()
         seen += ""
-        if (loaded.translatedByLang.isNotEmpty()) {
-            loaded.translatedByLang.keys.forEach { seen += it }
-        } else {
-            availableLanguages.forEach { seen += it }
+        when {
+            loaded.translatedByLang.isNotEmpty() -> loaded.translatedByLang.keys.forEach { seen += it }
+            // Only fall back to the mount-time availableLanguages while STILL
+            // loading (loaded.report == null); once loaded, a translation-less
+            // report must not keep the previous report's tabs. See Agent.kt.
+            loaded.report == null -> availableLanguages.forEach { seen += it }
         }
         seen.toList()
     }
