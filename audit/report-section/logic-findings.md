@@ -129,3 +129,39 @@ Counts: 1 HIGH, 7 MEDIUM, 14 LOW.
 - **Judge/parse** — computeWinMatrix orientation folding + tie averaging, consensusForMatch strict plurality, judge A/B slot randomised per match (no position bias), aggregateTranslatorRanks (self-judgement excluded, higher=better), Compare mean %, parseConfidence, JSON verdict/score paths.
 - **Report gen** — dedup key parity (picker == buildReportTasks), agent-sourced-wins tiebreak, progress total sourced from built tasks, directModelSids classification (normal path), main-case phase order (RERANK before TopRanked metas, FAN_META after FAN_OUT, TRANSLATIONS after content, TOURNAMENT last).
 - **Value view** — Pareto direction/strictness, quality polarity (all sources higher=better), Tournament Total averaging, min-max max==min→0.5 neutral, weighted-average base renormalisation.
+
+---
+
+## Resolution (2026-07-02)
+
+All 22 findings triaged; 20 fixed (one commit each, prefixed with the ID —
+`git log --grep '^LG'`), 2 consciously LEFT with rationale. Ranking-engine
+and cost-arithmetic findings that could have been math errors were verified
+sound during the audit and needed no change.
+
+Fixed: LG1–LG11, LG12 (folded into the LG2 commit), LG13–LG18, LG21, LG22.
+
+Two judgment calls (delegated), both implemented:
+- **LG6** — per-field parameter merge (honoring the doc's "merges down this
+  chain" summary over its wholesale-level tables).
+- **LG8** — added JUDGES / COMPARE / TRANSRANK regenerate phases (matching
+  the doc's "every secondary result" and the existing TOURNAMENT phase).
+
+LEFT AS-IS (documented, not regressions):
+- **LG19** (free model always takes the 💎) — correct by definition: a $0
+  model genuinely IS infinite value-per-dollar, so the best-value metric is
+  right. "Fixing" it would make the metric wrong. Behavior kept; the LG4
+  fix (exclude unknown-cost phantoms) already handles the real defect nearby.
+- **LG20** (language-scoped meta re-runs before TRANSLATIONS in a regenerate)
+  — a genuine circular dependency (translations also translate metas, so no
+  single linear phase order satisfies both). The common case
+  (original-language secondaries) is already correct after the AGENTS phase;
+  the niche language-scoped case has no clean linear fix and is left as a
+  known limitation.
+
+Note LG5 was fixed only PARTIALLY (exclude no-information rankings from the
+Combined blend, which was unambiguously correct); the residual
+"absent-from-a-discriminating-ranking isn't strictly worse than last-in-it"
+is an inherent, documented property of averaging over available data — the
+alternatives (zero-impute / drop partial rankings) break the common
+partial-participation case worse, so that property is kept on purpose.
