@@ -324,7 +324,11 @@ internal fun LazyListScope.secondaryResultRows(
                     }
                 }
                 RowTypeCell(typeLabel)
-                val hasAnyTranslation = secondaryRuns.any { it.kind == SecondaryKind.TRANSLATE }
+                // secondaryRuns is built with TRANSLATE rows filtered OUT, so
+                // `any { TRANSLATE }` was always false (the "· language" suffix
+                // never rendered). Use the translation summaries/runs that ARE
+                // passed in as the has-translations signal.
+                val hasAnyTranslation = visibleTranslationSummaries.isNotEmpty() || activeTranslationRuns.isNotEmpty()
                 val langSuffix = when {
                     run.targetLanguage != null -> " · ${run.targetLanguage}"
                     hasAnyTranslation && !languageName.isNullOrBlank() -> " · $languageName"
