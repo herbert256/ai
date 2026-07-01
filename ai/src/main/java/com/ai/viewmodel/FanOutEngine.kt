@@ -188,8 +188,20 @@ class FanOutEngine internal constructor(
         // flip a running pair back to "queued" mid-call.
         val currentRuns = _runs.value
         for ((metaPromptId, rows) in pairRowsByPrompt) {
+            // The fan-out prompt may have been deleted/recreated since the run
+            // ran. Fall back to a synthetic prompt (blank text) so the run
+            // still hydrates read-only — dropping it (the old `?: continue`)
+            // hid it from _runs, so removeModelFromReport / deleteModelFromReport
+            // (which iterate the hydrated runs) never pruned the removed
+            // model's pairs, leaving stale rows on disk that kept showing in
+            // cost tables and exports. Blank text ⇒ the resume path no-ops
+            // (guarded below), matching Tournament/JudgeEval/TransRank.
             val prompt = aiSettings.internalPrompts.firstOrNull { it.id == metaPromptId }
-                ?: continue
+                ?: InternalPrompt(
+                    id = metaPromptId,
+                    name = rows.firstOrNull()?.metaPromptName?.takeIf { it.isNotBlank() } ?: "(prompt unavailable)",
+                    category = "workers"
+                )
             val key = runKey(reportId, metaPromptId)
             val currentPairs = currentRuns[key]?.pairs
 
@@ -2092,6 +2104,11 @@ class FanOutEngine internal constructor(
             val dispatchable = mutableMapOf<FanOutRunKey, MutableList<PairKey>>()
             val locatedIds = mutableSetOf<String>()
             for ((rk, run) in runsForReport) {
+                // A run hydrated under a synthetic (blank-text) prompt — its
+                // real prompt was deleted — can't be re-dispatched: resolving
+                // the blank template would fire near-empty calls. It's kept
+                // only so the model-removal cascade can see and prune it.
+                if (run.metaPrompt.text.isBlank()) continue
                 for (p in run.pairs.values) {
                     if (p.status == PairStatus.PENDING && p.id in diskById) {
                         dispatchable.getOrPut(rk) { mutableListOf() }.add(p.key)
