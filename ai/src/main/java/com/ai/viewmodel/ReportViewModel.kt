@@ -314,7 +314,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     val secondaryModelSwitch: SecondaryModelSwitchManager = SecondaryModelSwitchManager(appViewModel, this)
 
     /** Per-report orchestrator for the "Regenerate report" batch
-     *  job. Replaces the legacy one-shot [regenerateReport] call —
+     *  job. Replaces the legacy one-shot regenerateReport call —
      *  the title-bar 🔁 icon's confirm dialog now calls
      *  `regenerateBatchEngine.enqueueAndStart` instead. */
     val regenerateBatchEngine: RegenerateBatchEngine = RegenerateBatchEngine(appViewModel, this)
@@ -2112,208 +2112,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /**
-     * Re-run a previously generated report end-to-end with the same prompt, agent set,
-     * and parameter selections.
-     */
-    fun regenerateReport(context: Context, reportId: String) {
-        // viewModelScope so navigating away mid-regenerate doesn't
-        // cancel in-flight calls and persist them as ERROR. Same
-        // bug class fixed in generateGenericReports.
-        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
-            // Track so the Broken-work scan sees a live regenerate (its agents
-            // go PENDING/RUNNING) and doesn't flag them as interrupted; also
-            // lets deleteReport cancel it, like the other regenerate paths.
-            trackRegenerateJob(reportId, coroutineContext[Job]!!)
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
-            AuditLog.append(reportId, "Regenerating the report")
-            val state = appViewModel.uiState.value
-            val ai = state.aiSettings
-            val staged = state.stagedReportModels
-            // Prefer a staged list from Edit Models — falls back to the on-disk agent set.
-            val rebuilt = if (staged.isNotEmpty()) staged else reportToModels(report, ai)
-            val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
-            // Kept swarm members from their explicit (provider, model) — never
-            // re-expand swarm ids, which re-adds removed members (e.g. via Edit
-            // Models). Distinct from direct models so they skip the report-model
-            // param fallback (directModelSids).
-            val swarmMembers = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.map { SwarmMember(it.provider, it.model) }
-            val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val directIds = rebuilt.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val agents = agentIds.mapNotNull { ai.getAgentById(it) }
-            val uniqueDirectIds = directIds.filter { it !in swarmMemberIds }.toSet()
-            val directModels = uniqueDirectIds.mapNotNull { mid ->
-                val parts = mid.removePrefix("swarm:").split(":", limit = 2)
-                val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null) ?: return@mapNotNull null
-                SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
-            }
-            // Replay the report's CAPTURED generation config (system prompt,
-            // per-model param selections, preset/advanced params) rather than
-            // whatever the live UiState/Settings hold now.
-            val reportLevelSystemPrompt = report.reportSystemPromptId
-                ?.let { ai.getSystemPromptById(it)?.prompt }
-            val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val preGenParamsActive = report.advancedParameters != null || report.parameterPresetIds.isNotEmpty() ||
-                report.webSearchTool || report.reasoningEffort != null
-            val tasks = buildReportTasks(
-                ai, agents, swarmMembers + directModels, report.selectionParamsById, state.externalSystemPrompt,
-                reportLevelSystemPrompt, state.generalSettings, directModelSids, preGenParamsActive
-            )
-            val existingIds = report.agents.map { it.agentId }.toSet()
-            val newTasks = tasks.filter { it.resultId !in existingIds }
-            val removedIds = existingIds - tasks.map { it.resultId }.toSet()
-
-            // Decide what gets refreshed:
-            //  - prompt or parameters changed → cascade everything: every
-            //    agent, then every existing meta, then every translation.
-            //  - only the model list changed → additive: add the new
-            //    agents, drop the removed ones, leave everything else
-            //    alone. Existing meta runs and translations still
-            //    reference the old agent set; the user can re-pick
-            //    individually if they want them refreshed.
-            //  - nothing changed → no-op.
-            val cascadeAll = state.hasPendingPromptChange || state.hasPendingParametersChange
-            val tasksToRun = if (cascadeAll) tasks else newTasks
-            // Silent-drop guard: if the user (or an imported example
-            // report) gave us a non-empty model list but every entry
-            // was filtered out — orphaned agent ids that don't match
-            // any configured Agent, or provider ids that aren't in
-            // the local ProviderRegistry — surface a toast so the
-            // regenerate doesn't appear to do nothing. Without this
-            // the user taps Regenerate and the screen just sits.
-            if (rebuilt.isNotEmpty() && tasks.isEmpty()) {
-                withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context,
-                        "Regenerate had nothing to run — none of the report's agents or providers are configured on this device.",
-                        android.widget.Toast.LENGTH_LONG).show()
-                }
-                return@launch
-            }
-            if (tasksToRun.isEmpty() && removedIds.isEmpty() && !cascadeAll) return@launch
-
-            withTracerTags(reportId = reportId, category = "Report regenerate") {
-                // Re-run icon-gen only when the user edited the prompt.
-                // A pure model-list / parameters regenerate keeps the
-                // existing icon — the report's content didn't change.
-                if (state.hasPendingPromptChange) {
-                    ReportStorage.clearReportIcon(context, reportId)
-                    ReportStorage.clearReportTitleError(context, reportId)
-                    appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-                    // Prompt changed → regenerate the title too, then the icon
-                    // (which derives from the new long title).
-                    iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = true)
-                    iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
-                }
-                for (id in removedIds) ReportStorage.removeAgent(context, reportId, id)
-                if (newTasks.isNotEmpty()) ReportStorage.appendAgents(context, reportId, newTasks.map { it.reportAgent })
-                // Reset existing-but-rerunning agents to PENDING so the
-                // result row shows the spinning hourglass while the new
-                // call is in flight. New agents are PENDING already via
-                // appendAgents.
-                for (task in tasksToRun) {
-                    if (task.resultId in existingIds) ReportStorage.resetAgentToPending(context, reportId, task.resultId)
-                }
-                val tasksToRunIds = tasksToRun.map { it.resultId }.toSet()
-                _agentResults.update { existing ->
-                    existing.filterKeys { k -> k !in removedIds && k !in tasksToRunIds }
-                }
-                ReportStorage.bumpReportTimestamp(context, reportId)
-                // The result-row list is driven by genericReportsSelectedAgents;
-                // sync it with the post-mutation agent set so newly-added rows
-                // appear (with the spinning hourglass via empty _agentResults)
-                // and removed rows disappear. Reset progress to count only the
-                // agents not being re-run — each task-to-run will bump progress
-                // on completion (isRegeneration = false below) until it equals
-                // total again. Without this, additive regenerate would silently
-                // drop new rows from the UI.
-                val finalAgentIds = tasks.map { it.resultId }.toSet()
-                appViewModel.updateUiState { s -> s.copy(
-                    stagedReportModels = emptyList(),
-                    pendingReportModels = emptyList(),
-                    hasPendingPromptChange = false,
-                    hasPendingParametersChange = false,
-                    genericReportsSelectedAgents = finalAgentIds,
-                    genericReportsTotal = finalAgentIds.size,
-                    genericReportsProgress = finalAgentIds.size - tasksToRunIds.size
-                ) }
-
-                if (tasksToRun.isNotEmpty()) {
-                    val finalReport = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    // Same captured config as the task build above (presets +
-                    // advanced + the report's own web/reasoning flags).
-                    val overrideParams = resolveReportOverrideParams(
-                        ai, finalReport.parameterPresetIds, finalReport.advancedParameters,
-                        finalReport.webSearchTool, finalReport.reasoningEffort
-                    )
-                    coroutineScope {
-                        // Interleave by host — same rationale as the
-                        // fresh-run path: a per-provider-clustered task
-                        // list otherwise has its first N launches sit
-                        // on a single host's per-host cap while holding
-                        // outer cap permits idle.
-                        interleaveByHost(tasksToRun) { providerHost(it.runtimeAgent.provider) }.map { task ->
-                            async {
-                                // Canonical order global → report → per-host
-                                // (host gate INSIDE global), else it deadlocks
-                                // against the global→host metadata/interceptor
-                                // path. See runReportPrimaryCalls for the full
-                                // rationale.
-                                        val permitHold = acquireThrottledPermits(ApiCallCaps.report, providerHost(task.runtimeAgent.provider))
-                                        try {
-                                            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                                executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
-                                                    finalReport.imageBase64, finalReport.imageMime, isRegeneration = false)
-                                            }
-                                        } finally {
-                                            permitHold.dispose()
-                                        }
-
-                                // Per-task auto-fire — same shape as
-                                // generateGenericReports. Each agent's
-                                // worker-based title→icon enrichment kicks
-                                // off the moment its primary call settles
-                                // to SUCCESS; generateIconFromTitle's
-                                // clearReportAgentIconState wipes any stale
-                                // icon + iconCalls rows so the re-fire is
-                                // clean.
-                                val g = appViewModel.uiState.value.generalSettings
-                                if (g.perModelIconOn() || g.perModelTitleOn()) {
-                                    val ra = ReportStorage.getReport(context, reportId)
-                                        ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
-                                    if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
-                                        iconGen.runPerModelEnrichment(context, reportId, ra, finalReport.prompt, ai,
-                                            g.perModelIconOn(), g.perModelTitleOn())
-                                    }
-                                }
-                            }
-                        }.awaitAll()
-                    }
-                }
-
-                // Cascade: prompt / params change invalidates every meta
-                // result and every translation. Re-fire each meta kind
-                // with its original picks (RERANK first because chat-
-                // type META runs may consume it as Top-Ranked scope),
-                // then re-fire translations sequentially (translation
-                // jobs are mutually exclusive — startTranslation cancels
-                // the previous one). Picks come from the persisted rows so
-                // the user gets the same coverage they had before.
-                if (cascadeAll) cascadeMetasAndTranslations(context, reportId)
-            }
-        }
-    }
-
-    /** Re-fire EVERY agent on [reportId] from scratch, regardless of
-     *  the model-list / prompt / parameters diff that the public
-     *  [regenerateReport] uses to decide what to re-run. Each agent
-     *  is reset to PENDING and re-dispatched via [executeReportTask].
-     *  Returns immediately — dispatch runs on viewModelScope. Used
-     *  by [com.ai.viewmodel.RegenerateBatchEngine]'s AGENTS phase.
+    /** Re-fire EVERY agent on [reportId] from scratch, regardless of any
+     *  model-list / prompt / parameters diff. Each agent is reset to
+     *  PENDING and re-dispatched via [executeReportTask]. Returns
+     *  immediately — dispatch runs on viewModelScope. Used by
+     *  [com.ai.viewmodel.RegenerateBatchEngine]'s AGENTS phase.
      *
-     *  Mirrors the agent-dispatch portion of [regenerateReport] but
-     *  skips the prompt/params diff, the staged-edit-models merge,
-     *  and the secondary/translation cascade — the engine handles
-     *  cascading itself one phase at a time. */
+     *  Skips the staged-edit-models merge and the secondary/translation
+     *  cascade that the removed one-shot regenerateReport used to do
+     *  inline — the engine handles cascading itself one phase at a time. */
     fun forceRegenerateAllAgents(context: Context, reportId: String) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             trackRegenerateJob(reportId, coroutineContext[Job]!!)
