@@ -774,10 +774,11 @@ fun ReportsScreenNav(
         onMarkParametersChanged = {
             viewModel.updateUiState { it.copy(hasPendingParametersChange = true) }
         },
-        // Title-bar 🔁 → confirm dialog → enqueue a Regenerate
-        // batch job (app-restart-survivable, phased through every
-        // category) instead of the legacy one-shot regenerateReport.
-        onRegenerate = { rid -> reportViewModel.regenerateBatchEngine.enqueueAndStart(context, rid) },
+        // Title-bar 🔁 → confirm dialog → apply any staged Edit-Models
+        // list, then enqueue a Regenerate batch job (app-restart-
+        // survivable, phased through every category) instead of the
+        // legacy one-shot regenerateReport.
+        onRegenerate = { rid -> reportViewModel.regenerateReportBatch(context, rid) },
         onRegenerateInfo = { rid -> reportViewModel.regenerateReportInfo(context, rid) },
         onRestartInfoErrors = { rid -> reportViewModel.restartReportInfoErrors(context, rid) },
         runningInfoJobs = runningInfoJobs,

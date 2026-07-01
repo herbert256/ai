@@ -1884,6 +1884,102 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /**
+     * Title-bar 🔁 confirmed. Applies any staged Edit-Models list to the
+     * report on disk FIRST, clears the pending-change banner flags, then
+     * enqueues the Regenerate batch. The batch engine builds its task list
+     * from `report.agents` on disk, so staged adds/removals must land there
+     * before [RegenerateBatchEngine.enqueueAndStart] runs — this carries the
+     * staged-list contract of the deleted one-shot regenerateReport over to
+     * the batch path ("Update model list" used to be silently ignored).
+     */
+    fun regenerateReportBatch(context: Context, reportId: String) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            applyStagedModelList(context, reportId)
+            appViewModel.updateUiState { it.copy(
+                stagedReportModels = emptyList(), pendingReportModels = emptyList(),
+                hasPendingPromptChange = false, hasPendingParametersChange = false
+            ) }
+            regenerateBatchEngine.enqueueAndStart(context, reportId)
+        }
+    }
+
+    /** Merge the staged Edit-Models list into the report's on-disk agent
+     *  set: append new rows as PENDING (replaying the report's captured
+     *  config), remove dropped rows through the full orphan cascade. */
+    private suspend fun applyStagedModelList(context: Context, reportId: String) {
+        val state = appViewModel.uiState.value
+        val staged = state.stagedReportModels
+        if (staged.isEmpty()) return
+        val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
+        val ai = state.aiSettings
+        val agentIds = staged.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
+        // Kept swarm members from their explicit (provider, model) — never
+        // re-expand swarm ids, which re-adds removed members.
+        val swarmMembers = staged.filter { it.sourceType == "swarm" && it.type == "model" }.map { SwarmMember(it.provider, it.model) }
+        val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+        val directIds = staged.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+        val agents = agentIds.mapNotNull { ai.getAgentById(it) }
+        val directModels = (directIds - swarmMemberIds).mapNotNull { mid ->
+            val parts = mid.removePrefix("swarm:").split(":", limit = 2)
+            val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null) ?: return@mapNotNull null
+            SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
+        }
+        // Replay the report's CAPTURED generation config for the new rows,
+        // matching forceRegenerateAllAgents (NOT the live UiState).
+        val reportLevelSystemPrompt = report.reportSystemPromptId
+            ?.let { ai.getSystemPromptById(it)?.prompt }
+        val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+        val preGenParamsActive = report.advancedParameters != null || report.parameterPresetIds.isNotEmpty() ||
+            report.webSearchTool || report.reasoningEffort != null
+        val tasks = buildReportTasks(
+            ai, agents, swarmMembers + directModels, report.selectionParamsById,
+            state.externalSystemPrompt, reportLevelSystemPrompt,
+            state.generalSettings, directModelSids, preGenParamsActive
+        )
+        if (tasks.isEmpty()) {
+            // Every staged entry was filtered out (orphaned agent ids /
+            // unknown providers) — leaving removedIds = all agents would
+            // wipe the report. Surface it instead of silently mutating.
+            withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(context,
+                    "Edited model list had nothing to run — none of the picked agents or providers are configured on this device.",
+                    android.widget.Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        val existingIds = report.agents.map { it.agentId }.toSet()
+        val newAgents = tasks.filter { it.resultId !in existingIds }.map { it.reportAgent }
+        val removedIds = existingIds - tasks.map { it.resultId }.toSet()
+        withContext(Dispatchers.IO) {
+            for (id in removedIds) {
+                val agent = report.agents.firstOrNull { it.agentId == id }
+                // "Use report models" unifies the report's answer models with
+                // the batch pools — route through the everywhere-cascade there,
+                // mirroring removeAgentFromReport.
+                if (report.workerConfig.useReportModels && agent != null) {
+                    removeReportModelEverywhereInternal(context, reportId, agent.provider, agent.model)
+                } else {
+                    removeAgentInternal(context, reportId, id)
+                }
+            }
+            if (newAgents.isNotEmpty()) ReportStorage.appendAgents(context, reportId, newAgents)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+        if (newAgents.isNotEmpty()) {
+            // Sync the result-row driver set so the appended rows appear
+            // (hourglass via empty _agentResults) on the open report.
+            appViewModel.updateUiState { s ->
+                if (s.currentReportId != reportId) s
+                else s.copy(
+                    genericReportsSelectedAgents = s.genericReportsSelectedAgents + newAgents.map { it.agentId },
+                    genericReportsTotal = s.genericReportsTotal + newAgents.size
+                )
+            }
+        }
+        AuditLog.append(reportId, "Applied edited model list (+${newAgents.size} / -${removedIds.size} models)")
+    }
+
+    /**
      * Update the saved report's prompt (and the matching UiState) without
      * triggering generation. Used by the Edit-prompt overlay — the user reviews the new
      * prompt on the result screen and re-runs via the Actions / Regenerate button when
