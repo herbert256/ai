@@ -235,7 +235,8 @@ internal fun buildCombinedRows(
     transRankRuns: List<TransRankSource>,
     tournamentMatrix: WinMatrix?,
     compareScoreByAgentId: Map<String, Double>,
-    weightOf: (String) -> Int
+    weightOf: (String) -> Int,
+    tournamentIdToSuccessId: Map<Int, Int> = emptyMap()
 ): List<RerankRow> {
     val success = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
     val n = success.size
@@ -276,7 +277,13 @@ internal fun buildCombinedRows(
         TournamentMethod.values().forEach { method ->
             val w = weightOf(method.name)
             if (w > 0) {
-                val sc = rankFor(method, m).associate { it.id to it.score }
+                // Participant → SUCCESS renumbering, same as the Tournament
+                // chips — mixing participant-numbered ids into the success-
+                // numbered blend credited scores to the wrong models.
+                val sc = remapTournamentRows(
+                    rankFor(method, m).map { RerankRow(it.id, it.rank, it.score, it.reason) },
+                    tournamentIdToSuccessId
+                ).associate { it.id to (it.score ?: 0.0) }
                 if (sc.isNotEmpty()) rankings.add(w to sc)
             }
         }
@@ -319,8 +326,22 @@ internal data class ValueViewData(
     val includesFanOut: Boolean,
     /** Compare-with-meta: agentId → mean match % (0..100) over the latest
      *  run — the result screen's first column, used as a quality source. */
-    val compareScoreByAgentId: Map<String, Double>
+    val compareScoreByAgentId: Map<String, Double>,
+    /** Tournament matrix ids are PARTICIPANT-numbered (stable position in
+     *  report.agents filtered to the tournament's participant set — the
+     *  numbering TournamentEngine writes and TournamentPodium reads).
+     *  buildValuePoints / the Combined blend number by CURRENT SUCCESS
+     *  position, so tournament-derived rows are translated through this
+     *  map. Empty = identity fallback (no match rows to derive it from). */
+    val tournamentIdToSuccessId: Map<Int, Int> = emptyMap()
 )
+
+/** Translate participant-numbered tournament rows to SUCCESS numbering.
+ *  An empty [remap] keeps the rows as-is (legacy fallback); participants
+ *  that aren't currently SUCCESS drop out (they can't plot — no cost). */
+internal fun remapTournamentRows(rows: List<RerankRow>, remap: Map<Int, Int>): List<RerankRow> =
+    if (remap.isEmpty()) rows
+    else rows.mapNotNull { r -> remap[r.id]?.let { RerankRow(it, r.rank, r.score, r.reason) } }
 
 /** Available ranking sources for [data]: Combined (if any weighted ranking
  *  exists) first, then Rerank, the translator runs, Judges, Compare, the
@@ -382,7 +403,10 @@ internal fun rowsForSource(
                 }
         }
         is RankSource.Tournament -> data.tournamentMatrix?.let { m ->
-            rankFor(source.method, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) }
+            remapTournamentRows(
+                rankFor(source.method, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) },
+                data.tournamentIdToSuccessId
+            )
         } ?: emptyList()
     }
 }
@@ -409,6 +433,33 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 .filter { it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE" }
                 .maxByOrNull { it.timestamp }
             val decoded = decodeTournamentMatrix(aggRow?.tournamentMatrix)
+            // Participant → SUCCESS renumbering for the tournament matrix,
+            // derived from the run's MATCH rows exactly like the podium
+            // loader. Resolving matrix ids straight through the current
+            // success set mapped scores to the wrong models whenever the
+            // two sets drifted (model added post-tournament, failed agent
+            // regenerated to SUCCESS, participant dipped out of SUCCESS).
+            val tournamentIdToSuccessId: Map<Int, Int> = run {
+                if (decoded == null || report == null) return@run emptyMap()
+                val matchRows = aggRow?.tournamentJudgeRunId?.let { runId ->
+                    rows.filter {
+                        it.kind == SecondaryKind.TOURNAMENT &&
+                            it.tournamentRole == "MATCH" &&
+                            it.tournamentJudgeRunId == runId
+                    }
+                }.orEmpty()
+                val participantIds = matchRows
+                    .flatMap { listOf(it.matchResponseAId, it.matchResponseBId) }
+                    .filterNotNull()
+                    .toHashSet()
+                if (participantIds.isEmpty()) return@run emptyMap()
+                val successIdByAgent = report.agents
+                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    .mapIndexed { idx, a -> a.agentId to (idx + 1) }.toMap()
+                report.agents.filter { it.agentId in participantIds }
+                    .mapIndexedNotNull { idx, a -> successIdByAgent[a.agentId]?.let { (idx + 1) to it } }
+                    .toMap()
+            }
             // Judge-the-judges → a per-answer consensus ranking. Pick the
             // latest run (by its AGGREGATE row, else newest cell), fold its
             // judge cells' consensus through the tournament win matrix. The
@@ -505,7 +556,8 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                 reportTitle = report?.barTitle,
                 fanOutCostByAgentId = fanOutCostByAgentId,
                 includesFanOut = fanOutCostByAgentId.isNotEmpty(),
-                compareScoreByAgentId = compareScoreByAgentId
+                compareScoreByAgentId = compareScoreByAgentId,
+                tournamentIdToSuccessId = tournamentIdToSuccessId
             )
         }
     }
@@ -519,11 +571,13 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     // The Tournament "Total" rows + the weighted "Combined" rows, recomputed when
     // the loaded data or the weights change.
     val tournamentTotalRowList = remember(loaded) {
-        loaded.tournamentMatrix?.let { tournamentTotalRows(it) } ?: emptyList()
+        loaded.tournamentMatrix
+            ?.let { remapTournamentRows(tournamentTotalRows(it), loaded.tournamentIdToSuccessId) }
+            ?: emptyList()
     }
     val combinedRows = remember(loaded, generalSettings) {
         loaded.report?.let {
-            buildCombinedRows(it, loaded.rerankRows, loaded.judgesMatrix, loaded.transRankRuns, loaded.tournamentMatrix, loaded.compareScoreByAgentId, weightOf)
+            buildCombinedRows(it, loaded.rerankRows, loaded.judgesMatrix, loaded.transRankRuns, loaded.tournamentMatrix, loaded.compareScoreByAgentId, weightOf, loaded.tournamentIdToSuccessId)
         } ?: emptyList()
     }
 
