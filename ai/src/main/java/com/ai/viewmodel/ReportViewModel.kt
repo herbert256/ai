@@ -438,8 +438,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null) ?: return@mapNotNull null
                 SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
             }
-            val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val uniqueDirectModelIds = directModelIds.filter { it !in swarmMemberIds }.toSet()
+            val uniqueDirectModelIds = directModelIds.toSet()
+            // A pair picked BOTH as a swarm member and a direct +Model is
+            // classified as DIRECT (the more specific pick), so it gets the
+            // provider / report-model / app-wide param + system-prompt
+            // fallbacks a bare +Model expects — drop it from the swarm side to
+            // avoid the dedup collapsing it to a swarm member (which skips
+            // those fallbacks, insertion-order-dependently).
+            val uniqueSwarmMembers = swarmMembers.filter {
+                "swarm:${it.provider.id}:${it.model}" !in uniqueDirectModelIds
+            }
+            val uniqueSwarmMemberIds = uniqueSwarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
 
             val directModels = uniqueDirectModelIds.mapNotNull { modelId ->
                 val parts = modelId.removePrefix("swarm:").split(":", limit = 2)
@@ -447,8 +456,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
             }
 
-            val allModelMembers = swarmMembers + directModels
-            val allModelIds = swarmMemberIds + uniqueDirectModelIds
+            val allModelMembers = uniqueSwarmMembers + directModels
+            val allModelIds = uniqueSwarmMemberIds + uniqueDirectModelIds
 
             val reportLevelSystemPrompt = state.reportSystemPromptId
                 ?.let { aiSettings.getSystemPromptById(it)?.prompt }
