@@ -85,10 +85,20 @@ internal val ExportLanguageSaver: Saver<ExportLanguage, String> = Saver(
 // AI_REPORTS Composable from the composition while it's painted).
 // Without these the user lands back at the report root mid-flow.
 
+// Carries the per-prompt PRECEDENCE fields (parameters / systemPrompt) and
+// the provider/model pin + modelSelection through a mid-flow Help hop /
+// process death. Dropping them (the old 7-field form) restored the picked
+// meta prompt with parameters/systemPrompt reset to "*NONE", so the run
+// silently executed under the wrong config. `workers` is intentionally NOT
+// carried: meta-batch workers are re-fetched fresh from the settings-level
+// prompt at launch, not read off this restored object.
 internal val InternalPromptSaver: Saver<InternalPrompt?, Any> = listSaver(
     save = { p ->
         if (p == null) emptyList()
-        else listOf(p.id, p.name, p.reference, p.category, p.agent, p.text, p.title)
+        else listOf(
+            p.id, p.name, p.reference, p.category, p.agent, p.text, p.title,
+            p.parameters, p.systemPrompt, p.provider ?: "", p.model ?: "", p.modelSelection
+        )
     },
     restore = { l ->
         if (l.isEmpty()) null
@@ -99,7 +109,12 @@ internal val InternalPromptSaver: Saver<InternalPrompt?, Any> = listSaver(
             category = l[3] as String,
             agent = l[4] as String,
             text = l[5] as String,
-            title = l[6] as String
+            title = l[6] as String,
+            parameters = l[7] as String,
+            systemPrompt = l[8] as String,
+            provider = (l[9] as String).ifEmpty { null },
+            model = (l[10] as String).ifEmpty { null },
+            modelSelection = l[11] as String
         )
     }
 )
