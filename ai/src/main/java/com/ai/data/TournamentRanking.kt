@@ -202,7 +202,8 @@ fun davidson(m: WinMatrix): List<RankRow> {
         RankScored(
             id = m.ids[i],
             score = Math.round(raw * 10.0) / 10.0,
-            reason = "Davidson strength %.3f · tie %.2f".format(strengths[i], tieTendency)
+            reason = "Davidson strength %.3f · tie %.2f".format(strengths[i], tieTendency),
+            sortKey = raw
         )
     }
     return assignRanks(scored)
@@ -259,7 +260,8 @@ fun markov(m: WinMatrix): List<RankRow> {
         RankScored(
             id = m.ids[i],
             score = Math.round(raw * 10.0) / 10.0,
-            reason = "Stationary share %.1f%%".format(dist[i] * 100.0)
+            reason = "Stationary share %.1f%%".format(dist[i] * 100.0),
+            sortKey = raw
         )
     }
     return assignRanks(scored)
@@ -285,7 +287,7 @@ fun elo(m: WinMatrix): List<RankRow> {
         }
     }
     val scored = (0 until n).map { i ->
-        RankScored(m.ids[i], Math.round(r[i]).toDouble(), "Elo %d".format(Math.round(r[i])))
+        RankScored(m.ids[i], Math.round(r[i]).toDouble(), "Elo %d".format(Math.round(r[i])), sortKey = r[i])
     }
     return assignRanks(scored)
 }
@@ -357,14 +359,14 @@ fun colley(m: WinMatrix): List<RankRow> {
         // to a plain win share if the solve degenerates.
         (0 until n).map { i ->
             val share = if (totalGames[i] > 0.0) 100.0 * wins[i] / totalGames[i] else 0.0
-            RankScored(m.ids[i], Math.round(share * 10.0) / 10.0, "Win share %.0f%%".format(share))
+            RankScored(m.ids[i], Math.round(share * 10.0) / 10.0, "Win share %.0f%%".format(share), sortKey = share)
         }
     } else {
         val maxR = r.maxOrNull() ?: 1.0
         (0 until n).map { i ->
             val raw = if (maxR > 0.0) 100.0 * r[i] / maxR else 0.0
             RankScored(m.ids[i], Math.round(raw * 10.0) / 10.0,
-                String.format(java.util.Locale.US, "Colley rating %.3f", r[i]))
+                String.format(java.util.Locale.US, "Colley rating %.3f", r[i]), sortKey = raw)
         }
     }
     return assignRanks(scored)
@@ -438,7 +440,7 @@ fun trueskill2(m: WinMatrix): List<RankRow> {
     val scored = (0 until n).map { i ->
         val sigma = kotlin.math.sqrt(sigma2[i])
         RankScored(m.ids[i], Math.round((mu[i] - 3.0 * sigma) * 10.0) / 10.0,
-            String.format(java.util.Locale.US, "TrueSkill μ %.1f σ %.1f", mu[i], sigma))
+            String.format(java.util.Locale.US, "TrueSkill μ %.1f σ %.1f", mu[i], sigma), sortKey = mu[i] - 3.0 * sigma)
     }
     return assignRanks(scored)
 }
@@ -498,12 +500,19 @@ private fun tsWDraw(t: Double, eps: Double): Double {
     return (v * v + ((eps - t) * stdPdf(eps - t) - (-eps - t) * stdPdf(-eps - t)) / denom).coerceIn(0.0, 1.0)
 }
 
-private data class RankScored(val id: Int, val score: Double, val reason: String)
+/** [sortKey] is the FULL-precision value used to order the ranking;
+ *  [score] is the (possibly rounded-for-display) number shown. They default
+ *  to equal, so a method that already passes a full-precision score
+ *  (Copeland) needs no change. Methods that round the display score to 0.1
+ *  pass the raw value as [sortKey] so near-ties (< 0.05 apart) don't collapse
+ *  to the same rounded value and get resolved by the id tiebreak — which
+ *  could invert their true order, inconsistently with Copeland/Schulze. */
+private data class RankScored(val id: Int, val score: Double, val reason: String, val sortKey: Double = score)
 
-/** Sort by score desc (tiebreak id asc for determinism) and assign
- *  rank 1..N. */
+/** Sort by full-precision sortKey desc (tiebreak id asc for determinism) and
+ *  assign rank 1..N. */
 private fun assignRanks(scored: List<RankScored>): List<RankRow> {
-    val sorted = scored.sortedWith(compareByDescending<RankScored> { it.score }.thenBy { it.id })
+    val sorted = scored.sortedWith(compareByDescending<RankScored> { it.sortKey }.thenBy { it.id })
     return sorted.mapIndexed { idx, s -> RankRow(s.id, idx + 1, s.score, s.reason) }
 }
 
