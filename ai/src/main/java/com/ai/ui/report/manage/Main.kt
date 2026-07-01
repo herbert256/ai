@@ -1590,9 +1590,24 @@ fun ReportsScreen(
                 onRankTranslators = { runId, ln, lnn ->
                     val key = com.ai.data.transRankRunKey(rid, runId)
                     if (transRankEngine?.runByKey(key) != null) transRankOpenState?.value = key
-                    // No worker picker — the translation models from the
-                    // connected Translation batch rank each other.
-                    else rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+                    else {
+                        // Honour the "Runtime parameters" toggle like the
+                        // Translations-list 🏅 (Run.kt's onRankMedal) does —
+                        // this run-screen medal skipped it, so the optional
+                        // translate-rank prompt edit never appeared here. No
+                        // worker picker either way: the translation models
+                        // from the connected batch rank each other.
+                        val rp = aiSettings.workerPromptByName("translate-rank")
+                        if (rp != null) {
+                            withRuntimeParamsFlag(context, st.screenScope, rid) { rt ->
+                                if (rt) st.runtimePromptReq.value = RuntimePromptReq(
+                                    kind = RuntimePromptKind.TRANSRANK,
+                                    prompts = listOf(rp), ctxId = runId, lang = ln, langNative = lnn
+                                )
+                                else rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+                            }
+                        } else rankPending.value = com.ai.ui.report.manage.PendingRankRequest(runId, ln, lnn, null)
+                    }
                 },
                 onBack = { openTranslationRunId = null }
             )
