@@ -197,7 +197,12 @@ internal fun ReportIconFlowOverlays(
                 },
                 translationIconCallbacks = translationIconCallbacks,
                 languageIconCallbacks = languageIconCallbacks,
-                onStartInternalPromptIconFanOut = promptIconCallbacks.onStartFanOut,
+                // Inject the META row the flow was opened from so the alt-icon
+                // cost attributes to THAT row, not the first row sharing the
+                // prompt name (IconOverlays' callback stays 4-arg).
+                onStartInternalPromptIconFanOut = { prompt, models, pIds, spId ->
+                    promptIconCallbacks.onStartFanOut(prompt, models, pIds, spId, st.metaRowIdForPromptIcon.value)
+                },
                 onStartAgentIconFanOut = onStartAgentIconFanOut,
                 onStartPairIconFanOut = onStartPairIconFanOut,
                 onStartPairTitleFanOut = onStartPairTitleFanOut,

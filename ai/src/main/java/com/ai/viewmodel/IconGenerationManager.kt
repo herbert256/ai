@@ -1279,6 +1279,11 @@ class IconGenerationManager(
          *  matches [prompt]. Null skips both — keeps legacy
          *  call-sites compiling. */
         reportId: String? = null,
+        /** The specific META row the alt-icon flow was opened from. When
+         *  supplied it OWNS the per-call cost attribution — the first-match
+         *  heuristic below sent the spend to the wrong row when a report had
+         *  two META rows sharing a prompt name. Null falls back to first-match. */
+        metaRowId: String? = null,
         paramsIds: List<String> = emptyList(),
         systemPromptId: String? = null
     ) {
@@ -1310,7 +1315,9 @@ class IconGenerationManager(
         // prompt that hasn't been run on this report yet) or when
         // reportId wasn't supplied.
         val attributedSecondaryId: String? = reportId?.let { rid ->
-            SecondaryResultStorage.listForReport(context, rid)
+            // Prefer the explicit row the flow was opened from; only fall back
+            // to first-match when the caller didn't track one.
+            metaRowId ?: SecondaryResultStorage.listForReport(context, rid)
                 .firstOrNull { sr ->
                     (sr.metaPromptId != null && sr.metaPromptId == prompt.id) ||
                     (!sr.metaPromptName.isNullOrBlank() && sr.metaPromptName == prompt.name)

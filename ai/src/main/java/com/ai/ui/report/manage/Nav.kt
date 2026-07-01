@@ -586,10 +586,11 @@ fun ReportsScreenNav(
             onKickoff = { prompt ->
                 reportViewModel.iconGen.kickOffInternalPromptIcon(context, prompt, aiSettings)
             },
-            onStartFanOut = { prompt, picks, paramsIds, systemPromptId ->
+            onStartFanOut = { prompt, picks, paramsIds, systemPromptId, metaRowId ->
                 reportViewModel.iconGen.startInternalPromptIconFanOut(
                     context, prompt, picks, aiSettings,
                     reportId = uiState.currentReportId,
+                    metaRowId = metaRowId,
                     paramsIds = paramsIds, systemPromptId = systemPromptId
                 )
             },
