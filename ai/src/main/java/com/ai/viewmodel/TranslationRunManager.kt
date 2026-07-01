@@ -917,16 +917,28 @@ class TranslationRunManager(
         }
     }
 
-    /** Drop one pending/running item from an in-flight translation
-     *  run. Removes the item from [_runs] so its row
-     *  disappears on the detail screen; the [saveOneTranslationItem]
-     *  guard inside [runOneTranslation] will then skip the disk
-     *  write for any call that lands after this point (the guard
-     *  looks the item up by id and bails if it's gone). The
-     *  in-flight call itself is allowed to finish — there's no
-     *  per-item Job to cancel — but its result is discarded. */
+    /** Cancel one pending/running item in an in-flight translation run.
+     *  Items ARE registered as per-item jobs now (keyed by persistedRowId),
+     *  so — unlike the old "let the call finish, discard its result"
+     *  behaviour — cancel the in-flight coroutine so the billed call is
+     *  actually aborted, delete its persisted placeholder (rolling cost),
+     *  and drop it from [_runs]. Without deleting the placeholder the empty
+     *  row stayed on disk: it re-appeared as PENDING on the next
+     *  disk-reconstruct, Broken-work flagged the run, and a resume
+     *  re-dispatched (re-billed) the "cancelled" item. */
     fun cancelTranslationItem(runId: String, itemId: String) {
-        dropItem(runId, itemId)
+        val run = _runs.value[runId] ?: return
+        val item = run.items[itemId]
+        val rowId = item?.persistedRowId
+        if (rowId != null) {
+            // Cancel the coroutine, then delete the placeholder + roll its
+            // cost + drop it from _runs (shared remove scaffold).
+            itemJobOf(rowId)?.cancel()
+            removeTranslationRowsByIds(appViewModel.getApplication(), run.sourceReportId, runId, setOf(rowId))
+        } else {
+            // Legacy / never-persisted item: nothing on disk, just drop it.
+            dropItem(runId, itemId)
+        }
     }
 
     /** Re-run every errored translation row in [runId]: deletes the
