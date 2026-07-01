@@ -152,6 +152,7 @@ internal fun FanMetaL3Screen(
     }
 
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmReloadResponse by remember { mutableStateOf(false) }
 
     // Re-read the row from disk on each refresh tick so picked
     // icon/title/titleModel land here without leaving the screen.
@@ -215,7 +216,12 @@ internal fun FanMetaL3Screen(
             onInfo = answererProviderService?.let { svc ->
                 { actions.onNavigateToModelInfo(svc, pair.model) }
             },
-            onReload = { actions.onRerunPair(run.key, pair.key) },
+            // Confirm first — this re-runs the pair's RESPONSE (clearing its
+            // content + re-billing), even on the Fan-Meta pair screen whose
+            // subject is the title/icon. Every other reload in this tree is
+            // confirmed; a bare tap here silently destroyed the response the
+            // kept title/icon describe.
+            onReload = { confirmReloadResponse = true },
             onDelete = { confirmDelete = true }
         )
 
@@ -296,6 +302,23 @@ internal fun FanMetaL3Screen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            }
+        )
+    }
+
+    if (confirmReloadResponse) {
+        AlertDialog(
+            onDismissRequest = { confirmReloadResponse = false },
+            title = { Text("Re-run this pair's response?") },
+            text = { Text("Clears the pair's response and calls the model again. The kept Fan-Meta title / icon still describe the old response until you re-run the meta. New API cost is added to the report total.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReloadResponse = false
+                    actions.onRerunPair(run.key, pair.key)
+                }) { Text("Re-run", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReloadResponse = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
             }
         )
     }
