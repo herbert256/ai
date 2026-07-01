@@ -1154,7 +1154,14 @@ object SecondaryResultStorage {
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = readCachedOrDisk(reportId, target) ?: return
-            val updated = current.copy(
+            // Additive cost like [saveIfStillPresent]: a Regenerate batch
+            // resets MATCH rows to placeholders KEEPING their cost on the
+            // engine's documented assumption that this write adds the new
+            // call's spend onto it — a plain replace silently dropped the
+            // whole prior tournament's expenditure from the row + lifetime
+            // totals. Rerun paths bank-then-clear first, and fresh rows
+            // carry no prior cost, so both stay overwrite-equivalent.
+            val updated = mergeCostFromCurrent(current, current.copy(
                 providerId = providerId,
                 model = model,
                 agentName = "$providerId / $model",
@@ -1165,7 +1172,7 @@ object SecondaryResultStorage {
                 outputCost = outputCost,
                 durationMs = durationMs,
                 traceFile = traceFile ?: current.traceFile
-            )
+            ))
             if (!target.writeTextAtomic(gson.toJson(updated))) {
                 AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
                 return
@@ -1194,7 +1201,8 @@ object SecondaryResultStorage {
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = readCachedOrDisk(reportId, target) ?: return
-            val updated = current.copy(
+            // Additive cost — same rationale as [recordTournamentMatch].
+            val updated = mergeCostFromCurrent(current, current.copy(
                 providerId = providerId,
                 model = model,
                 agentName = "$providerId / $model",
@@ -1205,7 +1213,7 @@ object SecondaryResultStorage {
                 outputCost = outputCost,
                 durationMs = durationMs,
                 traceFile = traceFile ?: current.traceFile
-            )
+            ))
             if (!target.writeTextAtomic(gson.toJson(updated))) {
                 AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")
                 return
