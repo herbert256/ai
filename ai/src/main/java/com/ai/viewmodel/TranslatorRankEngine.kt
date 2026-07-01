@@ -63,10 +63,15 @@ class TranslatorRankEngine internal constructor(
     override fun reportIdOf(runKey: TransRankRunKey) = runKey.substringBefore("|")
     override fun runKeysForReport(reportId: String) =
         _runs.value.keys.filter { it.startsWith("$reportId|") }
-    // A score cell is produced by one translator (== a report model under
-    // Use-report-models) — match by the translator's provider/model.
+    // A score cell has TWO sides that can be a removed report model: the
+    // translator whose translation is scored, and the judge doing the
+    // scoring (under Use-report-models the judge panel IS the report
+    // models). Match either — matching only the translator left the removed
+    // model's judge cells in the batch, still shaping the surviving
+    // translators' avgScore ranking. Mirrors the Compare fix (18bee902e).
     override fun itemMatchesModel(item: TransRankCellState, providerId: String, model: String, agentIds: Set<String>) =
-        item.translatorProviderId.equals(providerId, ignoreCase = true) && item.translatorModel == model
+        (item.translatorProviderId.equals(providerId, ignoreCase = true) && item.translatorModel == model) ||
+            (item.judgeProviderId.equals(providerId, ignoreCase = true) && item.judgeModel == model)
     override fun terminalizeItem(item: TransRankCellState, message: String) =
         item.copy(status = TransRankCellStatus.ERROR, errorMessage = message, durationMs = 0)
     override fun itemFromRow(row: SecondaryResult) = row.toTransRankCellState()
