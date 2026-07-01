@@ -2747,7 +2747,19 @@ object ReportStorage {
                 parameterPresetIds = src.parameterPresetIds,
                 advancedParameters = src.advancedParameters,
                 selectionParamsById = src.selectionParamsById,
-                reportSystemPromptId = src.reportSystemPromptId
+                reportSystemPromptId = src.reportSystemPromptId,
+                // Per-report worker routing (👷) — same replay-fidelity
+                // rationale: without it the copy's batches (Fan Meta,
+                // Translation, Tournament, Compare, Meta, Fan-in) and
+                // report-info calls silently route through PROMPT defaults
+                // instead of the config the source ran with.
+                workerConfig = src.workerConfig,
+                // Carry the prompt-edit history + user notes too — they're
+                // part of the report's authored state, not a fresh-choice
+                // reset like pinned/costsFromDeletedItems. Copy the mutable
+                // notes list so the copy and source don't share it.
+                promptHistory = src.promptHistory,
+                userNotes = src.userNotes.toMutableList()
             )
             // Mirror the icon + its error from the source. The copy
             // makes no new API call, so without this the copy sits
