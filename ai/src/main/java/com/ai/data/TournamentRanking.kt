@@ -410,12 +410,20 @@ fun trueskill2(m: WinMatrix): List<RankRow> {
     val sigma2 = DoubleArray(n) { (25.0 / 3.0) * (25.0 / 3.0) }
     val beta = (25.0 / 3.0) / 2.0
     val tau2 = ((25.0 / 3.0) / 100.0).let { it * it }
-    var totalGames = 0.0; var totalTies = 0.0
+    // Draw rate uses the SAME even-pair definition the per-match update below
+    // uses (points equal → processed as a draw), not the explicit ties array.
+    // The old code fed drawProb from m.ties, which excludes a 1-1 orientation
+    // split (ties=0, points equal) — so a split was processed as a draw but
+    // NOT counted as one, an internal inconsistency. This also sidesteps the
+    // legacy-sidecar tie synthesis (which mislabels every 0.5 pair fully tied),
+    // since the draw decision no longer reads m.ties at all.
+    var totalGames = 0.0; var drawnGames = 0.0
     for (i in 0 until n) for (j in i + 1 until n) {
-        totalGames += m.games.getOrNull(i)?.getOrNull(j) ?: 0.0
-        totalTies += m.ties.getOrNull(i)?.getOrNull(j) ?: 0.0
+        val cnt = m.games.getOrNull(i)?.getOrNull(j) ?: 0.0
+        totalGames += cnt
+        if (cnt > 0.0 && kotlin.math.abs(m.points(i, j) - m.points(j, i)) < 1e-9) drawnGames += cnt
     }
-    val drawProb = if (totalGames > 0.0) (totalTies / totalGames).coerceIn(0.001, 0.8) else 0.1
+    val drawProb = if (totalGames > 0.0) (drawnGames / totalGames).coerceIn(0.001, 0.8) else 0.1
     val drawMargin = invNormCdf((drawProb + 1.0) / 2.0) * kotlin.math.sqrt(2.0) * beta
 
     for (i in 0 until n) for (j in i + 1 until n) {
