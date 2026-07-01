@@ -251,7 +251,13 @@ internal fun com.ai.model.InternalPrompt.withOwnModelWorker(report: Report?, pro
  *  selection sub-choice on the select-workers screen). Fixed-judge
  *  grids (Judges / TransRank cells) and single-model pools ignore it —
  *  they have no pool pick to rotate. */
-internal fun workerScheduleFor(report: Report, meta: Boolean = false): WorkerSchedule {
+internal fun workerScheduleFor(report: Report, meta: Boolean = false, alwaysPromptWorkers: Boolean = false): WorkerSchedule {
+    // Rerank / Moderation opt out of the REPORT_MODELS pool
+    // (alwaysPromptWorkers), so they must also opt out of its ROUND_ROBIN
+    // SCHEDULE — round robin only applies to the REPORT_MODELS pool
+    // (workers.md). Without this they rotated their OWN configured chain by
+    // the report's shared batch cursor.
+    if (alwaysPromptWorkers) return WorkerSchedule.Random
     val cfg = report.workerConfig
     val batches = if (meta) cfg.metaBatches else cfg.batches
     val selection = if (meta) cfg.metaWorkerSelection else cfg.workerSelection

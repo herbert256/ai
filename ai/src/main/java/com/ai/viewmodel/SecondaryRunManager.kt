@@ -107,7 +107,8 @@ class SecondaryRunManager(
         // Worker order: shuffled by default; under REPORT_MODELS + Round
         // robin a deterministic rotation from the shared per-report cursor,
         // so successive single-call kinds spread evenly across the pool.
-        val rotationStart = (workerScheduleFor(report, meta) as? WorkerSchedule.RoundRobin)
+        val alwaysPrompt = base.kind == SecondaryKind.RERANK || base.kind == SecondaryKind.MODERATION
+        val rotationStart = (workerScheduleFor(report, meta, alwaysPrompt) as? WorkerSchedule.RoundRobin)
             ?.let { WorkerRotation.next(it.key) % members.size }
         val order = if (rotationStart != null) List(members.size) { (rotationStart + it) % members.size }
         else members.indices.shuffled()
@@ -928,7 +929,9 @@ class SecondaryRunManager(
                             }
                         when {
                             candidates.isEmpty() -> null
-                            else -> when (val sch = workerScheduleFor(report)) {
+                            // This branch is RERANK/MODERATION (alwaysPromptWorkers),
+                            // so no round-robin — they opt out of the pool schedule.
+                            else -> when (val sch = workerScheduleFor(report, alwaysPromptWorkers = true)) {
                                 is WorkerSchedule.RoundRobin -> candidates[WorkerRotation.next(sch.key) % candidates.size]
                                 else -> candidates.first()
                             }
