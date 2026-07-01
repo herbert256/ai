@@ -848,6 +848,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 )
             }
             if (!isRegeneration && !headless && uiOwned()) {
+                // Publish the error into _agentResults too, mirroring the
+                // normal failure path — GenerationPhase renders result==null
+                // as an infinite hourglass, and the only re-hydration trigger
+                // (Nav) fires solely when agentResults is empty, so without
+                // this the benched row spun forever (even after the run
+                // completed) until the user left and reopened the report.
+                _agentResults.update { it + (task.resultId to AnalysisResponse(
+                    service = task.runtimeAgent.provider, analysis = null,
+                    error = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} is rate-limited (benched) — skipped"
+                )) }
                 appViewModel.updateUiState { state ->
                     state.copy(genericReportsProgress = state.genericReportsProgress + 1)
                 }
