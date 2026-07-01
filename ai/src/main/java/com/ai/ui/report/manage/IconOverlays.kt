@@ -66,13 +66,20 @@ internal fun rememberAgentIconTrace(
     promptUsed: String?
 ): String? = rememberIconTrace(
     reportId = reportId,
-    model = agentModel,
-    // Per-agent icons come from model/icons; a Find-alternative
-    // pick (iconPromptUsed "report_alt") comes from alt/report. Match
-    // those trace categories so the 🐞 link resolves.
+    // A Find-alternative pick's alt/report call ran on the USER-PICKED
+    // model, not this agent's own — the agent stores no iconModel, so
+    // matching on agentModel dropped the link. Match by recency on this
+    // report's alt/report traces instead (model = null = any). A normal
+    // per-agent icon still matches its own model in model/icons.
+    model = if (promptUsed == "report_alt") null else agentModel,
+    // Per-agent icons come from model/icons; a Find-alternative pick
+    // (iconPromptUsed "report_alt") comes from alt/report. The non-alt
+    // branch must NOT include alt/report — otherwise another agent's alt
+    // fan-out on an overlapping model could out-time this agent's own
+    // model/icons trace and the 🐞 would open the wrong agent's call.
     categories = when (promptUsed) {
         "report_alt" -> listOf("alt/report")
-        else -> listOf("model/icons", "alt/report")
+        else -> listOf("model/icons")
     }
 )
 
