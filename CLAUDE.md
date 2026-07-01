@@ -9,8 +9,8 @@ having in the prompt window from the first turn.
 
 Android multi-provider AI app — reports, chat, dual chat, RAG
 knowledge bases, on-device LLM and embedder, share-target ingest.
-**36 cloud providers** across four API formats
-(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE`); 33 share unified
+**91 cloud providers** across four API formats
+(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE`); 88 share unified
 code paths via the format dispatch, only Anthropic, Google and Replicate
 have format-specific code.
 
@@ -23,18 +23,24 @@ have format-specific code.
 | Persistence | SharedPreferences + JSON files in `<filesDir>` |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |
-| Size | ~159,000 LOC across 404 Kotlin files (96 data, 278 ui, 27 viewmodel, 2 model, 1 entry) |
+| Size | ~161,000 LOC across 406 Kotlin files (97 data, 279 ui, 27 viewmodel, 2 model, 1 entry) |
 
 ## Documentation
 
 Anything operational beyond this file is in `doc/`:
 
 - `doc/manual.md` — end-user walkthrough of every screen
+- `doc/screens.md` — quick reference of every screen title + subtitle
 - `doc/architecture.md` — high-level code map, navigation tree, layered lookups
+- `doc/ownership.md` — single-writer runtime-state map (who owns each `StateFlow` / job map)
 - `doc/development.md` — build/deploy/test, how to add a provider / parameter / pricing tier / source type / SecondaryKind, common gotchas
 - `doc/datastructures.md` — every non-trivial data class
-- `doc/api-formats.md` — the three dispatch paths
+- `doc/api-formats.md` — the four dispatch paths
 - `doc/secondary-results.md` — Rerank / Meta (Compare/Critique/Synthesize/…) / Moderate / Translate / Fan-out / Fan-in
+- `doc/tournament-judges-compare.md` — Tournament rankings (7 methods), Judge-the-judges, Compare-with-meta
+- `doc/rank-translators.md` — TRANSRANK: judge panel scores + ranks translator models
+- `doc/value-view.md` — cost × quality frontier, Combined weights, Pareto graph
+- `doc/ui-customization.md` — UI Colors, Default icons, `AppColors` / `MetadataIcons`
 - `doc/parameters.md` — how generation parameters resolve (precedence per call site)
 - `doc/system-prompts.md` — how the system prompt resolves per call site
 - `doc/workers.md` — Agents / Flocks / Swarms
@@ -50,10 +56,11 @@ Anything operational beyond this file is in `doc/`:
 - `doc/share-target.md` — `ACTION_SEND` plumbing
 - `doc/backup-restore.md` — backup zip format, validate-then-write restore, exclude/preserve list
 - `doc/persistent.md` — every prefs key, every file under `<filesDir>`
-- `doc/providers.md` — all 35 providers
-- `doc/repositories.md` — the nine external metadata repos
+- `doc/providers.md` — all 91 providers
+- `doc/repositories.md` — the twelve external metadata repos
 - `doc/help.md` — in-app Help system (per-screen topics, per-provider pages)
 - `doc/applog.md` + `doc/log-details.md` — the in-app file logger + every call site
+- `doc/TODO.md` — future-work backlog
 - `doc/README.md` — index with reading order
 
 ## Session start
@@ -117,7 +124,7 @@ explicit request**. The full procedures live in
 
 Top-level under `ai/src/main/java/com/ai/`:
 
-- `data/` (88 files) — provider model (`AppService`,
+- `data/` (97 files) — provider model (`AppService`,
   `ApiFormat`), dispatch (`ApiDispatch`, `ApiStreaming`,
   `ApiClient`), tracing (`ApiTracer` + the in-memory
   `cachedTraceFiles` cache), retry interceptor, repository
@@ -130,15 +137,15 @@ Top-level under `ai/src/main/java/com/ai/`:
   (`LocalLlm`, `LocalEmbedder`), `BackupManager`,
   `SharedContent`.
 - `model/` (2 files) — settings data classes.
-- `viewmodel/` (25 files) — `AppViewModel`, `ChatViewModel`,
+- `viewmodel/` (27 files) — `AppViewModel`, `ChatViewModel`,
   `ReportViewModel` plus extracted engines/managers
   (`RegenerateBatchEngine`, `SecondaryRunManager`,
   `IconGenerationManager`, …). `SecondaryBatchEngine` is the shared
   template for the Tournament / JudgeEval / Compare / TranslatorRank
   engines (finalize / resume / remove / rerun / continue-broken flows).
   Other view models delegate state to `AppViewModel`.
-- `ui/` (273 files) — Compose screens grouped by domain
-  (`report/` ×98, `cruds/` ×48, `admin/` ×35, `settings/` ×22,
+- `ui/` (279 files) — Compose screens grouped by domain
+  (`report/` ×101, `cruds/` ×48, `admin/` ×36, `settings/` ×22,
   `helpers/`, `shared/`, `navigation/`, `other/`, `chat/`,
   `search/`, `hub/`, `history/`, `share/`, `models/`,
   `knowledge/`, `theme/`).
@@ -195,10 +202,13 @@ Two non-obvious conventions:
   both as JSON arrays of numbers); the type matters for in-memory
   heap and the primitive `EmbeddingsStore.cosine(FloatArray)`
   hot path used by RAG retrieval.
-- **`RateLimitRetryInterceptor` retries 429s up to 5× with 3s
-  back-off** and has an explicit `Looper.myLooper() ==
-  getMainLooper()` guard. Don't remove the guard — it prevents
-  the retry from ANR-ing the UI.
+- **`RateLimitRetryInterceptor` retries 429s/529s 3× by default**
+  (1s base back-off, doubling, capped at 30s, ±50% jitter; honors
+  a `Retry-After` header when present). Both the retry count and
+  backoff are user-tunable per provider via Settings — 3×/1s are
+  just the shipped defaults, not hardcoded. Has an explicit
+  `Looper.myLooper() == getMainLooper()` guard. Don't remove the
+  guard — it prevents the retry from ANR-ing the UI.
 - **Export version is `1`** (`EXPORT_VERSION` in
   `data/ReportBundle.kt`). Import accepts `1..1`. Bump only when
   adding/removing a top-level field.

@@ -9,32 +9,38 @@ having in the prompt window from the first turn.
 
 Android multi-provider AI app — reports, chat, dual chat, RAG
 knowledge bases, on-device LLM and embedder, share-target ingest.
-**42 cloud providers** across three API formats
-(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`); 40 share unified
-code paths via the format dispatch, only Anthropic and Google
+**91 cloud providers** across four API formats
+(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE`); 88 share unified
+code paths via the format dispatch, only Anthropic, Google and Replicate
 have format-specific code.
 
 | | |
 |---|---|
-| Language | Kotlin 2.2.10 |
-| UI | Jetpack Compose, Compose BOM 2026.04.01, Material 3 dark |
-| Build | AGP 9.2.0, Gradle 9.5.0, Java 17, JVM target 17 |
-| SDK | `namespace = com.ai`, `minSdk = 26`, `targetSdk = 36` |
-| Persistence | SharedPreferences + JSON files in `<filesDir>` + Jetpack DataStore |
+| Language | Kotlin 2.4.0 |
+| UI | Jetpack Compose, Compose BOM 2026.05.01, Material 3 dark |
+| Build | AGP 9.2.1, Gradle 9.5.1, build-tools 37.0.0, Java 25, JVM target 25 |
+| SDK | `namespace = com.ai`, `minSdk = 36`, `compileSdk = 37`, `targetSdk = 36` |
+| Persistence | SharedPreferences + JSON files in `<filesDir>` |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |
-| Size | ~106,440 LOC across 306 Kotlin files (61 data, 231 ui, 11 viewmodel, 2 model, 1 entry) |
+| Size | ~161,000 LOC across 406 Kotlin files (97 data, 279 ui, 27 viewmodel, 2 model, 1 entry) |
 
 ## Documentation
 
 Anything operational beyond this file is in `doc/`:
 
 - `doc/manual.md` — end-user walkthrough of every screen
+- `doc/screens.md` — quick reference of every screen title + subtitle
 - `doc/architecture.md` — high-level code map, navigation tree, layered lookups
+- `doc/ownership.md` — single-writer runtime-state map (who owns each `StateFlow` / job map)
 - `doc/development.md` — build/deploy/test, how to add a provider / parameter / pricing tier / source type / SecondaryKind, common gotchas
 - `doc/datastructures.md` — every non-trivial data class
-- `doc/api-formats.md` — the three dispatch paths
+- `doc/api-formats.md` — the four dispatch paths
 - `doc/secondary-results.md` — Rerank / Meta (Compare/Critique/Synthesize/…) / Moderate / Translate / Fan-out / Fan-in
+- `doc/tournament-judges-compare.md` — Tournament rankings (7 methods), Judge-the-judges, Compare-with-meta
+- `doc/rank-translators.md` — TRANSRANK: judge panel scores + ranks translator models
+- `doc/value-view.md` — cost × quality frontier, Combined weights, Pareto graph
+- `doc/ui-customization.md` — UI Colors, Default icons, `AppColors` / `MetadataIcons`
 - `doc/parameters.md` — how generation parameters resolve (precedence per call site)
 - `doc/system-prompts.md` — how the system prompt resolves per call site
 - `doc/workers.md` — Agents / Flocks / Swarms
@@ -50,10 +56,11 @@ Anything operational beyond this file is in `doc/`:
 - `doc/share-target.md` — `ACTION_SEND` plumbing
 - `doc/backup-restore.md` — backup zip format, validate-then-write restore, exclude/preserve list
 - `doc/persistent.md` — every prefs key, every file under `<filesDir>`
-- `doc/providers.md` — all 42 providers
-- `doc/repositories.md` — the seven external metadata repos
+- `doc/providers.md` — all 91 providers
+- `doc/repositories.md` — the twelve external metadata repos
 - `doc/help.md` — in-app Help system (per-screen topics, per-provider pages)
 - `doc/applog.md` + `doc/log-details.md` — the in-app file logger + every call site
+- `doc/TODO.md` — future-work backlog
 - `doc/README.md` — index with reading order
 
 ## Session start
@@ -116,7 +123,7 @@ explicit request**. The full procedures live in
 
 Top-level under `ai/src/main/java/com/ai/`:
 
-- `data/` (61 files) — provider model (`AppService`,
+- `data/` (97 files) — provider model (`AppService`,
   `ApiFormat`), dispatch (`ApiDispatch`, `ApiStreaming`,
   `ApiClient`), tracing (`ApiTracer` + the in-memory
   `cachedTraceFiles` cache), retry interceptor, repository
@@ -126,16 +133,18 @@ Top-level under `ai/src/main/java/com/ai/`:
   `SecondaryResultStorage`, `PromptCache`, `ModelListCache`,
   `EmbeddingsStore`, `ApiTracer`), RAG layer (`Knowledge*`,
   `KnowledgeService`, `KnowledgeExtractors`), on-device runtime
-  (`LocalLlm`, `LocalEmbedder`), `BackupManager`, `AppDataStore`,
+  (`LocalLlm`, `LocalEmbedder`), `BackupManager`,
   `SharedContent`.
 - `model/` (2 files) — settings data classes.
-- `viewmodel/` (11 files) — `AppViewModel`, `ChatViewModel`,
+- `viewmodel/` (27 files) — `AppViewModel`, `ChatViewModel`,
   `ReportViewModel` plus extracted engines/managers
   (`RegenerateBatchEngine`, `SecondaryRunManager`,
-  `IconGenerationManager`, …). Other view models delegate state to
-  `AppViewModel`.
-- `ui/` (231 files) — Compose screens grouped by domain
-  (`report/` ×66, `cruds/` ×52, `admin/` ×27, `settings/` ×22,
+  `IconGenerationManager`, …). `SecondaryBatchEngine` is the shared
+  template for the Tournament / JudgeEval / Compare / TranslatorRank
+  engines (finalize / resume / remove / rerun / continue-broken flows).
+  Other view models delegate state to `AppViewModel`.
+- `ui/` (279 files) — Compose screens grouped by domain
+  (`report/` ×101, `cruds/` ×48, `admin/` ×36, `settings/` ×22,
   `helpers/`, `shared/`, `navigation/`, `other/`, `chat/`,
   `search/`, `hub/`, `history/`, `share/`, `models/`,
   `knowledge/`, `theme/`).
@@ -169,11 +178,15 @@ Two non-obvious conventions:
 - **Pricing layered lookup precedence** (in `PricingCache.getPricing`):
   provider self-report (OpenRouter when caller is OpenRouter,
   Together when caller is Together) → manual override → LiteLLM →
-  models.dev → llm-prices → Artificial Analysis → OpenRouter
-  cross-provider fallback → Helicone → DEFAULT. Manual override
-  comes **before** the curated tiers — a user adding a manual
-  override specifically to correct a stale catalog entry would
-  otherwise be silently ignored.
+  models.dev → llm-prices → Artificial Analysis → llm-stats →
+  OpenRouter cross-provider fallback → Requesty → genai-prices →
+  TrueFoundry → Helicone → DEFAULT. Manual override comes **before**
+  the curated tiers — a user adding a manual override specifically to
+  correct a stale catalog entry would otherwise be silently ignored.
+  **CloudPrice** is an info-provider too but capabilities-only (no
+  pricing), so it's absent from this chain — like HuggingFace it only
+  feeds the capability lookups. 12 info-provider repos total (10
+  pricing catalogs + CloudPrice + HuggingFace); see `doc/repositories.md`.
 - **`PricingCache.ensureLoaded` short-circuits on the main
   thread** when called before `preloadCompleted`. UI callers
   get `DEFAULT_PRICING` during the cold window — recomposition
@@ -188,10 +201,13 @@ Two non-obvious conventions:
   both as JSON arrays of numbers); the type matters for in-memory
   heap and the primitive `EmbeddingsStore.cosine(FloatArray)`
   hot path used by RAG retrieval.
-- **`RateLimitRetryInterceptor` retries 429s up to 5× with 3s
-  back-off** and has an explicit `Looper.myLooper() ==
-  getMainLooper()` guard. Don't remove the guard — it prevents
-  the retry from ANR-ing the UI.
+- **`RateLimitRetryInterceptor` retries 429s/529s 3× by default**
+  (1s base back-off, doubling, capped at 30s, ±50% jitter; honors
+  a `Retry-After` header when present). Both the retry count and
+  backoff are user-tunable per provider via Settings — 3×/1s are
+  just the shipped defaults, not hardcoded. Has an explicit
+  `Looper.myLooper() == getMainLooper()` guard. Don't remove the
+  guard — it prevents the retry from ANR-ing the UI.
 - **Export version is `1`** (`EXPORT_VERSION` in
   `data/ReportBundle.kt`). Import accepts `1..1`. Bump only when
   adding/removing a top-level field.

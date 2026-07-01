@@ -1,6 +1,6 @@
 # AI — Multi-Provider AI Reports & Chat
 
-Android app for AI-powered reports and conversations using 42 cloud
+Android app for AI-powered reports and conversations using 91 cloud
 AI services. Run the same prompt against many models at once,
 compare responses side-by-side, rerank / chat-meta / moderate /
 translate them, run worker-judged tournaments, fan out one model's
@@ -8,11 +8,11 @@ response into another's prompt, and chat with real-time streaming.
 
 ## Features
 
-- **42 Cloud AI Services** across three API formats — 40
-  OpenAI-compatible, 1 Anthropic, 1 Google — all with real-time SSE
-  streaming, loaded at runtime from per-provider files under
-  `assets/providers/` rather than hardcoded, plus a synthetic on-device
-  `Local` provider
+- **91 Cloud AI Services** across four API formats — 88
+  OpenAI-compatible, 1 Anthropic, 1 Google, 1 Replicate — all with
+  real-time SSE streaming, loaded at runtime from per-provider files
+  under `assets/providers/` rather than hardcoded, plus a synthetic
+  on-device `Local` provider
 - **Multi-Agent Reports** — query providers in parallel, compare
   responses side-by-side, exportable as HTML, JSON, PDF, DOCX, ODT,
   RTF, or a self-contained zipped HTML site
@@ -61,10 +61,11 @@ response into another's prompt, and chat with real-time streaming.
 - **Example Prompts** — a curated starter library, importable from
   `assets/examples.json`, surfaced as a one-tap entry on the AI
   Reports hub
-- **Model Search** across every provider with seven layered metadata
+- **Model Search** across every provider with twelve layered metadata
   sources (LiteLLM, OpenRouter, models.dev, Helicone, llm-prices,
-  Artificial Analysis, HuggingFace), each with its own per-provider
-  help page deep-linked from every entry point
+  Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry,
+  CloudPrice, HuggingFace), each with its own per-provider help page
+  deep-linked from every entry point
 - **Per-(provider, model, kind) Cost Tracking** with breakdown for
   report, rerank, chat-meta, moderate, translate, tournament,
   judges, compare, fan-out, metadata, icon, title, and language spend
@@ -76,10 +77,11 @@ response into another's prompt, and chat with real-time streaming.
 - **Granular Export / Import** — split bundles for Settings, Model
   lists, Parameters, System prompts, Workers (agents + flocks +
   swarms), Costs CSV, and the All bundle (with or without API keys)
-- **Refresh All** — refreshes six of the seven catalog sources in
-  parallel (HuggingFace is excluded — it loads lazily on demand)
-  alongside a worker phase on a full-screen progress page, then shows a
-  manual "Restart application" banner you tap when it finishes
+- **Refresh All** — refreshes all eleven pricing/capability catalog
+  sources in parallel (HuggingFace is excluded — it loads lazily on
+  demand) alongside a worker phase on a full-screen progress page,
+  then shows a manual "Restart application" banner you tap when it
+  finishes
 - **Comprehensive in-app help** — on report-Manage screens the help ❔
   opens a live icon overlay (every visible bottom-bar icon, named and
   tappable) and the red ❓ opens the screen's help page; other screens
@@ -110,9 +112,10 @@ verified against the current source. The complete set (see
 |---|---|
 | [doc/manual.md](doc/manual.md) | End-user walkthrough — every screen and feature |
 | [doc/architecture.md](doc/architecture.md) | High-level code map for new contributors |
+| [doc/ownership.md](doc/ownership.md) | Single-writer runtime-state map: who owns each `StateFlow` / job map |
 | [doc/development.md](doc/development.md) | Build, deploy, test, and how to add things |
 | [doc/screens.md](doc/screens.md) | Quick reference of screen titles and subtitles |
-| [doc/api-formats.md](doc/api-formats.md) | The three API dispatch paths and their quirks |
+| [doc/api-formats.md](doc/api-formats.md) | The four API dispatch paths and their quirks |
 | [doc/datastructures.md](doc/datastructures.md) | Every data class with every field |
 | [doc/parameters.md](doc/parameters.md) | How generation parameters resolve (precedence per call site) |
 | [doc/system-prompts.md](doc/system-prompts.md) | How the system prompt resolves per call site |
@@ -133,13 +136,12 @@ verified against the current source. The complete set (see
 | [doc/translation.md](doc/translation.md) | TRANSLATE secondary-kind, multi-language fan-out, translation runs |
 | [doc/share-target.md](doc/share-target.md) | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` flow |
 | [doc/backup-restore.md](doc/backup-restore.md) | Backup zip format, two-pass validate-then-write restore |
-| [doc/providers.md](doc/providers.md) | All 42 cloud providers from `assets/providers/` |
-| [doc/repositories.md](doc/repositories.md) | The seven external metadata sources |
+| [doc/providers.md](doc/providers.md) | All 91 cloud providers from `assets/providers/` |
+| [doc/repositories.md](doc/repositories.md) | The twelve external metadata sources |
 | [doc/persistent.md](doc/persistent.md) | Every prefs key and every persistent file |
 | [doc/help.md](doc/help.md) | The in-app Help system: live icon overlay vs help page, per-screen topics, per-provider pages |
 | [doc/applog.md](doc/applog.md) | In-app file logger: levels, rotation, redaction, viewer |
 | [doc/log-details.md](doc/log-details.md) | Reference: every `AppLog` call site, grouped by severity |
-| [audit/reports_section_analysis.md](audit/reports_section_analysis.md) | Code-level analysis of the Reports section — capabilities, gaps, and recommendations (analysis artefact under `audit/`, not a live spec) |
 | [doc/TODO.md](doc/TODO.md) | Future-work backlog discussed but not scheduled |
 
 ## Privacy & Security
@@ -159,16 +161,25 @@ This project is licensed under the
 
 ## Acknowledgments
 
-- **Cloud AI Services**: OpenAI, Anthropic, Google, xAI, Groq,
-  DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow,
-  Z.AI, Moonshot, Cohere, AI21, DashScope, Fireworks, Cerebras,
-  SambaNova, Baichuan, StepFun, MiniMax, NVIDIA, Replicate, Hugging
-  Face, Lambda, Lepton, 01.AI, Doubao, Reka, Writer, Cloudflare
-  Workers AI, DeepInfra, Hyperbolic, Novita.ai, Featherless.ai,
-  Liquid AI, Llama API, Krutrim, Nebius AI Studio, Chutes,
-  Inference.net
+- **Cloud AI Services** (91, one JSON file per provider under
+  `assets/providers/`): AI-ML-API, AI21, AIHubMix, AbacusAI, Alibaba,
+  Amazon, Anthropic, AnyAPI, AtlasCloud, Auriko, Avian, Baseten,
+  Cerebras, Chutes, Clarifai, Cohere, Cortecs, CrofAI, Crusoe,
+  DeepInfra, DeepSeek, DigitalOcean, Doubleword, Evroc, FastRouter,
+  Fireworks, FriendliAI, Frogbot, GMI-Cloud, GitHubModels, Glama,
+  Google, Groq, HeliconeGateway, HuggingFace, IONet, Inceptron,
+  Jiekou, KiloCode, LLMGateway, Lambda, LibertAI, LlamaGate,
+  MegaNova, MergeGateway, MiniMax, Mistral, ModelScope, Moonshot,
+  NVIDIA, NanoGPT, NearAI, NebiusAIStudio, NeuralWatt, Novita.ai,
+  Nscale, OVHcloud, Ollama, OpenAI, OpenCodeZen, OpenRouter,
+  OrcaRouter, Parasail, Perplexity, Poe, Poolside, PublicAI, QiniuAI,
+  RegoloAI, Replicate, Requesty, RoutingRun, SambaNova, Scaleway,
+  SiliconFlow, Tencent, TensorMesh, ThreeZeroTwoAI (302.AI), Tinfoil,
+  Together, Venice, VercelAIGateway, Vivgrid, VolcEngine, Vultr,
+  Wafer, WandB, Z.AI, ZenMux, iFlow, xAI
 - **Document Extraction**: PDFBox-Android
 - **Model Data**: LiteLLM, OpenRouter, models.dev, Helicone,
-  llm-prices, Artificial Analysis, HuggingFace
+  llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices,
+  TrueFoundry, CloudPrice, HuggingFace
 - **Android UI**: Jetpack Compose, Material 3
 - **Android Networking**: Retrofit, OkHttp, Gson
