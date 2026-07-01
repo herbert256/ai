@@ -813,6 +813,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         headless: Boolean = false
     ) {
         AppLog.d("Report", "→ task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId}${if (isRegeneration) " (regen)" else ""}")
+        // The shared single-report UI state (_agentResults + the
+        // genericReports* counters) always describes the report currently
+        // on screen. A run continued in the background keeps landing tasks
+        // while the user may have opened a DIFFERENT report — its
+        // completions must not bump the visible report's progress, and
+        // (since direct-model agent ids are deterministic across reports,
+        // "swarm:provider:model") its responses must not flip the other
+        // report's matching rows. Re-checked at every write, not captured
+        // at launch, because the foreground report can change mid-task.
+        fun uiOwned() = appViewModel.uiState.value.currentReportId == reportId
         // Model already benched by an earlier run — skip the doomed
         // call, but keep the agent as a visible red error row (don't
         // remove it / shrink the total). Still counts as progress so
@@ -825,7 +835,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} is rate-limited (benched) — skipped"
                 )
             }
-            if (!isRegeneration && !headless) {
+            if (!isRegeneration && !headless && uiOwned()) {
                 appViewModel.updateUiState { state ->
                     state.copy(genericReportsProgress = state.genericReportsProgress + 1)
                 }
@@ -949,15 +959,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // reach reportsTotal, isComplete stays false forever, and the
             // report is stuck showing 'generating' (KEEP_SCREEN_ON on, no
             // completion toast).
-            if (!isRegeneration && !headless) {
+            if (!isRegeneration && !headless && uiOwned()) {
                 appViewModel.updateUiState { state ->
                     state.copy(genericReportsProgress = state.genericReportsProgress + 1)
                 }
             }
             return
         }
-        if (!headless) _agentResults.update { it + (task.resultId to response) }
-        if (!isRegeneration && !headless) {
+        if (!headless && uiOwned()) _agentResults.update { it + (task.resultId to response) }
+        if (!isRegeneration && !headless && uiOwned()) {
             appViewModel.updateUiState { state ->
                 state.copy(genericReportsProgress = state.genericReportsProgress + 1)
             }
@@ -2573,6 +2583,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericPromptText = report.prompt,
             showGenericReportsDialog = true
         ) }
+        // Close the open-mid-run race: a task that landed between the
+        // disk read above and the currentReportId flip skipped its own
+        // progress bump (executeReportTask's write-time gate still saw
+        // the previous report). Re-read and publish monotonically —
+        // tasks landing after the flip bump themselves, so the two
+        // passes together cover every interleaving without leaving
+        // progress stuck one short of total.
+        val terminal2 = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+            ?.agents?.count {
+                it.reportStatus == ReportStatus.SUCCESS ||
+                    it.reportStatus == ReportStatus.ERROR ||
+                    it.reportStatus == ReportStatus.STOPPED
+            } ?: return
+        appViewModel.updateUiState { s ->
+            if (s.currentReportId != reportId) s
+            else s.copy(genericReportsProgress = maxOf(s.genericReportsProgress, terminal2))
+        }
     }
 
     /**
