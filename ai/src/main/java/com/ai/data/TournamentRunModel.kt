@@ -161,7 +161,11 @@ fun parseMatchVerdict(content: String?): MatchVerdict? {
         val reasonLine = cleaned.lineSequence()
             .firstOrNull { it.trim().startsWith("reason", ignoreCase = true) }
             ?.substringAfter(":", "")?.trim()
-        return MatchVerdict(normaliseVerdict(verdictLine), parseConfidence(confLine), reasonLine)
+        // A present verdict line that normalises to null is garbage ("cannot
+        // decide from these") — a logical MISS, not a spurious tie: return null
+        // so the round-robin tries the next worker instead of halting on it.
+        val v = normaliseVerdict(verdictLine) ?: return null
+        return MatchVerdict(v, parseConfidence(confLine), reasonLine)
     }
 
     // Strict-JSON fallback.
@@ -174,7 +178,9 @@ fun parseMatchVerdict(content: String?): MatchVerdict? {
             try { it.asDouble } catch (_: Exception) { null }
         }?.coerceIn(0.0, 1.0)
         val reason = obj.get("reason")?.takeIf { it.isJsonPrimitive }?.asString
-        return MatchVerdict(normaliseVerdict(rawVerdict), confidence, reason)
+        // Unrecognisable JSON verdict → miss (see the labeled-line branch).
+        val v = normaliseVerdict(rawVerdict) ?: return null
+        return MatchVerdict(v, confidence, reason)
     }
 
     // No verdict present — logical miss.
@@ -192,8 +198,12 @@ private val forToB = Regex("\\b(for|to) b\\b")
 private val wordA = Regex("\\ba\\b")
 private val wordB = Regex("\\bb\\b")
 
-private fun normaliseVerdict(raw: String?): String {
-    val s = raw?.trim()?.lowercase() ?: return "tie"
+/** Returns "A" / "B" / "tie", or NULL when the text is present but nothing
+ *  recognisable (a garbage verdict). Null lets the caller treat it as a
+ *  logical MISS (advance to the next worker) rather than a spurious tie. An
+ *  EXPLICIT tie word still returns "tie". */
+private fun normaliseVerdict(raw: String?): String? {
+    val s = raw?.trim()?.lowercase() ?: return null
     // Explicit, unambiguous signals for each side — including "win FOR b" /
     // "edge TO b" where the winner is the OBJECT, so a sentence starting with
     // the article "a" but awarding B resolves to B, not A.
@@ -214,9 +224,14 @@ private fun normaliseVerdict(raw: String?): String {
     val bLead = !aExplicit && !bExplicit && (s.startsWith("b ") || s.startsWith("2 ")) && !wordA.containsMatchIn(s)
     val a = aExplicit || aLead
     val b = bExplicit || bLead
+    val tie = s == "tie" || s == "draw" || s == "equal" || s == "\"tie\"" ||
+        s.contains("tie") || s.contains("draw") || s.contains("equal") ||
+        s.contains("neither") || s.contains("both") || s.contains("same")
     return when {
         a && !b -> "A"
         b && !a -> "B"
-        else -> "tie"   // neither, or BOTH signalled (ambiguous) → no-decision
+        a && b -> "tie"   // both sides signalled → ambiguous, call it a tie
+        tie -> "tie"      // explicit tie word
+        else -> null      // present but unrecognisable → caller treats as a MISS
     }
 }
