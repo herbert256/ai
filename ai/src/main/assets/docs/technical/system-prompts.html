@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>System prompts — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>System prompts</span></header>
+<main>
+
+<h1>System prompts</h1>
+
+<p>How the standing "role/tone" instruction is chosen for a call, and the
+exact precedence ladder at each of the app's four call families: report
+generation, secondary/metadata operations, and chat.</p>
+
+<div class="callout">
+<p>Moderation and every <strong>worker-driven</strong> secondary/metadata
+call (main translation, Tournament, Compare, Judges, Transrank, and the
+initial icon/title/language generation) send <strong>no</strong> system
+prompt at all &mdash; see <a href="#secondary">Secondary operations</a>.</p>
+</div>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#where">Where you set each level</a></li>
+<li><a href="#reaches-model">How the text reaches the model</a></li>
+<li><a href="#reports">Report generation</a></li>
+<li><a href="#secondary">Secondary operations &amp; metadata generation</a></li>
+<li><a href="#chat">Chat &amp; Dual chat</a></li>
+<li><a href="#mental-model">Quick mental model</a></li>
+<li><a href="#files">Files</a></li>
+</ul>
+</nav>
+
+<h2 id="where">Where you set each level</h2>
+
+<p>System prompts live in two places: a <strong><code>SystemPrompt</code></strong>
+preset &mdash; <code>data class SystemPrompt(id, name, prompt)</code>
+(<code>model/SettingsModels.kt</code>), a named reusable instruction saved
+under AI Setup &rarr; System prompts and looked up by id via
+<code>Settings.getSystemPromptById(id)</code> &mdash; and the
+<strong>resolved text</strong>, which rides to dispatch as a plain string
+field, <code>AgentParameters.systemPrompt</code> (reports/secondaries) or
+<code>ChatParameters.systemPrompt</code> (chat). Every level below (agent /
+flock / swarm / provider / app-wide / report-model / report) stores a
+single optional <code>systemPromptId</code>; a <code>Parameters</code>
+preset can <em>also</em> carry a free-text <code>systemPrompt</code>, and an
+<code>InternalPrompt</code> references a preset by <strong>name</strong>
+(<code>InternalPrompt.systemPrompt</code>, default <code>"*NONE"</code>).</p>
+
+<dl class="kv">
+<div><dt>Per-report</dt><div class="meta"><code>reportSystemPromptId</code></div>
+<dd>New AI Report / Manage report &rarr; &#127917; "Define model system prompt" picker.</dd></div>
+<div><dt>Agent</dt><div class="meta"><code>Agent.systemPromptId</code></div>
+<dd>AI Setup &rarr; Workers &rarr; Agents &rarr; edit &rarr; &#127917;.</dd></div>
+<div><dt>Flock / Swarm</dt><div class="meta"><code>Flock.systemPromptId</code> / <code>Swarm.systemPromptId</code></div>
+<dd>AI Setup &rarr; Workers &rarr; Flocks / Swarms &rarr; edit &rarr; &#127917;.</dd></div>
+<div><dt>Provider</dt><div class="meta"><code>ProviderConfig.systemPromptId</code></div>
+<dd>AI Setup &rarr; Providers &rarr; a provider &rarr; edit &rarr; &#127917;.</dd></div>
+<div><dt>App-wide &amp; Report-model</dt><div class="meta"><code>GeneralSettings.appWideSystemPromptId</code> / <code>reportModelSystemPromptId</code></div>
+<dd>AI Setup &rarr; App settings.</dd></div>
+<div><dt>The presets themselves</dt><div class="meta">CRUD</div>
+<dd>AI Setup &rarr; System prompts.</dd></div>
+<div><dt>Per internal prompt</dt><div class="meta"><code>InternalPrompt.systemPrompt</code> (by preset <strong>name</strong>)</div>
+<dd>AI Setup &rarr; Prompt management &rarr; a prompt &rarr; &#127917;.</dd></div>
+<div><dt>External intent</dt><div class="meta"><code>com.ai.ACTION_NEW_REPORT</code> &mdash; <code>"system"</code> string extra</div>
+<dd>Read in <code>MainActivity.handleIntent</code>, stored on
+<code>ExternalIntent.systemPrompt</code>; surfaced as
+<code>UiState.externalSystemPrompt</code>. A plain string extra, not an
+XML block.</dd></div>
+</dl>
+
+<h2 id="reaches-model">How the resolved text reaches the model</h2>
+
+<p>Every chain below produces a system-prompt <strong>string</strong> that
+lands on the call's <code>AgentParameters.systemPrompt</code> via
+<code>params.copy(systemPrompt = &hellip;)</code>. At the report dispatch
+fold &mdash; <code>AnalysisRepository.analyzeWithAgent</code>
+(<code>data/AnalysisRepository.kt</code>) &mdash; two transforms run, in
+order:</p>
+
+<ol>
+<li><strong><code>mergeParameters(agentResolvedParams, overrideParams)</code></strong>
+&mdash; a non-blank <em>override</em> <code>systemPrompt</code>
+(<code>overrideParams.systemPrompt?.isNotBlank() == true</code>) wins over
+the agent-resolved one; otherwise the agent-resolved value stays.</li>
+<li><strong><code>filterParametersBySupported</code></strong> &mdash; drops
+fields the model can't accept, only when an override is present. The
+<strong>system prompt is never dropped</strong> by this filter &mdash; it's
+copied through verbatim, unlike the numeric params.</li>
+</ol>
+
+<p>The merged result is sent as the request's system message by the
+per-format dispatch: Anthropic <code>system</code>, Gemini
+<code>systemInstruction</code>, OpenAI Chat <code>role:"system"</code>
+message, OpenAI Responses <code>instructions</code>. See
+<a href="api-formats.html">api-formats</a>.</p>
+
+<div class="callout warn">
+<p>Some models don't accept system messages &mdash; the agent / provider /
+model edit screens surface a warning when the chosen model is known not
+to.</p>
+</div>
+
+<h2 id="reports">Report generation</h2>
+
+<p><code>viewmodel/ReportViewModel.kt</code> &rarr; <code>buildReportTasks</code>,
+with helpers <code>resolveSystemPromptText</code>,
+<code>findFlockSystemPromptIdForAgent</code> and
+<code>findSwarmSystemPromptIdForMember</code> in
+<code>viewmodel/ReportViewModelHelpers.kt</code>. The chain is a plain
+<code>?:</code> ladder &mdash; <strong>first non-null wins</strong>, applied
+with <code>params.copy(systemPrompt = spText)</code>.</p>
+
+<h3 id="agent-chain">Agent</h3>
+
+<dl class="kv">
+<div><dt>1. Report-level</dt><dd><code>reportSystemPromptId</code>, the report's &#127917;.</dd></div>
+<div><dt>2. Flock-or-agent</dt><dd>First flock this agent belongs to that has one
+(<code>findFlockSystemPromptIdForAgent</code>) &mdash; else the
+<strong>agent</strong> prompt (<code>agent.systemPromptId</code>). See the
+nuance callout below.</dd></div>
+<div><dt>3. External-intent</dt><dd><code>externalSystemPrompt</code>
+(<code>ACTION_NEW_REPORT</code> <code>"system"</code> extra).</dd></div>
+<div><dt>4. App-wide</dt><dd><code>appWideSystemPromptId</code> default.</dd></div>
+<div><dt>&mdash;</dt><dd>Otherwise none.</dd></div>
+</dl>
+
+<div class="callout">
+<p><strong>Flock-vs-agent nuance.</strong> The flock and agent levels are
+resolved together inside one helper,
+<code>resolveSystemPromptText(aiSettings, agentSpId, groupSpId)</code>,
+whose body is <code>(groupSpId ?: agentSpId)?.let { &hellip; }</code>. A
+flock prompt <em>overrides</em> the per-agent prompt, but they form
+<strong>one</strong> resolution step sitting beneath the report-level
+prompt and above the external/app-wide levels &mdash; there's no
+independent "flock beats agent beats external" cascade. It's "report
+&rarr; (flock-else-agent) &rarr; external &rarr; app-wide".</p>
+</div>
+
+<h3 id="swarm-chain">Swarm member / bare-direct model</h3>
+
+<dl class="kv">
+<div><dt>1. Report-level</dt><dd><code>reportSystemPromptId</code>.</dd></div>
+<div><dt>2. Swarm</dt><dd>First swarm containing this (provider, model) that
+has one (<code>findSwarmSystemPromptIdForMember</code>).</dd></div>
+<div><dt>3. Provider</dt><div class="meta">direct models only</div>
+<dd><code>providerConfig.systemPromptId</code>.</dd></div>
+<div><dt>4. Report-model default</dt><div class="meta">direct only</div>
+<dd><code>reportModelSystemPromptId</code>.</dd></div>
+<div><dt>5. External-intent</dt><dd><code>externalSystemPrompt</code>.</dd></div>
+<div><dt>6. App-wide</dt><dd><code>appWideSystemPromptId</code> default.</dd></div>
+<div><dt>&mdash;</dt><dd>Otherwise none.</dd></div>
+</dl>
+
+<p><strong>"Direct"</strong> means a bare provider+model the user picked
+straight from the model picker (its synthetic id
+<code>swarm:&lt;providerId&gt;:&lt;model&gt;</code> is in
+<code>directModelSids</code>); a true swarm member skips the provider and
+report-model fallbacks and only sees its swarm level.</p>
+
+<div class="callout">
+<p>A <code>Parameters</code> preset applied at any level may itself carry a
+<code>systemPrompt</code>. That value travels inside the merged
+<code>AgentParameters</code>; the explicit chain above is then layered on
+with <code>copy(systemPrompt = &hellip;)</code> whenever a level resolves a
+non-null prompt &mdash; so an explicitly-resolved prompt always wins for
+the call, overwriting any preset-carried one.</p>
+</div>
+
+<h2 id="secondary">Secondary operations &amp; metadata generation</h2>
+
+<p>No single chain here &mdash; these calls split into <strong>three
+dispatch families</strong>, and only the first resolves a system prompt at
+all. The 8 <code>SecondaryKind</code> values
+(<code>data/SecondaryModels.kt</code>): <code>RERANK, META, MODERATION,
+TRANSLATE, TOURNAMENT, JUDGES, COMPARE, TRANSRANK</code>, plus the
+metadata-gen calls, map onto the three families below. See
+<a href="secondary-results.html">secondary-results</a> for what each kind
+does.</p>
+
+<details class="entity" open>
+<summary>Family 1<span class="badge">resolveSecondaryParams &mdash; resolves &amp; applies a system prompt</span></summary>
+<div class="body">
+<p>Rerank, Meta/Summarize, Fan-out (per-pair + replay), Fan-in, Meta-edit,
+and the "Find alternatives" probes (alt icons / alt titles / alt
+translations) resolve their parameters <strong>and</strong> system prompt
+through one shared helper:</p>
+
+<pre><code>resolveSecondaryParams(general, aiSettings, paramsIds, systemPromptId,
+                       prompt?: InternalPrompt, agent?: Agent)</code></pre>
+
+<p>(<code>viewmodel/ReportViewModelHelpers.kt</code>). The resolved
+<code>AgentParameters</code> is passed <strong>positionally</strong> as
+<code>agentResolvedParams</code> to
+<code>AnalysisRepository.analyzeWithAgent</code>, so the system-prompt
+string actually reaches the call. Call sites:
+<code>SecondaryRunManager.executeSecondaryTask</code> (rerank / meta /
+fan-in, and fan-out pairs routed in from <code>FanOutEngine</code>),
+<code>FanOutEngine</code> (fan-out replay), <code>MetaEditManager</code>
+(meta edit/replay), <code>IconGenerationManager</code> (only the
+<em>alternatives</em> fan-outs), and <code>TranslationRunManager</code>
+(only the <em>alternative</em> translation probe).</p>
+
+<p>The system-prompt id is first-non-null:</p>
+
+<dl class="kv">
+<div><dt>1. Runtime &#127917; pick</dt><dd>On the op's model selector
+(<code>systemPromptId</code> arg).</dd></div>
+<div><dt>2. Internal prompt's own</dt><dd><code>InternalPrompt.systemPrompt</code>,
+matched by <strong>name</strong>; blank / <code>"*NONE"</code>
+ignored.</dd></div>
+<div><dt>3. Bound agent's prompt</dt><dd><code>agent.systemPromptId</code>
+&mdash; only when the prompt is pinned to an agent rather than a bare
+provider+model pair.</dd></div>
+<div><dt>4. App-wide default</dt><dd><code>appWideSystemPromptId</code>.</dd></div>
+<div><dt>&mdash;</dt><dd>Otherwise none.</dd></div>
+</dl>
+
+<p class="muted">When a system prompt resolves,
+<code>resolveSecondaryParams</code> returns
+<code>base.copy(systemPrompt = sp)</code>; otherwise the base merged
+params are returned unchanged. This is <strong>first-non-null</strong>,
+not a merge &mdash; there is no report-level or provider level in the
+secondary chain.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Family 2<span class="badge">WorkerRunner.run &mdash; no system prompt</span></summary>
+<div class="body">
+<p>Main translation, Tournament, Compare-with-meta, and <strong>all
+initial metadata generation</strong> (report icon / title / language name
++ icon, per-model icons / titles, fan-meta) dispatch through
+<code>WorkerRunner.run(prompt, resolvedText, aiSettings, context,
+accept)</code> (<code>viewmodel/WorkerRunner.kt</code>). The runner
+expands the prompt's <code>workers</code> to their members, shuffles, and
+on each attempt calls <code>analyzeWithAgent(agent, "", resolvedText,
+&hellip;)</code> &mdash; with <strong>no</strong>
+<code>agentResolvedParams</code> and <strong>no</strong>
+<code>overrideParams</code>. So these calls carry no resolved parameters
+and no system prompt (not the worker's, not app-wide): deterministic
+JSON-/artifact-emitting utility calls. Consistent with that, every bundled
+<code class="path">assets/internal-prompts/English/workers/*.json</code>
+(and <code>meta_compare/</code>) seed has
+<code>"systemPrompt": "*NONE"</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Family 3<span class="badge">fixed per-cell dispatch &mdash; no system prompt</span></summary>
+<div class="body">
+<p>Judges (<code>JudgeEvalEngine</code>) and Transrank
+(<code>TranslatorRankEngine</code>) don't use <code>WorkerRunner</code>;
+each cell is scored by a <em>fixed</em> judge resolved from the prompt's
+swarm and dispatched with a direct <code>analyzeWithAgent(agent, "",
+resolved, &hellip;)</code> &mdash; again with no
+<code>agentResolvedParams</code>, so <strong>no</strong> system prompt is
+sent. The seed <code>workers/translate-rank.json</code> carries
+<code>"systemPrompt": "*NONE"</code>.</p>
+
+<p>Moderation takes no params and no system prompt at all
+(<code>SecondaryRunManager.runModeration</code> &rarr;
+<code>executeSecondaryTask</code> short-circuits on
+<code>kind == MODERATION</code> and calls <code>callModerationApi</code>
+directly).</p>
+</div>
+</details>
+
+<dl class="kv">
+<div><dt>Rerank / Meta / Fan-out / Fan-in / Meta-edit / alt-probes</dt><div class="meta">Family 1</div><dd>resolved</dd></div>
+<div><dt>Translate (main) / Tournament / Compare-with-meta / initial icon &amp; title gen</dt><div class="meta">Family 2 &mdash; WorkerRunner</div><dd>none</dd></div>
+<div><dt>Judges / Transrank</dt><div class="meta">Family 3 &mdash; fixed per-cell</div><dd>none</dd></div>
+<div><dt>Moderation</dt><div class="meta">callModerationApi directly</div><dd>no params, no system prompt at all</dd></div>
+</dl>
+
+<div class="callout">
+<p><strong><code>Report.workerConfig</code> does not touch system-prompt
+resolution.</strong> The per-report worker config (Report info / Model
+info / Worker batches) swaps the prompts' <code>workers</code> pool for
+another (<code>withBatchWorkers</code> / <code>withReportInfoWorkers</code>
+/ <code>withOwnModelWorker</code>) &mdash; it changes <em>which</em>
+models run, not how (or whether) a system prompt is resolved. For
+Families 2 &amp; 3 that's still "no system prompt"; for Family 1 the
+runtime &rarr; prompt &rarr; agent &rarr; app-wide chain is unchanged. See
+<a href="secondary-results.html">secondary-results</a>.</p>
+</div>
+
+<p>Tournament, Judge-the-judges, Compare-with-meta and Transrank are all
+<strong>worker-judged</strong>: Tournament and Compare run a bundled
+worker prompt through <code>WorkerRunner</code> (Family 2); Judges and
+Transrank score each cell with a fixed judge (Family 3). In all four the
+judging model is dispatched with default parameters, so <strong>no
+system prompt is sent</strong> &mdash; the worker's own
+agent/provider/app-wide system-prompt levels are not consulted, and the
+seeded worker prompts carry <code>systemPrompt = "*NONE"</code>.</p>
+
+<h2 id="chat">Chat &amp; Dual chat</h2>
+
+<p><code>viewmodel/ChatViewModel.kt</code>. The system prompt is part of
+the session's <code>ChatParameters.systemPrompt</code> (a non-null
+<code>String</code> defaulting to <code>""</code>,
+<code>data/DataModels.kt</code>), fixed when the chat is configured and
+resent <strong>every</strong> turn &mdash; there is no per-turn
+system-prompt override.</p>
+
+<dl class="kv">
+<div><dt>New chat with an agent</dt><div class="meta"><code>ChatRoutes.kt</code> &rarr; <code>AI_CHAT_WITH_AGENT</code></div>
+<dd><code>aiSettings.resolveAgentParameters(agent).systemPrompt</code>.</dd></div>
+<div><dt>Configure on the fly</dt><div class="meta"><code>ChatParametersScreen</code></div>
+<dd>The inline System-prompt field, or a &#127917; picker that fills it
+from a preset (<code>resolvedSp = picked preset prompt ?: typed
+text</code>).</dd></div>
+<div><dt>Dual chat setup</dt><div class="meta"><code>DualChatScreen</code></div>
+<dd><code>mergeParameters(ids).systemPrompt</code> of the chosen
+presets.</dd></div>
+<div><dt>Resumed session</dt><dd>Whatever was saved on the
+<code>ChatSession</code>.</dd></div>
+</dl>
+
+<div class="callout warn">
+<p><strong>Subtle but important:</strong> in the agent path,
+<code>resolveAgentParameters(agent)</code> is just
+<code>mergeParameters(agent.paramsIds)</code> &mdash; it does
+<strong>not</strong> read <code>agent.systemPromptId</code>. A chat
+started from an agent inherits a system prompt <strong>only if</strong>
+one of the agent's parameter presets carries a <code>systemPrompt</code>;
+the agent's standalone &#127917; (<code>systemPromptId</code>) is a
+report-generation level and does <strong>not</strong> flow into chat.
+(Reports honour <code>agent.systemPromptId</code>; chat doesn't.) An
+app-wide default also doesn't apply to chat unless the user wires it in
+via a preset or the inline field.</p>
+</div>
+
+<h2 id="mental-model">Quick mental model</h2>
+
+<ol>
+<li>A <strong>report-level &#127917;</strong> (or a <strong>runtime
+&#127917;</strong> on a secondary op) wins for that call.</li>
+<li>Otherwise the <strong>group</strong> the model runs in speaks: flock
+(for agents) or swarm (for swarm members) &mdash; folded together with
+the agent level in one step for agents.</li>
+<li>Otherwise the <strong>entity</strong> itself: agent
+(<code>agent.systemPromptId</code>), or &mdash; for a bare/direct model
+&mdash; the provider, then the report-model default.</li>
+<li>An <strong>external <code>ACTION_NEW_REPORT</code> intent</strong> can
+supply one (reports only).</li>
+<li>Finally the <strong>app-wide</strong> default; if nothing matches, no
+system message is sent.</li>
+<li><strong>Chat is the exception</strong>: it doesn't walk this ladder
+&mdash; it only takes a system prompt from a parameters preset (agent /
+dual-chat) or what the user types/picks at setup.</li>
+<li><strong>Secondaries split three ways.</strong> Only the
+<code>resolveSecondaryParams</code> family (rerank, meta, fan-out, fan-in,
+meta-edit, and the alternatives probes) resolves a system prompt &mdash;
+runtime &#127917; &rarr; prompt's own &rarr; bound agent &rarr; app-wide.
+The <code>WorkerRunner</code> family (main translation, tournament,
+compare, initial icons/titles/language) and the fixed-cell family
+(judges, transrank), plus moderation, dispatch with default params and
+send <strong>no</strong> system prompt.</li>
+</ol>
+
+<h2 id="files">Files</h2>
+
+<dl class="kv">
+<div><dt>model/SettingsModels.kt</dt><dd><code>SystemPrompt</code>,
+<code>Settings.getSystemPromptById</code> /
+<code>getSystemPromptByIdOrName</code>, <code>mergeParameters</code>,
+<code>resolveAgentParameters</code></dd></div>
+<div><dt>viewmodel/ReportViewModel.kt</dt><dd><code>buildReportTasks</code>
+&mdash; the agent / swarm system-prompt ladders</dd></div>
+<div><dt>viewmodel/ReportViewModelHelpers.kt</dt><dd><code>resolveSystemPromptText</code>,
+<code>findFlockSystemPromptIdForAgent</code>,
+<code>findSwarmSystemPromptIdForMember</code>,
+<code>resolveSecondaryParams</code></dd></div>
+<div><dt>data/AnalysisRepository.kt</dt><dd><code>analyzeWithAgent</code>,
+<code>mergeParameters</code>, <code>filterParametersBySupported</code></dd></div>
+<div><dt>viewmodel/WorkerRunner.kt</dt><dd><code>WorkerRunner.run</code> &mdash; Family 2, no system prompt</dd></div>
+<div><dt>viewmodel/ChatViewModel.kt</dt><dd>Chat's <code>ChatParameters.systemPrompt</code> handling</dd></div>
+<div><dt>data/DataModels.kt</dt><dd><code>ChatParameters</code></dd></div>
+<div><dt>MainActivity.kt</dt><dd><code>handleIntent</code> &mdash; reads the <code>ACTION_NEW_REPORT</code> <code>"system"</code> extra</dd></div>
+</dl>
+
+<p class="muted">See also: <a href="parameters.html">parameters</a> (how the
+rest of the <code>AgentParameters</code> bundle resolves and merges) &middot;
+<a href="secondary-results.html">secondary-results</a> (the eight
+<code>SecondaryKind</code> values and their dispatchers) &middot;
+<a href="workers.html">workers</a> (Agents / Flocks / Swarms) &middot;
+<a href="api-formats.html">api-formats</a> (where the system message is
+attached per format).</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

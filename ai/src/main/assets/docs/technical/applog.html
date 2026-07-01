@@ -7,247 +7,443 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>AppLog</span></header>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>AppLog</span></header>
 <main>
 
 <h1>AppLog — in-app file logger</h1>
 
 <p><code>com.ai.data.AppLog</code> is a log4j-style file appender that
-mirrors <code>android.util.Log</code>. Every call lands in both
-logcat and a daily-rotating plain-text file under
+mirrors <code>android.util.Log</code>. Every call lands in both logcat
+and a daily-rotating plain-text file under
 <code class="path">&lt;filesDir&gt;/applog/applog_&lt;yyyyMMdd&gt;.log</code>
-(when the call's level is at or above the user-configured
-threshold).</p>
+when the call's level is at or above the user-configured threshold.
+Designed so a user can hand the app a clean, durable log when something
+misbehaves — independent of <code>adb logcat</code>, shareable from
+inside the app. WARN / ERROR calls additionally flash a short on-screen
+toast so a failure is noticed without opening the viewer.</p>
 
-<p>Designed so a user can hand the app a clean, durable local log
-when something misbehaves — independent of <code>adb logcat</code>,
-shareable from inside the app.</p>
+<p class="muted">This page covers how the logger works. The full
+per-call-site catalogue (<code>doc/log-details.md</code>, a generated
+reference) is out of scope for this hub — as a factoid it currently
+lists <strong>559 call sites</strong>: 103 ERROR, 199 WARN, 93 INFO,
+164 DEBUG.</p>
 
-<h2>Levels</h2>
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#levels">Levels</a></li>
+<li><a href="#master">Master enable flag</a></li>
+<li><a href="#format">File format &amp; rotation</a></li>
+<li><a href="#bootstrap">Bootstrap log line</a></li>
+<li><a href="#tagging">No per-report tagging</a></li>
+<li><a href="#redaction">Sensitive-value redaction</a></li>
+<li><a href="#toasts">WARN / ERROR toasts</a></li>
+<li><a href="#health">Cache &amp; writer-health surfaces</a></li>
+<li><a href="#coverage">Coverage</a></li>
+<li><a href="#viewer">Viewer screens</a></li>
+<li><a href="#trimming">Trimming</a></li>
+<li><a href="#files">Files</a></li>
+</ul>
+</nav>
+
+<h2 id="levels">Levels</h2>
 
 <pre><code>enum class LogLevel(val priority: Int) {
-    TRACE(2),    // = Log.VERBOSE
-    DEBUG(3),    // = Log.DEBUG
-    INFO(4),     // = Log.INFO
-    WARN(5),     // = Log.WARN
-    ERROR(6),    // = Log.ERROR
-    OFF(99)      // disables the file appender (logcat still fires)
+    DEBUG(3),    // matches Log.DEBUG (also the home of former TRACE calls)
+    INFO(4),     // matches Log.INFO
+    WARN(5),     // matches Log.WARN
+    ERROR(6),    // matches Log.ERROR
+    OFF(99)      // sentinel — disables the file appender (logcat still fires)
 }</code></pre>
 
-<p>Priorities align with <code>android.util.Log</code> so the
-forwarder is a one-line dispatch. Threshold defaults to
-<strong>INFO</strong> — noisy enough to capture every API call +
-batch start / end without flooding the device with per-token streaming
-chatter.</p>
+<div class="callout">
+<p>No separate TRACE level. The old <code>AppLog.v</code> forwarder was
+folded into <code>AppLog.d</code>, so DEBUG is the lowest file-appender
+level — four severities plus the <code>OFF</code> sentinel.</p>
+</div>
 
-<p>The threshold is persisted in main prefs (<code>log_level</code>).
-<code>AppLog.init</code> reads it directly from
-<code>SharedPreferences</code> (<code>eval_prefs</code>)
-<strong>before</strong> <code>AppViewModel</code>'s bootstrap so that
-DEBUG / TRACE calls inside bootstrap itself are admitted on cold
-start. The <code>GeneralSettings.logLevel</code> field mirrors it for
-the rest of the runtime; an update via Settings → Logging re-mirrors
-to <code>AppLog.threshold</code>.</p>
+<p>Priorities align with <code>android.util.Log</code> so each
+forwarder (<code>AppLog.d/i/w/e</code>) is a one-line dispatch: log to
+logcat unconditionally, then append to the file only when
+<code>threshold.priority &lt;= level.priority</code>. Threshold
+defaults to <strong>WARN</strong> — a fresh install persists only
+warnings and errors; lower it to INFO/DEBUG to capture every API call +
+batch start/end while diagnosing an issue. <code>OFF</code> silences
+the file appender entirely (logcat is unaffected).</p>
 
-<h2>File format</h2>
+<p>The threshold is persisted in main prefs (<code>eval_prefs</code>,
+key <code>log_level</code>). <code>AppLog.init</code> reads it directly
+from <code>SharedPreferences</code> <strong>before</strong>
+<code>AppViewModel</code>'s bootstrap so DEBUG calls inside bootstrap
+itself are admitted on cold start — <code>AppLog</code> keeps no
+<code>SettingsPreferences</code> dependency so it can apply the
+threshold before any higher-level singletons exist.
+<code>GeneralSettings.logLevel</code> mirrors it for the rest of the
+runtime; an update via <strong>Settings → Log/trace/audit/statistics →
+Application log level</strong> (a radio-row picker) re-mirrors to
+<code>AppLog.threshold</code>.</p>
+
+<h2 id="master">Master enable flag</h2>
+
+<p><code>GeneralSettings.loggingMasterEnabled</code> (default
+<strong>on</strong>) is the grand-master gate for the whole
+<em>Log/trace/audit/statistics</em> settings page — API tracing, the
+per-report audit log, usage statistics, <strong>and</strong> this file
+logger. While it is off, the four per-item settings are hidden in the
+UI and forced off at runtime regardless of their stored values; the
+per-item values are preserved so flipping the master back on restores
+prior choices.</p>
+
+<p>For the file logger specifically,
+<code>GeneralSettings.effectiveLogLevel()</code> returns the stored
+<code>logLevel</code> only while the master is on and collapses to
+<code>OFF</code> when it isn't — and it is <strong>that</strong>
+effective value (not the raw <code>logLevel</code>) that
+<code>AppViewModel</code> mirrors into <code>AppLog.threshold</code>.
+A master toggle silences the file appender without touching the
+user's chosen level.</p>
+
+<h2 id="format">File format &amp; rotation</h2>
 
 <p>One line per call:</p>
 
-<pre><code>2026-05-11 09:51:09.732 INFO  AppLifecycle: App start — com.ai 1.42 build 2026-05-11T07:53:00Z</code></pre>
+<pre><code>2026-05-11 09:51:09.732 INFO App: App started — AI v1.42 (built 2026-05-11 07:53:00 UTC, installed …) logLevel=WARN, tracing=true</code></pre>
 
 <p>Format: <code>yyyy-MM-dd HH:mm:ss.SSS LEVEL TAG: message</code>. A
 stack trace, when one is attached, is indented by four spaces on
-subsequent lines.</p>
+subsequent lines (the viewer folds those continuation lines back into
+the entry they followed).</p>
 
-<p>Files rotate daily — the writer compares today's
+<p>Files rotate daily — <code>appendLine</code> compares today's
 <code>yyyyMMdd</code> against <code>writerDate</code> on every append,
-and reopens the <code>BufferedWriter</code> on a new file when they
-differ. The buffer is <strong>flushed per line</strong> so a process
-kill never loses the last few lines (slightly more I/O than batched,
-but a durable log is the whole point).</p>
+and reopens the <code>BufferedWriter</code> (append mode) on a new file
+when they differ. A single writer is held open across calls and
+<strong>flushed per line</strong> so a process kill never loses the
+last few lines (more I/O than batched, but a durable log is the whole
+point).</p>
 
-<h2>Bootstrap log line</h2>
+<h2 id="bootstrap">Bootstrap log line</h2>
 
-<p>On every app start, <code>AppViewModel.bootstrap</code> writes one
-structured INFO line capturing the app name, <code>versionName</code>,
-<code>versionCode</code>, and the <code>BUILD_TIMESTAMP</code> (set by
-the AGP build script). Makes it trivial to tell, in a multi-day log
-file, exactly when the app last (re)started.</p>
+<p>On every app start, <code>AppViewModel</code>'s startup path writes
+one structured INFO line (tag <code>App</code>) capturing the app
+label, <code>BuildConfig.VERSION_NAME</code>, the build timestamp, the
+install time (<code>PackageInfo.lastUpdateTime</code>), and the
+resolved log level + tracing flag — trivial to tell, in a multi-day log
+file, exactly when the app last (re)started. Because it's an INFO
+line, it only reaches the file once the threshold is lowered to
+INFO/DEBUG — at the default WARN it still fires to logcat. The
+detailed per-step bootstrap trace lines use the <code>App.start</code>
+tag.</p>
 
-<h2>Sensitive-value redaction</h2>
+<h2 id="tagging">No per-report tagging</h2>
 
-<p><code>AppLog.redactSecret</code> strips three common shapes before
-write:</p>
+<p>The application log does <strong>not</strong> tag lines by report
+id. Per-report activity lives in the per-report <strong>audit
+log</strong> (<code>AuditLog</code>,
+<code class="path">&lt;filesDir&gt;/audit/&lt;reportId&gt;.log</code>) —
+the canonical home for batch start/end, mutating actions and per-call
+records. The report screen's <strong>View → Log</strong> deep-link
+still opens the application-log file for the day the report was
+created, but no longer pre-seeds a per-report search filter
+(<code>reportLogContext</code> survives only as the report-section
+coroutine context — <code>Dispatchers.IO</code> + the crash handler).</p>
 
-<ul>
-<li><code>Bearer &lt;token&gt;</code> /
-<code>Basic &lt;auth&gt;</code> → <code>Bearer [REDACTED]</code></li>
-<li>Raw API keys (<code>sk-</code>, <code>xai-</code>,
-<code>gsk_</code>, <code>key-</code> followed by ≥16 base64-ish
-chars) → <code>&lt;prefix&gt;[REDACTED]</code></li>
-<li>Google <code>?key=&lt;token&gt;</code> query params →
-<code>key=[REDACTED]</code></li>
-</ul>
+<h2 id="redaction">Sensitive-value redaction</h2>
 
-<p>Same shapes <code>TracingInterceptor.headersToMap</code> catches —
-call sites that already redact (e.g. dispatch's own header logger)
-pass through unchanged.</p>
-
-<h2>In-memory file-list cache</h2>
-
-<p><code>AppLog.cachedFiles</code> mirrors
-<code class="path">&lt;filesDir&gt;/applog/</code>'s listing so the
-viewer's file-list screen doesn't restat on every nav. Invalidated on
-<code>appendLine</code>, <code>deleteLog</code>,
-<code>deleteLogsOlderThan</code>, and <code>clearLogs</code>. Same
-contract as <code>ApiTracer.cachedTraceFiles</code>.</p>
-
-<h2>Writer-health surfaces</h2>
-
-<p>When <code>appendLine</code>'s catch block fires (disk full,
-file-handle exhaustion, …), the failure is recorded:</p>
-
-<ul>
-<li><code>AppLog.lastWriterError</code> — the catch block's
-message.</li>
-<li><code>AppLog.droppedLineCount</code> — increments on every miss;
-resets to 0 on the next successful flush.</li>
-</ul>
-
-<p>The viewer's empty-state branch reads both so a user can tell
-"logging is broken" apart from "nothing was logged yet" — these used
-to be indistinguishable.</p>
-
-<h2>Coverage</h2>
-
-<p>The data + viewmodel layers carry broad TRACE / DEBUG coverage.
-Tagged sources (<code>grep</code> against
-<code>AppLog.d/v/i/w/e</code> shows the canonical set):</p>
-
-<ul>
-<li><code>AppLifecycle</code>, <code>AppViewModel</code>,
-<code>AiAnalysis</code>, <code>ApiDispatch</code>,
-<code>ApiStreaming</code>, <code>ApiTracer</code>,
-<code>AtomicFileWrite</code></li>
-<li><code>BackupManager</code>, <code>ChatHistoryManager</code>,
-<code>ChatViewModel</code></li>
-<li><code>FanOutEngine</code> — per-pair transitions, hydration,
-cancellation</li>
-<li><code>ImportExport</code></li>
-<li><code>ModelCooldown</code> — auto-bench events with their trace
-filename</li>
-<li><code>ModelListCache</code>, <code>ModelTestEngine</code>,
-<code>PricingCache</code>, <code>ProviderRegistry</code>,
-<code>ProviderFieldTimestamps</code></li>
-<li><code>ReportExport</code>, <code>ReportStorage</code>,
-<code>ReportViewModel</code></li>
-<li><code>SecondaryResultStorage</code>, <code>SettingsExport</code></li>
-<li><code>Throttle</code> — <code>ProviderThrottle</code>'s
-rate-limit / concurrent-cap wait logs (each timeout reports the
-queue depth or available-permit drain)</li>
-</ul>
-
-<h2>Viewer screens</h2>
-
-<p>Reachable from Hub → AI App log.</p>
-
-<h3>AppLogScreen — file list</h3>
-<p>One row per log file. Date (extracted from the filename
-<code>applog_yyyyMMdd.log</code> shape), size, line count. Sorted
-newest first.</p>
-
-<h3>AppLogScreen — per-file viewer</h3>
-
-<p>Title bar action strip: <code>&lt; Back</code>, 🐞 Trace (when
-the entry's TraceFile points at an existing API trace), 📋 Copy,
-📤 Share, 🗑 Delete (the current file), ❓ Help.</p>
-
-<p>Filters (top of screen):</p>
+<p><code>AppLog.redactSecret</code> strips four common secret shapes
+inline before each line is written (and before a toast is shown):</p>
 
 <dl class="kv">
 <div>
-<dt>Search query</dt>
-<dd>Text contains-match (lowercased).</dd>
+<dt>Bearer / Basic auth</dt>
+<div class="meta">regex <code>(?i)(Bearer|Basic)\s+[A-Za-z0-9._\-+/=]+</code></div>
+<dd><code>Bearer &lt;token&gt;</code> / <code>Basic &lt;auth&gt;</code>
+→ <code>Bearer [REDACTED]</code>.</dd>
 </div>
 <div>
-<dt>Level checkboxes</dt>
-<dd>TRACE / DEBUG / INFO / WARN / ERROR. Default state on a fresh
-install: WARN + ERROR enabled.</dd>
+<dt>Raw API keys</dt>
+<div class="meta">prefix <code>sk-</code> / <code>xai-</code> / <code>gsk_</code> / <code>key-</code> + ≥16 chars</div>
+<dd>→ <code>&lt;prefix&gt;[REDACTED]</code>.</dd>
 </div>
 <div>
-<dt>Time range</dt>
-<dd>From / To <code>HH:mm</code> text fields with a clock picker.
-Empty = no bound.</dd>
+<dt>Contextual secrets</dt>
+<div class="meta">field name + <code>:</code>/<code>=</code> + ≥24 value chars</div>
+<dd>A key-ish field name (<code>api_key</code> / <code>key</code> /
+<code>token</code> / <code>secret</code> / <code>password</code> /
+<code>client_secret</code>) → <code>&lt;field&gt;=[REDACTED]</code>.
+Catches provider keys with no fixed prefix when logged next to their
+field name.</dd>
 </div>
 <div>
-<dt>Tag dropdown</dt>
-<dd>Populated from the file's distinct tag set. Default selection
-"(any)" matches everything; the label is prefixed
-<code>Tag · …</code> so the chip's purpose is obvious when collapsed.
-Duplicates (same tag, different casing) are normalised.</dd>
-</div>
-<div>
-<dt>Clear filters</dt>
-<dd>Secondary button on the result-count line. Resets every filter to
-its default.</dd>
+<dt>Google query param</dt>
+<div class="meta">≥16 chars</div>
+<dd><code>key=&lt;token&gt;</code> → <code>key=[REDACTED]</code>.</dd>
 </div>
 </dl>
 
-<p>Rows render reverse-chronological (newest at the top), three lines
-per entry (timestamp + tag · level / message preview / optional
-matching-tag fragment). Tapping a row opens the per-entry overlay.</p>
+<p class="muted">Same shapes <code>TracingInterceptor</code> guards
+against, so call sites that already redact themselves pass through
+unchanged.</p>
 
-<h3>AppLogEntryScreen — per-entry detail</h3>
+<h2 id="toasts">WARN / ERROR toasts</h2>
 
-<p>3-line header: TIMESTAMP / LEVEL TAG / message preview. Body: the
-full message + any indented stack trace lines that followed it.
-Title bar:</p>
+<p><code>AppLog.w</code> and <code>AppLog.e</code> (when admitted by
+the threshold) also post a short <code>Toast</code> on the main thread
+— <code>LEVEL TAG: &lt;redacted message&gt;</code> truncated to 140
+chars — so the user notices a problem without opening the viewer. A
+burst (e.g. fan-out icon retries spraying dozens of warnings in a
+second) is coalesced via <code>TOAST_MIN_INTERVAL_MS = 1500ms</code> so
+the screen isn't flooded with un-dismissable toasts.</p>
+
+<p>The debounce is keyed per <strong>(level, tag)</strong> (a
+<code>ConcurrentHashMap&lt;String, Long&gt;</code>), so a benign WARN
+burst on one tag can't muffle a later ERROR — or an unrelated tag's
+warning — within the same window; each key coalesces on its own. The
+toast needs the application <code>Context</code> captured in
+<code>init</code>; before <code>init</code> it is silently skipped
+(the file + logcat lines still fire).</p>
+
+<h2 id="health">Cache &amp; writer-health surfaces</h2>
+
+<p><code>AppLog.cachedFiles</code> mirrors
+<code class="path">&lt;filesDir&gt;/applog/</code>'s listing
+(sorted newest-first) so the viewer's file-list screen doesn't restat
+on every nav. Invalidated on <code>appendLine</code> (set to null —
+next listing does an O(N) restat), surgically pruned on
+<code>deleteLog</code> / <code>deleteLogsOlderThan</code>, and reset on
+<code>clearLogs</code>. Same contract as
+<code>ApiTracer.cachedTraceFiles</code>.</p>
+
+<p><code>appendLine</code> buries every exception — logging failures
+must never throw into caller code — but records what failed so the
+viewer can tell "logging is broken" apart from "nothing was logged
+yet":</p>
+
+<dl class="kv">
+<div>
+<dt>lastWriterError</dt>
+<div class="meta">String?</div>
+<dd>The catch block's message (disk full, file-handle exhaustion, …),
+or null when healthy.</dd>
+</div>
+<div>
+<dt>droppedLineCount</dt>
+<div class="meta">Long</div>
+<dd>Increments on every miss; both reset to 0 on the next successful
+flush.</dd>
+</div>
+</dl>
+
+<p>The list screen's empty-state branch reads both: a red <strong>"Log
+writer failed"</strong> banner (message + dropped-line count) when
+<code>lastWriterError != null</code>, otherwise a neutral <em>"(no log
+files yet)"</em> hint that also surfaces the current threshold so a
+WARN/ERROR threshold on a quiet app isn't mistaken for a broken
+logger.</p>
+
+<h2 id="coverage">Coverage</h2>
+
+<p>The data + viewmodel layers carry broad DEBUG / INFO coverage. The
+canonical tag set is the literal tag <em>strings</em> passed to
+<code>AppLog.d/i/w/e</code> (not class names) — roughly <strong>80
+distinct tags</strong>.</p>
+
+<details>
+<summary>Tag groups</summary>
+<div class="body">
+<ul>
+<li><strong>Lifecycle / infra</strong> — <code>App</code> (startup
+line), <code>App.start</code> (per-step bootstrap), <code>Crash</code>,
+<code>Housekeeping</code>, <code>CapsWatch</code>, <code>Throttle</code>,
+<code>RateLimit</code>, <code>Overloaded</code>,
+<code>ModelCooldown</code>, <code>TagPropagation</code>,
+<code>AtomicFileWrite</code>, <code>Settings</code>.</li>
+<li><strong>API / dispatch</strong> — <code>AiAnalysis</code>,
+<code>ApiClient</code>, <code>ApiDispatch</code>, <code>ApiTracer</code>,
+<code>SSE</code>.</li>
+<li><strong>Reports / regenerate</strong> — <code>Report</code>,
+<code>ReportStorage</code>, <code>RegenBatch</code>,
+<code>RegenerateBatchStorage</code>, <code>Resume</code>,
+<code>SecondaryResume</code>, <code>BrokenScan</code> (the background
+broken-batch detection sweep).</li>
+<li><strong>Secondary results</strong> — <code>Secondary</code>,
+<code>SecondaryResultStorage</code>, <code>Meta</code>,
+<code>Meta-xlate</code>, <code>MetaCache</code>, <code>FanOut</code>,
+<code>FanIn</code>, <code>FanMeta</code>, <code>Rerank</code>,
+<code>Moderation</code>, <code>Tournament</code>, <code>JudgeEval</code>,
+<code>Compare</code>, <code>TransRank</code>.</li>
+<li><strong>Translation</strong> — <code>Translation</code>,
+<code>TranslationIcon</code>, <code>TranslationIconAlt</code>,
+<code>Translate</code>, <code>Translate-missing</code>,
+<code>PromptTranslationStore</code>.</li>
+<li><strong>Icons (alt / find-alternative)</strong> —
+<code>AgentIconAlt</code>, <code>InternalPromptIcon</code>,
+<code>InternalPromptIconAlt</code>, <code>LanguageIconAlt</code>,
+<code>PairIconAlt</code>, <code>PairTitleAlt</code>.</li>
+<li><strong>Knowledge / RAG / embeddings</strong> —
+<code>Knowledge</code>, <code>Chat.RAG</code>,
+<code>EmbeddingsStore</code>.</li>
+<li><strong>On-device runtime</strong> — <code>LocalLlm</code>,
+<code>LocalEmbedder</code>, <code>LlmRuntime</code>,
+<code>LocalRuntime</code>.</li>
+<li><strong>Chat / import-export</strong> — <code>Chat</code>,
+<code>ChatHistory</code>, <code>ImportExport</code>,
+<code>BulkExport</code>, <code>ReportExport</code>, <code>Backup</code>.</li>
+<li><strong>Catalogs / providers</strong> — <code>ModelListCache</code>,
+<code>PricingCache</code>, <code>RefreshAll</code>,
+<code>RecentModels</code>, <code>ProviderRegistry</code>,
+<code>ProviderFieldTimestamps</code>.</li>
+<li><strong>Model test / stress</strong> — <code>ModelTest</code>,
+<code>ModelTestRunStore</code>, <code>StressTest</code>,
+<code>Workers</code>.</li>
+<li><strong>Seed loaders</strong> (first-run asset seeding) —
+<code>DefaultMetaItemSeed</code>, <code>ExamplePromptSeed</code>,
+<code>FlockSeed</code>, <code>InaccessibleSeed</code>,
+<code>InternalPromptSeed</code>, <code>SwarmSeed</code>,
+<code>SystemPromptSeed</code>, <code>TestExcludedSeed</code>.</li>
+</ul>
+</div>
+</details>
+
+<h2 id="viewer">Viewer screens</h2>
+
+<p>Reached from the <strong>Monitor / AI Dashboard</strong> hub (the
+<em>Application log</em> card) and the home-bar fallback icon; a
+sibling <em>App log statistics</em> aggregate page is also reachable
+from the 📈 icon on the list screen. (The <em>Log/trace/audit/statistics</em>
+settings page only sets the threshold — it doesn't open the viewer.)
+All three screens below live in <code>ui/admin/AppLogScreen.kt</code>.</p>
+
+<details class="entity">
+<summary>AppLogListScreen<span class="badge">file list</span></summary>
+<div class="body">
+<p>Title "Application log" (help topic <code>applog_list</code>). One
+row per log file: <strong>Date</strong> (extracted from the
+<code>applog_yyyyMMdd.log</code> shape) and on-disk <strong>Size</strong>,
+sorted newest-first.</p>
+<p>Title-bar actions: 📈 stats (jumps to <em>App log statistics</em>),
+📤 share (opens a day-picker; tapping a day stages that file's bytes
+into <code>cacheDir/exports</code> and fires the system share sheet as
+a real <code>.log</code> attachment), and 🗑 clear-all (deletes every
+log file after confirmation). A <strong>Delete &gt; 7 days</strong>
+button at the bottom calls <code>deleteLogsOlderThan(now − 7d)</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>AppLogDetailScreen<span class="badge">per-file viewer</span></summary>
+<div class="body">
+<p>Title "Log file" (help topic <code>applog_detail</code>), subject =
+the filename. Title-bar action strip: <code>&lt; Back</code>, 📋 Copy,
+📤 Share, 🗑 Delete (this file), and 🧽 Clear-filters (shown only
+while a filter is active). Entries render reverse-chronological
+(newest at the top); stack-trace continuation lines stay glued to
+their header.</p>
+<p><strong>Filters (top of screen):</strong></p>
+<ul>
+<li><strong>Search query</strong> — free-text substring match across
+the whole entry (header + continuation lines), case-insensitive, with
+a ✕ to clear. Seeded from <code>initialSearch</code> (empty for the
+report deep-link, which now just opens the day's file) and
+<strong>not</strong> reset on file-step navigation, so a run that
+spilled into the next day's file can be followed by flipping files
+with the filter held.</li>
+<li><strong>Level chips</strong> — multi-select FilterChips for DEBUG /
+INFO / WARN / ERROR. All four enabled by default. Headers with no
+recognised level token (legacy / pre-AppLog lines) are always kept
+visible.</li>
+<li><strong>Time range</strong> — Start / End buttons that open
+Material 3 clock pickers (value shown as <code>HH:mm</code>, each
+with a Clear button to drop the bound). Empty = no constraint.</li>
+<li><strong>Tag dropdown</strong> — populated from the file's distinct
+tag set, sorted alphabetically. The <code>(any)</code> sentinel
+matches everything.</li>
+</ul>
+<p>All active filters are AND-ed. A <em>"Showing X of Y"</em> count
+line sits above the list. <strong>File-step navigation is a horizontal
+swipe</strong> on the content area (left = next day, right = previous
+day); a centred <code>N / total</code> counter shows the position.
+Tapping a row opens the per-entry overlay (the established
+overlay-and-<code>return</code> idiom, so the parent's scroll
+survives).</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>AppLogEntryScreen<span class="badge">per-entry detail</span></summary>
+<div class="body">
+<p>Title "Log entry" (help topic <code>applog_detail</code>, subject =
+the filename). Three-line body header (time-of-day / <code>LEVEL
+TAG</code>, level-coloured + bold / the message), followed by any
+indented stack-trace continuation lines.</p>
+<p>Title-bar actions: 📋 Copy (whole entry), 📤 Share, and 🐞
+<strong>Trace</strong> — appears only when the entry's timestamp falls
+within <strong>30 s</strong> of an <code>ApiTracer</code> trace file
+(the nearest such trace wins); tapping it navigates to that trace.</p>
+<p>Walk to the previous / next entry in the current filtered set by
+tapping the left / right half of the body (no-op at the ends); a
+counter at the bottom reads <code>pos / total (tap left ← prev, tap
+right → next)</code>.</p>
+</div>
+</details>
+
+<h3 id="copy-share">Copy / Share dialog</h3>
+
+<p>Tapping 📋 Copy or 📤 Share on the file viewer opens one shared
+dialog with three mutually-aware options:</p>
 
 <ul>
-<li><strong>🐞 Trace</strong> — appears when the entry's tag +
-timestamp match an <code>ApiTracer</code> trace file (typical for
-<code>ApiDispatch</code> / <code>ApiStreaming</code> log lines that
-fire inside a request).</li>
-<li><strong>Prev / Next</strong> — walk to the next / previous entry
-in the current filtered set.</li>
+<li><strong>Filtered only</strong> — emits exactly the entries
+currently visible under the active search / level / tag / time filters
+(label shows the count).</li>
+<li><strong>Complete log</strong> — the whole file, ignoring filters.</li>
+<li><strong>Last N lines</strong> — a digit field (the default path);
+disabled while either checkbox above is ticked.</li>
 </ul>
 
-<h3>Copy / Share dialog</h3>
+<p>"Filtered only" and "Complete log" are exclusive checkboxes
+(ticking one unticks the other). Copy lands in the clipboard; Share
+marshals to the system chooser. Both reuse the same serialiser as the
+in-app viewer, so a shared log matches what the user just looked at.</p>
 
-<p>Tapping 📋 Copy or 📤 Share opens a small dialog:</p>
+<h2 id="trimming">Trimming</h2>
+
+<p><code>AppLog.deleteLogsOlderThan(cutoffMs)</code> is wired only to
+the list screen's <strong>Delete &gt; 7 days</strong> button — the
+<strong>Trim by age</strong> screen (<code>ui/admin/TrimByAgeScreen.kt</code>)
+prunes reports, chat sessions and API traces by age but does not touch
+application-log files. <code>clearLogs()</code> drops every file: it's
+the list screen's 🗑 clear-all action and is also called last in
+<code>AppViewModel</code>'s runtime-wipe / reset path (last, because
+that method's own prior log lines go with it).</p>
+
+<h2 id="files">Files</h2>
 
 <ul>
-<li><strong>Filtered only</strong> — yes / no toggle.</li>
-<li><strong>Last N lines</strong> vs <strong>Complete log</strong> —
-radio.</li>
+<li><code>data/AppLog.kt</code> — the <code>object</code> singleton,
+<code>LogLevel</code> enum, <code>AppLogFileInfo</code> type, the four
+redaction regexes, the per-(level, tag) toast debounce, and the
+writer-health surfaces (<code>lastWriterError</code> /
+<code>droppedLineCount</code>).</li>
+<li><code>ui/admin/AppLogScreen.kt</code> — list + file viewer +
+per-entry screens, plus the log-entry parser and time-filter helpers.</li>
+<li><code>ui/admin/AiDashboardScreen.kt</code> — the <em>Application
+log</em> hub card and the <em>App log statistics</em> aggregate page
+(<code>ai_log_stats</code>).</li>
+<li><code>ui/admin/DeveloperHelp.kt</code> — <code>applog_list</code> /
+<code>applog_detail</code> help topics.</li>
+<li><code>ui/settings/SettingsScreen.kt</code> — the
+<code>Log/trace/audit/statistics</code> page (the <em>Enable logging
+&amp; tracing</em> master switch + the radio-row <em>Application log
+level</em> picker).</li>
+<li><code>viewmodel/AppViewModelTypes.kt</code> —
+<code>GeneralSettings.logLevel</code> and
+<code>loggingMasterEnabled</code> (the master gate, default on),
+folded by <code>effectiveLogLevel()</code> and mirrored to
+<code>AppLog.threshold</code> on every settings save.</li>
 </ul>
 
-<p>Copy lands in the clipboard, Share marshals to the system chooser.
-Both paths reuse the same serialiser as the in-app viewer (so a
-shared log matches what the user just looked at).</p>
-
-<h2>Trimming</h2>
-
-<p><code>AppLog.deleteLogsOlderThan(cutoffMs)</code> is exposed via
-Housekeeping → Trim by age, alongside the report / chat / trace
-trimmers. <code>clearLogs()</code> is wired into Housekeeping →
-Reset → "Clear app log files".</p>
-
-<h2>Files</h2>
-
-<ul>
-<li><code>data/AppLog.kt</code> — singleton + level enum + file-info
-type.</li>
-<li><code>ui/admin/AppLogScreen.kt</code> — list + viewer + entry
-screens.</li>
-<li><code>ui/settings/SettingsScreen.kt</code> — <code>Logging</code>
-card (threshold).</li>
-<li><code>model/SettingsModels.kt</code> /
-<code>viewmodel/AppViewModel.kt</code> —
-<code>GeneralSettings.logLevel</code>.</li>
-</ul>
-
-<p class="backtop"><a href="#">↑ Top</a></p>
+<p class="backtop"><a href="#">&uarr; Top</a></p>
 
 </main>
 </body>

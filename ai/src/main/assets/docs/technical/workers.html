@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AI Workers — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>AI Workers</span></header>
+<main>
+
+<h1>AI Workers — Agents, Flocks, Swarms</h1>
+
+<p>Three saved "worker" types bundle model picks (plus their
+parameter / prompt resolution) for one-tap reuse. They play
+<strong>two roles</strong>: one-tap model selection when starting a
+report or chat, and the pool that every single-call internal kind
+(rerank, moderation, meta, fan-in, translate, icon+title, transrank,
+tournament) dispatches through.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#three-kinds">The three kinds</a></li>
+<li><a href="#data-classes">Data classes</a></li>
+<li><a href="#seeds">Bundled seeds</a></li>
+<li><a href="#setup-hub">The AI Workers setup hub</a></li>
+<li><a href="#crud">CRUD shape</a></li>
+<li><a href="#selection">How workers feed model selection</a></li>
+<li><a href="#worker-swarm">The worker swarm — single-call dispatch</a></li>
+<li><a href="#report-setup">Per-report worker config</a></li>
+<li><a href="#params">Parameter + system-prompt resolution</a></li>
+<li><a href="#files">Files</a></li>
+</ul>
+</nav>
+
+<h2 id="three-kinds">The three kinds</h2>
+
+<p>They nest — a Flock groups Agents, a Swarm groups bare
+provider/model pairs. All three live on <code>Settings</code>
+(<code>agents</code>, <code>flocks</code>, <code>swarms</code>) and
+round-trip through Import/Export. The three glyphs are the factory
+<code>MetadataDefaults</code> constants — <code>AGENT</code> =
+&#129302;, <code>SWARM</code> = &#128029;, <code>FLOCK</code> =
+&#129746; (<code>data/MetadataDefaults.kt</code>) — and are
+user-overridable via the metadata-icons editor.</p>
+
+<dl class="kv">
+<div><dt>Agent &#129302;</dt><div class="meta">one named config</div>
+<dd>A single (provider, model) pair plus optional Parameters
+presets, an optional system prompt, and an optional per-agent API
+key / endpoint override.</dd></div>
+<div><dt>Flock &#129746;</dt><div class="meta">a named group of Agents</div>
+<dd>Holds member agent <strong>ids</strong> plus its own Parameters
+presets and system prompt.</dd></div>
+<div><dt>Swarm &#128029;</dt><div class="meta">a named group of (provider, model) pairs</div>
+<dd>Holds bare member pairs plus its own Parameters presets and
+system prompt — no agent id, no key override.</dd></div>
+</dl>
+
+<h2 id="data-classes">Data classes</h2>
+
+<p>From <code>model/SettingsModels.kt</code>:</p>
+
+<pre><code>data class Agent(
+    val id: String, val name: String, val provider: AppService, val model: String,
+    val apiKey: String, val endpointId: String? = null,
+    val paramsIds: List&lt;String&gt; = emptyList(), val systemPromptId: String? = null
+)
+data class Flock(
+    val id: String, val name: String, val agentIds: List&lt;String&gt; = emptyList(),
+    val paramsIds: List&lt;String&gt; = emptyList(), val systemPromptId: String? = null
+)
+data class SwarmMember(val provider: AppService, val model: String)
+data class Swarm(
+    val id: String, val name: String, val members: List&lt;SwarmMember&gt; = emptyList(),
+    val paramsIds: List&lt;String&gt; = emptyList(), val systemPromptId: String? = null
+)</code></pre>
+
+<p class="muted">Full field tables: <a href="datastructures.html">datastructures</a>.</p>
+
+<details>
+<summary>Field notes — resolution, live references, reserved flock</summary>
+<div class="body">
+<ul>
+<li><strong>Agent <code>apiKey</code> / <code>model</code> are
+overrides, not requirements.</strong> Both fall back to the
+provider's stored value through resolver helpers:
+<pre><code>fun getEffectiveApiKeyForAgent(agent) = agent.apiKey.ifBlank { getApiKey(agent.provider) }
+fun getEffectiveModelForAgent(agent)  = agent.model.ifBlank  { getModel(agent.provider) }</code></pre>
+<code>getModel(service)</code> returns <code>service.defaultModel</code>
+and <code>getApiKey(service)</code> returns the stored provider key —
+so an agent left on a provider's default-model alias resolves at
+<strong>use time</strong>, not at save time.</li>
+<li><strong>Flock stores agent ids</strong>, not copies —
+<code>getAgentsForFlock</code> maps them back live, so editing an
+agent updates every flock that references it. Ids that no longer
+resolve are silently skipped (<code>mapNotNull</code>).</li>
+<li><strong>Swarm members are bare pairs</strong> — no agent id, no
+key override; they carry only the swarm's own <code>paramsIds</code>.</li>
+<li>A reserved flock named <strong><code>default agents</code></strong>
+(<code>DEFAULT_AGENTS_FLOCK_NAME</code>) is auto-managed: the
+per-provider <strong>Test</strong> button (via
+<code>markProviderTestedOk</code> &rarr;
+<code>Settings.ensureDefaultAgentInFlock</code>) adds the provider's
+tested model as an agent and joins it to this flock; the
+<strong>Refresh All &rarr; Providers / models / default agents</strong>
+step (and the standalone <strong>Refresh workers</strong> step)
+empties it first, then repopulates it from each provider's worker
+phase (<code>runWorkerPhase</code>).</li>
+</ul>
+</div>
+</details>
+
+<h2 id="seeds">Bundled seeds</h2>
+
+<p>Swarms and flocks ship pre-seeded from <code>assets/</code>. Each
+bundled item is its own JSON file — no single
+<code>workers/swarms.json</code> / <code>workers/flocks.json</code>
+any more:</p>
+
+<dl class="kv">
+<div><dt>assets/workers/swarms/&lt;name&gt;.json</dt>
+<div class="meta"><code>SwarmSeed.kt</code>, <code>DIR = "workers/swarms"</code></div>
+<dd>One file per swarm — a whole <code>Swarm</code>
+(<code>{ id, name, members:[{provider,model}], paramsIds }</code>);
+the filename is cosmetic, the in-file <code>name</code> is
+authoritative. Member provider strings resolve to
+<code>AppService</code> through the same <code>createAppGson</code>
+adapter Import/Export uses.</dd></div>
+<div><dt>assets/workers/flocks/&lt;name&gt;.json</dt>
+<div class="meta"><code>FlockSeed.kt</code>, <code>DIR = "workers/flocks"</code></div>
+<dd>One file per flock. Members are stored <strong>by agent
+name</strong> (<code>agentNames</code>, with a legacy
+<code>agentIds</code> fallback) so the bundle is portable; they're
+re-linked to install-local agent ids against the current agent set
+at load — exactly like the Import/Export re-link path.</dd></div>
+</dl>
+
+<p>The bundled set that currently ships:</p>
+
+<details class="entity">
+<summary>swarms/workers.json <span class="badge">Swarm &middot; workers</span></summary>
+<div class="body">
+<p>12 members: Mistral <code>mistral-medium-latest</code>, OpenAI
+<code>gpt-4o-mini</code>, Groq <code>llama-3.3-70b-versatile</code>,
+Cerebras <code>gpt-oss-120b</code>, DeepSeek
+<code>deepseek-v4-flash</code>, Google
+<code>gemini-3.5-flash</code>, Anthropic
+<code>claude-haiku-4-5-20251001</code>, xAI
+<code>grok-4.20-0309-non-reasoning</code>, Cohere
+<code>command-r-08-2024</code>, DeepInfra
+<code>google/gemma-3-12b-it</code>, Together
+<code>Qwen/Qwen3-235B-A22B-Instruct-2507-tput</code>, SiliconFlow
+<code>Qwen/Qwen3-14B</code>.</p>
+<p>This is the swarm every bundled worker-prompt chain points at (see
+<a href="#worker-swarm">the worker swarm</a> below) — there is
+<strong>no separate <code>tournament</code> swarm</strong>; the
+bundled <code>tournament</code> worker prompt also targets
+<code>workers</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>swarms/level-1.json <span class="badge">Swarm &middot; Level 1</span></summary>
+<div class="body">
+<p>Anthropic <code>claude-haiku-4-5-20251001</code>, DeepSeek
+<code>deepseek-v4-flash</code>, Mistral
+<code>mistral-small-latest</code>, OpenAI <code>gpt-5.4-nano</code>,
+Google <code>gemini-2.5-flash-lite</code>, xAI
+<code>grok-4-1-fast-non-reasoning</code>. Cheap tier of the
+Level&nbsp;1/2/3 one-tap report picks.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>swarms/level-2.json <span class="badge">Swarm &middot; Level 2</span></summary>
+<div class="body">
+<p>Anthropic <code>claude-sonnet-4-6</code>, DeepSeek
+<code>deepseek-chat</code>, Mistral
+<code>mistral-medium-latest</code>, OpenAI <code>gpt-5.4-mini</code>,
+xAI <code>grok-4.3</code>, Google <code>gemini-2.5-flash</code>.
+Middle tier.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>swarms/level-3.json <span class="badge">Swarm &middot; Level 3</span></summary>
+<div class="body">
+<p>Anthropic <code>claude-opus-4-7</code>, DeepSeek
+<code>deepseek-v4-pro</code>, Google
+<code>gemini-3.1-pro-preview</code>, Mistral
+<code>mistral-large-latest</code>, xAI
+<code>grok-4.20-0309-reasoning</code>, OpenAI <code>gpt-5.5</code>.
+Most-capable tier.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>flocks/cheap.json <span class="badge">Flock &middot; cheap</span></summary>
+<div class="body">
+<p>10 agents by name: Cerebras, Anthropic, DeepSeek, Moonshot, xAI,
+Google, Z.AI, OpenAI, Groq, Mistral.</p>
+</div>
+</details>
+
+<p class="muted"><strong>Merge is idempotent and non-destructive.</strong>
+On launch <code>AppViewModel</code> reads the assets and calls
+<code>SwarmSeed.ensureAllPresent</code> /
+<code>FlockSeed.ensureAllPresent</code>: any bundled item whose name
+(case-insensitive) is not already present is appended with a fresh
+UUID; existing rows — including user edits to a same-named swarm —
+are left strictly alone. A single unparseable / unknown-provider
+file is skipped, not fatal. Flocks seed after agents so their
+<code>agentNames</code> resolve.</p>
+
+<h2 id="setup-hub">The AI Workers setup hub</h2>
+
+<p><strong>Settings &rarr; AI Setup &rarr; Workers</strong> opens
+<code>WorkersSetupScreen</code> (<code>ui/settings/SetupScreens.kt</code>),
+a sub-hub with three nav cards plus a model-search entry. The AI
+Setup landing's own Workers card (subtitle "Agents, Flocks, and
+Swarms", badge = <code>agentCount + flocks.size + swarms.size</code>)
+and all sub-cards are <strong>gated on <code>hasApiKey</code></strong>
+(<code>Settings.hasAnyApiKey()</code>) — disabled until at least one
+provider has a key set. The Agents card badge counts only agents
+whose provider is <strong>active</strong> (state <code>"ok"</code>);
+the Flocks and Swarms badges show the raw <code>flocks.size</code> /
+<code>swarms.size</code>.</p>
+
+<dl class="kv">
+<div><dt>Agents</dt><div class="meta"><code>SettingsSubScreen.AI_AGENTS</code> &middot; <code>AgentsCrud</code></div><dd>"Named model configurations".</dd></div>
+<div><dt>Flocks</dt><div class="meta"><code>SettingsSubScreen.AI_FLOCKS</code> &middot; <code>FlocksCrud</code></div><dd>"Groups of agents".</dd></div>
+<div><dt>Swarms</dt><div class="meta"><code>SettingsSubScreen.AI_SWARMS</code> &middot; <code>SwarmsCrud</code></div><dd>"Groups of provider/model pairs".</dd></div>
+</dl>
+
+<p class="muted">Routing + back-stack live in
+<code>ui/settings/SettingsScreen.kt</code> (the
+<code>SettingsSubScreen</code> enum) — the three list sub-screens back
+out to <code>AI_WORKERS_SETUP</code>, which in turn backs out to
+<code>AI_SETUP</code>.</p>
+
+<h2 id="crud">CRUD shape</h2>
+
+<p>Each worker CRUD is a small <code>Mode</code> state machine —
+<strong>List / Edit / Add</strong> (no separate read-only View step)
+— over the shared <code>CrudListPage</code> framework:</p>
+
+<ul class="tree">
+<li><strong>ui/cruds/workers/agents/</strong> <span class="note">— list.kt / add.kt / edit.kt</span></li>
+<li><strong>ui/cruds/workers/flocks/</strong></li>
+<li><strong>ui/cruds/workers/swarms/</strong></li>
+</ul>
+
+<p><strong>Tapping a row jumps straight to Edit</strong> — the
+<code>CrudListPage</code>'s <code>onView</code> handler is wired to
+<code>Mode.Edit(it)</code>, so the read-only view is skipped and the
+&#128119; <strong>copy</strong> + &#128465; <strong>delete</strong>
+icons live on the edit bar. <code>onAdd</code> opens
+<code>Mode.Add</code>.</p>
+
+<p>The thin CRUD Edit/Add wrappers delegate to the rich legacy forms
+— <code>AgentEditScreen</code>, <code>FlockEditScreen</code>,
+<code>SwarmEditScreen</code>. The agent form additionally needs
+<code>AgentEditDeps</code> (model fetch, Test button, fetch-error map,
+endpoint persistence, trace-link callback).</p>
+
+<details>
+<summary>Copy / Save / Delete semantics</summary>
+<div class="body">
+<p><strong>Copy</strong> is the &#128119; duplicate affordance inside
+the legacy edit form: it appends <code>-copy</code> to the name, and
+a Save in that state writes a fresh UUID, so the duplicate lands as a
+new item rather than overwriting the original; the duplicate name is
+treated as a collision against the source so the user can't save
+<code>&lt;name&gt;-copy</code> over it.</p>
+<p><strong>Save</strong> upserts by id (replace-if-id-present, else
+append). <strong>Delete</strong> is a confirm-dialog that calls
+<code>removeAgent</code> / filters the list.</p>
+<p>The legacy <strong>view</strong> screens
+(<code>AgentViewScreen</code> / <code>FlockViewScreen</code> /
+<code>SwarmViewScreen</code>) — reachable from older entry points
+outside the new CRUD list — each render their prompt + params via
+the shared <code>WorkerSharedCards</code>
+(<code>ui/settings/CommonViewWorkerCards.kt</code>), identical for
+all three because they share the <code>paramsIds</code> +
+<code>systemPromptId</code> shape.</p>
+<p class="muted">Help topics: <code>crud_agents</code>,
+<code>crud_flocks</code>, <code>crud_swarms</code>
+(<code>ui/admin/CrudHelp.kt</code>) and <code>setup_workers</code>
+(<code>ui/admin/SettingsAdminHelp.kt</code>).</p>
+</div>
+</details>
+
+<h2 id="selection">How workers feed model selection</h2>
+
+<p>Workers are never "run" directly — they <strong>expand into
+<code>ReportModel</code> targets</strong> during the report/chat
+selection phase. <code>SelectionOverlays</code>
+(<code>ui/report/start/SelectionOverlays.kt</code>) wires the three
+pickers to expander functions in <code>model/SettingsModels.kt</code>:</p>
+
+<dl class="kv">
+<div><dt>Agent pick</dt><div class="meta"><code>expandAgentToModel</code></div><dd>Yields <strong>one</strong> target, or <code>null</code> if the provider is inactive.</dd></div>
+<div><dt>Flock pick</dt><div class="meta"><code>expandFlockToModels</code></div><dd>One target <strong>per active member agent</strong>.</dd></div>
+<div><dt>Swarm pick</dt><div class="meta"><code>expandSwarmToModels</code></div><dd>One target <strong>per active member pair</strong>.</dd></div>
+</dl>
+
+<p>Inactive-provider members are silently dropped — every expander
+filters on <code>isProviderActive</code>. The resulting
+<code>ReportModel</code> carries a <code>type</code>/<code>sourceType</code>
+tag and the resolved key/params:</p>
+
+<ul>
+<li><strong>Agent</strong> &rarr; <code>ReportModel(provider,
+effectiveModel, "agent", "agent", agent.name, agent.id, agentId =
+agent.id, endpointId, effectiveApiKey, agent.paramsIds)</code>.</li>
+<li><strong>Flock</strong> &rarr; one per member, same shape as the
+agent target but <code>sourceType = "flock"</code>,
+<code>sourceId = flock.id</code>, and <code>paramsIds =
+flock.paramsIds + agent.paramsIds</code> — the flock
+<strong>prepends</strong> its own ids to each agent's.</li>
+<li><strong>Swarm</strong> &rarr; <code>ReportModel(member.provider,
+member.model, "model", "swarm", swarm.name, swarm.id, paramsIds =
+swarm.paramsIds)</code> — no <code>agentId</code>, no key
+override.</li>
+</ul>
+
+<p>Pickers add into the active target bucket, then the whole list
+runs through <code>deduplicateModels</code>. Dedup keys by
+<code>deduplicationKey = "$&#123;provider.id&#125;:$model"</code>
+into a <code>LinkedHashMap</code> (first-appearance order preserved);
+on a collision an <strong>agent-sourced</strong> entry (non-null
+<code>agentId</code> — a direct agent or a flock member) replaces a
+bare manual / swarm pick, so the surviving row keeps the api key and
+parameter ids.</p>
+
+<p class="muted">The flock and swarm pickers
+(<code>ui/other/Selection.kt</code>) show a per-worker cost estimate
+(summed across active members), an active-vs-total member count, and
+an &#8505;&#65039; info screen listing each member with provider,
+model, capability badges, and cost. Chat reuses the agent picker
+directly: picking an agent navigates to
+<code>aiChatWithAgent(id)</code>.</p>
+
+<h2 id="worker-swarm">The worker swarm — single-call secondary dispatch</h2>
+
+<p>The second role. The "workers"-category <code>InternalPrompt</code>s
+that drive the internal kinds — rerank, moderation, meta, fan-in,
+translate-text / translate-title / translate-rank, find-translation,
+report/model/translation icons + titles, tournament, user-note — each
+carry an ordered <strong><code>workers</code> fallback chain</strong>.
+Every bundled worker prompt ships with a single chain entry — the
+<code>workers</code> swarm — so the cheap 12-member swarm is the
+default model pool for all of these single-call kinds. There's no
+<code>tournament</code>-specific pool; <code>tournament.json</code>
+also points at <code>workers</code>.</p>
+
+<p>A <code>Worker</code> is one of four kinds, told apart by which
+field is non-<code>*N/A</code>: <strong>Model</strong>
+(<code>provider</code>+<code>model</code>), <strong>Agent</strong>
+(<code>agent</code> name), <strong>Flock</strong> (<code>flock</code>
+name), <strong>Swarm</strong> (<code>swarm</code> name).
+<code>Settings.expandWorker</code> flattens a Flock &rarr; one
+agent-name worker per <strong>active</strong> member agent, and a
+Swarm &rarr; one provider+model worker per <strong>active</strong>
+member, so each member becomes its own fallback candidate;
+<code>resolveWorker</code> turns a single worker into a dispatchable
+<code>Agent</code> (a pinned provider+model yields a synthetic agent;
+a named agent is looked up in <code>agents</code>).</p>
+
+<p>Two engines consume the chain, both <strong>shuffling</strong> the
+expanded members so a single-call kind picks one at random and a
+batch spreads across the pool:</p>
+
+<details class="entity">
+<summary>SecondaryRunManager.runSecondaryViaSwarm</summary>
+<div class="body">
+<p><code>viewmodel/SecondaryRunManager.kt</code>. One single-result
+secondary row (rerank / moderation / meta / fan-in / translate /
+transrank). Expands the swarm, tries members in shuffled order,
+re-stamps the placeholder's provider/model to whoever is being tried
+(so success attributes the row to the model that answered), parks a
+429/529 member on a short cooldown (<code>WORKER_429_DEFAULT_MS</code>)
+and falls through; the row stays ERROR only when the whole chain is
+spent.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>WorkerRunner</summary>
+<div class="body">
+<p><code>viewmodel/WorkerRunner.kt</code>. The no-UI internal-prompt
+engine (report/model/language icons + titles). Random per-call order,
+per-worker 429 cooldown (honouring <code>Retry-After</code>), an
+<code>accept</code> predicate that treats a 200 with no usable
+artifact as a logical miss, and a session-scoped disable for 404/410
+("model gone") members. A pass where <strong>every</strong> candidate
+is cooling waits for the earliest cooldown to lift and re-runs the
+chain (up to 3 extra passes, 20&nbsp;s per-wait cap) before settling
+on <code>AllRateLimited</code> — so a 5&nbsp;s 429 blip across the
+pool doesn't mass-error a batch. Under a throttled batch the wait
+runs permit-free: <code>runThrottledBatch</code>'s dynamic-host path
+installs <code>ProviderThrottle.poolCoolingWaiter</code>, which
+releases the item's sub-cap + global permits for the sleep and
+re-acquires them before the next pass, so cooling items don't
+throttle the rest of the batch. See
+<a href="report-icons.html">report-icons</a> for the full engine.</p>
+</div>
+</details>
+
+<p class="muted"><strong>Run-time worker source</strong> — a worker
+prompt's <code>modelSelection</code> is <code>*CONFIGURED</code>
+(default — run against the prompt's saved <code>workers</code>) or
+<code>*SELECT</code> (show the +Agent/+Flock/+Swarm/+Model picker
+just before the work starts and run against the user's pick; never
+written back).</p>
+
+<h2 id="report-setup">Per-report worker config — "Report - setup"</h2>
+
+<p>The old single &#9851;&#65039; models-as-workers flag is replaced
+by a per-report <code>Report.workerConfig: ReportWorkerConfig</code>
+(<code>data/ReportModels.kt</code>), picked on the
+<strong>"Report - setup"</strong> screen (composable
+<code>ReportSelectWorkersScreen</code>,
+<code>ui/report/start/SelectWorkers.kt</code>) — the step between
+"Report - select models" and "Manage a report" that also hosts the
+<strong>Generate report</strong> button — and editable later via the
+Manage bottom-bar &#128119;&#8205;&#9877;&#65039; icon (same screen,
+Save instead of Generate; <code>ReportStorage.setWorkerConfig</code>).
+"Report - setup" itself holds the System prompt, Parameters and
+Second result options cards plus a <strong>Workers</strong> nav card;
+tapping Workers opens a nested full-screen <strong>Workers</strong>
+step (<code>ReportWorkersScreen</code>, same file) that holds four
+worker-routing cards:</p>
+
+<dl class="kv">
+<div><dt>Report info</dt><div class="meta"><code>reportInfo</code>: <code>PROMPT</code> | <code>CUSTOM</code> + <code>reportInfoWorkers</code></div>
+<dd>Who generates the report icon, short/long titles, and language
+name + icon. <code>CUSTOM</code> swaps each prompt's chain for the
+per-report worker group (<code>InternalPrompt.withReportInfoWorkers</code>).</dd></div>
+<div><dt>Model info</dt><div class="meta"><code>modelInfo</code>: <code>PROMPT</code> | <code>OWN_MODEL</code></div>
+<dd>Who generates each answer's per-model title + icon.
+<code>OWN_MODEL</code> runs them on the answer's own model
+(<code>InternalPrompt.withOwnModelWorker</code> &rarr;
+<code>singleModelWorker</code>).</dd></div>
+<div><dt>Worker batches ("Batches" card)</dt><div class="meta"><code>batches</code>: <code>PROMPT</code> | <code>REPORT_MODELS</code> | <code>SELECT_EACH</code> | <code>SELECT_ONCE</code> + <code>batchWorkers</code>, <code>workerSelection</code>: <code>WHEN_AVAILABLE</code> | <code>ROUND_ROBIN</code></div>
+<dd>The pool for Fan Meta, Translation, Tournament, Compare.
+<strong>Rerank / Moderation are exempt</strong> — they pass
+<code>alwaysPromptWorkers = true</code>, so they always run on their
+own prompt's workers. <strong>Judge-the-judges / Rank-the-translators</strong>
+have no worker selection at all: each reuses the participants of the
+batch it evaluates — Judge-the-judges judges with the distinct judges
+recorded on the report's completed Tournament MATCH rows;
+Rank-the-translators ranks with the distinct translation models of
+the connected Translation run (<code>translatorJudges</code>). Both
+are type-A fixed-judge batches and their launches no longer open a
+worker picker.</dd></div>
+<div><dt>Meta / Fan-in ("Meta" card)</dt><div class="meta"><code>metaBatches</code> / <code>metaBatchWorkers</code> / <code>metaWorkerSelection</code>, same option set</div>
+<dd>Routes on its own mirror set so it can draw from a different pool
+than the other batches. Resolution passes <code>meta = true</code>
+to <code>resolveBatchSwarm</code> / <code>workerPlanFor</code> /
+<code>workerScheduleFor</code> / <code>launchWithWorkerPlan</code>
+for these two.</dd></div>
+</dl>
+
+<p>A <strong>"Use report models"</strong> switch at the top of the
+Workers step (<code>useReportModels</code>) is a one-tap shortcut
+that force-sets <code>modelInfo</code> = <code>OWN_MODEL</code>,
+<code>batches</code> = <code>REPORT_MODELS</code> +
+<code>workerSelection</code> = <code>ROUND_ROBIN</code>, and
+<code>metaBatches</code> = <code>REPORT_MODELS</code> +
+<code>metaWorkerSelection</code> = <code>ROUND_ROBIN</code>, hiding
+the Model info / Batches / Meta cards underneath it while it's on.
+The "Report - setup" screen's own <strong>Second result options</strong>
+card (<code>secondResultSelectScope</code>,
+<code>secondResultRuntimeParams</code>) is unrelated to worker
+routing — it gates whether launching a Meta / Fan-out secondary from
+the second-results hub first shows a scope picker / a runtime prompt
+editor, or runs straight with the defaults.</p>
+
+<div class="callout">
+<p><strong>Batch-pool precedence</strong> lives in one place —
+<code>resolveBatchSwarm</code> /
+<code>InternalPrompt.withBatchWorkers</code>
+(<code>viewmodel/ReportViewModelHelpers.kt</code>):
+<code>REPORT_MODELS</code> (&rarr; <code>reportModelWorkers(report)</code>,
+the report's own answer models distinct by <code>provider:model</code>)
+&gt; an explicit runtime pick &gt; a persisted <code>SELECT_ONCE</code>
+group &gt; the prompt's configured chain. The UI side of the same
+decision is <code>workerPlanFor</code> + <code>launchWithWorkerPlan</code>
+(<code>ui/report/manage/RuntimeWorkerPicker.kt</code>), used by all
+eleven type-B launch sites: <code>PROMPT</code> honours the prompt's
+<code>*SELECT</code> picker; <code>SELECT_EACH</code> forces the
+picker on every batch; <code>SELECT_ONCE</code> shows it once — the
+first pick is persisted first-write-wins via
+<code>ReportStorage.setBatchWorkersIfEmpty</code> and reused by every
+later batch (engine-internal launches — fan-meta auto-start, resume,
+regenerate — never show a picker and fall back to the configured
+chain until a group is stored); <code>REPORT_MODELS</code> never
+asks.</p>
+</div>
+
+<p><strong>Worker selection (round robin)</strong> — under
+<code>REPORT_MODELS</code> the <code>workerSelection</code> sub-choice
+picks the scheduling: <code>WHEN_AVAILABLE</code> keeps the
+historical shuffled pick (fast models absorb more work);
+<code>ROUND_ROBIN</code> deals consecutive calls to consecutive pool
+members via a process-wide per-report cursor (<code>WorkerRotation</code>
++ <code>WorkerSchedule</code>, <code>viewmodel/WorkerRunner.kt</code>),
+so every worker gets ~the same share. A slow worker keeps its items
+(nothing reassigns on slowness); 429 / 404 / logical-miss
+fall-through advances an item to the next worker in rotation, so an
+erroring worker may end up with less. <code>WorkerRunner.run</code>
+and <code>runSecondaryViaSwarm</code> share the cursor; the engines
+thread the schedule through <code>runPooledItemCall</code>
+(<code>viewmodel/SecondaryCellCalls.kt</code>). Fixed-judge grids
+(Judges / TransRank cells) and the fan-meta per-pair single-model
+pool have no pool pick, so the mode is a no-op there.</p>
+
+<h2 id="params">Parameter + system-prompt resolution</h2>
+
+<p>Agents (and flocks/swarms) carry <code>paramsIds</code> +
+<code>systemPromptId</code> references. The full merge precedence —
+how multiple presets fold (<code>mergeParameters</code>), how the
+report-generation agent / swarm chains layer selection / report-level
+/ app-wide overrides, and how an agent system prompt combines with a
+Parameters preset's own prompt — is documented once in the dedicated
+docs: <a href="parameters.html">parameters</a> (presets + merge
+precedence) and <a href="system-prompts.html">system-prompts</a>
+(system-prompt resolution). In brief: <code>resolveAgentParameters(agent) =
+mergeParameters(agent.paramsIds) ?: AgentParameters()</code>;
+<code>mergeParameters</code> folds presets left&rarr;right with
+"later non-null wins" for scalar/string fields, OR for
+<code>responseFormatJson</code>/<code>searchEnabled</code>/<code>webSearchTool</code>,
+and AND for <code>returnCitations</code>.</p>
+
+<h2 id="files">Files</h2>
+
+<dl class="kv">
+<div><dt>model/SettingsModels.kt</dt><dd><code>Agent</code>, <code>Flock</code>, <code>Swarm</code>, <code>SwarmMember</code>, <code>Worker</code>, expanders (<code>expandAgentToModel</code> / <code>expandFlockToModels</code> / <code>expandSwarmToModels</code>), <code>expandWorker</code>, <code>resolveWorker</code>, <code>mergeParameters</code></dd></div>
+<div><dt>data/SwarmSeed.kt / data/FlockSeed.kt</dt><dd>Bundled-asset merge (<code>ensureAllPresent</code>)</dd></div>
+<div><dt>data/MetadataDefaults.kt</dt><dd>The <code>AGENT</code> / <code>FLOCK</code> / <code>SWARM</code> emoji constants</dd></div>
+<div><dt>ui/settings/SetupScreens.kt</dt><dd><code>WorkersSetupScreen</code> + the AI Setup landing's Workers card</dd></div>
+<div><dt>ui/settings/SettingsScreen.kt</dt><dd><code>SettingsSubScreen</code> routing for the three worker sub-screens</dd></div>
+<div><dt>ui/cruds/workers/{agents,flocks,swarms}/</dt><dd><code>list.kt</code> / <code>add.kt</code> / <code>edit.kt</code> per kind</dd></div>
+<div><dt>ui/settings/AgentsScreen.kt / FlocksScreen.kt / SwarmsScreen.kt</dt><dd>Legacy edit/view forms the CRUD wrappers delegate to</dd></div>
+<div><dt>ui/settings/CommonViewWorkerCards.kt</dt><dd><code>WorkerSharedCards</code></dd></div>
+<div><dt>ui/report/start/SelectionOverlays.kt</dt><dd>Wires the Agent/Flock/Swarm pickers to the expanders</dd></div>
+<div><dt>ui/other/Selection.kt</dt><dd>Flock / swarm picker UI (cost estimate, active-member count, info screen)</dd></div>
+<div><dt>viewmodel/SecondaryRunManager.kt</dt><dd><code>runSecondaryViaSwarm</code></dd></div>
+<div><dt>viewmodel/WorkerRunner.kt</dt><dd>The no-UI worker engine, <code>WorkerRotation</code> / <code>WorkerSchedule</code></dd></div>
+<div><dt>viewmodel/SecondaryCellCalls.kt</dt><dd><code>runPooledItemCall</code></dd></div>
+<div><dt>viewmodel/ReportViewModelHelpers.kt</dt><dd><code>resolveBatchSwarm</code>, <code>InternalPrompt.withBatchWorkers</code></dd></div>
+<div><dt>ui/report/manage/RuntimeWorkerPicker.kt</dt><dd><code>workerPlanFor</code>, <code>launchWithWorkerPlan</code></dd></div>
+<div><dt>ui/report/start/SelectWorkers.kt</dt><dd><code>ReportSelectWorkersScreen</code>, <code>ReportWorkersScreen</code></dd></div>
+<div><dt>data/ReportModels.kt</dt><dd><code>Report.workerConfig: ReportWorkerConfig</code></dd></div>
+</dl>
+
+<p class="muted">See also: <a href="parameters.html">parameters</a>
+(Parameters presets + merge precedence) &middot;
+<a href="report-icons.html">report-icons</a> (the worker engine that
+drives per-report / per-model / fan-meta internal-prompt calls) &middot;
+<a href="secondary-results.html">secondary-results</a> (fan-out /
+fan-in over the expanded set of targets) &middot;
+<a href="throttle.html">throttle</a> (the <code>ApiCallCaps.workers</code>
+sub-cap and type-A vs. type-B batch gating) &middot;
+<a href="datastructures.html">datastructures</a> (full field tables
+for <code>Agent</code> / <code>Flock</code> / <code>Swarm</code> /
+<code>ReportModel</code>).</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

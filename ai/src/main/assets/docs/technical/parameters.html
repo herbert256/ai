@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Parameters — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Parameters</span></header>
+<main>
+
+<h1>How generation parameters resolve</h1>
+
+<p>Temperature, max tokens, top-p/top-k, penalties, stop sequences,
+seed, JSON mode, web search, citations, reasoning effort — 15 tunable
+fields, and a different precedence chain at almost every call site.
+This page is the map.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#fields">The 15 fields</a></li>
+<li><a href="#shapes">Two shapes: Parameters vs AgentParameters</a></li>
+<li><a href="#building-blocks">Building blocks</a></li>
+<li><a href="#where-set">Where you set each level</a></li>
+<li><a href="#report">Report generation</a></li>
+<li><a href="#secondary">Secondary ops &amp; metadata</a></li>
+<li><a href="#worker-grid">Worker-grid flows send no parameters</a></li>
+<li><a href="#modelselection">*CONFIGURED vs *SELECT / workerConfig</a></li>
+<li><a href="#chat">Chat &amp; Dual chat</a></li>
+<li><a href="#mental-model">Quick mental model</a></li>
+<li><a href="#files">Files</a></li>
+</ul>
+</nav>
+
+<h2 id="fields">The 15 fields</h2>
+
+<p>In <code>AgentParameters</code> declaration order
+(<code>data/DataModels.kt</code>):</p>
+
+<p><code>temperature</code>, <code>maxTokens</code>, <code>topP</code>,
+<code>topK</code>, <code>frequencyPenalty</code>,
+<code>presencePenalty</code>, <code>systemPrompt</code>,
+<code>stopSequences</code>, <code>seed</code>,
+<code>responseFormatJson</code>, <code>searchEnabled</code>,
+<code>returnCitations</code>, <code>searchRecency</code>,
+<code>webSearchTool</code>, <code>reasoningEffort</code>.</p>
+
+<div class="callout">
+<p><strong>Moderation calls take no parameters</strong> — the
+<code>/moderations</code> endpoint ignores them, and
+<code>executeSecondaryTask</code> short-circuits straight to the
+moderation endpoint when <code>kind == SecondaryKind.MODERATION</code>.
+Moderation is omitted from every chain below.</p>
+</div>
+
+<h2 id="shapes">Two shapes: Parameters vs AgentParameters</h2>
+
+<div class="card">
+<h4>Parameters</h4>
+<p class="type"><code>model/SettingsModels.kt</code></p>
+<p>A named <strong>preset</strong> the user saves under AI Setup &rarr;
+Parameters. Carries the same 15 fields (system prompt included) plus
+<code>id</code> and <code>name</code>.</p>
+</div>
+
+<div class="card">
+<h4>AgentParameters</h4>
+<p class="type"><code>data/DataModels.kt</code></p>
+<p>The resolved, in-memory bundle actually sent on a call. A preset
+becomes one via <code>Parameters.toAgentParameters()</code>.</p>
+</div>
+
+<p>A "level" (agent, provider, app-wide, &hellip;) holds a
+<strong>list of preset ids</strong> (<code>paramsIds</code> /
+<code>parametersIds</code>). That list collapses to a single
+<code>AgentParameters</code> via <code>Settings.mergeParameters(ids)</code>.</p>
+
+<h2 id="building-blocks">Building blocks</h2>
+
+<h3><code>mergeParameters(ids)</code> — collapsing a preset list</h3>
+<p><code>Settings.mergeParameters</code> resolves each id to its
+<code>Parameters</code>, drops ones that don't resolve, then folds the
+rest <strong>left&rarr;right</strong>:</p>
+<ul>
+<li>Nullable scalars (temperature, maxTokens, topP, topK, both
+penalties, systemPrompt, stopSequences, seed, searchRecency,
+reasoningEffort): <strong>a later preset's non-null value wins</strong>
+(<code>p.x ?: acc.x</code> — null means "not set, keep previous").</li>
+<li><code>returnCitations</code> is <strong>AND</strong>-ed — defaults
+<code>true</code>, so an explicit opt-out anywhere in the chain sticks.</li>
+<li><code>searchEnabled</code>, <code>webSearchTool</code>,
+<code>responseFormatJson</code> are <strong>OR</strong>-ed — default
+<code>false</code>, so an opt-in anywhere sticks.</li>
+<li>Empty list, or no resolvable presets &rarr; <strong><code>null</code></strong>
+("this level sets nothing" — falls through to the next level).</li>
+</ul>
+
+<p><code>resolveAgentParameters(agent)</code> is
+<code>mergeParameters(agent.paramsIds) ?: AgentParameters()</code> — an
+agent's own presets, or an empty bundle.</p>
+
+<h3>The dispatch fold</h3>
+<p>Every report-generation and secondary call ends in
+<code>AnalysisRepository.analyzeWithAgent(...)</code> /
+<code>analyzeWithAgentStreaming(...)</code>. It receives
+<code>agentResolvedParams</code> (resolved by the caller — see the
+chains below) and an optional <code>overrideParams</code>, then runs,
+in order:</p>
+
+<ol>
+<li><strong>mergeParameters(agentResolvedParams, overrideParams)</strong>
+— the dispatch-side merge (distinct from <code>Settings.mergeParameters</code>).
+<code>overrideParams</code> wins per field (same null-coalescing for
+scalars, OR for the default-false booleans, AND for
+<code>returnCitations</code>). For <code>systemPrompt</code> /
+<code>stopSequences</code> the override only wins when non-blank /
+non-empty. A <code>null</code> <code>overrideParams</code> passes the
+agent params through untouched.</li>
+<li><strong>validateParams(...)</strong> — clamps numerics to valid
+ranges: temperature <strong>0&ndash;1.5</strong> Mistral,
+<strong>0&ndash;1</strong> Anthropic-format, <strong>0&ndash;2</strong>
+otherwise; topP <strong>0&ndash;1</strong>; topK / maxTokens
+<strong>&ge;1</strong>; both penalties <strong>&minus;2..2</strong>.
+Changes values only, never selection.</li>
+<li><strong>filterParametersBySupported(...)</strong> — <em>only when
+an <code>overrideParams</code> was present</em> (and a context is
+available). Drops any field the target model doesn't accept, per the
+catalog's supported-parameter list (<code>PricingCache.getSupportedParameters</code>),
+matched on wire names (<code>temperature</code>, <code>max_tokens</code>,
+<code>top_p</code>, <code>top_k</code>, <code>frequency_penalty</code>,
+<code>presence_penalty</code>, <code>stop</code>, <code>seed</code>,
+<code>response_format</code>). The system prompt is <strong>never</strong>
+filtered; web-search / citation / reasoning fields pass through
+untouched.</li>
+</ol>
+
+<p>So the universal last step is: <strong>override over agent-resolved,
+then clamp, then (only if an override existed) drop-unsupported.</strong></p>
+
+<div class="callout warn">
+<p><strong>Reasoning-effort is gated again at the wire.</strong> Even
+after a <code>reasoningEffort</code> value is resolved, the dispatch
+only attaches <code>reasoning_effort</code> when
+<code>isReasoningCapableForDispatch(service, model)</code> is true — a
+thin delegate to <code>ModelCapabilityResolver</code> (Settings
+reference when published, else a LiteLLM / models.dev / heuristic
+catalog chain, with an xAI-style always-on-reasoning gate). A model
+that doesn't accept the parameter silently drops it, so a resolved
+effort can be a no-op. See <code>data/ApiDispatchBuilders.kt</code> and
+<code>data/ModelCapabilityResolver.kt</code>.</p>
+</div>
+
+<h2 id="where-set">Where you set each level</h2>
+
+<dl class="kv">
+<div><dt>Per-report pre-gen override 🌡️</dt><div class="meta">in New AI Report / Manage report</div><dd>&rarr; 🌡️ "Configure API parameters" picker — presets and/or on-the-fly values.</dd></div>
+<div><dt>Selection pick</dt><div class="meta">per chosen model on the report</div><dd>&rarr; Report &ndash; select models / the secondary-op model pickers &rarr; 🌡️.</dd></div>
+<div><dt>Agent preset</dt><div class="meta">AI Setup &rarr; Workers &rarr; Agents</div><dd>&rarr; edit an agent &rarr; 🌡️.</dd></div>
+<div><dt>Flock / Swarm preset</dt><div class="meta">AI Setup &rarr; Workers &rarr; Flocks / Swarms</div><dd>&rarr; edit &rarr; 🌡️.</dd></div>
+<div><dt>Provider preset</dt><div class="meta">AI Setup &rarr; Providers</div><dd>&rarr; a provider &rarr; edit &rarr; 🌡️.</dd></div>
+<div><dt>App-wide &amp; Report-model defaults</dt><div class="meta">AI Setup &rarr; App settings</div><dd><code>appWideParametersIds</code>, <code>reportModelParametersIds</code>.</dd></div>
+<div><dt>The presets themselves</dt><div class="meta">AI Setup &rarr; Parameters</div><dd>CRUD screen for named <code>Parameters</code> presets.</dd></div>
+<div><dt>Per internal prompt</dt><div class="meta">AI Setup &rarr; Prompt management</div><dd>&rarr; a prompt &rarr; 🌡️ — stored as <code>prompt.parameters</code> (a stable preset id; legacy rows may still hold the preset <em>name</em>).</dd></div>
+</dl>
+
+<h2 id="report">Report generation</h2>
+
+<p><code>viewmodel/ReportViewModel.kt</code> &rarr;
+<code>generateGenericReports</code> &rarr; <code>buildReportTasks</code>.
+A report's models come in three flavours: <strong>agents</strong>,
+<strong>swarm members</strong>, and <strong>bare/direct models</strong>
+(picked straight from the model list). <code>buildReportTasks</code>
+resolves a <code>resolvedParams</code> bundle per task; the per-report
+pre-gen override is resolved once, carried separately as
+<code>overrideParams</code>, and applied later at the dispatch fold.</p>
+
+<h3>Pre-gen override — where it comes from</h3>
+<p><code>resolveReportOverrideParams(...)</code> builds it once, by
+merging two sources (advanced wins per field): the presets picked in
+the 🌡️ picker (<code>reportParametersIds</code>, merged via
+<code>Settings.mergeParameters</code>) and any on-the-fly values from
+that picker (<code>reportAdvancedParameters</code>). It then folds in
+the per-report 🌐 web-search and 🧠 reasoning-effort toggles
+(<code>reportWebSearchTool</code> &rarr; <code>webSearchTool = true</code>,
+<code>reportReasoningEffort</code> &rarr; <code>reasoningEffort</code>).</p>
+
+<p>This bundle is <strong>not</strong> merged into the per-model
+presets during <code>buildReportTasks</code> — it's passed straight to
+<code>executeReportTask</code> as <code>overrideParams</code>, so the
+<strong>dispatch fold</strong> is what makes it win field-wise over
+each model's resolved params. The only thing <code>buildReportTasks</code>
+does with it is read one flag, <code>preGenParamsActive</code> (true
+when any advanced value, web-search, or reasoning toggle is set): when
+active it <strong>suppresses</strong> the bare-model report-model and
+app-wide parameter fallbacks below (the override already speaks for
+the report).</p>
+
+<h3>Agent chain</h3>
+<ol>
+<li><strong>Selection pick</strong> for this agent (<code>selectionParamsById[agent.id]</code>)</li>
+<li><strong>Agent</strong> preset (<code>agent.paramsIds</code>)</li>
+<li><strong>App-wide</strong> default (<code>appWideParametersIds</code>)</li>
+<li>empty <code>AgentParameters()</code></li>
+</ol>
+<p class="muted">A flock's members are agents, so they resolve by this
+same chain — a flock only contributes a system prompt, not parameters.
+Flock and agent param presets are concatenated at model-expansion time
+in <code>expandFlockToModels</code>, but the report-task chain above
+re-resolves from <code>agent.paramsIds</code>.</p>
+
+<h3>Swarm member / bare-direct model chain</h3>
+<p>The task id (<code>sid</code>) is <code>swarm:&lt;providerId&gt;:&lt;model&gt;</code>.
+"Direct" means the model was picked straight from the list (not via a
+swarm).</p>
+<ol>
+<li><strong>Selection pick</strong> for this model (<code>selectionParamsById[sid]</code>)</li>
+<li><strong>Provider</strong> preset (<code>providerConfig.parametersIds</code>) — <span class="muted">direct models only</span></li>
+<li><strong>Report-model</strong> default (<code>reportModelParametersIds</code>) — <span class="muted">direct only, and only when no pre-gen override is active</span></li>
+<li><strong>App-wide</strong> default (<code>appWideParametersIds</code>) — <span class="muted">only when no pre-gen override is active</span></li>
+<li>empty <code>AgentParameters()</code></li>
+</ol>
+
+<p>Then, for every task, the <strong>dispatch fold</strong> applies
+(<code>overrideParams</code> carries the per-report 🌡️ values plus the
+🌐 / 🧠 toggles, and wins per field over the task's
+<code>resolvedParams</code>).</p>
+
+<p class="muted">The system-prompt chain for the same tasks is similar
+but distinct (it folds in the report-level / flock / swarm / provider /
+report-model / external / app-wide system prompts) — see
+<a href="system-prompts.html">system prompts</a>.</p>
+
+<h2 id="secondary">Secondary ops &amp; metadata generation</h2>
+
+<p>Rerank, Meta, Fan-out, Fan-in, and the <strong>Find-alternative</strong>
+metadata calls (alternative icons / titles, model titles, alternative
+translations) resolve through one helper:
+<code>viewmodel/ReportViewModelHelpers.kt</code> &rarr;
+<code>resolveSecondaryParams(general, aiSettings, paramsIds,
+systemPromptId, prompt?, agent?)</code>.</p>
+
+<div class="callout">
+<p>The <strong>automatic</strong> metadata-gen calls (report icon /
+title / language, per-model icon / title) and the
+<strong>worker-grid</strong> flows do <strong>not</strong> use this
+helper — they run through the <code>WorkerRunner</code> chain (or a
+fixed-host judge call) and send empty parameters; see
+<a href="#worker-grid">below</a>. Only the single-result,
+picker-driven secondaries listed above resolve params here.</p>
+<p>The <strong>main Translate batch run is a worker-grid flow</strong>,
+not a <code>resolveSecondaryParams</code> caller — despite
+<code>TRANSLATE</code> being one of the eight <code>SecondaryKind</code>
+values, <code>TranslationRunManager.runOneTranslation</code> dispatches
+each item straight through <code>WorkerRunner.run</code> (same pool
+shape as Tournament / Compare) with no explicit parameter / system-prompt
+preset. Only the <strong>find-alternative-translation</strong> candidate
+preview (a fixed model per candidate) calls
+<code>resolveSecondaryParams</code>.</p>
+</div>
+
+<p>Unlike the report chains, the parameter-id source is picked by
+<strong>first-non-empty</strong> (<code>ifEmpty</code>), not a
+cross-level merge — once a level supplies any ids the lower levels are
+ignored, and only that level's ids are folded with
+<code>Settings.mergeParameters</code>:</p>
+
+<ol>
+<li><strong>Runtime 🌡️ pick</strong> on the op's model selector (<code>paramsIds</code>)</li>
+<li>The <strong>internal prompt's own</strong> parameters preset (<code>prompt.parameters</code>, resolved by stable id or — legacy — by name; blank / <code>*NONE</code> ignored)</li>
+<li>The <strong>bound agent's</strong> preset (<code>agent.paramsIds</code>) — when the prompt is pinned to an agent</li>
+<li><strong>App-wide</strong> default (<code>appWideParametersIds</code>)</li>
+<li>empty <code>AgentParameters()</code></li>
+</ol>
+
+<div class="callout warn">
+<p>Level 3 is <strong>currently inert</strong>: <code>resolveSecondaryParams</code>
+accepts an <code>agent</code> argument and would slot it between the
+prompt's own and the app-wide level, but <strong>no call site passes
+one</strong> — every secondary op is driven by a provider+model worker
+or a runtime-picked model, so <code>agent</code> always defaults to
+<code>null</code>. Kept in the signature for the (not-yet-wired)
+agent-pinned case.</p>
+</div>
+
+<p>The system prompt resolves independently (also first-non-empty):
+<code>systemPromptId</code> &rarr; the prompt's own <code>systemPrompt</code>
+(by stable id or legacy name) &rarr; <code>agent.systemPromptId</code>
+&rarr; <code>appWideSystemPromptId</code>; if found it's copied onto
+the resolved bundle's <code>systemPrompt</code>. Callers:
+<code>SecondaryRunManager</code> (rerank / meta / fan-in, via
+<code>runSecondaryViaSwarm</code> &rarr; <code>executeSecondaryTask</code>),
+<code>FanOutEngine</code>, <code>MetaEditManager</code>,
+<code>TranslationRunManager</code> (find-alternative-translation
+candidates only), and <code>IconGenerationManager</code> (alt icons,
+model titles). For the swarm-driven kinds (rerank / meta / fan-in) the
+worker chain only picks the provider/model (random pick + fallback);
+fan-out / find-alternative-translation / alt-metadata run against a
+fixed model. Either way the <em>parameters</em> come from
+<code>resolveSecondaryParams</code>.</p>
+
+<h2 id="worker-grid">Worker-grid flows send no parameters</h2>
+
+<p>Tournament, Judge-the-judges, Compare-with-meta, and
+Rank-the-translators (<code>SecondaryKind</code> =
+<code>TOURNAMENT</code> / <code>JUDGES</code> / <code>COMPARE</code> /
+<code>TRANSRANK</code> — the latter four of the <strong>eight</strong>
+kinds) are worker-grid flows rather than single selected-model
+secondary calls, and bypass <code>resolveSecondaryParams</code>
+entirely:</p>
+
+<ul>
+<li><strong>Tournament</strong> and <strong>Compare-with-meta</strong>
+run each cell through <code>WorkerRunner.run</code> (the random-pick +
+fallback worker chain over the prompt's swarm).</li>
+<li><strong>Judge-the-judges</strong> (<code>JudgeEvalEngine</code>) and
+<strong>Rank-the-translators</strong> (<code>TranslatorRankEngine</code>)
+fix one named judge per cell and call <code>analyzeWithAgent</code>
+directly.</li>
+</ul>
+
+<div class="callout err">
+<p>In <strong>all four</strong> the call is
+<code>analyzeWithAgent(agent, "", resolved, &hellip;)</code> with
+<strong>neither</strong> <code>agentResolvedParams</code> <strong>nor</strong>
+<code>overrideParams</code> supplied — so <code>agentResolvedParams</code>
+defaults to an empty <code>AgentParameters()</code> and nothing is
+overridden. The resolved worker contributes <strong>only</strong>
+provider / model / API key / base URL; its agent or provider parameter
+presets, and the prompt's own preset, are <strong>all ignored</strong>.
+Every judge/match/compare cell is sent with the provider defaults (no
+temperature, maxTokens, top-p, &hellip;). This is what the
+rank-translators feature means by "the judge worker uses
+<code>parameters=*NONE</code>".</p>
+</div>
+
+<p class="muted">The runtime shape of these grids is documented in
+<a href="secondary-results.html#grid-kinds">secondary-results &middot;
+Tournament / Judges / Compare / Rank the translators</a>.</p>
+
+<h2 id="modelselection">*CONFIGURED vs *SELECT / workerConfig</h2>
+
+<p>A worker-carrying <code>InternalPrompt</code> has a
+<code>modelSelection</code> field (sentinels
+<code>MODEL_SELECTION_CONFIGURED = "*CONFIGURED"</code> /
+<code>MODEL_SELECTION_SELECT = "*SELECT"</code>):</p>
+<ul>
+<li><code>*CONFIGURED</code> (default) — run against the prompt's
+configured <code>workers</code>.</li>
+<li><code>*SELECT</code> — at run time, before the work starts, show
+the +Agent/+Flock/+Swarm/+Model picker and run against the workers the
+user picks (passed down as <code>overrideWorkers</code>; never written
+back to the prompt).</li>
+</ul>
+<p>This only changes <strong>which</strong> workers run — it does
+<strong>not</strong> change parameter resolution: single-result kinds
+still resolve via <code>resolveSecondaryParams</code>, worker-grid
+kinds still send empty params.</p>
+
+<p><code>Report.workerConfig</code> ("Report &ndash; select workers")
+works the same way one level up: swapping the worker pool per card
+(Worker batches = <code>REPORT_MODELS</code> puts the report's own
+answer models on the batch pool for Tournament / Compare / Fan Meta /
+Translation, winning over a <code>*SELECT</code> pick; Rerank and
+Moderation are exempt and always run their own prompt's configured
+workers; Judges / TransRank have no worker-pool choice at all — they
+reuse the judges / translator models recorded on the run they
+evaluate; Meta / Fan-in route on their own mirror set). Like
+<code>*SELECT</code>, it only ever changes the worker set — parameters
+resolve exactly as above.</p>
+
+<h2 id="chat">Chat &amp; Dual chat</h2>
+
+<p><code>viewmodel/ChatViewModel.kt</code>. Chats carry a
+<code>ChatParameters</code> (the session's source of truth), set when
+the chat is configured:</p>
+<ul>
+<li><strong>New chat with an agent</strong> &rarr; the agent's resolved
+parameters seed the session.</li>
+<li><strong>Configure on the fly</strong> / <strong>Dual chat setup</strong>
+&rarr; the 🌡️ picker on the setup screen sets them (passed explicitly
+as <code>sessionParams</code>).</li>
+<li><strong>Resumed session</strong> &rarr; whatever was saved with the
+<code>ChatSession</code>.</li>
+</ul>
+
+<p>At send time (<code>sendChatMessageStream</code>) the only extra
+layer is per-turn: the 🌐 web-search and 🧠 reasoning toggles overlay
+the session params (<code>copy(webSearchTool = true)</code> when
+web-search is on and the session didn't already have it,
+<code>copy(reasoningEffort = &hellip;)</code> where an empty string
+clears back to "no hint"). Otherwise the session params are sent
+as-is.</p>
+
+<ol>
+<li><strong>Per-turn 🌐 / 🧠 overlay</strong></li>
+<li><strong>Session <code>ChatParameters</code></strong> (agent default / configure-on-the-fly / saved session)</li>
+</ol>
+
+<p class="muted">The two per-turn toggles are screen state seeded from
+the session params (<code>useWebSearch</code> / <code>reasoningEffort</code>
+in <code>ui/chat/ChatScreens.kt</code>), held in
+<code>rememberSaveable(currentSessionId)</code> so a rotation or
+process re-creation keeps the current selection instead of snapping
+back to the session default. The reasoning value is also re-validated
+against the model's advertised <code>reasoningEffortLevels</code> and
+cleared if unsupported.</p>
+
+<h2 id="mental-model">Quick mental model</h2>
+
+<ol>
+<li>Start from the <strong>most specific</strong> thing you touched for
+<em>this</em> call — a runtime pick, or the per-report override.</li>
+<li>Fall back through the <strong>entity</strong> that owns the model
+(agent &rarr; flock/swarm &rarr; provider for direct models). Report
+generation <strong>merges</strong> down this chain; secondary ops take
+the <strong>first non-empty</strong> level only.</li>
+<li>Fall back to the <strong>app-wide</strong> (and, for bare report
+models, report-model) defaults.</li>
+<li>The <strong>dispatch fold</strong> lets the per-report override win
+over all of it, then clamps values to provider-valid ranges, and — when
+an override was present — drops anything the model can't accept.
+<code>reasoning_effort</code> is gated once more at the wire by
+<code>isReasoningCapableForDispatch</code>.</li>
+<li><strong>Worker-grid flows are the exception</strong>: Tournament /
+Judges / Compare / TransRank (and the main Translate batch run) send
+<strong>no</strong> resolved parameters — provider defaults only.
+<code>*SELECT</code> and <code>Report.workerConfig</code> change
+<em>which</em> workers run, never the params.</li>
+</ol>
+
+<h2 id="files">Files</h2>
+
+<dl class="kv">
+<div><dt>data/DataModels.kt</dt><dd><code>AgentParameters</code> (15-field resolved bundle)</dd></div>
+<div><dt>model/SettingsModels.kt</dt><dd><code>Parameters</code> preset, <code>Settings.mergeParameters</code>, <code>resolveAgentParameters</code></dd></div>
+<div><dt>data/AnalysisRepository.kt</dt><dd>Dispatch fold: <code>mergeParameters</code> (override wins), <code>validateParams</code>, <code>filterParametersBySupported</code>, <code>analyzeWithAgent</code> / <code>analyzeWithAgentStreaming</code></dd></div>
+<div><dt>data/ApiDispatchBuilders.kt</dt><dd><code>isReasoningCapableForDispatch</code> wire-level gate</dd></div>
+<div><dt>data/ModelCapabilityResolver.kt</dt><dd>Reasoning-capability catalog chain</dd></div>
+<div><dt>data/PricingCache.kt</dt><dd><code>getSupportedParameters</code> — the per-model supported-wire-name list</dd></div>
+<div><dt>viewmodel/ReportViewModel.kt</dt><dd><code>generateGenericReports</code>, <code>buildReportTasks</code>, <code>resolveReportOverrideParams</code>, <code>executeReportTask</code></dd></div>
+<div><dt>viewmodel/ReportViewModelHelpers.kt</dt><dd><code>resolveSecondaryParams</code>, <code>overlayAgentParameters</code></dd></div>
+<div><dt>viewmodel/ChatViewModel.kt</dt><dd><code>ChatParameters</code> session state, <code>sendChatMessageStream</code> per-turn overlay</dd></div>
+<div><dt>ui/chat/ChatScreens.kt</dt><dd>Per-turn 🌐 / 🧠 toggle state</dd></div>
+<div><dt>model/SettingsModels.kt</dt><dd><code>InternalPrompt.modelSelection</code>, <code>MODEL_SELECTION_CONFIGURED</code> / <code>_SELECT</code></dd></div>
+</dl>
+
+<p class="muted">See also: <a href="system-prompts.html">system prompts</a>
+(the parallel resolution chain for the system-prompt field) &middot;
+<a href="secondary-results.html">secondary results</a> (RERANK / META /
+MODERATION / TRANSLATE / Fan-out / Fan-in / the worker-judged kinds)
+&middot; <a href="translation.html">translation</a> &middot;
+<a href="report-icons.html">report icons</a> (icon/title metadata-gen,
+worker-grid, sends no parameters).</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Runtime state ownership — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Runtime state ownership</span></header>
+<main>
+
+<h1>Runtime state ownership map</h1>
+
+<p>The single-writer reference for the app's mutable runtime state —
+who is allowed to write it, and where everyone else reads it from.
+Several central classes coordinate many domains at once
+(<code>AppViewModel</code>, <code>ReportViewModel</code>), and a
+refactor that moves state without knowing its owner is how mirrors
+and double-writes creep in.</p>
+
+<div class="callout">
+<p>The rule this page encodes: <strong>exactly one writer per
+entry.</strong> Everyone else either reads the owner's
+<code>StateFlow</code> or calls a method on the owner. A "mirror" (a
+second copy kept in sync by hand) is a smell — the only sanctioned
+mirror is <a href="#settingsholder">SettingsHolder</a>.</p>
+</div>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#process-scoped">Process-scoped state (AppViewModel)</a></li>
+<li><a href="#report-generation">Report-generation runtime (ReportViewModel)</a></li>
+<li><a href="#secondary-metadata-cost">Secondary, metadata &amp; cost state</a></li>
+<li><a href="#persistence">Persistence-layer settings &amp; usage</a></li>
+<li><a href="#ui-derived">UI-derived state (Compose-local)</a></li>
+<li><a href="#settingsholder">SettingsHolder — the one mirror</a></li>
+<li><a href="#how-to-use">How to use this map</a></li>
+</ul>
+</nav>
+
+<h2 id="process-scoped">Process-scoped state (AppViewModel)</h2>
+
+<p>These flows live above any single Compose tree so they survive
+Activity config changes and screen navigation. All owned by
+<code>AppViewModel</code>.</p>
+
+<dl class="kv">
+<div>
+<dt>UiState</dt>
+<div class="meta">writer <code>AppViewModel</code> &middot; <code>_uiState</code></div>
+<dd>General + AI settings, refresh ticks. Read by every screen via
+<code>uiState</code>.</dd>
+</div>
+<div>
+<dt>Broken-work badge list</dt>
+<div class="meta">writer <code>AppViewModel.setBrokenBatches</code> &middot; <code>_brokenBatches</code></div>
+<dd>Top-bar badge, Broken-work screen. Re-published whole each 30 s
+scan tick — <code>SecondaryRunManager.startBackgroundBrokenScan</code>
+computes it, <code>AppViewModel</code> publishes it.</dd>
+</div>
+<div>
+<dt>Pending "continue this batch" hand-off</dt>
+<div class="meta">writer <code>AppViewModel.requestBatchOpen</code> / <code>consumeBatchOpen</code> &middot; <code>_pendingBatchOpen</code></div>
+<dd>Manage screen's one-shot consumer.</dd>
+</div>
+<div>
+<dt>Batch build-stage progress</dt>
+<div class="meta">writer <code>beginBuild</code>/<code>updateBuild</code>/<code>finishBuild</code>/<code>clearBuild</code> &middot; <code>_batchBuildProgress</code></div>
+<dd>Drives <code>BuildStageOverlay</code>. Engines write through the
+four methods via the shared <code>BatchBuildScope</code> helper —
+never touch the flow directly.</dd>
+</div>
+<div>
+<dt>Throttled / running fan-out + fan-meta pair ids</dt>
+<div class="meta">writer <code>AppViewModel.update*Pairs</code> &middot; <code>_throttledFanOutPairs</code>, <code>_runningFanMetaPairs</code></div>
+<dd>L1 stats panels. These are throttle-gate-only overlays; the
+authoritative per-pair <code>PairStatus</code> is the
+<code>FanOutEngine</code> flow itself.</dd>
+</div>
+<div>
+<dt>Refresh-all in-flight state</dt>
+<div class="meta">writer <code>AppViewModel</code> &middot; <code>_refreshAllState</code></div>
+<dd>Refresh-all screen; survives navigating away and back
+(re-attachable).</dd>
+</div>
+<div>
+<dt>App-wide restart lock</dt>
+<div class="meta">writer <code>AppViewModel.engageRestartLock</code> &middot; <code>_restartLockActive</code></div>
+<dd><code>AppNavHost</code> — greys the bars, swallows back
+presses.</dd>
+</div>
+<div>
+<dt>Background broken-scan job handle</dt>
+<div class="meta">writer <code>AppViewModel</code> &middot; <code>backgroundResumeSweepJob</code></div>
+<dd>Only read by the scan's own cancel-prior guard.</dd>
+</div>
+</dl>
+
+<h2 id="report-generation">Report-generation runtime (ReportViewModel)</h2>
+
+<p><code>ReportViewModel</code> is a plain wrapper over
+<code>AppViewModel</code>, not an androidx <code>ViewModel</code> in
+its own right. Primary generation already has a formal ownership
+shape here:</p>
+
+<dl class="kv">
+<div>
+<dt>Primary generation job + report id</dt>
+<div class="meta"><code>reportGenerationJob</code>, <code>activeGenerationReportId</code></div>
+<dd>The job carries no id of its own;
+<code>activeGenerationReportId</code> is what the broken-work scan
+reads to tell a live PENDING/RUNNING agent from a process-kill-stranded
+one.</dd>
+</div>
+<div>
+<dt>Single/all-agent regenerate jobs</dt>
+<div class="meta"><code>regenerateJobs</code> (keyed by report id)</div>
+<dd><code>deleteReport</code> cancels by key so a terminal write
+can't recreate a deleted report's directory.</dd>
+</div>
+<div>
+<dt>Is-this-report-live predicate</dt>
+<div class="meta"><code>isReportGenerating(reportId)</code></div>
+<dd>Folds <code>activeGenerationReportId</code> +
+<code>regenerateJobs</code> + the regenerate-batch engine — the one
+place to ask.</dd>
+</div>
+<div>
+<dt>Variation replay tracks</dt>
+<div class="meta">per-mode <code>ReplayTrack</code> (temperature / reasoning-effort / web-search / prompt-edit)</div>
+<dd>Each track owns its own <code>StateFlow&lt;Map&lt;String,S&gt;&gt;</code>
+plus its own job map.</dd>
+</div>
+<div>
+<dt>Alt-icon fan-out jobs</dt>
+<div class="meta"><code>iconFanOutJobs</code>, <code>languageIconFanOutJobs</code>, <code>agentIconFanOutJobs</code></div>
+<dd>Report / language / per-agent variants. Cancel-prior on
+re-launch; <code>deleteReport</code> prefix-cancels.</dd>
+</div>
+<div>
+<dt>Per-agent streamed results</dt>
+<div class="meta"><code>_agentResults</code></div>
+<dd>Kept as a separate flow from <code>UiState</code> so a single
+task's completion doesn't force a recompare of every other field.</dd>
+</div>
+<div>
+<dt>Fan-out / tournament / judges runtime</dt>
+<div class="meta"><code>fanOutEngine</code>, <code>tournamentEngine</code>, <code>judgeEvalEngine</code></div>
+<dd>Each engine is the sole owner of its own run state; the UI
+subscribes to the engine directly, not through
+<code>ReportViewModel</code>.</dd>
+</div>
+</dl>
+
+<div class="callout">
+<p>The in-flight fan-meta batch job is <strong>not</strong> a
+<code>ReportViewModel</code> field — it lives in the
+<code>FanOutEngine</code> run-job registry under a namespaced
+<code>|meta|</code> key, because it's a decorator pass over that
+engine's pairs, not a state of its own.</p>
+</div>
+
+<h2 id="secondary-metadata-cost">Secondary, metadata &amp; cost state</h2>
+
+<dl class="kv">
+<div>
+<dt>Secondary results</dt>
+<div class="meta">owner <code>SecondaryResultStorage</code></div>
+<dd>META / RERANK / MODERATION / TRANSLATE / fan-out rows / judged
+kinds — durable JSON. Lineage fields
+(<code>fanInOf</code>, <code>fanOutSourceAgentId</code>,
+<code>metaPromptId</code>, <code>targetLanguage</code>,
+<code>tournamentRole</code>, <code>tournamentJudgeRunId</code>) live
+on the row itself, not a side index.</dd>
+</div>
+<div>
+<dt>Report metadata</dt>
+<div class="meta">owner <code>ReportStorage</code> via per-kind update methods</div>
+<dd>Icon / title / language / per-model title-icon. Generation is
+orchestrated by <code>IconGenerationManager</code>, but the writes
+still go through <code>ReportStorage</code>.</dd>
+</div>
+<div>
+<dt>Global report-data invalidation tick</dt>
+<div class="meta">owner <code>ReportDataVersion</code></div>
+<dd>One global <code>StateFlow</code> bumped by every report
+mutation; UI refresh ticks observe it instead of each screen
+tracking its own dirty flag.</dd>
+</div>
+<div>
+<dt>Cost ledger per report</dt>
+<div class="meta">owner <code>ReportStorage.reconcileApiCallCostLedger</code> + usage reconciliation</div>
+<dd>Currently spans both <code>ReportStorage</code> and
+<code>SettingsPreferences</code> — a known consolidation target, not
+yet a single owner.</dd>
+</div>
+</dl>
+
+<h2 id="persistence">Persistence-layer settings &amp; usage</h2>
+
+<dl class="kv">
+<div>
+<dt>General + AI settings, model lists, prefs keys</dt>
+<div class="meta">owner <code>SettingsPreferences</code></div>
+<dd>The persistence facade every settings read/write goes through.</dd>
+</div>
+<div>
+<dt>Saved prompt history</dt>
+<div class="meta">owner <code>PromptHistoryStore</code></div>
+<dd>Already extracted out of <code>SettingsPreferences</code>; owns
+its own lock and cache.</dd>
+</div>
+<div>
+<dt>Usage stats</dt>
+<div class="meta">owner <code>SettingsPreferences</code> static caches (today)</div>
+<dd>Token/cost counters with a debounced flush. A future extraction
+would move this into a dedicated usage-stats recorder and move the
+shutdown flush off <code>AppViewModel.onCleared</code>, but as of
+now <code>SettingsPreferences</code> is still the writer.</dd>
+</div>
+</dl>
+
+<h2 id="ui-derived">UI-derived state (Compose-local)</h2>
+
+<p><code>rememberReportRuntimeState</code>
+(<code>ui/report/manage/RuntimeState.kt</code>) recomputes a large
+bundle of report/manage derived state — secondary counts/rows,
+translation + fan-out summaries, totals, icon/title/language fields,
+loaded-report fields — inside composition via <code>remember</code> +
+<code>LaunchedEffect(currentReportId, iconRefreshTick)</code>.</p>
+
+<div class="callout">
+<p>It <strong>derives</strong> from the storage owners above; it is
+not itself an authority. Don't treat its output as a source of
+truth to write back to — recompute it from the real owner instead.</p>
+</div>
+
+<h2 id="settingsholder">SettingsHolder — the one mirror</h2>
+
+<p><code>SettingsHolder.current</code>
+(<code>model/SettingsHolder.kt</code>) is a deliberate static mirror
+of the latest <code>aiSettings</code>, written from a
+<code>uiState.collect</code> in <code>AppViewModel</code> — plus two
+eager direct writes inside <code>setDisabledInfoProviders</code> so
+the info-provider toggle is visible to <code>PricingCache</code>'s
+gated finders before the off-main recompute finishes.
+<code>AppViewModel</code> is still the sole writer.</p>
+
+<p>It exists so dispatcher helpers that can't thread a
+<code>Settings</code> reference through their call stack (e.g.
+<code>ApiDispatchBuilders.isReasoningCapableForDispatch</code>, now a
+thin delegate to <code>ModelCapabilityResolver</code>) can still
+answer capability questions.</p>
+
+<div class="callout warn">
+<p>This is the <strong>only</strong> sanctioned mirror in the app.
+New code should prefer an explicit context/resolver parameter and
+treat the holder as the fallback path, not the primary one.</p>
+</div>
+
+<h2 id="how-to-use">How to use this map</h2>
+
+<ul>
+<li>Adding runtime state? Pick one owner from this list (or add a new
+entry). Don't keep a second copy elsewhere "for convenience".</li>
+<li>Refactoring an owner? Keep this map in sync in the same
+change.</li>
+<li>Tempted to mirror a flow into another layer? That's the signal to
+expose the owner's <code>StateFlow</code> to the reader instead of
+copying it.</li>
+</ul>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

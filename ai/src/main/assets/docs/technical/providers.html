@@ -12,47 +12,121 @@
 
 <h1>Providers</h1>
 
-<p>Every provider shipped in <code>assets/providers.json</code>. The
-full schema is in <a href="datastructures.html#appservice">AppService</a>;
-each card below lists only the fields that differ from the default.</p>
-
-<p>The bundled JSON is a flat <code>{"providers": [...]}</code> array
-— no top-level <code>version</code>. Custom providers added by the
-user persist as <code>ProviderDefinition</code> JSON in the
-<code>provider_registry</code> SharedPreferences file and are merged
-with the bundle at runtime.</p>
-
-<p>The id-unification refactor collapsed the legacy
-<code>displayName</code> and <code>prefsKey</code> fields into
-<code>id</code>. UI shows <code>id</code> directly; SharedPreferences
-key prefixes use <code>id</code> directly (e.g.
-<code>OpenAI_api_key</code>).</p>
-
-<div class="callout">
-<p><strong>Defaults</strong> — <code>apiFormat = OPENAI_COMPATIBLE</code>,
-<code>modelsPath = "v1/models"</code>, <code>chatPath = "v1/chat/completions"</code>,
-<code>seedFieldName = "seed"</code>, <code>modelListFormat = "object"</code>.</p>
-<p>Where a provider declares <code>litellmPrefix</code>, the LiteLLM
-lookup key is <code>&lt;litellmPrefix&gt;/&lt;modelId&gt;</code>.
-Where it declares <code>openRouterName</code>, the OpenRouter key is
-<code>&lt;openRouterName&gt;/&lt;modelId&gt;</code>.</p>
-</div>
+<p>91 cloud providers, one JSON file each under <code>assets/providers/</code>,
+plus the synthetic on-device <code>AppService.LOCAL</code>. The full schema
+is in <a href="datastructures.html#appservice">AppService</a>; each card
+below lists only the fields that differ from the default.</p>
 
 <nav class="toc">
 <strong>Jump to</strong>
 <ul>
+<li><a href="#catalog">Catalog &amp; registry</a></li>
+<li><a href="#identity">Identity &amp; defaults</a></li>
 <li><a href="#frontier">Frontier vendors</a></li>
-<li><a href="#aggregators">Aggregators &amp; multi-model</a></li>
+<li><a href="#aggregators">Aggregators &amp; gateways</a></li>
 <li><a href="#major">Major hosted inference</a></li>
 <li><a href="#regional">Regional &amp; vertical</a></li>
+<li><a href="#longtail">More OpenAI-compatible hosts</a></li>
 <li><a href="#field-reference">Field reference</a></li>
 <li><a href="#activation">Activation gating</a></li>
 </ul>
 </nav>
 
-<p><strong>42 cloud providers total</strong>.</p>
+<h2 id="catalog">Catalog &amp; registry</h2>
+
+<p>The catalog is <strong>one JSON file per provider</strong> under
+<code>assets/providers/</code> — 91 files, each a bare
+<code>ProviderDefinition</code> object (no <code>{"providers": [...]}</code>
+wrapper, no top-level <code>version</code>). It is not hardcoded in Kotlin.
+<code>ProviderRegistry</code> is a mutable <code>object</code> that starts
+<strong>empty</strong> on a fresh install; <code>importFromAsset</code>
+reads every <code>*.json</code> file (sorted by filename, deterministic
+merge; a malformed file is skipped rather than fatal) and persists the
+result to the <code>provider_registry</code> SharedPreferences file as a
+list of <code>ProviderDefinition</code> JSON objects.</p>
+
+<details>
+<summary>Registry surface (all on <code>ProviderRegistry</code>)</summary>
+<div class="body">
+<ul>
+<li><code>getAll</code> / <code>findById</code> / <code>findByHost</code>
+— the latter resolves a request hostname to its provider via a
+<code>hostIndex</code> rebuilt on every <code>save()</code> from
+<code>baseUrl</code> + <code>auxHosts</code> (first claimant wins on
+collision); <code>ProviderThrottle</code> uses this to find per-provider
+overrides.</li>
+<li><code>add</code> (refuses duplicate ids), <code>update</code> (bumps
+per-field <code>ProviderFieldTimestamps</code>), <code>remove</code>.</li>
+<li><code>importFromAsset</code> — append-only, skips ids already
+present.</li>
+<li><code>syncFromAsset</code> — refreshes only the asset fields the
+user hasn’t hand-edited (timestamp still null) and never appends new
+providers.</li>
+<li><code>upsertFromJson</code> — replace-by-id-or-append; this is the
+user-import path and still expects a top-level
+<code>{"providers": [...]}</code> wrapper.</li>
+<li><code>resetToDefaults</code> / <code>restartFromAsset</code> —
+wipe + re-seed from the bundled asset files.</li>
+</ul>
+</div>
+</details>
+
+<div class="callout">
+<p><code>AppService</code> is intentionally <strong>not</strong> a Kotlin
+<code>data class</code>: its <code>equals</code> / <code>hashCode</code> /
+<code>toString</code> are <strong>id-only</strong> (two services are equal
+iff their ids match), and it hand-writes a <code>copy(...)</code> funnel
+covering all 41 fields so a newly added field can’t be silently
+dropped on update. The synthetic <code>AppService.LOCAL</code>
+(<code>id = "Local"</code>, <code>baseUrl = "local://"</code>) is declared
+in the companion object, is <strong>not</strong> in the registry, and
+routes to the on-device runtime instead of Retrofit.</p>
+</div>
+
+<h2 id="identity">Identity &amp; defaults</h2>
+
+<p>The id-unification refactor collapsed the legacy <code>displayName</code>
+and <code>prefsKey</code> fields into <code>id</code>. The UI shows
+<code>id</code> directly; SharedPreferences key prefixes use <code>id</code>
+directly (e.g. <code>OpenAI_api_key</code>); <code>id</code> is also the
+human-readable picker label.</p>
+
+<div class="callout">
+<p><strong>Defaults</strong> — <code>apiFormat = OPENAI_COMPATIBLE</code>,
+<code>modelsPath = "v1/models"</code>, chat path
+<code>"v1/chat/completions"</code>, <code>seedFieldName = "seed"</code>,
+<code>modelListFormat = "object"</code>, every Boolean flag <code>false</code>,
+every throttle override <code>null</code> (inherit the global default).</p>
+<p>Almost every bundled provider explicitly writes
+<code>defaultModelSource = "API"</code> even though the field defaults to
+<code>null</code> and behaves identically when absent — entries below
+only call it out when a provider differs. Where a provider declares
+<code>litellmPrefix</code>, the LiteLLM lookup key is
+<code>&lt;litellmPrefix&gt;/&lt;modelId&gt;</code>. Where it declares
+<code>openRouterName</code>, the OpenRouter key is
+<code>&lt;openRouterName&gt;/&lt;modelId&gt;</code>.</p>
+</div>
+
+<p><code>typePaths</code> holds the per-model-type API paths a provider
+exposes, keyed by the <code>ModelType</code> string constants
+(<code>"chat"</code>, <code>"responses"</code>, <code>"embedding"</code>,
+…); almost every entry only declares <code>"chat"</code>. There is no
+separate stored <code>chatPath</code> / <code>responsesPath</code> /
+<code>endpointRules</code> — those are computed getters on
+<code>AppService</code> that walk a fallback chain: per-provider override
+→ user-supplied global default (AI Setup → Model Types) →
+built-in default. Chat-vs-Responses routing for OpenAI is decided at
+dispatch time by pattern lists, not by any stored routing table.</p>
+
+<p><strong>91 providers total</strong> — 88 <code>OPENAI_COMPATIBLE</code>,
+1 <code>ANTHROPIC</code> (Anthropic), 1 <code>GOOGLE</code> (Google), 1
+<code>REPLICATE</code> (Replicate). All 88 OpenAI-compatible providers share
+the unified dispatch path; only Anthropic, Google and Replicate carry
+format-specific code.</p>
 
 <h2 id="frontier">Frontier vendors</h2>
+
+<p>The four labs shipping their own models directly.</p>
 
 <details class="entity" open>
 <summary>OpenAI</summary>
@@ -63,10 +137,10 @@ Where it declares <code>openRouterName</code>, the OpenRouter key is
 <ul>
 <li><code>openRouterName = openai</code></li>
 <li><code>modelFilter = gpt|o1|o3|o4</code></li>
-<li><code>defaultModelSource = API</code></li>
-<li>Hardcoded moderation models (<code>omni-moderation-*</code>,
-<code>text-moderation-*</code>) — <code>/v1/models</code> doesn't
-surface them.</li>
+<li><code>mergeHardcodedModels = true</code> — reinstates OpenAI’s documented-but-unlisted moderation (<code>omni-moderation-*</code>), TTS (<code>tts-1</code>), transcription (<code>whisper-1</code>) and image (<code>dall-e-3</code>, <code>gpt-image-1</code>) models that <code>/v1/models</code> doesn’t enumerate.</li>
+<li><code>builtInEndpoints</code> — Chat Completions + Responses API</li>
+<li><code>responsesApiPatterns</code> / <code>reasoningModelPatterns</code> / <code>webSearchModelPatterns</code>: <code>gpt-5*</code>, <code>o1*</code>, <code>o3*</code>, <code>o4*</code> (Responses API also matches <code>gpt-4.1*</code>)</li>
+<li>Throttle override: <code>maxCallsPerProviderPerMinute = 120</code>, <code>maxConcurrentCallsPerProvider = 10</code></li>
 </ul>
 </div>
 </details>
@@ -82,7 +156,11 @@ surface them.</li>
 <li><code>typePaths.chat = v1/messages</code></li>
 <li><code>openRouterName = anthropic</code></li>
 <li><code>modelFilter = claude</code></li>
-<li>8 hardcoded models, <code>defaultModelSource = API</code></li>
+<li>8 hardcoded models</li>
+<li><code>reasoningModelPatterns</code> / <code>webSearchModelPatterns</code>: <code>*claude-3-7*</code>, <code>*claude-3.7*</code>, <code>*opus-4*</code>, <code>*sonnet-4*</code>, <code>*haiku-4*</code> (web search also matches <code>*claude-3-5*</code>/<code>*claude-3.5*</code>)</li>
+<li><code>adaptiveThinkingPatterns</code>: <code>*opus-4-7*</code></li>
+<li><code>maxTokensDefaults</code>: <code>*opus-4*</code>→32000; <code>*sonnet-4*</code> / <code>*haiku-4*</code> / <code>*claude-3-5*</code> / <code>*claude-3.5*</code>→8192; else 4096</li>
+<li>Throttle override on HTTP 529 (overloaded): <code>maxRetriesOn529 = 5</code>, <code>retryBackoffMs529 = 5000</code></li>
 </ul>
 </div>
 </details>
@@ -90,17 +168,18 @@ surface them.</li>
 <details class="entity">
 <summary>Google</summary>
 <div class="body">
-<p class="muted">Base <code>generativelanguage.googleapis.com/</code>
-· Admin <a href="https://aistudio.google.com/app/apikey">aistudio.google.com</a></p>
-<p>Default model <code>gemini-2.0-flash</code>.</p>
+<p class="muted">Base <code>generativelanguage.googleapis.com/</code> · Admin
+<a href="https://aistudio.google.com/app/apikey">aistudio.google.com</a></p>
+<p>Default model <code>gemini-2.5-flash</code>.</p>
 <ul>
 <li><code>apiFormat = GOOGLE</code></li>
 <li><code>typePaths.chat = v1beta/models/{model}:generateContent</code></li>
 <li><code>modelsPath = v1beta/models</code></li>
 <li><code>modelListFormat = array</code></li>
-<li><code>openRouterName = google</code>,
-<code>litellmPrefix = gemini</code></li>
-<li><code>defaultModelSource = API</code></li>
+<li><code>openRouterName = google</code>, <code>litellmPrefix = gemini</code></li>
+<li><code>reasoningModelPatterns</code>: <code>gemini-2.5*</code>, <code>*-2.5*</code></li>
+<li><code>webSearchModelPatterns</code>: <code>*gemini-1.5*</code>, <code>*gemini-2*</code>, <code>*gemini-pro*</code></li>
+<li>Throttle override: <code>maxCallsPerProviderPerMinute = 60</code></li>
 </ul>
 </div>
 </details>
@@ -112,30 +191,39 @@ surface them.</li>
 <a href="https://console.x.ai/">console.x.ai</a></p>
 <p>Default model <code>grok-3-mini</code>.</p>
 <ul>
-<li><code>openRouterName = x-ai</code>,
-<code>litellmPrefix = xai</code></li>
-<li><code>costTicksDivisor = 1e10</code></li>
+<li><code>openRouterName = x-ai</code>, <code>litellmPrefix = xai</code></li>
 <li><code>modelFilter = grok</code></li>
-<li><code>defaultModelSource = API</code></li>
+<li><code>costTicksDivisor = 1e10</code> — xAI reports cost in ticks, not dollars</li>
+<li><code>promptTokensIncludeCachedTokens = false</code> — xAI reports cache reads in a separate <code>cached_tokens</code> field while leaving <code>prompt_tokens</code> as the fresh-token count</li>
+<li><code>externalReasoningSignalUntrusted = true</code> — ignores the LiteLLM / models.dev “is reasoning” signal because always-on-reasoning Grok variants reject <code>reasoning_effort</code> even though they reason internally (the 🧠 badge still renders; only the parameter is suppressed)</li>
+<li><code>reasoningModelPatterns</code>: <code>grok-3*</code>, <code>grok-4*</code>, <code>grok-code*</code></li>
+<li><code>reasoningEffortAcceptPatterns</code>: <code>grok-3*</code>, <code>grok-4</code>, <code>grok-4-0*</code>, <code>*-reasoning</code></li>
 </ul>
 </div>
 </details>
 
-<h2 id="aggregators">Aggregators &amp; multi-model</h2>
+<h2 id="aggregators">Aggregators &amp; gateways</h2>
+
+<p>Cross-provider catalogs and routers — a single account fronting
+many upstream model families. Most of these carry slash-prefixed
+<code>creator/model</code> ids; the exact dash/dot convention for
+Anthropic and Google model ids varies per gateway (noted below where it
+matters for pricing-key lookups).</p>
 
 <details class="entity">
 <summary>OpenRouter</summary>
 <div class="body">
 <p class="muted">Base <code>openrouter.ai/api/</code> · Admin
-<a href="https://openrouter.ai/keys">openrouter.ai/keys</a></p>
+<a href="https://openrouter.ai/keys">openrouter.ai</a></p>
 <p>Default model <code>ibm-granite/granite-4.0-h-micro</code>.</p>
 <ul>
 <li><code>extractApiCost = true</code></li>
-<li><code>defaultModelSource = API</code></li>
-<li><code>crossProviderModelList</code> — its <code>/v1/models</code>
-drives pricing + type fan-out across other providers (final fallback
-in <code>PricingCache</code>).</li>
+<li><code>crossProviderModelList = true</code></li>
+<li>Throttle override: <code>maxCallsPerProviderPerMinute = 90</code>, <code>maxConcurrentCallsPerProvider = 8</code></li>
 </ul>
+<div class="callout">
+<p><code>crossProviderModelList</code> — its <code>/v1/models</code> drives pricing + type fan-out across other providers. It is both OpenRouter’s own self-report (highest priority for OpenRouter calls) and the final cross-provider fallback in <code>PricingCache.getPricing</code> for every other caller.</p>
+</div>
 </div>
 </details>
 
@@ -144,28 +232,152 @@ in <code>PricingCache</code>).</li>
 <div class="body">
 <p class="muted">Base <code>api.together.xyz/</code> · Admin
 <a href="https://api.together.xyz/settings/api-keys">api.together.xyz</a></p>
-<p>Default model <code>meta-llama/Llama-3.3-70B-Instruct-Turbo</code>.</p>
+<p>Default model <code>Qwen/Qwen2.5-7B-Instruct-Turbo</code>.</p>
 <ul>
 <li><code>modelListFormat = array</code></li>
 <li><code>litellmPrefix = together_ai</code></li>
 <li><code>modelFilter = chat|instruct|llama</code></li>
-<li><code>pricingFromModelList</code> — provider's
-<code>/v1/models</code> block carries authoritative pricing,
-harvested into the TOGETHER tier on every refresh.</li>
-<li><code>defaultModelSource = API</code></li>
+<li><code>pricingFromModelList = true</code></li>
+</ul>
+<div class="callout">
+<p><code>pricingFromModelList</code> — the provider’s <code>/v1/models</code> block carries authoritative pricing, harvested into the <code>TOGETHER</code> tier on every refresh; that tier beats every curated catalog (and the manual override) for Together calls.</p>
+</div>
+</div>
+</details>
+
+<details class="entity">
+<summary>MergeGateway</summary>
+<div class="body">
+<p class="muted">Base <code>api-gateway.merge.dev/</code> · Admin
+<a href="https://gateway.merge.dev/settings/api-keys">gateway.merge.dev</a></p>
+<p>OpenRouter-style control-plane gateway (merge.dev). Both chat and model-list calls go through an OpenAI-compat shim — the native <code>v1/models</code> uses a different, unparseable schema (object-valued <code>aliases</code>, ids under <code>model</code> not <code>id</code>). Cross-provider ids: Anthropic uses dashes, Google/DeepSeek use dots. No <code>openRouterName</code>/<code>litellmPrefix</code> — the slash ids already match OpenRouter’s cross-provider pricing catalog.</p>
+<p>Default model <code>ai21/jamba-1-5-large</code>.</p>
+<ul>
+<li><code>typePaths.chat = v1/openai/chat/completions</code></li>
+<li><code>modelsPath = v1/openai/models</code></li>
+<li>6 hardcoded models (merged with the live list on refresh)</li>
 </ul>
 </div>
 </details>
+
+<details class="entity">
+<summary>VercelAIGateway</summary>
+<div class="body">
+<p class="muted">Base <code>ai-gateway.vercel.sh/</code> · Admin
+<a href="https://vercel.com/dashboard/ai-gateway/api-keys">vercel.com</a></p>
+<p>Cross-provider gateway, ~300 models, zero markup. Anthropic ids use <strong>dots</strong> (<code>anthropic/claude-opus-4.8</code>) unlike most other aggregators’ dashes.</p>
+<p>Default model <code>arcee-ai/trinity-mini</code>.</p>
+<ul>
+<li>7 hardcoded models (merged with the live list on refresh)</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Glama</summary>
+<div class="body">
+<p class="muted">Base <code>gateway.glama.ai/</code> · Admin
+<a href="https://glama.ai/settings/gateway">glama.ai</a></p>
+<p>OpenAI-compatible aggregator, ~80 models. Anthropic ids use <strong>dashes</strong>; OpenAI ids carry a date suffix; no Google models in the catalog.</p>
+<p>Default model <code>zai/glm-4.6</code>.</p>
+<ul>
+<li>5 hardcoded models (merged with the live list on refresh)</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Requesty</summary>
+<div class="body">
+<p class="muted">Base <code>router.requesty.ai/</code> · Admin
+<a href="https://app.requesty.ai/">app.requesty.ai</a></p>
+<p>OpenAI-compatible router, 500+ models. Dash-form Anthropic ids; some ids carry routing suffixes (<code>:priority</code>, <code>:flex</code>).</p>
+<p>Default model <code>openai-responses/gpt-4.1-nano</code>.</p>
+<ul>
+<li>7 hardcoded models (merged with the live list on refresh)</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>AI-ML-API</summary>
+<div class="body">
+<p class="muted">Base <code>api.aimlapi.com/</code> · Admin
+<a href="https://aimlapi.com/app/keys">aimlapi.com</a></p>
+<p>OpenAI-compatible aggregator, 600+ chat/image/audio models. Catalog carries both dashed and dotted Anthropic aliases plus dated snapshots — the live <code>/v1/models</code> is the source of truth.</p>
+<p>Default model <code>mistralai/mistral-nemo</code>.</p>
+<ul>
+<li>7 hardcoded models (merged with the live list on refresh)</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>AtlasCloud</summary>
+<div class="body">
+<p class="muted">Base <code>api.atlascloud.ai/</code> · Admin
+<a href="https://www.atlascloud.ai/console/api-keys">www.atlascloud.ai</a></p>
+<p>OpenAI-compatible aggregator, ~130 open-weight models (incl. <code>zai-org/glm-5.2</code>). Its <code>/v1/models</code> body wraps the list as <code>{code,msg,data:[...]}</code> — the parser reads <code>data[]</code>.</p>
+<p>Default model <code>bytedance/doubao-seed-2.0-pro-260215</code>.</p>
+<ul>
+<li>5 hardcoded models (merged with the live list on refresh)</li>
+<li><code>maxTokensDefaults</code>: <code>*deepseek-v3*→8192</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Parasail</summary>
+<div class="body">
+<p class="muted">Base <code>api.parasail.io/</code> · Admin
+<a href="https://saas.parasail.io/keys">saas.parasail.io</a></p>
+<p>Serverless open-weight host, ~70 models; self-hosts <code>zai-org/GLM-5.2</code>. Ids come in two flavours — HF-style (<code>zai-org/GLM-5.2</code>) and Parasail aliases (<code>parasail-glm-52</code>); a <code>-FP8</code> suffix marks quantized variants.</p>
+<p>Default model <code>arcee-ai/Trinity-Large-Thinking</code>.</p>
+<ul>
+<li>6 hardcoded models (merged with the live list on refresh)</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Baseten</summary>
+<div class="body">
+<p class="muted">Base <code>inference.baseten.co/</code> · Admin
+<a href="https://app.baseten.co/settings/api_keys">app.baseten.co</a></p>
+<p>Model-APIs inference host, small curated catalog (~11: gpt-oss, GLM incl. self-hosted <code>zai-org/GLM-5.2</code>, Kimi, DeepSeek-V4, Nemotron). Host is <code>inference.baseten.co</code>, not <code>app</code>/<code>api.baseten.co</code>.</p>
+<p>Default model <code>moonshotai/Kimi-K2.5</code>.</p>
+<ul>
+<li>5 hardcoded models (merged with the live list on refresh)</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>GMI-Cloud</summary>
+<div class="body">
+<p class="muted">Base <code>api.gmi-serving.com/</code> · Admin
+<a href="https://console.gmicloud.ai/">console.gmicloud.ai</a></p>
+<p>Serverless GPU inference, ~66 models; self-hosts <code>zai-org/GLM-5.2-FP8</code>. JWT bearer key. The dash-form id is deliberate — a slash would break the Model Info route.</p>
+<p>Default model <code>XiaomiMiMo/MiMo-V2.5-Pro</code>.</p>
+<ul>
+<li>6 hardcoded models (merged with the live list on refresh)</li>
+</ul>
+</div>
+</details>
+
+<h2 id="major">Major hosted inference</h2>
+
+<p>Big, well-known open-weight and inference providers — single
+upstream catalog each, no cross-provider aggregation.</p>
 
 <details class="entity">
 <summary>Groq</summary>
 <div class="body">
 <p class="muted">Base <code>api.groq.com/openai/</code> · Admin
 <a href="https://console.groq.com/keys">console.groq.com</a></p>
-<p>Default model <code>llama-3.3-70b-versatile</code>.</p>
+<p>Default model <code>meta-llama/llama-4-scout-17b-16e-instruct</code>.</p>
 <ul>
 <li><code>litellmPrefix = groq</code></li>
-<li><code>defaultModelSource = API</code></li>
 </ul>
 </div>
 </details>
@@ -177,21 +389,17 @@ harvested into the TOGETHER tier on every refresh.</li>
 <a href="https://platform.deepseek.com/api_keys">platform.deepseek.com</a></p>
 <p>Default model <code>deepseek-chat</code>.</p>
 <ul>
-<li><code>typePaths.chat = chat/completions</code>,
-<code>modelsPath = models</code></li>
-<li><code>openRouterName = deepseek</code>,
-<code>litellmPrefix = deepseek</code></li>
-<li><code>modelFilter = deepseek</code>,
-<code>defaultModelSource = API</code></li>
-<li>2 hardcoded models (<code>deepseek-chat</code>,
-<code>deepseek-reasoner</code>) merged with <code>/models</code>
-because the API list is sometimes missing.</li>
+<li><code>typePaths.chat = chat/completions</code></li>
+<li><code>modelsPath = models</code></li>
+<li><code>openRouterName = deepseek</code></li>
+<li><code>litellmPrefix = deepseek</code></li>
+<li><code>modelFilter = deepseek</code></li>
+<li>2 hardcoded models (merged with the live list on refresh)</li>
+<li><code>builtInEndpoints</code> — Chat Completions + Beta (FIM)</li>
+<li><code>reasoningModelPatterns</code>: <code>*r1*</code>, <code>*reasoner*</code></li>
 </ul>
 <div class="callout">
-<p>DeepSeek is the bundled <code>agent</code> pin for the icon
-prompts (<code>internal/icon</code> +
-<code>internal/report_icon_3th</code>) and the chat_title prompt —
-cheap, fast, reliably one-glyph emojis.</p>
+<p>DeepSeek is the pinned agent for the bundled <code>internal/chat-title</code> prompt — cheap, fast, reliable.</p>
 </div>
 </div>
 </details>
@@ -203,13 +411,17 @@ cheap, fast, reliably one-glyph emojis.</p>
 <a href="https://console.mistral.ai/api-keys/">console.mistral.ai</a></p>
 <p>Default model <code>mistral-small-latest</code>.</p>
 <ul>
-<li><code>seedFieldName = random_seed</code> (Mistral is the only
-provider not using <code>seed</code>)</li>
+<li><code>seedFieldName = random_seed</code></li>
 <li><code>openRouterName = mistralai</code></li>
 <li><code>modelFilter = mistral|open-mistral|codestral|pixtral</code></li>
 <li><code>nativeModerationUrl = api.mistral.ai/v1/moderations</code></li>
-<li><code>defaultModelSource = API</code></li>
+<li><code>builtInEndpoints</code> — Chat Completions + Codestral</li>
+<li>Throttle override: <code>maxCallsPerProviderPerMinute = 30</code>, <code>maxConcurrentCallsPerProvider = 3</code></li>
+<li><code>reasoningModelPatterns</code>: <code>*magistral*</code></li>
 </ul>
+<div class="callout">
+<p>Mistral is the only bundled provider whose <code>seedFieldName</code> isn’t <code>seed</code>. <code>nativeModerationUrl</code> is wired for the Moderate secondary-result flow.</p>
+</div>
 </div>
 </details>
 
@@ -217,14 +429,15 @@ provider not using <code>seed</code>)</li>
 <summary>Perplexity</summary>
 <div class="body">
 <p class="muted">Base <code>api.perplexity.ai/</code> · Admin
-<a href="https://www.perplexity.ai/settings/api">perplexity.ai/settings</a></p>
+<a href="https://www.perplexity.ai/settings/api">www.perplexity.ai</a></p>
 <p>Default model <code>sonar</code>.</p>
 <ul>
 <li><code>typePaths.chat = chat/completions</code></li>
 <li><code>openRouterName = perplexity</code></li>
-<li><code>supportsCitations = true</code>,
-<code>supportsSearchRecency = true</code></li>
-<li><code>modelFilter = sonar|llama</code>, 4 hardcoded models</li>
+<li><code>modelFilter = sonar|llama</code></li>
+<li><code>supportsCitations = true</code></li>
+<li><code>supportsSearchRecency = true</code></li>
+<li>4 hardcoded models</li>
 </ul>
 </div>
 </details>
@@ -234,13 +447,17 @@ provider not using <code>seed</code>)</li>
 <div class="body">
 <p class="muted">Base <code>api.cohere.ai/compatibility/</code> · Admin
 <a href="https://dashboard.cohere.com/">dashboard.cohere.com</a></p>
-<p>Default model <code>command-a-03-2025</code>.</p>
+<p>Default model <code>command-r7b-12-2024</code>.</p>
 <ul>
-<li><code>openRouterName = cohere</code>, 4 hardcoded models</li>
-<li><code>nativeRerankUrl = api.cohere.com/v2/rerank</code> wired
-for the Rerank flow</li>
+<li><code>openRouterName = cohere</code></li>
+<li><code>auxHosts = api.cohere.com</code></li>
+<li><code>nativeRerankUrl = api.cohere.com/v2/rerank</code></li>
 <li><code>nativeCapabilityUrl = api.cohere.com/v1/models</code></li>
+<li>Throttle override: <code>maxCallsPerProviderPerMinute = 19</code></li>
 </ul>
+<div class="callout">
+<p><code>nativeRerankUrl</code> is wired for the Rerank secondary-result flow; <code>nativeCapabilityUrl</code> feeds per-model capability lookups instead of a chat-prompt fallback.</p>
+</div>
 </div>
 </details>
 
@@ -248,23 +465,28 @@ for the Rerank flow</li>
 <summary>AI21</summary>
 <div class="body">
 <p class="muted">Base <code>api.ai21.com/</code> · Admin
-<a href="https://studio.ai21.com/">studio.ai21.com</a></p>
+<a href="https://docs.ai21.com/reference/jamba-1-6-api-ref">docs.ai21.com</a></p>
 <p>Default model <code>jamba-mini</code>.</p>
 <ul>
-<li><code>openRouterName = ai21</code>, 4 hardcoded models</li>
+<li><code>typePaths.chat = studio/v1/chat/completions</code></li>
+<li><code>modelsPath = studio/v1/models</code></li>
 </ul>
 </div>
 </details>
-
-<h2 id="major">Major hosted inference</h2>
 
 <details class="entity">
 <summary>SiliconFlow</summary>
 <div class="body">
 <p class="muted">Base <code>api.siliconflow.com/</code> · Admin
 <a href="https://cloud.siliconflow.com/account/ak">cloud.siliconflow.com</a></p>
-<p>Default model <code>Qwen/Qwen2.5-7B-Instruct</code>.</p>
-<ul><li><code>defaultModelSource = API</code>, 9 hardcoded models</li></ul>
+<p>Default model <code>ByteDance-Seed/Seed-OSS-36B-Instruct</code>.</p>
+<ul>
+<li>9 hardcoded models</li>
+<li><code>nativeRerankUrl = api.siliconflow.com/v1/rerank</code></li>
+</ul>
+<div class="callout">
+<p><code>nativeRerankUrl</code> is wired for the Rerank secondary-result flow.</p>
+</div>
 </div>
 </details>
 
@@ -273,8 +495,10 @@ for the Rerank flow</li>
 <div class="body">
 <p class="muted">Base <code>api.fireworks.ai/inference/</code> · Admin
 <a href="https://app.fireworks.ai/">app.fireworks.ai</a></p>
-<p>Default model <code>accounts/fireworks/models/llama-v3p3-70b-instruct</code>.</p>
-<ul><li>4 hardcoded models</li></ul>
+<p>Default model <code>accounts/fireworks/models/deepseek-v4-pro</code>.</p>
+<ul>
+<li>Throttle override: <code>maxCallsPerProviderPerMinute = 12</code>, <code>maxConcurrentCallsPerProvider = 2</code></li>
+</ul>
 </div>
 </details>
 
@@ -283,8 +507,10 @@ for the Rerank flow</li>
 <div class="body">
 <p class="muted">Base <code>api.cerebras.ai/</code> · Admin
 <a href="https://cloud.cerebras.ai/">cloud.cerebras.ai</a></p>
-<p>Default model <code>llama-3.3-70b</code>.</p>
-<ul><li>5 hardcoded models</li></ul>
+<p>Default model <code>gpt-oss-120b</code>.</p>
+<ul>
+<li>Throttle override: <code>maxCallsPerProviderPerMinute = 30</code>, <code>maxConcurrentCallsPerProvider = 2</code></li>
+</ul>
 </div>
 </details>
 
@@ -293,65 +519,10 @@ for the Rerank flow</li>
 <div class="body">
 <p class="muted">Base <code>api.sambanova.ai/</code> · Admin
 <a href="https://cloud.sambanova.ai/">cloud.sambanova.ai</a></p>
-<p>Default model <code>Meta-Llama-3.3-70B-Instruct</code>.</p>
-<ul><li>5 hardcoded models</li></ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>DeepInfra</summary>
-<div class="body">
-<p class="muted">Base <code>api.deepinfra.com/v1/openai/</code> · Admin
-<a href="https://deepinfra.com/dash/api_keys">deepinfra.com</a></p>
-<p>Default model <code>meta-llama/Meta-Llama-3.1-70B-Instruct</code>.</p>
+<p>Default model <code>gemma-4-31B-it</code>.</p>
 <ul>
-<li><code>typePaths.chat = chat/completions</code>,
-<code>modelsPath = models</code></li>
-<li><code>defaultModelSource = API</code></li>
+<li>5 hardcoded models</li>
 </ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>Replicate</summary>
-<div class="body">
-<p class="muted">Base <code>api.replicate.com/v1/</code> · Admin
-<a href="https://replicate.com/account/api-tokens">replicate.com</a></p>
-<p>Default model <code>meta/meta-llama-3-70b-instruct</code>.</p>
-<ul>
-<li><code>typePaths.chat = chat/completions</code></li>
-<li>3 hardcoded models</li>
-</ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>HuggingFace</summary>
-<div class="body">
-<p class="muted">Base <code>api-inference.huggingface.co/</code> · Admin
-<a href="https://huggingface.co/settings/tokens">huggingface.co/settings/tokens</a></p>
-<p>Default model <code>meta-llama/Llama-3.1-70B-Instruct</code>.</p>
-<ul><li>4 hardcoded models</li></ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>Lambda</summary>
-<div class="body">
-<p class="muted">Base <code>api.lambdalabs.com/</code> · Admin
-<a href="https://cloud.lambdalabs.com/api-keys">cloud.lambdalabs.com</a></p>
-<p>Default model <code>hermes-3-llama-3.1-405b-fp8</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>Lepton</summary>
-<div class="body">
-<p class="muted">Base <code>api.lepton.ai/</code> · Admin
-<a href="https://dashboard.lepton.ai/">dashboard.lepton.ai</a></p>
-<p>Default model <code>llama3-1-70b</code>.</p>
-<ul><li>4 hardcoded models</li></ul>
 </div>
 </details>
 
@@ -360,18 +531,61 @@ for the Rerank flow</li>
 <div class="body">
 <p class="muted">Base <code>integrate.api.nvidia.com/</code> · Admin
 <a href="https://build.nvidia.com/">build.nvidia.com</a></p>
-<p>Default model <code>nvidia/llama-3.1-nemotron-70b-instruct</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
+<p>Default model <code>nvidia/nemotron-3-super-120b-a12b</code>.</p>
+<div class="callout">
+<p>The NIM catalog lists many models that 404 (“not found for account”) until you enable them on build.nvidia.com — the bundled default is a broadly-available one.</p>
+</div>
 </div>
 </details>
 
 <details class="entity">
-<summary>Hyperbolic</summary>
+<summary>Replicate</summary>
 <div class="body">
-<p class="muted">Base <code>api.hyperbolic.xyz/</code> · Admin
-<a href="https://app.hyperbolic.xyz/settings">app.hyperbolic.xyz</a></p>
-<p>Default model <code>deepseek-ai/DeepSeek-V3</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
+<p class="muted">Base <code>api.replicate.com/v1/</code> · Admin
+<a href="https://replicate.com/account/api-tokens">replicate.com</a></p>
+<p>Default model <code>meta/meta-llama-3-8b-instruct</code>.</p>
+<ul>
+<li><code>apiFormat = REPLICATE</code></li>
+<li>2 hardcoded models</li>
+</ul>
+<div class="callout">
+<p><code>apiFormat = REPLICATE</code> is an async predictions API (<code>POST v1/models/{owner}/{name}/predictions</code> with <code>Prefer: wait</code>), not OpenAI-compatible — chat models only.</p>
+</div>
+</div>
+</details>
+
+<details class="entity">
+<summary>HuggingFace</summary>
+<div class="body">
+<p class="muted">Base <code>router.huggingface.co/</code> · Admin
+<a href="https://huggingface.co/settings/tokens">huggingface.co</a></p>
+<p>Default model <code>deepseek-ai/DeepSeek-V3.1</code>.</p>
+<ul>
+<li>4 hardcoded models</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>DeepInfra</summary>
+<div class="body">
+<p class="muted">Base <code>api.deepinfra.com/v1/openai/</code> · Admin
+<a href="https://deepinfra.com/dash/api_keys">deepinfra.com</a></p>
+<p>Default model <code>stepfun-ai/Step-3.7-Flash</code>.</p>
+<ul>
+<li><code>typePaths.chat = chat/completions</code></li>
+<li><code>typePaths.embedding = embeddings</code></li>
+<li><code>modelsPath = models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Lambda</summary>
+<div class="body">
+<p class="muted">Base <code>api.lambda.ai/</code> · Admin
+<a href="https://docs.lambda.ai/public-cloud/lambda-inference-api/">docs.lambda.ai</a></p>
+<p>Default model <code>llama3.1-8b-instruct</code>.</p>
 </div>
 </details>
 
@@ -380,42 +594,11 @@ for the Rerank flow</li>
 <div class="body">
 <p class="muted">Base <code>api.novita.ai/v3/openai/</code> · Admin
 <a href="https://novita.ai/settings/key-management">novita.ai</a></p>
-<p>Default model <code>meta-llama/llama-3.1-70b-instruct</code>.</p>
+<p>Default model <code>inclusionai/ling-2.6-flash</code>.</p>
 <ul>
-<li><code>typePaths.chat = chat/completions</code>,
-<code>modelsPath = models</code></li>
-<li><code>defaultModelSource = API</code></li>
+<li><code>typePaths.chat = chat/completions</code></li>
+<li><code>modelsPath = models</code></li>
 </ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>Featherless.ai</summary>
-<div class="body">
-<p class="muted">Base <code>api.featherless.ai/</code> · Admin
-<a href="https://featherless.ai/account/api-keys">featherless.ai</a></p>
-<p>Default model <code>meta-llama/Meta-Llama-3.1-8B-Instruct</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>LiquidAI</summary>
-<div class="body">
-<p class="muted">Base <code>inference-1.liquid.ai/</code> · Admin
-<a href="https://platform.liquid.ai/">platform.liquid.ai</a></p>
-<p>Default model <code>lfm-7b</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>LlamaAPI</summary>
-<div class="body">
-<p class="muted">Base <code>api.llama.com/compat/</code> · Admin
-<a href="https://llama.developer.meta.com/">llama.developer.meta.com</a></p>
-<p>Default model <code>Llama-4-Maverick-17B-128E-Instruct-FP8</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
 </div>
 </details>
 
@@ -424,8 +607,7 @@ for the Rerank flow</li>
 <div class="body">
 <p class="muted">Base <code>api.studio.nebius.com/</code> · Admin
 <a href="https://studio.nebius.com/settings/api-keys">studio.nebius.com</a></p>
-<p>Default model <code>meta-llama/Meta-Llama-3.1-70B-Instruct</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
+<p>Default model <code>NousResearch/Hermes-4-70B</code>.</p>
 </div>
 </details>
 
@@ -433,94 +615,87 @@ for the Rerank flow</li>
 <summary>Chutes</summary>
 <div class="body">
 <p class="muted">Base <code>llm.chutes.ai/</code> · Admin
-<a href="https://chutes.ai/app/api">chutes.ai/app/api</a></p>
-<p>Default model <code>deepseek-ai/DeepSeek-V3</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>Inference.net</summary>
-<div class="body">
-<p class="muted">Base <code>api.inference.net/</code> · Admin
-<a href="https://inference.net/dashboard/api-keys">inference.net</a></p>
-<p>Default model <code>meta-llama/llama-3.3-70b-instruct/fp-8</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
-</div>
-</details>
-
-<details class="entity">
-<summary>CloudflareWorkersAI</summary>
-<div class="body">
-<p class="muted">Base
-<code class="path">api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/</code>
-· Admin <a href="https://dash.cloudflare.com/">dash.cloudflare.com</a></p>
-<p>Default model <code>@cf/meta/llama-3.3-70b-instruct-fp8-fast</code>.</p>
-<ul>
-<li><code>defaultModelSource = API</code></li>
-<li>Replace <code>YOUR_ACCOUNT_ID</code> in the base URL.</li>
-</ul>
+<a href="https://chutes.ai/app/api">chutes.ai</a></p>
+<p>Default model <code>google/gemma-4-31B-turbo-TEE</code>.</p>
 </div>
 </details>
 
 <h2 id="regional">Regional &amp; vertical</h2>
 
+<p>Chinese, cloud-platform, and vertical-focus providers.</p>
+
 <details class="entity">
-<summary>Z.AI</summary>
+<summary>Alibaba</summary>
 <div class="body">
-<p class="muted">Base <code>api.z.ai/api/paas/v4/</code> · Admin
-<a href="https://open.bigmodel.cn/usercenter/apikeys">open.bigmodel.cn</a></p>
-<p>Default model <code>glm-4.7-flash</code>.</p>
+<p class="muted">Base <code>ws-dft0j6dsrm76r6ud.eu-central-1.maas.aliyuncs.com/compatible-mode/</code> · Admin
+<a href="https://modelstudio.console.alibabacloud.com/">modelstudio.console.alibabacloud.com</a></p>
+<p>Alibaba Cloud Model Studio (DashScope) via the EU compatible-mode endpoint.</p>
+<p>Default model <code>qwen3.7-plus</code>.</p>
 <ul>
-<li><code>typePaths.chat = chat/completions</code>,
-<code>modelsPath = models</code></li>
-<li><code>openRouterName = z-ai</code></li>
-<li><code>modelFilter = glm|codegeex|charglm</code></li>
-<li>7 hardcoded models, <code>defaultModelSource = API</code></li>
+<li>7 hardcoded models (merged with the live list on refresh)</li>
 </ul>
 </div>
 </details>
 
 <details class="entity">
-<summary>Moonshot</summary>
+<summary>Amazon</summary>
 <div class="body">
-<p class="muted">Base <code>api.moonshot.ai/</code> · Admin
-<a href="https://platform.moonshot.ai/console/api-keys">platform.moonshot.ai</a></p>
-<p>Default model <code>kimi-latest</code>.</p>
+<p class="muted">Base <code>bedrock-mantle.eu-central-1.api.aws/</code> · Admin
+<a href="https://eu-central-1.console.aws.amazon.com/bedrock-mantle/?region=eu-central-1">eu-central-1.console.aws.amazon.com</a></p>
+<p>AWS Bedrock via the eu-central-1 Bedrock Mantle gateway.</p>
+<p>Default model <code>qwen.qwen3-next-80b-a3b-instruct</code>.</p>
 <ul>
-<li><code>openRouterName = moonshot</code></li>
-<li>4 hardcoded models, <code>defaultModelSource = API</code></li>
+<li>6 hardcoded models (merged with the live list on refresh)</li>
 </ul>
 </div>
 </details>
 
 <details class="entity">
-<summary>DashScope (Aliyun / Qwen)</summary>
+<summary>Clarifai</summary>
 <div class="body">
-<p class="muted">Base <code>dashscope-intl.aliyuncs.com/compatible-mode/</code>
-· Admin <a href="https://dashscope.console.aliyun.com/">dashscope.console.aliyun.com</a></p>
-<p>Default model <code>qwen-plus</code>.</p>
-<ul><li>6 hardcoded models</li></ul>
+<p class="muted">Base <code>api.clarifai.com/</code> · Admin
+<a href="https://docs.clarifai.com/compute/inference/open-ai/">docs.clarifai.com</a></p>
+<p>Default model <code>openai/chat-completion/models/gpt-oss-120b</code>.</p>
+<ul>
+<li><code>typePaths.chat = v2/ext/openai/v1/chat/completions</code></li>
+<li><code>modelsPath = v2/ext/openai/v1/models</code></li>
+</ul>
 </div>
 </details>
 
 <details class="entity">
-<summary>Baichuan</summary>
+<summary>Frogbot</summary>
 <div class="body">
-<p class="muted">Base <code>api.baichuan-ai.com/</code> · Admin
-<a href="https://platform.baichuan-ai.com/">platform.baichuan-ai.com</a></p>
-<p>Default model <code>Baichuan4-Turbo</code>.</p>
-<ul><li>5 hardcoded models</li></ul>
+<p class="muted">Base <code>app.frogbot.ai/</code> · Admin
+<a href="https://docs.frogbot.ai/">docs.frogbot.ai</a></p>
+<p>Default model <code>claude-haiku-4-5</code>.</p>
+<ul>
+<li><code>typePaths.chat = api/v1/chat/completions</code></li>
+<li><code>modelsPath = api/v1/models</code></li>
+</ul>
 </div>
 </details>
 
 <details class="entity">
-<summary>StepFun</summary>
+<summary>GitHubModels</summary>
 <div class="body">
-<p class="muted">Base <code>api.stepfun.com/</code> · Admin
-<a href="https://platform.stepfun.com/">platform.stepfun.com</a></p>
-<p>Default model <code>step-2-16k</code>.</p>
-<ul><li>6 hardcoded models</li></ul>
+<p class="muted">Base <code>models.github.ai/</code> · Admin
+<a href="https://docs.github.com/en/rest/models/inference">docs.github.com</a></p>
+<p>Default model <code>openai/gpt-4.1-mini</code>.</p>
+<ul>
+<li><code>typePaths.chat = inference/chat/completions</code></li>
+<li><code>modelsPath = catalog/models</code></li>
+<li><code>modelListFormat = array</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>iFlow</summary>
+<div class="body">
+<p class="muted">Base <code>apis.iflow.cn/</code> · Admin
+<a href="https://platform.iflow.cn/en/docs">platform.iflow.cn</a></p>
+<p>Default model <code>qwen3-32b</code>.</p>
 </div>
 </details>
 
@@ -538,55 +713,528 @@ for the Rerank flow</li>
 </details>
 
 <details class="entity">
-<summary>Doubao (ByteDance / Volcengine)</summary>
+<summary>Moonshot</summary>
 <div class="body">
-<p class="muted">Base <code>ark.cn-beijing.volces.com/api/</code>
-· Admin <a href="https://console.volcengine.com/">console.volcengine.com</a></p>
-<p>Default model <code>doubao-pro-32k</code>.</p>
+<p class="muted">Base <code>api.moonshot.ai/</code> · Admin
+<a href="https://platform.moonshot.ai/console/api-keys">platform.moonshot.ai</a></p>
+<p>Default model <code>kimi-latest</code>.</p>
 <ul>
-<li><code>typePaths.chat = v3/chat/completions</code></li>
+<li><code>openRouterName = moonshot</code></li>
 <li>4 hardcoded models</li>
+<li><code>reasoningModelPatterns</code>: <code>kimi-k1.5*</code>, <code>kimi-k2*</code>, <code>*thinking*</code></li>
 </ul>
 </div>
 </details>
 
 <details class="entity">
-<summary>01.AI</summary>
+<summary>Ollama</summary>
 <div class="body">
-<p class="muted">Base <code>api.01.ai/</code> · Admin
-<a href="https://platform.01.ai/">platform.01.ai</a></p>
-<p>Default model <code>yi-lightning</code>.</p>
-<ul><li><code>defaultModelSource = API</code>, 4 hardcoded models</li></ul>
+<p class="muted">Base <code>ollama.com/</code> · Admin
+<a href="https://docs.ollama.com/api/openai-compatibility">docs.ollama.com</a></p>
+<p>Default model <code>gpt-oss:20b</code>.</p>
+<div class="callout">
+<p>Ollama’s <strong>hosted cloud</strong> endpoint — distinct from the synthetic on-device <code>AppService.LOCAL</code>, which isn’t part of this registry at all.</p>
+</div>
 </div>
 </details>
 
 <details class="entity">
-<summary>Krutrim (Ola)</summary>
+<summary>Tencent</summary>
 <div class="body">
-<p class="muted">Base <code>cloud.olakrutrim.com/</code> · Admin
-<a href="https://cloud.olakrutrim.com/console">cloud.olakrutrim.com</a></p>
-<p>Default model <code>Meta-Llama-3.1-70B-Instruct</code>.</p>
-<ul><li><code>defaultModelSource = API</code></li></ul>
+<p class="muted">Base <code>api.hunyuan.cloud.tencent.com/</code> · Admin
+<a href="https://cloud.tencent.com/document/product/1729/111007">cloud.tencent.com</a></p>
+<p>Default model <code>hunyuan-lite</code>.</p>
 </div>
 </details>
 
 <details class="entity">
-<summary>Reka</summary>
+<summary>VolcEngine</summary>
 <div class="body">
-<p class="muted">Base <code>api.reka.ai/</code> · Admin
-<a href="https://platform.reka.ai/">platform.reka.ai</a></p>
-<p>Default model <code>reka-flash</code>.</p>
-<ul><li>3 hardcoded models</li></ul>
+<p class="muted">Base <code>ark.cn-beijing.volces.com/</code> · Admin
+<a href="https://www.volcengine.com/docs/82379/1298459">www.volcengine.com</a></p>
+<p>Default model <code>doubao-seed-1-6-251015</code>.</p>
+<ul>
+<li><code>typePaths.chat = api/v3/chat/completions</code></li>
+<li><code>modelsPath = api/v3/models</code></li>
+</ul>
 </div>
 </details>
 
 <details class="entity">
-<summary>Writer</summary>
+<summary>Z.AI</summary>
 <div class="body">
-<p class="muted">Base <code>api.writer.com/</code> · Admin
-<a href="https://app.writer.com/">app.writer.com</a></p>
-<p>Default model <code>palmyra-x-004</code>.</p>
-<ul><li>2 hardcoded models</li></ul>
+<p class="muted">Base <code>api.z.ai/api/paas/v4/</code> · Admin
+<a href="https://open.bigmodel.cn/usercenter/apikeys">open.bigmodel.cn</a></p>
+<p>Default model <code>glm-4.5-air</code>.</p>
+<ul>
+<li><code>typePaths.chat = chat/completions</code></li>
+<li><code>modelsPath = models</code></li>
+<li><code>openRouterName = z-ai</code></li>
+<li><code>modelFilter = glm|codegeex|charglm</code></li>
+<li>7 hardcoded models</li>
+<li><code>builtInEndpoints</code> — Chat Completions + Coding</li>
+</ul>
+</div>
+</details>
+
+<h2 id="longtail">More OpenAI-compatible hosts</h2>
+
+<p>The remaining 46 bundled providers are plain
+<code>OPENAI_COMPATIBLE</code> hosts or routers — each one just a
+different <code>baseUrl</code>, admin console, and default model, with
+path overrides only where the host doesn’t use the standard
+<code>v1/chat/completions</code> / <code>v1/models</code> layout.</p>
+
+<details class="entity">
+<summary>AbacusAI</summary>
+<div class="body">
+<p class="muted">Base <code>routellm.abacus.ai/</code> · Admin
+<a href="https://abacus.ai/help/developer-platform/route-llm/">abacus.ai</a></p>
+<p>Default model <code>gpt-4o-mini</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>AIHubMix</summary>
+<div class="body">
+<p class="muted">Base <code>aihubmix.com/</code> · Admin
+<a href="https://docs.aihubmix.com/en/api/Aihubmix-Integration">docs.aihubmix.com</a></p>
+<p>Default model <code>gpt-4o-mini</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>AnyAPI</summary>
+<div class="body">
+<p class="muted">Base <code>api.anyapi.ai/</code> · Admin
+<a href="https://docs.anyapi.ai/">docs.anyapi.ai</a></p>
+<p>Default model <code>openai/gpt-4-turbo</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Auriko</summary>
+<div class="body">
+<p class="muted">Base <code>api.auriko.ai/</code> · Admin
+<a href="https://docs.auriko.ai/quickstart">docs.auriko.ai</a></p>
+<p>Default model <code>gpt-4o</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Avian</summary>
+<div class="body">
+<p class="muted">Base <code>api.avian.io/</code> · Admin
+<a href="https://avian.io/docs/">avian.io</a></p>
+<p>Default model <code>deepseek/deepseek-v3.2</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Cortecs</summary>
+<div class="body">
+<p class="muted">Base <code>api.cortecs.ai/</code> · Admin
+<a href="https://docs.cortecs.ai/api-overview/chat-completions">docs.cortecs.ai</a></p>
+<p>Default model <code>gemma-4-31b-it</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>CrofAI</summary>
+<div class="body">
+<p class="muted">Base <code>crof.ai/</code> · Admin
+<a href="https://github.com/nahcrof-code/crofAI">github.com</a></p>
+<p>Default model <code>glm-4.7-flash</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Crusoe</summary>
+<div class="body">
+<p class="muted">Base <code>api.inference.crusoecloud.com/</code> · Admin
+<a href="https://docs.crusoecloud.com/quickstart/getting-started-with-managed-inference">docs.crusoecloud.com</a></p>
+<p>Default model <code>openai/gpt-oss-120b</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>DigitalOcean</summary>
+<div class="body">
+<p class="muted">Base <code>inference.do-ai.run/</code> · Admin
+<a href="https://docs.digitalocean.com/products/inference/how-to/use-chat-completions-api/">docs.digitalocean.com</a></p>
+<p>Default model <code>openai-gpt-4o-mini</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Doubleword</summary>
+<div class="body">
+<p class="muted">Base <code>api.doubleword.ai/</code> · Admin
+<a href="https://docs.doubleword.ai/inference-api/creating-an-api-key">docs.doubleword.ai</a></p>
+<p>Default model <code>openai-gpt-oss-20b</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Evroc</summary>
+<div class="body">
+<p class="muted">Base <code>models.think.evroc.com/</code> · Admin
+<a href="https://docs.evroc.com/products/think/concepts.html">docs.evroc.com</a></p>
+<p>Default model <code>mistralai/Ministral-8B-Instruct-2410</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>FastRouter</summary>
+<div class="body">
+<p class="muted">Base <code>api.fastrouter.ai/</code> · Admin
+<a href="https://docs.fastrouter.ai/api-reference/chat-completions">docs.fastrouter.ai</a></p>
+<p>Default model <code>openai/gpt-4o-mini</code>.</p>
+<ul>
+<li><code>typePaths.chat = api/v1/chat/completions</code></li>
+<li><code>modelsPath = api/v1/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>FriendliAI</summary>
+<div class="body">
+<p class="muted">Base <code>api.friendli.ai/</code> · Admin
+<a href="https://friendli.ai/docs/guides/serverless_endpoints/openai-compatibility">friendli.ai</a></p>
+<p>Default model <code>meta-llama/Llama-3.1-8B-Instruct</code>.</p>
+<ul>
+<li><code>typePaths.chat = serverless/v1/chat/completions</code></li>
+<li><code>modelsPath = serverless/v1/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>HeliconeGateway</summary>
+<div class="body">
+<p class="muted">Base <code>ai-gateway.helicone.ai/</code> · Admin
+<a href="https://docs.helicone.ai/rest/ai-gateway/post-v1-chat-completions">docs.helicone.ai</a></p>
+<p>Default model <code>gpt-4o-mini</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Inceptron</summary>
+<div class="body">
+<p class="muted">Base <code>api.inceptron.io/</code> · Admin
+<a href="https://docs.inceptron.io/introduction">docs.inceptron.io</a></p>
+<p>Default model <code>MiniMaxAI/MiniMax-M2.5</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>IONet</summary>
+<div class="body">
+<p class="muted">Base <code>api.intelligence.io.solutions/</code> · Admin
+<a href="https://io.net/docs/reference/ai-models/get-started-with-io-intelligence-api">io.net</a></p>
+<p>Default model <code>meta-llama/Llama-3.3-70B-Instruct</code>.</p>
+<ul>
+<li><code>typePaths.chat = api/v1/chat/completions</code></li>
+<li><code>modelsPath = api/v1/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Jiekou</summary>
+<div class="body">
+<p class="muted">Base <code>api.jiekou.ai/</code> · Admin
+<a href="https://docs.jiekou.ai/docs/models/reference-authentication">docs.jiekou.ai</a></p>
+<p>Default model <code>qwen/qwen-2.5-72b-instruct</code>.</p>
+<ul>
+<li><code>typePaths.chat = openai/v1/chat/completions</code></li>
+<li><code>modelsPath = openai/v1/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>KiloCode</summary>
+<div class="body">
+<p class="muted">Base <code>api.kilo.ai/</code> · Admin
+<a href="https://kilo.ai/docs/gateway/api-reference">kilo.ai</a></p>
+<p>Default model <code>google/gemini-3.1-flash-lite</code>.</p>
+<ul>
+<li><code>typePaths.chat = api/gateway/chat/completions</code></li>
+<li><code>modelsPath = api/gateway/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>LibertAI</summary>
+<div class="body">
+<p class="muted">Base <code>api.libertai.io/</code> · Admin
+<a href="https://docs.libertai.io/apis/text/usage.html">docs.libertai.io</a></p>
+<p>Default model <code>hermes-3-8b-tee</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>LlamaGate</summary>
+<div class="body">
+<p class="muted">Base <code>api.llamagate.dev/</code> · Admin
+<a href="https://docs.litellm.ai/docs/providers/llamagate">docs.litellm.ai</a></p>
+<p>Default model <code>llama-3.1-8b</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>LLMGateway</summary>
+<div class="body">
+<p class="muted">Base <code>api.llmgateway.io/</code> · Admin
+<a href="https://docs.llmgateway.io/quick-start">docs.llmgateway.io</a></p>
+<p>Default model <code>gpt-4o</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>MegaNova</summary>
+<div class="body">
+<p class="muted">Base <code>api.meganova.ai/</code> · Admin
+<a href="https://docs.meganova.ai/api-reference">docs.meganova.ai</a></p>
+<p>Default model <code>openai/gpt-5-mini</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>ModelScope</summary>
+<div class="body">
+<p class="muted">Base <code>api-inference.modelscope.cn/</code> · Admin
+<a href="https://modelscope.cn/docs/model-service/API-Inference/intro">modelscope.cn</a></p>
+<p>Default model <code>Qwen/Qwen2.5-72B-Instruct</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>NanoGPT</summary>
+<div class="body">
+<p class="muted">Base <code>nano-gpt.com/</code> · Admin
+<a href="https://docs.nano-gpt.com/introduction">docs.nano-gpt.com</a></p>
+<p>Default model <code>google/gemini-3-flash-preview</code>.</p>
+<ul>
+<li><code>typePaths.chat = api/v1/chat/completions</code></li>
+<li><code>modelsPath = api/v1/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>NearAI</summary>
+<div class="body">
+<p class="muted">Base <code>cloud-api.near.ai/</code> · Admin
+<a href="https://docs.near.ai/cloud/guides/openai-compatibility/">docs.near.ai</a></p>
+<p>Default model <code>Qwen/Qwen3-30B-A3B-Instruct-2507</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>NeuralWatt</summary>
+<div class="body">
+<p class="muted">Base <code>api.neuralwatt.com/</code> · Admin
+<a href="https://portal.neuralwatt.com/docs/api/overview">portal.neuralwatt.com</a></p>
+<p>Default model <code>glm-5.2</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Nscale</summary>
+<div class="body">
+<p class="muted">Base <code>inference.api.nscale.com/</code> · Admin
+<a href="https://docs.nscale.com/docs/getting-started/overview">docs.nscale.com</a></p>
+<p>Default model <code>meta-llama/Llama-3.1-8B-Instruct</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>OpenCodeZen</summary>
+<div class="body">
+<p class="muted">Base <code>opencode.ai/</code> · Admin
+<a href="https://opencode.ai/docs/zen/">opencode.ai</a></p>
+<p>Default model <code>deepseek-v4-flash</code>.</p>
+<ul>
+<li><code>typePaths.chat = zen/v1/chat/completions</code></li>
+<li><code>modelsPath = zen/v1/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>OrcaRouter</summary>
+<div class="body">
+<p class="muted">Base <code>api.orcarouter.ai/</code> · Admin
+<a href="https://www.orcarouter.ai/">www.orcarouter.ai</a></p>
+<p>Default model <code>deepseek/deepseek-v4-flash</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>OVHcloud</summary>
+<div class="body">
+<p class="muted">Base <code>oai.endpoints.kepler.ai.cloud.ovh.net/</code> · Admin
+<a href="https://help.ovhcloud.com/csm/en-public-cloud-ai-endpoints-getting-started?id=kb_article_view&amp;sysparm_article=KB0065403">help.ovhcloud.com</a></p>
+<p>Default model <code>Mistral-7B-Instruct-v0.3</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Poe</summary>
+<div class="body">
+<p class="muted">Base <code>api.poe.com/</code> · Admin
+<a href="https://creator.poe.com/docs/external-applications/openai-compatible-api">creator.poe.com</a></p>
+<p>Default model <code>gpt-5.4-nano</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Poolside</summary>
+<div class="body">
+<p class="muted">Base <code>inference.poolside.ai/</code> · Admin
+<a href="https://docs.poolside.ai/openai-api/chat/create-chat-completion">docs.poolside.ai</a></p>
+<p>Default model <code>poolside/laguna-xs.2</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>PublicAI</summary>
+<div class="body">
+<p class="muted">Base <code>api.publicai.co/</code> · Admin
+<a href="https://platform.publicai.co/docs">platform.publicai.co</a></p>
+<p>Default model <code>swiss-ai/apertus-8b-instruct</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>QiniuAI</summary>
+<div class="body">
+<p class="muted">Base <code>api.qnaigc.com/</code> · Admin
+<a href="https://developer.qiniu.com/aitokenapi">developer.qiniu.com</a></p>
+<p>Default model <code>qwen-turbo</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>RegoloAI</summary>
+<div class="body">
+<p class="muted">Base <code>api.regolo.ai/</code> · Admin
+<a href="https://docs.regolo.ai/">docs.regolo.ai</a></p>
+<p>Default model <code>qwen3.5-9b</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>RoutingRun</summary>
+<div class="body">
+<p class="muted">Base <code>api.routing.run/</code> · Admin
+<a href="https://docs.routing.run/">docs.routing.run</a></p>
+<p>Default model <code>qwen3.5-9b</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Scaleway</summary>
+<div class="body">
+<p class="muted">Base <code>api.scaleway.ai/</code> · Admin
+<a href="https://www.scaleway.com/en/docs/generative-apis/reference-content/openai-compatibility/">www.scaleway.com</a></p>
+<p>Default model <code>llama-3.1-8b-instruct</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>TensorMesh</summary>
+<div class="body">
+<p class="muted">Base <code>serverless.tensormesh.ai/</code> · Admin
+<a href="https://tensormesh.mintlify.app/ai-sdk/guides/provider-configuration">tensormesh.mintlify.app</a></p>
+<p>Default model <code>openai/gpt-oss-20b</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>ThreeZeroTwoAI</summary>
+<div class="body">
+<p class="muted">Base <code>api.302.ai/</code> · Admin
+<a href="https://doc-en.302.ai/api-207705104">doc-en.302.ai</a></p>
+<p>Default model <code>gpt-4o-mini</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Tinfoil</summary>
+<div class="body">
+<p class="muted">Base <code>inference.tinfoil.sh/</code> · Admin
+<a href="https://docs.tinfoil.sh/sdk/direct-api-access">docs.tinfoil.sh</a></p>
+<p>Default model <code>gpt-oss-120b</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Venice</summary>
+<div class="body">
+<p class="muted">Base <code>api.venice.ai/</code> · Admin
+<a href="https://docs.venice.ai/api-reference/api-spec">docs.venice.ai</a></p>
+<p>Default model <code>qwen3-4b</code>.</p>
+<ul>
+<li><code>typePaths.chat = api/v1/chat/completions</code></li>
+<li><code>modelsPath = api/v1/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Vivgrid</summary>
+<div class="body">
+<p class="muted">Base <code>api.vivgrid.com/</code> · Admin
+<a href="https://vivgrid.com/docs/quick-start">vivgrid.com</a></p>
+<p>Default model <code>gpt-5.4-mini</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Vultr</summary>
+<div class="body">
+<p class="muted">Base <code>api.vultrinference.com/</code> · Admin
+<a href="https://docs.vultr.com/how-to-use-vultr-serverless-inference-in-python">docs.vultr.com</a></p>
+<p>Default model <code>qwen2.5-32b-instruct</code>.</p>
+<ul>
+<li><code>modelsPath = v1/chat/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Wafer</summary>
+<div class="body">
+<p class="muted">Base <code>pass.wafer.ai/</code> · Admin
+<a href="https://docs.wafer.ai/serverless/setup">docs.wafer.ai</a></p>
+<p>Default model <code>deepseek-v4-flash</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>WandB</summary>
+<div class="body">
+<p class="muted">Base <code>api.inference.wandb.ai/</code> · Admin
+<a href="https://docs.wandb.ai/inference/api-reference/chat-completions">docs.wandb.ai</a></p>
+<p>Default model <code>meta-llama/Llama-3.1-8B-Instruct</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>ZenMux</summary>
+<div class="body">
+<p class="muted">Base <code>zenmux.ai/</code> · Admin
+<a href="https://zenmux.ai/docs/api/overview.html">zenmux.ai</a></p>
+<p>Default model <code>deepseek/deepseek-chat</code>.</p>
+<ul>
+<li><code>typePaths.chat = api/v1/chat/completions</code></li>
+<li><code>modelsPath = api/v1/models</code></li>
+</ul>
 </div>
 </details>
 
@@ -598,45 +1246,46 @@ for the Rerank flow</li>
 
 <div>
 <dt>apiFormat</dt>
-<dd>Dispatch format. <code>OPENAI_COMPATIBLE</code> (default),
-<code>ANTHROPIC</code> (Claude <code>/v1/messages</code> shape with
-required <code>max_tokens</code>), <code>GOOGLE</code> (Gemini
-<code>:generateContent</code> path-style with <code>?key=</code> auth).</dd>
+<dd>Dispatch format. <code>OPENAI_COMPATIBLE</code> (default, standard
+<code>Authorization: Bearer</code>), <code>ANTHROPIC</code> (Claude
+<code>/v1/messages</code> shape with <code>x-api-key</code> +
+<code>anthropic-version</code> headers and a required <code>max_tokens</code>),
+<code>GOOGLE</code> (Gemini <code>:generateContent</code> path-style with
+the key appended as a <code>?key=</code> query param, not a header),
+<code>REPLICATE</code> (async predictions API, chat models only).</dd>
 </div>
 
 <div>
 <dt>typePaths</dt>
 <dd>Per-model-type API paths overriding the global defaults. Most
-providers only override <code>chat</code>; some (Anthropic) also
-override <code>embedding</code> / <code>rerank</code> / etc.</dd>
+providers only override <code>chat</code>; a few (DeepInfra) also
+override <code>embedding</code>.</dd>
 </div>
 
 <div>
 <dt>modelsPath</dt>
-<dd>GET path for the model-list endpoint, relative to
-<code>baseUrl</code>. Default <code>v1/models</code>.</dd>
+<dd>GET path for the model-list endpoint, relative to <code>baseUrl</code>.
+Default <code>v1/models</code>.</dd>
 </div>
 
 <div>
 <dt>seedFieldName</dt>
-<dd>Name of the seed field in the request body. Mistral calls it
-<code>random_seed</code>; everyone else uses <code>seed</code>.</dd>
+<dd>Name of the seed field in the request body. Mistral is the only
+bundled provider that calls it <code>random_seed</code>; everyone else
+uses <code>seed</code>.</dd>
 </div>
 
 <div>
-<dt>supportsCitations</dt>
-<dd>Provider returns inline <code>citations</code> (e.g. Perplexity).</dd>
-</div>
-
-<div>
-<dt>supportsSearchRecency</dt>
-<dd>Provider accepts a <code>search_recency</code> parameter.</dd>
+<dt>supportsCitations / supportsSearchRecency</dt>
+<dd>Provider returns inline <code>citations</code> / accepts a
+<code>search_recency</code> parameter (Perplexity is the only bundled
+provider setting either).</dd>
 </div>
 
 <div>
 <dt>extractApiCost</dt>
-<dd>Provider's response includes a per-call cost field (e.g.
-OpenRouter); the dispatch layer extracts it instead of computing from
+<dd>Provider's response includes a per-call cost field (OpenRouter); the
+dispatch layer extracts it instead of computing from
 <code>tokenUsage × unitPrice</code>.</dd>
 </div>
 
@@ -647,44 +1296,66 @@ OpenRouter); the dispatch layer extracts it instead of computing from
 </div>
 
 <div>
+<dt>promptTokensIncludeCachedTokens</dt>
+<dd>Whether OpenAI-compatible <code>prompt_tokens</code> already includes
+cache reads. Defaults to <code>true</code>; xAI sets <code>false</code>
+because it reports cache reads in a separate flattened
+<code>cached_tokens</code> field while leaving <code>prompt_tokens</code>
+as the fresh-token bucket.</dd>
+</div>
+
+<div>
 <dt>modelListFormat</dt>
 <dd><code>object</code> (default — wrapped in
-<code>{ "data": [...] }</code>) vs <code>array</code> (Together's
-bare top-level array; Google also returns an array).</dd>
+<code>{ "data": [...] }</code>) vs <code>array</code> (Together, Google,
+GitHubModels all return a bare top-level array).</dd>
 </div>
 
 <div>
 <dt>modelFilter</dt>
-<dd>Regex applied to model ids during listing — trims out
-internal/test/preview models from a noisy catalog.</dd>
+<dd>Regex applied to model ids during listing — trims internal /
+test / preview models out of a noisy catalog.</dd>
 </div>
 
 <div>
 <dt>litellmPrefix / openRouterName</dt>
-<dd>Composite-key prefixes for the corresponding pricing tier.</dd>
+<dd>Composite-key prefixes for the corresponding pricing tier — see
+<a href="costs.html">costs</a> and <a href="repositories.html">repositories</a>.</dd>
 </div>
 
 <div>
 <dt>hardcodedModels</dt>
 <dd>Fallback list shown when no <code>/models</code> endpoint is
-available, <code>defaultModelSource = MANUAL</code>, <strong>or</strong>
-to reinstate documented-but-unlisted endpoints (OpenAI moderation /
-TTS / transcription / image; merged via the OpenAI-only fallback union
-in <code>Settings.withModels</code>).</dd>
+available, <code>defaultModelSource = MANUAL</code> (no bundled provider
+currently sets this), <strong>or</strong> to reinstate documented-but-
+unlisted endpoints. With <code>mergeHardcodedModels = true</code> the
+list is unioned with the live API list on refresh instead of replacing
+it.</dd>
 </div>
 
 <div>
 <dt>defaultModelSource</dt>
-<dd><code>API</code> or <code>MANUAL</code>. Determines whether the
-app fetches a live list or shows the hardcoded fallback.</dd>
+<dd><code>"API"</code> or <code>"MANUAL"</code>; <code>null</code> behaves
+as <code>"API"</code>. Determines whether the app fetches a live list or
+shows the hardcoded fallback.</dd>
+</div>
+
+<div>
+<dt>defaultInactive</dt>
+<dd>When <code>true</code>, the bootstrap seeds
+<code>providerStates[id] = "inactive"</code> the <strong>first</strong>
+time the provider is seen, so it ships visible in pickers but disabled
+until the user explicitly flips it on. No bundled provider currently sets
+it — StepFun did before the keyless-provider sweep, but was
+dropped.</dd>
 </div>
 
 <div>
 <dt>nativeRerankUrl / nativeModerationUrl / nativeCapabilityUrl</dt>
 <dd>Full URLs the rerank / moderation / capability dispatchers POST to
-instead of building a chat fallback. Cohere ships
-<code>nativeRerankUrl</code> and <code>nativeCapabilityUrl</code>;
-Mistral ships <code>nativeModerationUrl</code>. Others fall through
+instead of building a chat fallback. <code>nativeRerankUrl</code> is set
+on SiliconFlow and Cohere; <code>nativeModerationUrl</code> on Mistral;
+<code>nativeCapabilityUrl</code> on Cohere. Everyone else falls through
 to a chat-prompt fallback.</dd>
 </div>
 
@@ -692,76 +1363,107 @@ to a chat-prompt fallback.</dd>
 <dt>pricingFromModelList <span class="muted">(Together)</span></dt>
 <dd>Provider's <code>/v1/models</code> block carries authoritative
 pricing — harvested into the <code>TOGETHER</code> tier on every
-refresh.</dd>
+refresh, beating every curated catalog and the manual override for
+Together calls.</dd>
 </div>
 
 <div>
 <dt>crossProviderModelList <span class="muted">(OpenRouter)</span></dt>
 <dd>Provider's <code>/v1/models</code> drives pricing + type fan-out
-across other providers — the OpenRouter tier is the final
-cross-provider fallback in <code>PricingCache.getPricing</code> for
-non-OpenRouter callers.</dd>
+across other providers — the OpenRouter tier is both OpenRouter's
+own self-report and the final cross-provider fallback in
+<code>PricingCache.getPricing</code> for every other caller.</dd>
 </div>
 
 <div>
 <dt>mergeHardcodedModels</dt>
-<dd>Union persisted <code>hardcodedModels</code> with the API list
-when the fetcher refreshes — so OpenAI moderation / TTS / image
-models survive a <code>/v1/models</code> call that doesn't enumerate
-them.</dd>
+<dd>Union persisted <code>hardcodedModels</code> with the API list when
+the fetcher refreshes — so OpenAI's moderation / TTS / image models
+and DeepSeek's two pinned ids survive a <code>/v1/models</code> call that
+doesn't enumerate them. Set on most of the cross-provider aggregators
+too, so their curated fallback list survives a flaky catalog fetch.</dd>
 </div>
 
 <div>
 <dt>externalReasoningSignalUntrusted <span class="muted">(xAI)</span></dt>
-<dd>Ignore the LiteLLM / models.dev "is reasoning" signal because
-xAI's always-on reasoning variants reject the
-<code>reasoning_effort</code> parameter even though they reason
-internally. The 🧠 badge still renders; only the parameter is
-suppressed.</dd>
+<dd>Ignore the LiteLLM / models.dev "is reasoning" signal because xAI's
+always-on reasoning variants reject the <code>reasoning_effort</code>
+parameter even though they reason internally. The 🧠 badge still
+renders; only the parameter is suppressed.</dd>
 </div>
 
 <div>
 <dt>responsesApiPatterns · reasoningModelPatterns ·
 reasoningEffortAcceptPatterns · webSearchModelPatterns ·
 adaptiveThinkingPatterns</dt>
-<dd>Lists of <code>ModelPattern</code>: per-id pattern matchers that
-gate dispatch routing (Responses API), feature badges (🧠, 🌐), the
-<code>reasoning_effort</code> parameter, and Anthropic's
-adaptive-thinking shape. Patterns take <code>prefix</code>,
-<code>contains</code>, or <code>regex</code>.</dd>
+<dd>Lists of <code>ModelPattern</code>: per-id pattern matchers that gate
+dispatch routing (Responses API), feature badges (🧠, 🌐),
+the <code>reasoning_effort</code> parameter, and Anthropic's
+adaptive-thinking shape. A pattern takes <code>exact</code>,
+<code>prefix</code>, <code>contains</code>, <code>suffix</code>, or
+<code>regex</code> (all matched against the lowercased model id); when
+more than one is set they must <strong>all</strong> match, and an
+all-null pattern never matches.</dd>
 </div>
 
 <div>
-<dt>maxTokensDefaults <span class="muted">(Anthropic)</span></dt>
-<dd><code>[{ match: ModelPattern, value: Int }]</code> — per-family
-default <code>max_tokens</code> when the user hasn't pinned one. First
-match wins; falls back to <code>4096</code>.</dd>
+<dt>maxTokensDefaults <span class="muted">(Anthropic, AtlasCloud)</span></dt>
+<dd><code>[{ pattern: ModelPattern, maxTokens: Int }]</code> —
+per-family default <code>max_tokens</code> when the user hasn't pinned
+one. First match wins; falls back to 4096.</dd>
 </div>
 
 <div>
 <dt>builtInEndpoints</dt>
-<dd>Bundled alternate endpoints (DeepSeek main + reasoner, Mistral
-chat + Codestral, Z.AI mainland + international). User picks one on
-the provider edit screen.</dd>
+<dd>Bundled alternate endpoints (OpenAI Chat Completions + Responses,
+DeepSeek main + Beta/FIM, Mistral Chat + Codestral, Z.AI Chat + Coding).
+User picks one on the provider edit screen.</dd>
 </div>
 
 <div>
-<dt>auxHosts</dt>
-<dd>Alternate API hostnames besides the <code>baseUrl</code> host.
-The rate-limit-retry interceptor and tracer use this to keep aux-host
-calls grouped under the same logical provider.</dd>
+<dt>auxHosts <span class="muted">(Cohere)</span></dt>
+<dd>Alternate API hostnames besides the <code>baseUrl</code> host. The
+rate-limit-retry interceptor and tracer use <code>findByHost</code> to
+keep aux-host calls grouped under the same logical provider.</dd>
+</div>
+
+<div>
+<dt>Throttle overrides</dt>
+<dd><code>maxCallsPerProviderPerMinute</code>, <code>maxConcurrentCallsPerProvider</code>,
+<code>maxRetriesOn429</code>, <code>retryBackoffMs429</code>,
+<code>maxRetriesOn529</code>, <code>retryBackoffMs529</code> —
+per-provider caps overriding the global <code>NetworkSettings</code>
+defaults (60 calls/min, 5 concurrent, 3 retries, 1000 ms backoff);
+<code>null</code> inherits. See <a href="throttle.html">throttle</a>.</dd>
 </div>
 
 </dl>
 
 <h2 id="activation">Activation gating</h2>
 
-<p>Setting an API key on a provider isn't enough to mark it active —
-both the <code>/models</code> fetch and the API-key test must pass. A
-mis-configured provider stays <code>not-used</code> until it can
-prove it actually works. Refresh-all surfaces failed providers with a
-one-tap nav-to-edit so the user can fix bad configurations without
-hunting.</p>
+<p>Setting an API key on a provider isn't enough to mark it active. When
+the user flips a provider on, the activation gate runs <strong>both</strong>
+a <code>/models</code> fetch <strong>and</strong> an API-key test against
+the default model; <strong>both</strong> must succeed before the state
+flips to <code>"ok"</code> and the default agent is created. Either
+failure leaves the provider in <code>"error"</code> state with no agent
+created.</p>
+
+<p>The four provider states (<code>providerStates[id]</code>, persisted
+under the <code>provider_states</code> prefs key):</p>
+
+<dl class="kv">
+<div><dt>ok</dt><dd>Models fetch + key test both passed; default agent
+created.</dd></div>
+<div><dt>error</dt><dd>Key set but activation failed one of the two
+checks.</dd></div>
+<div><dt>inactive</dt><dd>User explicitly disabled the provider (or a
+<code>defaultInactive</code> provider's first bootstrap).</dd></div>
+<div><dt>not-used</dt><dd>No key configured, or the key was cleared.</dd></div>
+</dl>
+
+<p>Refresh-all surfaces failed providers with a one-tap nav-to-edit so the
+user can fix bad configurations without hunting.</p>
 
 <p class="backtop"><a href="#">↑ Top</a></p>
 

@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Knowledge (RAG) — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Knowledge (RAG)</span></header>
+<main>
+
+<h1>AI Knowledge — RAG knowledge bases</h1>
+
+<p>Retrieval-augmented generation. A <strong>knowledge base</strong>
+(KB) holds ingested documents, chunked and embedded; a KB attached to
+a chat or report retrieves the chunks most similar to the current
+prompt and injects them as a <code>&lt;context&gt;</code> block before
+each API call.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#gating">Gating</a></li>
+<li><a href="#data-model">Data model</a></li>
+<li><a href="#local-sentinel">The "LOCAL" embedder sentinel</a></li>
+<li><a href="#float-array">Why the embedding is a FloatArray</a></li>
+<li><a href="#extractors">The 9 source extractors</a></li>
+<li><a href="#pipeline">Pipeline: ingest &rarr; chunk &rarr; embed &rarr; retrieve</a></li>
+<li><a href="#injection">Injection at API time</a></li>
+<li><a href="#on-disk">On disk</a></li>
+<li><a href="#files">Files</a></li>
+</ul>
+</nav>
+
+<h2 id="gating">Gating</h2>
+
+<p>The whole subsystem's UI sits behind the master
+<strong>Experimental features</strong> toggle (see
+<a href="experimental.html">experimental</a>). The Hub's
+<strong>"AI Knowledge" card</strong> has a <em>second</em> gate on top
+of that:</p>
+
+<pre><code>experimentalFeaturesEnabled && showKnowledgeCard</code></pre>
+
+<p>(<code>HubScreens.kt</code>). <code>showKnowledgeCard</code>
+(prefs key <code>show_knowledge_card</code>, default off) is itself
+hidden from Settings until the master toggle is on.</p>
+
+<div class="callout warn">
+<p>When the master toggle is off the attach/manage UI disappears, but
+a KB <strong>already attached</strong> to a chat or report keeps
+injecting context at API time — gating only hides the entry points,
+nothing on disk is touched and no dispatch code path checks the
+toggle.</p>
+</div>
+
+<h2 id="data-model">Data model</h2>
+
+<p><code>data/Knowledge.kt</code>:</p>
+
+<div class="card">
+<h4>KnowledgeBase</h4>
+<p class="type"><code>data class</code></p>
+<p><code>id</code>, <code>name</code>, <code>embedderProviderId</code>
++ <code>embedderModel</code> (fixed at creation — query and chunk
+vectors must live in the same space, so changing embedders means
+deleting and recreating the KB), <code>embeddingDim</code>,
+<code>createdAt</code>, <code>sources: List&lt;KnowledgeSource&gt;</code>;
+computed <code>totalChunks</code> / <code>totalChars</code>.</p>
+</div>
+
+<div class="card">
+<h4>KnowledgeSource</h4>
+<p class="type"><code>data class</code></p>
+<p><code>id</code>, <code>type: KnowledgeSourceType</code>, display
+<code>name</code>, <code>origin</code> (SAF <code>Uri</code> string or
+URL, kept so re-index can refetch), <code>addedAt</code>,
+<code>chunkCount</code>, <code>charCount</code>, optional
+<code>errorMessage</code> (last index attempt failed), optional
+<code>needsReindexReason</code> (chunks written but untrustworthy —
+e.g. after an embedder dimension change).</p>
+</div>
+
+<div class="card">
+<h4>KnowledgeChunk</h4>
+<p class="type"><code>data class</code></p>
+<p><code>id</code>, <code>sourceId</code>, <code>ordinal</code>,
+<code>text</code>, <code>embedding: FloatArray</code>. Overrides
+<code>equals</code>/<code>hashCode</code> to use
+<code>contentEquals</code>/<code>contentHashCode</code> on the array —
+the auto-generated <code>data class</code> versions would compare the
+array by reference identity and silently never match.</p>
+</div>
+
+<h2 id="local-sentinel">The "LOCAL" embedder sentinel (mind the case)</h2>
+
+<p><code>embedderProviderId == "LOCAL"</code> (all-caps) routes to the
+on-device <a href="local-runtime.html">LocalEmbedder</a> —
+<code>KnowledgeService</code> short-circuits straight to
+<code>LocalEmbedder.embed</code> and <strong>never</strong> calls
+<code>AppService.findById</code>. <code>NewKnowledgeBaseScreen</code>
+(<code>ui/knowledge/KnowledgeScreens.kt</code>) offers each installed
+LiteRT model as a <code>Triple("LOCAL", model, "Local &middot;
+model")</code> option, stamping the KB with
+<code>embedderProviderId = "LOCAL"</code>. Any other id is treated as
+a provider id, resolved via <code>AppService.findById(embedderProviderId)</code>
+and embedded over <code>/v1/embeddings</code> (or Gemini
+<code>batchEmbedContents</code>) through
+<code>AnalysisRepository.embed</code>.</p>
+
+<div class="callout warn">
+<p><strong>Casing trap:</strong> the KB local-embedder sentinel is the
+literal all-caps string <code>"LOCAL"</code>. The chat/report
+<em>LLM</em> sentinel <code>AppService.LOCAL.id</code> is
+<code>"Local"</code> (capital-L only). The two are distinct strings
+used by distinct dispatch forks — do not conflate them. (A third,
+unrelated <code>providerKey = "LOCAL"</code> literal in
+<code>LocalSemanticSearchScreen</code> is the <em>report</em>-embedding
+cache key for <code>EmbeddingsStore</code>, not a KB concept.)</p>
+</div>
+
+<h2 id="float-array">Why the embedding is a FloatArray</h2>
+
+<p><code>KnowledgeChunk.embedding</code> is a primitive
+<strong><code>FloatArray</code></strong>, not <code>List&lt;Double&gt;</code>
+— roughly a 6&times; heap reduction for thousand-dim vectors (4
+bytes/dim vs &sim;24 bytes boxed), and float precision is
+indistinguishable from double for cosine ranking. It feeds the
+primitive <code>EmbeddingsStore.cosine(FloatArray, FloatArray)</code>
+retrieval hot path (<code>data/EmbeddingsStore.kt</code>), which
+iterates primitives but accumulates <code>dot</code>/<code>normA</code>/<code>normB</code>
+in <code>Double</code> internally to avoid float-accumulator drift.</p>
+
+<p>Gson reads any numeric JSON array into a <code>FloatArray</code>,
+so on-disk storage is unchanged — existing full-double chunk files
+keep working, truncated to &sim;7 significant digits on read.</p>
+
+<div class="callout">
+<p>There's a <strong>second, boxed</strong> overload,
+<code>cosine(List&lt;Double&gt;, List&lt;Double&gt;)</code>, used only
+by report semantic search via <code>EmbeddingsStore</code>'s
+per-document cache — <strong>not</strong> by KB retrieval. Both
+overloads return <code>0.0</code> for an empty vector and log a
+warning on a dim mismatch, but the mismatch return value differs: the
+boxed overload returns <strong><code>Double.NaN</code></strong> (so a
+"wrong embedder / stale vector" mistake is distinguishable from a
+genuinely orthogonal <code>0.0</code> score), while the
+<code>FloatArray</code> overload returns <strong><code>0.0</code></strong>.
+KB retrieval never actually hits that fallback in practice — the
+retrieve step (below) skips dim-mismatched chunks <em>before</em>
+calling <code>cosine</code> — so its <code>0.0</code> is purely
+defensive.</p>
+</div>
+
+<h2 id="extractors">The 9 source extractors</h2>
+
+<p><code>KnowledgeSourceType</code> has exactly nine values, in this
+order: <code>TEXT, MARKDOWN, PDF, DOCX, ODT, XLSX, ODS, CSV, URL</code>.
+<code>KnowledgeExtractors.extract(context, type, origin)</code>
+dispatches all nine in a single <code>when</code> block; each maps to
+one private function in the single <code>KnowledgeExtractors</code>
+object — there are <strong>no</strong> per-type extractor classes (the
+object's own KDoc naming <code>TextExtractor</code>/<code>MarkdownExtractor</code>/&hellip;
+is stale and lists only four).</p>
+
+<dl class="kv">
+<div><dt>TEXT</dt><div class="meta"><code>readUriText</code></div><dd>Read straight, forced UTF-8, normalise newlines.</dd></div>
+<div><dt>MARKDOWN</dt><div class="meta"><code>readUriText</code></div><dd>Identical path to TEXT; paragraph boundaries preserved for the chunker.</dd></div>
+<div><dt>PDF</dt><div class="meta"><code>readUriPdf</code></div><dd>PDFBox-Android <code>PDFTextStripper</code> (<code>sortByPosition = true</code>).</dd></div>
+<div><dt>DOCX</dt><div class="meta"><code>readUriDocx</code></div><dd>Streaming <code>XmlPullParser</code> over <code>word/document.xml</code> (<code>&lt;w:p&gt;</code>&rarr;&para;, <code>&lt;w:t&gt;</code> text, <code>&lt;w:tab&gt;</code>&rarr;tab).</dd></div>
+<div><dt>ODT</dt><div class="meta"><code>readUriOdt</code></div><dd>Same approach over <code>content.xml</code> (<code>&lt;text:p&gt;</code>/<code>&lt;text:h&gt;</code>&rarr;&para;, <code>&lt;text:tab&gt;</code>&rarr;tab).</dd></div>
+<div><dt>XLSX</dt><div class="meta"><code>readUriXlsx</code></div><dd>Single-pass zip walk of <code>xl/sharedStrings.xml</code> + <code>xl/worksheets/sheet*.xml</code>, tab-separated rows, <code>[sheet N]</code> headers (spools pre-sharedStrings sheets to a cacheDir temp file).</dd></div>
+<div><dt>ODS</dt><div class="meta"><code>readUriOds</code></div><dd><code>content.xml</code> <code>&lt;table:table&gt;</code>/<code>&lt;table:table-row&gt;</code>/<code>&lt;table:table-cell&gt;</code>, tab-separated, <code>[sheet N]</code> headers.</dd></div>
+<div><dt>CSV</dt><div class="meta"><code>readUriCsv</code></div><dd>RFC-4180-ish <code>PushbackReader</code> tokenizer; comma-vs-semicolon delimiter auto-sniffed from a 1&nbsp;KB sample; detected header repeated atop each 10-row block.</dd></div>
+<div><dt>URL</dt><div class="meta"><code>fetchUrlAsText</code></div><dd>Jsoup fetch (UA <code>Mozilla/5.0 (compatible; AI-Reports-RAG/1.0)</code>, 20&nbsp;s timeout), strips <code>script/style/noscript/nav/footer/aside/header</code>, returns <code>body().text()</code>.</dd></div>
+</dl>
+
+<p class="muted">Every extractor returns <code>String.normalised()</code>:
+CRLF/CR&rarr;LF, runs of 3+ newlines collapsed to exactly 2
+(<code>Regex("\n{3,}") &rarr; "\n\n"</code>), then <code>trim()</code>.</p>
+
+<h2 id="pipeline">Pipeline: ingest &rarr; chunk &rarr; embed &rarr; retrieve</h2>
+
+<p>Driven by <code>data/KnowledgeService.kt</code>.</p>
+
+<h3>Ingest</h3>
+<p><code>indexFile</code> / <code>indexUrl</code> / <code>reindexSource</code>.
+For files, the bytes are first copied into
+<code>knowledge/&lt;kbId&gt;/files/</code> by
+<code>persistSourceLocally</code> (sibling <code>.tmp</code> +
+<code>fd.sync()</code> + <code>Files.move ATOMIC_MOVE</code>, falling
+back to a non-atomic move when unsupported) so re-index survives a
+relaunch without re-asking for the SAF permission; it returns a
+<code>file://</code> Uri. The stored name is
+<code>&lt;millis&gt;_&lt;uuid8&gt;_&lt;sanitizedDisplayName&gt;</code>
+to avoid same-millisecond collisions. Then
+<code>KnowledgeExtractors.extract</code> produces the text. Extraction
+yielding no text saves a zero-chunk source row carrying
+<code>errorMessage = "No text extracted from source"</code> so the
+failure is visible in the list rather than vanishing.</p>
+
+<h3>Chunk</h3>
+<p><code>KnowledgeChunker.chunk(text, maxCharsPerChunk = 2048,
+overlapChars = 200)</code>: split on <code>Regex("\n{2,}")</code>,
+greedily merge paragraphs until the next would push past 2048 chars
+(&sim;512 tokens at &sim;4 chars/token), carrying the last 200 chars
+(<code>takeLast</code>) of each emitted chunk into the next; a single
+paragraph longer than 2048 is hard-split by char count. Returns
+chunk-text strings only — <code>id</code>/<code>sourceId</code>/<code>ordinal</code>
+are attached later by <code>KnowledgeService</code>.</p>
+
+<h3>Embed</h3>
+<p>Batched: <code>batchSize = 1</code> for <code>"LOCAL"</code> (one
+MediaPipe <code>TextEmbedder</code> call per text), else
+<strong>32</strong> per remote <code>/v1/embeddings</code> call.
+Vectors come back <code>List&lt;Double&gt;</code> and are converted
+per chunk to <code>FloatArray</code>. <code>embeddingDim</code> is
+taken from the first vector; three validations gate the save, rather
+than persist invisible chunks that would score <code>0.0</code> on
+every future retrieval:</p>
+<ul>
+<li>a <strong>zero-dim</strong> batch errors <code>"Embedder returned
+empty vectors for &hellip;"</code>;</li>
+<li>any <strong>per-chunk dim mismatch</strong> errors <code>"Embedder
+returned dim N on chunk i (expected &hellip;)"</code>;</li>
+<li>a <strong>count mismatch</strong> (fewer vectors than chunks, e.g.
+a deduped/partial provider batch) errors <code>"Embedder returned N
+vectors for M chunks"</code> rather than throwing a cryptic
+<code>IndexOutOfBoundsException</code> when zipping the two lists.</li>
+</ul>
+
+<p>Chunks + the updated source row are written by
+<code>KnowledgeStore.saveSource</code>, which adopts the first
+source's dim and <strong>warns loudly</strong> if a later re-index
+produces a different dim: the manifest dim is retained and the source
+row is stamped with <code>needsReindexReason = "Embedding dimension
+changed from X to Y; recreate this KB"</code> (the user almost
+certainly swapped embedders mid-life and should re-create the KB).</p>
+
+<div class="callout">
+<p><strong>Remote embed dispatch</strong> — <code>repository.embed</code>
+/ <code>embedWithStatus</code> are extension functions on
+<code>AnalysisRepository</code> that live in
+<code>data/ApiDispatch.kt</code> (not in <code>AnalysisRepository.kt</code>).
+They support <strong>only</strong> <code>OPENAI_COMPATIBLE</code>
+(<code>/v1/embeddings</code> via <code>OpenAiEmbeddingRequest</code>)
+and <code>GOOGLE</code> (<code>batchEmbedContents</code>).
+<code>ANTHROPIC</code> and every other format are rejected with
+<code>"Embed dispatch only supports OpenAI-compatible and Google
+providers"</code> — so a KB whose embedder is an Anthropic model can
+never index.</p>
+</div>
+
+<h3>Retrieve</h3>
+<p><code>retrieve(kbIds, query, topK = 8, maxContextChars = 8000)</code>:</p>
+<ol>
+<li>Embed the query with the <strong>first</strong> KB's embedder (a
+warning is logged if other attached KBs declare a different
+<code>embedderProviderId</code>/<code>embedderModel</code> — the
+first's is used anyway).</li>
+<li>Convert the query vector to <code>FloatArray</code>, then stream
+every chunk of every embedder-matching KB via
+<code>KnowledgeStore.forEachChunk</code> through a bounded min-heap of
+size <code>topK * 2</code> (= 16) ordered by cosine score. KBs/chunks
+whose stored dim &ne; the query dim are <strong>skipped and
+logged</strong>, never silently zeroed.</li>
+<li>Sort survivors descending; walk them taking chunks until
+<code>maxContextChars</code> is reached, <strong>stopping at score
+&le; 0.0</strong>. Bug-42 special case: if the single top-ranked chunk
+alone overflows the empty budget it is truncated with
+<code>take(remaining)</code> rather than dropped.</li>
+</ol>
+
+<p>Returns <code>List&lt;Hit&gt;(kbId, kbName, sourceName, text,
+score)</code>. <code>formatContextBlock</code> wraps the hits in a
+<code>&lt;context&gt;&hellip;&lt;/context&gt;</code> block, with
+per-hit <code>[i] kbName / sourceName</code> headers and an
+instruction to cite the source name, returning <code>""</code> for an
+empty hit list so callers can unconditionally concatenate.</p>
+
+<h2 id="injection">Injection at API time</h2>
+
+<p>A chat or report stores its attached KBs as
+<code>knowledgeBaseIds</code> (on <code>ChatSession</code>,
+<code>Report</code>). The retrieve + format step runs per call,
+wrapped in <code>runCatching</code> so an embedder hiccup falls back
+to the bare prompt instead of killing the call.</p>
+
+<div class="card">
+<h4>Chat</h4>
+<p class="type"><code>ChatViewModel.messagesWithRag</code></p>
+<p>Retrieves against the <strong>last user message</strong>, then
+either <strong>merges</strong> the context block into the existing
+system message (preserving the user's own system prompt) or inserts a
+new system message at the head. An <strong>image-only</strong> turn
+(no text) is skipped — the text embedder has nothing to query on. The
+whole flow runs inside <code>flow { &hellip; }.flowOn(Dispatchers.IO)</code>
+so the embedder + cosine sweep never block the collector (usually
+main) thread; a side <code>recordRagEmbeddingUsage</code> logs the
+query's token cost against the KB's embedder under usage-kind
+<code>"chat/rag"</code>. This applies to the on-device-LLM chat path
+(<code>sendLocalLlmStream</code>) too.</p>
+</div>
+
+<div class="card">
+<h4>Report</h4>
+<p class="type"><code>AnalysisRepository.analyzeWithAgent</code> / <code>analyzeWithAgentStreaming</code></p>
+<p>Builds a <code>ragPrefix</code> when <code>knowledgeBaseIds</code>
+is non-empty and a <code>context</code> + <code>aiSettings</code> are
+present, then prepends it to the built prompt via
+<code>withRagPrefix</code> (the block just before the
+<code>agent.provider.id == AppService.LOCAL.id</code> fork in
+<code>data/AnalysisRepository.kt</code>). Both the LOCAL and the
+remote dispatch arms wrap <code>buildPrompt(&hellip;)</code> with the
+same prefix.</p>
+</div>
+
+<div class="callout">
+<p>Because injection keys off the stored <code>knowledgeBaseIds</code>,
+an already-attached KB keeps feeding context even when the
+Experimental-features toggle has hidden every attach button.
+Per-report export bundles strip <code>knowledgeBaseIds</code> to empty
+on export — the KB blobs are not packed; see
+<a href="backup-restore.html">backup-restore</a>.</p>
+</div>
+
+<h2 id="on-disk">On disk</h2>
+
+<p>Under <code>&lt;filesDir&gt;/</code> (see
+<a href="persistent.html">persistent</a>):</p>
+
+<ul class="tree">
+<li><strong>knowledge/&lt;kbId&gt;/</strong>
+  <ul>
+    <li>manifest.json <span class="note">&mdash; KnowledgeBase + its sources</span></li>
+    <li>chunks/&lt;sourceId&gt;.json <span class="note">&mdash; JSON array of KnowledgeChunk</span></li>
+    <li>files/&lt;unique&gt; <span class="note">&mdash; locally-cached copy of a file source</span></li>
+  </ul>
+</li>
+</ul>
+
+<p>One chunk file per source keeps add/remove/re-index cheap (no
+full-KB rewrite). <code>forEachChunk</code> parses one source file at
+a time and lets the decoded array go out of scope between files, so
+peak heap during retrieval is bounded by the largest single source's
+chunks plus the top-K heap — never the whole KB. It streams each file
+straight into Gson (no whole-file <code>String</code>), <strong>skips
+an unreadable chunk file</strong> with a logged warning instead of
+aborting the KB, and wraps each chunk's <code>block(&hellip;)</code>
+in a per-chunk <code>try</code> so one corrupt chunk (e.g. a null
+embedding) drops only itself, not the rest of that source.</p>
+
+<p><code>KnowledgeStore</code> is an <code>object</code> whose
+mutators serialise their manifest read-modify-write under a shared
+<code>ReentrantLock</code>. Both <code>kbId</code> and
+<code>sourceId</code> pass <code>isSafeKbId</code>/<code>isSafeSourceId</code>
+(reject blank, <code>.</code>, <code>..</code>, <code>/</code>,
+<code>\</code>; <code>kbId</code> also rejects the NUL character)
+<strong>and</strong> a canonical-containment check (the resolved
+dir's canonical path must start with the root's canonical path +
+separator) before any file op, so a malformed or restored manifest
+cannot write outside the <code>knowledge/</code> root.
+<code>resolveKbDir</code> is the public validated-root accessor used
+by <code>persistSourceLocally</code>.</p>
+
+<div class="callout">
+<p>The separate <code>&lt;filesDir&gt;/embeddings/</code> directory
+belongs to <code>EmbeddingsStore</code>'s per-document
+report-embedding cache — <strong>not</strong> KB chunks, which live
+under <code>knowledge/</code>. The <code>local_llms</code>/
+<code>local_models</code>/<code>native</code>/<code>applog</code>
+dirs are excluded from backups, but <code>knowledge/</code> is
+<strong>included</strong>.</p>
+</div>
+
+<h2 id="files">Files</h2>
+
+<dl class="kv">
+<div><dt>data/Knowledge.kt</dt><dd><code>KnowledgeSourceType</code>, <code>KnowledgeSource</code>, <code>KnowledgeBase</code>, <code>KnowledgeChunk</code></dd></div>
+<div><dt>data/KnowledgeExtractors.kt</dt><dd>All nine private extractor functions + <code>KnowledgeChunker</code></dd></div>
+<div><dt>data/KnowledgeService.kt</dt><dd>Ingest / chunk / embed / retrieve orchestration, <code>Hit</code>, <code>formatContextBlock</code></dd></div>
+<div><dt>data/KnowledgeStore.kt</dt><dd>Manifest + chunk-file persistence, path-safety checks, <code>forEachChunk</code></dd></div>
+<div><dt>data/EmbeddingsStore.kt</dt><dd><code>cosine(FloatArray, FloatArray)</code> hot path + the separate boxed <code>List&lt;Double&gt;</code> overload</dd></div>
+<div><dt>data/ApiDispatch.kt</dt><dd><code>AnalysisRepository.embed</code> / <code>embedWithStatus</code> extensions</dd></div>
+<div><dt>data/AnalysisRepository.kt</dt><dd>The <code>ragPrefix</code> / <code>withRagPrefix</code> report-injection block</dd></div>
+<div><dt>viewmodel/ChatViewModel.kt</dt><dd><code>messagesWithRag</code>, <code>recordRagEmbeddingUsage</code></dd></div>
+<div><dt>ui/knowledge/KnowledgeScreens.kt</dt><dd><code>NewKnowledgeBaseScreen</code> + the KB manage/attach UI</dd></div>
+<div><dt>ui/hub/HubScreens.kt</dt><dd>The "AI Knowledge" Hub card's double gate</dd></div>
+</dl>
+
+<p class="muted">See also: <a href="experimental.html">experimental</a>
+(the master toggle) &middot; <a href="local-runtime.html">local-runtime</a>
+(the on-device <code>LocalEmbedder</code> used when
+<code>embedderProviderId == "LOCAL"</code>) &middot;
+<a href="datastructures.html">datastructures</a> (full field tables)
+&middot; <a href="persistent.html">persistent</a> (on-disk layout)
+&middot; <a href="api-formats.html">api-formats</a> (the embed
+dispatch split) &middot; <a href="share-target.html">share-target</a>
+(<code>ACTION_SEND</code> ingest that pre-stages a file/URL into a
+KB).</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

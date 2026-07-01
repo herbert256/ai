@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>UI Customization — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>UI Customization</span></header>
+<main>
+
+<h1>UI Customization</h1>
+
+<p>Two app-wide visual systems the user can edit: <strong>UI Colors</strong>
+(<code>AppColors</code>, <code>ui/shared/AppColors.kt</code>) and
+<strong>Default icons</strong> (<code>MetadataIcons</code>,
+<code>data/MetadataDefaults.kt</code>). Both persist in the main
+<code>eval_prefs</code> file and ride through backup + settings
+import/export.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#overview">The three settings screens</a></li>
+<li><a href="#app-home">App home (Home-bar mode)</a></li>
+<li><a href="#ui-colors">UI Colors — two palettes + a mode</a></li>
+<li><a href="#editor">The UI Colors editor</a></li>
+<li><a href="#roles">Configurable roles</a></li>
+<li><a href="#aliases">Aliases</a></li>
+<li><a href="#default-icons">Default icons — MetadataIcons</a></li>
+<li><a href="#icons-editor">The Default icons editor</a></li>
+<li><a href="#icons-catalog">Icon categories</a></li>
+<li><a href="#files">Files</a></li>
+</ul>
+</nav>
+
+<h2 id="overview">The three settings screens</h2>
+
+<p>All under <strong>Settings</strong>; two-tier navigation via
+<code>SettingsSubScreen</code> (<code>ui/settings/SettingsScreen.kt</code>).</p>
+
+<dl class="kv">
+<div>
+<dt>UI tweaks</dt>
+<div class="meta"><code>SETTINGS_UI</code> &middot; help topic <code>settings_ui</code></div>
+<dd>App home, Model-name layout, Experimental features (+ Show
+Knowledge card), Full screen (default on), Show Ladybug icons.</dd>
+</div>
+<div>
+<dt>UI Colors</dt>
+<div class="meta"><code>SETTINGS_UI_COLORS</code> &middot; help topic <code>settings_ui_colors</code></div>
+<dd><strong>Colors mode</strong> (Day / Night / Auto) at the top, then
+the Day and Night colour sets (<code>AppColors</code> role overrides).</dd>
+</div>
+<div>
+<dt>Default icons</dt>
+<div class="meta"><code>SETTINGS_DEFAULT_ICONS</code> &middot; help topic <code>settings_default_icons</code></div>
+<dd>Every fallback / bottom-bar emoji (<code>MetadataIcons</code>).</dd>
+</div>
+</dl>
+
+<div class="callout">
+<p>A fourth screen, <strong>Metadata &amp; icons</strong>
+(<code>SETTINGS_METADATA</code>, help topic <code>settings_metadata</code>),
+is <em>generation</em> configuration — the master switch and per-item
+toggles for whether the app generates report / model icons, titles and
+languages at all. That's covered in <a href="report-icons.html">report-icons</a>,
+not here: generated icons on a report/secondary row always win over the
+Default-icons fallbacks documented on this page.</p>
+</div>
+
+<h2 id="app-home">App home (Home-bar mode)</h2>
+
+<p>The first card on <strong>UI tweaks</strong>. Persisted as
+<code>GeneralSettings.appHomeMode</code> (enum <code>AppHomeMode</code>,
+<code>viewmodel/AppViewModelTypes.kt</code>, pref key <code>app_home</code>,
+default <code>HOME_BAR</code>). It's a navigation/layout choice rather
+than a colour/glyph edit, but it shares the screen and reads the same
+glyph set as everything below:</p>
+
+<ul>
+<li><code>HOME_BAR</code> (default) &mdash; a persistent top icon strip
+(<code>HomeIconBar</code>, <code>ui/shared/SharedComponents.kt</code>) on
+app screens; Home opens the latest report (or First launch).</li>
+<li><code>HOME_SCREEN</code> &mdash; the classic large-card Hub.</li>
+</ul>
+
+<p>That strip and the per-screen <code>BottomIconBar</code> /
+<code>ViewBottomBar</code> draw their glyphs from the same
+<code>MetadataIcons</code> set documented below — editing a Default icon
+repaints them too.</p>
+
+<h2 id="ui-colors">UI Colors — two palettes + a mode</h2>
+
+<p><code>AppColors</code> is the single source for the shared colours
+used by cards, buttons, text, borders, badges and status accents. Each
+role is a Compose <code>mutableStateOf</code> with a private setter; the
+rest of the app reads <code>AppColors.&lt;Role&gt;</code> and recomposes
+when the theme repaints.</p>
+
+<p>Two complete factory palettes, both keyed by the same 18 role names:</p>
+<ul>
+<li><code>AppColors.DefaultUiColorArgb</code> &mdash; the <strong>Night</strong>
+(dark) base. Black background, light text. The original palette.</li>
+<li><code>AppColors.DefaultUiColorArgbDay</code> &mdash; the
+<strong>Day</strong> (light) counterpart. Off-white background, dark
+text, accents re-tuned for a light surface.</li>
+</ul>
+
+<p>Each set has its own per-key override map, persisted separately:</p>
+
+<dl class="kv">
+<div><dt>ui_color_overrides</dt><div class="meta">JSON <code>Map&lt;String, Int&gt;</code></div><dd>the <strong>Night</strong> set's per-role overrides</dd></div>
+<div><dt>ui_color_overrides_day</dt><div class="meta">JSON <code>Map&lt;String, Int&gt;</code></div><dd>the <strong>Day</strong> set's per-role overrides</dd></div>
+<div><dt>ui_color_mode</dt><div class="meta"><code>UiColorMode</code> name, default <code>NIGHT</code></div><dd>which set the app paints</dd></div>
+<div><dt>ui_card_background_argb</dt><div class="meta">legacy Int</div><dd>mirror of the Night <code>CardBackgroundAlt</code> override</dd></div>
+<div><dt>ui_button_background_argb</dt><div class="meta">legacy Int</div><dd>mirror of the Night <code>ButtonBackground</code> override</dd></div>
+</dl>
+
+<p>Both maps store missing keys implicitly — a role absent from the map
+falls back to that set's factory default, so the persisted JSON only
+ever carries the keys the user actually changed. Values are Android
+ARGB ints, e.g. <code>{ "CardBackgroundAlt": -14009526, "InfoAccent":
+-9651457 }</code>.</p>
+
+<p><code>UiColorMode</code> (<code>viewmodel/AppViewModelTypes.kt</code>)
+has three values, picked at the <strong>top of the UI Colors</strong>
+screen ("Colors mode" card):</p>
+<ul>
+<li><code>DAY</code> &mdash; always paint the Day set.</li>
+<li><code>NIGHT</code> &mdash; always paint the Night set (default).</li>
+<li><code>AUTO</code> &mdash; follow the Android system day/night
+setting (<code>AppColors.isDayActive(mode, systemDark)</code>).</li>
+</ul>
+
+<h3>How the live theme is painted</h3>
+
+<p><code>AppNavHost</code> runs a <code>SideEffect</code> that repaints
+<code>AppColors</code> from the live settings on every relevant change:</p>
+
+<pre><code>AppColors.applyTheme(
+    dayOverrides   = generalSettings.uiColorOverridesDay,
+    nightOverrides = night,   // uiColorOverrides + legacy card/button mirrors
+    mode           = generalSettings.uiColorMode,
+    systemDark     = isSystemInDarkTheme(),
+)</code></pre>
+
+<p><code>applyTheme</code> resolves Day-vs-Night via
+<code>isDayActive</code>, then <code>applyResolved(day, overrides)</code>
+layers the chosen override map over that set's factory base and writes
+each role's <code>mutableStateOf</code>. <code>normalizeUiColorOverrides</code>
+runs on the Night map first so legacy hue aliases and the
+<code>ui_card_background_argb</code> / <code>ui_button_background_argb</code>
+mirrors are folded in.</p>
+
+<p class="muted">The UI Colors screen nests its own
+<code>SideEffect</code> below the <code>AppNavHost</code> one, so while
+it's open it previews the set currently being edited
+(<code>AppColors.applyResolved(editingDay, editing)</code>); leaving the
+screen lets the <code>AppNavHost</code> effect restore the active
+Colors-mode theme on the next recomposition.</p>
+
+<h2 id="editor">The UI Colors editor</h2>
+
+<p>The screen header has a <strong>Day &#9728;&#65039; / Night
+&#127769; segmented switch</strong> that chooses <em>which set the cards
+edit and preview</em> — independent of Colors mode above, which governs
+what the app actually paints. The &#129371; title-bar action clears the
+currently-edited set back to its factory default
+(<code>setEditing(emptyMap())</code>).</p>
+
+<p>Each role is a collapsible card. Collapsed: role name, current hex, a
+swatch. Expanded:</p>
+<ul>
+<li>a 48&nbsp;dp swatch,</li>
+<li>a <strong>Hex</strong> text field (<code>#RRGGBB</code>, validated;
+invalid input flags the field but doesn't write),</li>
+<li>a <strong>Default</strong> button resetting that role to the
+factory value <em>for the set being edited</em>,</li>
+<li><strong>Red / Green / Blue</strong> 0&ndash;255 sliders,</li>
+<li>a <strong>Usage</strong> button opening a source-derived "where is
+this colour used" screen.</li>
+</ul>
+<p>Edits autosave (250&nbsp;ms debounce + an <code>onDispose</code> flush).</p>
+
+<h3>Combined rows</h3>
+
+<p>The editor does <strong>not</strong> present one card per
+<code>AppColors</code> key — a few keys are folded so the user sees
+fewer, more meaningful controls. One card writes the same value to
+every key it represents (<code>UiColorPickerSpec.key</code> +
+<code>alsoSet</code>):</p>
+
+<dl class="kv">
+<div><dt>Accent</dt><dd>writes <code>PrimaryAccent</code> + <code>InfoAccent</code></dd></div>
+<div><dt>Card Background</dt><dd>writes <code>CardBackgroundAlt</code> + <code>CardBackground</code></dd></div>
+</dl>
+
+<p>Every other role is a standalone card. Card order is an explicit
+importance order (backgrounds &amp; titles &rarr; text &rarr; card
+&rarr; button &rarr; accents &rarr; minor surfaces &rarr; border); any
+newly-added <code>AppColors</code> key is auto-appended so a future role
+can't silently lose its editor.</p>
+
+<h3>The "Usage" screen</h3>
+
+<p>Each card's <strong>Usage</strong> button opens
+<code>ColorUsageScreen</code>, listing every <code>AppColors.&lt;role&gt;</code>
+reference in the source — screen, code location, coloured element/role.
+Backed by <code>ColorUsageData</code> (<code>data/ColorUsageData.kt</code>),
+a <strong>build-time static scan</strong> of the source (a
+<code>GENERATED_AT</code> timestamp is shown at the top) — not computed
+at runtime, so it can drift as the code changes. Alias accessors fold
+into their canonical key; a combined card's Usage screen unions the keys
+it represents.</p>
+
+<h2 id="roles">Configurable roles</h2>
+
+<p>The 18 factory keys (identical for both sets) and what each drives:</p>
+
+<dl class="kv">
+<div><dt>AppBackground</dt><div class="meta">card: App Background</div><dd>Full-screen background behind every screen and the Android system bars.</dd></div>
+<div><dt>MainTitle</dt><div class="meta">card: Main Title</div><dd>Main text in the shared title bar.</dd></div>
+<div><dt>SubTitle</dt><div class="meta">card: Sub Title</div><dd>Subtitle text below the main title.</dd></div>
+<div><dt>PrimaryAccent</dt><div class="meta">card: Accent (combined)</div><dd>Primary action / user-side accent; focused field border.</dd></div>
+<div><dt>InfoAccent</dt><div class="meta">card: Accent (combined)</div><dd>Secondary/detail accents, headings, links, selected states, totals, focused fields.</dd></div>
+<div><dt>SuccessAccent</dt><div class="meta">card: Success</div><dd>Success states and success-count highlights.</dd></div>
+<div><dt>DangerAccent</dt><div class="meta">card: Error</div><dd>Error, danger, delete, destructive-action colours; "real" pricing.</dd></div>
+<div><dt>WarningAccent</dt><div class="meta">card: Warning</div><dd>Warning, caution, running, reload, throttled, in-progress highlights.</dd></div>
+<div><dt>QueueAccent</dt><div class="meta">card: Queue Accent</div><dd>Queued and alternate worker/category highlights.</dd></div>
+<div><dt>SurfaceDark</dt><div class="meta">card: Surface Dark</div><dd>Primary dark app surface / dense surfaces.</dd></div>
+<div><dt>CardBackground</dt><div class="meta">card: Card Background (combined)</div><dd>Darker dense card panels.</dd></div>
+<div><dt>CardBackgroundAlt</dt><div class="meta">card: Card Background (combined)</div><dd>Monitor / Housekeeping gray-blue card surface.</dd></div>
+<div><dt>ButtonBackground</dt><div class="meta">card: Button Background</div><dd>Neutral outlined-button fill.</dd></div>
+<div><dt>DisabledBackground</dt><div class="meta">card: Disabled Background</div><dd>Disabled / unavailable surface fill.</dd></div>
+<div><dt>SelectionHighlight</dt><div class="meta">card: Selection Highlight</div><dd>Muted selected-state backgrounds.</dd></div>
+<div><dt>TextPrimary</dt><div class="meta">card: Text Primary</div><dd>Primary text; pricing-badge text.</dd></div>
+<div><dt>TextSecondary</dt><div class="meta">card: Text Secondary</div><dd>Secondary and helper/tertiary text.</dd></div>
+<div><dt>TextDim</dt><div class="meta">card: Text Dimmed</div><dd>Low-emphasis, disabled, very-dim, darkest text.</dd></div>
+<div><dt>BorderUnfocused</dt><div class="meta">card: Border</div><dd>Subtle dividers, unfocused field/swatch borders.</dd></div>
+</dl>
+
+<h2 id="aliases">Aliases</h2>
+
+<p>Many <code>AppColors</code> properties are read-only semantic aliases
+that <em>get</em> their value from a canonical role, so older call
+sites keep a meaningful name while the user edits a single setting:</p>
+
+<dl class="kv">
+<div><dt>SecondaryAccent, BorderInfoFocused</dt><dd>read <code>InfoAccent</code></dd></div>
+<div><dt>SuccessCountAccent, StatusOk</dt><dd>read <code>SuccessAccent</code></dd></div>
+<div><dt>ErrorAccent, DestructiveActionBackground, StatusError, PricingReal</dt><dd>read <code>DangerAccent</code></dd></div>
+<div><dt>CautionAccent</dt><dd>reads <code>WarningAccent</code></dd></div>
+<div><dt>BorderFocused</dt><dd>reads <code>PrimaryAccent</code></dd></div>
+<div><dt>TextTertiary</dt><dd>reads <code>TextSecondary</code></dd></div>
+<div><dt>TextDisabled, TextVeryDim, TextDarkest, StatusNotUsed, PricingDefault</dt><dd>read <code>TextDim</code></dd></div>
+<div><dt>DividerDark</dt><dd>reads <code>BorderUnfocused</code></dd></div>
+<div><dt>StatusInactive</dt><dd>reads <code>TextTertiary</code> &rarr; <code>TextSecondary</code></dd></div>
+</dl>
+
+<div class="callout">
+<p><strong>Legacy aliases on load</strong> &mdash;
+<code>normalizeUiColorOverrides</code> (Night-set only) also accepts
+older saved keys so an upgrade keeps a user's prior colours: the old
+hue names (<code>Purple</code>, <code>Indigo</code>, <code>Blue</code>,
+<code>Green</code>, <code>Red</code>, <code>Orange</code>,
+<code>Yellow</code>, <code>Brown</code>, &hellip;) and a handful of
+older role names (<code>SecondaryAccent</code>,
+<code>SuccessCountAccent</code>, <code>ErrorAccent</code>,
+<code>DestructiveActionBackground</code>, <code>CautionAccent</code>,
+<code>TextTertiary</code>, <code>TextDisabled</code>,
+<code>DividerDark</code>, <code>IndigoHighlight</code>) map onto the
+functional keys. Import/load fallbacks only — new saves use the
+functional names. A missing <code>SubTitle</code> override is also
+seeded from a legacy <code>WarningAccent</code> / <code>Orange</code>
+value if present (the subtitle used to share the warning hue).</p>
+</div>
+
+<h2 id="default-icons">Default icons — MetadataIcons</h2>
+
+<p>The app doesn't hard-code its user-visible action/fallback emoji at
+call sites. Factory glyph constants live in the <code>MetadataDefaults</code>
+object; the editable live set is the <strong><code>MetadataIcons</code></strong>
+data class (172 <code>String</code> fields), persisted as
+<strong>one <code>metadata_icons</code> JSON blob</strong> serialised
+onto <code>GeneralSettings</code> — not separate per-field
+<code>eval_prefs</code> entries.</p>
+
+<h3>Two read paths, kept in sync</h3>
+<ul>
+<li><strong>Composable</strong> code reads
+<code>LocalMetadataIcons.current</code> (<code>ui/shared/SharedComponents.kt</code>),
+provided from the live settings.</li>
+<li><strong>Non-composable</strong> helpers and <code>when</code>-expression
+sites read <code>MetadataIconsHolder.current</code> (<code>data/MetadataDefaults.kt</code>),
+which an <code>AppNavHost</code> <code>SideEffect</code> assigns from the
+live settings on every change.</li>
+</ul>
+
+<p>Many shared components are passed a hard-coded factory glyph (e.g.
+<code>MetadataDefaults.PALETTE</code>) and remap it through
+<code>MetadataIcons.forFactoryGlyph(factoryGlyph)</code> — it looks the
+factory constant up in <code>factoryGlyphMap()</code> and returns the
+live glyph (or the factory glyph unchanged if untouched).
+<code>iconizedText(text)</code> does the same replacement across an
+entire string. This is what lets one edit on the Default icons screen
+propagate everywhere, including the home strip and bottom action bars
+(<code>HomeIconBar</code> / <code>buildBottomBarIcons</code> /
+<code>BottomIconBar</code> / <code>ViewBottomBar</code>).</p>
+
+<p class="muted"><code>MetadataIcons.sanitized()</code> backfills any
+field left null (older stored JSON predating it) or blank with its
+factory default. Gson allocates the object without calling the Kotlin
+constructor, so absent fields load as null; every load site (settings
+load, import) runs <code>sanitized()</code> so the bars never draw a
+null/blank glyph.</p>
+
+<h2 id="icons-editor">The Default icons editor</h2>
+
+<p><code>DefaultIconsSubScreen</code> is <strong>always reachable</strong>,
+independent of the Metadata master switch, because the report/result
+fallbacks render on view screens regardless. Every editable glyph is
+grouped into <strong>18 collapsible category cards</strong>
+(<code>DEFAULT_ICON_SECTIONS</code>, 171 editable rows &mdash; see
+<a href="#icons-catalog">below</a>).</p>
+
+<p>A collapsed category previews every glyph it contains (emoji only, no
+labels, wrapping). Expanded, each row offers:</p>
+<ul>
+<li>the item label,</li>
+<li>an editable text field (type or paste any emoji),</li>
+<li><strong>&#128269;</strong> &mdash; opens the AndroidX
+<code>EmojiPickerView</code> in a bottom sheet; the pick is written into
+the field,</li>
+<li><strong>&#129302;</strong> &mdash; the AI icon finder: asks models
+for a fitting emoji (editable prompt) and lets you pick one,</li>
+<li><strong>&#128205;</strong> &mdash; a per-icon <strong>Usage</strong>
+screen showing where that glyph is drawn in the source (<code>IconUsageData</code>,
+a build-time scan sibling to <code>ColorUsageData</code>).</li>
+</ul>
+
+<p>Edits autosave (debounced + <code>onDispose</code> flush). A blank
+field falls back to its factory default on save
+(<code>normalized()</code> walks the same row table the UI renders). The
+&#129371; title-bar action resets <strong>all</strong> icons to factory
+(<code>MetadataIcons()</code>).</p>
+
+<h2 id="icons-catalog">Icon categories</h2>
+
+<p>The 18 <code>DEFAULT_ICON_SECTIONS</code> groups. Expand a category to
+see every item label it edits.</p>
+
+<details class="entity">
+<summary>Report<span class="badge">2</span></summary>
+<div class="body"><p>Report, Report model &mdash; the fallback glyphs drawn
+when a report/response has no AI-generated icon of its own
+(<code>reportIcon</code>, <code>reportModelIcon</code>).</p></div>
+</details>
+
+<details class="entity">
+<summary>Secondary results<span class="badge">8</span></summary>
+<div class="body">
+<p>Rerank, Moderate, Meta, Tournament, Judges, Compare, Fan out, Fan in.</p>
+<p class="muted"><code>MetadataIcons.forKind(kind)</code> maps each of
+the 8 <code>SecondaryKind</code> values (<code>RERANK</code>,
+<code>META</code>, <code>MODERATION</code>, <code>TRANSLATE</code>,
+<code>TOURNAMENT</code>, <code>JUDGES</code>, <code>COMPARE</code>,
+<code>TRANSRANK</code>) to its glyph. <code>fanOutRow</code> /
+<code>fanInRow</code> are separate non-<code>SecondaryKind</code> row
+glyphs.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Translation<span class="badge">3</span></summary>
+<div class="body"><p>Language, Translation row, Translation compare
+(<code>languageIcon</code>, <code>translationRow</code> for
+<code>TRANSLATE</code>, <code>translationCompare</code>). See
+<a href="translation.html">translation</a>.</p></div>
+</details>
+
+<details class="entity">
+<summary>Monitor bar<span class="badge">5</span></summary>
+<div class="body"><p>Live dashboard, Traces, App log, Audit, Statistics
+(monitor).</p></div>
+</details>
+
+<details class="entity">
+<summary>Create &amp; chat<span class="badge">6</span></summary>
+<div class="body"><p>Add / new, Chat, Agent chat, Temperature sweep,
+Reasoning sweep, Web-search replay.</p></div>
+</details>
+
+<details class="entity">
+<summary>Navigation<span class="badge">7</span></summary>
+<div class="body"><p>Pick report, Import report, Open manage, Housekeeping,
+Settings, Statistics, Info.</p></div>
+</details>
+
+<details class="entity">
+<summary>Configuration<span class="badge">5</span></summary>
+<div class="body"><p>Parameters, System prompt, Clear, Attach, Validate
+prompt.</p></div>
+</details>
+
+<details class="entity">
+<summary>Report actions<span class="badge">5</span></summary>
+<div class="body"><p>Copy, Pin, Toggle labels, Share, Duplicate.</p></div>
+</details>
+
+<details class="entity">
+<summary>Item actions<span class="badge">7</span></summary>
+<div class="body"><p>View, Memo, Add note, List notes, Edit, Reload,
+Delete.</p></div>
+</details>
+
+<details class="entity">
+<summary>View bar &amp; help<span class="badge">4</span></summary>
+<div class="body"><p>Show all, Show one, Help (<code>help</code> &#10067;),
+Icons help (<code>helpLegend</code> &#10068;).</p></div>
+</details>
+
+<details class="entity">
+<summary>Status &amp; progress<span class="badge">18</span></summary>
+<div class="body"><p>Done, Failed, Pending, Paused, Stopped, Alarm,
+Blocked, Locked, Warning, Warning (plain), Hot, Clock, Clock (queued),
+Clock (recent), Sleep / inactive, No entry, Snowflake, Roadblock,
+Explosion.</p></div>
+</details>
+
+<details class="entity">
+<summary>Marks &amp; ranks<span class="badge">9</span></summary>
+<div class="body"><p>Check, Cross, Close, Checkbox on, Checkbox off, Blank
+box, Gold medal, Silver medal, Bronze medal.</p></div>
+</details>
+
+<details class="entity">
+<summary>Arrows<span class="badge">9</span></summary>
+<div class="body"><p>Arrow up, Arrow right, Arrow down, Arrow back, Arrow
+forward, Submit arrow, Caret expanded, Caret collapsed, Minus.</p></div>
+</details>
+
+<details class="entity">
+<summary>Search &amp; files<span class="badge">13</span></summary>
+<div class="body"><p>Agent / AI, AI find, Web / remote, Lookup, Search, Open
+folder, Label, Bookmark, Notepad, Document, Package, Plug, Key.</p></div>
+</details>
+
+<details class="entity">
+<summary>Content &amp; media<span class="badge">18</span></summary>
+<div class="body"><p>World, Chart, Cyclone, Library, Book, Image, Mail,
+Speech, Gem, Tip, Camera, Gift, Rocket, Home, Save, Cloud, Building
+blocks, Groupings, GitHub.</p></div>
+</details>
+
+<details class="entity">
+<summary>Cost<span class="badge">4</span></summary>
+<div class="body"><p>Cost, Dollar, Spend, Cash.</p></div>
+</details>
+
+<details class="entity">
+<summary>Workers &amp; tools<span class="badge">22</span></summary>
+<div class="body"><p>Swarm, Batch workers, Flock, Fan-in knot, Feather,
+Tools, Toolbox, Puzzle, Palette, Test, Worker, Sparkles, Ruler, Straight
+ruler, Shuffle, Repeat, Hide, Shield, Microscope, Controls, Sliders,
+Magic.</p></div>
+</details>
+
+<details class="entity">
+<summary>Devices &amp; misc<span class="badge">24</span></summary>
+<div class="body"><p>Device, Computer, Satellite, Hugging Face, Green
+circle, White circle, Red circle, Orange circle, Blue circle, Sun,
+Calendar, Spiral calendar, Runner, Fog, Bento, Number input, Symbols,
+Handshake, Blue diamond, Group, Bolt, Health, Slow, Coffin.</p></div>
+</details>
+
+<div class="callout">
+<p>One field is carried by <code>MetadataIcons</code> but
+<strong>not</strong> surfaced as an editor row (absent from
+<code>DEFAULT_ICON_SECTIONS</code>): <code>translatorRank</code>
+&#127941;. It's still persisted, sanitized and backed up like every
+other field, and the action bars draw it via <code>forFactoryGlyph</code>
+/ <code>forKind</code> — it just can't be re-skinned on the Default
+icons screen yet. (The old <code>reportModels</code> &#9851; field was
+removed along with the models-as-workers toggle; the Manage
+&#128119; worker-config action uses the editable <code>worker</code> glyph.)</p>
+</div>
+
+<p>Generated metadata icons on a report or secondary row still win over
+these defaults — the defaults are only the fallback when a row has no
+generated icon of its own, and they back the app's action bars and
+navigation cards regardless.</p>
+
+<h2 id="files">Files</h2>
+
+<dl class="kv">
+<div><dt>ui/shared/AppColors.kt</dt><dd>The <code>AppColors</code> object: two factory palettes, <code>UiColorMode</code> resolution, <code>applyTheme</code> / <code>applyResolved</code>, alias accessors, <code>normalizeUiColorOverrides</code>.</dd></div>
+<div><dt>data/MetadataDefaults.kt</dt><dd><code>MetadataDefaults</code> factory constants, the <code>MetadataIcons</code> data class, <code>MetadataIconsHolder</code>, <code>forFactoryGlyph</code> / <code>iconizedText</code> / <code>sanitized</code>.</dd></div>
+<div><dt>data/ColorUsageData.kt, data/IconUsageData.kt</dt><dd>Build-time source scans behind the colour / icon <strong>Usage</strong> screens.</dd></div>
+<div><dt>ui/settings/SettingsScreen.kt</dt><dd>The <strong>UI tweaks</strong>, <strong>UI Colors</strong> and <strong>Default icons</strong> sub-screens (<code>UiTweaksSubScreen</code>, <code>UiColorsSubScreen</code>, <code>DefaultIconsSubScreen</code>), <code>DEFAULT_ICON_SECTIONS</code>, and their <code>SettingsSubScreen</code> routing.</dd></div>
+<div><dt>ui/navigation/AppNavHost.kt</dt><dd>The <code>SideEffect</code> that paints the theme (<code>AppColors.applyTheme</code>) and keeps <code>MetadataIconsHolder.current</code> / <code>LocalMetadataIcons</code> in sync.</dd></div>
+<div><dt>ui/shared/SharedComponents.kt</dt><dd><code>LocalMetadataIcons</code> and the bottom-bar render sites.</dd></div>
+<div><dt>viewmodel/AppViewModelTypes.kt</dt><dd><code>UiColorMode</code>, <code>AppHomeMode</code>, and the <code>GeneralSettings</code> colour/icon fields.</dd></div>
+</dl>
+
+<p class="muted">See also <a href="persistent.html">persistent</a> (every
+prefs key), <a href="datastructures.html#viewmodel-state">datastructures
+&middot; ViewModel state</a> (the <code>GeneralSettings</code> fields),
+<a href="report-icons.html">report-icons</a> (generated icons vs these
+fallbacks, and the Metadata master switch), and
+<a href="backup-restore.html">backup-restore</a> (how these settings ride
+in a backup).</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Value view — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Value view</span></header>
+<main>
+
+<h1>Value view — cost &times; quality frontier</h1>
+
+<p>Plots every successful model in a report on a cost &times; quality
+plane and marks the <strong>best-value</strong> model and the
+<strong>Pareto frontier</strong>: which model gives the most quality
+for the least money? It's a <strong>pure local derivation</strong> —
+no API calls. Both inputs already sit on disk: each agent's recorded
+cost, and a per-model <strong>ranking</strong> chosen with a chip
+switch. Everything lives in <code>ui/report/view/ValueView.kt</code>
+(~1090 lines).</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#inputs">What feeds it</a></li>
+<li><a href="#opening">Opening it</a></li>
+<li><a href="#switch">The ranking-source switch</a></li>
+<li><a href="#quality">Quality per source</a></li>
+<li><a href="#combined">Combined score + ranking weights</a></li>
+<li><a href="#cost-axis">Cost axis + fan-out fold-in</a></li>
+<li><a href="#pareto">Pareto frontier + best value</a></li>
+<li><a href="#chart">The scatter chart</a></li>
+<li><a href="#fullscreen">Full-screen graph</a></li>
+<li><a href="#list">The list below the chart</a></li>
+<li><a href="#recompute">Recomputation &amp; persistence</a></li>
+<li><a href="#files">Related files</a></li>
+</ul>
+</nav>
+
+<h2 id="inputs">What feeds it</h2>
+
+<dl class="kv">
+<div><dt>Per-agent cost</dt><div class="meta"><code>report.agents[*].cost</code> (or <code>inputCost + outputCost</code>)</div><dd>The X (cost) axis.</dd></div>
+<div><dt>Fan-out response cost</dt><div class="meta"><code>META</code> rows with <code>fanOutSourceAgentId != null</code></div><dd>Folded into X when the fan-out scope matches (below).</dd></div>
+<div><dt>Rerank</dt><div class="meta">newest <code>RERANK</code> <code>SecondaryResult.content</code> &rarr; <code>parseRerankRows</code></div><dd>A ranking source.</dd></div>
+<div><dt>Judge the judges</dt><div class="meta"><code>JUDGES</code> cells &rarr; <code>judgesConsensusWinMatrix</code> &rarr; Copeland</div><dd>A ranking source.</dd></div>
+<div><dt>Rank the translators</dt><div class="meta"><code>TRANSRANK</code> cells &rarr; <code>aggregateTranslatorRanks</code></div><dd>One source per language.</dd></div>
+<div><dt>Compare with meta</dt><div class="meta">latest <code>COMPARE</code> cell group (by <code>compareRunId</code>) &rarr; mean <code>percent</code> per agent</div><dd>A ranking source.</dd></div>
+<div><dt>Tournament</dt><div class="meta">newest <code>TOURNAMENT</code> AGGREGATE row's <code>tournamentMatrix</code> &rarr; <code>decodeTournamentMatrix</code></div><dd>The Total plus each of the 7 methods.</dd></div>
+<div><dt>Ranking weights</dt><div class="meta"><code>GeneralSettings.rankingWeights</code> (Settings &rarr; Ranking weights)</div><dd>The Combined blend.</dd></div>
+</dl>
+
+<p>All ranking scores are <strong>the ranking's own real score</strong>
+(Rerank 0–100, Elo ~1500, Copeland win-rate, Combined 0–1000, …) —
+never a rank position. The Y axis auto-scales to whatever range the
+selected source produces.</p>
+
+<h2 id="opening">Opening it</h2>
+
+<p>The Value view is a tile in the <strong>View hub</strong>
+(<code>ViewAiReportScreen</code>, <code>ui/report/view/Main.kt</code>),
+reached from a report's result page. It uses the same full-screen-overlay
+pattern as the Costs tile: tapping the tile sets
+<code>showValueView = true</code> and the hub renders
+<code>ValueViewScreen(reportId, onBack)</code> in place of the tile grid,
+then <code>return</code>s (preserving the grid's <code>remember</code>
+state). Back returns to the grid.</p>
+
+<p>The <strong>💎 "Value view" tile</strong>
+(<code>MetadataIconsHolder.current.gem</code>, <code>SuccessAccent</code>)
+is added only when the report has at least one ranking to draw on:</p>
+
+<pre><code>everyItems["rerank"].orEmpty().isNotEmpty() || tournamentRows.isNotEmpty()
+    || judgesRows.isNotEmpty() || transRankRows.isNotEmpty() || compareRows.isNotEmpty()</code></pre>
+
+<p>i.e. a Rerank, a Tournament, a Judge-the-judges run, a Rank-the-translators
+run, <strong>or</strong> a Compare-with-meta run. Help topic
+<code>value_view</code> (<code>ui/admin/ReportsHelp.kt</code>). The title
+bar shows "Value view" with a subject line naming the active source, e.g.
+<code>Combined · weighted 0–1000</code>, <code>ranked by &lt;model&gt;</code>,
+<code>Judge the judges · consensus</code>, <code>Compare with meta · match
+%</code>, <code>Rank the translators · &lt;lang&gt;</code>,
+<code>Tournament · total of all methods</code>, <code>Tournament ·
+Elo</code>.</p>
+
+<p class="muted">If the report has rows but no ranking yields any points,
+the body shows "No ranking yet. Run a Rerank, Tournament,
+Judge-the-judges, Rank-the-translators, or Compare-with-meta on this
+report first."</p>
+
+<h2 id="switch">The ranking-source switch</h2>
+
+<p>A horizontally-scrolling row of chips (<code>SourceChip</code>) picks
+which ranking feeds the quality axis. <code>buildRankSources</code>
+(<code>ValueView.kt:328-343</code>) assembles them in this fixed order:</p>
+
+<dl class="kv">
+<div><dt>1 · Combined</dt><div class="meta"><code>RankSource.Combined</code> &middot; shown when any ranking has a non-zero weight</div><dd>Weighted 0–1000 blend — see below.</dd></div>
+<div><dt>2 · Rerank</dt><div class="meta"><code>RankSource.Rerank</code> &middot; shown when a RERANK row exists</div><dd>The rerank row's <code>score</code> (or <code>n−rank+1</code>).</dd></div>
+<div><dt>3… · <em>language name</em></dt><div class="meta"><code>RankSource.TransRank(runId, language)</code> &middot; one chip per "Rank the translators" run, sorted by language</div><dd>The model's average translator score (0–100).</dd></div>
+<div><dt>Judges</dt><div class="meta"><code>RankSource.Judges</code> &middot; shown when a Judge-the-judges run resolves &ge;2 answers</div><dd>Copeland win-rate over the panel <strong>consensus</strong> matrix.</dd></div>
+<div><dt>Compare</dt><div class="meta"><code>RankSource.Compare</code> &middot; shown when a Compare-with-meta run has &ge;1 scored cell</div><dd>Each answer's mean match % (0–100) against the chosen meta.</dd></div>
+<div><dt>Tournament</dt><div class="meta"><code>RankSource.TournamentTotal</code> &middot; shown when a Tournament aggregate exists</div><dd>Inverse of the model's average position across all 7 methods.</dd></div>
+<div><dt>Copeland / Elo / Davidson / Markov / Schulze / Colley / Trueskill2</dt><div class="meta"><code>RankSource.Tournament(method)</code> &middot; one chip per <code>TournamentMethod</code>, same aggregate</div><dd>That method's <code>rankFor</code> score.</dd></div>
+</dl>
+
+<div class="callout">
+<p>The Value view's Tournament chips draw on exactly
+<strong>7</strong> methods — <code>TournamentMethod.values()</code>
+(<code>data/TournamentRanking.kt:19</code>):
+<code>COPELAND, ELO, DAVIDSON, MARKOV, SCHULZE, COLLEY, TRUESKILL2</code>.
+Each chip's label is the title-cased enum name. Tournament Total and
+each method are <strong>recomputed locally</strong> from the stored
+<code>WinMatrix</code> — no Tournament API calls
+(<code>rankFor</code>, <code>tournamentTotalRows</code>). See
+<a href="tournament-judges-compare.html#ranking-methods">tournament-judges-compare
+&middot; ranking methods</a> for what each one computes.</p>
+</div>
+
+<p><strong>Selection</strong> (<code>ValueView.kt:534-544</code>) is a
+<code>rememberSaveable</code> <code>selectedKey</code> keyed by
+<code>reportId</code>. The effective pick is: the user's chip if still
+available &rarr; else <strong>Rerank</strong> &rarr; else the Tournament's
+stored default method &rarr; else the first source. The default lands on
+<strong>Rerank</strong> when present, even though <strong>Combined</strong>
+is the first chip.</p>
+
+<h2 id="quality">Quality per source</h2>
+
+<ul>
+<li><strong>Rerank</strong> — the parsed rerank rows directly; a row
+with no <code>score</code> falls back to <code>n − rank + 1</code>.</li>
+<li><strong>Judges</strong> — folds the latest Judge-the-judges run's
+cells through <code>judgesConsensusWinMatrix</code> (each match decided
+by the panel's plurality verdict), then ranks with <strong>Copeland</strong>
+win-rate (<code>rankFor(COPELAND, …)</code>) — the robust default for a
+plurality ranking. Requires a matrix of &ge;2 answers.</li>
+<li><strong>Compare</strong> — reduces the latest Compare-with-meta
+run's <code>COMPARE</code> cells (grouped by <code>compareRunId</code>,
+picking the most recently-updated group — there's no aggregate row) to
+each answer's mean match % (0–100) against the chosen meta result, the
+same average the Compare result screen's first column shows.</li>
+<li><strong>TransRank</strong> — each "Rank the translators" run
+(<code>TRANSRANK</code> cells, one group per source translation run /
+language) reduces to a <code>providerId|model → avgScore</code> map via
+<code>aggregateTranslatorRanks</code>. The chip maps each model's
+translator average onto the report's SUCCESS answer models by
+alias-resolved <code>provider|model</code> key; a model that wasn't a
+translator gets no row and drops off the plot. The chip label is the
+language's native name (<code>targetLanguageNative</code>). See
+<a href="rank-translators.html">rank-translators</a>.</li>
+<li><strong>Tournament method</strong> — <code>rankFor(method,
+matrix).score</code>.</li>
+<li><strong>Tournament Total</strong> — <code>tournamentTotalRows(matrix)</code>:
+for each model, average its rank across all 7 methods
+(<code>ranks.average()</code>), then <code>quality = n − avg + 1</code>
+so a lower mean position sits higher. Matches the Tournament screen's
+Total grid ordering.</li>
+</ul>
+
+<p>All sources are reshaped to <strong>rerank-shaped rows</strong> whose
+<code>id</code> is the 1-based SUCCESS position — the same numbering
+Rerank, Tournament and <code>buildValuePoints</code> all use, so a score
+always lines up with the right agent.</p>
+
+<h2 id="combined">Combined score + ranking weights</h2>
+
+<p><strong>Combined</strong> is a single 0–1000 score blending every
+available, non-zero-weighted ranking
+(<code>buildCombinedRows</code>, <code>ValueView.kt:231-294</code>):</p>
+
+<ol>
+<li>Gather each contributing ranking as <code>(weight, id→rawScore)</code>:
+<code>rerank</code> weight &rarr; rerank scores; <code>judges</code>
+weight &rarr; Copeland scores over the consensus matrix;
+<code>translations</code> weight &rarr; <strong>average across all
+translator runs</strong> of each model's translator score (averaging
+every language, unlike the per-language TransRank chips);
+<code>compare</code> weight &rarr; each answer's mean match % against
+the chosen meta; each <code>TournamentMethod.name</code> weight &rarr;
+that method's scores.</li>
+<li><strong>Min-max normalise</strong> each ranking's scores to 0–1
+independently (a flat ranking where <code>max == min</code> maps every
+model to 0.5).</li>
+<li><strong>Weight-average</strong> per model:
+<code>&Sigma;(w&middot;norm) / &Sigma;(w)</code>.</li>
+<li>Scale &times;1000.</li>
+</ol>
+
+<p>A ranking weighted <strong>0</strong> is dropped; Combined is empty
+(and its chip absent) when nothing is weighted.</p>
+
+<h3>Ranking weights settings</h3>
+
+<p><strong>Weights</strong> are integers 0–10, edited on
+<strong>Settings → Ranking weights</strong>
+(<code>SettingsSubScreen.SETTINGS_RANKING_WEIGHTS</code>,
+<code>RankingWeightsSubScreen</code>,
+<code>ui/settings/SettingsScreen.kt:2033</code>, help
+<code>settings_ranking_weights</code>). Two cards of 0–10 sliders:
+<strong>"Rerank · Judges · Translations · Compare"</strong> (keys
+<code>rerank</code>, <code>judges</code>, <code>translations</code>,
+<code>compare</code>) and <strong>"Tournament rankings"</strong> (one
+slider per <code>TournamentMethod</code>, keyed by the uppercase enum
+name). The 🧽 icon resets to factory defaults by clearing the map.</p>
+
+<p>Weights are stored <strong>sparsely</strong> in
+<code>GeneralSettings.rankingWeights</code>
+(<code>viewmodel/AppViewModelTypes.kt:222</code>); a missing key
+resolves through <code>GeneralSettings.rankingWeight(key)</code> to
+<code>RANKING_WEIGHT_DEFAULTS</code>
+(<code>AppViewModelTypes.kt:135</code>), else 0:</p>
+
+<dl class="kv">
+<div><dt>rerank</dt><div class="meta">default</div><dd><code>3</code></dd></div>
+<div><dt>judges</dt><div class="meta">default</div><dd><code>6</code></dd></div>
+<div><dt>translations</dt><div class="meta">default</div><dd><code>6</code></dd></div>
+<div><dt>compare</dt><div class="meta">default</div><dd><code>4</code></dd></div>
+<div><dt>COPELAND / ELO / DAVIDSON / MARKOV / SCHULZE / COLLEY / TRUESKILL2</dt><div class="meta">default</div><dd><code>2</code> each</dd></div>
+</dl>
+
+<p>So out of the box Combined blends <strong>every</strong> currently
+available ranking source — Rerank, Judges, Translations, Compare, and
+all seven Tournament methods — since none of them default to a 0
+weight.</p>
+
+<p>The Value view reads the weights live via
+<code>LocalGeneralSettings.current.rankingWeight(key)</code> and
+recomputes <code>combinedRows</code> whenever <code>generalSettings</code>
+changes — change a slider and Combined re-blends without leaving the
+screen.</p>
+
+<div class="callout">
+<p><strong>Persistence.</strong> <code>saveGeneralSettings</code>
+stores <code>rankingWeights</code> sparsely as JSON under the
+<code>ranking_weights</code> key in <code>eval_prefs</code> (omitted
+when the map is empty), and <code>loadGeneralSettings</code> reads it
+back, falling back to <code>RANKING_WEIGHT_DEFAULTS</code> for any
+missing key. The weights survive a process restart and ride along in
+the backup (<code>eval_prefs</code> is archived). The 🧽 clear resets
+to factory defaults by emptying the map.</p>
+</div>
+
+<h2 id="cost-axis">Cost axis — base cost + fan-out fold-in</h2>
+
+<p>Each point's cost (<code>buildValuePoints</code>,
+<code>ValueView.kt:173-211</code>) is the agent's own spend plus an
+optional fan-out fold-in, expressed in cents (USD &times; 100):</p>
+
+<ul>
+<li><strong>Base</strong> = <code>agent.cost ?: (inputCost ?: 0 +
+outputCost ?: 0)</code>.</li>
+<li><strong><code>costKnown</code></strong> distinguishes a real
+<strong>$0</strong> (free / local model — still eligible for best
+value) from <em>no price at all</em>: <code>knownBase</code> is
+<code>cost ?: inputCost ?: outputCost</code>, null only when the agent
+reports no price. <code>costKnown</code> is true when
+<code>knownBase != null</code> <strong>or</strong> the fan-out fold
+added any cost (<code>fanOut &gt; 0</code>) — so a model with no
+reported base price but positive folded-in fan-out spend still counts
+as priced. A point with unknown cost still plots (at cost 0) but is
+excluded from the best-value contest (it would score
+<code>quality/&epsilon; &asymp; &infin;</code> and steal the badge).</li>
+</ul>
+
+<p><strong>Fan-out fold-in</strong> (<code>ValueView.kt:453-496</code>)
+adds each model's fan-out <strong>response</strong> spend on top of its
+main answer — but <strong>only when the fan-out scope matches the
+report's models</strong>, so the comparison stays fair. The map is
+built only when <strong>all</strong> hold:</p>
+
+<ul>
+<li>there is at least one fan-out pair (<code>META</code> row with
+<code>fanOutSourceAgentId != null</code>);</li>
+<li>the success-model set is non-empty;</li>
+<li><strong>no two success agents share a <code>provider|model</code>
+key</strong> (<code>noDuplicateModels</code>) — duplicates collapse to
+one key and the per-key fan-out total would be double-assigned to both
+agents;</li>
+<li>the answerer key set <strong>equals</strong> the success-model key
+set (<code>answererKeys == successKeys</code>) — i.e. exactly the
+report's own models answered the fan-out.</li>
+</ul>
+
+<p>When all match, fan-out cost is summed per answerer key
+(<code>(inputCost ?: 0) + (outputCost ?: 0)</code>, alias-resolved,
+case-insensitive — the same <code>provider|model</code> key the
+FanOutEngine hydration uses) and assigned to each agent. Icon/title
+Fan-Meta spend is excluded (those aren't responses). When the fold is
+active, <code>includesFanOut</code> is true and the caption appends
+"Cost includes each model's fan-out responses (every model here also
+answered the fan-out)." See <a href="secondary-results.html">secondary-results</a>
+for fan-out itself and <a href="costs.html">costs</a> for how these
+costs were recorded.</p>
+
+<h2 id="pareto">Pareto frontier + best value</h2>
+
+<p>For each point P (<code>ValueView.kt:197-211</code>):</p>
+
+<ul>
+<li><strong>dominated</strong> = some other point is at least as good
+for the same or less money: <code>&exist; o &ne; P : o.quality &ge;
+P.quality &and; o.costCents &le; P.costCents</code>, strict on at least
+one. Dominated points are dimmed; the non-dimmed points form the
+<strong>Pareto frontier</strong>.</li>
+<li><strong>best value</strong> = among <code>costKnown</code>,
+Pareto-undominated points, the one maximising
+<code>quality / max(costCents, &epsilon;)</code> (&epsilon; =
+1e-6). Exactly one point (or none, if every priced point is dominated)
+gets the 💎.</li>
+</ul>
+
+<p>A green summary line names the winner: "💎 Best value: &lt;provider&gt;
+· &lt;model&gt; — score &lt;q&gt; at &lt;$cost&gt;".</p>
+
+<h2 id="chart">The scatter chart (inline)</h2>
+
+<p><code>ValueScatter</code> &rarr; <code>ValueScatterCanvas</code>
+(<code>ValueView.kt:706-947</code>) draws a 240 dp card:</p>
+
+<ul>
+<li><strong>X = Cost</strong> (cheap on the left), <strong>Y = the
+active ranking</strong> (high quality at top — the pixel mapping
+inverts Y).</li>
+<li>Both axes are <strong>padded 10 % of their range on each end</strong>
+so no point ever sits on an axis line or the edge; ticks still show the
+real min / mid / max values (cost via <code>formatCents</code>, quality
+via <code>formatScore</code>).</li>
+<li><strong>Dots</strong>: best value = filled 12 px + a 20 px
+translucent halo (<code>SuccessAccent</code>); dominated = 7 px dim
+(<code>TextDim</code>); regular = 9 px (<code>WarningAccent</code>).</li>
+<li><strong>Axis names</strong>: "Cost" centred under the X ticks; the
+ranking name rotated −90° down the left edge.</li>
+</ul>
+
+<p><strong>Labels</strong> are drawn on top of the dots with greedy
+collision avoidance. Each label first tries the plain right-of-dot
+slot; an isolated dot that would overlap something tries a ring of 10
+candidate positions (right/left/above/below, up- and down-shifted) and
+draws a <strong>leader line</strong> back to its dot when it has to
+move. Near-coincident dots (within <code>lineH·1.4</code>) are unioned
+into <strong>clusters</strong> (union-find) and their labels
+<strong>fanned symmetrically</strong> around the centroid — top dot →
+top label — each with its own leader line, so two stacked dots split
+one label up and one down instead of one jumping far. Labels also dodge
+every dot marker, not just each other. Inline thumbnails clip names to
+14 chars; the full-screen graph shows full names in landscape.</p>
+
+<h2 id="fullscreen">Full-screen graph</h2>
+
+<p>Tapping the chart opens <code>ValueGraphFullScreen</code>
+(<code>ValueView.kt:958-1052</code>) — a <strong>chrome-less,
+edge-to-edge</strong> graph rendered in its own <code>Dialog</code>
+window (<code>usePlatformDefaultWidth = false</code>,
+<code>decorFitsSystemWindows = false</code>) so it covers the app's
+title bar and bottom icon bar (a plain early-return overlay would still
+sit inside them). The dialog window's Android system bars are hidden
+for its lifetime and restored on dismiss via
+<code>WindowInsetsControllerCompat</code> in a
+<code>DisposableEffect</code>.</p>
+
+<ul>
+<li><strong>Pinch to zoom</strong> (1×–8×) and <strong>drag to
+pan</strong>, applied via a <code>graphicsLayer</code>; zoom/pan reset
+whenever the ranking changes (keyed on the Y-axis title).</li>
+<li><strong>Tap the left half → previous ranking, right half →
+next</strong>, wrapping with no edge (<code>cycleSource</code>, which
+also keeps the underlying chip selection in step).</li>
+<li>In <strong>landscape</strong> the labels show full model names at
+1.35× size; the full-screen renderer also uses a larger label font (27
+px vs 22 px) and the cluster-fan / leader-line layout.</li>
+<li>Full-screen labels are also run through <code>shortModelName2</code>
+and drop their <code>-preview</code> / <code>-exp</code> channel tag
+when that stays unique among the plotted points — ~7 catalog pairs
+(e.g. <code>gemini-2.5-pro</code> vs <code>…-pro-preview</code>) would
+otherwise collide onto one label, so a preview and its GA twin each
+keep their tag when both are on the chart.</li>
+<li>Back (or the system back press) dismisses the dialog.</li>
+</ul>
+
+<h2 id="list">The list below the chart</h2>
+
+<p>Below the chart and the best-value line, every point is listed
+(<code>ValueRow</code>) sorted <strong>best-value first, then
+non-dominated, then quality descending</strong>
+(<code>ValueView.kt:675-681</code>). Each card shows
+<code>provider · model</code> and a monospace
+<code>&lt;$cost&gt; · score &lt;q&gt;</code> line, plus a badge:</p>
+
+<dl class="kv">
+<div><dt>💎 Best value</dt><div class="meta"><code>SuccessAccent</code></div><dd>The single best quality-per-cost pick.</dd></div>
+<div><dt>Pareto</dt><div class="meta"><code>InfoAccent</code></div><dd>On the frontier (not dominated).</dd></div>
+<div><dt>dominated</dt><div class="meta"><code>TextDim</code></div><dd>Another model is at least as good for less.</dd></div>
+</dl>
+
+<p><code>formatScore</code> (<code>ValueView.kt:1087</code>) prints
+whole numbers without a decimal (e.g. Elo <code>1500</code>) and
+fractional scores to one place (<code>Locale.US</code>, never a
+comma-decimal round-trip).</p>
+
+<h2 id="recompute">Recomputation &amp; persistence</h2>
+
+<p>The view holds <strong>no persistent state of its own</strong>.
+<code>produceState</code> loads the report and secondary rows off the
+IO dispatcher, keyed on <code>reportId</code> +
+<code>ReportDataVersion</code> + <code>SecondaryDataVersion</code>, so
+any edit to the report or its secondary results reloads it.
+<code>combinedRows</code>, <code>tournamentTotalRowList</code>, the
+source list, the points and the best pick are all
+<code>remember</code>-derived and recompute when the loaded data, the
+selection, or the ranking weights change. Nothing is written back — the
+Value view is read-only and makes <strong>no API calls</strong>.</p>
+
+<h2 id="files">Related files</h2>
+
+<dl class="kv">
+<div><dt>ui/report/view/ValueView.kt</dt><dd>The whole screen: <code>ValueViewScreen</code>, <code>buildValuePoints</code>, <code>buildCombinedRows</code>, <code>buildRankSources</code>, <code>rowsForSource</code>, <code>tournamentTotalRows</code>, <code>ValueScatterCanvas</code>, <code>ValueGraphFullScreen</code>, <code>ValueRow</code>, the <code>RankSource</code> sealed class.</dd></div>
+<div><dt>ui/report/view/Main.kt</dt><dd>The View hub; the conditional 💎 tile (<code>Main.kt:963-969</code>) and the overlay mount (<code>Main.kt:197-209</code>).</dd></div>
+<div><dt>viewmodel/AppViewModelTypes.kt</dt><dd><code>GeneralSettings.rankingWeights</code>, <code>rankingWeight</code>, <code>RANKING_WEIGHT_DEFAULTS</code>.</dd></div>
+<div><dt>ui/settings/SettingsScreen.kt</dt><dd><code>RankingWeightsSubScreen</code> / <code>RankingWeightCard</code> / <code>RankingWeightSlider</code> (the two-card 0–10 sliders).</dd></div>
+<div><dt>data/TournamentRanking.kt</dt><dd><code>TournamentMethod</code>, <code>WinMatrix</code>, <code>rankFor</code>, <code>decodeTournamentMatrix</code>.</dd></div>
+<div><dt>data/JudgeAgreement.kt</dt><dd><code>judgesConsensusWinMatrix</code>.</dd></div>
+<div><dt>data/CompareRunModel.kt</dt><dd><code>CompareCellState</code>, <code>toCompareCellState</code>.</dd></div>
+<div><dt>ui/admin/ReportsHelp.kt</dt><dd>The <code>value_view</code> help page.</dd></div>
+</dl>
+
+<p class="muted">See also: <a href="costs.html">costs</a> — how the
+per-agent and fan-out costs the X axis reads were computed and recorded
+&middot; <a href="tournament-judges-compare.html">tournament-judges-compare</a>
+— the Tournament <code>WinMatrix</code> / <code>rankFor</code> machinery,
+Judge-the-judges consensus, and Compare-with-meta scoring the quality
+sources reuse &middot; <a href="rank-translators.html">rank-translators</a>
+— the TRANSRANK runs that become the per-language quality sources
+&middot; <a href="secondary-results.html">secondary-results</a> — Rerank,
+fan-out and the other secondary results that supply the rankings and the
+folded cost.</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

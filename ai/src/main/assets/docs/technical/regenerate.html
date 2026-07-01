@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Regenerate &amp; Get info — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Regenerate</span></header>
+<main>
+
+<h1>Get info &amp; Regenerate report</h1>
+
+<p>Two related Manage-hub surfaces. <strong>Get info</strong> is a
+status board for a report's <em>metadata</em> jobs (icon, language,
+title, per-model icon / title). <strong>Regenerate report</strong> is
+the orchestration engine that re-runs <em>everything</em> on a report
+— metadata + agents + every secondary result — in a fixed phase
+order, surviving app restarts and pausing on the first error.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#get-info">Get info</a></li>
+<li><a href="#info-jobs">Info job types &amp; states</a></li>
+<li><a href="#info-guards">Terminal guards</a></li>
+<li><a href="#info-entry">Info regenerate entry points</a></li>
+<li><a href="#engine">Regenerate batch engine</a></li>
+<li><a href="#phases">Phase order</a></li>
+<li><a href="#step-machine">Phase step machine</a></li>
+<li><a href="#states">Job &amp; task states</a></li>
+<li><a href="#pause-resume">Pause-on-error &amp; resume</a></li>
+<li><a href="#ui">UI</a></li>
+<li><a href="#storage">Storage</a></li>
+<li><a href="#alt-title">Find alternative title / icon</a></li>
+<li><a href="#see-also">See also</a></li>
+</ul>
+</nav>
+
+<h2 id="get-info">Get info</h2>
+
+<p>The Manage hub collapses the separate metadata-generation jobs
+into one <strong>info</strong> row (<code>InfoSummaryRow</code>,
+<code class="path">ui/report/manage/SummaryRows.kt:80</code>). It is
+<strong>always the first row</strong> on Manage — the three summary
+rows render <code>info &rarr; regenerate &rarr; second</code>.
+Tapping it opens <code>ReportGetInfoScreen</code>
+(<code class="path">ui/report/manage/GetInfo.kt:360</code>), help
+topic <code>report_get_info</code>. It's a layer over Manage
+(<code>publishBottomBar = false</code>) — Manage keeps publishing its
+own bottom bar underneath.</p>
+
+<div class="callout">
+<p><strong>Title-tap cycle</strong> (<code>cycleReportScreens</code>,
+<code class="path">ui/report/manage/Run.kt:164</code>): tapping the
+title bar cycles <strong>Manage &rarr; Get-info &rarr;
+second-results &rarr; Manage</strong>, unconditionally — the
+second-results step used to be skipped when the report had no
+secondary results, but is now always one tap away. Back / the report
+icon still peel one layer back to Manage instead of advancing. The
+<strong>second results</strong> screen is Get-info's secondary-result
+analogue (rerank / meta / moderation / translate / fan-out /
+tournament / judges / compare / rank collapsed into one board) — see
+<a href="secondary-results.html">secondary-results</a>.</p>
+</div>
+
+<p><code>buildInfoJobs</code>
+(<code class="path">ui/report/manage/GetInfo.kt:89</code>) is the
+single source of truth for the rows, shared by the Info screen and
+the Manage info row so the two never disagree. Only <strong>enabled</strong>
+jobs are emitted (per the relevant setting gate), split into five
+report-level jobs plus two per-model jobs, in run order:</p>
+
+<h2 id="info-jobs">Info job types &amp; states</h2>
+
+<dl class="kv">
+<div><dt>language</dt><div class="meta">gate <code>reportLanguageOn</code> (own gate, split from icon)</div><dd>Reads <code>Report.languageName</code>; cost bucket "language in/out"; done icon = <code>languageIcon</code>.</dd></div>
+<div><dt>language-icon</dt><div class="meta">same gate; &#9203; until a language name exists</div><dd>Reads <code>Report.languageIcon</code> / <code>languageIconErrorMessage</code>; done icon = <code>languageIcon</code>.</dd></div>
+<div><dt>report-short</dt><div class="meta"><code>titleModeAi</code> + resolvable <code>workers/report-title-short</code> worker</div><dd>Reads <code>Report.title</code> / <code>titleErrorMessage</code>; done icon = &#127991;&#65039; (<code>MetadataIcons.label</code>).</dd></div>
+<div><dt>report-long</dt><div class="meta">same title gate; <code>workers/report-title-long</code></div><dd>Reads <code>Report.titleLong</code>; done icon = &#127991;&#65039;.</dd></div>
+<div><dt>report-icon</dt><div class="meta"><code>iconGenEnabled</code> + resolvable <code>workers/report-icon</code>; derived from the long title</div><dd>Reads <code>Report.icon</code> / <code>iconErrorMessage</code>; done icon = the generated icon.</dd></div>
+<div><dt>model-title</dt><div class="meta">gate <code>perModelTitle</code>, per <code>ReportAgent</code></div><dd>Reads <code>modelTitle</code> / <code>modelTitleErrorMessage</code>; done icon = the agent's icon, else &#127991;&#65039;.</dd></div>
+<div><dt>model-icon</dt><div class="meta">gate <code>perModelIcon</code>, per <code>ReportAgent</code></div><dd>Reads <code>icon</code> / <code>iconErrorMessage</code>; done icon = the generated icon.</dd></div>
+</dl>
+
+<p>Row click routing: <code>report-icon</code> &rarr; icon detail;
+<code>language</code> / <code>language-icon</code> &rarr; language
+detail; <code>report-short</code> / <code>report-long</code> &rarr;
+edit-title; <code>model-icon</code> &rarr; agent-icon detail;
+<code>model-title</code> &rarr; edit-model-title — each detail
+screen's per-item &#128260; re-runs that single item via
+<code>ReportViewModel.regenerateMetaItem</code> (titles + language-icon
+are <code>MetaCache</code>-backed, so the relevant entry is evicted
+first).</p>
+
+<p><code>InfoJobState</code>
+(<code class="path">ui/report/manage/GetInfo.kt:36</code>) has five
+values:</p>
+
+<dl class="kv">
+<div><dt>CLOCK</dt><dd>&#9203; queued.</dd></div>
+<div><dt>RUNNING</dt><dd>Animated hourglass.</dd></div>
+<div><dt>FAILED</dt><dd>&#10060;</dd></div>
+<div><dt>EMPTY</dt><dd>&#8856; terminal-no-result (grey).</dd></div>
+<div><dt>DONE</dt><dd>The generated icon, else &#9989;.</dd></div>
+</dl>
+
+<p>Per-model jobs sit at <code>CLOCK</code> until that agent's own
+response reaches <code>SUCCESS</code>; model-icon derives from
+model-title, so when both are on the icon waits for the title.</p>
+
+<h2 id="info-guards">Terminal guards</h2>
+
+<p>Several guards exist so a stalled or never-run job doesn't spin
+the Manage hourglass forever:</p>
+
+<dl class="kv">
+<div>
+<dt>*NeverRan</dt>
+<dd>A finished report (<code>completedAt != null</code>) that recorded
+no attempt at all — no icon/title/language, no error, no cost /
+duration / <code>promptUsed</code> — reads as "never ran" rather than
+<em>Queued&hellip;</em> forever. Covers legacy reports and
+copies/fan-out-derived reports whose metadata was inherited.</dd>
+</div>
+<div>
+<dt>modelIconAttempted / modelTitleAttempted</dt>
+<div class="meta"><code class="path">GetInfo.kt:64</code>, <code class="path">:72</code></div>
+<dd>Per-model analogue: a call that concludes with markers recorded
+(cost / tokens / duration / prompt-name) but no result and no error
+(e.g. an empty/unparseable reply) settles model-title to <code>EMPTY</code>
+("&middot; no title") and model-icon to <code>DONE</code> instead of
+spinning.</dd>
+</div>
+<div>
+<dt>Phantom-RUNNING guard</dt>
+<div class="meta"><code class="path">GetInfo.kt:268</code>, <code class="path">:312</code></div>
+<dd>A finished report whose per-model job left <strong>no</strong>
+markers at all (imported/copied report, or per-model icon/title
+toggled on <em>after</em> generation) used to fall through to
+<code>else -&gt; RUNNING</code> and spin forever. <code>titleStateFor</code>
+/ the icon-state <code>when</code> now short-circuit on
+<code>completedAt != null</code> to terminal (<code>EMPTY</code> for
+title, <code>DONE</code> for icon) before that fallback. During live
+generation <code>completedAt</code> is null, so a freshly-succeeded
+model still correctly shows <code>RUNNING</code> while its enrichment
+call is in flight.</dd>
+</div>
+<div>
+<dt>reportPending</dt>
+<div class="meta"><code class="path">GetInfo.kt:110</code></div>
+<dd>Report-level analogue: a report-level <code>CLOCK</code> keeps the
+aggregate spinning only while <code>completedAt == null</code>; once
+the report is finished an unstarted job reads as terminal (still
+shown as &#9203;) and doesn't pin the Manage row to &#8987;.</dd>
+</div>
+</dl>
+
+<p><code>aggregateInfoState</code>
+(<code class="path">GetInfo.kt:329</code>) drives the Manage row's
+status cell: &#10060; if any job FAILED, else &#8987; while any job is
+still genuinely pending, else &#9989; (or the report's own icon). A
+<code>CLOCK</code> left by an <strong>ERRORed</strong> or
+<strong>STOPPED</strong> model is <em>not</em> pending
+(<code>perModelPending</code>, <code>GetInfo.kt:277</code>) — a
+finished report with one failed model settles to &#9989; rather than
+spinning forever.</p>
+
+<h2 id="info-entry">Info regenerate entry points</h2>
+
+<p>Both are scoped to <strong>info jobs only</strong> — model
+responses + secondary results are left untouched, and each new call's
+cost is <em>added</em> on top of the report's existing spend:</p>
+
+<dl class="kv">
+<div>
+<dt>Bottom-bar &#128260; (Manage reload)</dt>
+<div class="meta"><code>regenerateReportInfo</code> &middot; <code class="path">ReportViewModel.kt:2024</code></div>
+<dd>Re-runs language, title&rarr;icon, and per-model enrichment for
+every successful agent. Confirm dialog forks on whether the Get-info
+layer is up (<code class="path">Run.kt:740</code>); pops "Regenerate
+report info?" first.</dd>
+</div>
+<div>
+<dt>"Restart errors" button</dt>
+<div class="meta"><code>restartReportInfoErrors</code> &middot; <code class="path">ReportViewModel.kt:1981</code> &middot; shown only when &ge;1 job is FAILED (<code class="path">GetInfo.kt:501</code>)</div>
+<dd>Clears the error state of only the errored rows and re-fires just
+the failed side (title-error re-runs title&rarr;icon together since
+the icon derives from the title; per-model re-runs only the side —
+icon or model-title — that errored).</dd>
+</div>
+</dl>
+
+<div class="callout warn">
+<p><strong>&#9888;&#65039; lights immediately on error.</strong> The
+Manage hub stays composed underneath the Get-info / second-results
+layers, so its <code>reportHasError</code> check
+(<code class="path">Main.kt:410</code> — any FAILED info job, any
+FAILED secondary, or any errored agent) fires a
+<code>LaunchedEffect</code> that forces a Broken-work scan immediately
+(<code>LocalRefreshBrokenWork</code>), surfacing the top-bar
+&#9888;&#65039; badge the instant a red &#10060; appears on Manage /
+Get-info / second-results, instead of waiting out the 30-second
+background sweep.</p>
+</div>
+
+<h2 id="engine">Regenerate batch engine</h2>
+
+<p><code>RegenerateBatchEngine</code>
+(<code class="path">viewmodel/RegenerateBatchEngine.kt:53</code>, a
+<code>class</code> with an internal constructor taking
+<code>(appViewModel, reportViewModel)</code>) is the authoritative
+runtime owner of the per-report "Regenerate report" job. It replaces
+the legacy one-shot <code>regenerateReport</code> with a phased,
+app-restart-survivable orchestrator.</p>
+
+<ul>
+<li>State lives on disk via <code>RegenerateBatchStorage</code> (one
+JSON per report); an in-memory <code>StateFlow&lt;Map&lt;reportId,
+RegenerateJob&gt;&gt;</code> (<code>_jobs</code>) mirrors it for live
+UI.</li>
+<li>The orchestrator is <strong>one coroutine per report</strong>,
+scoped to <code>AppViewModel.viewModelScope</code> (survives
+navigating away from Manage) and tracked in <code>orchestratorJobs</code>
+(<code>ConcurrentHashMap&lt;String, Job&gt;</code>) so a cancel can
+<code>.cancel()</code> it.</li>
+<li>Public API: <code>hasJob</code>, <code>hydrate</code>,
+<code>enqueueAndStart</code>, <code>restart</code>, <code>cancel</code>,
+<code>cancelJobNow</code>, <code>reconcile</code>, <code>detectBroken</code>,
+<code>isActivelyRunning</code>, <code>deleteJob</code>.</li>
+</ul>
+
+<h2 id="phases">Phase order</h2>
+
+<p><code>RegeneratePhase</code>
+(<code class="path">data/RegenerateBatch.kt:20</code>) is a
+<strong>10-value</strong> enum in fixed order; the orchestrator walks
+forward by <code>ordinal</code>. <code>enqueueAndStart</code> starts
+at <code>RegeneratePhase.values().firstOrNull()</code> — not a
+hardcoded phase — so prepending a phase can't silently skip it.</p>
+
+<details class="entity">
+<summary>TITLE<span class="badge">phase 1</span></summary>
+<div class="body">
+<p>Re-runs report title workers — short <strong>+</strong> long
+(synthetic row <code>__report_title__</code>) — runs
+<strong>before</strong> ICON so the icon can derive from the fresh
+long title.</p>
+<p class="muted">Dispatcher: <code>iconGen.kickOffReportTitleGeneration(&hellip;, thenIcon = false)</code> &middot; row status from <code>Report.titlePromptUsed</code> / <code>titleErrorMessage</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>ICON<span class="badge">phase 2</span></summary>
+<div class="body">
+<p>Re-runs the report's &#127919; icon (synthetic row <code>__report_icon__</code>).</p>
+<p class="muted">Dispatcher: <code>iconGen.kickOffIconGeneration</code> &middot; row status from <code>Report.icon</code> / <code>iconErrorMessage</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>LANGUAGE<span class="badge">phase 3</span></summary>
+<div class="body">
+<p>Re-runs language detection + language-icon (synthetic row <code>__report_language__</code>).</p>
+<p class="muted">Dispatcher: <code>iconGen.kickOffLanguageGeneration</code> &middot; row status from <code>Report.languageName</code> / <code>languageIcon</code> / <code>languageIconErrorMessage</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>AGENTS<span class="badge">phase 4</span></summary>
+<div class="body">
+<p>One task per <code>ReportAgent</code> whose provider still
+resolves.</p>
+<p class="muted">Dispatcher: <code>forceRegenerateAllAgents</code> &middot; row status from <code>ReportAgent.reportStatus</code> + <code>responseBody</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>META<span class="badge">phase 5</span></summary>
+<div class="body">
+<p>Single-call meta rows (<code>fanOutSourceAgentId == null &amp;&amp;
+fanInOf == null</code>) plus <code>RERANK</code> and
+<code>MODERATION</code>. <code>JUDGES</code> / <code>COMPARE</code>
+are excluded.</p>
+<p class="muted">Dispatcher: <code>secondary.resumeStaleMetaPlaceholder</code> (per row) &middot; row status from <code>SecondaryResult.content</code> / <code>errorMessage</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>FAN_OUT<span class="badge">phase 6</span></summary>
+<div class="body">
+<p>Fan-out per-pair rows (<code>fanOutSourceAgentId != null</code>).</p>
+<p class="muted">Dispatcher: <code>fanOutEngine.resumeStaleRunsForReport(&hellip;, resetAttempts = true)</code> &middot; row status from <code>SecondaryResult.content</code> / <code>errorMessage</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>FAN_IN<span class="badge">phase 7</span></summary>
+<div class="body">
+<p>Fan-in combined rows (<code>fanInOf != null</code>).</p>
+<p class="muted">Dispatcher: <code>secondary.resumeStaleMetaPlaceholder</code> (per row) &middot; row status from <code>SecondaryResult.content</code> / <code>errorMessage</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>TRANSLATIONS<span class="badge">phase 8</span></summary>
+<div class="body">
+<p>Every <code>TRANSLATE</code> row.</p>
+<p class="muted">Dispatcher: <code>translation.startMissingTranslations</code> (per distinct <code>translationRunId</code>) &middot; row status from <code>SecondaryResult.content</code> / <code>errorMessage</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>FAN_META<span class="badge">phase 9</span></summary>
+<div class="body">
+<p>Per-fan-out-pair title <strong>+</strong> icon — one worker call
+produces both — for pairs that previously carried a title/icon (or an
+error).</p>
+<p class="muted">Dispatcher: <code>iconGen.runFanMetaBatch</code> (per <code>metaPromptId</code>) &middot; row status: icon present &rarr; Success; <code>iconErrorMessage</code>/<code>titleErrorMessage</code> with no icon &rarr; Error</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>TOURNAMENT<span class="badge">phase 10</span></summary>
+<div class="body">
+<p>Tournament per-match rows (<code>kind == TOURNAMENT &amp;&amp;
+tournamentRole == "MATCH"</code>). The <strong>AGGREGATE</strong>
+ranking row is <em>not</em> a task — it makes no API call; the
+tournament engine recomputes it once the match rows settle.</p>
+<p class="muted">Dispatcher: <code>tournamentEngine.resumeStaleRunsForReport(&hellip;, resetAttempts = true)</code> &middot; row status from <code>SecondaryResult.content</code> / <code>errorMessage</code></p>
+</div>
+</details>
+
+<p class="muted">The old separate per-icon-tier phases are gone —
+<code>FAN_META</code> is one phase because the <code>workers/fan-meta</code>
+prompt returns a <code>title:</code> / <code>icon:</code> reply in one
+call. <code>JUDGES</code> and <code>COMPARE</code> are owned by their
+own engines (<code>JudgeEvalEngine</code> / <code>CompareEngine</code>)
+and deliberately excluded from the regenerate batch
+(<code>isMetaPhaseRow</code>, <code class="path">RegenerateBatchEngine.kt:957</code>,
+which excludes <code>TRANSLATE</code>, <code>TOURNAMENT</code>,
+<code>JUDGES</code>, <code>COMPARE</code> plus fan-out / fan-in rows).</p>
+
+<div class="callout">
+<p><strong>TRANSRANK falls through to META.</strong> "Rank the
+translators" (the 8th <code>SecondaryKind</code>) has <em>no</em>
+dedicated regenerate phase and is <strong>not</strong> excluded by
+<code>isMetaPhaseRow</code>. Its rows carry <code>tournamentRole</code>
+(<code>TRANSRANK_ROLE_CELL</code> / <code>_AGGREGATE</code>) and a
+<code>translationRunId</code> but no <code>fanOutSourceAgentId</code>
+/ <code>fanInOf</code>, so a TRANSRANK row lands in the generic
+<strong>META</strong> phase and is resumed via the single-call
+<code>resumeStaleMetaPlaceholder</code> path rather than re-judged by
+<code>TranslatorRankEngine</code>. Translator-rank batches are best
+resumed from their own "Rank the translators" screen instead — see
+<a href="secondary-results.html">secondary-results</a>.</p>
+</div>
+
+<p><code>FAN_OUT</code> and <code>TOURNAMENT</code> pass
+<code>resetAttempts = true</code> so a user-initiated regenerate
+clears any per-session retry counts a prior manual resume ran up —
+otherwise the pair/match would terminalize instantly and never
+re-fire.</p>
+
+<p><code>buildTaskList</code>
+(<code class="path">RegenerateBatchEngine.kt:793</code>) builds the
+task set from the report's <em>current</em> contents:</p>
+<ul>
+<li><code>TITLE</code> / <code>ICON</code> / <code>LANGUAGE</code>
+only fire when the matching setting gate is on, the report has a
+non-blank <code>prompt</code>, <strong>and</strong> the matching
+worker prompt has a resolvable worker — so the engine doesn't park on
+a synthetic row that could never be dispatched.</li>
+<li><code>AGENTS</code> skips any agent whose provider no longer
+resolves (<code>AppService.findById(agent.provider) == null</code>),
+matching the same drop in <code>forceRegenerateAllAgents</code> —
+otherwise its row would reset to PENDING but never re-fire and hang
+the phase to the 30-minute timeout.</li>
+<li><code>FAN_META</code> only targets pairs that previously carried
+an icon / title (or an error), so the engine doesn't spin on rows
+that can never land.</li>
+</ul>
+
+<h2 id="step-machine">Phase step machine</h2>
+
+<p>Per phase, <code>orchestrate</code>
+(<code class="path">RegenerateBatchEngine.kt:286</code>) loops:</p>
+
+<ol>
+<li>Empty phase &rarr; <code>advanceToNextPhase</code>, continue.</li>
+<li>Flip <strong>every</strong> task in the phase to
+<code>RUNNING</code> (not just <code>WAITING</code> — on a restart the
+prior <code>ERROR</code> task and its already-<code>SUCCESS</code>
+siblings must be re-armed too, or <code>awaitPhaseCompletion</code>
+— which only transitions <code>RUNNING</code> tasks — would leave
+them stuck), set <code>startedAt</code>, clear <code>endedAt</code> /
+<code>errorMessage</code>; then <code>resetRowsForPhase</code> resets
+the underlying rows on disk (Manage shows &#8987;). All reset helpers
+are the <code>*KeepingCost</code> variants
+(<code>clearReportTitleKeepingCost</code>,
+<code>clearReportIconKeepingCost</code>,
+<code>resetAgentToPendingKeepingCost</code>,
+<code>clearFanOutTitle/IconStateKeepingCost</code>, &hellip;) — prior
+spend stays and the dispatcher's additive cost write adds the new
+call's cost on top.</li>
+<li><code>dispatchPhase</code> fires the phase's dispatcher (see
+table above).</li>
+<li><code>awaitPhaseCompletion</code>
+(<code class="path">RegenerateBatchEngine.kt:350</code>) polls disk
+<strong>every 1500 ms</strong>, flipping each <code>RUNNING</code>
+task to <code>SUCCESS</code> / <code>ERROR</code> / <code>CANCELLED</code>
+from the row's on-disk content / errorMessage. A <strong>30-minute</strong>
+per-phase timeout is a safety net (pauses the phase on timeout).</li>
+<li>Halt on the <strong>first</strong> ERROR row &rarr;
+<code>pauseOnError</code>; otherwise once every task is terminal,
+<code>advanceToNextPhase</code>.</li>
+</ol>
+
+<p class="muted"><code>readRowStatuses</code>
+(<code class="path">RegenerateBatchEngine.kt:422</code>) dispatches
+the status read per phase; the synthetic TITLE / ICON / LANGUAGE rows
+read <code>Report</code> fields directly (no persistent row to
+match), and the FAN_META read treats an icon present as a usable
+(partial) success.</p>
+
+<h2 id="states">Job &amp; task states</h2>
+
+<dl class="kv">
+<div><dt>RegenerateJobStatus.RUNNING</dt><dd>Orchestrator coroutine is alive and stepping through phases.</dd></div>
+<div><dt>PAUSED_ON_ERROR</dt><dd>At least one task ended ERROR; no further phases fire until <code>restart</code> succeeds.</dd></div>
+<div><dt>DONE</dt><dd>Every task ended SUCCESS / CANCELLED.</dd></div>
+<div><dt>CANCELLED</dt><dd>User clicked Cancel; Restart re-enters at <code>currentPhase</code>.</dd></div>
+</dl>
+
+<dl class="kv">
+<div><dt>RegenerateTaskState.WAITING</dt><dd>Task hasn't been touched yet — its phase still pending.</dd></div>
+<div><dt>RUNNING</dt><dd>Phase started, dispatcher fired, awaiting the underlying row's success/failure.</dd></div>
+<div><dt>SUCCESS</dt><dd>The underlying row now has content (or an icon for FAN_META) and no errorMessage.</dd></div>
+<div><dt>ERROR</dt><dd>The underlying row carries an errorMessage / iconErrorMessage after the dispatch fired.</dd></div>
+<div><dt>CANCELLED</dt><dd>Phase didn't get to fire because the user clicked Cancel.</dd></div>
+</dl>
+
+<h2 id="pause-resume">Pause-on-error &amp; background resume</h2>
+
+<p>On the first ERROR in a phase the job persists
+<code>status = PAUSED_ON_ERROR</code> and stamps
+<code>pausedOnRowId</code> (the first errored row). No further phases
+fire until a <code>restart</code> succeeds. All resume paths are
+idempotent:</p>
+
+<dl class="kv">
+<div>
+<dt>restart</dt>
+<div class="meta"><code class="path">RegenerateBatchEngine.kt:124</code></div>
+<dd>The Restart button on the detail screen — the only
+<strong>user-facing</strong> resume trigger. For a paused job it only
+resumes when the paused row is <strong>no longer errored</strong> on
+disk (<code>isRowStillErrored</code>); otherwise no-op. A
+<code>CANCELLED</code> job always restarts at <code>currentPhase</code>.
+<code>DONE</code> and an already-live <code>RUNNING</code> orchestrator
+are no-ops.</dd>
+</div>
+<div>
+<dt>reconcile</dt>
+<div class="meta"><code class="path">RegenerateBatchEngine.kt:192</code></div>
+<dd>Retained for the <strong>manual</strong>
+<code>resumeStaleRunsForReport</code> orchestrator — explicit/manual-use
+only now (fired by user Regenerate / retry, not on report open).
+DONE / CANCELLED &rarr; no-op; RUNNING with a dead orchestrator (app
+kill) &rarr; revive; RUNNING with a live orchestrator &rarr; no-op;
+PAUSED_ON_ERROR with the row now OK &rarr; resume; still errored
+&rarr; no-op. <strong>No longer called from the background pass</strong>
+— the 30 s <code>startBackgroundBrokenScan</code> is now detect-only;
+a RUNNING-but-dead / PAUSED_ON_ERROR job surfaces on the
+&#9888;&#65039; Broken-work screen instead of being auto-revived.</dd>
+</div>
+<div>
+<dt>detectBroken</dt>
+<div class="meta"><code class="path">RegenerateBatchEngine.kt:236</code></div>
+<dd>Read-only counterpart to <code>reconcile</code> used by that scan:
+true when the job is PAUSED_ON_ERROR, or RUNNING with no live
+orchestrator in <em>this</em> process (app-kill-interrupted); false
+for DONE / CANCELLED and a genuinely-live orchestrator.
+<code>detectBrokenBatchesForReport</code>
+(<code class="path">SecondaryRunManager.kt:754</code>) turns a true
+into one synthetic <code>BrokenBatch(kind = REGENERATE)</code> —
+"Paused on an error" when PAUSED, "Interrupted mid-run" when
+RUNNING-but-dead.</dd>
+</div>
+<div>
+<dt>isActivelyRunning</dt>
+<div class="meta"><code class="path">RegenerateBatchEngine.kt:251</code></div>
+<dd>True while a live orchestrator coroutine exists in this process;
+the Broken-work agent scan reads it so a mid-batch report's
+PENDING/RUNNING agents aren't mistaken for app-kill-stranded ones.</dd>
+</div>
+<div>
+<dt>cancel</dt>
+<div class="meta"><code class="path">RegenerateBatchEngine.kt:167</code></div>
+<dd>Stops the orchestrator; in-flight HTTP calls finish themselves and
+persist. Only the orchestrator's own <code>finally</code> decrements
+<code>activeSecondaryBatches</code> — cancelling used to decrement it
+too, drifting the badge below the real count.</dd>
+</div>
+<div>
+<dt>cancelJobNow</dt>
+<div class="meta"><code class="path">RegenerateBatchEngine.kt:160</code></div>
+<dd>The synchronous variant used by <code>deleteReport</code>, which
+must stop the orchestrator <em>before</em> removing the report dir
+(the async <code>cancel</code> returns before its <code>launch</code>
+body runs).</dd>
+</div>
+</dl>
+
+<p class="muted"><code>mutateJob</code> does an atomic get &rarr;
+mutate &rarr; save under <code>RegenerateBatchStorage.update</code>'s
+single lock, so a concurrent cancel can't be clobbered by an
+orchestrator update built from a stale RUNNING snapshot.
+<code>activeSecondaryBatches</code> on <code>UiState</code> is
+incremented while an orchestrator is alive
+(<code>startOrchestrator</code>) and decremented in
+<code>finally</code>, so the app-wide "work in flight" indicator
+counts regenerate batches too.</p>
+
+<h2 id="ui">UI</h2>
+
+<p><code>RegenerateBatchScreen</code>
+(<code class="path">ui/report/manage/RegenerateBatch.kt:70</code>),
+help topic <code>regenerate_batch</code>, title "Regenerate report" /
+subject "Re-run every model on this report" — a status banner
+(phase / counts / "paused on error"), an action row (Cancel when
+RUNNING, Restart when PAUSED / CANCELLED), and per-task cards grouped
+by phase (phase chip via the <code>RegeneratePhase.label</code> map,
+timestamps, duration, error). It's mounted as a
+<code>RegenerateBatchOverlay</code> wrapping the screen in
+<code>LocalNavigateToCurrentReport</code>. The bottom-bar &#128465;
+pops a confirm dialog, then routes through <code>deleteJob</code>
+(cancels the orchestrator, drops the JSON + memory entry).</p>
+
+<p><code>RegenerateBatchManageRow</code>
+(<code class="path">ui/report/manage/RegenerateBatch.kt:370</code>)
+renders the top-of-list <strong>regenerate</strong> row on Manage,
+keyed to the <strong>current</strong> report only (via
+<code>LocalCurrentReportIdForSwipe</code>) so a leftover job from
+another report can't surface on an unrelated one. Its label is
+<code>"&lt;done&gt; / &lt;total&gt; &middot; &lt;currentPhase.label / status&gt;"</code>.</p>
+
+<h2 id="storage">Storage</h2>
+
+<pre><code>&lt;filesDir&gt;/regenerate/&lt;reportId&gt;.json   &larr; RegenerateJob</code></pre>
+
+<p><code>RegenerateBatchStorage</code>
+(<code class="path">data/RegenerateBatchStorage.kt:16</code>) — one
+file per report, <code>ReentrantLock</code>-guarded, atomic writes,
+with <code>..</code>-traversal / suspect-id / canonical-containment
+guards on the resolved path. <code>update</code> is a compound
+read-modify-write under one lock acquisition.
+<code>listActiveReports</code>
+(<code class="path">RegenerateBatchStorage.kt:106</code>) returns the
+reportId of every JSON under the dir. See
+<a href="persistent.html">persistent</a>.</p>
+
+<h2 id="alt-title">Find alternative title / icon</h2>
+
+<p>Both are transient fan-outs launched from a metadata detail screen
+(model picker &rarr; N picks), separate from the regenerate batch and
+from Get-info's own regenerate buttons. "Find alternative icons" is
+documented in <a href="report-icons.html">report-icons</a>. "Find
+alternative titles" lives in <code>IconGenerationManager.kt</code>
+(<code>startReportTitleFanOut</code> / <code>startModelTitleFanOut</code>
+/ <code>startPairTitleFanOut</code> / <code>runTitleCandidate</code>):</p>
+
+<ul>
+<li>Resolves the <code>alt/report_title[_long]</code> (report) or
+<code>alt/model_title</code> (per-model <strong>and</strong>
+per-fan-out-pair) internal prompt; dedupes picks by
+<code>provider:model</code>; pre-populates
+<code>TitleCandidate.Running</code> rows in
+<code>titleFanOutByReport</code> / <code>titleFanOutByAgent</code> /
+<code>pairTitleFanOutByPair</code> (in-memory).</li>
+<li>Each pick pre-acquires the per-provider <code>ProviderThrottle</code>
+permit (sets <code>permitPreAcquired</code> so the interceptor doesn't
+double-count) and runs <code>analyzeWithAgent</code> on a synthetic
+<code>Agent</code>, traced under the <code>alt/report_title[_long]</code>
+/ <code>alt/model_title</code> category.</li>
+<li><strong>Cost-recorded</strong> even though the picked title only
+fills the editor field: when the call returns any tokens it posts to
+the global Usage ledger via
+<code>updateUsageStatsAsync(kind = "title")</code> <em>and</em> appends
+an <code>IconCallRecord</code> (with <code>tier = 0</code>, blank
+<code>agentId</code> so agent/pair icon-clearing never sweeps it, and
+<code>type</code> = the trace category) via
+<code>ReportStorage.appendIconCall</code>, so the spend shows in the
+report cost table + totals. See <a href="costs.html">costs</a>.</li>
+</ul>
+
+<h2 id="see-also">See also</h2>
+
+<p class="muted"><a href="report-icons.html">report-icons</a> — the
+icon-generation content (worker-engine per-report + per-model icon
+prompts) the TITLE / ICON / FAN_META phases drive &middot;
+<a href="secondary-results.html">secondary-results</a> — the meta /
+fan-out / fan-in / tournament results the META&rarr;TOURNAMENT phases
+regenerate &middot; <a href="translation.html">translation</a> — the
+TRANSLATIONS phase's multi-language fan-out &middot;
+<a href="costs.html">costs</a> — find-alternative-title/icon cost
+recording &middot; <a href="throttle.html">throttle</a> — the
+per-host / sub-cap permits every dispatcher acquires &middot;
+<a href="model-states.html#cooldowns">model states &middot; cooldowns</a>
+— benched pairs a batch phase may skip.</p>
+
+<p class="muted"><a href="model-test.html">Test all models</a> is a
+distinct sibling subsystem — a one-off, per-(provider, model) probe
+sweep that feeds the Blocked / Test-excluded / Inaccessible lists.
+It's a different orchestrator (<code>ModelTestEngine</code>) and does
+not touch reports or the regenerate batch.</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

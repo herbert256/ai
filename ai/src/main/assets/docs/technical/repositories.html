@@ -7,312 +7,654 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>Repositories</span></header>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Repositories</span></header>
 <main>
 
 <h1>External repositories</h1>
 
-<p>This app consults seven external sources for model metadata,
-pricing, and capabilities. They are layered — when one source is
-silent, the next is consulted. All seven round-trip through the backup
-zip so a restored device picks up where it left off without needing
-fresh network calls.</p>
+<p>The app consults <strong>twelve external metadata repositories</strong>
+for model pricing, capabilities, and model-card info. Ten are
+<em>pricing catalogs</em> that feed the layered
+<code>PricingCache.getPricing</code> lookup. The other two &mdash;
+<strong>CloudPrice</strong> and <strong>HuggingFace</strong> &mdash;
+are capability/metadata-only and sit outside that price chain
+entirely.</p>
 
-<h2>Lookup precedence</h2>
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#precedence">Lookup precedence</a></li>
+<li><a href="#cost">Cost computation</a></li>
+<li><a href="#capabilities">Capabilities</a></li>
+<li><a href="#storage">Storage</a></li>
+<li><a href="#repos">The twelve repositories</a></li>
+<li><a href="#refresh-all">Refresh All</a></li>
+<li><a href="#per-provider">Per-provider /models endpoints</a></li>
+<li><a href="#help">Help &amp; trace wiring</a></li>
+</ul>
+</nav>
 
-<p>In <code>PricingCache.getPricing</code> for a
-<code>(provider, model)</code> pair (top → bottom — first hit wins):</p>
+<h2 id="precedence">Lookup precedence</h2>
+
+<p>For a <code>(provider, model)</code> pair,
+<code>PricingCache.getPricing</code> (<code>data/PricingCache.kt</code>)
+walks these tiers top &rarr; bottom; <strong>first hit wins</strong>:</p>
 
 <ol>
-<li><strong>Provider self-report</strong> (only checked when caller's
-own provider matches):
+<li><strong>Provider self-report</strong> (only when the caller <em>is</em>
+the source):
   <ul>
-    <li>OpenRouter native (when caller's provider is OpenRouter)</li>
-    <li>Together AI native (when caller's provider is Together)</li>
+    <li>OpenRouter native (<code>crossProviderModelList == true</code>)</li>
+    <li>Together AI native (<code>pricingFromModelList == true</code>)</li>
   </ul>
 </li>
-<li><strong>Manual override</strong> (user-set per
-(provider, model))</li>
+<li><strong>Manual override</strong> (user-set, keyed
+<code>"&lt;provider.id&gt;:&lt;model&gt;"</code>)</li>
 <li>LiteLLM (curated bulk)</li>
 <li>models.dev (curated bulk)</li>
 <li>llm-prices.com (curated bulk)</li>
 <li>Artificial Analysis (curated bulk)</li>
-<li>OpenRouter cross-provider fallback (only for non-OpenRouter
-callers)</li>
-<li>Helicone (last resort — known data-quality issues, kept only so
-we have <em>some</em> answer before falling to default)</li>
-<li><strong>DEFAULT</strong> ($0 / $0)</li>
+<li>llm-stats (curated bulk &mdash; needs API key + Stats-API onboarding)</li>
+<li>OpenRouter cross-provider fallback (only for non-OpenRouter callers)</li>
+<li>Requesty (cross-provider router catalog, keyless)</li>
+<li>genai-prices (Pydantic's curated catalog, keyless)</li>
+<li>TrueFoundry (community model registry, keyless)</li>
+<li>Helicone (last resort &mdash; known data-quality issues)</li>
+<li><strong>DEFAULT_PRICING</strong></li>
 </ol>
 
 <div class="callout warn">
-<p>Provider self-report wins outright when the caller is the
-authoritative source. After that, user manual overrides win over every
-curated source — they used to sit between Artificial Analysis and
-OpenRouter cross-provider, and were promoted because a deliberate
-override added specifically to correct stale catalog data was being
-silently ignored. <code>getPricingWithoutOverride</code> mirrors the
-same precedence (minus the override) for the Costs page's "what
-would the layered price be without your override?" view.</p>
+<p>Two provider-self-report tiers sit <em>ahead</em> of the manual
+override &mdash; OpenRouter-native and Together-native &mdash; so when
+the caller's own provider is the authoritative billing source, its own
+<code>/v1/models</code> price beats even a user override.</p>
+<p>The <strong>manual override sits ahead of every curated bulk
+source</strong> (LiteLLM, models.dev, llm-prices, AA, llm-stats, the
+OpenRouter cross-provider fallback, Requesty, genai-prices, TrueFoundry,
+Helicone). It used to sit <em>behind</em> LiteLLM, so an override added
+specifically to correct a stale catalog entry was silently ignored
+&mdash; the opposite of what the Cost Config UI implies. Implemented in
+<code>PricingCache.findPricingMatch</code>.</p>
+<p><strong>CloudPrice is not in this list</strong> &mdash; its bulk
+model list carries no inline pricing, so it contributes capability
+flags only (see its entry below).</p>
 </div>
 
-<p>Together AI's native pricing is read out of its
-<code>/v1/models</code> payload and persists alongside the OpenRouter
-snapshot under the same file/blob layout
-(<code>together_pricing.json</code>).</p>
+<p><code>DEFAULT_PRICING = ModelPricing("default", 25.00e-6, 75.00e-6,
+"DEFAULT")</code> &mdash; <strong>$25 / M input, $75 / M output</strong>,
+not zero. Deliberately high so a model the catalogs miss shows an
+obviously-wrong cost rather than free.</p>
 
-<p>Capabilities (<code>supportsVision</code>,
-<code>supportsWebSearch</code>, <code>supportsFunctionCalling</code>,
-<code>supportsReasoning</code>) follow a similar layered order, with
-the per-provider <code>/models</code> response winning when it
-surfaces the field directly.</p>
+<details>
+<summary>Related lookup variants</summary>
+<div class="body">
+<dl class="kv">
+<div><dt>getPricingWithoutOverride</dt>
+<div class="meta">skips step 2</div>
+<dd>Used by <code>cleanupRedundantManualOverrides</code> to decide
+whether an override would still win the live lookup.</dd></div>
+<div><dt>lookupPricing</dt>
+<div class="meta">in-memory-only mirror</div>
+<dd>Same precedence (incl. override-before-LiteLLM). Never touches
+disk, never blocks; returns <code>DEFAULT_PRICING</code> if the
+catalogs aren't loaded yet. Used by
+<code>Settings.recomputeCapabilities</code>.</dd></div>
+<div><dt>getTierBreakdown</dt>
+<div class="meta">every tier independently</div>
+<dd>Returns a <code>TierBreakdown</code> with
+<code>litellm/modelsDev/helicone/llmPrices/artificialAnalysis/llmStats/override/openrouter/requesty/genaiPrices/trueFoundry/together/default</code>.
+Drives the layered Costs view and the &#128027; pricing trace.</dd></div>
+<div><dt>pricesConflict</dt>
+<div class="meta">catalog disagreement flag</div>
+<dd>True when &ge;2 catalog tiers disagree on prompt or completion
+price beyond a 1% tolerance (override + default excluded). Surfaces
+"catalog hasn't settled" rows in the AI Models filter.</dd></div>
+</dl>
+</div>
+</details>
 
-<p><strong>Storage:</strong> the large tier blobs all live as files
-under <code class="path">&lt;filesDir&gt;/pricing/&lt;key&gt;.json</code>
-(one per tier — see <a href="persistent.html">persistent state</a>
-for the full file list). Only the small <code>*_timestamp</code>
-longs and the user's <code>manual_pricing</code> map stay in
-<code>pricing_cache.xml</code>. <code>PricingCache.loadBlob</code>
-falls back to the legacy prefs key once on first read after the
-upgrade, copies the JSON to the file, and removes the prefs entry —
-old installs migrate transparently. <code>ensureLoadedBlocking</code>
-refuses to flip the preload-completed flag on the main thread; UI
-callers get <code>DEFAULT_PRICING</code> during the cold window and
-pick up real values on the next state-driven recompose.</p>
+<div class="callout">
+<p><strong>Cold-window caveat:</strong> <code>getPricing</code> (and
+<code>ensureLoaded</code>) short-circuit to <code>DEFAULT_PRICING</code>
+when called on the <strong>main thread before the preload
+completes</strong> &mdash; parsing the ~1.2 MB of catalog blobs is too
+expensive to run synchronously on the UI thread. UI callers see DEFAULT
+during the cold window and pick up real values on the next
+state-driven recompose once the off-main preload primes the cache.
+Don't "fix" this by removing the guard.</p>
+</div>
 
-<h2>The seven repositories</h2>
+<h2 id="cost">Cost computation</h2>
+
+<p><code>computeCost(usage, pricing)</code> returns
+<code>usage.apiCost</code> verbatim when the provider reports a total
+(OpenRouter, Perplexity, xAI); otherwise it calls
+<code>computeInOutCost</code>, which does cache-aware, tier-aware token
+math: cached-input tokens at the cache-read rate, Anthropic
+cache-creation at the cache-write rate, and above-200k tier prices once
+a request crosses 200k input tokens. When <code>apiCost</code> is
+present, <code>computeInOutCost</code> splits it pro-rata by the
+simple-rate baseline (or by token ratio when the baseline is all-zero).
+See the Costs page for the layered breakdown UI.</p>
+
+<h2 id="capabilities">Capabilities</h2>
+
+<p>Capability flags (<code>supportsVision</code>,
+<code>supportsWebSearch</code>, <code>supportsReasoning</code>,
+<code>supportsFunctionCalling</code>) resolve via
+<code>Settings.isVisionCapable</code> / <code>isWebSearchCapable</code>
+/ <code>isReasoningCapable</code> (<code>model/SettingsModels.kt</code>)
+along a parallel layered order: the per-provider <code>/models</code>
+response wins when it self-reports the field (stored on
+<code>ProviderConfig.modelCapabilities</code>), then a manual
+Model-Type-Override flag (can only <strong>add</strong> a capability,
+never clear one), then LiteLLM, then a naming heuristic. Requesty,
+genai-prices, TrueFoundry and CloudPrice all feed capability flags too
+even though only the first three of those also carry pricing &mdash;
+see <a href="model-states.html">model states</a> for the full chain.</p>
+
+<h2 id="storage">Storage</h2>
+
+<p>Each catalog tier persists as a JSON blob under
+<code class="path">&lt;filesDir&gt;/pricing/&lt;key&gt;.json</code>
+(atomic writes); the matching <code>*_timestamp</code> long lives in
+the <code>pricing_cache</code> SharedPreferences file. The user's
+<code>manual_pricing</code> map also lives in <code>pricing_cache</code>,
+<strong>not</strong> a filesDir blob. Exact filenames are listed under
+each repository below. <code>PricingCache.loadBlob</code>'s look-up
+order is:</p>
+
+<ol>
+<li>the post-Refresh <code class="path">&lt;filesDir&gt;/pricing/&lt;key&gt;.json</code> file, then</li>
+<li>a <strong>bundled snapshot</strong> in <code class="path">assets/info-providers/&lt;key&gt;.json</code>.</li>
+</ol>
+
+<p>The bundled blob is read but <strong>not</strong> written through to
+filesDir, so its timestamp stays unset (the UI still reads "never
+refreshed") and the next Refresh overwrites both file and timestamp.
+Every catalog tier ships a bundled snapshot except Together-native
+(harvested at runtime from the provider's own response, not a fetched
+external repo &mdash; so it isn't one of the twelve) and HuggingFace
+(lazy, per-model, never bundled). See
+<a href="persistent.html">persistent state</a> for the full file list.</p>
+
+<p>Separately, the OpenRouter spec fetch writes one
+<strong>top-level</strong> filesDir file &mdash;
+<code>model_supported_parameters.json</code> &mdash; read back by
+<code>getSupportedParameters</code>. A sibling
+<code>model_pricing.json</code> is no longer written (nothing ever read
+it); the cache-clear path still deletes one left behind on older
+installs.</p>
+
+<h2 id="repos">The twelve repositories</h2>
 
 <details class="entity" open>
-<summary>1. LiteLLM</summary>
+<summary>1. LiteLLM<span class="badge">precedence step 3</span></summary>
 <div class="body">
 <dl class="kv">
 <div><dt>Endpoint</dt>
 <dd><code class="path">raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json</code></dd></div>
 <div><dt>Auth</dt><dd>None (public).</dd></div>
 <div><dt>Provides</dt>
-<dd><code>input_cost_per_token</code>,
-<code>output_cost_per_token</code>; <code>supports_vision</code>,
-<code>supports_web_search</code>,
-<code>supports_function_calling</code>,
-<code>supports_reasoning</code>; <code>max_input_tokens</code>,
-<code>max_output_tokens</code>; <code>mode</code> (chat / embedding /
-rerank / image / etc.) — used as the authoritative model-type when
-more specific than CHAT; <code>litellm_provider</code> — used to
-compose the lookup key together with
-<code>AppService.litellmPrefix</code>.</dd></div>
-<div><dt>When fetched</dt>
-<dd>Refresh screen → "LiteLLM"; also on Refresh All. No bundled
-fallback — a fresh install has zero LiteLLM coverage until the user
-runs Refresh once. The layered lookup just falls through to the next
-tier for any model whose pricing the user hasn't fetched yet.</dd></div>
+<dd><code>input_cost_per_token</code>, <code>output_cost_per_token</code>;
+<code>supports_vision</code>, <code>supports_web_search</code>,
+<code>supports_function_calling</code>, <code>supports_reasoning</code>;
+<code>max_input_tokens</code>, <code>max_output_tokens</code>,
+<code>tool_use_system_prompt_tokens</code>; <code>mode</code> (chat /
+embedding / rerank / image / &hellip;) &mdash; used as the authoritative
+model-<strong>type</strong> when more specific than CHAT;
+<code>litellm_provider</code> &mdash; composed with
+<code>AppService.litellmPrefix</code> to build the lookup key.</dd></div>
+<div><dt>Fetched</dt>
+<dd>Via <code>ApiFactory.fetchUrlAsString</code> (flows through
+<code>TracingInterceptor</code> + the retry interceptors). Refresh
+screen &rarr; "LiteLLM"; Refresh All.</dd></div>
 <div><dt>Cache</dt>
 <dd><code class="path">&lt;filesDir&gt;/pricing/litellm_pricing.json</code>
-and <code>litellm_meta.json</code> (the catalog + capability
-sidecar); <code>litellm_timestamp</code> long in
-<code>pricing_cache.xml</code>.</dd></div>
++ <code>litellm_meta.json</code> (capability sidecar);
+<code>litellm_timestamp</code> in <code>pricing_cache</code>. Seeded
+from the bundled asset of the same name.</dd></div>
 </dl>
 </div>
 </details>
 
 <details class="entity">
-<summary>2. OpenRouter</summary>
+<summary>2. OpenRouter<span class="badge">steps 1 &amp; 8</span></summary>
 <div class="body">
 <dl class="kv">
 <div><dt>Endpoint</dt>
 <dd><code>openrouter.ai/api/v1/models</code> (detailed).</dd></div>
 <div><dt>Auth</dt>
-<dd>Bearer token (External Services → OpenRouter).</dd></div>
+<dd>Bearer token (External Services &rarr; OpenRouter).</dd></div>
 <div><dt>Provides</dt>
-<dd><code>pricing.prompt</code>, <code>pricing.completion</code> —
-converted from per-token to per-token Double;
-<code>architecture.modality</code> and
-<code>architecture.input_modalities</code> — used to auto-flag models
-that accept image input; <code>top_provider.context_length</code> /
-<code>max_completion_tokens</code>;
-<code>supported_parameters</code> — used by the dispatch layer to
-filter out unsupported parameters before sending the request.</dd></div>
-<div><dt>When fetched</dt>
-<dd>Refresh screen → "OpenRouter"; Refresh All; on the AI Usage
-screen if the OpenRouter cache is stale.</dd></div>
-<div><dt>Cross-pollination</dt>
-<dd>OpenRouter's per-model <code>mode</code> label is mirrored to
-every other provider's stored model-types map under
-<code>&lt;openRouterName&gt;/&lt;modelId&gt;</code>, giving every
-catalog free type tags.</dd></div>
+<dd><code>pricing.prompt</code> / <code>pricing.completion</code>
+(converted to per-token Double); <code>architecture.modality</code> /
+<code>architecture.input_modalities</code> &mdash; auto-flags image
+input; <code>top_provider.context_length</code> /
+<code>max_completion_tokens</code>; <code>supported_parameters</code>
+&mdash; lets the dispatch layer drop parameters a model can't accept
+before sending the request.</dd></div>
+<div><dt>Fetched</dt>
+<dd>Refresh screen &rarr; "OpenRouter"; Refresh All; lazily on the AI
+Usage screen when the OpenRouter cache is stale.</dd></div>
+<div><dt>Dual role</dt>
+<dd>Both a catalog tier <em>and</em> the cross-provider price /
+parameter fan-out source. <code>findOpenRouterPricing</code> resolves a
+<em>non-OpenRouter</em> lookup against this same
+<code>openrouter_pricing.json</code> blob by prefixing the model id
+with the caller's <code>AppService.openRouterName</code> (step 8 &mdash;
+"free price tags for every provider"). Separately,
+<code>fetchAndSaveModelSpecifications</code> walks the full detailed
+catalog and writes the top-level <code>model_supported_parameters.json</code>
+mentioned under Storage above.</dd></div>
 <div><dt>Cache</dt>
 <dd><code>openrouter_pricing.json</code>;
-<code>openrouter_timestamp</code> in
-<code>pricing_cache.xml</code>.</dd></div>
+<code>openrouter_timestamp</code> in <code>pricing_cache</code>.</dd></div>
 </dl>
 </div>
 </details>
 
 <details class="entity">
-<summary>3. models.dev</summary>
+<summary>3. models.dev<span class="badge">precedence step 4</span></summary>
 <div class="body">
 <dl class="kv">
 <div><dt>Endpoint</dt><dd><code>models.dev/api.json</code></dd></div>
 <div><dt>Auth</dt><dd>None (public).</dd></div>
 <div><dt>Provides</dt>
-<dd>Per-vendor model catalog with input / output prices, vision / tool
+<dd>Per-vendor catalog with input/output prices, vision/tool
 capabilities, context length.</dd></div>
-<div><dt>When fetched</dt>
-<dd>Refresh screen → "models.dev"; Refresh All.</dd></div>
-<div><dt>Note</dt>
-<dd>Fetched via <code>ApiFactory.fetchUrlAsString</code> so the call
-flows through <code>TracingInterceptor</code> and
-<code>RateLimitRetryInterceptor</code> (a previous
+<div><dt>Fetched</dt>
+<dd>Via <code>ApiFactory.fetchUrlAsString</code> (a previous
 <code>URL.openStream</code>-based version silently failed on first
-install).</dd></div>
+install, with no timeout and no trace). Refresh screen &rarr;
+"models.dev"; Refresh All.</dd></div>
 <div><dt>Cache</dt>
-<dd><code>models_dev_pricing.json</code> and
-<code>models_dev_meta.json</code> (capabilities sidecar);
-<code>models_dev_timestamp</code> long in
-<code>pricing_cache.xml</code>.</dd></div>
+<dd><code>models_dev_pricing.json</code> + <code>models_dev_meta.json</code>
+(capability sidecar); <code>models_dev_timestamp</code> in
+<code>pricing_cache</code>.</dd></div>
 </dl>
 </div>
 </details>
 
 <details class="entity">
-<summary>4. Helicone</summary>
-<div class="body">
-<dl class="kv">
-<div><dt>Endpoint</dt>
-<dd><code>www.helicone.ai/api/llm-costs</code></dd></div>
-<div><dt>Auth</dt><dd>None (public).</dd></div>
-<div><dt>Provides</dt>
-<dd>Input / output cost per token. Match operators are
-<code>equals</code> / <code>startsWith</code> /
-<code>includes</code> — <code>findHeliconePricing</code> honours all
-three so a model id matched by any operator picks up the price.</dd></div>
-<div><dt>Cache</dt>
-<dd><code>helicone_pricing.json</code> (exact-match rules) and
-<code>helicone_patterns.json</code> (<code>startsWith</code> /
-<code>includes</code> rules); <code>helicone_timestamp</code> long in
-<code>pricing_cache.xml</code>.</dd></div>
-</dl>
-</div>
-</details>
-
-<details class="entity">
-<summary>5. llm-prices</summary>
+<summary>4. llm-prices<span class="badge">precedence step 5</span></summary>
 <div class="body">
 <dl class="kv">
 <div><dt>Endpoint</dt>
 <dd><code class="path">raw.githubusercontent.com/simonw/llm-prices/main/data/&lt;vendor&gt;.json</code></dd></div>
 <div><dt>Auth</dt><dd>None (public).</dd></div>
 <div><dt>Provides</dt>
-<dd>Pricing snapshot maintained by Simon Willison; multiple
-per-vendor JSON files fetched concurrently and merged.</dd></div>
+<dd>Pricing snapshot maintained by Simon Willison. Per-vendor JSON
+files fetched in sequence and merged. Current vendor list (10):
+<code>amazon</code>, <code>anthropic</code>, <code>deepseek</code>,
+<code>google</code>, <code>minimax</code>, <code>mistral</code>,
+<code>moonshot-ai</code>, <code>openai</code>, <code>qwen</code>,
+<code>xai</code>.</dd></div>
 <div><dt>Cache</dt>
-<dd><code>llmprices_pricing.json</code>;
-<code>llmprices_timestamp</code> long in
-<code>pricing_cache.xml</code>.</dd></div>
+<dd><code>llmprices_pricing.json</code>; <code>llmprices_timestamp</code>
+in <code>pricing_cache</code>.</dd></div>
 </dl>
 </div>
 </details>
 
 <details class="entity">
-<summary>6. Artificial Analysis</summary>
+<summary>5. Artificial Analysis<span class="badge">precedence step 6</span></summary>
 <div class="body">
 <dl class="kv">
 <div><dt>Endpoint</dt>
 <dd><code>artificialanalysis.ai/api/v2/data/llms/models</code></dd></div>
 <div><dt>Auth</dt>
-<dd>API key in <code>x-api-key</code> header (External Services →
-Artificial Analysis; free tier).</dd></div>
+<dd>API key in <code>x-api-key</code> header (External Services &rarr;
+Artificial Analysis; free tier &mdash; sign up at
+artificialanalysis.ai/api).</dd></div>
 <div><dt>Provides</dt>
 <dd><code>pricing.price_1m_input_tokens</code> /
 <code>price_1m_output_tokens</code>;
-<code>evaluations.artificial_analysis_intelligence_index</code> —
-quality score; <code>median_output_tokens_per_second</code> — speed
-score.</dd></div>
+<code>evaluations.artificial_analysis_intelligence_index</code>
+(quality score); <code>median_output_tokens_per_second</code> (speed
+score).</dd></div>
 <div><dt>Composite key</dt>
 <dd><code>&lt;model_creator.slug&gt;/&lt;slug&gt;</code> (lowercased),
-e.g. <code>google/gemini-2-5-pro</code>. Bumped to <code>_v2</code>
-keys to invalidate older UUID-keyed entries from the previous parser
-revision.</dd></div>
+e.g. <code>anthropic/claude-opus-4-6</code>. The <code>_v2</code> suffix
+on the keys/blobs invalidates the older UUID-keyed entries from the
+previous parser revision.</dd></div>
 <div><dt>Cache</dt>
-<dd><code>aa_pricing_v2.json</code> and <code>aa_meta_v2.json</code>
-(intelligence + speed scores); <code>aa_timestamp_v2</code> long in
-<code>pricing_cache.xml</code>.</dd></div>
+<dd><code>aa_pricing_v2.json</code> + <code>aa_meta_v2.json</code>
+(intelligence + speed scores); <code>aa_timestamp_v2</code> in
+<code>pricing_cache</code>.</dd></div>
 </dl>
 </div>
 </details>
 
 <details class="entity">
-<summary>7. HuggingFace</summary>
+<summary>6. Helicone<span class="badge">precedence step 12 &middot; last resort</span></summary>
 <div class="body">
 <dl class="kv">
 <div><dt>Endpoint</dt>
-<dd><code>huggingface.co/api/models/{modelId}</code></dd></div>
-<div><dt>Auth</dt>
-<dd>Bearer token (External Services → HuggingFace) — required to
-avoid aggressive rate-limiting on unauthenticated lookups.</dd></div>
+<dd><code>www.helicone.ai/api/llm-costs</code></dd></div>
+<div><dt>Auth</dt><dd>None (public).</dd></div>
 <div><dt>Provides</dt>
-<dd>Model card metadata — license, downloads, likes,
-<code>pipeline_tag</code>, <code>library_name</code>, tags, dataset
-references, base-model pointers. Surfaced on the Model Info
-screen.</dd></div>
+<dd>Input/output cost per token. Match operators are
+<code>equals</code> / <code>startsWith</code> / <code>includes</code>;
+<code>findHeliconePricing</code> honours all three.</dd></div>
 <div><dt>Cache</dt>
-<dd><code>huggingface_cache</code> SharedPreferences with a 7-day TTL.
-Negative results are cached so a model with no HF mirror doesn't
-re-hit the API every screen open. Concurrent load-modify-save is
-serialised so two simultaneous misses don't tear the JSON blob.</dd></div>
-<div><dt>When fetched</dt>
-<dd>Lazily, the first time a Model Info screen is opened for
-<code>(provider, model)</code> whose entry is stale or
-missing.</dd></div>
+<dd><code>helicone_pricing.json</code> (exact-match rules) +
+<code>helicone_patterns.json</code> (<code>startsWith</code> /
+<code>includes</code> rules); <code>helicone_timestamp</code> in
+<code>pricing_cache</code>.</dd></div>
+<div><dt>Position</dt>
+<dd>Last catalog tier before DEFAULT &mdash; kept only so there's
+<em>some</em> answer for a model no better source covers.</dd></div>
 </dl>
 </div>
 </details>
 
-<h2>Refresh All</h2>
+<details class="entity">
+<summary>7. llm-stats<span class="badge">precedence step 7</span></summary>
+<div class="body">
+<dl class="kv">
+<div><dt>Endpoint</dt>
+<dd><code>api.llm-stats.com/stats/v1/models</code> (by ZeroEval).</dd></div>
+<div><dt>Auth</dt>
+<dd><code>Authorization: Bearer &lt;key&gt;</code>. Also needs
+<strong>Stats-API onboarding</strong> &mdash; until completed at
+llm-stats.com/developer the endpoint returns
+<code>403 stats_api_access_denied</code> and the tier loads
+nothing.</dd></div>
+<div><dt>Paginated</dt>
+<dd>Walks <code>next_cursor</code> (the fetcher loops, &le;20
+pages).</dd></div>
+<div><dt>Provides</dt>
+<dd><code>providers[]</code> &mdash; collapsed to one representative
+price: the provider matching the model's own <code>organization.id</code>
+(first-party) when present, else the cheapest by input rate.
+<code>top_scores</code> &mdash; per-benchmark scores, heterogeneous
+scales upstream, stored raw in the sidecar (never collapsed into a
+single index). <code>modalities</code> &mdash; <code>image</code> drives
+the vision flag.</dd></div>
+<div><dt>Key format</dt>
+<dd><code>&lt;org-slug&gt;/&lt;modelId&gt;</code> (creator-slug style,
+like AA); lookup mirrors <code>findArtificialAnalysisPricing</code>.</dd></div>
+<div><dt>Cache</dt>
+<dd><code>llmstats_pricing.json</code> + <code>llmstats_meta.json</code>
+(scores + modalities sidecar); <code>llmstats_timestamp</code> in
+<code>pricing_cache</code>. Bundled snapshot (82 priced / 323 meta at
+build time).</dd></div>
+</dl>
+</div>
+</details>
 
-<p>The Refresh screen has a top-level <strong>Refresh all</strong>
-button that runs the seven repositories in dependency order on a
-full-screen progress page, then re-tests every active provider, then
-auto-restarts the app. The catalog fetches run in parallel (rather
-than sequentially as in earlier builds) because they touch disjoint
-disk paths. Failed providers list with one-tap nav-to-edit.
-Refresh-all skips the default-agent re-test (it trusts the
-catalog-fetch results).</p>
+<details class="entity">
+<summary>8. Requesty<span class="badge">precedence step 9</span></summary>
+<div class="body">
+<dl class="kv">
+<div><dt>Endpoint</dt>
+<dd><code>router.requesty.ai/v1/models</code></dd></div>
+<div><dt>Auth</dt>
+<dd>None &mdash; the public catalog returns every public/approved
+model.</dd></div>
+<div><dt>Provides</dt>
+<dd><code>input_price</code> / <code>output_price</code>
+(<strong>already per-token</strong> &mdash; no $/M conversion, unlike
+the other curated tiers), plus <code>cached_price</code> (cache read)
+and <code>caching_price</code> (cache write); <code>context_window</code>,
+<code>max_output_tokens</code>; capability flags
+<code>supports_vision</code>, <code>supports_reasoning</code>,
+<code>supports_web_search</code>, <code>supports_computer_use</code>,
+<code>supports_tool_calling</code>.</dd></div>
+<div><dt>Key format</dt>
+<dd><code>&lt;vendor&gt;/&lt;modelId&gt;</code> (OpenRouter-style);
+lookup mirrors <code>findOpenRouterPricing</code> (exact key &rarr;
+<code>openRouterName</code> prefix &rarr; bucketed normalized
+scan).</dd></div>
+<div><dt>Position</dt>
+<dd>Keyless cross-provider fallback after the OpenRouter cross-provider
+fallback, before genai-prices. Its capability flags also feed the
+layered chain (<code>Settings.isVisionCapable</code> etc.) after
+models.dev.</dd></div>
+<div><dt>Cache</dt>
+<dd><code>requesty_pricing.json</code> + <code>requesty_meta.json</code>
+(capability sidecar); <code>requesty_timestamp</code> in
+<code>pricing_cache</code>. Bundled snapshot.</dd></div>
+</dl>
+</div>
+</details>
 
-<p>The full-screen progress page catches <code>Throwable</code> (not
-just <code>Exception</code>) and falls back to the throwable's class
-name when the message is empty so an unhandled OOM still surfaces
-something to the user.</p>
+<details class="entity">
+<summary>9. genai-prices<span class="badge">precedence step 10</span></summary>
+<div class="body">
+<dl class="kv">
+<div><dt>Endpoint</dt>
+<dd><code class="path">raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json</code></dd></div>
+<div><dt>Auth</dt><dd>None (single public data file).</dd></div>
+<div><dt>Provides</dt>
+<dd>Pydantic's curated price catalog &mdash; a JSON array of providers,
+each with a <code>models</code> list carrying <code>prices</code>
+(<code>input_mtok</code> / <code>output_mtok</code> /
+<code>cache_read_mtok</code> / <code>cache_write_mtok</code>, in $/M
+tokens &rarr; divided by 1M) and a <code>context_window</code> (kept in
+the sidecar). <code>prices</code> may be a conditional array (date/tier
+variants) &mdash; the unconstrained (base) entry is taken; per-field
+<code>TieredPrices</code> objects degrade to "missing".</dd></div>
+<div><dt>Key format</dt>
+<dd><code>&lt;provider&gt;/&lt;modelId&gt;</code> (like models.dev),
+matched via the prefix-bucket scan.</dd></div>
+<div><dt>Position</dt>
+<dd>Keyless community fallback after Requesty, before TrueFoundry.</dd></div>
+<div><dt>Cache</dt>
+<dd><code>genaiprices_pricing.json</code> + <code>genaiprices_meta.json</code>;
+<code>genaiprices_timestamp</code> in <code>pricing_cache</code>.
+Bundled snapshot.</dd></div>
+</dl>
+</div>
+</details>
 
-<h2>Per-provider /models endpoints</h2>
+<details class="entity">
+<summary>10. TrueFoundry<span class="badge">precedence step 11</span></summary>
+<div class="body">
+<dl class="kv">
+<div><dt>Endpoint</dt>
+<dd><code class="path">github.com/truefoundry/models/archive/refs/heads/main.tar.gz</code></dd></div>
+<div><dt>Auth</dt>
+<dd>None. There is no consolidated data file upstream (one YAML per
+model), so the refresh downloads the whole-repo <code>.tar.gz</code>
+via <code>ApiFactory.fetchUrlAsBytes</code>, streams it through
+<code>GZIPInputStream</code> &rarr; commons-compress
+<code>TarArchiveInputStream</code>, and parses each
+<code class="path">providers/&lt;provider&gt;/&lt;model&gt;.yaml</code>
+with SnakeYAML one entry at a time (skipping each provider's
+<code>default.yaml</code>).</dd></div>
+<div><dt>Provides</dt>
+<dd>Per-model <code>costs</code> (<code>input_cost_per_token</code> /
+<code>output_cost_per_token</code> / <code>cache_read_input_token_cost</code>
+&mdash; already per-token), <code>limits</code> (context/output),
+<code>modalities</code> (image &rarr; vision), <code>features</code>
+(<code>function_calling</code> &rarr; tool-calling), <code>thinking</code>
+(&rarr; reasoning).</dd></div>
+<div><dt>Key format</dt>
+<dd><code>&lt;provider&gt;/&lt;modelId&gt;</code> from the repo's
+directory layout, matched via the prefix-bucket scan.</dd></div>
+<div><dt>Position</dt>
+<dd>Keyless community fallback after genai-prices, before
+Helicone.</dd></div>
+<div><dt>Cache</dt>
+<dd><code>truefoundry_pricing.json</code> + <code>truefoundry_meta.json</code>;
+<code>truefoundry_timestamp</code> in <code>pricing_cache</code>.
+Bundled snapshot. Heavier refresh than the JSON catalogs (archive
+download + on-device unzip + ~1000 YAML parses).</dd></div>
+</dl>
+</div>
+</details>
 
-<p>In addition to the seven external repositories above, every active
-provider's own <code>/models</code> (or equivalent) endpoint is
-consulted at fetch time to discover the model list. The response is
-parsed for capabilities the provider self-reports — Mistral's
+<details class="entity">
+<summary>11. CloudPrice<span class="badge">capabilities only &mdash; no pricing</span></summary>
+<div class="body">
+<p>Like HuggingFace, CloudPrice is <strong>not</strong> a pricing
+source &mdash; its bulk <code>/models</code> list carries no inline
+pricing (prices live behind per-model calculator endpoints). It
+contributes <strong>capabilities + context only</strong>, so it never
+joins the layered price lookup. It has <strong>two</strong> lookups: a
+bulk, eagerly-cached, bundled catalog (below) that feeds the
+capability chain, plus a lazy per-model live lookup (like
+HuggingFace's).</p>
+<dl class="kv">
+<div><dt>Endpoint</dt>
+<dd><code>ai.cloudprice.net/api/v1/models?page_size=100</code>,
+paginated via <code>pagination.next_token</code> (capped at 40
+pages).</dd></div>
+<div><dt>Auth</dt><dd>None.</dd></div>
+<div><dt>Provides</dt>
+<dd>Per model: <code>modalities</code> (image &rarr; vision),
+<code>context_window</code>, <code>max_output_tokens</code>, and a
+<code>capabilities</code> block (<code>function_calling</code> &rarr;
+tool-calling, <code>reasoning</code>, <code>web_search</code>,
+<code>computer_use</code>). Feeds
+<code>Settings.isVisionCapable</code> / <code>isWebSearchCapable</code>
+/ <code>isReasoningCapable</code>.</dd></div>
+<div><dt>Key format</dt>
+<dd><code>&lt;creator&gt;/&lt;name&gt;</code> (creator-slug style, like
+AA), matched via the prefix-bucket scan.</dd></div>
+<div><dt>Cache</dt>
+<dd><code>cloudprice_meta.json</code> (no pricing blob);
+<code>cloudprice_timestamp</code> in <code>pricing_cache</code>.
+Bundled snapshot.</dd></div>
+</dl>
+<p><strong>Per-model live lookup</strong>
+(<code>data/CloudPriceModelCache.kt</code>, the direct sibling of the
+HuggingFace lookup): independently of the bulk catalog above, the
+Model Info screen also hits
+<code>GET ai.cloudprice.net/api/v1/models/{id}</code> directly &mdash;
+richer / fresher than the bulk list and able to resolve aliases the
+bulk keying misses. The candidate id is probed in three forms (bare
+id, then dash&rarr;dot and dot&rarr;dash variants); the first 2xx wins.
+Traced under <code>info/cloudprice</code> (distinct from the bulk
+fetch's <code>pricing/CloudPrice</code>). Results (including
+negative/404 misses) are cached for 7 days keyed
+<code>${providerId}::${modelId}</code> in the
+<code>cloudprice_model_cache</code> SharedPreferences file, which
+round-trips through the backup zip like <code>huggingface_cache</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>12. HuggingFace<span class="badge">capabilities only &mdash; no pricing</span></summary>
+<div class="body">
+<p>Unlike the catalog tiers, HuggingFace is <strong>not</strong> part
+of Refresh All, <strong>not</strong> bundled, and <strong>not</strong>
+a pricing source &mdash; it's a lazy, per-model card-metadata
+lookup.</p>
+<dl class="kv">
+<div><dt>Endpoint</dt>
+<dd><code>huggingface.co/api/models/{modelId}</code> (via
+<code>ApiFactory.createHuggingFaceApi().getModelInfo</code>, traced
+under <code>info/huggingface</code> &mdash; not a <code>pricing/</code>
+category).</dd></div>
+<div><dt>Auth</dt>
+<dd>Bearer token (External Services &rarr; HuggingFace), and it's
+<strong>required</strong>: when the key is blank the lookup is skipped
+entirely and a null (miss) is cached, so Model Info shows nothing for
+HF until a token is set. With a token, gated-model metadata also
+unlocks.</dd></div>
+<div><dt>Provides</dt>
+<dd>Model-card metadata &mdash; license, downloads, likes,
+<code>pipeline_tag</code>, <code>library_name</code>, tags, dataset
+references, base-model pointers. Surfaced on the Model Info screen
+&rarr; Sources card.</dd></div>
+<div><dt>Cache</dt>
+<dd><code>huggingface_cache</code> SharedPreferences (single
+<code>entries_json</code> blob key, keyed
+<code>${providerId}::${modelId}</code>) with a 7-day TTL. Negative
+results are cached; concurrent load-modify-save is serialised so two
+simultaneous misses don't tear the blob.</dd></div>
+<div><dt>Fetched</dt>
+<dd>Lazily, the first time a Model Info screen opens for a
+<code>(provider, model)</code> whose entry is stale or missing. The
+candidate id is probed in three forms (base <code>vendor/model</code>,
+then dash&rarr;dot and dot&rarr;dash variants); the first 2xx wins,
+otherwise the miss is cached.</dd></div>
+</dl>
+</div>
+</details>
+
+<h2 id="refresh-all">Refresh All</h2>
+
+<p>The Refresh screen's top-level <strong>Refresh all</strong> button
+(<code>AppViewModel.startRefreshAll</code>) runs two phases <strong>in
+parallel</strong> on a full-screen progress page, after first clearing
+every provider-default agent and emptying the <code>default
+agents</code> flock:</p>
+
+<ol>
+<li>the <strong>catalog phase</strong> (<code>runCatalogPhase</code>)
+fans <strong>eleven catalog sources</strong> out in parallel
+(<code>async(Dispatchers.IO)</code> + <code>awaitAll</code>, since they
+touch disjoint disk paths). OpenRouter, Artificial Analysis and
+llm-stats are skipped when their key is absent (LiteLLM, models.dev,
+llm-prices, Helicone, Requesty, genai-prices, TrueFoundry and
+CloudPrice are keyless, so they always run). When the catalogs settle
+it recomputes the precomputed vision/web-search/reasoning capability
+sets (<code>recomputeAllCapabilities</code>) and saves settings;</li>
+<li>the <strong>per-provider Worker phase</strong>
+(<code>runWorkerPhase</code>, each provider in parallel): test key
+&rarr; fetch model list if <code>ModelSource.API</code> &rarr; write
+the default agent and add it to the <code>default agents</code>
+flock.</li>
+</ol>
+
+<p>When both phases finish, the progress screen surfaces a
+<strong>"Restart application"</strong> banner (shown once
+<code>state.isFinished</code>); the user taps it to flush usage stats
+and restart so the in-memory singletons reload from disk. The restart
+is <strong>not</strong> automatic.</p>
+
+<p>Each catalog step renders its own status and, on failure, keeps the
+<em>previous</em> cache ("kept previous N from &lt;age&gt;") so a
+transient network error doesn't blank out a working tier. Failed
+providers list with one-tap nav-to-edit. The overall run catches
+<code>Throwable</code> (not just <code>Exception</code>) and falls back
+to the throwable's class name when the message is empty, so an
+unhandled OOM still surfaces something.</p>
+
+<p>A sibling <strong>Refresh</strong> button runs only the Worker phase
+(key test &rarr; model list &rarr; default agent), skipping every
+external catalog.</p>
+
+<h2 id="per-provider">Per-provider /models endpoints</h2>
+
+<p>Independently of the twelve repositories, every active provider's
+own <code>/models</code> (or equivalent) endpoint is consulted at
+fetch time to discover the model list. The response is parsed for the
+capabilities the provider self-reports &mdash; Mistral's
 <code>capabilities</code> object, Cohere's <code>endpoints</code>
-array, Gemini's <code>supportedGenerationMethods</code>,
-OpenRouter's <code>architecture.input_modalities</code>, etc. — and
-stored as <code>ProviderConfig.modelCapabilities</code>. The
-provider's own response wins over the layered external sources for
-any field it populates.</p>
+array, Gemini's <code>supportedGenerationMethods</code>, OpenRouter's
+<code>architecture.input_modalities</code>, etc. &mdash; and stored as
+<code>ProviderConfig.modelCapabilities</code> (a
+<code>Map&lt;String, ModelCapabilities&gt;</code>). The provider's own
+response wins over the layered external sources for any capability
+field it populates.</p>
 
-<p>Failures surface inline with a 🐞 trace link rather than silently
-returning an empty list, so the user can see what went wrong (404,
-auth failure, parser error) without digging through logcat.</p>
+<p>Failures surface inline with a &#128027; trace link rather than
+silently returning an empty list. The raw JSON of the last
+<code>/models</code> response is preserved in
+<code>ProviderConfig.modelListRawJson</code> so a future parser
+revision can mine extra fields without forcing a re-fetch.</p>
 
-<p>The raw JSON of each provider's last <code>/models</code> response
-is preserved in <code>ProviderConfig.modelListRawJson</code> so a
-future parser revision can pull out additional fields without forcing
-a re-fetch.</p>
+<h2 id="help">Help &amp; trace wiring</h2>
 
-<h2>Per-provider help pages</h2>
+<p>Each repository has a help page &mdash; the twelve
+<code>info_provider_*</code> topics in
+<code>ui/admin/InfoProviderHelp.kt</code> &mdash; deep-linked from
+every entry point: the &#8505; icon beside a Source button on the
+Model Info screen, the per-tier card on the Refresh screen, and the
+Trace detail page when a captured trace matches a known fetch
+category. The trace&rarr;repository resolver is
+<code>infoProviderForTrace(url, category)</code>
+(<code>ui/admin/HelpScreen.kt</code>), backed by the canonical
+12-entry <code>INFO_PROVIDERS</code> list; OpenRouter's spec fetch is
+additionally gated on a chat-category check plus a <code>pricing/</code>
+category prefix. See <a href="help.html">Help system</a>.</p>
 
-<p>Each repository has its own help page deep-linked from every entry
-point — the ℹ icon next to a Source button on the Model Info screen,
-the Trace detail page when the captured trace's category matches a
-known fetch category, and from the per-tier card on the Refresh
-screen.</p>
-
-<p class="backtop"><a href="#">↑ Top</a></p>
+<p class="backtop"><a href="#">&uarr; Top</a></p>
 
 </main>
 </body>

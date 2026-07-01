@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tournament / Judges / Compare — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Tournament / Judges / Compare</span></header>
+<main>
+
+<h1>Tournament, Judge the Judges, Compare with Meta</h1>
+
+<p>Three worker-judged, grid-shaped analysis batches that run on a finished
+report. Unlike a single-call secondary (Rerank / Meta / Moderation /
+Translate), each of these three pre-creates a whole grid of
+<code>SecondaryResult</code> cells, dispatches them independently, and
+hydrates the run back from disk when the report is reopened.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#shared">Shared model</a></li>
+<li><a href="#tournament">Tournament</a></li>
+<li><a href="#ranking-methods">Ranking methods</a></li>
+<li><a href="#judges">Judge the judges</a></li>
+<li><a href="#compare">Compare with meta</a></li>
+<li><a href="#persistence">Persistence and deletion</a></li>
+<li><a href="#cost">Cost and usage</a></li>
+<li><a href="#related">Related files</a></li>
+</ul>
+</nav>
+
+<div class="callout">
+<p>These are three of the eight <code>SecondaryKind</code> values
+(<code>RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES, COMPARE,
+TRANSRANK</code> &mdash; <code>data/SecondaryModels.kt</code>). The eighth,
+<code>TRANSRANK</code> ("Rank the translators"), is a sibling feature that
+reuses this page's tournament cell/matrix machinery &mdash; see
+<a href="rank-translators.html">rank-translators</a>. The single-call kinds
+and Fan-out/Fan-in are covered in
+<a href="secondary-results.html">secondary-results</a>.</p>
+</div>
+
+<h2 id="shared">Shared model</h2>
+
+<ul>
+<li>A report must have successful primary model responses before any of the
+three can launch.</li>
+<li>A run creates placeholder <code>SecondaryResult</code> rows before any
+API call starts, each stamped with a sentinel provider/model. Each placeholder
+moves PENDING &rarr; RUNNING &rarr; DONE/ERROR.</li>
+<li>A run id (<code>tournamentJudgeRunId</code> for Tournament/Judges,
+<code>compareRunId</code> for Compare) tags traces and usage so the UI can
+deep-link to the batch.</li>
+<li><code>UiState.activeSecondaryBatches</code> is bumped on entry and
+decremented in a <code>finally</code>, keeping the result screen polling
+while work is live.</li>
+<li>On process loss or navigation away, hydration rebuilds run state from
+<code class="path">&lt;filesDir&gt;/secondary/&lt;reportId&gt;/</code>. There
+is one run per report &mdash; the newest run group wins if legacy multi-run
+rows are present.</li>
+<li>Failed cells can be restarted without deleting successful cells; a full
+redo deletes the run's rows and launches a fresh grid.</li>
+<li>App-kill resume and a per-cell retry bound
+(<code>BatchResume.capForRetry</code>) apply.</li>
+</ul>
+
+<div class="callout warn">
+<p><strong>Persisted runs hydrate read-only when their prompt is missing.</strong>
+Each engine resolves the run's prompt by <code>metaPromptId</code>, falls back
+to the current bundled prompt (<code>workers/tournament</code> /
+<code>meta_compare</code>), and finally &mdash; if both are gone &mdash; builds
+a <em>synthetic</em> <code>InternalPrompt</code> from the row's
+<code>metaPromptId</code>/<code>metaPromptName</code> with blank text (shown
+as "(prompt unavailable)" when even that is gone). Every mutating path
+(resume, rerun, restart-failed, add-judge) guards on
+<code>prompt.text.isBlank()</code> and no-ops, so a synthetic run hydrates for
+viewing but can't re-fire API calls.</p>
+</div>
+
+<p>Each engine owns its own per-report run-state <code>StateFlow</code>
+(<code>runs</code>, on the shared <code>BatchEngine</code> base); per-item
+RUNNING status lives in that map &mdash; there is <strong>no</strong>
+separate "running ids" set on <code>AppViewModel</code>. The live in-process
+Job ids come from each engine's <code>inFlightRowIds()</code> (the shared
+<code>itemJobs</code> map keyed on the <code>BatchEngine</code> base), which
+the read-only broken-work scan excludes.</p>
+
+<dl class="kv">
+<div><dt>Tournament</dt>
+<div class="meta"><code>rvm.tournamentEngine</code> (<code>TournamentEngine</code>)</div>
+<dd>Run-state: <code>runs</code> (per-match <code>MatchStatus</code>).
+Throttled/waiting ids: <code>throttledTournamentMatches</code>.</dd></div>
+<div><dt>Judge the judges</dt>
+<div class="meta"><code>rvm.judgeEvalEngine</code> (<code>JudgeEvalEngine</code>)</div>
+<dd>Run-state: <code>runs</code> (per-cell <code>JudgeCellStatus</code>).
+Throttled/waiting ids: <code>throttledJudgeEvalCells</code>.</dd></div>
+<div><dt>Compare with meta</dt>
+<div class="meta"><code>rvm.compareEngine</code> (<code>CompareEngine</code>)</div>
+<dd>Run-state: <code>runs</code> (per-cell <code>CompareCellStatus</code>).
+Throttled/waiting ids: <code>throttledCompareCells</code>.</dd></div>
+</dl>
+
+<p>All three use <code>ApiCallCaps.workers</code> as their per-flow sub-cap
+&mdash; its own semaphore, separate from <code>fanMeta</code>'s &mdash;
+layered over the global <code>ApiCallCaps.global</code> coroutine cap and the
+per-provider <code>ProviderThrottle</code> host gate. There is a single
+configurable ceiling: <code>resetForNewLimits</code> sizes every sub-cap
+(including <code>workers</code> and <code>fanMeta</code>) to the global cap
+(<code>maxConcurrentApiCalls</code>, default 100), so only the global limit
+ever actually binds. Acquisition order is sub-cap &rarr; global &rarr; host;
+see <a href="throttle.html">throttle</a>.</p>
+
+<div class="callout">
+<p>The cross-kind resume orchestrator
+(<code>SecondaryRunManager.resumeStaleRunsForReport</code>, the app-start + 30s
+background sweep) delegates to the fan-out, tournament, judge-eval, and
+rank-the-translators engines' own <code>resumeStaleRunsForReport</code>.
+<strong>Compare is not in that central sweep</strong> &mdash; it resumes
+alongside the others when its Manage screen opens
+(<code>ui/report/manage/Nav.kt</code>). The single-call Meta/Rerank/Moderation
+resume path explicitly skips TOURNAMENT/JUDGES rows by kind (their engines own
+them); COMPARE/TRANSRANK cells are skipped implicitly, because their pending
+sentinel provider (<code>*workers</code>) fails the
+<code>AppService.findById</code> check that path requires.</p>
+</div>
+
+<h2 id="tournament">Tournament</h2>
+
+<p>Asks worker models to judge every pair of successful report answers
+head-to-head, then folds the verdicts into a leaderboard.</p>
+
+<p>For <code>N</code> report answers the run creates <code>N(N-1)</code>
+ordered matches plus one aggregate row. Each unordered pair is judged
+<strong>twice</strong> &mdash; once as A-vs-B (<code>matchOrientation = 0</code>)
+and once swapped as B-vs-A (<code>matchOrientation = 1</code>) &mdash; so
+first-position bias cancels out. A match placeholder starts with the sentinel
+<code>providerId = "*workers"</code> / <code>model = "*pending"</code>
+(<code>TOURNAMENT_PENDING_PROVIDER</code> / <code>TOURNAMENT_PENDING_MODEL</code>).
+When the worker fallback chain returns a valid verdict,
+<code>recordTournamentMatch</code> overwrites the sentinel row with the actual
+worker provider/model, tokens, cost, duration, trace filename, and verdict
+content.</p>
+
+<p>The prompt is the bundled <code>workers/tournament</code> internal prompt
+(category <code>workers</code>, name <code>tournament</code>). It references
+the <code>tournament</code> swarm, so the worker model is chosen at runtime by
+<code>WorkerRunner</code> (shuffled order, 429 fallback) &mdash; match identity
+does not include the worker until it settles. Verdicts are parsed by
+<code>parseMatchVerdict</code>, which prefers the labelled
+<code>verdict:</code>/<code>confidence:</code>/<code>reason:</code> lines the
+prompt asks for, with a strict JSON fallback, normalising to <code>A</code> /
+<code>B</code> / <code>tie</code>. A reply with no verdict is a logical miss,
+so the chain advances to the next worker.</p>
+
+<dl class="kv">
+<div><dt>Match row</dt>
+<div class="meta"><code>TOURNAMENT</code>, sentinel <code>*workers</code>/<code>*pending</code> until judged</div>
+<dd><code>tournamentRole="MATCH"</code>, <code>tournamentJudgeRunId</code>,
+<code>matchResponseAId</code>, <code>matchResponseBId</code>,
+<code>matchOrientation</code>.</dd></div>
+<div><dt>Aggregate row</dt>
+<div class="meta"><code>TOURNAMENT</code>, sentinel <code>*tournament</code>/<code>aggregate</code></div>
+<dd><code>tournamentRole="AGGREGATE"</code>, <code>tournamentMatrix</code>,
+ranked JSON in <code>content</code>.</dd></div>
+</dl>
+
+<div class="callout">
+<p><strong>Shared with TransRank.</strong> The whole tournament cell/matrix
+field cluster &mdash; <code>tournamentRole</code> (<code>MATCH</code>/<code>AGGREGATE</code>),
+<code>tournamentJudgeRunId</code>, <code>tournamentMatrix</code> &mdash; plus
+the <code>recordTournamentMatch</code> storage helper are reused by the
+sibling <code>TRANSRANK</code> feature. <code>recordTournamentMatch</code>
+takes an optional full <code>TokenUsage</code> (TransRank passes the whole
+usage so cached/reasoning tokens and API-reported cost survive); when null it
+falls back to the legacy input/output-token-only shape Tournament uses. See
+<a href="rank-translators.html">rank-translators</a>.</p>
+</div>
+
+<h3>Aggregation and the win matrix</h3>
+
+<p>After the matches settle, <code>recomputeAndPersistAggregate</code> folds
+the verdicts into a <code>WinMatrix</code> and writes it (plus the ranked JSON
+for the selected method) onto the single aggregate row.</p>
+
+<p>The <code>[N]</code> ids are numbered by each participant's
+<strong>stable position in <code>report.agents</code></strong>, filtered to
+the fixed launch-time participant set &mdash; not by the current SUCCESS set.
+This matters: <code>computeWinMatrix</code> silently drops unresolved
+responses, so numbering through the live success set let a transient status
+dip (mid-regenerate) shrink the matrix (the historic "9 of 39" bug). Fixed
+numbering reproduces the launch-time ordering the View / Top-ranked scope
+expect while staying immune to later status changes.</p>
+
+<p><code>WinMatrix</code> (<code>data/TournamentRanking.kt</code>) holds:</p>
+
+<dl class="kv">
+<div><dt>ids: List&lt;Int&gt;</dt>
+<dd>The 1-based <code>[N]</code> ids, the same the rerank JSON uses.</dd></div>
+<div><dt>wins[i][j]</dt>
+<dd><code>i</code>'s average fractional credit vs <code>j</code> across both
+orientations (A&rarr;1.0, B&rarr;0.0, tie&rarr;0.5; the swapped orientation is
+inverted). Two orientations that agree give 1.0/0.0, disagree-or-tie gives
+0.5/0.5; a single present orientation takes that verdict; none means no
+contest (the pair is skipped).</dd></div>
+<div><dt>games[i][j]</dt>
+<dd>The count of decided ordered judgments (0, 1, or 2) behind that
+average.</dd></div>
+<div><dt>ties[i][j]</dt>
+<dd>The explicit draw count, for tie-aware methods.</dd></div>
+</dl>
+
+<p>The matrix and the method that produced the current ranking are serialised
+into the <code>tournamentMatrix</code> sidecar via
+<code>WinMatrix.encode(method)</code>, so the View can recompute and persist a
+different ranking <strong>locally with no API calls</strong>
+(<code>setMethod</code> / <code>applyTournamentMethod</code> /
+<code>decodeTournamentMatrix</code>).</p>
+
+<h2 id="ranking-methods">Ranking methods</h2>
+
+<p><code>rankFor(method, matrix)</code> dispatches to one of
+<strong>seven</strong> <code>TournamentMethod</code> values
+(<code>data/TournamentRanking.kt</code>); every method emits the same
+rerank-compatible <code>[{id, rank, score, reason}]</code> JSON
+(<code>toRerankJson</code>, which coerces non-finite scores to 0 and rounds
+numerically &mdash; never <code>"%.2f".format(x).toDouble()</code>, which would
+crash on a comma-decimal locale).</p>
+
+<details class="entity">
+<summary>Copeland</summary>
+<div class="body">
+<p>Win-count. <code>score = 100 &middot; wins / played</code>, where
+<code>wins</code> is the model's total fractional wins and <code>played</code>
+is the number of opponents it <strong>actually contested</strong>
+(<code>games[i][j] &gt; 0</code>), coerced to &ge; 1. This is a true per-model
+win-rate; it equals <code>n-1</code> only for a complete round-robin. Reason:
+<code>"Won %.1f of %d head-to-heads"</code> (pinned to <code>Locale.US</code>).</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Elo</summary>
+<div class="body">
+<p>Replays each contested pair once in deterministic id order, K=32 from a
+1500 base. Order-sensitive, so a weaker fit for a static round-robin.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Davidson</summary>
+<div class="body">
+<p>Tie-aware paired-comparison MLE using the explicit tie counts, 700
+gradient iterations; score = fitted strength rescaled so the strongest = 100.
+Davidson is the only method that <strong>triggers a rebuild</strong> of the
+matrix from the match rows when the sidecar lacks explicit ties
+(<code>hasTieData == false</code>); TrueSkill2 also reads tie counts but uses
+whatever the decoded matrix carries (synthesized from wins/games when
+absent).</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Markov</summary>
+<div class="body">
+<p>Random-walk stationary distribution over the pairwise results (damping
+0.92, ~500 power-iterations), rescaled so the strongest = 100.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Schulze</summary>
+<div class="body">
+<p>Beatpaths (Condorcet). Seeds each ordered pair with the winner's pairwise
+points, then Floyd&ndash;Warshall finds the strongest (widest) path between
+every pair; <code>i</code> outranks <code>j</code> when its strongest path
+beats <code>j</code>'s back. Ordering method &mdash; rank-based score,
+beatpath win count as the reason.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Colley</summary>
+<div class="body">
+<p>Colley's bias-free rating (the sports/BCS method): solves
+<code>C&middot;r = b</code> via Gauss&ndash;Jordan with partial pivoting;
+ratings centre near 0.5 and fold in schedule strength without margin bias,
+rescaled so the strongest = 100. Falls back to a plain win share if the solve
+degenerates.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>TrueSkill2</summary>
+<div class="body">
+<p>The 1-v-1 core of Microsoft's TrueSkill: a Bayesian &mu;/&sigma; skill
+belief per response updated through every contested pair (draw margin
+estimated from the observed tie rate). Score = the conservative estimate
+&mu; &minus; 3&sigma;.</p>
+</div>
+</details>
+
+<div class="callout">
+<p>The Copeland denominator was previously a fixed <code>n-1</code> shared by
+all models, which scored an uncontested or errored pair like a loss and
+overstated the "head-to-heads" count in the reason. It is now the per-model
+contested-games count (commit <code>490d8b2e9</code>).</p>
+</div>
+
+<p><code>assignRanks</code> sorts by score descending with an id-ascending
+tiebreak and assigns ranks 1..N.</p>
+
+<h3>Drill-in</h3>
+
+<p class="muted">Manage side</p>
+<ul>
+<li>L1 groups by judge model or report model and shows total/done/run/wait/queue
+counts plus cost.</li>
+<li>L2 shows either a judge's matches or a report model's match list.</li>
+<li>L3 shows one match, verdict, confidence/reason, raw judge reply, cost, and
+a trace link when tracing was enabled.</li>
+</ul>
+
+<p class="muted">View side</p>
+<ul>
+<li>Tournament appears as its own View tab
+(<code>ui/report/view/Tournament.kt</code>, with the podium in
+<code>TournamentPodium.kt</code>).</li>
+<li>The in-tab leaderboard's method toggle currently exposes only the first
+<strong>four</strong> methods (Copeland / Elo / Davidson / Markov); switching
+is a pure local recompute via <code>applyTournamentMethod</code> (no API
+calls).</li>
+<li>The <strong>podium</strong> (<code>TournamentPodium.kt</code>) is the full
+surface: its <code>MethodSelector</code> lists <strong>all seven</strong>
+methods (<code>TournamentMethod.entries</code>), and a "total" table shows
+each model's position across every method side-by-side, each column
+recomputed locally from the stored win matrix.</li>
+<li>Tapping a ranked model opens head-to-head cards, including
+A-vs-B/B-vs-A orientation switching and trace links.</li>
+</ul>
+
+<p>The aggregate row's rerank-compatible <code>content</code> is consumed
+beyond the tournament screens: it drives the Top-ranked scope
+(<code>extractTopRankedIds</code>) and feeds the <strong>Value view</strong>
+(<code>ui/report/view/ValueView.kt</code>), which surfaces a "Tournament"
+total ranking source plus one source per method and folds them into its
+weighted "Combined" (0&ndash;1000) ranking alongside Rerank / TransRank
+&mdash; see <a href="value-view.html">value-view</a>.</p>
+
+<p class="muted">Trace category <code>after/tournament</code>; usage kind
+<code>tournament</code>.</p>
+
+<h2 id="judges">Judge the judges</h2>
+
+<p>Measures agreement between the concrete judge models named by the
+<code>workers/tournament</code> prompt's swarm.</p>
+
+<p>Instead of round-robin worker selection, <strong>every</strong> judge
+receives the <strong>same</strong> random set of answer pairs, so per-cell
+verdicts can be cross-compared. <code>JUDGE_MATCH_COUNT</code> is 25, capped
+by the number of distinct pairs a small report can form
+(<code>allPairs.shuffled().take(JUDGE_MATCH_COUNT)</code>). The grid is
+<code>judges &times; selected matches</code>.</p>
+
+<p>Each selected match is judged <strong>once</strong> by each judge (unlike
+Tournament's orientation-doubled pairs). Each cell is a <strong>fixed-model</strong>
+call: the row's provider/model is the judge from the moment the placeholder is
+created (a direct <code>analyzeWithAgent</code>-style call, not the
+round-robin chain), so the batch runs fixed-host. The same
+<code>workers/tournament</code> prompt text and <code>parseMatchVerdict</code>
+parser are reused, so Tournament and Judge-the-judges answer the same question
+from different angles.</p>
+
+<dl class="kv">
+<div><dt>Cell row</dt>
+<div class="meta"><code>JUDGES</code>, provider/model = the judge itself (fixed at creation)</div>
+<dd><code>tournamentRole="MATCH"</code> (<code>JUDGE_ROLE_CELL</code>),
+<code>tournamentJudgeRunId</code>, <code>matchResponseAId</code>,
+<code>matchResponseBId</code>, <code>matchOrientation</code>.</dd></div>
+<div><dt>Aggregate row</dt>
+<div class="meta"><code>JUDGES</code>, sentinel <code>*judges</code>/<code>aggregate</code></div>
+<dd><code>tournamentRole="AGGREGATE"</code> (<code>JUDGE_ROLE_AGGREGATE</code>),
+judge-agreement JSON in <code>content</code>.</dd></div>
+</dl>
+
+<p>The agreement layer (<code>data/JudgeAgreement.kt</code>) computes, per
+judge: agreement with the per-match consensus, cost and total API time,
+overall consensus strength, and per-match consensus + vote counts.</p>
+
+<h3>Drill-in</h3>
+<ul>
+<li>L1 toggles between Judges and Matches.</li>
+<li>Judges mode shows per-judge progress while running and a consensus table
+after completion.</li>
+<li>Matches mode shows each selected pair, consensus, and vote counts.</li>
+<li>A judge can be added to the run; the model is also added to the
+underlying <code>tournament</code> swarm.</li>
+<li>Removing a judge deletes its cells and removes it from that swarm.</li>
+<li>Editing the swarm can trigger a rerun prompt if the current run no longer
+matches the active judge set.</li>
+</ul>
+
+<p class="muted">Trace category <code>after/judges</code> (reuses the
+tournament <em>prompt text</em> but tags its own category); usage kind
+<code>judges</code>.</p>
+
+<h2 id="compare">Compare with meta</h2>
+
+<p>Scores how closely each primary report answer matches a selected Meta
+result.</p>
+
+<p>The user selects one existing plain Meta row (a single tap, no
+multi-select). There is <strong>no separate prompt-selection step</strong> any
+more &mdash; the former <code>CompareSelectPromptScreen</code> was removed.
+Instead the launch (<code>Run.kt</code>) auto-resolves the
+<code>meta_compare</code> prompt whose <strong>name matches the picked meta
+item's <code>metaPromptName</code></strong> (case-insensitive); the bundled
+prompt is <code>meta_compare/summarize</code> (it pairs with the bundled
+"Summarize" meta). When the report's Worker-batches mode (or the resolved
+prompt's <code>*SELECT</code> under <code>PROMPT</code> mode) calls for a
+picker (<code>workerPlanFor</code>), it pops first.</p>
+
+<p>The run then creates <code>successful answers &times; 1</code> (the one
+chosen meta row) &mdash; <code>cellCountFor(agentCount, metaCount) =
+agentCount * metaCount</code>; the engine still takes a
+<code>metaResultIds</code> list, but the UI only ever supplies one. Each cell
+is worker-judged through the prompt's worker list. The scoring worker is
+<strong>dynamic like Tournament</strong>: placeholders start at the sentinel
+<code>*workers</code>/<code>*pending</code> (<code>COMPARE_PENDING_PROVIDER</code> /
+<code>COMPARE_PENDING_MODEL</code>) and are overwritten with the winning
+worker via <code>recordCompareCell</code>.</p>
+
+<p>The cell prompt substitutes <code>@RESPONSE@</code> (the answer body) and
+<code>@META_RESPONSE@</code> (the meta content, with its
+<code>## References</code> legend stripped via
+<code>stripMetaReferenceLegend</code>). The reply is parsed by
+<code>parseSimilarityScore</code>, which accepts the labelled
+<code>percentage:</code> form, JSON with <code>percentage</code>/<code>percent</code>/<code>score</code>,
+or a first-number fallback, clamped to 0..100.</p>
+
+<dl class="kv">
+<div><dt>Cell row</dt>
+<div class="meta"><code>COMPARE</code>, sentinel <code>*workers</code>/<code>*pending</code> until scored</div>
+<dd><code>compareRunId</code>, <code>compareAgentId</code>,
+<code>compareToResultId</code>, <code>metaPromptId</code>,
+<code>metaPromptName</code>.</dd></div>
+</dl>
+
+<p>There is <strong>no aggregate row</strong> &mdash; L1 averages are computed
+directly from the cells:</p>
+
+<ul>
+<li>L1 lists each report answer with its score against the single chosen meta
+result &mdash; no grouping toggle (the "Meta items" mode was removed). The L2
+title is now always "Compare with meta - model".</li>
+<li>L2 opens one group; L3 opens one cell with answer text, meta text, worker
+reply, reason, cost, and trace.</li>
+</ul>
+
+<p class="muted">Trace category <code>meta/compare</code>; usage kind
+<code>compare</code>.</p>
+
+<h2 id="persistence">Persistence and deletion</h2>
+
+<p>The canonical store for all three features is
+<code class="path">&lt;filesDir&gt;/secondary/&lt;reportId&gt;/&lt;resultId&gt;.json</code>
+(one JSON file per <code>SecondaryResult</code>, via
+<code>SecondaryResultStorage</code>). Runtime state is disposable and always
+rebuildable from disk.</p>
+
+<p><code>SecondaryResultStorage.countForReport</code> counts TOURNAMENT and
+JUDGES via their <strong>AGGREGATE</strong> rows only (the
+<code>N(N-1)</code> / <code>judges &times; matches</code> cells are
+inspection detail), and COMPARE cells flat.</p>
+
+<p>Deleting a report deletes these rows with every other secondary result.
+Deleting a run removes only rows belonging to that run id. Restarting failed
+cells resets the affected placeholders back to a blank PENDING shape via the
+shared <code>SecondaryBatchEngine.rerunItemsBlocking</code> (Tournament and
+Compare override <code>clearRowForRerun</code> to also restore their
+pre-judge sentinel provider/model; Judges keeps the judge so the retry goes to
+the same model). A full redo creates a new run id.</p>
+
+<h2 id="cost">Cost and usage</h2>
+
+<dl class="kv">
+<div><dt>Tournament</dt><dd>usage kind <code>tournament</code>; trace category <code>after/tournament</code></dd></div>
+<div><dt>Judge the judges</dt><dd>usage kind <code>judges</code>; trace category <code>after/judges</code></dd></div>
+<div><dt>Compare with meta</dt><dd>usage kind <code>compare</code>; trace category <code>meta/compare</code></dd></div>
+</dl>
+
+<p>Costs are recorded on each cell row from the worker or judge
+provider/model that actually billed. The report cost table groups them as
+tournament, judges, or compare rows. Deleted-cell spend is rolled into the
+report's <code>costsFromDeletedItems</code> via
+<code>SecondaryResult.fullCost()</code>, which sums
+<code>inputCost + outputCost</code> <strong>plus</strong> any per-row icon and
+title spend (<code>iconInputCost + iconOutputCost + titleInputCost +
+titleOutputCost</code>) so the lifetime total stays whole.</p>
+
+<h2 id="related">Related files</h2>
+
+<details>
+<summary>Data / storage</summary>
+<div class="body">
+<ul>
+<li><code>data/SecondaryModels.kt</code> &mdash; the <code>SecondaryKind</code>
+enum, <code>SecondaryResult</code> (the flat row used for all kinds),
+<code>fullCost()</code></li>
+<li><code>data/SecondaryResult.kt</code> &mdash; <code>SecondaryResultStorage</code>
+(persistence, <code>countForReport</code>, the record/reset cell helpers)</li>
+<li><code>data/TournamentRunModel.kt</code> &mdash; match/run types,
+<code>parseMatchVerdict</code>, pending sentinels</li>
+<li><code>data/TournamentRanking.kt</code> &mdash; <code>WinMatrix</code>,
+<code>computeWinMatrix</code>, <code>rankFor</code> and the seven ranking
+methods, <code>toRerankJson</code>, <code>applyTournamentMethod</code>,
+encode/decode of the matrix sidecar</li>
+<li><code>data/JudgeEvalRunModel.kt</code> &mdash; judge cell/run types,
+<code>JUDGE_MATCH_COUNT</code>, role constants</li>
+<li><code>data/JudgeAgreement.kt</code> &mdash; per-judge agreement
+aggregation</li>
+<li><code>data/CompareRunModel.kt</code> &mdash; compare cell/run types,
+<code>parseSimilarityScore</code>, pending sentinels</li>
+</ul>
+</div>
+</details>
+
+<details>
+<summary>Viewmodel / UI</summary>
+<div class="body">
+<ul>
+<li><code>viewmodel/TournamentEngine.kt</code></li>
+<li><code>viewmodel/JudgeEvalEngine.kt</code></li>
+<li><code>viewmodel/CompareEngine.kt</code> &mdash; <code>cellCountFor</code></li>
+<li><code>viewmodel/SecondaryRunManager.kt</code> &mdash; owns the cross-kind
+resume orchestrator</li>
+<li><code>ui/report/manage/Tournament.kt</code></li>
+<li><code>ui/report/manage/JudgeEval.kt</code></li>
+<li><code>ui/report/manage/Compare.kt</code></li>
+<li><code>ui/report/view/Tournament.kt</code></li>
+<li><code>ui/report/view/TournamentPodium.kt</code></li>
+<li><code>ui/report/view/ValueView.kt</code> &mdash; consumes the tournament
+aggregate as ranking sources</li>
+</ul>
+</div>
+</details>
+
+<p class="muted">See also: <a href="rank-translators.html">rank-translators</a>
+&mdash; the sibling <code>TRANSRANK</code> feature that reuses this page's
+tournament cell/matrix machinery; <a href="value-view.html">value-view</a>
+&mdash; the Value view that folds Tournament / Rerank / TransRank rankings
+into a weighted "Combined" score; <a href="secondary-results.html">secondary-results</a>
+&mdash; the eight-kind overview and the single-call kinds.</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

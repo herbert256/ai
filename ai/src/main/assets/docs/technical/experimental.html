@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Experimental features — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Experimental features</span></header>
+<main>
+
+<h1>Experimental features — what the master toggle hides</h1>
+
+<p>One master gate, <strong>Experimental features</strong>
+(<code>GeneralSettings.experimentalFeaturesEnabled</code>, prefs key
+<code>experimental_features</code>, default <strong>false</strong>),
+switches nine UI surfaces on or off across three feature clusters:
+on-device models, AI Knowledge / RAG, and Local Semantic Search.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#where">Where the toggle lives</a></li>
+<li><a href="#ondevice">On-device models (1&ndash;3)</a></li>
+<li><a href="#knowledge">AI Knowledge / RAG (4&ndash;8)</a></li>
+<li><a href="#search">Local Semantic Search (9)</a></li>
+<li><a href="#unaffected">What is not affected</a></li>
+<li><a href="#storage">Storage &amp; round-trip</a></li>
+</ul>
+</nav>
+
+<h2 id="overview">Overview</h2>
+
+<p>When the gate is <strong>off</strong> (the default), the nine
+surfaces below are hidden — nothing is deleted. Installed on-device
+model files stay under <code class="path">&lt;filesDir&gt;/</code>,
+knowledge bases stay on disk, and <strong>any KB already attached to
+a chat or report keeps sending its context at API time</strong> —
+only the entry-point UI disappears. Flipping the toggle back on
+reveals everything intact.</p>
+
+<div class="callout">
+<p>This is a real per-call-site <code>if (experimentalFeatures)</code>
+gate in the Compose tree — not a Kotlin
+<code>@OptIn(Experimental&hellip;Api)</code> annotation, which is
+unrelated and appears nowhere in this doc.</p>
+</div>
+
+<p>Source of truth is the field's own doc comment in
+<code>viewmodel/AppViewModelTypes.kt</code>:</p>
+
+<div class="callout">
+<p>&ldquo;Master gate for experimental / advanced surfaces. When false,
+hides every UI surface related to on-device models (Local LLMs, LiteRT
+embedders, the synthetic <code>AppService.LOCAL</code> provider), AI
+Knowledge / RAG (Hub card, attach buttons in chat + report,
+share-target &lsquo;Add to Knowledge&rsquo; entry, Knowledge screens),
+and Local Semantic Search. Installed model files on disk stay put;
+flipping this back on reveals everything intact. KBs already attached
+to existing chats / reports keep sending context at API time even
+while the attach UI is hidden.&rdquo;</p>
+</div>
+
+<h2 id="where">Where the toggle lives</h2>
+
+<p><strong>Settings &rarr; UI tweaks &rarr; &ldquo;Experimental
+features&rdquo;.</strong> The UI-tweaks sub-screen is reached from the
+Settings landing card subtitled &ldquo;Model name layout, full-screen,
+ladybug icons, experimental features.&rdquo; The toggle's own
+in-screen description reads:</p>
+
+<div class="callout">
+<p>&ldquo;Master gate for on-device Local LLMs, LiteRT embedders, AI
+Knowledge / RAG, and Local Semantic Search. Off (default) hides those
+UI surfaces &mdash; installed model files and KBs stay on disk, and
+any KB already attached to a chat or report keeps sending context at
+API time.&rdquo;</p>
+</div>
+
+<p>Immediately below it, inside an <code>if (experimentalFeatures)</code>
+block, sits a second toggle — <strong>&ldquo;Show Knowledge card on
+home page&rdquo;</strong> (surface #4) — so it only appears once the
+master gate is on.</p>
+
+<h2 id="ondevice">On-device models (Local LLMs + LiteRT embedders)</h2>
+
+<details class="entity" open>
+<summary>1 &middot; AI Setup &rarr; AI Models &rarr; &ldquo;Local Models&rdquo; card</summary>
+<div class="body">
+<p>The entry to the on-device LLM + LiteRT text-embedder setup screen
+(install / manage <code>.task</code> and <code>.tflite</code> models;
+subtitle &ldquo;On-device LLMs and LiteRT text embedders&rdquo;, route
+<code>AI_LOCAL_MODELS_SETUP</code>). Gated by an
+<code>if (experimentalFeatures)</code> block inside
+<code>ModelsSetupScreen</code>.</p>
+<p class="muted"><code>ui/settings/SetupScreens.kt:193</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>2 &middot; Chats hub &rarr; Local LLM chat card</summary>
+<div class="body">
+<p>The dropdown card that picks an installed on-device LLM and jumps
+straight into a local chat session. Gate is
+<code>experimentalFeatures &amp;&amp; installedLocalLlms.isNotEmpty()</code>
+— shown only when at least one <code>.task</code> LLM is installed.</p>
+<p class="muted"><code>ui/chat/ChatHub.kt:122</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>3 &middot; Model pickers &rarr; synthetic LOCAL provider + local models</summary>
+<div class="body">
+<p>The on-device models (and the synthetic <code>AppService.LOCAL</code>
+provider, id <code>"Local"</code>) stay invisible in every model
+picker even when <code>.task</code> / <code>.tflite</code> files exist
+on disk. Unlike the other eight surfaces (which receive the flag as a
+parameter), this picker reads the prefs flag <strong>directly</strong>:</p>
+<pre><code>context.getSharedPreferences("eval_prefs", MODE_PRIVATE)
+    .getBoolean("experimental_features", false)</code></pre>
+<p>&hellip;so it doesn't have to thread the flag through every caller.
+When off, <code>localModelsForFilter</code> is <code>emptyList()</code>,
+so <code>AppService.LOCAL</code> is never appended to the service
+list.</p>
+<p class="muted"><code>ui/other/Selection.kt:246-261</code></p>
+</div>
+</details>
+
+<p>See <a href="local-runtime.html">local-runtime</a> for the
+<code>LocalLlm</code> / <code>LocalEmbedder</code> runtime these three
+surfaces gate.</p>
+
+<h2 id="knowledge">AI Knowledge / RAG</h2>
+
+<details class="entity" open>
+<summary>4 &middot; Settings &rarr; UI tweaks &rarr; &ldquo;Show Knowledge card&rdquo; toggle</summary>
+<div class="body">
+<p>The secondary toggle itself is hidden (it only makes sense once
+Knowledge is enabled), inside an <code>if (experimentalFeatures)</code>
+block directly below the master toggle in the UI-tweaks screen. The
+<code>showKnowledgeCard</code> field it controls additionally gates
+surface #5.</p>
+<p class="muted"><code>ui/settings/SettingsScreen.kt:1614</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>5 &middot; Hub &rarr; &ldquo;AI Knowledge&rdquo; card</summary>
+<div class="body">
+<p>The home-screen entry into the Knowledge / RAG screens. Requires
+<strong>both</strong> <code>experimentalFeaturesEnabled</code>
+<strong>and</strong> <code>showKnowledgeCard</code>:</p>
+<pre><code>if (generalSettings.experimentalFeaturesEnabled
+    &amp;&amp; generalSettings.showKnowledgeCard) { &hellip; }</code></pre>
+<p class="muted"><code>ui/hub/HubScreens.kt:153</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>6 &middot; Chat composer &rarr; &ldquo;Knowledge&rdquo; attach chip</summary>
+<div class="body">
+<p>The per-chat KB attach chip (multi-select over saved KBs). Gate is:</p>
+<pre><code>(experimentalFeatures &amp;&amp; availableKbs.isNotEmpty())
+    || attachedKnowledgeBaseIds.isNotEmpty()</code></pre>
+<p>&hellip;so it shows when the gate is on and a KB exists,
+<strong>and also</strong> (gate off or on) whenever a KB is already
+attached to this chat, rendering the attached count so the user can
+still see / edit the attachment.</p>
+<p class="muted"><code>ui/chat/ChatScreens.kt:817</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>7 &middot; New Report &rarr; &ldquo;Attach knowledge&rdquo; button</summary>
+<div class="body">
+<p>The report-start KB attach button (multi-select over saved KBs).
+Gate is <code>experimentalFeatures &amp;&amp; allKbs.isNotEmpty()</code>
+— shown only when at least one KB exists.</p>
+<p class="muted"><code>ui/report/start/SelectionPhase.kt:205</code></p>
+</div>
+</details>
+
+<details class="entity">
+<summary>8 &middot; Share-target chooser &rarr; &ldquo;Add to Knowledge&rdquo; card</summary>
+<div class="body">
+<p>The <code>ACTION_SEND</code> landing card that opens the Knowledge
+screen with the shared file / URL pre-staged. Plain shared text that
+isn't a URL can't be ingested here and is steered to New Report
+instead.</p>
+<p class="muted"><code>ui/share/ShareChooserScreen.kt:104</code></p>
+</div>
+</details>
+
+<p>See <a href="knowledge.html">knowledge</a> for the RAG subsystem
+these five surfaces gate, and <a href="share-target.html">share-target</a>
+for the chooser context around surface #8.</p>
+
+<h2 id="search">Local Semantic Search</h2>
+
+<details class="entity" open>
+<summary>9 &middot; Search AI Reports &rarr; &ldquo;Local semantic search&rdquo; item</summary>
+<div class="body">
+<p>The on-device (embedder-backed) semantic search over reports. The
+other three search modes — <strong>Quick local search</strong>,
+<strong>Extended local search</strong>, <strong>Remote semantic
+search</strong> — stay visible regardless of the gate; only this
+on-device item sits behind <code>if (experimentalFeatures)</code>.</p>
+<p class="muted"><code>ui/hub/SearchAiReportsScreen.kt:63</code></p>
+</div>
+</details>
+
+<h2 id="unaffected">What is not affected</h2>
+
+<dl class="kv">
+<div>
+<dt>Installed on-device model files</dt>
+<dd>Under <code class="path">&lt;filesDir&gt;/local_llms/</code> and
+<code class="path">&lt;filesDir&gt;/local_models/</code> — untouched,
+and also excluded from backup (see
+<a href="backup-restore.html">backup-restore</a>).</dd>
+</div>
+<div>
+<dt>Knowledge bases on disk</dt>
+<dd>KBs, sources, and embeddings persist regardless of the gate.</dd>
+</div>
+<div>
+<dt>KBs already attached to a chat or report</dt>
+<dd>They keep injecting context at API time even with the gate off. In
+<strong>chat</strong> the Knowledge chip even stays visible (showing
+the attached count) so you can still edit / remove the attachment
+(surface #6's OR clause); in <strong>New Report</strong> the attach
+button is hidden, but the already-attached KB still rides along on the
+report and injects at dispatch time.</dd>
+</div>
+<div>
+<dt>Remote &amp; the two local text search modes</dt>
+<dd>Always visible; only <em>Local semantic</em> search (surface #9)
+is gated.</dd>
+</div>
+</dl>
+
+<h2 id="storage">Storage &amp; round-trip</h2>
+
+<p>The flag lives on <code>GeneralSettings</code>, persists to the
+main <code>eval_prefs</code> SharedPreferences store under key
+<code>experimental_features</code>, and round-trips through
+Import/Export (serialized as <code>experimentalFeaturesEnabled</code>
+in <code>ui/settings/ImportExportScreen.kt:362,483</code>) and the
+full backup zip.</p>
+
+<p class="muted">Help: the toggle's own help card lives under the
+Settings-admin &ldquo;UI tweaks&rdquo; topic (<code>helpTopic =
+"settings_ui"</code>) — see <a href="help.html">help</a>.</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

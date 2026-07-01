@@ -7,60 +7,76 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>Throttle</span></header>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Throttle</span></header>
 <main>
 
-<h1>Per-provider throttle, 429 retry, read timeouts</h1>
+<h1>Throttling, retries, and read timeouts</h1>
 
-<p>Network-side rate control. Everything here is configurable per
-provider (overrides in <code>assets/providers.json</code> + Settings →
-Provider edit) and falls through to a global default
-(<code>GeneralSettings.*</code>, exposed under Settings → Network).</p>
+<p>Network-side rate control. Two independent throttle layers
+(<code>ProviderThrottle</code> per-host, <code>ApiCallCaps</code>
+process-wide) plus two retry interceptors (429 / 529) and a
+per-call read-timeout shim.</p>
+
+<div class="callout warn">
+<p>CLAUDE.md historically claimed "429s retry up to 5&times; with
+3 s back-off". That's stale — the real default is
+<strong>3 retries / 1000 ms backoff</strong> (user-tunable, and
+per-provider-overridable). It also described only the per-host
+layer; <code>ApiCallCaps</code> is a separate, second layer.</p>
+</div>
 
 <nav class="toc">
 <strong>Jump to</strong>
 <ul>
 <li><a href="#singletons">Singletons</a></li>
 <li><a href="#interceptors">Interceptor chain</a></li>
+<li><a href="#acquisition">Acquisition order</a></li>
+<li><a href="#who-uses">Who uses which path</a></li>
+<li><a href="#batch-stats">Live batch stats</a></li>
+<li><a href="#fan-stats">Fan Out HTTP statistics</a></li>
 <li><a href="#overrides">Per-provider overrides</a></li>
-<li><a href="#pre-acquire">Pre-acquire flows</a></li>
 <li><a href="#files">Files</a></li>
 </ul>
 </nav>
 
 <h2 id="singletons">Singletons</h2>
 
-<p><code>data/ApiTracer.kt</code> carries the three load-bearing
-singletons.</p>
-
 <h3>NetworkSettings</h3>
-<p>Live mirror of the user-tunable network knobs. The OkHttp
-interceptors read from here so they don't have to thread a
-<code>Settings</code> reference through their constructors.
-<code>AppViewModel.applyGeneralSettings</code> writes on bootstrap
-and on every Settings update.</p>
+<p><code>data/ApiTracer.kt</code>. Live mirror of the user-tunable
+network knobs; the OkHttp interceptors and <code>ProviderThrottle</code>
+read from here instead of threading a <code>Settings</code>
+reference through their constructors. <code>AppViewModel</code>
+writes it on bootstrap and on every Settings update.</p>
 
 <dl class="kv">
 <div>
 <dt>streamingReadTimeoutSec</dt>
-<div class="meta"><code>BuildConfig.NETWORK_READ_TIMEOUT_SEC</code> (10 min)</div>
+<div class="meta"><code>NETWORK_READ_TIMEOUT_SEC</code> = <code>240</code> s</div>
 <dd>SSE chat / report streams.</dd>
 </div>
 <div>
 <dt>nonStreamingReadTimeoutSec</dt>
-<div class="meta"><code>BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC</code></div>
-<dd>Analyze, meta, rerank, translate, model-list, individual analyze
-calls.</dd>
+<div class="meta"><code>NETWORK_NONSTREAMING_READ_TIMEOUT_SEC</code> = <code>120</code> s</div>
+<dd>Analyze, meta, rerank, translate, model-list calls.</dd>
+</div>
+<div>
+<dt>batchItemTimeoutSec</dt>
+<div class="meta"><code>BATCH_ITEM_TIMEOUT_SEC</code> = <code>180</code> s</div>
+<dd>Wall-clock ceiling for <strong>one</strong> batch item (fan-out
+pair, translation item, tournament match, judge / compare /
+transrank cell) — the whole call incl. worker-chain fallbacks and
+retries, enforced by the engines' own <code>withTimeout</code>, not
+OkHttp.</dd>
 </div>
 <div>
 <dt>maxCallsPerProviderPerMinute</dt>
-<div class="meta">default <code>30</code></div>
-<dd>Sliding-window rate cap.</dd>
+<div class="meta">default <code>60</code></div>
+<dd>Per-host sliding-window rate cap.</dd>
 </div>
 <div>
 <dt>maxConcurrentCallsPerProvider</dt>
-<div class="meta">default <code>3</code></div>
-<dd>Concurrency cap.</dd>
+<div class="meta">default <code>5</code></div>
+<dd>Per-host concurrency cap.</dd>
 </div>
 <div>
 <dt>maxRetriesOn429</dt>
@@ -70,198 +86,544 @@ calls.</dd>
 <div>
 <dt>retryBackoffMs429</dt>
 <div class="meta">default <code>1000</code></div>
-<dd>Wait between retries.</dd>
+<dd>Base wait between 429 retries.</dd>
 </div>
 <div>
 <dt>maxRetriesOn529</dt>
 <div class="meta">default <code>3</code></div>
-<dd>In-line 529 (server overloaded) retries.</dd>
+<dd>In-line 529 (server-overloaded) retries.</dd>
 </div>
 <div>
 <dt>retryBackoffMs529</dt>
 <div class="meta">default <code>1000</code></div>
-<dd>Wait between 529 retries.</dd>
+<dd>Base wait between 529 retries.</dd>
 </div>
 </dl>
 
-<h3>ProviderThrottle</h3>
-<p>Per-hostname rate + concurrency gate. One <code>Semaphore</code>
-per host caps in-flight calls; a sibling
-<code>ConcurrentLinkedDeque</code> of call timestamps enforces the
-60-second sliding window.</p>
-
-<p><code>acquire(host)</code> is <strong>synchronous</strong> — it
-blocks the calling thread (an OkHttp dispatcher worker, never the main
-thread) and returns a <code>Releaser</code> that must be invoked in a
-<code>finally</code> so the permit isn't leaked.</p>
-
-<p>Caps are resolved per acquire from per-provider override
-(<code>AppService.maxCalls…</code> / <code>maxConcurrent…</code>) →
-global default (<code>NetworkSettings.*</code>). Provider edits go
-through <code>ProviderRegistry.save</code>, which calls
-<code>ProviderThrottle.resetForNewLimits()</code> — the next acquire
-builds fresh per-host semaphores at the new caps.</p>
-
-<p>Each rate-limit / concurrency wait emits a DEBUG line under the
-<code>Throttle</code> tag with the host, queue depth, and elapsed
-wait, so the AppLog viewer shows exactly where time is going when an
-action feels slow.</p>
-
-<h3>ProviderThrottle.permitPreAcquired</h3>
-<p><code>ThreadLocal&lt;Boolean&gt;</code>. True on threads where the
-calling flow already acquired a permit explicitly
-(<code>FanOutEngine</code>, Fan Meta batch,
-<code>ModelTestEngine</code>, Find alternative icons, the per-agent
-report-icon chain). <code>ProviderThrottleInterceptor</code> reads it
-on the OkHttp worker and skips its own acquire — without the flag the
-interceptor would double-count and halve effective concurrency for
-those flows.</p>
-
-<p>Propagated across coroutine dispatcher hops via
-<code>asContextElement</code> and copied onto OkHttp workers by
-<code>TagPropagatingExecutor</code>.</p>
+<p class="muted">Stale in-code comments in <code>ReadTimeout.kt</code> /
+<code>TestCallTimeout.kt</code> still mention a "10-minute" streaming
+read default — the actual static <code>OkHttpClient</code> read
+timeout is 240 s; <code>ReadTimeoutInterceptor</code> swaps in 120 s
+per-request for non-streaming calls.</p>
 
 <h3>ApiCallCaps</h3>
-<p>Six application-level per-kind semaphores layered on top of the
-per-host throttle. Each dispatcher
-<code>withPermit</code>-wraps through the relevant kind's semaphore
-first, then through <code>ProviderThrottle.acquire(host)</code>.</p>
+<p><code>data/ApiTracer.kt</code>. A flow-level layer of coroutine
+<code>Semaphore</code> pools, entirely separate from the per-host
+<code>ProviderThrottle</code>. There is now a
+<strong>single configurable cap</strong> — the "Maximal API calls"
+screen exposes one global <strong>Concurrent API calls</strong> knob
+(<code>maxConcurrentApiCalls</code>, default <strong>100</strong>),
+and every sub-cap is sized to match it.</p>
 
 <dl class="kv">
-<div>
-<dt>global</dt><div class="meta">default <code>50</code></div>
-<dd>Every API call across the app.</dd>
-</div>
-<div>
-<dt>report</dt><div class="meta">default <code>15</code></div>
-<dd>Per-agent calls inside one report-gen run.</dd>
-</div>
-<div>
-<dt>translation</dt><div class="meta">default <code>15</code></div>
-<dd>Total in-flight Translate calls (across runs).</dd>
-</div>
-<div>
-<dt>fanOut</dt><div class="meta">default <code>15</code></div>
-<dd>Fan-out pair calls (FanOutEngine).</dd>
-</div>
-<div>
-<dt>fanMeta</dt><div class="meta">default <code>15</code></div>
-<dd>Fan Meta batch calls (separate from fanOut).</dd>
-</div>
+<div><dt>global</dt><div class="meta">default <code>100</code> &middot; the only knob</div><dd>Every API call across the app.</dd></div>
+<div><dt>report</dt><div class="meta">= global &middot; not independently configurable</div><dd>Report-primary generation calls.</dd></div>
+<div><dt>translation</dt><div class="meta">= global</div><dd>Translate calls.</dd></div>
+<div><dt>fanOut</dt><div class="meta">= global</div><dd>Fan-out pair calls.</dd></div>
+<div><dt>fanMeta</dt><div class="meta">= global</div><dd>Fan-Meta / icon-generation batches.</dd></div>
+<div><dt>workers</dt><div class="meta">= global</div><dd>Worker-swarm batches (Tournament, Compare, Judge, TranslatorRank).</dd></div>
 </dl>
 
-<p>A seventh knob, <code>GeneralSettings.maxTestApiCalls</code>
-(default 40), is read directly by <code>ModelTestEngine</code> to
-size its in-flight semaphore and is <strong>not</strong> mirrored
-into <code>ApiCallCaps</code>.</p>
+<p>The five per-flow semaphores still exist — the throttle framework
+still acquires one alongside <code>global</code>, and
+<code>fanMeta</code> / <code>workers</code> stay separate from each
+other so one pool can't starve the other — but none are
+independently configurable any more: <code>resetForNewLimits</code>
+sizes every sub-cap to the global cap, so only the global ceiling
+ever binds. All six are <code>@Volatile</code> and rebuilt at runtime
+via <code>ApiCallCaps.resetForNewLimits(globalMax: Int)</code>, wired
+from <code>AppViewModel</code> on bootstrap and whenever
+<code>maxConcurrentApiCalls</code> changes. <code>snapshot()</code> /
+<code>diagnosticLine()</code> / <code>isBusy()</code> feed the stall
+watchdog and the Live Dashboard.</p>
 
-<p>Mirrored from <code>GeneralSettings</code> on every Settings
-update. Surfaced under <strong>Settings → Network → Maximal API
-calls</strong>.</p>
+<div class="callout">
+<p>The object's own field initialisers (100 global / 50 per-flow) are
+only cold-start values used before <code>AppViewModel</code> finishes
+loading settings; <code>resetForNewLimits</code> then re-sizes to the
+loaded value. A fresh install and an in-app "Reset application" used
+to disagree here (30/3/50 vs. 60/5/100) until commit
+<code>7bdfb5f66</code> sourced every absent-key fallback from a
+<code>GeneralSettings()</code> instance — both paths now converge.</p>
+</div>
 
-<h3>ModelCooldownStore</h3>
-<p>Separate from the throttle layer but the same network surface. A
-429 with a Retry-After hint longer than
-<code>LONG_RETRY_THRESHOLD_MS = 1 h</code> benches the
-<code>(providerId, model)</code> pair until the hint expires. The 429
-interceptor calls
-<code>markUnavailable(providerId, model, availableAtMs, traceFile)</code>;
-pickers dim the row with a "rate-limited · back HH:mm" caption;
-engines skip benched pairs for the rest of the run. CRUD under AI
-Setup → AI Models setup → Model cooldowns. Persisted in its own
-SharedPreferences file (<code>model_cooldowns</code>) and
-round-tripped through backup. See <a href="cooldowns.html">cooldowns</a>.</p>
+<h3>ProviderThrottle</h3>
+<p><code>data/ProviderThrottling.kt</code>. Per-hostname rate +
+concurrency gate. One <code>Semaphore</code> per host caps in-flight
+calls; a sibling <code>ConcurrentLinkedDeque</code> of call
+timestamps enforces the 60-second sliding window. Keyed by
+<strong>hostname</strong> — all providers sharing a host (and a
+provider's <code>auxHosts</code>) share one set of limits, via
+<code>ProviderRegistry.findByHost</code>.</p>
+
+<p>Three acquire entry points:</p>
+<ul>
+<li><strong>acquire(host): Releaser</strong> — blocking
+(<code>Thread.sleep</code>). Used by the OkHttp
+<code>ProviderThrottleInterceptor</code> (always a dispatcher worker,
+never main). Gates the concurrency permit first, then loops on the
+rate window; releases the concurrency permit on a rate-loop
+interrupt so nothing leaks.</li>
+<li><strong>tryAcquire(host): Outcome</strong> — non-blocking.
+Returns <code>Acquired(Releaser)</code> or
+<code>Blocked(availableAtMs)</code>; what the batch flows poll.</li>
+<li><strong>acquireOrWait(host): Releaser</strong> — suspend. Polls
+<code>tryAcquire</code> + <code>delay</code> so it never pins a
+thread; used by <code>ApiDispatch.withHostGate</code>. Supports a
+<code>throttleWaitObserver</code> ThreadLocal for the Fan-Meta
+"waiting" UI.</li>
+</ul>
+
+<p>Caps resolve per acquire via <code>limitsFor(host)</code>:
+per-provider override &rarr; global default, each
+<code>coerceAtLeast(1)</code>. A blank host returns the global pair
+(no gate). Provider edits go through <code>ProviderRegistry.save</code>,
+which calls <code>resetForNewLimits()</code> so the next acquire
+builds fresh per-host semaphores. Each wait emits a DEBUG line under
+the <code>Throttle</code> AppLog tag with host + queue depth.</p>
+
+<h3>permitPreAcquired / backoffPermitYielder</h3>
+<p><code>permitPreAcquired: ThreadLocal&lt;Boolean&gt;</code> is true
+on threads where the calling flow already acquired the per-host
+permit explicitly (every batch flow). The
+<code>ProviderThrottleInterceptor</code> reads it on the OkHttp
+worker and <strong>skips its own acquire</strong> — without the flag
+it would double-count and halve effective concurrency. Propagated
+across coroutine dispatcher hops via <code>asContextElement</code>
+and copied onto OkHttp workers by <code>TagPropagatingExecutor</code>
+(see <a href="api-formats.html">api-formats</a>).</p>
+
+<p>A sibling <code>backoffPermitYielder</code> ThreadLocal lets the
+429/529 backoff sleep release the batch's held permits while it
+waits, so shared capacity isn't pinned during a retry pause — see
+<a href="#permithold">PermitHold</a>.</p>
 
 <h2 id="interceptors">Interceptor chain</h2>
 
-<p>OkHttp application interceptors, outer → inner:</p>
+<p>OkHttp application interceptors, outer &rarr; inner (assembled in
+<code>data/ApiClient.kt</code>):</p>
 
 <ul class="tree">
-<li>RateLimitRetryInterceptor <span class="note">— handles 429 retries</span>
-  <ul>
-    <li>ProviderThrottleInterceptor <span class="note">— acquires / releases per-host permits</span>
-      <ul>
-        <li>ReadTimeoutInterceptor <span class="note">— per-call read timeout swap</span>
-          <ul>
-            <li>TestCallTimeoutInterceptor <span class="note">— Provider-test 30 s window</span>
-              <ul>
-                <li>TracingInterceptor <span class="note">— writes the ApiTracer JSON</span>
-                  <ul>
-                    <li>upstream</li>
-                  </ul>
-                </li>
-              </ul>
-            </li>
-          </ul>
-        </li>
-      </ul>
-    </li>
-  </ul>
+<li><strong>OkHttpCallContextInterceptor</strong> <span class="note">— restores per-call trace/throttle context</span>
+  <ul><li><strong>RateLimitRetryInterceptor</strong> <span class="note">— 429 retries</span>
+    <ul><li><strong>OverloadedRetryInterceptor</strong> <span class="note">— 529 retries</span>
+      <ul><li><strong>ProviderThrottleInterceptor</strong> <span class="note">— per-host acquire/release</span>
+        <ul><li><strong>ReadTimeoutInterceptor</strong> <span class="note">— per-call read-timeout swap</span>
+          <ul><li><strong>TestCallTimeoutInterceptor</strong> <span class="note">— Provider-test 30 s window</span>
+            <ul><li><strong>TracingInterceptor</strong> <span class="note">— writes the ApiTracer JSON</span>
+              <ul><li><strong>HttpStatusStatsInterceptor</strong> <span class="note">— tallies every response code</span>
+                <ul><li>upstream</li></ul>
+              </li></ul>
+            </li></ul>
+          </li></ul>
+        </li></ul>
+      </li></ul>
+    </li></ul>
+  </li></ul>
 </li>
 </ul>
 
-<h3>RateLimitRetryInterceptor</h3>
+<p><code>OkHttpCallContextInterceptor</code>
+(<code>data/OkHttpCallContext.kt</code>) is outermost: it restores
+the trace/throttle context captured at OkHttp <code>Call</code>
+construction time, so a call OkHttp later promotes from its queue on
+a different worker thread still carries its <code>permitPreAcquired</code>
+flag — race-free queued-call promotion.</p>
 
-<p>Loops on 429, sleeping <code>backoffMs</code> between attempts up
-to <code>maxRetries</code>. Caps are resolved per 429 via
-<code>ProviderThrottle.retryLimitsFor(host)</code> so a settings
-change while a call is in flight takes effect on the next iteration.
-<code>maxRetries == 0</code> is a valid "no in-line retries" — the
-outer <code>withRetry</code> layer still gets a chance.</p>
+<p>Both retry interceptors sit <strong>outside</strong> the throttle
+/ timeout / tracing layers: each retry re-acquires its own per-host
+permit, a throttle wait doesn't count against the read-timeout
+window, and each attempt produces its own trace + HTTP-status tally.
+The 429 and 529 budgets are independent. <code>HttpStatusStatsInterceptor</code>
+is innermost so it counts every per-attempt response (failures as
+<code>0</code>) regardless of the tracing toggle.</p>
 
-<p>Hard guards:</p>
-<ul>
-<li>Main-thread check — if anything ever sneaks through, the
-interceptor returns the 429 directly instead of sleeping (would ANR
-otherwise).</li>
-<li><code>chain.call().isCanceled()</code> — bails the loop the moment
-the caller cancels.</li>
-<li>Closes the previous response before reissuing — a left-open body
-leaks an OkHttp connection.</li>
-<li><code>408 / 425 / 429</code> are treated as transient by the
-outer <code>withRetry</code> layer too, so the suspend-level retry
-can layer on top.</li>
-</ul>
+<div class="callout">
+<p>A second client, <code>rawFetchClient</code> (used by the
+model-list snapshot fetch <code>fetchUrlAsString</code>), reuses the
+same builder but <strong>drops both retry interceptors</strong>:
+<code>OkHttpCallContext &rarr; ProviderThrottle &rarr; ReadTimeout
+&rarr; TestCallTimeout &rarr; Tracing &rarr; HttpStatusStats</code> —
+so a 429/529 on a best-effort sidecar fetch doesn't pin the caller.</p>
+</div>
+
+<p>The shared <code>OkHttpClient</code> deliberately sets the
+dispatcher's <code>maxRequests = 512</code> and
+<code>maxRequestsPerHost = 512</code> so OkHttp gates
+<strong>nothing</strong> — <code>ProviderThrottle</code> is the sole
+intended throttle. (The old <code>maxRequestsPerHost = 5</code>
+default deadlocked against it: a call waiting on the app permit
+still occupied an OkHttp per-host slot.)</p>
+
+<details>
+<summary>RateLimitRetryInterceptor (429)</summary>
+<div class="body">
+<p><code>data/RateLimitRetry.kt</code>. Loops on HTTP 429, sleeping
+between attempts up to <code>maxRetries</code>. Caps resolve per 429
+via <code>ProviderThrottle.retryLimitsFor429(host)</code> (override
+&rarr; global; <code>maxRetries</code> coerced &ge; 0,
+<code>backoffMs</code> coerced &ge; 1), so a settings change mid-flight
+takes effect on the next iteration. <code>maxRetries == 0</code> is a
+valid "no in-line retries".</p>
+
+<p>The in-line loop <strong>only runs when a
+<code>backoffPermitYielder</code> is registered</strong> — i.e. the
+call is part of a throttled batch that can release its held permits
+during the sleep. Any other call (chat, single non-batch dispatches)
+forces <code>maxRetries = 0</code> and returns the 429 immediately so
+the coroutine layer can retry without pinning a sleeping OkHttp
+worker. The <code>suppressInlineRetry</code> ThreadLocal (the "Test
+all models" sweep) also forces it to <code>0</code>.</p>
+
+<p>Backoff is exponential with equal jitter:
+<code>(backoffMs shl attempt)</code> capped at 30 000 ms, jittered
+&plusmn;50% — a server <code>Retry-After</code> (seconds or
+HTTP-date, clamped 1 ms&hellip;5 min) wins when present. The sleep
+routes through <code>ProviderThrottle.backoffSleep</code>, which uses
+<code>backoffPermitYielder</code> when registered (releasing batch
+permits during the pause), else plain <code>Thread.sleep</code>. Each
+attempt records to <code>RetryStats</code> for the Live Dashboard's
+retry-pressure readout.</p>
+
+<p>Hard guards: main-thread check (returns the 429 immediately instead
+of looping — would ANR), <code>chain.call().isCanceled()</code> bail,
+closes the previous response before reissuing, and
+<code>suppressInlineRetry</code>.</p>
+
+<p>It also <strong>benches the model</strong>
+(<code>ModelCooldownStore.markUnavailable</code>) instead of retrying
+for: Gemini per-day quota (resets next Pacific midnight), Cohere
+trial-key monthly cap (next month), out-of-credits / spending-limit
+billing 429s (6 h), and any <code>Retry-After</code> longer than
+<code>LONG_RETRY_THRESHOLD_MS</code>. See
+<a href="model-states.html#cooldowns">model states &middot; cooldowns</a>.</p>
+
+<h4>Short-bench-and-requeue (type-A fixed-model batches)</h4>
+<p>When a <strong>type-A</strong> batch (Fan Out, Judge the judges,
+Rank the translators — a model can't be swapped for another) runs an
+item, <code>runThrottledBatch</code> installs a per-item
+<code>ProviderThrottle.benchSignal</code>. On a transient 429/529
+(the long-bench cases above didn't fire) and when
+<code>ModelCooldownStore.typeABenchEnabled</code>, the interceptor
+<strong>short-benches</strong> the model via
+<code>markShortBench</code> — using the response's
+<code>Retry-After</code>, or <code>typeABenchBaseMs</code> (default
+10 000 ms) when there's none, clamped 1 s&hellip;5 min — sets the
+signal, and returns immediately (no in-line sleep). The batch loop
+re-queues the item and gates its same-model siblings on the bench.
+After <code>typeABenchMaxAttempts</code> (default 5) consecutive
+benches the item is left errored. The short-bench map is session-only
+and separate from the long <code>cooldownMap</code>, and drives the
+<strong>Bench</strong> stat column.</p>
+
+<p>Three knobs on <code>GeneralSettings</code>
+(<code>typeABenchEnabled</code> / <code>typeABenchSeconds</code> (10)
+/ <code>typeABenchMaxAttempts</code> (5)), mirrored onto
+<code>ModelCooldownStore</code> by <code>AppViewModel</code>. Tunable
+under Settings &rarr; Network settings &rarr;
+<strong>Model bench (fixed-model batches)</strong>; off &rarr; the
+in-line retry loop runs as before. Worker-swarm (type-B) batches
+don't use it — they fall back to another model instead.</p>
+</div>
+</details>
+
+<details>
+<summary>OverloadedRetryInterceptor (529)</summary>
+<div class="body">
+<p><code>data/OverloadedRetry.kt</code>. The HTTP 529
+(server-overloaded, Anthropic <code>overloaded_error</code>) sibling
+of the 429 path, with an <strong>independent</strong> retry budget
+(<code>maxRetriesOn529</code> / <code>retryBackoffMs529</code>). Same
+main-thread guard, cancellation check, close-before-reissue,
+exponential-jitter backoff, <code>Retry-After</code> honoring,
+<code>RetryStats</code> accounting, and the same type-A bench-and-requeue.
+Caps resolve via <code>ProviderThrottle.retryLimitsFor529(host)</code>.</p>
+
+<p><strong>One asymmetry with the 429 path:</strong> the 529 loop does
+<em>not</em> gate on <code>backoffPermitYielder</code> presence — it
+runs the in-line retry whenever <code>maxRetries &gt; 0</code> (off
+the main thread), suppressed only by <code>suppressInlineRetry</code>.
+So a non-batch 529 is retried in line, whereas a non-batch 429 is
+handed back for coroutine-level retry.</p>
+</div>
+</details>
 
 <h3>ProviderThrottleInterceptor</h3>
-
-<p>Skips its own acquire when <code>permitPreAcquired</code> is set.
-Otherwise calls <code>ProviderThrottle.acquire(host)</code>
-pre-<code>proceed</code>, releases in <code>finally</code>. Same
-main-thread bypass as above.</p>
+<p>Passes through on the main thread (ANR guard) and skips its own
+acquire when <code>permitPreAcquired == true</code>. Otherwise calls
+<code>ProviderThrottle.acquire(request.url.host)</code>
+pre-<code>proceed</code>, releases in <code>finally</code>.</p>
 
 <h3>ReadTimeoutInterceptor</h3>
-
 <p>Per-call read-timeout shim. Without it every call would inherit
-the OkHttp client's static streaming timeout (10 min), which is fine
-for SSE but disastrous for short non-streaming calls — a single hung
-provider then gates the whole batch for minutes.</p>
-
-<p>Streaming detection runs pre-proceed against the request:</p>
-
+the client's static streaming read timeout (240 s) — fine for SSE,
+disastrous for a short non-streaming call (a hung provider gates the
+slot for four minutes). Streaming detection runs pre-<code>proceed</code>:</p>
 <ul>
-<li>Gemini URL contains <code>:streamGenerateContent</code> →
-streaming; <code>:generateContent</code> → non-streaming.</li>
-<li>POST request body contains <code>"stream": true</code> →
-streaming.</li>
-<li>Otherwise (GET model-list calls, …) → non-streaming.</li>
+<li>Gemini URL contains <code>:streamGenerateContent</code> &rarr;
+streaming; <code>:generateContent</code> &rarr; non-streaming.</li>
+<li>POST body matches <code>"stream"\s*:\s*true</code> &rarr; streaming.</li>
+<li>Otherwise (GET model-list calls, &hellip;) &rarr; non-streaming.</li>
 </ul>
-
-<p>The body bytes are read off a <code>Buffer.snapshot()</code> so the
+<p>Body bytes are read off a <code>Buffer.snapshot()</code> so the
 original request body stays untouched.</p>
 
 <h3>TestCallTimeoutInterceptor</h3>
-
 <p>When the calling thread is inside a
-<code>withTraceCategory("Provider test")</code> block (Refresh All's
-per-provider Test step), overrides connect + read timeouts down to
-30 s. Sits ahead of <code>ReadTimeoutInterceptor</code> so the
-test-specific window wins regardless of which branch
-<code>ReadTimeoutInterceptor</code> would have picked.</p>
+<code>withTraceCategory("Provider test")</code> block (Refresh-All's
+per-provider Test step, the Test button, raw-JSON submit), overrides
+connect + read timeouts to <code>TEST_CONNECTION_READ_TIMEOUT_SEC</code>
+(30 s). Sits ahead of <code>ReadTimeoutInterceptor</code> so the test
+window wins regardless of which branch that interceptor would have
+picked.</p>
+
+<h2 id="acquisition">Acquisition order</h2>
+
+<p>Beyond the OkHttp interceptors, <code>ApiDispatch.kt</code> wraps
+single non-streaming dispatches and stream-opens with two coroutine
+guards:</p>
+<ul>
+<li><strong>withHostGate(baseUrl) { &hellip; }</strong> — acquires the
+per-host gate via suspend <code>acquireOrWait</code>, unless
+<code>permitPreAcquired</code> is already set. Sits <strong>outside</strong>
+<code>withApiCallTimeout</code> so a legitimate per-minute-window wait
+doesn't trip the DNS-hang timeout or occupy an OkHttp dispatcher slot.</li>
+<li><strong>withApiCallTimeout { &hellip; }</strong> — wraps each
+request / stream <em>open</em> (not the SSE read loop) in
+<code>withTimeout(ceiling)</code> against indefinite DNS hangs.
+Ceiling = <code>nonStreamingReadTimeoutSec + NETWORK_CONNECT_TIMEOUT_SEC
++ 30 s</code>; a timeout rethrows as a plain <code>IOException</code>
+so existing <code>catch (Exception)</code> paths treat it as
+transient.</li>
+</ul>
+
+<p>Every batch flow acquires permits in one canonical order:</p>
+<pre><code>flow sub-cap  →  ApiCallCaps.global  →  per-host gate</code></pre>
+<p>The sub-cap is taken <strong>before</strong> <code>global</code> so
+a flow queued on its own cap holds nothing shared; <code>global</code>
+is always taken before the host gate (the reverse deadlocked
+report-vs-metadata calls).</p>
+
+<div class="callout">
+<p><strong>Key invariant</strong> (hardened by commit
+<code>6ab023c9c</code>): while <strong>parked</strong> on a busy
+per-host gate, the flow holds <strong>neither</strong> the sub-cap
+<strong>nor</strong> <code>global</code> — both release before each
+back-off <code>delay</code> and re-acquire on the next poll. So a
+per-flow cap counts only items holding a <strong>live provider
+slot</strong>, not items queued behind a saturated provider that
+would otherwise starve other hosts' work.</p>
+</div>
+
+<h3 id="permithold">acquireThrottledPermits and PermitHold</h3>
+<p><code>acquireThrottledPermits(subCap, host, onThrottled, onCleared)</code>
+(<code>viewmodel/ReportViewModelHelpers.kt</code>) loops:</p>
+<ol>
+<li><code>subCap.acquire()</code></li>
+<li><code>ApiCallCaps.global.acquire()</code></li>
+<li>under a per-host fairness <code>Mutex</code>,
+<code>ProviderThrottle.tryAcquire(host)</code></li>
+</ol>
+<p>On <code>Acquired</code> it hands all three permits to a
+<code>PermitHold</code> (<code>viewmodel/ThrottledBatch.kt</code>).
+On <code>Blocked</code> it releases sub + global, fires
+<code>onThrottled</code> once, and <code>delay</code>s until
+<code>availableAtMs</code>. <code>global</code> is hard-coded
+internally as the shared cap — callers pass only the flow sub-cap.</p>
+
+<p><code>PermitHold</code> owns the three nested permits for the
+item's whole lifetime:</p>
+<ul>
+<li><strong>yieldFor(ms)</strong> — the 429/529 backoff hook
+(registered as <code>backoffPermitYielder</code>): releases all
+three, sleeps holding nothing, then re-acquires sub &rarr; global
+&rarr; host.</li>
+<li><strong>dispose()</strong> — the per-item <code>finally</code>
+release; gives back whatever is still held, exactly once.</li>
+</ul>
+<p>Both run under one lock with <code>held</code> / <code>done</code>
+flags so a cancellation racing a mid-flight backoff can neither
+double-release (would inflate a semaphore's permit count) nor leak.</p>
+
+<h3>runThrottledBatch</h3>
+<p><code>runThrottledBatch(items, hostOf, subCap, &hellip;, dynamicHost, body)</code>
+(<code>viewmodel/ThrottledBatch.kt</code>) is the shared driver for
+the per-row batch flows. It <code>interleaveByHost</code>s the items,
+then per item acquires via <code>acquireThrottledPermits</code> and
+runs <code>body</code> with <code>permitPreAcquired = true</code> +
+<code>backoffPermitYielder</code> set. Two modes:</p>
+<ul>
+<li><strong>Fixed-host</strong> (default) — <code>host = hostOf(item)</code>,
+<code>permitPreAcquired</code> set so each inner call skips the
+interceptor's own gate. Used by Fan-out, Judge-the-judges and
+Rank-the-translators — each item's provider is resolved up front (a
+direct <code>analyzeWithAgent</code> / <code>runFixedJudgeCall</code>,
+not the worker round-robin).</li>
+<li><strong>Dynamic-host</strong> (<code>dynamicHost = true</code>,
+used by the worker-pick flows — Fan-Meta, Tournament, Compare,
+Translation) — the host is unknown until the worker chain picks one
+inside <code>body</code>, so it acquires only <code>subCap</code> +
+<code>global</code> (blank host = no-op gate) and does
+<strong>not</strong> set <code>permitPreAcquired</code>; each inner
+worker call self-throttles its own provider host via the
+interceptor.</li>
+</ul>
+<p class="muted">The legacy single-host <code>acquireOrRequeue</code>
+(<code>ReportViewModelHelpers.kt</code>) still exists for a few call
+sites.</p>
+
+<h2 id="who-uses">Who uses which path</h2>
+
+<details class="entity">
+<summary>Report-primary generation</summary>
+<div class="body">
+<p>All 7 dispatch sites in <code>ReportViewModel</code> use
+<code>acquireThrottledPermits(ApiCallCaps.report, providerHost(provider))</code>
++ <code>permitHold.dispose()</code> in <code>finally</code>. Commit
+<code>6ab023c9c</code> replaced the old nested
+<code>global.withPermit { report.withPermit { acquireOrRequeue(host) &hellip; } }</code>
+pattern, which held <code>global</code> + <code>report</code> idle
+while parked on a saturated host's gate.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Fan-out (FanOutEngine)</summary>
+<div class="body">
+<p>The batched per-pair path uses
+<code>runThrottledBatch(subCap = ApiCallCaps.fanOut)</code>; the
+single-call path uses
+<code>ApiCallCaps.fanOut.withPermit { &hellip; permitPreAcquired &hellip; }</code>.
+The <code>fanOut</code> sub-cap is also taken by
+<code>MetaEditManager</code> and <code>SecondaryModelSwitchManager</code>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Fan-Meta / icon generation</summary>
+<div class="body">
+<p><code>IconGenerationManager</code> — per-pair title+icon, per-report
+/ per-model / per-language / per-agent icon fan-outs. Uses
+<code>runThrottledBatch</code> in dynamic-host mode,
+<code>subCap = ApiCallCaps.fanMeta</code>; each worker self-throttles
+its host. See <a href="report-icons.html">report-icons</a>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Worker swarms</summary>
+<div class="body">
+<p><code>subCap = ApiCallCaps.workers</code> via
+<code>runThrottledBatch</code>, split into two shapes:</p>
+<ul>
+<li><strong>Tournament</strong> (<code>TournamentEngine</code>) and
+<strong>Compare</strong> (<code>CompareEngine</code>) run
+<strong>dynamic-host</strong>: each match / cell dispatches through
+the shared <code>WorkerRunner</code> round-robin chain
+(<code>runPooledItemCall</code>), so the provider is unknown up front
+and each worker self-throttles its own host.</li>
+<li><strong>Judge-the-judges</strong> (<code>JudgeEvalEngine</code>)
+and <strong>Rank-the-translators</strong> (<code>TranslatorRankEngine</code>)
+run <strong>fixed-host</strong> instead: each cell names one specific
+judge model up front (<code>runFixedJudgeCall</code>, not the worker
+chain) and is a type-A bench batch like Fan-out — a 429/529
+short-benches that judge and re-queues the cell rather than falling
+back to another model.</li>
+</ul>
+<p class="muted">Rerank / Moderation / chat-type Meta / Fan-in (see
+<a href="secondary-results.html">secondary-results</a>) do
+<strong>not</strong> go through this pool: <code>SecondaryRunManager.runSecondaryViaSwarm</code>
+runs its fallback-chain loop by hand and gates each attempt on
+<code>ApiCallCaps.global.withPermit</code> alone — no dedicated
+sub-cap.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Translation</summary>
+<div class="body">
+<p><code>runThrottledBatch</code> in dynamic-host mode,
+<code>subCap = ApiCallCaps.translation</code>
+(<code>TranslationRunManager</code>); each item runs the same
+<code>WorkerRunner</code> chain as Tournament/Compare, under its own
+sub-cap instead of <code>workers</code>. See
+<a href="translation.html">translation</a>.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Chat and single non-batched calls</summary>
+<div class="body">
+<p>Go through <code>withHostGate</code> + <code>withApiCallTimeout</code>
+and let <code>ProviderThrottleInterceptor</code> acquire the host
+gate inline (no pre-acquire).</p>
+</div>
+</details>
+
+<h2 id="batch-stats">Live batch stats</h2>
+
+<p>Every running-batch screen renders the same strip via
+<strong><code>BatchStatsRow</code></strong>
+(<code>ui/report/manage/BatchStats.kt</code>), canonical column
+order:</p>
+<pre><code>Total · Done · Error · Run · [Bench] · Wait · Queue · Costs</code></pre>
+
+<p>Counts come from <strong><code>deriveBatchCounts</code> /
+<code>deriveBatchSummary</code></strong>
+(<code>ui/report/manage/BatchCounts.kt</code>), which carve each item
+into exactly one bucket with this precedence:</p>
+<pre><code>DONE → Bench (per benchMode) → ERROR → Wait (throttled) → Run (RUNNING) → Queue (PENDING)</code></pre>
+
+<p>Two columns directly surface the throttle layer:</p>
+<ul>
+<li><strong>Wait</strong> — items currently parked on a per-host /
+sub-cap / global gate (the <code>throttledIds</code> set the batch
+flow tracks). A throttled item counts only under Wait, never also
+under Run — uniform across every batch kind.</li>
+<li><strong>Bench</strong> — items whose model is short-benched
+(<code>ModelCooldownStore.markShortBench</code>). Shown
+<strong>only</strong> for fixed-model batches
+(<code>BatchFamily.FIXED_MODEL</code> &rarr;
+<code>BenchMode.MODEL_PARKED</code>: Fan Out, Judge the judges, Rank
+the translators); a benched model carves <strong>all</strong> of its
+non-done items out of Error/Run/Wait/Queue into Bench. Worker-swarm
+batches (<code>BatchFamily.WORKER_POOL</code> &rarr;
+<code>BenchMode.NONE</code>: Tournament, Compare, Translation, Fan
+Meta) omit the column — a cooldown there is a worker-selection
+concern, not a terminal result.</li>
+</ul>
+
+<h2 id="fan-stats">Fan Out HTTP statistics</h2>
+
+<p>Fan Out surfaces a per-run <strong>HTTP statistics</strong>
+breakdown (<code>ui/report/manage/FanStats.kt</code>, rendered
+through the same <code>BatchStatsRow</code>). The data is a
+session-only per-run tally, <strong><code>RunHttpStats</code></strong>
+(<code>data/RunHttpStats.kt</code>), keyed by
+<code>(runId, "providerId|model")</code> and recorded by
+<code>HttpStatusStatsInterceptor</code> — the innermost interceptor —
+so the <strong>429/529 retry loops re-run it on every attempt</strong>:
+a 429 that's retried then succeeds shows as one 429 <strong>+</strong>
+one 200, surfacing rate-limit pressure a per-item final status would
+hide. Buckets (<code>FanOutHttpStatusCounts</code> in
+<code>data/FanOutHttpStats.kt</code>): <code>ok200</code> /
+<code>rate429</code> / <code>overloaded529</code> /
+<code>client4xx</code> / <code>server5xx</code> / <code>other</code>.
+Memory-only; <code>hasRun(runId)</code> gates the icon so nothing
+shows after a restart.</p>
+
+<p class="muted">Distinct from the process-wide
+<strong><code>HttpStatusStats</code></strong>
+(<code>data/HttpStatusStats.kt</code>) the same innermost interceptor
+also feeds: a rolling 5-minute ring of bucketed codes (<code>OK2XX</code>
+/ <code>R429</code> / <code>C4XX</code> / <code>S5XX</code> /
+<code>OTHER</code>), response-time percentiles, recent-error feed and
+slowest-call list, for the Live Dashboard.</p>
 
 <h2 id="overrides">Per-provider overrides</h2>
 
-<p>Four nullable fields on <code>AppService</code>:</p>
+<p>Six nullable fields on <code>AppService</code> (declared in
+<code class="path">assets/providers/</code>, editable in the UI):</p>
 
 <pre><code>val maxCallsPerProviderPerMinute: Int? = null,
 val maxConcurrentCallsPerProvider: Int? = null,
@@ -270,81 +632,76 @@ val retryBackoffMs429: Long? = null,
 val maxRetriesOn529: Int? = null,
 val retryBackoffMs529: Long? = null</code></pre>
 
-<p>Null = inherit the global default. Resolved by
-<code>ProviderThrottle.limitsFor(host)</code> /
-<code>retryLimitsFor(host)</code> (each clamps to a safe minimum — 1
-for rate / concurrency, 0 for retries, 1 ms for backoff).</p>
+<p><code>null</code> = inherit the global default. Resolved by
+<code>ProviderThrottle.limitsFor(host)</code> (rate / concurrency) and
+<code>retryLimitsFor429(host)</code> / <code>retryLimitsFor529(host)</code>
+(retries), each clamping to a safe minimum — 1 for rate /
+concurrency, 0 for retry counts (0 = no in-line retries), 1 ms for
+backoff.</p>
 
-<p>The provider Settings → Network card exposes all four with
-"inherit" placeholders next to the global value, and a
-<strong>Refresh All</strong> never silently overwrites a user-set
-value — the asset-driven sync paths (<code>importFromAsset</code>,
-<code>upsertFromJson</code>, <code>syncFromAsset</code>) check
+<p>The override fields live on the <strong>Provider edit</strong>
+screen (<code>ui/settings/ServiceSettingsScreens.kt</code>, the
+"Throttle &amp; retry overrides" card; Settings &rarr; AI Setup &rarr;
+Providers &rarr; edit a provider). Each field shows "blank = default";
+a saved value &le; 0 for rate/concurrency, or non-numeric for
+retries, falls back to <code>null</code> (inherit).</p>
+
+<div class="callout">
+<p><strong>Refresh All never silently overwrites a user-set value:</strong>
+the asset-sync paths (<code>importFromAsset</code>,
+<code>upsertFromJson</code>, <code>syncFromAsset</code>) consult
 <code>ProviderFieldTimestamps</code> and skip fields the user has
 already edited.</p>
+</div>
 
-<h2 id="pre-acquire">Pre-acquire flows</h2>
-
-<p>Several flows pre-acquire to keep the request slot from being held
-across an idle window. In every case the pre-acquired permit is held
-over the actual network call (not the planning code), and the
-<code>permitPreAcquired</code> context element tells the inline
-interceptor to skip.</p>
-
-<ol>
-<li><strong>FanOutEngine</strong> — pre-acquires per pair before the
-HTTP call, releases after the response settles. The engine's internal
-IO semaphore (<code>maxConcurrentFanOutCalls</code>) bounds total
-in-flight pair coroutines. Pairs whose per-host throttle is full
-surface as <code>Throttled</code> on the L1 stats panel.</li>
-<li><strong>Fan Meta batch</strong> — same shape, separate budget
-(<code>maxConcurrentFanMetaCalls</code>).</li>
-<li><strong>ModelTestEngine</strong> — pre-acquires per probe; the
-<code>throttledKeys: StateFlow&lt;Set&lt;String&gt;&gt;</code>
-exposes which pairs are currently blocked in
-<code>ProviderThrottle.acquire</code> so the L1 list can render the
-live "Throttled" badge.</li>
-<li><strong>Per-agent report-icon chain</strong>
-(<code>runReportIconsForAgent</code>) — each of the three tiers
-acquires its own permit on entry, releases on exit. See
-<a href="report-icons.html">report-icons</a>.</li>
-<li><strong>Find alternative icons</strong>
-(<code>startIconFanOut</code>) — same pattern.</li>
-</ol>
+<p>The <strong>Per-provider throttling</strong> list
+(<code>PerProviderThrottlingSubScreen</code> in
+<code>SettingsScreen.kt</code>) sorts providers that have a rate or
+concurrency override to the top, then alphabetically by id (commit
+<code>9fe78b89</code>).</p>
 
 <h2 id="files">Files</h2>
 
-<ul>
-<li><code>data/ApiTracer.kt</code> — <code>NetworkSettings</code>,
-<code>ProviderThrottle</code>, <code>ProviderThrottleInterceptor</code>,
-<code>RateLimitRetryInterceptor</code>,
-<code>OverloadedRetryInterceptor</code>,
-<code>ReadTimeoutInterceptor</code>,
-<code>TestCallTimeoutInterceptor</code>, <code>ApiCallCaps</code>
-(the six per-kind semaphores).</li>
-<li><code>data/ModelCooldownStore.kt</code> — singleton store +
-persisted <code>model_cooldowns</code> SharedPreferences file.</li>
-<li><code>data/AppService.kt</code> — the four nullable override
-fields.</li>
-<li><code>data/ProviderRegistry.kt</code> — calls
-<code>ProviderThrottle.resetForNewLimits()</code> from
-<code>save</code>.</li>
-<li><code>data/ProviderFieldTimestamps.kt</code> — per-provider
-per-field edit timestamps; the asset-sync paths consult these to
-decide which fields to refresh from <code>providers.json</code>.</li>
-<li><code>viewmodel/AppViewModel.kt</code> —
-<code>GeneralSettings.*</code> mirror, bootstrap + on-update
-propagation, the six <code>maxConcurrent*</code> knobs.</li>
-<li><code>viewmodel/FanOutEngine.kt</code> /
-<code>viewmodel/ModelTestEngine.kt</code> — the largest pre-acquire
-consumers.</li>
-<li><code>ui/settings/SettingsScreen.kt</code> — the
-<strong>Network</strong> card on the Settings → AI Setup → Provider
-edit screen, and the global <strong>Maximal API calls</strong> card
-on Settings → Network.</li>
-</ul>
+<dl class="kv">
+<div><dt>data/ApiTracer.kt</dt><dd><code>NetworkSettings</code>, <code>ApiCallCaps</code></dd></div>
+<div><dt>data/ProviderThrottling.kt</dt><dd><code>ProviderThrottle</code> (+ <code>permitPreAcquired</code>, <code>backoffPermitYielder</code>, <code>benchSignal</code>, <code>throttleWaitObserver</code>) and <code>ProviderThrottleInterceptor</code></dd></div>
+<div><dt>data/RateLimitRetry.kt</dt><dd><code>RateLimitRetryInterceptor</code> (429)</dd></div>
+<div><dt>data/OverloadedRetry.kt</dt><dd><code>OverloadedRetryInterceptor</code> (529)</dd></div>
+<div><dt>data/ReadTimeout.kt</dt><dd><code>ReadTimeoutInterceptor</code></dd></div>
+<div><dt>data/TestCallTimeout.kt</dt><dd><code>TestCallTimeoutInterceptor</code></dd></div>
+<div><dt>data/TracingInterceptor.kt</dt><dd><code>TracingInterceptor</code></dd></div>
+<div><dt>data/OkHttpCallContext.kt</dt><dd><code>OkHttpCallContextInterceptor</code> (outermost; restores per-call context for queued-call promotion)</dd></div>
+<div><dt>data/HttpStatusStats.kt</dt><dd><code>HttpStatusStats</code> (process-wide 5-min ring) + <code>HttpStatusStatsInterceptor</code> (innermost)</dd></div>
+<div><dt>data/RunHttpStats.kt</dt><dd>Per-run Fan Out HTTP-response tally</dd></div>
+<div><dt>data/FanOutHttpStats.kt</dt><dd>Fan Out HTTP bucket data classes</dd></div>
+<div><dt>data/RetryStats.kt</dt><dd><code>RetryStats</code> — live retry-pressure counters for the dashboard</dd></div>
+<div><dt>data/ModelCooldownStore.kt</dt><dd>Long <code>cooldownMap</code> + session-only short-bench map; <code>typeABench*</code> mirror fields</dd></div>
+<div><dt>data/ApiClient.kt</dt><dd>Assembles the interceptor chain + 512/512 dispatcher on the shared <code>OkHttpClient</code>; <code>rawFetchClient</code> (no retries)</dd></div>
+<div><dt>data/ApiDispatch.kt</dt><dd><code>withHostGate</code>, <code>withApiCallTimeout</code></dd></div>
+<div><dt>viewmodel/ThrottledBatch.kt</dt><dd><code>runThrottledBatch</code>, <code>PermitHold</code></dd></div>
+<div><dt>viewmodel/ReportViewModelHelpers.kt</dt><dd><code>acquireThrottledPermits</code>, <code>acquireOrRequeue</code></dd></div>
+<div><dt>ui/report/manage/BatchStats.kt</dt><dd>Shared <code>BatchStatsRow</code> strip</dd></div>
+<div><dt>ui/report/manage/BatchCounts.kt</dt><dd><code>deriveBatchCounts</code> / <code>deriveBatchSummary</code>, <code>BenchMode</code>, <code>BatchFamily</code></dd></div>
+<div><dt>ui/report/manage/FanStats.kt</dt><dd>Fan Out HTTP-statistics screen</dd></div>
+<div><dt>data/AppService.kt</dt><dd>The six nullable override fields</dd></div>
+<div><dt>data/ProviderRegistry.kt</dt><dd>Calls <code>ProviderThrottle.resetForNewLimits()</code> from <code>save</code>; <code>findByHost</code> host index</dd></div>
+<div><dt>data/ProviderFieldTimestamps.kt</dt><dd>Per-provider per-field edit timestamps the asset-sync paths consult</dd></div>
+<div><dt>viewmodel/AppViewModel.kt</dt><dd>Mirrors <code>GeneralSettings.*</code> into <code>NetworkSettings</code> + <code>ApiCallCaps.resetForNewLimits</code> + <code>ModelCooldownStore.typeABench*</code> on bootstrap and on update</dd></div>
+<div><dt>ui/settings/SettingsScreen.kt</dt><dd>The <strong>Network settings</strong> sub-screen (incl. <strong>Model bench</strong>) + its <strong>Maximal API calls</strong> child</dd></div>
+<div><dt>ui/settings/ServiceSettingsScreens.kt</dt><dd>The per-provider "Throttle &amp; retry overrides" card</dd></div>
+</dl>
 
-<p class="backtop"><a href="#">↑ Top</a></p>
+<p class="muted">See also: <a href="api-formats.html">api-formats</a>
+(the dispatch / streaming layer these throttles wrap, and
+<code>TagPropagatingExecutor</code>) &middot;
+<a href="model-states.html#cooldowns">model states &middot; cooldowns</a>
+(cooldowns the 429 path writes) &middot;
+<a href="report-icons.html">report-icons</a>,
+<a href="translation.html">translation</a>,
+<a href="secondary-results.html">secondary-results</a> (the batch
+flows that pre-acquire).</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
 
 </main>
 </body>

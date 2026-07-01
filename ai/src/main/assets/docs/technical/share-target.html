@@ -7,147 +7,380 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>Share target</span></header>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Share target</span></header>
 <main>
 
 <h1>Share-target</h1>
 
-<p>The app receives <code>ACTION_SEND</code> and
-<code>ACTION_SEND_MULTIPLE</code> intents from any other app's share
-sheet, lets the user pick a destination (Report or Chat), and routes
-the payload accordingly. Code lives in <code>MainActivity</code>,
-<code>data/SharedContent.kt</code>,
-<code>ui/share/ShareChooserScreen.kt</code>, and
-<code>ui/navigation/AppNavHost.kt</code>.</p>
+<p>The app is a standard Android share-sheet target. It receives
+<code>ACTION_SEND</code> and <code>ACTION_SEND_MULTIPLE</code> intents
+from any other app, shows a chooser that lets the user pick a
+destination (<strong>Report</strong>, <strong>Chat</strong>, or — only
+when Experimental features is on — <strong>Knowledge</strong>), and
+routes the payload accordingly.</p>
 
-<h2>Manifest</h2>
+<p class="muted">A second, unrelated entry point — the exported
+<code>com.ai.ACTION_NEW_REPORT</code> custom intent — also lands in
+<code>MainActivity.handleIntent</code>, but it's a different contract
+with its own confirmation flow. See <a href="#external-intent">Custom
+external intent</a> below.</p>
 
-<p><code>AndroidManifest.xml</code> registers the activity for:</p>
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#manifest">Manifest</a></li>
+<li><a href="#snapshot">Snapshot</a></li>
+<li><a href="#chooser">Chooser overlay</a></li>
+<li><a href="#routes">Three landing routes</a></li>
+<li><a href="#external-intent">Custom external intent</a></li>
+<li><a href="#files">Files</a></li>
+</ul>
+</nav>
 
-<pre><code>&lt;intent-filter&gt;
-    &lt;action android:name="android.intent.action.SEND" /&gt;
-    &lt;category android:name="android.intent.category.DEFAULT" /&gt;
-    &lt;data android:mimeType="text/*" /&gt;
-&lt;/intent-filter&gt;
-&lt;intent-filter&gt;
-    &lt;action android:name="android.intent.action.SEND" /&gt;
-    &lt;category android:name="android.intent.category.DEFAULT" /&gt;
-    &lt;data android:mimeType="image/*" /&gt;
-&lt;/intent-filter&gt;
-&lt;!-- + matching SEND_MULTIPLE filters --&gt;</code></pre>
+<h2 id="manifest">Manifest</h2>
 
-<p><code>text/*</code> covers selected text and shared URLs;
-<code>image/*</code> covers vision-capable image shares.</p>
+<p><code>AndroidManifest.xml</code> registers <code>MainActivity</code>
+for <code>ACTION_SEND</code> over three mimetype buckets and
+<code>ACTION_SEND_MULTIPLE</code> over two:</p>
 
-<h2>Snapshot</h2>
+<dl class="kv">
+<div>
+<dt>text/*</dt>
+<div class="meta"><code>SEND</code> only</div>
+<dd>Selected text and shared URLs. Deliberately no
+<code>SEND_MULTIPLE</code> filter — multi-share is for files, not text
+snippets.</dd>
+</div>
+<div>
+<dt>image/*</dt>
+<div class="meta"><code>SEND</code> + <code>SEND_MULTIPLE</code></div>
+<dd>Vision-capable image shares, single or multiple.</dd>
+</div>
+<div>
+<dt>Five document types</dt>
+<div class="meta"><code>SEND</code> + <code>SEND_MULTIPLE</code></div>
+<dd>PDF, DOCX, ODT, XLSX, ODS — exactly the file types the Knowledge
+extractors can ingest (the Report vision path only ever uses the
+first <em>image</em>). These are the file payloads the chooser can
+hand to Report-as-knowledge or to the Knowledge screen.</dd>
+</div>
+</dl>
+
+<p><code>MainActivity</code> is <code>launchMode="singleTop"</code> and
+<code>exported="true"</code>. The <code>MAIN</code>/<code>LAUNCHER</code>
+and <code>com.ai.ACTION_NEW_REPORT</code> filters share the same
+activity — see <a href="#external-intent">Custom external
+intent</a>.</p>
+
+<h2 id="snapshot">Snapshot</h2>
 
 <p><code>MainActivity.handleIntent</code> extracts the payload into a
-<code>SharedContent</code> data class (in
-<code>data/SharedContent.kt</code>) held as
-<code>mutableStateOf&lt;SharedContent?&gt;</code>:</p>
+<code>SharedContent</code> data class (<code>data/SharedContent.kt</code>),
+held as <code>mutableStateOf&lt;SharedContent?&gt;</code> on the
+activity:</p>
 
 <pre><code>data class SharedContent(
-    val text: String? = null,            // EXTRA_TEXT
-    val subject: String? = null,         // EXTRA_SUBJECT
-    val uris: List&lt;String&gt; = emptyList(),// EXTRA_STREAM as Uri strings
-    val mime: String? = null             // intent.type
+    val text: String? = null,             // EXTRA_TEXT
+    val subject: String? = null,          // EXTRA_SUBJECT
+    val uris: List&lt;String&gt; = emptyList(), // EXTRA_STREAM (single or list) as Uri strings
+    val mime: String? = null              // intent.type
 ) {
     val isEmpty: Boolean get() = text.isNullOrBlank() &amp;&amp; uris.isEmpty()
+
+    // First http(s) URL embedded anywhere in text (regex match,
+    // trailing punctuation trimmed) — accepts a browser share that
+    // wraps the URL in a page title or markdown link.
+    val firstUrl: String?
+
+    // True when text contains an http(s) URL (firstUrl != null) —
+    // drives the "Add to Knowledge as URL" card and queue entry.
     val isUrl: Boolean
 }</code></pre>
 
-<p>API-version-aware Uri extraction uses
-<code>getParcelableExtra(key, Uri::class.java)</code> on API 33+ and
-falls back to the deprecated cast on older devices.</p>
+<ul>
+<li><code>ACTION_SEND</code> reads a single <code>EXTRA_STREAM</code>
+Uri into a one-element <code>uris</code> list.</li>
+<li><code>ACTION_SEND_MULTIPLE</code> reads the Uri
+<code>ArrayList</code> and maps each entry to a string.</li>
+<li>Both branches also pull <code>EXTRA_TEXT</code>,
+<code>EXTRA_SUBJECT</code>, and <code>intent.type</code>.</li>
+</ul>
 
-<h2>Chooser overlay</h2>
+<p>Uri extraction is API-version-aware:
+<code>getParcelableExtra(key, Uri::class.java)</code> /
+<code>getParcelableArrayListExtra(key, Uri::class.java)</code> on API
+33+, falling back to the deprecated unchecked cast on older
+devices.</p>
+
+<div class="callout">
+<p>The launch intent is only processed when
+<code>savedInstanceState == null</code>, so a configuration change
+(rotation, locale switch) does <strong>not</strong> re-import shared
+content the user already consumed — otherwise the chooser or chat
+composer would re-populate with a payload that was just
+dismissed.</p>
+</div>
+
+<h2 id="chooser">Chooser overlay</h2>
 
 <p><code>AppNavHost</code> renders <code>ShareChooserScreen</code> as
-an <strong>overlay before the NavHost</strong> when
-<code>sharedContent != null &amp;&amp; !sharedContent.isEmpty</code>:</p>
+an overlay <strong>before the <code>NavHost</code></strong> whenever
+there is a non-empty share to handle:</p>
 
 <pre><code>if (sharedContent != null &amp;&amp; !sharedContent.isEmpty) {
     ShareChooserScreen(
         shared = sharedContent,
+        experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled,
         onCancel = onSharedContentHandled,
-        onSendToReport = { … },
-        onSendToChat = { … }
+        onSendToReport    = { /* routeShareToReport(...) */ },
+        onSendToChat      = { /* routeShareToChat(...) — text + first image */ },
+        onSendToKnowledge = { /* stage pendingKnowledgeUris, nav AI_KNOWLEDGE */ }
     )
     return
 }</code></pre>
 
-<p>The chooser is a two-card screen showing a payload preview
-(subject, text excerpt, attachment count, mime) plus two destination
-cards. Cards disable themselves when the payload doesn't fit (e.g.
-"New Chat" needs text).</p>
+<p>This is the established full-screen-overlay <code>return</code>
+idiom: because the <code>return</code> sits above the
+<code>NavHost</code>, the chooser layers on top of whatever is in the
+back-stack and the back-stack's <code>remember</code> state survives.
+A <code>BackHandler</code> inside <code>ShareChooserScreen</code>
+routes the hardware back button to <code>onCancel</code>, which clears
+the share state (<code>onSharedContentHandled</code>) and reveals the
+screen underneath.</p>
 
-<p>The overlay's open / closed state is preserved across nav so a
-back-press from a deep destination (e.g. a captured trace's detail)
-returns to the chooser, not to the bare home screen.</p>
+<p><code>TitleBar</code> on the chooser uses <code>title = "Share"</code>
+(subtitle "Turn shared content into a report/chat") with the dedicated
+help topic <code>share_target</code>.</p>
 
-<h2>Two landing routes</h2>
+<p>The chooser shows a preview card first — subject (bold), up to 300
+chars of text (ellipsis-truncated), an attachment count ("1
+attachment" / "N attachments"), and the mime type — then up to three
+destination cards:</p>
 
-<h3>Report</h3>
+<dl class="kv">
+<div>
+<dt>New Report</dt>
+<div class="meta">report glyph &middot; enabled when <code>hasText || hasUris</code></div>
+<dd>Multi-model analysis; text becomes the prompt, the first image
+becomes the vision attachment, other files stage into an offered
+one-shot knowledge base.</dd>
+</div>
+<div>
+<dt>New Chat</dt>
+<div class="meta">chat glyph &middot; enabled when <code>hasText || hasImageUris</code></div>
+<dd>Single-model conversation; text + first image staged as the first
+turn.</dd>
+</div>
+<div>
+<dt>Add to Knowledge</dt>
+<div class="meta">library glyph &middot; enabled when <code>hasUris || isUrl</code></div>
+<dd>Only rendered when Experimental features is on — Knowledge / RAG
+is an experimental surface. With it off, only Report and Chat appear;
+sharing still works.</dd>
+</div>
+</dl>
+
+<p><code>hasImageUris</code> is true when any shared Uri resolves to an
+<code>image/*</code> type (<code>contentResolver.getType</code>,
+falling back to <code>shared.mime</code>) — so a pure image share with
+no text can still go to Chat (the image becomes the first turn's
+attachment).</p>
+
+<h2 id="routes">Three landing routes</h2>
+
+<h3>Report — <code>routeShareToReport</code></h3>
 
 <p><code>routeShareToReport(context, appViewModel, navController,
-sharedContent)</code>:</p>
+shared)</code> is a suspend helper:</p>
 
 <ol>
-<li>Pre-fill <code>genericPromptTitle</code> and
-<code>genericPromptText</code> from the shared subject + text.</li>
-<li>If exactly one image was attached, decode the bytes (off the main
-thread), downscale + JPEG-encode, and base64 the result into
-<code>reportImageBase64</code> / <code>reportImageMime</code> so the
-Generate path treats it as a vision attachment.</li>
-<li>Navigate to <code>AI_NEW_REPORT</code>.</li>
+<li>Title comes from the shared subject, prompt from the shared text
+(both blank-trimmed to <code>""</code>).</li>
+<li>Attachment URIs are partitioned by mime
+(<code>contentResolver.getType</code>, falling back to
+<code>shared.mime</code>):
+<ul>
+<li>The <strong>first image-typed</strong> Uri is decoded off the main
+thread via <code>loadImageAsBase64</code>
+(<code>data/ImageAttach.kt</code>): a bounds-only first pass picks an
+<code>inSampleSize</code>, the bitmap is scaled to a 1568&nbsp;px long
+edge and re-encoded as JPEG (quality 85). The resulting
+<code>(mime, base64)</code> is staged into <code>reportImageBase64</code>
+/ <code>reportImageMime</code> — mime is always <code>image/jpeg</code>.
+This is the report's vision attachment.</li>
+<li><strong>Non-image</strong> Uris (PDF / DOCX / etc.) are staged
+into <code>pendingReportKnowledgeUris</code>. A report has no
+per-report file home, so the New Report screen surfaces a banner
+offering to auto-create a one-shot knowledge base from those files and
+attach it, rather than silently dropping the docs.</li>
+</ul>
+</li>
+<li>Navigate to the New Report editor via
+<code>aiNewReportWithParams(title, prompt)</code>
+(<code>AI_NEW_REPORT_WITH_PARAMS</code>), <code>popUpTo(AI)</code>.
+The user still picks models and taps Generate — no API credits move
+automatically.</li>
 </ol>
 
-<h3>Chat</h3>
+<h3>Chat — <code>routeShareToChat</code></h3>
 
-<p>Stage <code>chatStarterText = sharedContent.text</code> in
-<code>UiState</code>, optionally stage
-<code>chatStarterImageBase64 / Mime</code>, navigate to
-<code>AI_CHAT_PROVIDER</code> (the configure-on-the-fly model picker
-so the user picks model / params before chatting).
-<code>ChatSessionScreen</code> consumes the staged text on first
-composition and clears it via <code>onConsumeStarter()</code> so
-back-and-forward navigation doesn't re-stuff the input box. Staged
-image / text persist across process recreation.</p>
+<p><code>routeShareToChat(context, appViewModel, navController,
+shared)</code> is a suspend helper:</p>
 
-<h2>Custom external intent — separate codepath</h2>
+<ol>
+<li>Stage <code>chatStarterText = shared.text</code> in
+<code>UiState</code>.</li>
+<li>The <strong>first image-typed</strong> Uri is decoded off the main
+thread via <code>loadImageAsBase64</code> (same 1568&nbsp;px /
+JPEG-85 downscale as the Report path) and staged into
+<code>chatStarterImageBase64</code> / <code>chatStarterImageMime</code>
+— mime always <code>image/jpeg</code>. A share to Chat carries the
+text <strong>and</strong> the first image as the first turn's vision
+attachment; these are the same two <code>UiState</code> fields the AI
+Chat hub's "📸 Start with photo" entry writes. Non-image attachments
+are ignored on the chat route.</li>
+<li>Navigate to <code>AI_CHAT_PROVIDER</code> — the
+configure-on-the-fly provider picker, so the user chooses model /
+parameters before chatting — <code>popUpTo(AI)</code>.</li>
+</ol>
 
-<p>The older <code>com.ai.ACTION_NEW_REPORT</code> external-intent
-contract (driven by <code>ExternalIntent</code> +
-<code>MainActivity.handleIntent</code>) is a separate flow with its
-own 13-field payload. The user <strong>must confirm</strong> before
-the cross-app launch fires the API calls — a short confirmation
-screen surfaces the prompt and the selected models, with Generate and
-Cancel buttons. Previously the report ran silently, which masked
-surprise spend; the explicit consent step matches the rest of the
-app's "no background billing without acknowledgement" posture. See
-the in-app <strong>Help</strong> screen for the full intent contract;
-share-target handles only the standard <code>ACTION_SEND</code> /
-<code>ACTION_SEND_MULTIPLE</code>.</p>
+<p><code>ChatSessionScreen</code> (wired from <code>ChatRoutes.kt</code>)
+receives the staged text as <code>initialUserInput</code> and the
+staged image as <code>initialUserImageBase64</code> /
+<code>initialUserImageMime</code>, seeds the input box and the
+attached-image slot on first composition, and fires
+<code>onConsumeStarter()</code> (clearing all three
+<code>UiState</code> fields) so navigating away and back doesn't
+re-stuff them. A <code>rememberSaveable</code> consumed-flag plus
+<code>rememberSaveable</code> input state mean a rotation or process
+recreation between staging the starter and tapping Send keeps the
+user's text and image.</p>
 
-<h2>Files</h2>
+<h3>Knowledge</h3>
+
+<p>Handled inline in <code>AppNavHost.onSendToKnowledge</code> (only
+reachable when the Knowledge card was shown, i.e. Experimental
+features on):</p>
+
+<ol>
+<li>Build <strong>one</strong> queue from the attachment URIs plus the
+extracted URL (<code>shared.firstUrl</code>, when one matched):
+<code>shared.uris + listOfNotNull(shared.firstUrl.orEmpty().takeIf { it.isNotBlank() })</code>.
+Only the matched URL is queued, not the surrounding prose — a browser
+share like "Some page title https://example.com" hands Knowledge just
+the URL.</li>
+<li>Stage it into <code>pendingKnowledgeUris</code> and navigate to
+<code>AI_KNOWLEDGE</code>, <code>popUpTo(AI)</code>.</li>
+</ol>
+
+<p>The Knowledge screen drains the queue and branches per entry on
+<code>content://</code> (file import) vs <code>http(s)://</code> (URL
+ingest). Merging both into a single queue means a share carrying
+<em>both</em> a URL and a file no longer drops the URL — the earlier
+flow wrote the Uri list, then conditionally overwrote it with a
+URL-only list only when the Uri list was empty.</p>
+
+<h2 id="external-intent">Custom external intent — separate codepath</h2>
+
+<p>The exported <code>com.ai.ACTION_NEW_REPORT</code> intent is a
+distinct contract handled by <code>MainActivity.handleIntent</code>
+(it stages <code>externalTitle</code> / <code>externalSystem</code> /
+<code>externalPrompt</code> / <code>externalInstructions</code>) and
+processed in <code>AppNavHost</code>. It is <strong>not</strong> part
+of the share-sheet flow.</p>
+
+<p>Two behaviours, by how much the intent asks for:</p>
 
 <ul>
-<li><code class="path">ai/src/main/AndroidManifest.xml</code> — intent
-filters</li>
-<li><code class="path">ai/src/main/java/com/ai/MainActivity.kt</code>
-— extraction</li>
-<li><code class="path">ai/src/main/java/com/ai/data/SharedContent.kt</code>
-— snapshot</li>
-<li><code class="path">ai/src/main/java/com/ai/ui/share/ShareChooserScreen.kt</code>
-— picker</li>
-<li><code class="path">ai/src/main/java/com/ai/ui/navigation/AppNavHost.kt</code>
-— overlay and routing helpers
-(<code>routeShareToReport</code>, etc.)</li>
-<li><code class="path">ai/src/main/java/com/ai/ui/chat/ChatScreens.kt</code>
-— <code>initialUserInput</code> consumption</li>
+<li><strong>Bare prompt</strong> (no <code>&lt;instructions&gt;</code>
+block and no <code>-- end prompt --</code> marker) → merely pre-fills
+the New Report editor via <code>aiNewReportWithParams</code>. The user
+still picks models and taps Generate, so no credits move without
+consent.</li>
+<li><strong>Prompt + instructions</strong> (an
+<code>externalInstructions</code> extra, or a
+<code>-- end prompt --</code> marker splitting prompt from
+instructions) → the instructions are parsed into a
+<code>PendingExternalReport</code> and an
+<code>ExternalIntentConfirmScreen</code> is shown first.</li>
 </ul>
 
-<p class="backtop"><a href="#">↑ Top</a></p>
+<details>
+<summary><code>PendingExternalReport</code> — 15 fields</summary>
+<div class="body">
+<p>Extracted from <code>&lt;open&gt;</code>, <code>&lt;close&gt;</code>,
+<code>&lt;type&gt;</code>, <code>&lt;email&gt;</code>,
+<code>&lt;next&gt;</code>, <code>&lt;return&gt;</code>,
+<code>&lt;edit&gt;</code>, <code>&lt;select&gt;</code>,
+<code>&lt;agent&gt;</code>, <code>&lt;flock&gt;</code>,
+<code>&lt;swarm&gt;</code>, <code>&lt;model&gt;</code> tags:</p>
+<ul>
+<li><code>title</code>, <code>systemPrompt</code>, <code>aiPrompt</code></li>
+<li><code>openHtml</code>, <code>closeHtml</code></li>
+<li><code>reportType</code>, <code>email</code>, <code>nextAction</code></li>
+<li><code>hasReturn</code>, <code>hasEdit</code>, <code>hasSelect</code></li>
+<li><code>agentNames</code>, <code>flockNames</code>, <code>swarmNames</code></li>
+<li><code>modelSpecs</code></li>
+</ul>
+</div>
+</details>
+
+<p>The confirmation overlay (help topic <code>external_intent</code>,
+title "External request") lays out exactly what will happen — which
+models get called, which side effects fire (<code>&lt;email&gt;</code>,
+<code>&lt;next&gt;</code>, return-on-completion), and a prompt preview
+— with <strong>Cancel</strong> and a confirm button labelled
+<strong>Generate</strong> when the intent would auto-generate
+(<code>willAutoGenerate</code> = no <code>&lt;edit&gt;</code>/<code>&lt;select&gt;</code>,
+a <code>&lt;type&gt;</code>, and at least one model source) or
+<strong>Continue</strong> otherwise. On confirm with
+<code>&lt;edit&gt;</code>, the user lands in the New Report editor;
+otherwise the agent-selection / generation flow runs.</p>
+
+<div class="callout">
+<p>This explicit consent step matches the app's "no background
+billing without acknowledgement" posture — previously such intents
+could run silently and mask surprise spend.</p>
+</div>
+
+<p>The launch intent is staged once
+(<code>savedInstanceState == null</code>) and the source extras are
+cleared after staging so a configuration change can't re-stage the
+confirmation after the user has cancelled or confirmed.</p>
+
+<h2 id="files">Files</h2>
+
+<ul>
+<li><code class="path">ai/src/main/AndroidManifest.xml</code> —
+intent filters (SEND &times;3, SEND_MULTIPLE &times;2).</li>
+<li><code class="path">ai/src/main/java/com/ai/MainActivity.kt</code>
+— <code>handleIntent</code>, API-aware Uri extraction, fresh-start
+guard.</li>
+<li><code class="path">ai/src/main/java/com/ai/data/SharedContent.kt</code>
+— the snapshot data class (<code>isEmpty</code>, <code>isUrl</code>,
+<code>firstUrl</code>).</li>
+<li><code class="path">ai/src/main/java/com/ai/ui/share/ShareChooserScreen.kt</code>
+— the three-card picker.</li>
+<li><code class="path">ai/src/main/java/com/ai/ui/share/ExternalIntentConfirmScreen.kt</code>
+— <code>PendingExternalReport</code> + the custom-intent confirmation
+overlay.</li>
+<li><code class="path">ai/src/main/java/com/ai/ui/navigation/AppNavHost.kt</code>
+— the chooser overlay, <code>routeShareToReport</code>,
+<code>routeShareToChat</code>, and the inline knowledge routing.</li>
+<li><code class="path">ai/src/main/java/com/ai/data/ImageAttach.kt</code>
+— <code>loadImageAsBase64</code> (downscale + JPEG re-encode for the
+vision attachment; shared by the Report and Chat routes).</li>
+<li><code class="path">ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt</code>
+— wires the staged <code>chatStarterText</code> /
+<code>chatStarterImageBase64</code> / <code>chatStarterImageMime</code>
+<code>UiState</code> fields into <code>ChatSessionScreen</code>.</li>
+<li><code class="path">ai/src/main/java/com/ai/ui/chat/ChatScreens.kt</code>
+— <code>initialUserInput</code> / <code>initialUserImageBase64</code>
+/ <code>initialUserImageMime</code> / <code>onConsumeStarter</code>
+consumption.</li>
+</ul>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
 
 </main>
 </body>

@@ -7,16 +7,27 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>Data structures</span></header>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Data structures</span></header>
 <main>
 
 <h1>Data structures</h1>
 
-<p>All non-trivial data classes shipped by the app, grouped by domain.
+<p>Every non-trivial data class shipped by the app, grouped by domain.
 Field types follow Kotlin notation; <code>?</code> marks nullable.
 Classes inside <code>com.ai.data.ApiModels</code> (raw provider
-request / response shapes) are not listed here — see the file
-directly.</p>
+request / response shapes) aren't listed — see that file directly.
+Cost / token / trace bookkeeping on the biggest classes
+(<code>Report</code>, <code>SecondaryResult</code>) is summarised
+rather than exhaustively transcribed.</p>
+
+<p class="muted">~161,000 LOC across 406 Kotlin files under
+<code class="path">ai/src/main/java/com/ai</code> (97 <code>data</code>,
+279 <code>ui</code>, 27 <code>viewmodel</code>, 2 <code>model</code>,
+plus <code>MainActivity.kt</code>). Persistence is SharedPreferences +
+JSON files under <code>&lt;filesDir&gt;</code> — there is <strong>no</strong>
+Jetpack DataStore; the dependency isn't in the build at all. See
+<a href="persistent.html">persistent</a> for every prefs key and
+file.</p>
 
 <nav class="toc">
 <strong>Domains</strong>
@@ -37,14 +48,19 @@ directly.</p>
 </nav>
 
 <h2 id="settings-config">Settings &amp; Configuration</h2>
-<p class="muted"><code>com.ai.model</code></p>
+<p class="muted"><code>com.ai.model</code> — <code>SettingsModels.kt</code>
+(the data classes below) + <code>SettingsHolder.kt</code> (the
+<code>object SettingsHolder</code> that hands the live
+<code>Settings</code> to non-Composable call sites).</p>
 
-<h3 id="settings">Settings</h3>
+<details open>
+<summary>Settings</summary>
+<div class="body">
 <p>The top-level AI configuration object. Persisted in
 <code>eval_prefs</code>.</p>
 <dl class="kv">
 <div><dt>providers</dt><div class="meta"><code>Map&lt;AppService, ProviderConfig&gt;</code></div>
-<dd>One entry per known provider.</dd></div>
+<dd>One entry per configured provider.</dd></div>
 <div><dt>agents</dt><div class="meta"><code>List&lt;Agent&gt;</code></div>
 <dd>Named model configurations.</dd></div>
 <div><dt>flocks</dt><div class="meta"><code>List&lt;Flock&gt;</code></div>
@@ -56,147 +72,196 @@ directly.</p>
 <div><dt>systemPrompts</dt><div class="meta"><code>List&lt;SystemPrompt&gt;</code></div>
 <dd>Reusable system prompts.</dd></div>
 <div><dt>internalPrompts</dt><div class="meta"><code>List&lt;InternalPrompt&gt;</code></div>
-<dd>User-managed Meta / Fan-out / Fan-in / Other internal templates.</dd></div>
+<dd>User-managed Meta / Compare / Fan-out / Fan-in / worker / alt /
+internal templates.</dd></div>
 <div><dt>examplePrompts</dt><div class="meta"><code>List&lt;ExamplePrompt&gt;</code></div>
 <dd>Starter (title, text) pairs surfaced in the New Report flow.</dd></div>
 <div><dt>endpoints</dt><div class="meta"><code>Map&lt;AppService, List&lt;Endpoint&gt;&gt;</code></div>
 <dd>Per-provider endpoint URLs.</dd></div>
 <div><dt>providerStates</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div>
-<dd>"ok" / "error" / "inactive" / "not-used" per provider id.</dd></div>
+<dd><code>"ok"</code> / <code>"error"</code> / <code>"inactive"</code>
+per provider id.</dd></div>
 <div><dt>modelTypeOverrides</dt><div class="meta"><code>List&lt;ModelTypeOverride&gt;</code></div>
 <dd>Manual per-model type assignments.</dd></div>
 <div><dt>blockedModels</dt><div class="meta"><code>List&lt;BlockedModel&gt;</code></div>
-<dd>Models the Test sweep should treat as failed-by-config (with
-reason text).</dd></div>
+<dd>Models the test sweep flagged as failing (🚫).</dd></div>
 <div><dt>testExcludedModels</dt><div class="meta"><code>List&lt;TestExcludedModel&gt;</code></div>
-<dd>Models the Test sweep should skip entirely (cost &gt; 5¢ +
-manual). Auto-seeded from <code>assets/excluded.json</code>.</dd></div>
+<dd>Models skipped by the test sweep (costly probes etc.).</dd></div>
 <div><dt>inaccessibleModels</dt><div class="meta"><code>List&lt;InaccessibleModel&gt;</code></div>
-<dd>Models hidden from every picker (tier-gated catalog entries).
-Auto-seeded from <code>assets/inaccessible.json</code>.</dd></div>
+<dd>Models gated behind a paid tier / approval (🔒).</dd></div>
+<div><dt>defaultMetaItems</dt><div class="meta"><code>List&lt;DefaultMetaItem&gt;</code></div>
+<dd>Meta rows auto-created after primary generation finishes.</dd></div>
+<div><dt>disabledInfoProviders</dt><div class="meta"><code>Set&lt;String&gt;</code> (default empty)</div>
+<dd>Info providers (pricing / capability catalogs) switched OFF on AI
+Setup → Info providers; stored as the DISABLED set so a newly-added
+provider defaults on. Keyed by <code>InfoProvider.id</code>.</dd></div>
 </dl>
+<p>The four model-state lists (<code>blockedModels</code>,
+<code>testExcludedModels</code>, <code>inaccessibleModels</code>, plus
+the cooldown store) are detailed on <a href="model-states.html">model
+states</a>.</p>
+</div>
+</details>
 
-<h3 id="providerconfig">ProviderConfig</h3>
+<details>
+<summary>ProviderConfig</summary>
+<div class="body">
+<p>Per-provider, user-curated configuration. The provider's
+<code>defaultModel</code> / <code>defaultModelSource</code> /
+<code>adminUrl</code> are <strong>not</strong> here — they live on the
+<code>AppService</code> itself (loaded from
+<code class="path">assets/providers/</code>, edited through
+<code>ProviderRegistry.update</code>).</p>
 <dl class="kv">
 <div><dt>apiKey</dt><div class="meta"><code>String</code></div>
 <dd>Empty until user pastes one.</dd></div>
-<div><dt>model</dt><div class="meta"><code>String</code></div>
-<dd>Default model selected for this provider.</dd></div>
-<div><dt>modelSource</dt><div class="meta"><code>ModelSource</code></div>
-<dd><code>API</code> or <code>MANUAL</code>.</dd></div>
 <div><dt>models</dt><div class="meta"><code>List&lt;String&gt;</code></div>
 <dd>Model ids (from API list or hardcoded fallback).</dd></div>
 <div><dt>modelTypes</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div>
-<dd><code>id → type</code> ("chat", "embedding", "rerank", …).</dd></div>
-<div><dt>visionModels</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
-<dd>User-flagged vision-capable ids.</dd></div>
-<div><dt>webSearchModels</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
-<dd>User-flagged web-search-capable ids.</dd></div>
-<div><dt>reasoningModels</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
-<dd>User-flagged reasoning-capable ids.</dd></div>
+<dd><code>id → type</code> (<code>"chat"</code>,
+<code>"embedding"</code>, <code>"rerank"</code>, …).</dd></div>
+<div><dt>visionModels, webSearchModels, reasoningModels</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
+<dd>User-flagged capability sets.</dd></div>
 <div><dt>modelCapabilities</dt><div class="meta"><code>Map&lt;String, ModelCapabilities&gt;</code></div>
-<dd>Provider's own self-report.</dd></div>
+<dd>Provider's own <code>/models</code> self-report.</dd></div>
 <div><dt>modelListRawJson</dt><div class="meta"><code>String?</code></div>
-<dd>Raw <code>/models</code> response for future parsing.</dd></div>
-<div><dt>visionCapableComputed</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
-<dd>Precomputed layered lookup result.</dd></div>
-<div><dt>webSearchCapableComputed</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
-<dd>Precomputed layered lookup result.</dd></div>
-<div><dt>reasoningCapableComputed</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
-<dd>Precomputed layered lookup result.</dd></div>
+<dd>Raw <code>/models</code> response, kept for future re-parsing.</dd></div>
+<div><dt>visionCapableComputed, webSearchCapableComputed, reasoningCapableComputed</dt>
+<div class="meta"><code>Set&lt;String&gt;</code></div>
+<dd>Precomputed layered-lookup results.</dd></div>
 <div><dt>modelPricing</dt><div class="meta"><code>Map&lt;String, PricingCache.ModelPricing&gt;</code></div>
-<dd>Precomputed per-model price.</dd></div>
+<dd>Precomputed per-model price (avoids catalog scans on every
+render).</dd></div>
 <div><dt>parametersIds</dt><div class="meta"><code>List&lt;String&gt;</code></div>
-<dd>Default param presets.</dd></div>
+<dd>Provider-level default param presets.</dd></div>
+<div><dt>systemPromptId</dt><div class="meta"><code>String?</code></div>
+<dd>Provider-level default system prompt.</dd></div>
 </dl>
+<div class="callout">
+<p>The legacy per-provider <code>model</code>, <code>modelSource</code>,
+<code>adminUrl</code>, and <code>modelListUrl</code> override fields are
+gone. <code>model</code> / <code>modelSource</code> moved to
+<code>AppService.defaultModel</code> /
+<code>defaultModelSource</code>; admin-URL overrides live in the
+bundled provider definition only.</p>
+</div>
+</div>
+</details>
 
-<h3 id="agent">Agent</h3>
+<details>
+<summary>Agent</summary>
+<div class="body">
 <dl class="kv">
-<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
-<div><dt>name</dt><div class="meta"><code>String</code></div></div>
+<div><dt>id</dt><div class="meta"><code>String</code> (UUID)</div></div>
+<div><dt>name, model</dt><div class="meta"><code>String</code></div></div>
 <div><dt>provider</dt><div class="meta"><code>AppService</code></div></div>
-<div><dt>model</dt><div class="meta"><code>String</code></div></div>
 <div><dt>apiKey</dt><div class="meta"><code>String</code></div>
 <dd>Empty → inherit from provider.</dd></div>
 <div><dt>endpointId</dt><div class="meta"><code>String?</code></div></div>
 <div><dt>paramsIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
 <div><dt>systemPromptId</dt><div class="meta"><code>String?</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="flock">Flock</h3>
+<details>
+<summary>Flock</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>id, name</dt><div class="meta"><code>String</code></div></div>
 <div><dt>agentIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
 <div><dt>paramsIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
 <div><dt>systemPromptId</dt><div class="meta"><code>String?</code></div></div>
 </dl>
-<p>The constant <code>DEFAULT_AGENTS_FLOCK_NAME = "default agents"</code>
+<p>Constant <code>DEFAULT_AGENTS_FLOCK_NAME = "default agents"</code>
 names the auto-managed flock the per-provider Test button and
 Refresh-all populate.</p>
+</div>
+</details>
 
-<h3 id="swarm">Swarm</h3>
+<details>
+<summary>Swarm / SwarmMember</summary>
+<div class="body">
 <dl class="kv">
-<div><dt>id, name</dt><div class="meta"><code>String</code></div></div>
+<div><dt>id, name</dt><div class="meta"><code>String</code> (Swarm)</div></div>
 <div><dt>members</dt><div class="meta"><code>List&lt;SwarmMember&gt;</code></div></div>
 <div><dt>paramsIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
 <div><dt>systemPromptId</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>SwarmMember.provider</dt><div class="meta"><code>AppService</code></div></div>
+<div><dt>SwarmMember.model</dt><div class="meta"><code>String</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="swarmmember">SwarmMember</h3>
-<dl class="kv">
-<div><dt>provider</dt><div class="meta"><code>AppService</code></div></div>
-<div><dt>model</dt><div class="meta"><code>String</code></div></div>
-</dl>
-
-<h3 id="parameters">Parameters</h3>
-<p>A named parameter preset.</p>
+<details>
+<summary>Parameters</summary>
+<div class="body">
+<p>A named parameter preset. See <a href="development.html">development</a>
+for how new parameter fields get added end-to-end; resolution
+precedence per call site is its own doc (agent / flock / swarm /
+per-call).</p>
 <dl class="kv">
 <div><dt>id, name</dt><div class="meta"><code>String</code></div></div>
-<div><dt>temperature</dt><div class="meta"><code>Float?</code></div></div>
-<div><dt>maxTokens</dt><div class="meta"><code>Int?</code></div></div>
-<div><dt>topP</dt><div class="meta"><code>Float?</code></div></div>
-<div><dt>topK</dt><div class="meta"><code>Int?</code></div></div>
-<div><dt>frequencyPenalty</dt><div class="meta"><code>Float?</code></div></div>
-<div><dt>presencePenalty</dt><div class="meta"><code>Float?</code></div></div>
+<div><dt>temperature, topP</dt><div class="meta"><code>Float?</code></div></div>
+<div><dt>maxTokens, topK</dt><div class="meta"><code>Int?</code></div></div>
+<div><dt>frequencyPenalty, presencePenalty</dt><div class="meta"><code>Float?</code></div></div>
 <div><dt>systemPrompt</dt><div class="meta"><code>String?</code></div></div>
 <div><dt>stopSequences</dt><div class="meta"><code>List&lt;String&gt;?</code></div></div>
 <div><dt>seed</dt><div class="meta"><code>Int?</code></div></div>
-<div><dt>responseFormatJson</dt><div class="meta"><code>Boolean</code></div></div>
-<div><dt>searchEnabled</dt><div class="meta"><code>Boolean</code></div></div>
-<div><dt>returnCitations</dt><div class="meta"><code>Boolean (default true)</code></div></div>
+<div><dt>responseFormatJson, searchEnabled, webSearchTool</dt><div class="meta"><code>Boolean</code></div></div>
+<div><dt>returnCitations</dt><div class="meta"><code>Boolean</code> (default true)</div></div>
 <div><dt>searchRecency</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>webSearchTool</dt><div class="meta"><code>Boolean</code></div></div>
-<div><dt>reasoningEffort</dt><div class="meta"><code>String?</code>
-<span class="muted">— "low" / "medium" / "high" / null</span></div></div>
+<div><dt>reasoningEffort</dt><div class="meta"><code>String?</code></div>
+<dd><code>"low"</code> / <code>"medium"</code> / <code>"high"</code> /
+null.</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="endpoint">Endpoint</h3>
+<details>
+<summary>Endpoint</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>id, name, url</dt><div class="meta"><code>String</code></div></div>
 <div><dt>isDefault</dt><div class="meta"><code>Boolean</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="systemprompt">SystemPrompt</h3>
+<details>
+<summary>SystemPrompt</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>id, name, prompt</dt><div class="meta"><code>String</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="internalprompt">InternalPrompt</h3>
+<details>
+<summary>InternalPrompt</summary>
+<div class="body">
 <p>User-managed prompt template. Covers Meta-prompt launchers on the
-Report Result screen (<code>category="meta"</code>), Fan-out / Fan-in
-templates, and the fixed internal templates
-(<code>category="internal"</code>).</p>
+Report Result screen (<code>category="meta"</code>), Compare-with-meta
+prompts (<code>category="meta_compare"</code>), Fan-out / Fan-in
+templates (<code>category="fan_out"</code> / <code>"fan_in"</code>),
+worker fallback-chain prompts (<code>category="workers"</code> — also
+the translate-text / translate-title / second-rerank /
+second-moderation worker chains), alternative icon / title prompts
+(<code>category="alt"</code>), and fixed internal templates
+(<code>category="internal"</code>: chat-title, model-info,
+model-intro, test-model).</p>
 <dl class="kv">
-<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
+<div><dt>id</dt><div class="meta"><code>String</code> (UUID)</div></div>
 <div><dt>name</dt><div class="meta"><code>String</code></div>
 <dd>Unique within (<code>category</code>, <code>name</code>).</dd></div>
-<div><dt>reference</dt><div class="meta"><code>Boolean (default false)</code></div>
-<dd>When true on a meta entry, executor appends
+<div><dt>reference</dt><div class="meta"><code>Boolean</code> (default false)</div>
+<dd>When true on a meta entry, the executor appends a
 <code>[N] = Provider / Model</code> legend.</dd></div>
-<div><dt>category</dt><div class="meta"><code>String</code></div>
-<dd>One of <code>meta</code>, <code>fan_out</code>,
-<code>fan_in</code>, <code>internal</code>.</dd></div>
-<div><dt>agent</dt><div class="meta"><code>String</code></div>
+<div><dt>category</dt><div class="meta"><code>String</code> (default <code>"internal"</code>)</div>
+<dd>Common values: <code>meta</code>, <code>meta_compare</code>,
+<code>fan_out</code>, <code>fan_in</code>, <code>workers</code>,
+<code>alt</code>, <code>internal</code>.</dd></div>
+<div><dt>agent</dt><div class="meta"><code>String</code> (default <code>"*select"</code>)</div>
 <dd><code>"*select"</code> = ask the user; otherwise an
 <code>Agent.name</code>.</dd></div>
 <div><dt>text</dt><div class="meta"><code>String</code></div>
@@ -206,145 +271,302 @@ templates, and the fixed internal templates
 <code>@LANGUAGE@</code>, <code>@TEXT@</code>,
 <code>@FAN_OUT_COUNT@</code>, <code>@MODEL@</code>,
 <code>@PROVIDER@</code>. Iterable block:
-<code>***Report*** @REPORT@@RESPONSES@</code>. Model-scoped fan-in
-adds <code>@INITIATOR@</code>, <code>@RESPONDERS@</code>,
-<code>@RESPONDER_PAIRS@</code>.</dd></div>
-<div><dt>title</dt><div class="meta"><code>String</code></div>
-<dd>One-line description shown alongside <code>name</code>.</dd></div>
-<div><dt>scope</dt><div class="meta"><code>String (default "Default")</code></div>
-<dd>Meta-prompt + fan-out launch scope. <code>"Default"</code> runs
-against every report agent / language with no extra picker;
-<code>"Select"</code> routes the user through
-<code>SecondaryScopeScreen</code> first.</dd></div>
+<code>***Report*** @REPORT@@RESPONSES@</code> (whitespace-tolerant, one
+expansion per source-report).</dd></div>
+<div><dt>title</dt><div class="meta"><code>String</code> (default empty)</div>
+<dd>One-line description shown alongside <code>name</code> on Fan out
+and the prompt-edit screen.</dd></div>
+<div><dt>provider, model</dt><div class="meta"><code>String?</code></div>
+<dd>Optional alternative to <code>agent</code>: pin the prompt directly
+to a provider id + model (resolved to a synthetic agent, taking
+precedence over <code>agent</code>).</dd></div>
+<div><dt>parameters, systemPrompt</dt><div class="meta"><code>String</code> (default <code>"*NONE"</code>)</div>
+<dd>Per-prompt Parameters preset NAME / System-prompt NAME used for
+THIS prompt's call, overriding the agent / flock / swarm / provider /
+app-wide levels (unless a runtime 🌡️ / 🎭 pick was made).</dd></div>
+<div><dt>workers</dt><div class="meta"><code>List&lt;Worker&gt;</code> (default empty)</div>
+<dd>Only the <code>workers</code> category: the ordered fallback chain
+<code>WorkerRunner</code> runs in random order until one succeeds. Each
+<code>Worker</code> is a Model / Agent / Flock / Swarm pick.</dd></div>
+<div><dt>modelSelection</dt><div class="meta"><code>String</code> (default <code>"*CONFIGURED"</code>)</div>
+<dd>Worker-selection mode for the kinds this prompt drives (Meta /
+Fan-in / Rerank / Moderation / the type-B batches / Find-alternative).
+<code>*CONFIGURED</code> runs against the configured
+<code>workers</code>; <code>*SELECT</code> pops the
++Agent/+Flock/+Swarm/+Model picker at run time and runs against the
+user's pick (never written back).</dd></div>
 </dl>
+<div class="callout">
+<p>The legacy <code>type</code> field is gone — routing is derived from
+<code>category</code>. There is <strong>no</strong>
+<code>metaTypeToKind</code> function: Rerank, Moderation, and Meta are
+dispatched by three distinct entry methods on
+<code>SecondaryRunManager</code> (<code>runRerank</code> →
+<code>RERANK</code>, <code>runModeration</code> →
+<code>MODERATION</code>, <code>runMetaPrompt</code> →
+<code>META</code>). "Compare", "Critique", "Synthesize" etc. are just
+user-given <code>meta</code>-category prompt <strong>names</strong> —
+the kind is always <code>META</code>; only <code>summarize</code> and
+<code>compare</code> ship as bundled seeds.</p>
+</div>
+</div>
+</details>
 
-<h3 id="exampleprompt">ExamplePrompt</h3>
+<details>
+<summary>ExamplePrompt</summary>
+<div class="body">
+<p>Stand-alone (title, text) pair the user curates as a starter library
+for the New Report screen.</p>
 <dl class="kv">
-<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
-<div><dt>title</dt><div class="meta"><code>String</code></div></div>
-<div><dt>text</dt><div class="meta"><code>String</code></div></div>
+<div><dt>id</dt><div class="meta"><code>String</code> (UUID)</div></div>
+<div><dt>title, text</dt><div class="meta"><code>String</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="modeltypeoverride">ModelTypeOverride</h3>
+<details>
+<summary>ModelTypeOverride</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>id, providerId, modelId, type</dt><div class="meta"><code>String</code></div></div>
 <div><dt>supportsVision</dt><div class="meta"><code>Boolean</code></div>
 <dd>Wins over per-provider <code>visionModels</code> for this id.</dd></div>
-<div><dt>supportsWebSearch</dt><div class="meta"><code>Boolean</code></div></div>
-<div><dt>supportsReasoning</dt><div class="meta"><code>Boolean</code></div></div>
+<div><dt>supportsWebSearch, supportsReasoning</dt><div class="meta"><code>Boolean</code></div>
+<dd>Same idea for web-search / reasoning-capable.</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="blockedmodel">BlockedModel</h3>
+<details>
+<summary>DefaultMetaItem</summary>
+<div class="body">
+<p>Pins a category-<code>meta</code> Internal Prompt (by
+<code>metaName</code>) to a target — an agent (<code>agentName</code>)
+or a direct provider+model (<code>providerName</code> +
+<code>modelName</code>, which win when both are set). When a report's
+agents all finish, one META secondary is auto-created per active item.
+Seeded from <code class="path">assets/meta.json</code>.</p>
 <dl class="kv">
-<div><dt>providerId, model</dt><div class="meta"><code>String</code></div>
-<dd>Identity is (<code>providerId</code>, <code>model</code>).</dd></div>
-<div><dt>reason</dt><div class="meta"><code>String</code></div>
-<dd>Free-text reason shown in the picker tooltip.</dd></div>
+<div><dt>id, metaName</dt><div class="meta"><code>String</code></div></div>
+<div><dt>agentName, providerName, modelName</dt><div class="meta"><code>String</code> (default empty)</div></div>
+<div><dt>active</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>When false, the item is kept but skipped at report-completion
+autostart time.</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="testexcludedmodel">TestExcludedModel</h3>
-<dl class="kv">
-<div><dt>providerId, model</dt><div class="meta"><code>String</code></div></div>
-</dl>
-
-<h3 id="inaccessiblemodel">InaccessibleModel</h3>
-<dl class="kv">
-<div><dt>providerId, model</dt><div class="meta"><code>String</code></div></div>
-<div><dt>reason</dt><div class="meta"><code>String</code></div>
-<dd>Typically "Unable to access non-serverless" or the original 4xx
-body.</dd></div>
-</dl>
-
-<h3 id="reportmodel">ReportModel</h3>
+<details>
+<summary>ReportModel</summary>
+<div class="body">
+<p>Used during the report selection phase.</p>
 <dl class="kv">
 <div><dt>provider</dt><div class="meta"><code>AppService</code></div></div>
 <div><dt>model, type, sourceType, sourceName</dt><div class="meta"><code>String</code></div></div>
 <div><dt>sourceId, agentId, endpointId, agentApiKey</dt><div class="meta"><code>String?</code></div></div>
 <div><dt>paramsIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="usagestats">UsageStats</h3>
-<p>A per-(provider, model, kind) aggregate.</p>
+<details>
+<summary>UsageStats</summary>
+<div class="body">
+<p>A per-(provider, model, kind) aggregate. Persisted to
+<code class="path">usage-stats.json</code> under
+<code>&lt;filesDir&gt;</code> (no longer in prefs). The single write
+chokepoint is <code>SettingsPreferences.updateUsageStats</code>,
+debounced to disk once per 2 s.</p>
 <dl class="kv">
 <div><dt>provider</dt><div class="meta"><code>AppService</code></div></div>
 <div><dt>model</dt><div class="meta"><code>String</code></div></div>
 <div><dt>callCount</dt><div class="meta"><code>Int</code></div></div>
-<div><dt>inputTokens</dt><div class="meta"><code>Long</code></div></div>
-<div><dt>outputTokens</dt><div class="meta"><code>Long</code></div></div>
+<div><dt>inputTokens, outputTokens</dt><div class="meta"><code>Long</code></div></div>
 <div><dt>kind</dt><div class="meta"><code>String</code></div>
 <dd><code>report</code>, <code>rerank</code>, <code>meta</code>,
-<code>moderate</code>, or <code>translate</code>.</dd></div>
+<code>moderation</code>, <code>translate</code>, <code>tournament</code>,
+<code>judges</code>, <code>compare</code>, <code>transrank</code>, plus
+metadata / worker buckets such as <code>icon</code>,
+<code>model/icons</code>, <code>fan/meta</code>, and the
+<code>translate/...</code> sub-types.</dd></div>
+<div><dt>searchUnits</dt><div class="meta"><code>Long</code></div>
+<dd>Per-search billing units for <code>rerank</code> rows (Cohere bills
+per search-unit, not per token).</dd></div>
+<div><dt>inputCost, outputCost</dt><div class="meta"><code>Double?</code></div>
+<dd>Persisted USD cost at call time; null on legacy rows (readers fall
+back to <code>PricingCache</code>).</dd></div>
+<div><dt>pricingSource</dt><div class="meta"><code>String?</code></div>
+<dd>Which tier priced the row; forced to
+<code>"API_REPORTED"</code> for providers that self-report cost.</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="modelcapabilities">ModelCapabilities</h3>
+<details>
+<summary>ModelCapabilities</summary>
+<div class="body">
+<p>Per-model capability bundle derived from a provider's own
+<code>/models</code> endpoint. Authoritative when populated (the
+provider's self-report); empty fields fall through to LiteLLM /
+models.dev / heuristic in the lookup chain.</p>
 <dl class="kv">
-<div><dt>supportsVision</dt><div class="meta"><code>Boolean?</code></div></div>
-<div><dt>supportsFunctionCalling</dt><div class="meta"><code>Boolean?</code></div></div>
-<div><dt>contextLength</dt><div class="meta"><code>Int?</code></div></div>
-<div><dt>maxOutputTokens</dt><div class="meta"><code>Int?</code></div></div>
+<div><dt>supportsVision, supportsFunctionCalling</dt><div class="meta"><code>Boolean?</code></div></div>
+<div><dt>contextLength, maxOutputTokens</dt><div class="meta"><code>Int?</code></div></div>
 <div><dt>supportsReasoning</dt><div class="meta"><code>Boolean?</code></div>
 <dd>"This model exposes a thinking / <code>reasoning_effort</code>
-parameter".</dd></div>
-<div><dt>reasoningEffortLevels</dt><div class="meta"><code>List&lt;String&gt;?</code></div></div>
-<div><dt>supportsPdfInput</dt><div class="meta"><code>Boolean?</code></div></div>
-<div><dt>aliases</dt><div class="meta"><code>List&lt;String&gt;?</code></div></div>
-<div><dt>deprecationDate</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>deprecationReplacement</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>defaultTemperature</dt><div class="meta"><code>Float?</code></div></div>
-<div><dt>defaultStopSequences</dt><div class="meta"><code>List&lt;String&gt;?</code></div></div>
+parameter." Anthropic <code>capabilities.thinking.supported</code>,
+Gemini top-level <code>thinking</code>, Mistral
+<code>capabilities.reasoning</code>, xAI / OpenRouter
+<code>supported_parameters</code> containing "reasoning". Null falls
+through to the <code>inferReasoning</code> heuristic.</dd></div>
+<div><dt>reasoningEffortLevels</dt><div class="meta"><code>List&lt;String&gt;?</code></div>
+<dd>Subset of "low" / "medium" / "high" / "max" accepted on
+<code>reasoning_effort</code> (Anthropic
+<code>capabilities.effort.{low,medium,high,max}</code>).</dd></div>
+<div><dt>supportsPdfInput</dt><div class="meta"><code>Boolean?</code></div>
+<dd>Native PDF document blocks (Anthropic
+<code>capabilities.pdf_input.supported</code>). Distinct from vision
+because Anthropic parses page text + embedded images server-side.</dd></div>
+<div><dt>aliases</dt><div class="meta"><code>List&lt;String&gt;?</code></div>
+<dd>Friendly version-alias ids (Mistral <code>aliases: [...]</code>).
+The picker search filter matches against these too.</dd></div>
+<div><dt>deprecationDate, deprecationReplacement</dt><div class="meta"><code>String?</code></div>
+<dd>Mistral deprecation metadata; pickers can render a ⚠ badge.</dd></div>
+<div><dt>defaultTemperature</dt><div class="meta"><code>Float?</code></div>
+<dd>Provider-recommended default (Mistral). Surfaced on Model Info.</dd></div>
+<div><dt>defaultStopSequences</dt><div class="meta"><code>List&lt;String&gt;?</code></div>
+<dd>Together's <code>config.stop</code> — typically the tokeniser's
+eos / bos markers.</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="fetchedmodels">FetchedModels</h3>
+<details>
+<summary>FetchedModels</summary>
+<div class="body">
+<p>Result of a single provider model-list fetch.</p>
 <dl class="kv">
 <div><dt>ids</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
 <div><dt>types</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div></div>
 <div><dt>visionModels</dt><div class="meta"><code>Set&lt;String&gt;</code></div></div>
 <div><dt>capabilities</dt><div class="meta"><code>Map&lt;String, ModelCapabilities&gt;</code></div></div>
 <div><dt>rawResponse</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>nativePricing</dt><div class="meta"><code>Map&lt;String, PricingCache.ModelPricing&gt;</code> (default empty)</div>
+<dd>Per-model prices harvested from the <code>/models</code> payload
+(Together AI only); fed into the <code>TOGETHER</code> pricing tier.</dd></div>
 </dl>
+</div>
+</details>
 
 <h2 id="reports">Reports</h2>
 <p class="muted"><code>com.ai.data</code></p>
 
-<h3 id="report">Report</h3>
+<details open>
+<summary>Report</summary>
+<div class="body">
+<p>Persisted one JSON file per report at
+<code class="path">&lt;filesDir&gt;/reports/&lt;id&gt;.json</code> by
+the <code>ReportStorage</code> object.</p>
 <dl class="kv">
-<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
-<div><dt>timestamp, completedAt</dt><div class="meta"><code>Long</code>, <code>Long?</code></div></div>
-<div><dt>title, prompt</dt><div class="meta"><code>String</code></div></div>
-<div><dt>agents</dt><div class="meta"><code>MutableList&lt;ReportAgent&gt;</code></div></div>
+<div><dt>id</dt><div class="meta"><code>String</code> (UUID)</div></div>
+<div><dt>timestamp</dt><div class="meta"><code>Long</code></div>
+<dd>Last-changed time, bumped on (almost) every mutation.</dd></div>
+<div><dt>createdAt</dt><div class="meta"><code>Long</code> (default 0)</div>
+<dd>Stable creation time; 0 on legacy reports (falls back to
+<code>timestamp</code>).</dd></div>
+<div><dt>completedAt</dt><div class="meta"><code>Long?</code></div></div>
+<div><dt>title, prompt</dt><div class="meta"><code>String</code></div>
+<dd>Short title + the user's question.</dd></div>
+<div><dt>agents</dt><div class="meta"><code>MutableList&lt;ReportAgent&gt;</code></div>
+<dd>One per model in the run.</dd></div>
 <div><dt>totalCost</dt><div class="meta"><code>Double</code></div></div>
-<div><dt>rapportText, closeText</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>rapportText, closeText</dt><div class="meta"><code>String?</code></div>
+<dd>Optional intro / outro text.</dd></div>
 <div><dt>reportType</dt><div class="meta"><code>ReportType</code></div>
-<dd><code>CLASSIC</code> or <code>TABLE</code>.</dd></div>
+<dd><code>CLASSIC</code> / <code>TABLE</code>.</dd></div>
 <div><dt>imageBase64, imageMime</dt><div class="meta"><code>String?</code></div>
-<dd>Vision attachments — downscaled + JPEG-encoded before
-storage.</dd></div>
+<dd>Vision attachment — downscaled + JPEG-encoded before storage.</dd></div>
 <div><dt>webSearchTool</dt><div class="meta"><code>Boolean</code></div>
-<dd>Per-report 🌐 toggle.</dd></div>
+<dd>Per-report 🌐 toggle, replayed on regenerate.</dd></div>
 <div><dt>reasoningEffort</dt><div class="meta"><code>String?</code></div>
-<dd>Per-report 🧠 hint.</dd></div>
+<dd>Per-report 🧠 hint (<code>low</code> / <code>medium</code> /
+<code>high</code>).</dd></div>
 <div><dt>sourceReportId</dt><div class="meta"><code>String?</code></div>
 <dd>Set when this report is a translated copy of another.</dd></div>
+<div><dt>knowledgeBaseIds</dt><div class="meta"><code>List&lt;String&gt;</code></div>
+<dd>Attached RAG knowledge bases.</dd></div>
+<div><dt>parameterPresetIds, advancedParameters, selectionParamsById, reportSystemPromptId</dt>
+<div class="meta">resolved generation config</div>
+<dd>Captured at create time so Regenerate replays the SAME
+selections, not whatever the live UiState holds now.</dd></div>
 <div><dt>pinned</dt><div class="meta"><code>Boolean</code></div>
-<dd>User-pinned, surfaces on the Reports hub above Recent.</dd></div>
+<dd>User-pinned; surfaces above Recent on the Reports hub.</dd></div>
+<div><dt>workerConfig</dt><div class="meta"><code>ReportWorkerConfig</code></div>
+<dd>Per-report worker routing picked on "Report - select workers"
+(report info PROMPT/CUSTOM + custom chain; model info PROMPT/OWN_MODEL;
+worker batches PROMPT/REPORT_MODELS/SELECT_EACH/SELECT_ONCE + persisted
+one-time group; WHEN_AVAILABLE/ROUND_ROBIN selection under
+REPORT_MODELS; Meta + Fan-in batches have their own split-out
+<code>metaBatches</code>/<code>metaBatchWorkers</code>/<code>metaWorkerSelection</code>
+trio; <code>secondResultSelectScope</code>/<code>secondResultRuntimeParams</code>
+gate whether launching a Meta/Fan-out secondary shows the scope screen
+/ runtime prompt editor; <code>useReportModels</code> forces every card
+to the report's own answer models). Replaces the old ♻️ flag.</dd></div>
 <div><dt>costsFromDeletedItems</dt><div class="meta"><code>Double</code></div>
-<dd>Sum of input + output cost of every deleted row. Surfaced as its
-own line above Total when non-zero so the user sees what the API
-actually billed even after trimming visible rows.</dd></div>
-<div><dt>icon</dt><div class="meta"><code>String?</code></div>
-<dd>Per-report emoji, set by <code>kickOffIconGeneration</code> on
-report start. See <a href="report-icons.html">report-icons</a>.</dd></div>
-<div><dt>iconErrorMessage</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>iconInputTokens, iconOutputTokens</dt><div class="meta"><code>Int</code></div></div>
-<div><dt>iconInputCost, iconOutputCost</dt><div class="meta"><code>Double</code></div></div>
-<div><dt>iconModel</dt><div class="meta"><code>String?</code></div>
-<dd>Set when the current icon was picked manually via Find alternative
-icons, stored as <code>"&lt;providerId&gt;/&lt;modelId&gt;"</code>.</dd></div>
+<dd>Input+output cost of every deleted row (agent / secondary /
+fan-out / fan-in / translation), using
+<code>SecondaryResult.fullCost()</code> so a pair's icon+title spend
+isn't dropped. Surfaced as its own line above Total when non-zero.</dd></div>
+<div><dt>icon, iconErrorMessage, iconModel</dt><div class="meta"><code>String?</code></div>
+<dd>Per-report emoji from <code>kickOffIconGeneration</code> (worker
+engine <code>workers/report-icon</code>); error reason on failure;
+<code>iconModel</code> set when picked manually via Find-alternative.
+See <a href="report-icons.html">report-icons</a>.</dd></div>
+<div><dt>icon{Input,Output}{Tokens,Cost}, iconDurationMs, iconTraceFile</dt>
+<div class="meta">token / USD / time / trace bookkeeping</div>
+<dd>For the icon call.</dd></div>
+<div><dt>titleModel, titlePromptUsed, title{Input,Output}{Tokens,Cost}, titleDurationMs</dt>
+<div class="meta">bookkeeping</div>
+<dd>Short-title (≤25 char) AI-gen; <code>titlePromptUsed="report_title"</code>
+doubles as the success sentinel.</dd></div>
+<div><dt>titleLong</dt><div class="meta"><code>String?</code></div>
+<dd>Longer title (≤50 char) for the top-bar orange line; null for
+manually-set titles.</dd></div>
+<div><dt>titleLong{Input,Output}{Tokens,Cost}, titleLongModel, titleLongTraceFile, titleLongDurationMs</dt>
+<div class="meta">bookkeeping</div>
+<dd>Long-title call bookkeeping (separate <code>report/title-long</code>
+cost row).</dd></div>
+<div><dt>languageName, languageIcon, languageIconModel</dt><div class="meta"><code>String?</code></div>
+<dd>Detected source-language English name + flag emoji + the model
+that produced the icon.</dd></div>
+<div><dt>language{,Icon}{Input,Output}{Tokens,Cost}, language*TraceFile, language*RawResponse, language*DurationMs, languageIconPromptUsed, languageIconErrorMessage</dt>
+<div class="meta">bookkeeping</div>
+<dd>Two-call language flow (detect, then pick emoji).</dd></div>
 <div><dt>iconCalls</dt><div class="meta"><code>MutableList&lt;IconCallRecord&gt;</code></div>
-<dd>Per-call audit log for the 3-tier per-agent chain.</dd></div>
+<dd>Per-call audit log for every icon / title / Find-alternative
+attempt.</dd></div>
+<div><dt>apiCallCosts</dt><div class="meta"><code>MutableList&lt;ReportApiCallCost&gt;</code></div>
+<dd>Durable append-only per-report cost ledger (version 3).</dd></div>
+<div><dt>apiCallCostsComplete, apiCallCostsVersion</dt><div class="meta"><code>Boolean</code> / <code>Int</code></div>
+<dd>Ledger completeness flag + schema version.</dd></div>
+<div><dt>runId</dt><div class="meta"><code>String?</code></div>
+<dd>UUID shared by every trace of this report's initial generation; the
+L1 🐞 deep-links to it.</dd></div>
+<div><dt>promptHistory</dt><div class="meta"><code>List&lt;PromptRevision&gt;</code></div>
+<dd>Superseded prompt bodies (Edit prompt → Previous prompts).</dd></div>
+<div><dt>userNotes</dt><div class="meta"><code>MutableList&lt;UserNote&gt;</code></div>
+<dd>Free-text notes pinned to the report / an agent / a secondary / a
+fan-out run.</dd></div>
 </dl>
+<p><code>val Report.barTitle: String</code> = <code>titleLong</code>
+when non-blank, else <code>title</code> — used as the top-bar /
+Answer-matrix title text.</p>
+</div>
+</details>
 
-<h3 id="reportagent">ReportAgent</h3>
+<details>
+<summary>ReportAgent</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>agentId, agentName, provider, model</dt><div class="meta"><code>String</code></div></div>
 <div><dt>reportStatus</dt><div class="meta"><code>ReportStatus</code></div>
@@ -352,230 +574,509 @@ icons, stored as <code>"&lt;providerId&gt;/&lt;modelId&gt;"</code>.</dd></div>
 <code>ERROR</code>, <code>STOPPED</code>.</dd></div>
 <div><dt>httpStatus</dt><div class="meta"><code>Int?</code></div></div>
 <div><dt>requestHeaders, requestBody, responseHeaders, responseBody</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>responseChangeSource, responseChangeValue</dt><div class="meta"><code>String?</code></div>
+<dd>Replacement marker for <code>responseBody</code> (<code>Chat</code>
+/ <code>Temperature</code> / <code>Reasoning Effort</code> /
+<code>Web Search</code> / <code>Edit</code> / <code>Model switch</code>);
+null for the original response or a plain regenerate.</dd></div>
 <div><dt>errorMessage</dt><div class="meta"><code>String?</code></div></div>
 <div><dt>tokenUsage</dt><div class="meta"><code>TokenUsage?</code></div></div>
-<div><dt>cost, durationMs</dt><div class="meta"><code>Double?</code>, <code>Long?</code></div></div>
-<div><dt>citations</dt><div class="meta"><code>List&lt;String&gt;?</code></div></div>
-<div><dt>searchResults</dt><div class="meta"><code>List&lt;SearchResult&gt;?</code></div></div>
-<div><dt>relatedQuestions</dt><div class="meta"><code>List&lt;String&gt;?</code></div></div>
+<div><dt>cost, inputCost, outputCost, durationMs</dt><div class="meta"><code>Double?</code> ×3, <code>Long?</code></div>
+<dd><code>inputCost</code>/<code>outputCost</code> are the USD split
+pinned at run completion so a later re-price doesn't shift historical
+cost.</dd></div>
+<div><dt>traceFile</dt><div class="meta"><code>String?</code></div>
+<dd>Trace filename of this agent's primary response call.</dd></div>
+<div><dt>citations, searchResults, relatedQuestions</dt><div class="meta"><code>List&lt;String&gt;?</code> / <code>List&lt;SearchResult&gt;?</code></div></div>
 <div><dt>rawUsageJson</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>icon</dt><div class="meta"><code>String?</code></div>
-<dd>Per-agent emoji produced by
-<code>runReportIconsForAgent</code>.</dd></div>
-<div><dt>iconErrorMessage</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>iconInputTokens, iconOutputTokens</dt><div class="meta"><code>Int</code></div></div>
-<div><dt>iconInputCost, iconOutputCost</dt><div class="meta"><code>Double</code></div>
-<dd>Cumulative cost across every tier attempt.</dd></div>
+<div><dt>icon, iconErrorMessage</dt><div class="meta"><code>String?</code></div>
+<dd>Per-model emoji from the worker engine
+(<code>workers/model-icons</code>), derived from the model
+<strong>title</strong> not the response. Null until it runs / on
+failure.</dd></div>
+<div><dt>icon{Input,Output}{Tokens,Cost}</dt><div class="meta">bookkeeping</div></div>
+<div><dt>iconTraceFile</dt><div class="meta"><code>String?</code></div>
+<dd>Trace filename of the call that produced the current
+<code>icon</code>.</dd></div>
 <div><dt>iconWinningTier</dt><div class="meta"><code>Int?</code></div>
-<dd>1 = chat continuation, 2 = one-shot
-<code>internal/report_icon</code>, 3 = fixed-agent fallback. Null
-when no tier succeeded.</dd></div>
+<dd><strong>Legacy</strong> from the removed response-based 3-tier
+chain; always null now.</dd></div>
+<div><dt>iconPromptUsed</dt><div class="meta"><code>String?</code></div>
+<dd>Bundled prompt name for the current emoji
+(<code>report_title_icon</code>, or <code>report_alt</code> after a
+Find-alt pick).</dd></div>
+<div><dt>modelTitle, modelTitleErrorMessage, modelTitleModel, modelTitle*{Tokens,Cost}, modelTitleTraceFile, modelTitleDurationMs, modelTitlePromptUsed</dt>
+<div class="meta">bookkeeping</div>
+<dd>Per-model response title (worker engine
+<code>workers/model-titles</code>).</dd></div>
+<div><dt>chatMessages</dt><div class="meta"><code>List&lt;ChatMessage&gt;</code></div>
+<dd>In-report "refine this answer" 🗣️ conversation; applying a reply
+overwrites <code>responseBody</code>.</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="iconcallrecord">IconCallRecord</h3>
+<details>
+<summary>IconCallRecord</summary>
+<div class="body">
+<p>One captured icon / title generation API call — worker-engine calls
+plus every Find-alternative attempt. Stored on
+<code>Report.iconCalls</code> so the per-call All-tab in the cost
+export renders every attempt, including failed earlier tiers.</p>
 <dl class="kv">
 <div><dt>agentId</dt><div class="meta"><code>String</code></div></div>
-<div><dt>tier</dt><div class="meta"><code>Int (1 / 2 / 3)</code></div></div>
-<div><dt>provider, model, pricingTier</dt><div class="meta"><code>String</code></div></div>
+<div><dt>tier</dt><div class="meta"><code>Int</code></div>
+<dd>Retained for cost-row labelling; not a response-based "winning
+tier" anymore.</dd></div>
+<div><dt>provider, model, pricingTier</dt><div class="meta"><code>String</code></div>
+<dd>The model that actually billed the call.</dd></div>
 <div><dt>inputTokens, outputTokens</dt><div class="meta"><code>Int</code></div></div>
 <div><dt>inputCost, outputCost</dt><div class="meta"><code>Double</code></div></div>
 <div><dt>durationMs</dt><div class="meta"><code>Long?</code></div></div>
 <div><dt>success</dt><div class="meta"><code>Boolean</code></div></div>
 <div><dt>timestamp</dt><div class="meta"><code>Long</code></div></div>
+<div><dt>type</dt><div class="meta"><code>String?</code></div>
+<dd>Overrides the agentId-based cost classifier; Find-alt fan-out calls
+set the bundled <code>_alt</code> prompt name (<code>main_alt</code>,
+<code>meta_alt</code>, <code>report_alt</code>, <code>language_alt</code>,
+<code>translation_alt</code>).</dd></div>
+<div><dt>attributedToSecondaryId</dt><div class="meta"><code>String?</code></div>
+<dd>When set, this cost is attributed to a <code>SecondaryResult</code>
+on the same report (so the cost table subtracts it from that row to
+avoid double-counting).</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="secondaryresult">SecondaryResult</h3>
-<p>Meta-result tied to a parent report — rerank, chat-type Meta,
-moderation, translation, fan-out per-pair row, or fan-in
-combined-report row.</p>
+<details>
+<summary>ReportApiCallCost</summary>
+<div class="body">
+<p>One row of the durable per-report cost ledger
+(<code>Report.apiCallCosts</code>). Unlike traces, it is part of the
+report JSON itself, so report cost totals don't depend on optional
+trace files.</p>
 <dl class="kv">
-<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
-<div><dt>reportId</dt><div class="meta"><code>String</code></div></div>
+<div><dt>id</dt><div class="meta"><code>String</code> (UUID)</div></div>
+<div><dt>timestamp</dt><div class="meta"><code>Long</code></div></div>
+<div><dt>type, provider, model, pricingTier</dt><div class="meta"><code>String</code></div></div>
+<div><dt>inputTokens, outputTokens, searchUnits</dt><div class="meta"><code>Int</code></div></div>
+<div><dt>inputCost, outputCost</dt><div class="meta"><code>Double</code></div></div>
+<div><dt>durationMs</dt><div class="meta"><code>Long?</code></div></div>
+<div><dt>traceFile</dt><div class="meta"><code>String?</code></div></div>
+</dl>
+</div>
+</details>
+
+<details>
+<summary>SecondaryResult</summary>
+<div class="body">
+<p>A single flat row used for <strong>every</strong> secondary kind —
+rerank, chat-type Meta (driven by the user's Meta-prompt CRUD entries),
+moderation, translation, fan-out per-pair row, fan-in combined-report
+row, Tournament match / aggregate row, Judge-the-judges cell /
+aggregate row, Compare cell, or Translator-rank (TRANSRANK) score cell
+/ aggregate row. Persisted one JSON file per result at
+<code class="path">&lt;filesDir&gt;/secondary/&lt;reportId&gt;/&lt;resultId&gt;.json</code>
+by <code>SecondaryResultStorage</code>. The kind-specific fields below
+are mostly null on rows of other kinds. See
+<a href="secondary-results.html">secondary results</a>.</p>
+
+<h4>Common fields</h4>
+<dl class="kv">
+<div><dt>id, reportId</dt><div class="meta"><code>String</code></div></div>
 <div><dt>kind</dt><div class="meta"><code>SecondaryKind</code></div>
-<dd><code>RERANK</code>, <code>META</code>, <code>MODERATION</code>,
-<code>TRANSLATE</code>.</dd></div>
+<dd>One of 8: <code>RERANK</code>, <code>META</code>,
+<code>MODERATION</code>, <code>TRANSLATE</code>, <code>TOURNAMENT</code>,
+<code>JUDGES</code>, <code>COMPARE</code>, <code>TRANSRANK</code>.</dd></div>
 <div><dt>providerId, model, agentName</dt><div class="meta"><code>String</code></div></div>
 <div><dt>timestamp</dt><div class="meta"><code>Long</code></div></div>
 <div><dt>content</dt><div class="meta"><code>String?</code></div>
-<dd>The model output. Chat-type META rows whose Meta prompt has
-<code>reference=true</code> get a deterministic
+<dd>The model output. A chat-type META row whose Meta prompt has
+<code>reference=true</code> gets a deterministic
 <code>## References</code> legend appended at storage time.</dd></div>
 <div><dt>errorMessage</dt><div class="meta"><code>String?</code></div></div>
 <div><dt>tokenUsage</dt><div class="meta"><code>TokenUsage?</code></div></div>
 <div><dt>inputCost, outputCost</dt><div class="meta"><code>Double?</code></div></div>
 <div><dt>durationMs</dt><div class="meta"><code>Long?</code></div></div>
+<div><dt>httpStatusCode</dt><div class="meta"><code>Int?</code></div>
+<dd>Final HTTP status code for the API call that produced this row;
+null for legacy rows and non-network failures. Fan-out statistics use
+this on per-pair rows.</dd></div>
+<div><dt>traceFile</dt><div class="meta"><code>String?</code></div>
+<dd>Trace filename for the call (currently populated for TRANSLATE
+rows).</dd></div>
+</dl>
+<p>A row's identity within a kind is derived, not stored: a
+<strong>Fan-out</strong> per-pair row has
+<code>fanOutSourceAgentId != null</code>; a <strong>Fan-in</strong>
+combined-report row has <code>fanInOf != null</code> — both carry
+<code>kind = META</code>.</p>
+
+<h4>META / Fan-out / Fan-in fields</h4>
+<dl class="kv">
 <div><dt>metaPromptId</dt><div class="meta"><code>String?</code></div>
-<dd>id of the <code>InternalPrompt</code> that produced this row.</dd></div>
+<dd>id of the <code>InternalPrompt</code> (<code>meta</code> /
+<code>meta_compare</code> / <code>fan_out</code> / <code>fan_in</code>
+/ <code>workers</code>) that produced this row.</dd></div>
 <div><dt>metaPromptName</dt><div class="meta"><code>String?</code></div>
 <dd>Display name copied at run time. Drives every UI bucket / export
-section / cost-row label.</dd></div>
+section / cost-row label so a later rename / delete doesn't reshape
+old rows.</dd></div>
 <div><dt>fanOutSourceAgentId</dt><div class="meta"><code>String?</code></div>
-<dd>Fan-out per-pair rows: agentId of the report-model whose response
-was substituted into the prompt's <code>@RESPONSE@</code>.</dd></div>
+<dd>Fan-out pair: agentId of the report-model whose response was
+substituted into the prompt's <code>@RESPONSE@</code> slot. With this
+row's own (providerId, model) (the answerer) it forms the
+(answerer, source) pair the drill-in keys on.</dd></div>
 <div><dt>fanInOf</dt><div class="meta"><code>String?</code></div>
-<dd>Fan-in combined-report rows: id of the
-<code>InternalPrompt</code> that produced this combined
-output.</dd></div>
+<dd>Fan-in: id of the <code>InternalPrompt</code> that produced the
+combined output.</dd></div>
 <div><dt>secondaryScope</dt><div class="meta"><code>String?</code></div>
-<dd>Encoded scope — <code>"ALL"</code> /
+<dd>Encoded <code>SecondaryScope</code> (<code>"ALL"</code> /
 <code>"TOP:&lt;rerankResultId&gt;:&lt;count&gt;"</code> /
-<code>"MANUAL:&lt;agentId&gt;,..."</code>.</dd></div>
-<div><dt>translateSourceTargetId</dt><div class="meta"><code>String?</code></div>
-<dd>TRANSLATE only — id of the item translated.</dd></div>
-<div><dt>translateSourceKind</dt><div class="meta"><code>String?</code></div>
-<dd>TRANSLATE only — <code>"PROMPT"</code>, <code>"AGENT"</code>,
-<code>"META"</code>.</dd></div>
-<div><dt>targetLanguage</dt><div class="meta"><code>String?</code></div>
-<dd>TRANSLATE only — English name (e.g. <code>"Dutch"</code>).</dd></div>
-<div><dt>targetLanguageNative</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>translationRunId</dt><div class="meta"><code>String?</code></div>
-<dd>TRANSLATE only — UUID shared by every row of one Translate
-batch.</dd></div>
-<div><dt>translatedFromSecondaryId</dt><div class="meta"><code>String?</code></div>
-<dd>Legacy field from the old "translation creates a copy" flow.</dd></div>
-<div><dt>scopeProviderId, scopeModel</dt><div class="meta"><code>String?</code></div>
-<dd>Set on a model-scoped fan-in row (categories
-<code>initiator</code> / <code>requester</code> /
-<code>model</code>).</dd></div>
+<code>"MANUAL:&lt;agentId&gt;,..."</code>) so cascade-on-prompt-change
+re-runs at the same scope.</dd></div>
+<div><dt>secondaryParameterPresetIds, secondarySystemPromptId</dt><div class="meta"><code>List&lt;String&gt;?</code> / <code>String?</code></div>
+<dd>Param / system-prompt selections captured at launch for faithful
+pair-variation replays.</dd></div>
+<div><dt>responseChangeSource, responseChangeValue</dt><div class="meta"><code>String?</code></div>
+<dd>User-selected replacement marker for <code>content</code>.</dd></div>
+<div><dt>chatMessages</dt><div class="meta"><code>List&lt;ChatMessage&gt;</code></div>
+<dd>In-report 🗣️ "refine this answer" conversation for a fan-out
+pair.</dd></div>
 </dl>
+<p>Per-pair Fan-Meta icon + title fields (the worker call that titles
+and icons one fan-out pair): <code>icon</code>,
+<code>iconWinningTier</code> (legacy, always null),
+<code>iconErrorMessage</code>, <code>iconInput/OutputTokens</code>,
+<code>iconInput/OutputCost</code>, <code>iconPromptUsed</code>,
+<code>iconRunId</code>; and the title twins <code>title</code>,
+<code>titleErrorMessage</code>, <code>titleInput/OutputTokens</code>,
+<code>titleInput/OutputCost</code>, <code>titleModel</code>,
+<code>titleDurationMs</code>, <code>titlePromptUsed</code>,
+<code>titleRunId</code>. <code>runId</code> is the UUID of the fan-out
+batch that created the row. <code>SecondaryResult.fullCost()</code>
+rolls the primary in/out cost <strong>plus</strong> the icon+title
+spend together, so delete / re-run paths don't drop the per-pair
+metadata cost.</p>
 
-<h3 id="secondaryscope">SecondaryScope (sealed)</h3>
+<h4>TRANSLATE fields</h4>
+<dl class="kv">
+<div><dt>translateSourceTargetId</dt><div class="meta"><code>String?</code></div>
+<dd>id of the item translated (<code>"prompt"</code>,
+<code>agent.agentId</code>, or a secondary <code>id</code>).</dd></div>
+<div><dt>translateSourceKind</dt><div class="meta"><code>String?</code></div>
+<dd><code>"PROMPT"</code>, <code>"AGENT"</code>, <code>"META"</code>,
+plus title kinds (<code>"TITLE"</code>, <code>"TITLE_LONG"</code>,
+<code>"AGENT_TITLE"</code>, <code>"FANOUT_TITLE"</code>).</dd></div>
+<div><dt>targetLanguage</dt><div class="meta"><code>String?</code></div>
+<dd>English language name (e.g. <code>"Dutch"</code>).</dd></div>
+<div><dt>targetLanguageNative</dt><div class="meta"><code>String?</code></div>
+<dd>Native rendering (e.g. <code>"Nederlands"</code>).</dd></div>
+<div><dt>translationRunId</dt><div class="meta"><code>String?</code></div>
+<dd>UUID shared by every row of one Translate batch.</dd></div>
+</dl>
+<p><code>translateTraceType(srcKind, sourceIsFanOut, sourceIsFanIn)</code>
+maps the source to the trace category / cost Type / AI Usage kind
+(<code>translate/report_prompt</code>, <code>translate/model_response</code>,
+<code>translate/fan/out/response</code>, <code>translate/meta</code>, …).
+Rerank / Moderation are never translated.</p>
+
+<h4>TOURNAMENT / JUDGES fields</h4>
+<dl class="kv">
+<div><dt>tournamentRole</dt><div class="meta"><code>String?</code></div>
+<dd><code>"MATCH"</code> for cell rows, <code>"AGGREGATE"</code> for the
+rollup row.</dd></div>
+<div><dt>tournamentJudgeRunId</dt><div class="meta"><code>String?</code></div>
+<dd>Run key <code>"${reportId}|${providerId}|${model}"</code> grouping
+the run's rows.</dd></div>
+<div><dt>matchResponseAId, matchResponseBId</dt><div class="meta"><code>String?</code></div>
+<dd>Match source agent ids (<code>@RESPONSE_A@</code> /
+<code>@RESPONSE_B@</code> slots).</dd></div>
+<div><dt>matchOrientation</dt><div class="meta"><code>Int?</code></div>
+<dd>Tournament: 0 (A-vs-B) or 1 (swapped B-vs-A, to cancel position
+bias). Judges uses 0.</dd></div>
+<div><dt>tournamentMatrix</dt><div class="meta"><code>String?</code></div>
+<dd>AGGREGATE row — encoded win matrix + selected ranking method.</dd></div>
+</dl>
+<p>A tournament MATCH placeholder starts at sentinel
+<code>providerId="*workers"</code> / <code>model="*pending"</code> (the
+judging model is unknown until the round-robin worker chain returns);
+the AGGREGATE row uses <code>providerId="*tournament"</code> /
+<code>model="aggregate"</code>.</p>
+
+<h4>COMPARE fields</h4>
+<dl class="kv">
+<div><dt>compareRunId</dt><div class="meta"><code>String?</code></div>
+<dd>Run id shared by its cells.</dd></div>
+<div><dt>compareAgentId</dt><div class="meta"><code>String?</code></div>
+<dd>The report answer being scored.</dd></div>
+<div><dt>compareToResultId</dt><div class="meta"><code>String?</code></div>
+<dd>The Meta row scored against.</dd></div>
+</dl>
+<p>A Compare cell placeholder starts at sentinel
+<code>providerId="*workers"</code> / <code>model="*pending"</code>,
+overwritten with the winning worker on commit.</p>
+
+<h4>TRANSRANK fields</h4>
+<p>No new columns — "Rank the translators" reuses the existing
+tournament / compare / translate fields:</p>
+<dl class="kv">
+<div><dt>providerId, model</dt><div class="meta">reused</div>
+<dd>The <strong>judge</strong> model that scored the translation.</dd></div>
+<div><dt>tournamentRole</dt><div class="meta">reused</div>
+<dd><code>"MATCH"</code> for a score cell, <code>"AGGREGATE"</code> for
+the per-translator ranking row.</dd></div>
+<div><dt>tournamentJudgeRunId, runId</dt><div class="meta">reused</div>
+<dd>The transrank run id.</dd></div>
+<div><dt>translationRunId</dt><div class="meta">reused</div>
+<dd>The source translation run being ranked.</dd></div>
+<div><dt>compareToResultId</dt><div class="meta">reused</div>
+<dd>The scored TRANSLATE row id.</dd></div>
+<div><dt>matchResponseAId, matchResponseBId</dt><div class="meta">reused</div>
+<dd>The <strong>translator</strong> model's providerId / model.</dd></div>
+<div><dt>targetLanguage, targetLanguageNative</dt><div class="meta">reused</div>
+<dd>The language scored.</dd></div>
+<div><dt>content</dt><div class="meta">reused</div>
+<dd>The judge's two-line reply (0–100 score + reason).</dd></div>
+</dl>
+<p>The AGGREGATE row uses sentinel
+<code>providerId="*transrank"</code> / <code>model="aggregate"</code>;
+its <code>content</code> is the JSON ranking from
+<code>List&lt;TranslatorRankRow&gt;.toTransRankJson()</code>. See
+<a href="#transrankrunstate">TransRankRunState / TransRankCellState</a>
+below.</p>
+</div>
+</details>
+
+<details>
+<summary>SecondaryScope (sealed)</summary>
+<div class="body">
 <ul>
 <li><code>AllReports</code> — every successful agent feeds the
 meta-result.</li>
 <li><code>TopRanked(count: Int, rerankResultId: String)</code> — input
 narrowed to the top-N entries of a chosen rerank.</li>
-<li><code>Manual(agentIds: Set&lt;String&gt;)</code> — explicit list
-of agent ids the user picked.</li>
+<li><code>Manual(agentIds: Set&lt;String&gt;)</code> — explicit list of
+agent ids the user picked from the existing report.</li>
 </ul>
 <p><code>encode()</code> serialises to <code>"ALL"</code> /
 <code>"TOP:&lt;id&gt;:&lt;count&gt;"</code> /
-<code>"MANUAL:&lt;id&gt;,&lt;id&gt;"</code>.
+<code>"MANUAL:&lt;id&gt;,&lt;id&gt;"</code> for storage on
+<code>SecondaryResult.secondaryScope</code>.
 <code>decodeOrAllReports(s)</code> is defensive — corrupt or legacy
 strings fall back to <code>AllReports</code>.</p>
+</div>
+</details>
 
-<h3 id="secondarylanguagescope">SecondaryLanguageScope (sealed)</h3>
+<details>
+<summary>SecondaryLanguageScope (sealed)</summary>
+<div class="body">
+<p>For chat-type META and Translate fan-out across translated content
+present on the report.</p>
 <ul>
-<li><code>AllPresent</code> — fan out across every language
-present.</li>
+<li><code>AllPresent</code> — fan out across every language present.</li>
 <li><code>Selected(languages: Set&lt;String&gt;)</code> — restrict to
-the chosen English-name languages.</li>
+the chosen English-name languages (plus the empty string for the
+original / untranslated source).</li>
 </ul>
+</div>
+</details>
 
-<h3 id="fanoutrunstate">FanOutRunState + PairState + CombinedReportState</h3>
-<p>The canonical per-run snapshot owned by <code>FanOutEngine</code>.
-Each transition is an atomic <code>_runs.update { … }</code> call.</p>
-
-<p><code>PairStatus</code> enum: <code>PENDING</code> 🕓 →
-<code>RUNNING</code> ⏳ → <code>DONE</code> ✅ / <code>ERROR</code>
-❌.</p>
-
-<p><code>FanOutRunKey</code> =
-<code>"${reportId}|${metaPromptId}"</code>; <code>PairKey</code> =
-<code>"${answererAgentId}|${sourceAgentId}"</code>.</p>
-
-<h4>FanOutRunState</h4>
-<dl class="kv">
-<div><dt>key, reportId, metaPrompt</dt><div class="meta"><code>String / InternalPrompt</code></div></div>
-<div><dt>scope</dt><div class="meta"><code>SecondaryScope</code></div></div>
-<div><dt>responderIds</dt><div class="meta"><code>Set&lt;String&gt;?</code></div>
-<dd>Null = use every successful agent.</dd></div>
-<div><dt>pairs</dt><div class="meta"><code>Map&lt;PairKey, PairState&gt;</code></div></div>
-<div><dt>combinedReports</dt><div class="meta"><code>List&lt;CombinedReportState&gt;</code></div></div>
-<div><dt>cancelled</dt><div class="meta"><code>Boolean</code></div></div>
-</dl>
-<p>Computed getters: <code>totalPairs</code>, <code>doneCount</code>,
-<code>errorCount</code>, <code>runningCount</code>,
-<code>queuedCount</code>, <code>totalCost</code>,
-<code>answererKeys</code> (deduplicated answerers in first-seen
-order).</p>
+<details id="fanoutrunstate">
+<summary>FanOutRunState / PairState</summary>
+<div class="body">
+<p>Single source of truth for the Fan Out feature's runtime state,
+defined in <code>data/FanOutRunModel.kt</code> — the model the
+Tournament / Judges / Compare / TransRank <code>*RunState</code> types
+below were patterned after. One <code>FanOutRunState</code> per active
+or persisted (reportId, metaPromptId) pair; the runner publishes
+updates to a single StateFlow the UI subscribes to directly (replacing
+an earlier design of a 500 ms polling loop + a separate
+AppViewModel-level <code>runningFanOutPairs</code> StateFlow + a
+<code>recentlySettled</code> grace window). Hydrated from
+<code>SecondaryResult</code> rows (fan-out pair rows have
+<code>fanOutSourceAgentId != null</code>) and kept in sync by the
+runner's transition lambdas.</p>
 
 <h4>PairState</h4>
-<dl class="kv">
-<div><dt>id</dt><div class="meta"><code>String</code> — matches <code>SecondaryResult.id</code></div></div>
-<div><dt>answererAgentId, sourceAgentId, providerId, model</dt><div class="meta"><code>String</code></div></div>
-<div><dt>status</dt><div class="meta"><code>PairStatus</code></div></div>
-<div><dt>content, errorMessage</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>inputCost, outputCost</dt><div class="meta"><code>Double?</code></div></div>
-<div><dt>durationMs</dt><div class="meta"><code>Long?</code></div></div>
-<div><dt>tokenUsage</dt><div class="meta"><code>TokenUsage?</code></div></div>
-<div><dt>timestamp</dt><div class="meta"><code>Long</code></div></div>
-<div><dt>icon, iconWinningTier</dt><div class="meta"><code>String? / Int?</code></div>
-<dd>Fan Meta fields.</dd></div>
-<div><dt>iconInputCost, iconOutputCost</dt><div class="meta"><code>Double</code></div></div>
-<div><dt>iconErrorMessage</dt><div class="meta"><code>String?</code></div></div>
-</dl>
+<p>One pair within a run: id, answererAgentId, sourceAgentId,
+providerId/model, status, content, errorMessage,
+cost/duration/tokenUsage, httpStatusCode,
+responseChangeSource/Value, plus the per-pair Fan-Meta icon + title
+fields (same shape as <code>SecondaryResult</code>'s per-pair fields
+above) and <code>runId</code>. <code>key</code> =
+<code>"$answererAgentId|$sourceAgentId"</code>; <code>totalCost</code>
+rolls the primary + icon + title spend together.</p>
 
 <h4>CombinedReportState</h4>
-<p>Fan-in row attached to the run.</p>
+<p>A fan-in row attached to the run
+(<code>fanInOf != null &amp;&amp; fanOutSourceAgentId == null</code>):
+id, fanInPromptId/Name, providerId/model, status, content,
+errorMessage, cost/duration/tokenUsage.</p>
+
+<h4>FanOutRunState</h4>
+<p><code>key</code> (<code>"$reportId|$metaPromptId"</code>),
+<code>reportId</code>, <code>metaPrompt</code>, <code>scope</code>,
+<code>responderIds</code> (answerer subset picked at launch; null on
+legacy runs = every successful agent), <code>pairs: Map&lt;PairKey, PairState&gt;</code>,
+<code>combinedReports</code>, <code>cancelled</code>,
+<code>sourceLanguage</code> (replay target for a translated re-run);
+derived <code>totalPairs</code>, <code>totalCost</code>,
+<code>answererKeys</code>.</p>
+
+<p><code>PairState.iconStatus(runningIconsSet)</code> /
+<code>.titleStatus(runningTitlesSet)</code> derive the Fan-Meta chain's
+per-pair DONE/ERROR/RUNNING/PENDING status the same way the
+<code>BatchItemStatus</code>-based batch engines below derive theirs —
+including treating a "successful empty" underlying response (no
+content, no error, but a duration) as ERROR so a pair that can't feed
+the icon/title chain doesn't sit at 🕓 Queued forever.</p>
+</div>
+</details>
+
+<details>
+<summary>TournamentRunState / MatchState</summary>
+<div class="body">
+<p>Runtime state for one Tournament on a report. Hydrated from
+<code>SecondaryResult(kind=TOURNAMENT)</code> rows.</p>
+
+<h4>TournamentRunState</h4>
+<p><code>key</code>, <code>reportId</code>, <code>runId</code>,
+<code>tournamentPrompt</code>, <code>scope</code>, <code>matches</code>,
+<code>aggregateRowId</code>, <code>selectedMethod</code>,
+<code>cancelled</code>; derived counts for
+total/done/error/running/queued/cost/judge models.</p>
+
+<h4>MatchState</h4>
+<p>One ordered head-to-head: row id, response A/B ids, orientation,
+status, judge model, verdict, confidence, reason, raw content, error,
+tokens, cost, duration, timestamp.</p>
+
+<div class="callout">
+<p><code>TournamentMethod</code> has <strong>7</strong> ranking methods:
+<code>COPELAND</code>, <code>ELO</code>, <code>DAVIDSON</code>,
+<code>MARKOV</code>, <code>SCHULZE</code>, <code>COLLEY</code>,
+<code>TRUESKILL2</code>.</p>
+</div>
+</div>
+</details>
+
+<details>
+<summary>JudgeEvalRunState / JudgeCellState</summary>
+<div class="body">
+<p>Runtime state for one Judge-the-judges run on a report. Hydrated
+from <code>SecondaryResult(kind=JUDGES)</code> rows.</p>
+
+<h4>JudgeEvalRunState</h4>
+<p><code>key</code>, <code>reportId</code>, <code>runId</code>, prompt,
+cell map, aggregate row id, cancelled flag; derived judge/match counts
+and cost.</p>
+
+<h4>JudgeCellState</h4>
+<p>One judge's verdict on one shared match: row id, judge
+provider/model, response A/B ids, status, verdict, confidence, reason,
+trace, tokens, cost, duration.</p>
+
+<h4>JudgeStats</h4>
+<p>Computed per-judge row (sorted best-first by agreement): judge
+providerId/model, <code>matchesJudged</code>, <code>errors</code>,
+<code>agreement</code> (0..1 vs the per-match consensus),
+<code>tieRate</code>, <code>aLean</code> (position-bias proxy),
+<code>avgConfidence</code>, <code>totalCost</code>, <code>totalMs</code>.</p>
+</div>
+</details>
+
+<details>
+<summary>CompareRunState / CompareCellState</summary>
+<div class="body">
+<p>Runtime state for Compare with meta. Hydrated from
+<code>SecondaryResult(kind=COMPARE)</code> rows.</p>
+
+<h4>CompareRunState</h4>
+<p><code>key</code>, <code>reportId</code>, <code>runId</code>,
+selected compare prompt, cell map, cancelled flag; derived counts/cost
+and per-agent/per-meta averages.</p>
+
+<h4>CompareCellState</h4>
+<p>One answer × meta-item similarity score: row id, agent id, meta
+result id, status, 0..100 percent, reason, scoring worker, trace,
+tokens, cost, duration.</p>
+</div>
+</details>
+
+<details id="transrankrunstate">
+<summary>TransRankRunState / TransRankCellState</summary>
+<div class="body">
+<p>Runtime state for one "Rank the translators" run
+(<code>SecondaryKind.TRANSRANK</code>), defined in
+<code>data/TranslatorRankModel.kt</code>. A run <strong>reuses an
+existing translation run</strong>: every long-form translated item is
+scored 0–100 by a panel of judge models — every model in the
+<code>translate-rank</code> worker swarm <em>except</em> the one that
+produced the item. One CELL per (item × judge); one AGGREGATE row
+holds the per-translator-model ranking. Hydrated from
+<code>SecondaryResult(kind=TRANSRANK)</code> rows.</p>
+
+<h4>TransRankCellState</h4>
+<p>One judge's score of one translated item: <code>id</code>
+(= SecondaryResult.id), judge providerId/model, translator
+providerId/model, <code>translationRowId</code>,
+<code>sourceTranslationRunId</code>, <code>targetLanguage</code>,
+<code>status</code> (<code>TransRankCellStatus</code> =
+<code>BatchItemStatus</code>), parsed <code>score</code> (0–100) /
+<code>reason</code>, raw <code>content</code>, <code>errorMessage</code>,
+<code>inputCost</code>/<code>outputCost</code>, <code>durationMs</code>,
+<code>tokenUsage</code>, <code>traceFile</code>, <code>timestamp</code>.
+Derived <code>judgeKey</code> / <code>translatorKey</code>
+(<code>"provider/model"</code>), <code>key</code>
+(<code>"$judge|$translationRowId"</code>), <code>totalCost</code>.</p>
+
+<h4>TransRankRunState</h4>
+<p><code>key</code> (<code>"$reportId|$sourceTranslationRunId"</code> —
+one ranking per language), <code>reportId</code>, <code>runId</code>,
+<code>sourceTranslationRunId</code>, <code>targetLanguageName</code>,
+<code>targetLanguageNative</code>, <code>prompt: InternalPrompt</code>,
+<code>cells: Map&lt;String, TransRankCellState&gt;</code>,
+<code>aggregateRowId</code>, <code>cancelled</code>; derived
+<code>translatorKeys</code>.</p>
+
+<p>Caps: <code>TRANSRANK_CELLS_PER_TRANSLATOR = 25</code> (≤ 25 score
+cells per translator model). Role sentinels
+<code>TRANSRANK_ROLE_CELL = "MATCH"</code> /
+<code>TRANSRANK_ROLE_AGGREGATE = "AGGREGATE"</code>.</p>
+</div>
+</details>
+
+<details>
+<summary>TranslatorRankRow</summary>
+<div class="body">
+<p>One row of the aggregated translator ranking, produced by
+<code>aggregateTranslatorRanks(cells)</code> (averages each
+translator's scores over cells where judge ≠ translator, best-first)
+and serialised to the AGGREGATE row's <code>content</code> via
+<code>toTransRankJson()</code>.</p>
 <dl class="kv">
-<div><dt>id, fanInPromptId, fanInPromptName</dt><div class="meta"><code>String</code></div></div>
-<div><dt>scopeProviderId, scopeModel</dt><div class="meta"><code>String?</code></div>
-<dd>Set on model-scoped fan-in only.</dd></div>
-<div><dt>providerId, model</dt><div class="meta"><code>String</code></div></div>
-<div><dt>status, content, errorMessage, inputCost, outputCost, durationMs, tokenUsage, timestamp</dt>
-<div class="meta">as above</div></div>
+<div><dt>providerId, model</dt><div class="meta"><code>String</code></div>
+<dd>The translator model.</dd></div>
+<div><dt>avgScore</dt><div class="meta"><code>Double</code></div>
+<dd>Mean of the scores it received.</dd></div>
+<div><dt>itemCount</dt><div class="meta"><code>Int</code></div>
+<dd>Distinct translated items it produced that got ≥1 score.</dd></div>
+<div><dt>judgedCount</dt><div class="meta"><code>Int</code></div>
+<dd>Total scores received.</dd></div>
 </dl>
-<p><code>isModelScoped</code> is true when both scope fields are
-non-null. Two reverse-mappers:
-<code>SecondaryResult.toPairState(answererAgentId)</code> and
-<code>SecondaryResult.toCombinedReportState()</code>.</p>
+<p>Derived <code>translatorKey</code> = <code>"providerId/model"</code>.</p>
+</div>
+</details>
 
-<h3 id="modeltestrunstate">ModelTestRunState + ModelTestState + TestStatus</h3>
-<p>The "Test all models" runtime state. Persisted as a single document
-at <code class="path">&lt;filesDir&gt;/test_run.json</code> via
-<code>ModelTestRunStore</code>. Only one run is ever kept — the
-latest.</p>
-<p><code>TestStatus</code> enum: <code>PENDING</code> 🕓 →
-<code>RUNNING</code> ⏳ → <code>PASS</code> ✅ / <code>FAIL</code>
-❌. <code>ModelTestKey</code> =
-<code>"$providerId:$model"</code>.</p>
-
-<h4>ModelTestState</h4>
-<dl class="kv">
-<div><dt>key, providerId, model</dt><div class="meta"><code>String</code></div></div>
-<div><dt>status</dt><div class="meta"><code>TestStatus</code></div></div>
-<div><dt>errorMessage, responseText</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>durationMs, inputCost, outputCost</dt><div class="meta"><code>Long? / Double?</code></div></div>
-<div><dt>traceFilename</dt><div class="meta"><code>String?</code></div>
-<dd>Deep-link target for the trace screen.</dd></div>
-<div><dt>timestamp</dt><div class="meta"><code>Long</code></div></div>
-</dl>
-
-<h4>ModelTestRunState</h4>
-<dl class="kv">
-<div><dt>startedAt</dt><div class="meta"><code>Long</code></div></div>
-<div><dt>items</dt><div class="meta"><code>Map&lt;ModelTestKey, ModelTestState&gt;</code></div></div>
-<div><dt>catalogTotal, inaccessibleAtStart, excludedAtStart, noChatAtStart</dt>
-<div class="meta"><code>Int</code></div>
-<dd>Catalog-stats snapshot captured at <code>startRun</code> time.</dd></div>
-</dl>
-<p>Computed: <code>total</code>, <code>doneCount</code>,
-<code>errorCount</code>, <code>runningCount</code>,
-<code>queuedCount</code>, <code>totalCost</code>,
-<code>forTestingAtStart</code>, <code>providerIds</code>,
-<code>itemsForProvider(providerId)</code>.</p>
-
-<h3 id="maxconcurrent">GeneralSettings.maxConcurrent* knobs</h3>
-<dl class="kv">
-<div><dt>maxConcurrentApiCalls</dt><div class="meta">default 50</div>
-<dd>Global ceiling. Every dispatcher first acquires from
-<code>ApiCallCaps.global</code>.</dd></div>
-<div><dt>maxConcurrentReportCalls</dt><div class="meta">default 15</div>
-<dd>Per-agent calls inside one report-gen run.</dd></div>
-<div><dt>maxConcurrentTranslationCalls</dt><div class="meta">default 15</div>
-<dd>Total across all in-flight Translate runs.</dd></div>
-<div><dt>maxConcurrentFanOutCalls</dt><div class="meta">default 15</div>
-<dd>Fan-out pair calls.</dd></div>
-<div><dt>maxConcurrentFanMetaCalls</dt><div class="meta">default 15</div>
-<dd>Fan Meta batch — separate budget.</dd></div>
-<div><dt>maxTestApiCalls</dt><div class="meta">default 40</div>
-<dd>"Test all models" sweep. Read directly by
-<code>ModelTestEngine</code>; NOT mirrored into
-<code>ApiCallCaps</code>.</dd></div>
-</dl>
-
-<h3 id="rerankapiresult">RerankApiResult</h3>
+<details>
+<summary>RerankApiResult</summary>
+<div class="body">
+<p>Result of a provider's dedicated rerank endpoint call (e.g. Cohere
+<code>/v2/rerank</code>). Mapped into the same
+<code>[{id, rank, score, reason}, ...]</code> JSON the chat-model rerank
+flow produces, so the rest of the system (HTML export, Top-Ranked
+scope) doesn't need a second code path.</p>
 <dl class="kv">
 <div><dt>content</dt><div class="meta"><code>String?</code></div>
 <dd>JSON in the same shape as the chat prompt.</dd></div>
@@ -584,8 +1085,13 @@ latest.</p>
 <div><dt>billedSearchUnits</dt><div class="meta"><code>Int?</code></div></div>
 <div><dt>durationMs</dt><div class="meta"><code>Long</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="moderationapiresult">ModerationApiResult</h3>
+<details>
+<summary>ModerationApiResult</summary>
+<div class="body">
+<p>Outcome of a single moderation endpoint call.</p>
 <dl class="kv">
 <div><dt>content</dt><div class="meta"><code>String?</code></div>
 <dd>JSON <code>[{id, flagged, categories, scores}, ...]</code>.</dd></div>
@@ -594,24 +1100,57 @@ latest.</p>
 <div><dt>tokenUsage</dt><div class="meta"><code>TokenUsage?</code></div></div>
 <div><dt>durationMs</dt><div class="meta"><code>Long</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="secondaryrunstate">SecondaryRunState</h3>
+<div class="callout">
+<p>There is no <code>SecondaryRunState</code> data class. In-flight
+secondary work is surfaced via <code>UiState.activeSecondaryBatches: Int</code>
+(incremented on entry, decremented in <code>finally</code> by every
+<code>SecondaryRunManager</code> runner) plus the hot per-row
+<code>StateFlow&lt;Set&lt;String&gt;&gt;</code> sets on
+<code>AppViewModel</code> (<code>runningFanMetaPairs</code>,
+<code>runningSingleSecondaries</code>, <code>runningInfoJobs</code>).
+The legacy AppViewModel-level <code>runningFanOutPairs</code> StateFlow
+was removed — Fan-out's own <code>FanOutRunState</code> publishes each
+pair's live <code>PairState.status</code> directly, so that engine's
+StateFlow is now the single source of truth for "is this pair
+running". The Tournament / Judges / Compare / TransRank engines
+likewise hydrate their respective <code>*RunState</code> from disk and
+track in-flight items via the per-item <code>status</code> on each
+cell/match.</p>
+</div>
+
+<details>
+<summary>TokenUsage</summary>
+<div class="body">
 <dl class="kv">
-<div><dt>reportId, kind, total, completed</dt><div class="meta">—</div></div>
+<div><dt>inputTokens, outputTokens</dt><div class="meta"><code>Int</code></div></div>
+<div><dt>apiCost</dt><div class="meta"><code>Double?</code></div>
+<dd>Provider-reported cost (OpenRouter / Perplexity / xAI ticks). When
+non-null it wins over token-math pricing.</dd></div>
+<div><dt>cachedInputTokens, cacheCreationTokens, reasoningTokens</dt><div class="meta"><code>Int</code> (default 0)</div>
+<dd>Cache-aware + reasoning token splits used by
+<code>computeCost</code>.</dd></div>
 </dl>
+<p>Computed: <code>totalTokens</code> = the sum of all five token
+counts.</p>
+</div>
+</details>
 
-<h3 id="tokenusage">TokenUsage</h3>
-<dl class="kv">
-<div><dt>inputTokens, outputTokens, totalTokens</dt><div class="meta"><code>Int</code></div></div>
-<div><dt>cachedTokens</dt><div class="meta"><code>Int?</code></div></div>
-</dl>
-
-<h3 id="searchresult">SearchResult</h3>
+<details>
+<summary>SearchResult</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>name, url, snippet</dt><div class="meta"><code>String?</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="analysisresponse">AnalysisResponse</h3>
+<details>
+<summary>AnalysisResponse</summary>
+<div class="body">
+<p>Repository-level result for a single API call.</p>
 <dl class="kv">
 <div><dt>service</dt><div class="meta"><code>AppService</code></div></div>
 <div><dt>analysis</dt><div class="meta"><code>String?</code></div>
@@ -624,35 +1163,49 @@ latest.</p>
 <div><dt>relatedQuestions</dt><div class="meta"><code>List&lt;String&gt;?</code></div></div>
 <div><dt>rawUsageJson, httpHeaders</dt><div class="meta"><code>String?</code></div></div>
 <div><dt>httpStatusCode</dt><div class="meta"><code>Int?</code></div></div>
-<div><dt>isSuccess</dt><div class="meta"><code>Boolean</code></div>
-<dd>Computed.</dd></div>
+<div><dt>isSuccess</dt><div class="meta"><code>Boolean</code> (computed)</div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="agentparameters">AgentParameters</h3>
+<details>
+<summary>AgentParameters</summary>
+<div class="body">
 <p>Lower-level twin of <code>Parameters</code> used in dispatch. Same
-fields as <code>Parameters</code> minus <code>id</code> /
-<code>name</code>, plus <code>reasoningEffort: String?</code> —
-reasoning hint for models that support it (gpt-5.x / o-series via
-Responses API; Gemini thinking models). Non-reasoning models silently
-drop the field at dispatch.</p>
+fields as <code>Parameters</code> minus <code>id</code>/<code>name</code>,
+plus <code>reasoningEffort: String?</code> — a reasoning hint for
+models that support it (gpt-5.x / o-series via Responses API; Gemini
+thinking models). Non-reasoning models silently drop the field at
+dispatch.</p>
+</div>
+</details>
 
 <h2 id="provider-routing">Provider routing</h2>
 <p class="muted"><code>com.ai.data</code></p>
 
-<h3 id="appservice">AppService</h3>
+<details id="appservice" open>
+<summary>AppService</summary>
+<div class="body">
 <p>A registered provider (loaded from
-<code>assets/providers.json</code> + custom additions). See
+<code class="path">assets/providers/</code> + custom additions). See
 <a href="providers.html">providers</a> for the full per-provider
 table.</p>
 <dl class="kv">
 <div><dt>id</dt><div class="meta"><code>String</code></div>
-<dd>Identifier AND human-readable label. SharedPreferences key
-prefixes use <code>id</code> directly.</dd></div>
+<dd>Identifier AND human-readable label. The id-unification refactor
+collapsed three name-like fields (<code>id</code> /
+<code>displayName</code> / <code>prefsKey</code>) into one.
+SharedPreferences key prefixes use <code>id</code> directly.</dd></div>
 <div><dt>baseUrl, adminUrl, defaultModel</dt><div class="meta"><code>String</code></div></div>
-<div><dt>openRouterName</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>apiFormat</dt><div class="meta"><code>ApiFormat</code></div></div>
+<div><dt>openRouterName</dt><div class="meta"><code>String?</code></div>
+<dd>Composite-key prefix for the OpenRouter tier.</dd></div>
+<div><dt>apiFormat</dt><div class="meta"><code>ApiFormat</code></div>
+<dd><code>OPENAI_COMPATIBLE</code>, <code>ANTHROPIC</code>,
+<code>GOOGLE</code>, <code>REPLICATE</code>.</dd></div>
 <div><dt>typePaths</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div>
-<dd>Per-type API paths overriding the global default.</dd></div>
+<dd>Per-type API paths overriding the global default;
+<code>chatPath</code> and <code>responsesPath</code> are computed
+views.</dd></div>
 <div><dt>modelsPath</dt><div class="meta"><code>String?</code></div>
 <dd>Default <code>"v1/models"</code>.</dd></div>
 <div><dt>seedFieldName</dt><div class="meta"><code>String</code></div>
@@ -661,246 +1214,509 @@ prefixes use <code>id</code> directly.</dd></div>
 <div><dt>supportsCitations, supportsSearchRecency, extractApiCost</dt><div class="meta"><code>Boolean</code></div></div>
 <div><dt>costTicksDivisor</dt><div class="meta"><code>Double?</code></div>
 <dd>xAI returns ticks; divisor is 1e10.</dd></div>
+<div><dt>promptTokensIncludeCachedTokens</dt><div class="meta"><code>Boolean</code></div>
+<dd>For OpenAI-compatible usage normalization; false means flattened
+<code>cached_tokens</code> is separate from fresh
+<code>prompt_tokens</code>.</dd></div>
 <div><dt>modelListFormat</dt><div class="meta"><code>String</code></div>
 <dd><code>"object"</code> or <code>"array"</code>.</dd></div>
 <div><dt>modelFilter</dt><div class="meta"><code>String?</code></div>
 <dd>Regex.</dd></div>
-<div><dt>litellmPrefix</dt><div class="meta"><code>String?</code></div></div>
-<div><dt>hardcodedModels</dt><div class="meta"><code>List&lt;String&gt;?</code></div></div>
+<div><dt>litellmPrefix</dt><div class="meta"><code>String?</code></div>
+<dd>Composite-key prefix for the LiteLLM tier.</dd></div>
+<div><dt>hardcodedModels</dt><div class="meta"><code>List&lt;String&gt;?</code></div>
+<dd>Fallback list.</dd></div>
 <div><dt>defaultModelSource</dt><div class="meta"><code>String?</code></div>
 <dd><code>"API"</code> or <code>"MANUAL"</code>.</dd></div>
 <div><dt>auxHosts</dt><div class="meta"><code>List&lt;String&gt;</code></div>
-<dd>Alternate API hostnames besides <code>baseUrl</code>'s
-host.</dd></div>
-<div><dt>nativeRerankUrl, nativeModerationUrl, nativeCapabilityUrl</dt>
-<div class="meta"><code>String?</code></div>
-<dd>Cohere <code>/v2/rerank</code>, Mistral
-<code>/v1/moderations</code>, Cohere-shaped
-<code>/v1/models</code>.</dd></div>
+<dd>Alternate API hostnames besides <code>baseUrl</code>'s host. The
+rate-limit-retry interceptor and tracer use this so a Mistral request
+that lands on <code>codestral.mistral.ai</code> is matched as the same
+logical provider.</dd></div>
+<div><dt>nativeRerankUrl</dt><div class="meta"><code>String?</code></div>
+<dd>Full URL the rerank dispatcher POSTs to. Cohere
+<code>/v2/rerank</code>. Null → no native rerank API; rerank flow
+falls back to a chat-model JSON prompt.</dd></div>
+<div><dt>nativeModerationUrl</dt><div class="meta"><code>String?</code></div>
+<dd>Full URL the moderation dispatcher POSTs to. Mistral
+<code>/v1/moderations</code>. Null → no native moderation API.</dd></div>
+<div><dt>nativeCapabilityUrl</dt><div class="meta"><code>String?</code></div>
+<dd>Full URL of a Cohere-shaped <code>/v1/models</code> capability
+listing. Drives the per-model context-length / vision flags when
+populated.</dd></div>
 <div><dt>pricingFromModelList</dt><div class="meta"><code>Boolean</code></div>
 <dd>Provider's <code>/v1/models</code> response carries authoritative
-pricing (Together AI).</dd></div>
+pricing; harvest into <code>PricingCache.TOGETHER</code> tier
+(currently Together AI only).</dd></div>
 <div><dt>crossProviderModelList</dt><div class="meta"><code>Boolean</code></div>
-<dd>Provider's <code>/v1/models</code> response drives pricing +
-type fan-out across other providers (OpenRouter).</dd></div>
+<dd>Provider's <code>/v1/models</code> response drives pricing + type
+fan-out across other providers (currently OpenRouter only).</dd></div>
 <div><dt>mergeHardcodedModels</dt><div class="meta"><code>Boolean</code></div>
-<dd>Union persisted <code>hardcodedModels</code> with the API list
-when the fetcher refreshes.</dd></div>
-<div><dt>externalReasoningSignalUntrusted</dt><div class="meta"><code>Boolean</code></div></div>
-<div><dt>responsesApiPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;</code></div></div>
-<div><dt>reasoningModelPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;</code></div></div>
-<div><dt>reasoningEffortAcceptPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;?</code></div></div>
-<div><dt>webSearchModelPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;</code></div></div>
-<div><dt>adaptiveThinkingPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;</code></div></div>
+<dd>Union persisted <code>hardcodedModels</code> with the API list when
+the fetcher refreshes (so OpenAI moderation / TTS / image models
+survive a refresh that doesn't list them).</dd></div>
+<div><dt>externalReasoningSignalUntrusted</dt><div class="meta"><code>Boolean</code></div>
+<dd>Ignore the LiteLLM / models.dev "is reasoning" signal — xAI's
+always-on reasoning models reject the <code>reasoning_effort</code>
+parameter. The 🧠 badge still renders; the dispatcher just skips the
+parameter.</dd></div>
+<div><dt>responsesApiPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;</code></div>
+<dd>Model-id patterns routing dispatch to the OpenAI Responses API
+(<code>gpt-5*</code>, <code>o3*</code>, <code>o4*</code>,
+<code>gpt-4.1*</code>).</dd></div>
+<div><dt>reasoningModelPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;</code></div>
+<dd>Gates the 🧠 reasoning badge + thinking dispatch.</dd></div>
+<div><dt>reasoningEffortAcceptPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;?</code></div>
+<dd>Narrower subset that actually accepts <code>reasoning_effort</code>.
+Null = use <code>reasoningModelPatterns</code>; xAI sets a narrower
+list because its always-on variants reject the parameter.</dd></div>
+<div><dt>webSearchModelPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;</code></div>
+<dd>Gates the 🌐 web-search tool descriptor.</dd></div>
+<div><dt>adaptiveThinkingPatterns</dt><div class="meta"><code>List&lt;ModelPattern&gt;</code></div>
+<dd>Opts in to Anthropic's adaptive-thinking shape
+(<code>claude-opus-4-7</code>+); older Claude 3.7 / 4.x use the
+<code>budget_tokens</code> shape.</dd></div>
 <div><dt>maxTokensDefaults</dt><div class="meta"><code>List&lt;MaxTokensRule&gt;</code></div>
-<dd>Per-family default <code>max_tokens</code> (Anthropic). First
-match wins, default 4096.</dd></div>
-<div><dt>builtInEndpoints</dt><div class="meta"><code>List&lt;Endpoint&gt;</code></div></div>
-<div><dt>maxCallsPerProviderPerMinute, maxConcurrentCallsPerProvider</dt>
-<div class="meta"><code>Int?</code></div>
-<dd>Per-provider overrides. Null → inherit.</dd></div>
-<div><dt>maxRetriesOn429, maxRetriesOn529</dt><div class="meta"><code>Int?</code></div></div>
-<div><dt>retryBackoffMs429, retryBackoffMs529</dt><div class="meta"><code>Long?</code></div></div>
+<dd>Per-family default <code>max_tokens</code> (Anthropic). First match
+wins, default 4096.</dd></div>
+<div><dt>builtInEndpoints</dt><div class="meta"><code>List&lt;Endpoint&gt;</code></div>
+<dd>Bundled alternate endpoints (DeepSeek main + reasoner; Mistral chat
++ Codestral; Z.AI mainland + international). User can pick between
+them on the provider edit screen.</dd></div>
+<div><dt>maxCallsPerProviderPerMinute</dt><div class="meta"><code>Int?</code></div>
+<dd>Per-provider override for
+<code>GeneralSettings.maxCallsPerProviderPerMinute</code>. Null →
+inherit. Read by <code>ProviderThrottle.acquire</code> when this
+provider's hostname matches. See <a href="throttle.html">throttle</a>.</dd></div>
+<div><dt>maxConcurrentCallsPerProvider</dt><div class="meta"><code>Int?</code></div>
+<dd>Per-provider override for the concurrency cap. Null → inherit.</dd></div>
+<div><dt>maxRetriesOn429, maxRetriesOn529</dt><div class="meta"><code>Int?</code></div>
+<dd>Per-provider override for the 429 / 529 retry cap (0 = disable
+in-line retries). Null → inherit.</dd></div>
+<div><dt>retryBackoffMs429, retryBackoffMs529</dt><div class="meta"><code>Long?</code></div>
+<dd>Per-provider override for the wait between retries. Null →
+inherit. <code>retryBackoffMs529</code> seeded to 5000 ms for
+Anthropic.</dd></div>
+<div><dt>defaultInactive</dt><div class="meta"><code>Boolean</code> (default false)</div>
+<dd>When true, bootstrap seeds <code>providerStates[id]="inactive"</code>
+the FIRST time this provider is seen (visible in pickers but disabled
+by default until the user flips it on); an install that already
+touched the provider's state, or that has an API key configured, is
+left alone / gets flipped on respectively.</dd></div>
 </dl>
+
 <h4>ModelPattern</h4>
-<p>Shared by every <code>*Patterns</code> field on
-<code>AppService</code>. Wire format is a JSON object with one or
-more of three string fields (matched against the model id,
-lowercased): <code>prefix</code>, <code>contains</code>,
-<code>regex</code>. The first non-null field wins; an empty pattern
-matches nothing.</p>
+<p>Shared by every <code>*Patterns</code> field on <code>AppService</code>
+(defined in <code>ProviderRegistry.kt</code>). Four optional string
+fields, all matched against the model id lowercased: <code>exact</code>,
+<code>prefix</code>, <code>contains</code>, <code>suffix</code>. When
+more than one is set they must <strong>all</strong> match
+(intersection — e.g. <code>prefix:"grok-4-" + contains:"reasoning"</code>
+matches only the grok-4 reasoning variants); an all-null pattern
+matches nothing. <code>List&lt;ModelPattern&gt;?.anyMatches(modelId)</code>
+returns true on the first pattern in the list that matches (a null /
+empty list returns false — "feature off for this provider").</p>
 
 <h4>MaxTokensRule</h4>
-<p>Per-family override for Anthropic's required
-<code>max_tokens</code>. Wire format is
-<code>{ "match": &lt;ModelPattern&gt;, "value": &lt;Int&gt; }</code>.
-Used when the user hasn't pinned an explicit <code>max_tokens</code>
-on the agent's parameters.</p>
+<p><code>MaxTokensRule(pattern: ModelPattern, maxTokens: Int)</code> — a
+per-family default <code>max_tokens</code>.
+<code>List&lt;MaxTokensRule&gt;?.resolveMaxTokens(modelId)</code>
+returns the first matching rule's value (else null, caller falls back
+to 4096). Used as the dispatch-time default when the user hasn't
+pinned an explicit <code>max_tokens</code>. Applied to Anthropic (whose
+<code>max_tokens</code> is required) and also to OpenAI-compatible
+calls, to avoid OpenRouter balance-gating 402s.</p>
 
-<h3 id="apiformat">ApiFormat (enum)</h3>
+<h4>Endpoint</h4>
+<p>Bundled alternate endpoint — same shape as <code>Endpoint</code>
+under Settings &amp; Configuration, just preloaded from the bundled
+provider definition instead of created by the user.</p>
+</div>
+</details>
+
+<details>
+<summary>ApiFormat (enum)</summary>
+<div class="body">
 <p><code>OPENAI_COMPATIBLE</code>, <code>ANTHROPIC</code>,
-<code>GOOGLE</code>. All dispatch keys off this — provider identity
-is never used for routing.</p>
+<code>GOOGLE</code>, <code>REPLICATE</code>. The cloud dispatch keys
+off this in <code>when (service.apiFormat)</code> blocks (analyze /
+chat / fetchModels / streaming / auth / endpoint URL). Of the 91
+bundled providers, <strong>88</strong> are <code>OPENAI_COMPATIBLE</code>
+(sharing unified code), 1 is <code>ANTHROPIC</code>, 1 is
+<code>GOOGLE</code>, 1 is <code>REPLICATE</code> (async predictions
+API, run via <code>Prefer: wait</code>) — so only Anthropic, Google,
+and Replicate have format-specific branches.</p>
+<p>The synthetic <code>AppService.LOCAL</code> is <strong>not</strong>
+routed by <code>apiFormat</code> — its format is the default
+<code>OPENAI_COMPATIBLE</code> and is never used for a network call.
+Callers route on-device work with a
+<code>provider.id == AppService.LOCAL.id</code> check to
+<code>LocalLlm</code> / <code>LocalEmbedder</code>.</p>
+</div>
+</details>
 
-<h3 id="modeltype">ModelType (constants)</h3>
+<details>
+<summary>ModelType (constants)</summary>
+<div class="body">
 <p><code>CHAT</code>, <code>RESPONSES</code>, <code>EMBEDDING</code>,
 <code>RERANK</code>, <code>IMAGE</code>, <code>TTS</code>,
 <code>STT</code>, <code>MODERATION</code>, <code>CLASSIFY</code>,
 <code>OCR</code>, <code>UNKNOWN</code>. <code>OCR</code> is
 Mistral-specific (its <code>mistral-ocr-*</code> capability flag);
-<code>UNKNOWN</code> is the runtime fallback. <code>ModelType.ALL</code>
-lists every type the user can configure paths for in display
-order.</p>
-
+<code>UNKNOWN</code> is the runtime fallback when no source identifies
+the type. <code>ModelType.ALL</code> lists every type the user can
+configure paths for in display order — <code>CHAT</code>,
+<code>RESPONSES</code>, <code>EMBEDDING</code>, <code>RERANK</code>,
+<code>IMAGE</code>, <code>TTS</code>, <code>STT</code>,
+<code>MODERATION</code>, <code>CLASSIFY</code>, <code>OCR</code> —
+<code>UNKNOWN</code> is excluded.</p>
 <p><code>inferReasoning</code> and the narrower
-<code>inferAcceptsReasoningEffortParam</code> are split so the 🧠
-badge can fire on always-on reasoning models (xAI grok-4.x) that
-reject the parameter at dispatch time. <code>inferWebSearch</code>
-consults <code>provider.webSearchModelPatterns</code>.</p>
+<code>inferAcceptsReasoningEffortParam</code> are split so the 🧠 badge
+can fire on always-on reasoning models (xAI grok-4.x) that reject the
+parameter at dispatch time. <code>inferWebSearch</code> consults
+<code>provider.webSearchModelPatterns</code>.</p>
+</div>
+</details>
 
 <h2 id="pricing">Pricing</h2>
 <p class="muted"><code>com.ai.data.PricingCache</code></p>
 
-<h3 id="modelpricing">PricingCache.ModelPricing</h3>
+<details open>
+<summary>PricingCache.ModelPricing</summary>
+<div class="body">
 <dl class="kv">
-<div><dt>model</dt><div class="meta"><code>String</code></div></div>
-<div><dt>promptPrice, completionPrice</dt><div class="meta"><code>Double</code> per token</div></div>
-<div><dt>source</dt><div class="meta"><code>String</code></div>
-<dd><code>LITELLM</code>, <code>MODELSDEV</code>,
+<div><dt>modelId</dt><div class="meta"><code>String</code></div></div>
+<div><dt>promptPrice, completionPrice</dt><div class="meta"><code>Double</code></div>
+<dd><strong>Per token</strong> (not per million).</dd></div>
+<div><dt>source</dt><div class="meta"><code>String</code> (default <code>"unknown"</code>)</div>
+<dd>Which tier priced it — <code>LITELLM</code>, <code>MODELSDEV</code>,
 <code>OVERRIDE</code>, <code>OPENROUTER</code>, <code>HELICONE</code>,
-<code>LLMPRICES</code>, <code>ARTIFICIAL_ANALYSIS</code>,
-<code>DEFAULT</code>.</dd></div>
+<code>LLMPRICES</code>, <code>ARTIFICIALANALYSIS</code>,
+<code>LLMSTATS</code>, <code>REQUESTY</code>, <code>GENAIPRICES</code>,
+<code>TRUEFOUNDRY</code>, <code>TOGETHER</code>, <code>DEFAULT</code>,
+<code>API_REPORTED</code>.</dd></div>
+<div><dt>cachedReadPrice, cachedWritePrice</dt><div class="meta"><code>Double?</code></div>
+<dd>Cache-aware input rates; null = charge full input.</dd></div>
+<div><dt>promptPriceAbove200k, completionPriceAbove200k, cachedReadPriceAbove200k, cachedWritePriceAbove200k</dt>
+<div class="meta"><code>Double?</code></div>
+<dd>&gt;200k-context tier (Gemini 2.5/3 Pro, etc.).</dd></div>
+<div><dt>perQueryPrice</dt><div class="meta"><code>Double</code> (default 0)</div>
+<dd>Per-search-unit price for rerank models (Cohere bills per search,
+not per token).</dd></div>
 </dl>
+<p><code>DEFAULT_PRICING = ModelPricing("default", 25e-6, 75e-6, "DEFAULT")</code>
+— i.e. $25/M input, $75/M output, <strong>not</strong> zero. It is also
+what <code>getPricing</code> returns when called on the main thread
+before the catalog preload completes (the UI cold window). See
+<a href="throttle.html">throttle</a> and
+<a href="development.html">development</a> for related gotchas; in
+short, manual <code>OVERRIDE</code> beats every curated catalog tier
+but loses to the two provider self-report tiers (OpenRouter-self,
+Together-self).</p>
+</div>
+</details>
 
-<h3 id="tierbreakdown">PricingCache.TierBreakdown</h3>
-<p>Per-(provider, model) snapshot showing every tier's view, used by
-the Costs page and the layered-costs CSV export.</p>
+<details>
+<summary>PricingCache.TierBreakdown</summary>
+<div class="body">
+<p>Per-(provider, model) snapshot showing every tier's
+independently-computed view, used by the layered Costs view and the 🐞
+pricing trace.</p>
 <dl class="kv">
-<div><dt>litellm, modelsDev, helicone, llmPrices, artificialAnalysis, override, openrouter</dt>
+<div><dt>litellm, modelsDev, helicone, llmPrices, artificialAnalysis, llmStats, override, openrouter, requesty, genaiPrices, trueFoundry, together</dt>
 <div class="meta"><code>ModelPricing?</code></div></div>
 <div><dt>default</dt><div class="meta"><code>ModelPricing</code></div></div>
 </dl>
+</div>
+</details>
 
 <h2 id="chat">Chat</h2>
 <p class="muted"><code>com.ai.data</code></p>
 
-<h3 id="chatmessage">ChatMessage</h3>
+<details open>
+<summary>ChatMessage</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>role</dt><div class="meta"><code>String</code></div>
-<dd><code>user</code>, <code>assistant</code>,
-<code>system</code>.</dd></div>
+<dd><code>user</code>, <code>assistant</code>, <code>system</code>.</dd></div>
 <div><dt>content</dt><div class="meta"><code>String</code></div></div>
 <div><dt>imageBase64, imageMime</dt><div class="meta"><code>String?</code></div>
 <dd>Vision attachment as base64; JPEG-encoded after downscale.</dd></div>
 <div><dt>timestamp</dt><div class="meta"><code>Long</code></div></div>
+<div><dt>id</dt><div class="meta"><code>String?</code> (UUID, default generated)</div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="chatsession">ChatSession</h3>
+<details>
+<summary>ChatSession</summary>
+<div class="body">
 <dl class="kv">
-<div><dt>id</dt><div class="meta"><code>String</code></div></div>
+<div><dt>id</dt><div class="meta"><code>String</code> (UUID)</div></div>
 <div><dt>provider</dt><div class="meta"><code>AppService</code></div></div>
 <div><dt>model</dt><div class="meta"><code>String</code></div></div>
 <div><dt>messages</dt><div class="meta"><code>List&lt;ChatMessage&gt;</code></div></div>
 <div><dt>parameters</dt><div class="meta"><code>ChatParameters</code></div></div>
 <div><dt>createdAt, updatedAt</dt><div class="meta"><code>Long</code></div></div>
-<div><dt>pinned</dt><div class="meta"><code>Boolean</code></div></div>
-<div><dt>title</dt><div class="meta"><code>String</code></div>
-<dd>Display title. Seeded with the first 10 words of the first user
-message; replaced asynchronously by the bundled
-<code>internal/chat_title</code> prompt against DeepSeek after the
-first assistant response.</dd></div>
+<div><dt>pinned</dt><div class="meta"><code>Boolean</code></div>
+<dd>Surfaces above Recent on the AI Chat hub.</dd></div>
+<div><dt>knowledgeBaseIds</dt><div class="meta"><code>List&lt;String&gt;</code></div>
+<dd>Attached RAG knowledge bases; each user turn prepends a retrieved
+context block.</dd></div>
+<div><dt>title</dt><div class="meta"><code>String</code> (default empty)</div>
+<dd>Seeded with the first 10 words of the first user message on send;
+replaced asynchronously by the <code>chat_title</code> internal prompt
+after the first assistant response. Blank for legacy sessions —
+display sites fall back to <code>preview</code>.</dd></div>
 </dl>
 <p>Computed: <code>preview: String</code> — first user message,
-truncated to 50 chars.</p>
+truncated to 50 chars (or <code>"Empty chat"</code>).</p>
+</div>
+</details>
 
-<h3 id="chatparameters">ChatParameters</h3>
-<p>Per-chat overrides — same shape as <code>Parameters</code> minus
-<code>id</code> / <code>name</code>, plus
-<code>reasoningEffort: String?</code> (clamped to the active model's
-supported range on session resume).</p>
+<details>
+<summary>ChatSessionHeader</summary>
+<div class="body">
+<p>Lightweight list-row mirror of <code>ChatSession</code> — same idea
+as <code>TraceFileInfo</code> for traces — so the AI Chat hub renders
+its session lists without deserializing every full session's
+<code>messages</code>.</p>
+<dl class="kv">
+<div><dt>id, title, preview</dt><div class="meta"><code>String</code></div></div>
+<div><dt>pinned</dt><div class="meta"><code>Boolean</code></div></div>
+<div><dt>updatedAt</dt><div class="meta"><code>Long</code></div></div>
+<div><dt>lastVisibleRole</dt><div class="meta"><code>String?</code></div></div>
+</dl>
+</div>
+</details>
 
-<h3 id="dualchatconfig">DualChatConfig</h3>
+<details>
+<summary>ChatParameters</summary>
+<div class="body">
+<p>Per-chat generation overrides. A <strong>subset</strong> of
+<code>Parameters</code> — it carries <code>systemPrompt</code>,
+<code>temperature</code>, <code>maxTokens</code>, <code>topP</code>,
+<code>topK</code>, <code>frequencyPenalty</code>,
+<code>presencePenalty</code>, <code>searchEnabled</code>,
+<code>returnCitations</code>, <code>searchRecency</code>,
+<code>webSearchTool</code>, and <code>reasoningEffort: String?</code> —
+set per-turn from the chat session screen's 🧠 pulldown, clamped to the
+active model's supported range on session resume, and only injected at
+dispatch when the model reports reasoning support.</p>
+<p>It does <strong>not</strong> have <code>seed</code>,
+<code>stopSequences</code>, or <code>responseFormatJson</code>.
+<code>webSearchTool</code> (explicit tool-use) and
+<code>searchEnabled</code> (the older flat <code>search:true</code>
+flag) are kept distinct so each provider gets the request shape it
+expects.</p>
+</div>
+</details>
+
+<details>
+<summary>DualChatConfig</summary>
+<div class="body">
+<p>Two-models-talk-to-each-other configuration. Persisted to
+<code>dual_chat_prefs</code>.</p>
 <dl class="kv">
 <div><dt>model1Provider, model2Provider</dt><div class="meta"><code>AppService</code></div></div>
 <div><dt>model1Name, model2Name</dt><div class="meta"><code>String</code></div></div>
 <div><dt>model1SystemPrompt, model2SystemPrompt</dt><div class="meta"><code>String</code></div></div>
 <div><dt>model1Params, model2Params</dt><div class="meta"><code>ChatParameters</code></div></div>
 <div><dt>subject</dt><div class="meta"><code>String</code></div></div>
-<div><dt>interactionCount</dt><div class="meta"><code>Int (default 10)</code></div></div>
+<div><dt>interactionCount</dt><div class="meta"><code>Int</code> (default 10)</div>
+<dd>Each model answers this many times.</dd></div>
 <div><dt>firstPrompt</dt><div class="meta"><code>String</code></div>
 <dd>Template, default <code>"Let's talk about %subject%"</code>.</dd></div>
 <div><dt>secondPrompt</dt><div class="meta"><code>String</code></div>
-<dd>Template, default
-<code>"What do you think about: %answer%"</code>.</dd></div>
+<dd>Template, default <code>"What do you think about: %answer%"</code>.</dd></div>
 </dl>
+</div>
+</details>
 
 <h2 id="tracing">Tracing</h2>
-<p class="muted"><code>com.ai.data.ApiTracer</code></p>
+<p class="muted"><code>com.ai.data.ApiTracer</code>, defined in
+<code>data/TraceModels.kt</code>. Traces are stored as pretty-printed
+JSON under <code class="path">&lt;filesDir&gt;/trace/</code>; the
+lightweight <code>TraceFileInfo</code> mirror (parsed streaming,
+metadata-only) backs the list view. See
+<a href="applog.html">applog</a>.</p>
 
-<h3 id="apitrace">ApiTrace</h3>
+<details open>
+<summary>ApiTrace</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>timestamp, hostname</dt><div class="meta"><code>Long</code>, <code>String</code></div></div>
 <div><dt>reportId, model</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>category</dt><div class="meta"><code>String?</code></div>
+<dd>Functional call-site tag. Internal-prompt calls use the
+<code>"&lt;category&gt;/&lt;prompt&gt;"</code> form
+(<code>"report/prompt"</code>, <code>"report/title"</code>,
+<code>"meta/Compare"</code>, <code>"after/rerank"</code>,
+<code>"translate/model_response"</code>,
+<code>"pricing/OpenRouter"</code>); other sites use free-text
+(<code>"Chat"</code>, <code>"Provider test"</code>).</dd></div>
+<div><dt>runId</dt><div class="meta"><code>String?</code></div>
+<dd>UUID shared by every trace of one user-launched batch (fan-out /
+Fan-Meta / translation / model-test / report-gen); the L1 🐞
+deep-links to it.</dd></div>
 <div><dt>request</dt><div class="meta"><code>TraceRequest</code></div></div>
 <div><dt>response</dt><div class="meta"><code>TraceResponse</code></div></div>
+<div><dt>partial</dt><div class="meta"><code>Boolean</code> (default false)</div>
+<dd>True while a streaming response is still being read (written
+speculatively before EOF so a mid-stream kill still leaves a record);
+the EOF/close overwrite resets it.</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="tracerequest">TraceRequest</h3>
+<details>
+<summary>TraceRequest / TraceResponse</summary>
+<div class="body">
 <dl class="kv">
-<div><dt>url, method</dt><div class="meta"><code>String</code></div></div>
-<div><dt>headers</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div>
-<dd>Auth headers redacted at write time.</dd></div>
-<div><dt>body</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>TraceRequest.url, method</dt><div class="meta"><code>String</code></div></div>
+<div><dt>TraceRequest.headers</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div>
+<dd>Auth headers / <code>?key=</code> query params redacted at write
+time.</dd></div>
+<div><dt>TraceRequest.body</dt><div class="meta"><code>String?</code></div>
+<dd>Secrets in JSON body keys redacted.</dd></div>
+<div><dt>TraceResponse.statusCode</dt><div class="meta"><code>Int</code></div></div>
+<div><dt>TraceResponse.headers</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div></div>
+<div><dt>TraceResponse.body</dt><div class="meta"><code>String?</code></div>
+<dd>Captured body capped at 8 MiB; an in-progress streaming response
+reads <code>"[partial: stream in progress]"</code> until the EOF
+overwrite.</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="traceresponse">TraceResponse</h3>
+<details>
+<summary>TraceFileInfo</summary>
+<div class="body">
 <dl class="kv">
-<div><dt>statusCode</dt><div class="meta"><code>Int</code></div></div>
-<div><dt>headers</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div></div>
-<div><dt>body</dt><div class="meta"><code>String?</code></div>
-<dd>Capped at 8 MiB; streaming responses note
-<code>[streaming response - not captured]</code>.</dd></div>
-</dl>
-
-<h3 id="tracefileinfo">TraceFileInfo</h3>
-<dl class="kv">
-<div><dt>filename, hostname, reportId, model</dt><div class="meta"><code>String / String?</code></div></div>
+<div><dt>filename, hostname</dt><div class="meta"><code>String</code></div></div>
+<div><dt>reportId, model, category, runId</dt><div class="meta"><code>String?</code></div></div>
 <div><dt>timestamp</dt><div class="meta"><code>Long</code></div></div>
 <div><dt>statusCode</dt><div class="meta"><code>Int</code></div></div>
-<div><dt>category</dt><div class="meta"><code>String?</code></div>
-<dd>E.g. <code>"Report meta: Compare"</code>,
-<code>"Translation"</code>.</dd></div>
+<div><dt>partial</dt><div class="meta"><code>Boolean</code></div></div>
 </dl>
+</div>
+</details>
 
 <h2 id="throttling">Throttling</h2>
 <p class="muted"><code>com.ai.data</code> / declared in
 <code>ApiTracer.kt</code></p>
 
-<h3 id="networksettings">NetworkSettings</h3>
+<details open>
+<summary>NetworkSettings</summary>
+<div class="body">
 <p>Live mirror of the user-tunable network knobs. Singleton so OkHttp
 interceptors can read the current value without threading a
-<code>Settings</code> reference through their constructors.</p>
+<code>Settings</code> reference through their constructors.
+<code>AppViewModel</code> writes here on bootstrap and on every
+<code>GeneralSettings</code> update.</p>
 <dl class="kv">
-<div><dt>streamingReadTimeoutSec</dt><div class="meta"><code>Int</code> (default = BuildConfig)</div>
+<div><dt>streamingReadTimeoutSec</dt><div class="meta"><code>Int</code> (default BuildConfig 240s)</div>
 <dd>SSE chat / report streams.</dd></div>
-<div><dt>nonStreamingReadTimeoutSec</dt><div class="meta"><code>Int</code></div>
+<div><dt>nonStreamingReadTimeoutSec</dt><div class="meta"><code>Int</code> (default BuildConfig 120s)</div>
 <dd>analyze, meta, rerank, translate, model-list.</dd></div>
-<div><dt>maxCallsPerProviderPerMinute</dt><div class="meta">default 30</div></div>
-<div><dt>maxConcurrentCallsPerProvider</dt><div class="meta">default 3</div></div>
-<div><dt>maxRetriesOn429</dt><div class="meta">default 3</div></div>
-<div><dt>retryBackoffMs429</dt><div class="meta">default 1000</div></div>
-<div><dt>maxRetriesOn529</dt><div class="meta">default 3</div></div>
-<div><dt>retryBackoffMs529</dt><div class="meta">default 1000</div></div>
+<div><dt>batchItemTimeoutSec</dt><div class="meta"><code>Int</code> (default BuildConfig 180s)</div>
+<dd>Wall-clock ceiling for ONE batch item (fan-out pair, translation
+item, tournament match, judge/compare/transrank cell) — the whole
+per-item call including worker-chain fallbacks and retries, not a
+single HTTP attempt.</dd></div>
+<div><dt>maxCallsPerProviderPerMinute</dt><div class="meta">default <strong>60</strong></div>
+<dd>Per-host sliding-window rate cap.</dd></div>
+<div><dt>maxConcurrentCallsPerProvider</dt><div class="meta">default <strong>5</strong></div>
+<dd>Per-host concurrency cap.</dd></div>
+<div><dt>maxRetriesOn429, maxRetriesOn529</dt><div class="meta">default 3</div>
+<dd>In-line retry caps.</dd></div>
+<div><dt>retryBackoffMs429, retryBackoffMs529</dt><div class="meta">default 1000</div>
+<dd>Wait between retries (ms).</dd></div>
 </dl>
+</div>
+</details>
 
-<h3 id="providerthrottle">ProviderThrottle</h3>
-<p>Per-hostname rate + concurrency gate. One <code>Semaphore</code>
-+ one <code>ConcurrentLinkedDeque&lt;Long&gt;</code> per host.
-<code>acquire(host)</code> is synchronous (blocks an OkHttp dispatcher
-worker, never the main thread) and returns a <code>Releaser</code>
-that must be called in <code>finally</code> to avoid leaking the
-permit. Caps are resolved per acquire from per-provider override →
-<code>NetworkSettings</code> global.</p>
-
+<details>
+<summary>ProviderThrottle</summary>
+<div class="body">
+<p>Per-hostname rate + concurrency gate (in
+<code>ProviderThrottling.kt</code>). One <code>Semaphore</code>
+(concurrency) + one <code>ConcurrentLinkedDeque&lt;Long&gt;</code>
+(60 s sliding-window rate) per host. Caps are resolved per acquire from
+per-provider override (<code>AppService.maxCallsPerProviderPerMinute</code>
+/ <code>maxConcurrentCallsPerProvider</code>, matched via
+<code>ProviderRegistry.findByHost</code>) → <code>NetworkSettings</code>
+global, each <code>coerceAtLeast(1)</code>. Three acquire paths:</p>
+<ul>
+<li><code>acquire(host)</code> — <strong>blocking</strong>
+(<code>Thread.sleep</code>), used by the OkHttp
+<code>ProviderThrottleInterceptor</code>. Never the main thread.</li>
+<li><code>tryAcquire(host)</code> — non-blocking →
+<code>Outcome.Acquired(Releaser)</code> /
+<code>Outcome.Blocked(availableAtMs)</code>.</li>
+<li><code>acquireOrWait(host)</code> — suspend, polls
+<code>tryAcquire</code> + <code>delay</code>; used by
+<code>ApiDispatch.withHostGate</code> (never blocks a thread).</li>
+</ul>
 <p><code>permitPreAcquired: ThreadLocal&lt;Boolean&gt;</code> lets
-coroutine-side flows tell the inline
-<code>ProviderThrottleInterceptor</code> to skip its own acquire.
-Propagated across coroutine dispatcher hops via
-<code>asContextElement(true)</code> and onto OkHttp workers via
-<code>TagPropagatingExecutor</code>.</p>
-
+coroutine-side batch flows (report, fan-out, Fan-Meta, translation)
+tell the inline <code>ProviderThrottleInterceptor</code> to skip its
+own acquire so a permit isn't double-counted. Propagated across
+coroutine dispatcher hops via <code>asContextElement</code> and onto
+OkHttp workers via <code>TagPropagatingExecutor</code>.</p>
 <p>See <a href="throttle.html">throttle</a> for the full chain.</p>
+</div>
+</details>
+
+<details>
+<summary>ApiCallCaps</summary>
+<div class="body">
+<p>Declared in <code>ApiTracer.kt</code>. A <strong>separate</strong>
+flow-level coroutine-<code>Semaphore</code> layer, independent of the
+per-host <code>ProviderThrottle</code>. Six distinct pools, each its
+own semaphore: <code>global</code>, <code>report</code>,
+<code>translation</code>, <code>fanOut</code>, <code>fanMeta</code>,
+<code>workers</code> (defaults 100 / 50 / 50 / 50 / 50 / 50
+respectively).</p>
+<div class="callout">
+<p>There are no per-batch limits any more — every flow is bounded only
+by the single global "Concurrent API calls" cap:
+<code>resetForNewLimits(globalMax)</code> (called with
+<code>GeneralSettings.maxConcurrentApiCalls</code>) resizes ALL six
+sub-caps to <code>globalMax</code>, so the per-flow semaphores are kept
+(the throttle framework still acquires one alongside
+<code>global</code>) but sized to never bind before it.</p>
+</div>
+<p>The canonical batch acquisition order is <strong>sub-cap → global →
+per-host gate</strong>; while parked on a saturated host gate the
+helper releases both the sub-cap and <code>global</code> and re-takes
+them on the next poll, so a flow's cap counts only items holding a live
+provider slot. See <a href="throttle.html">throttle</a> for the full
+chain.</p>
+</div>
+</details>
 
 <h2 id="logging">Logging</h2>
 <p class="muted"><code>com.ai.data.AppLog</code></p>
 
-<h3 id="loglevel">LogLevel (enum)</h3>
-<p><code>TRACE</code> (priority 2 = <code>Log.VERBOSE</code>),
-<code>DEBUG</code> (3), <code>INFO</code> (4), <code>WARN</code> (5),
-<code>ERROR</code> (6), <code>OFF</code> (99 — sentinel that disables
-the file appender; logcat still fires).</p>
+<details open>
+<summary>LogLevel (enum)</summary>
+<div class="body">
+<p><code>DEBUG</code> (priority 3, also the home of the former
+<code>TRACE</code> calls), <code>INFO</code> (4), <code>WARN</code>
+(5), <code>ERROR</code> (6), <code>OFF</code> (99 — sentinel that
+disables the file appender; logcat still fires). The former
+<code>TRACE</code> level is gone.</p>
+</div>
+</details>
 
-<h3 id="applogfileinfo">AppLogFileInfo</h3>
+<details>
+<summary>AppLogFileInfo</summary>
+<div class="body">
+<p>One row of metadata for a log file under
+<code class="path">&lt;filesDir&gt;/applog/</code>. Cached in
+<code>AppLog.cachedFiles</code> so the list view doesn't restat the
+directory on every navigation.</p>
 <dl class="kv">
 <div><dt>filename</dt><div class="meta"><code>String</code></div>
 <dd><code>applog_yyyyMMdd.log</code>.</dd></div>
@@ -910,26 +1726,29 @@ the file appender; logcat still fires).</p>
 </dl>
 <p>The <code>AppLog</code> singleton itself exposes
 <code>threshold</code>, <code>lastWriterError</code>,
-<code>droppedLineCount</code>, plus the <code>init</code> /
-<code>v</code> / <code>d</code> / <code>i</code> / <code>w</code> /
-<code>e</code> / file-management API. See
-<a href="applog.html">applog</a>.</p>
+<code>droppedLineCount</code>, plus the <code>init</code> / <code>v</code>
+/ <code>d</code> / <code>i</code> / <code>w</code> / <code>e</code> /
+file-management API. See <a href="applog.html">applog</a>.</p>
+</div>
+</details>
 
 <h2 id="field-timestamps">Per-provider field timestamps</h2>
 <p class="muted"><code>com.ai.data.ProviderFieldTimestamps</code></p>
 
 <p>Per-provider, per-field "user-touched-at" timestamps. Persisted in
-its own SharedPreferences entry
-(<code>provider_field_timestamps</code>) as a JSON map
-(<code>{ "OpenAI": { "baseUrl": 1715… }, … }</code>) so the
-<code>AppService</code> serialization shape stays untouched.</p>
+its own SharedPreferences entry (<code>provider_field_timestamps</code>)
+as a JSON map (<code>{ "OpenAI": { "baseUrl": 1715… }, … }</code>) so
+the <code>AppService</code> serialization shape stays untouched.</p>
 
-<p>Field names match <code>AppService</code> property names. Timestamps
-are set by <code>ProviderRegistry.update</code> when the new value
-differs from the existing one. Asset-driven paths don't bump.</p>
+<p>Field names match <code>AppService</code> property names (e.g.
+<code>"baseUrl"</code>, <code>"modelFilter"</code>). Timestamps are set
+by <code>ProviderRegistry.update</code> when the new value differs from
+the existing one — the user just edited that field via the Settings
+UI. Asset-driven paths (<code>importFromAsset</code>,
+<code>upsertFromJson</code>, <code>syncFromAsset</code>) don't bump.</p>
 
 <p>The every-start sync uses these to decide which fields to refresh
-from <code>assets/providers.json</code>:</p>
+from <code class="path">assets/providers/</code>:</p>
 <ul>
 <li><code>timestamp == null</code> → field was never user-touched,
 refresh.</li>
@@ -943,7 +1762,9 @@ alone.</li>
 <h2 id="share-target">Share-target</h2>
 <p class="muted"><code>com.ai.data.SharedContent</code></p>
 
-<h3 id="sharedcontent">SharedContent</h3>
+<details open>
+<summary>SharedContent</summary>
+<div class="body">
 <p>Snapshot of an <code>ACTION_SEND</code> /
 <code>ACTION_SEND_MULTIPLE</code> payload.</p>
 <dl class="kv">
@@ -952,108 +1773,254 @@ alone.</li>
 <div><dt>subject</dt><div class="meta"><code>String?</code></div>
 <dd><code>EXTRA_SUBJECT</code>.</dd></div>
 <div><dt>uris</dt><div class="meta"><code>List&lt;String&gt;</code></div>
-<dd><code>EXTRA_STREAM</code> (single or multiple) as Uri
-strings.</dd></div>
+<dd><code>EXTRA_STREAM</code> (single or multiple) as Uri strings.</dd></div>
 <div><dt>mime</dt><div class="meta"><code>String?</code></div>
 <dd>The intent's overall MIME type.</dd></div>
 </dl>
 <p>Computed: <code>isEmpty: Boolean</code>;
-<code>isUrl: Boolean</code> — true when <code>text</code> is a single
-non-whitespace http(s) URL.</p>
+<code>firstUrl: String?</code> — first http(s) URL embedded anywhere in
+<code>text</code> (regex search, so a page title or markdown link
+alongside the URL still matches; trailing <code>.,;:!?</code>
+trimmed); <code>isUrl: Boolean</code> — true when <code>firstUrl</code>
+is non-null.</p>
+</div>
+</details>
 
 <h2 id="viewmodel-state">ViewModel state</h2>
 <p class="muted"><code>com.ai.viewmodel</code></p>
 
-<h3 id="generalsettings">GeneralSettings</h3>
+<details>
+<summary>GeneralSettings</summary>
+<div class="body">
+<p>App-wide settings persisted alongside <code>Settings</code>. Notable
+fields:</p>
 <dl class="kv">
-<div><dt>userName</dt><div class="meta"><code>String (default "user")</code></div></div>
-<div><dt>huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey</dt>
-<div class="meta"><code>String</code></div></div>
-<div><dt>defaultEmail</dt><div class="meta"><code>String</code></div></div>
-<div><dt>defaultTypePaths</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div></div>
-<div><dt>tracingEnabled</dt><div class="meta"><code>Boolean (default true)</code></div></div>
+<div><dt>userName</dt><div class="meta"><code>String</code> (default "user")</div></div>
+<div><dt>huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey, llmStatsApiKey</dt>
+<div class="meta"><code>String</code></div>
+<dd><code>llmStatsApiKey</code> is for
+<code>api.llm-stats.com/stats/v1/models</code>; needs Stats-API
+onboarding (returns 403 until then). The Refresh screen disables the
+llm-stats button while blank.</dd></div>
+<div><dt>defaultEmail, defaultTypePaths</dt><div class="meta"><code>String</code>, <code>Map&lt;String, String&gt;</code></div></div>
+<div><dt>loggingMasterEnabled</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Grand-master gate for the whole Log/trace/audit/statistics page.
+When false the diagnostic settings below are forced off at runtime
+(via the <code>effective*</code> helpers) regardless of their stored
+values.</dd></div>
+<div><dt>tracingEnabled</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Master switch for <code>ApiTracer.isTracingEnabled</code>; gated by
+<code>loggingMasterEnabled</code>.</dd></div>
+<div><dt>showLadybugIcons</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Hides/shows trace hot-link icons without disabling trace capture.</dd></div>
+<div><dt>auditLogEnabled</dt><div class="meta"><code>Boolean</code> (default <strong>false</strong>)</div>
+<dd>Master switch for per-report audit-log writes.</dd></div>
+<div><dt>usageStatsEnabled</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Accumulate per-provider/per-model usage stats on every API call.</dd></div>
+<div><dt>fullScreen</dt><div class="meta"><code>Boolean</code> (default <strong>true</strong>)</div>
+<dd>Hides the Android status bar when enabled.</dd></div>
 <div><dt>modelNameLayout</dt><div class="meta"><code>ModelNameLayout</code></div>
 <dd><code>MODEL_ONLY</code> (default) or
 <code>PROVIDER_AND_MODEL</code>.</dd></div>
-<div><dt>subjectToTitleBarMode</dt><div class="meta"><code>SubjectToTitleBarMode (default BOTH)</code></div>
-<dd>Tri-state: <code>HARDCODED</code> keeps the legacy fixed label +
-green sub-header; <code>SUBJECT</code> folds the dynamic subject into
-the title bar; <code>BOTH</code> joins them with <code>/</code>.</dd></div>
-<div><dt>iconGenEnabled</dt><div class="meta"><code>Boolean (default true)</code></div>
+<div><dt>appHomeMode</dt><div class="meta"><code>AppHomeMode</code></div>
+<dd><code>HOME_BAR</code> (default) shows the persistent top Home bar
+and makes Home open the latest report Manage screen or First launch;
+<code>HOME_SCREEN</code> keeps the classic large-card Home hub.</dd></div>
+<div><dt>rankingWeights</dt><div class="meta"><code>Map&lt;String, Int&gt;</code> (default empty)</div>
+<dd>0–10 sliders from the "Ranking weights" screen. Key =
+<code>"rerank"</code> / <code>"judges"</code> / <code>"translations"</code>
+/ <code>"compare"</code> or a <code>TournamentMethod</code> name.
+Stored sparsely; a missing key resolves via
+<code>GeneralSettings.rankingWeight(key)</code> →
+<code>RANKING_WEIGHT_DEFAULTS</code> (<code>rerank</code>→3,
+<code>judges</code>→6, <code>translations</code>→6,
+<code>compare</code>→4, every <code>TournamentMethod</code>→2) else
+0.</dd></div>
+<div><dt>uiColorOverrides, uiColorOverridesDay</dt><div class="meta"><code>Map&lt;String, Int&gt;</code></div>
+<dd>ARGB overrides for functional <code>AppColors</code> roles (Night +
+Day variants).</dd></div>
+<div><dt>uiColorMode</dt><div class="meta"><code>UiColorMode</code> (default NIGHT)</div>
+<dd>Which colour set is painted — <code>NIGHT</code> / <code>DAY</code>
+/ <code>AUTO</code> (follow system day/night).</dd></div>
+<div><dt>metadataEnabled</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Grand-master switch for optional metadata generation.</dd></div>
+<div><dt>iconGenEnabled</dt><div class="meta"><code>Boolean</code> (default true)</div>
 <dd>Master switch for the per-report icon-gen feature.</dd></div>
-<div><dt>perModelIconGenEnabled</dt><div class="meta"><code>Boolean (default true)</code></div>
-<dd>Master switch for the per-agent 3-tier icon chain.</dd></div>
-<div><dt>recentReportModels</dt><div class="meta"><code>List&lt;String&gt;</code></div>
+<div><dt>reportLanguageGenEnabled</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Gates automatic report language + flag detection.</dd></div>
+<div><dt>reportTitleMode</dt><div class="meta"><code>ReportTitleMode</code> (default AI)</div>
+<dd><code>Manual</code> keeps the title input; <code>AI</code> asks a
+worker prompt to title the report.</dd></div>
+<div><dt>perModelIconGenEnabled</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Master switch for per-model icons (worker engine
+<code>workers/model-icons</code>). See
+<a href="report-icons.html">report-icons</a>.</dd></div>
+<div><dt>perModelTitleGenEnabled</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Gates automatic per-model response titles.</dd></div>
+<div><dt>useInternalPromptsIcons</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Gates generated/cached icons for internal prompt rows.</dd></div>
+<div><dt>autostartItemsEnabled</dt><div class="meta"><code>Boolean</code> (default false)</div>
+<dd>Grand-master gate for every autostart item.</dd></div>
+<div><dt>autostartFanMeta</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Starts Fan Meta automatically after a clean Fan-out run.</dd></div>
+<div><dt>autoCreateRerankAndModeration</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Creates default Rerank + Moderation rows after primary report
+generation when capable models exist.</dd></div>
+<div><dt>metadataIcons</dt><div class="meta"><code>MetadataIcons</code></div>
+<dd>Default-icons overrides used by view/navigation cards and fallback
+metadata glyphs.</dd></div>
+<div><dt>appWideSystemPromptId, reportModelSystemPromptId</dt><div class="meta"><code>String?</code></div>
+<dd>Lowest fallback prompt ids; report-model defaults affect direct
+report models only.</dd></div>
+<div><dt>appWideParametersIds, reportModelParametersIds</dt><div class="meta"><code>List&lt;String&gt;</code></div>
+<dd>Lowest fallback parameter preset ids.</dd></div>
+<div><dt>recentReportModels</dt><div class="meta"><code>List&lt;String&gt;</code> (default empty)</div>
 <dd>Last 3 (provider, model) pairs picked from the Report section's
-model pickers, most-recent first.</dd></div>
-<div><dt>streamingReadTimeoutSec, nonStreamingReadTimeoutSec</dt>
-<div class="meta"><code>Int</code> (defaults from BuildConfig)</div></div>
-<div><dt>maxCallsPerProviderPerMinute</dt><div class="meta">default 30</div></div>
-<div><dt>maxConcurrentCallsPerProvider</dt><div class="meta">default 3</div></div>
-<div><dt>maxRetriesOn429</dt><div class="meta">default 3</div></div>
-<div><dt>retryBackoffMs429</dt><div class="meta">default 1000</div></div>
-<div><dt>maxRetriesOn529</dt><div class="meta">default 3</div></div>
-<div><dt>retryBackoffMs529</dt><div class="meta">default 1000</div></div>
-<div><dt>logLevel</dt><div class="meta"><code>LogLevel (default INFO)</code></div>
-<dd>See <a href="applog.html">applog</a>.</dd></div>
+model pickers, most-recent first. Encoded as
+<code>"providerId|model"</code> strings.</dd></div>
+<div><dt>streamingReadTimeoutSec</dt><div class="meta"><code>Int</code> (default BuildConfig)</div>
+<dd>Mirrored to <code>NetworkSettings.streamingReadTimeoutSec</code>.</dd></div>
+<div><dt>nonStreamingReadTimeoutSec</dt><div class="meta"><code>Int</code> (default BuildConfig)</div>
+<dd>Much shorter than streaming by default so a hung provider can't
+gate a whole batch for 10 minutes.</dd></div>
+<div><dt>batchItemTimeoutSec</dt><div class="meta"><code>Int</code> (default BuildConfig)</div>
+<dd>Wall-clock ceiling (seconds) for ONE batch item. On timeout the
+item is stamped ERROR (restartable) instead of pinning its batch
+permits and provider slot.</dd></div>
+<div><dt>maxCallsPerProviderPerMinute</dt><div class="meta">default 60</div>
+<dd>Sliding-window rate cap per provider hostname. See
+<a href="throttle.html">throttle</a>.</dd></div>
+<div><dt>maxConcurrentCallsPerProvider</dt><div class="meta">default 5</div>
+<dd>Applies across every flow (report, meta, fan-out, chat, translate,
+model fetch) hitting the same provider host.</dd></div>
+<div><dt>maxConcurrentApiCalls</dt><div class="meta">default 100</div>
+<dd>Global hard ceiling for in-flight API calls
+(<code>ApiCallCaps.global</code>) — the only concurrency cap; every
+per-flow sub-cap is sized to this value.</dd></div>
+<div><dt>maxRetriesOn429, maxRetriesOn529</dt><div class="meta">default 3</div>
+<dd>0 disables in-line retries entirely for that status; independent
+budgets.</dd></div>
+<div><dt>retryBackoffMs429, retryBackoffMs529</dt><div class="meta">default 1000</div>
+<dd>Wait between retry attempts, in ms.</dd></div>
+<div><dt>typeABenchEnabled</dt><div class="meta"><code>Boolean</code> (default true)</div>
+<dd>Type-A (fixed-model) batch bench-and-requeue: on a 429/529 the
+answerer/judge model is parked and its waiting same-model items move
+to Bench, then back to Queue when the bench lifts. Applies to Fan Out
++ Judge the judges. Mirrors to
+<code>ModelCooldownStore.typeABenchEnabled</code>.</dd></div>
+<div><dt>typeABenchSeconds</dt><div class="meta"><code>Int</code> (default 10)</div>
+<dd>Bench duration when a 429/529 carries no Retry-After hint.</dd></div>
+<div><dt>typeABenchMaxAttempts</dt><div class="meta"><code>Int</code> (default 5)</div>
+<dd>Consecutive benches one item gets before the batch leaves it
+errored.</dd></div>
+<div><dt>logLevel</dt><div class="meta"><code>LogLevel</code> (default WARN)</div>
+<dd>Threshold for the in-app file logger. Persisted in main prefs;
+<code>AppLog.init</code> reads it directly so DEBUG calls inside
+bootstrap are admitted on cold start. Forced to <code>OFF</code> at
+runtime when <code>loggingMasterEnabled</code> is false. See
+<a href="applog.html">applog</a>.</dd></div>
+<div><dt>showKnowledgeCard</dt><div class="meta"><code>Boolean</code> (default false)</div>
+<dd>Shows AI Knowledge on the Hub when Experimental features are
+enabled.</dd></div>
+<div><dt>experimentalFeaturesEnabled</dt><div class="meta"><code>Boolean</code> (default false)</div>
+<dd>Gates Local models, Knowledge/RAG, and Local Semantic Search
+surfaces.</dd></div>
+<div><dt>pinnedDashboardCards, dashboardCardOrder</dt><div class="meta"><code>Set&lt;String&gt;</code> / <code>List&lt;String&gt;</code></div>
+<dd>Persisted Live Dashboard layout.</dd></div>
 </dl>
+<div class="callout">
+<p>The chat-title / model-info / model-intro / translate-text /
+second-rerank / second-moderation / test-model prompt templates that
+used to live as <code>GeneralSettings</code> fields now live as
+<code>InternalPrompt</code> rows under
+<code>Settings.internalPrompts</code> (usually
+<code>category = "internal"</code>) and are CRUD'd via Settings → AI
+Setup → Prompt management.</p>
+</div>
+</div>
+</details>
 
-<h3 id="modelnamelayout">ModelNameLayout (enum)</h3>
-<p><code>MODEL_ONLY</code>, <code>PROVIDER_AND_MODEL</code>. Provided
-to the composition tree via <code>LocalModelNameLayout</code> in
-<code>AppNavHost</code>.</p>
+<details>
+<summary>ModelNameLayout / ReportTitleMode (enums)</summary>
+<div class="body">
+<p><code>ModelNameLayout</code>: <code>MODEL_ONLY</code>,
+<code>PROVIDER_AND_MODEL</code>. Provided to the composition tree via
+<code>LocalModelNameLayout</code> in <code>AppNavHost</code>.</p>
+<p><code>ReportTitleMode</code>: <code>Manual</code>, <code>AI</code>.</p>
+</div>
+</details>
 
-<h3 id="subjecttotitlebar">SubjectToTitleBarMode (enum)</h3>
-<p><code>HARDCODED</code>, <code>SUBJECT</code>, <code>BOTH</code>.
-Provided via <code>LocalSubjectToTitleBarMode</code>.</p>
-
-<h3 id="fetchmodelserror">FetchModelsError</h3>
+<details>
+<summary>FetchModelsError</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>message</dt><div class="meta"><code>String</code></div></div>
 <div><dt>traceFile</dt><div class="meta"><code>String?</code></div>
 <dd>Filename of the captured trace, if any.</dd></div>
 </dl>
+<p>Surfaced inline on the model-picker UI with a 🐞 deep-link to the
+captured trace.</p>
+</div>
+</details>
 
-<h3 id="uistate">UiState</h3>
-<p>The single immutable bag the entire UI subscribes to. See
-<code>AppViewModel.kt</code> for all 30+ fields. Notable subset:</p>
+<details>
+<summary>UiState</summary>
+<div class="body">
+<p>The single immutable bag the entire UI subscribes to. Defined in
+<code>AppViewModelTypes.kt</code> (the top-level types —
+<code>GeneralSettings</code>, <code>UiState</code>,
+<code>ModelNameLayout</code>, <code>ReportTitleMode</code>,
+<code>PromptHistoryEntry</code>, <code>FetchModelsError</code>,
+<code>ExternalIntent</code>, the <code>Refresh*</code> state types, and
+the <code>IconCandidate</code> / <code>TitleCandidate</code> /
+<code>TranslationCandidate</code> sealed types — were split out of
+<code>AppViewModel.kt</code>). See it for all 30+ fields. Notable
+subset:</p>
 <ul>
 <li><code>aiSettings: Settings</code></li>
 <li><code>generalSettings: GeneralSettings</code></li>
 <li><code>loadingModelsFor: Set&lt;AppService&gt;</code></li>
 <li><code>fetchModelsErrors: Map&lt;String, FetchModelsError&gt;</code></li>
-<li><strong>Report flow</strong>:
-<code>showGenericAgentSelection</code>,
-<code>showGenericReportsDialog</code>,
-<code>genericPromptTitle / Text</code>,
-<code>currentReportId</code>,
-<code>genericReportsProgress / Total</code>,
-<code>pendingReportModels</code>, <code>editModeReportId</code>,
-<code>stagedReportModels</code>,
-<code>hasPendingPromptChange</code>,
-<code>hasPendingParametersChange</code>,
+<li><strong>Report flow</strong>: <code>showGenericAgentSelection</code>,
+<code>showGenericReportsDialog</code>, <code>genericPromptTitle/Text</code>,
+<code>genericPromptTitleLong</code>, <code>currentReportId</code>,
+<code>genericReportsProgress/Total</code>, <code>pendingReportModels</code>,
+<code>editModeReportId</code>, <code>stagedReportModels</code>,
+<code>hasPendingPromptChange</code>, <code>hasPendingParametersChange</code>,
 <code>reportImageBase64</code>, <code>reportImageMime</code>,
 <code>reportWebSearchTool</code>, <code>reportReasoningEffort</code>,
-<code>reportAdvancedParameters</code>.</li>
-<li><strong>Share-target staging</strong>:
-<code>chatStarterText: String?</code>,
-<code>chatStarterImageBase64 / Mime: String?</code>.</li>
+<code>reportAdvancedParameters</code>, <code>reportParametersIds</code>,
+<code>reportSystemPromptId</code>, <code>attachedKnowledgeBaseIds</code>.</li>
+<li><strong>Share-target staging</strong>: <code>chatStarterText: String?</code>,
+<code>chatStarterImageBase64/Mime: String?</code> (also fed by the AI
+Chat hub's "📸 Start with photo" entry), <code>pendingKnowledgeUris</code>,
+<code>pendingReportKnowledgeUris</code>.</li>
 <li><code>activeSecondaryBatches: Int</code> — count of in-flight
 secondary batches; the Meta button's hourglass / poll loop key off
 this.</li>
 <li><code>iconRefreshTick: Int</code> — incremented every time the
-icon-gen helper writes a new emoji onto a Report.</li>
+icon-gen helper writes a new emoji onto a Report. Screens that render
+<code>Report.icon</code> key their disk-reload effect on this so a
+mid-flight resolution recomposes immediately.</li>
 <li><code>externalIntent: ExternalIntent</code></li>
-<li><strong>Chat</strong>:
-<code>chatParameters: ChatParameters</code>,
+<li><strong>Chat</strong>: <code>chatParameters: ChatParameters</code>,
 <code>dualChatConfig: DualChatConfig?</code>.</li>
 </ul>
-<p>Hot per-pair state lives <strong>outside UiState</strong>:
-<code>AppViewModel.runningFanOutPairs: StateFlow&lt;Set&lt;String&gt;&gt;</code>
-carries the 5–15 Hz updates from a Fan-out batch so consumers that
-don't care don't recompose.</p>
+<div class="callout">
+<p>Hot per-pair state lives <strong>outside UiState</strong>: a Fan-out
+batch's 5–15 Hz per-pair updates are carried by
+<code>FanOutRunState</code>'s own StateFlow (see above), not a UiState
+field, so consumers that don't care don't recompose.
+<code>runningFanMetaPairs</code> / <code>runningSingleSecondaries</code>
+/ <code>runningInfoJobs</code> (also outside UiState, directly on
+<code>AppViewModel</code>) cover the other in-flight sets.</p>
+</div>
+</div>
+</details>
 
-<h3 id="externalintent">ExternalIntent</h3>
+<details>
+<summary>ExternalIntent</summary>
+<div class="body">
 <p>Bundle of all 13 fields a launching intent
 (<code>com.ai.ACTION_NEW_REPORT</code> or similar) can stuff into
 UiState.</p>
@@ -1064,24 +2031,54 @@ UiState.</p>
 <div><dt>agentNames, flockNames, swarmNames, modelSpecs</dt>
 <div class="meta"><code>List&lt;String&gt;</code></div></div>
 </dl>
+</div>
+</details>
 
-<h3 id="prompthistoryentry">PromptHistoryEntry</h3>
+<details>
+<summary>PromptHistoryEntry</summary>
+<div class="body">
 <dl class="kv">
 <div><dt>timestamp</dt><div class="meta"><code>Long</code></div></div>
 <div><dt>title, prompt</dt><div class="meta"><code>String</code></div></div>
 </dl>
+</div>
+</details>
 
 <h2 id="provider-defs">Provider definitions</h2>
 <p class="muted"><code>com.ai.data.ProviderDefinition</code></p>
 
-<p>Wire format used by <code>assets/providers.json</code> and
-import / export. Same fields as <code>AppService</code>. Translated
-into a runtime <code>AppService</code> by
-<code>ProviderDefinition.toAppService()</code>. Custom providers
-added by the user are persisted as <code>ProviderDefinition</code>
-JSON in the <code>provider_registry</code> prefs file.</p>
+<p>Wire format for one bundled provider file under
+<code class="path">assets/providers/</code> (one JSON file per
+provider, a bare <code>ProviderDefinition</code> object — no
+<code>{ "providers": [...] }</code> wrapper) and for user
+import/export blobs (which DO use that wrapper), declared in
+<code>ProviderRegistry.kt</code>. Mostly the same fields as
+<code>AppService</code>, except <code>apiFormat</code> is a
+<code>String?</code> (default <code>"OPENAI_COMPATIBLE"</code>) parsed
+via <code>ApiFormat.valueOf(...)</code> inside a try/catch that falls
+back to <code>OPENAI_COMPATIBLE</code> on any invalid value. Translated
+to a runtime <code>AppService</code> by <code>toAppService()</code>;
+the inverse is <code>fromAppService(s)</code>. Custom providers added
+by the user round-trip as <code>ProviderDefinition</code> JSON in the
+<code>provider_registry</code> prefs file.</p>
 
-<p class="backtop"><a href="#">↑ Top</a></p>
+<p><code>ProviderRegistry</code> is a mutable <code>object</code> that
+starts <strong>empty</strong> on a fresh install — the 91 bundled
+providers are loaded on demand from
+<code class="path">assets/providers/</code> via
+<code>importFromAsset</code> (append-only; one
+<code>ProviderDefinition</code> per file, sorted by filename for a
+deterministic merge), not hardcoded in Kotlin.
+<code>parseProvidersJson</code> (used when reloading the persisted
+registry from prefs) filters out entries with a null/blank id or
+baseUrl. A <code>hostIndex</code> (rebuilt on every <code>save()</code>
+from <code>baseUrl</code> + <code>auxHosts</code>) backs
+<code>findByHost(host)</code>, which <code>ProviderThrottle</code> uses
+to resolve a request hostname to its per-provider throttle overrides.
+See <a href="providers.html">providers</a> and
+<a href="repositories.html">repositories</a>.</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
 
 </main>
 </body>

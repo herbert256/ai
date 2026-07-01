@@ -7,59 +7,275 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>Help system</span></header>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Help system</span></header>
 <main>
 
 <h1>In-app help system</h1>
 
-<p>Every screen in the app carries a TitleBar with a ❓ icon that
-opens a per-screen help topic. Provider cards on Model Info / Trace
-detail / Costs carry ℹ buttons that deep-link to per-provider help
-pages. The Help home page surfaces an icon legend rendered as a
-3-column table — every TitleBar icon you'll see in the app, with a
-one-line description.</p>
+<p>Every screen carries a bottom icon bar that can show two help
+glyphs — a white live icon-legend overlay and a red per-screen help
+page — plus ℹ buttons on provider cards that deep-link to per-provider
+or per-repository pages. This is distinct from the bundled HTML
+documentation hub (this very page) reached from About.</p>
 
-<p>Code lives in <code>ui/admin/HelpContent.kt</code> (the topic
-catalog — ~190 topics, one per full-screen overlay) and
-<code>ui/admin/HelpScreen.kt</code> (renderer + <code>HelpResolver</code>).
-The <code>helpForTopic(topicId)</code> route helper is in
-<code>ui/navigation/NavRoutes.kt</code>.</p>
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#glyphs">The two help glyphs</a></li>
+<li><a href="#topic-catalog">Topic catalog</a></li>
+<li><a href="#live-overlay">Live icon-legend overlay</a></li>
+<li><a href="#static-icons">Static icon-table page</a></li>
+<li><a href="#topic-shape">Topic shape</a></li>
+<li><a href="#routing">Routing &amp; the Help home page</a></li>
+<li><a href="#provider-repo">Per-provider &amp; per-repository pages</a></li>
+<li><a href="#authoring">Authoring guidance</a></li>
+<li><a href="#bundled-docs">Bundled documentation (this hub)</a></li>
+</ul>
+</nav>
 
-<h2>Topic catalog</h2>
+<h2 id="glyphs">The two help glyphs</h2>
 
-<p>Topics group into:</p>
+<p><code>BottomIconBar</code> (<code>ui/shared/SharedComponents.kt</code>)
+can show up to two right-pinned glyphs, both defined in
+<code>data/MetadataDefaults.kt</code> (<code>mi.helpLegend</code> /
+<code>mi.help</code>):</p>
 
 <dl class="kv">
-<div><dt>Hub</dt>
-<dd>What the home screen does, what each card means.</dd></div>
-<div><dt>Reports flow</dt>
-<dd>New AI Report, the model selection screen, the result screen,
-the secondary-result flows, exports.</dd></div>
-<div><dt>Chat flow</dt>
-<dd>Chat hub, configure-on-the-fly, chat session, Dual Chat.</dd></div>
-<div><dt>Settings → AI Setup</dt>
-<dd>Every sub-card has a topic. Sub-hubs (Models, Workers, Prompt
-management) have their own overview topic plus per-card detail
-topics.</dd></div>
-<div><dt>Housekeeping</dt>
-<dd>Backup &amp; Restore, Export &amp; Import, Refresh, Trim by age,
-Usage statistics, Reset.</dd></div>
-<div><dt>Trace</dt>
-<dd>Trace list, Trace detail, the captured-call detail view.</dd></div>
-<div><dt>Help</dt>
-<dd>The home help page, including the icon legend.</dd></div>
-<div><dt>Per-provider</dt>
-<dd>One page per active provider with setup, capabilities, quirks,
-and known issues. Reachable from every ℹ icon next to a provider
-name.</dd></div>
-<div><dt>Per-repository</dt>
-<dd>One page per external metadata source (LiteLLM / OpenRouter /
-models.dev / Helicone / llm-prices / Artificial Analysis /
-HuggingFace) with endpoint, auth, what it provides, when fetched,
-where cached. Reachable from every Source button on Model Info.</dd></div>
+<div><dt>❔ white — <code>HELP_LEGEND</code></dt>
+<div class="meta">U+2754, renders white</div>
+<dd>Shows whenever the screen has at least one bar icon at all
+(<code>useLegend = specs.isNotEmpty()</code>) — no longer gated by
+topic id or icon count. Tapping it opens a full-screen <strong>live
+icon-legend overlay</strong> in place; it never navigates anywhere.</dd></div>
+<div><dt>❓ red — <code>HELP</code></dt>
+<div class="meta">U+2753, renders red — Android ignores tint on emoji, so
+the colour is the glyph's own</div>
+<dd>Always navigates to the screen's main help topic
+(<code>help/{topicId}</code>). Shown by default in the bottom bar;
+relocated to the persistent top Home bar in <strong>Home bar</strong>
+mode (Settings → UI tweaks → App home), where the bottom bar is
+rendered with <code>suppressScreenTraceAndHelp = true</code>. The
+white ❔ stays in the bottom bar in both modes.</dd></div>
 </dl>
 
-<h2>Topic shape</h2>
+<div class="callout">
+<p>The <strong>View family</strong> — report View screens, plus Model
+Info / provider / flock / swarm / HTML-preview view screens, all of
+which route through their own <code>ViewBottomBar</code> instead of
+the generic <code>BottomIconBar</code> — shows only the red ❓; the
+white ❔ was removed there.</p>
+</div>
+
+<p>Provider cards on Model Info / Trace detail / Costs carry a separate
+ℹ button that deep-links to a per-provider or per-repository help page
+(see <a href="#provider-repo">below</a>) — a third, unrelated
+mechanism from the bottom-bar pair above.</p>
+
+<h2 id="topic-catalog">Topic catalog</h2>
+
+<p><code>HELP_TOPICS</code> (<code>ui/admin/HelpContent.kt</code>) is
+the master map: 12 per-domain <code>*Help.kt</code> maps summed
+together, plus one auto-built map for the standalone icon-table pages.
+<code>HelpContent</code> / <code>HelpCard</code> are <code>internal
+data class</code>es local to the package:</p>
+
+<pre><code>internal data class HelpCard(val title: String, val body: String)
+internal data class HelpContent(val title: String, val cards: List&lt;HelpCard&gt;)</code></pre>
+
+<details class="entity" open>
+<summary>Per-domain map sizes<span class="badge">~355 base entries</span></summary>
+<div class="body">
+<dl class="kv">
+<div><dt>ReportsHelp.kt</dt><div class="meta">111 entries</div>
+<dd>The whole reports flow + every report-Manage drill-in.</dd></div>
+<div><dt>SettingsAdminHelp.kt</dt><div class="meta">93 entries</div>
+<dd>Settings sub-screens + Housekeeping.</dd></div>
+<div><dt>ProviderCatalogHelp.kt</dt><div class="meta">37 entries</div>
+<dd><code>providers</code> + <code>providers_predefined</code> +
+<code>provider_edit</code> + 34 <code>provider_*</code> per-provider
+pages.</dd></div>
+<div><dt>DeveloperHelp.kt</dt><div class="meta">21 entries</div>
+<dd>Trace, logs, developer tools.</dd></div>
+<div><dt>GlossaryHelp.kt</dt><div class="meta">18 entries</div>
+<dd>The Help-home reference topics (below) + <code>about</code> /
+<code>dependencies</code> / <code>manual</code> /
+<code>technical_documentation</code>.</dd></div>
+<div><dt>CrudHelp.kt</dt><div class="meta">15 entries</div>
+<dd><code>crud_generic</code> overview + 14 per-CRUD topics via the
+shared <code>crud()</code> helper.</dd></div>
+<div><dt>LocalKnowledgeHelp.kt</dt><div class="meta">13 entries</div>
+<dd>RAG knowledge bases + on-device runtime.</dd></div>
+<div><dt>ProviderSettingsHelp.kt</dt><div class="meta">12 entries</div>
+<dd>Provider setup / config cards.</dd></div>
+<div><dt>InfoProviderHelp.kt</dt><div class="meta">12 entries</div>
+<dd>One <code>info_provider_*</code> page per metadata repository.</dd></div>
+<div><dt>ModelsHelp.kt</dt><div class="meta">10 entries</div>
+<dd>Model lists, base-model statistics, Model Info.</dd></div>
+<div><dt>ChatHelp.kt</dt><div class="meta">9 entries</div>
+<dd>Chat hub, session, Dual Chat.</dd></div>
+<div><dt>SearchHelp.kt</dt><div class="meta">4 entries</div>
+<dd>Search / local semantic search.</dd></div>
+</dl>
+<p class="muted">Sums to ~355 base <code>HelpContent</code> entries.
+On top of those, <code>ICON_HELP_TOPIC_CONTENT</code> auto-builds an
+empty-bodied <code>&lt;topic&gt;_icons</code> page for each of the 20
+<code>ICON_HELP_AS_PAGE</code> members (the table itself is rendered
+by <code>HelpScreen</code>, not stored in the <code>HelpContent</code>)
+— roughly <strong>375 topics</strong> total. A few more screen-related
+topics (e.g. <code>blocked_models</code>, <code>test_excluded_models</code>)
+live inside <code>SettingsAdminHelp.kt</code> / <code>DeveloperHelp.kt</code>
+rather than <code>ModelsHelp.kt</code>, despite the name.</p>
+</div>
+</details>
+
+<details>
+<summary>Topics group into…</summary>
+<div class="body">
+<dl class="kv">
+<div><dt>Hub</dt><dd>What the home screen does, what each card means.</dd></div>
+<div><dt>Reports flow</dt>
+<dd>New AI Report, model selection, the result screen, the report
+second-results hub (<code>report_second_results</code>), the 8
+<code>SecondaryKind</code> flows (Rerank / Meta / Moderation /
+Translate / Tournament / Judge-the-judges / Compare / Rank the
+translators — <code>TRANSRANK</code>, topics <code>translator_rank</code>
++ <code>translator_rank_workers</code>) plus Fan-out / Fan-in / Fan
+Meta drill-ins, the Value view, <code>regenerate_batch</code>,
+exports.</dd></div>
+<div><dt>Chat flow</dt><dd>Chat hub, configure-on-the-fly, chat
+session, Dual Chat.</dd></div>
+<div><dt>Settings → AI Setup</dt><dd>Every sub-card has a topic.
+Sub-hubs (Models, Workers, Prompt management, Default icons, UI
+Colors) have an overview topic plus per-card detail topics, e.g.
+<code>settings_ranking_weights</code>, <code>broken_work</code> /
+<code>broken_items</code>.</dd></div>
+<div><dt>Housekeeping</dt><dd>Backup &amp; Restore, Export &amp;
+Import, Refresh, Trim by age, Update from cloud, Costs, Test,
+Reset.</dd></div>
+<div><dt>Trace / developer</dt><dd>Trace list, Trace detail, the
+captured-call detail view, App log.</dd></div>
+<div><dt>Help-home references</dt><dd>The tap-through reference cards
+(next section) plus the auto-built <code>&lt;topic&gt;_icons</code>
+pages.</dd></div>
+<div><dt>Per-provider</dt><dd><code>provider_edit</code> plus one
+<code>provider_*</code> page per major cloud provider — see
+<a href="#provider-repo">below</a>.</dd></div>
+<div><dt>Per-repository</dt><dd>12 <code>info_provider_*</code> pages —
+see <a href="#provider-repo">below</a>.</dd></div>
+</dl>
+</div>
+</details>
+
+<h3>Help-home reference topics</h3>
+
+<p>All live in <code>GlossaryHelp.kt</code>'s <code>glossaryHelp</code>
+map: <code>help_about</code>, <code>help_getting_started</code>,
+<code>concepts</code>, <code>help_glossary</code> (with sub-pages
+<code>help_glossary_blocks</code>, <code>help_glossary_groupings</code>,
+<code>help_glossary_operations</code>), <code>help_costs</code>,
+<code>help_privacy</code>, <code>help_backup</code>,
+<code>help_translations</code>, plus the three table-style pages
+<code>help_home_icons</code>, <code>help_home_info_providers</code>,
+<code>help_home_ai_providers</code>. Only those three
+<code>help_home_*</code> topics exist. The same map also carries four
+screen/topic pages that aren't home-page cards: <code>about</code> (the
+About screen), <code>dependencies</code> (third-party licences), and
+<code>manual</code> / <code>technical_documentation</code> (the two
+bundled-doc WebView screens — see <a href="#bundled-docs">below</a>).
+That's why the map has 18 entries, not 14.</p>
+
+<h2 id="live-overlay">Live icon-legend overlay</h2>
+
+<p>On <strong>every screen that renders through the generic
+<code>BottomIconBar</code></strong> and shows at least one bar icon,
+the white ❔ opens a full-screen live overlay titled
+"<code>&lt;screen title&gt; - icons</code>" (<code>IconLegendOverlay</code>).
+This used to be gated to an allowlist; it no longer is.</p>
+
+<ul>
+<li>Lists the icons <strong>currently visible in that screen's bottom
+bar</strong> — two columns: the glyph, then the icon's name + a
+one-line description.</li>
+<li><strong>Tapping a row performs exactly what tapping that bar icon
+does</strong> — the overlay closes, then re-fires the icon's own
+action.</li>
+<li>Per-icon name + description come from
+<code>SCREEN_ICON_HELP[topic]</code> in <code>IconHelp.kt</code>, with
+a generic fallback map <code>DEFAULT_BAR_ICON_HELP</code> (keyed by
+glyph) for any bar icon the screen's own legend doesn't cover.</li>
+<li>The overlay's own single glyph is a red ❓ that opens the screen's
+main help page — the live overlay already covers the icons, so it
+doesn't also point at the static icon-table page.</li>
+</ul>
+
+<p><code>LEGEND_OVERLAY_TOPICS</code> (<code>SharedComponents.kt</code>,
+<strong>57 entries</strong> — verified against source) no longer
+decides whether the bottom-bar ❔ shows — that's unconditional now. Its
+remaining job is on the <code>HelpScreen</code> side: for topics in
+this set, the main help page deliberately does <strong>not</strong>
+render the inline icon-table, nor the "❔ Icons on this screen"
+cross-link — the live overlay already replaced that content in the
+user flow. It covers the whole report-Manage family
+(<code>reports_hub</code>, <code>report_run</code> and its edit /
+create / get-info / icons / titles sub-editors), the Meta / secondary /
+fan-out / fan-meta drill-ins, the translation, tournament and
+judge-the-judges drill-ins, the Find-alternative and icon-lookup
+screens, the per-agent result / content / cost screens,
+<code>regenerate_batch</code>, <code>report_notes</code>,
+<code>report_agent_chat</code>.</p>
+
+<h2 id="static-icons">Static icon-table page</h2>
+
+<p>The bottom-bar ❔ no longer links to a static page anywhere — that
+path was dropped when the live overlay was rolled out to every
+<code>BottomIconBar</code> screen. The static
+<code>&lt;topic&gt;_icons</code> help page still exists as
+<em>content</em>: a flat icon table (<code>IconHelpTable</code>, from
+<code>SCREEN_ICON_HELP</code>), reached only via the "❔ Icons on this
+screen" cross-link at the top of a topic's own main help page (itself
+opened by the red ❓).</p>
+
+<p><code>ICON_HELP_AS_PAGE</code> (<code>IconHelp.kt</code>, <strong>20
+entries</strong> — verified against source; originally curated as
+"whose screen shows more than 3 icons") selects which topics get a
+standalone page:</p>
+
+<details>
+<summary>ICON_HELP_AS_PAGE — 20 topics</summary>
+<div class="body">
+<ul>
+<li><code>report_run</code>, <code>agent_edit</code>,
+<code>flock_edit</code>, <code>swarm_edit</code>,
+<code>provider_edit</code></li>
+<li><code>report_single_result</code>, <code>secondary_detail</code>,
+<code>prompt_view</code>, <code>secondary_list</code></li>
+<li><code>secondary_fan_out_l1/l2/l3</code></li>
+<li><code>translation_run_l1</code>, <code>translation_run_l3</code></li>
+<li><code>icon_lookup_main/agent/meta/translation/language/pair</code>
+(6 topics)</li>
+</ul>
+</div>
+</details>
+
+<p>Topics with 1–3 icons that aren't in this set embed the same table
+<strong>inline</strong> under their main help page instead of getting a
+standalone page (e.g. <code>report_new</code> — 3 icons — is
+deliberately kept out).</p>
+
+<p>Both the cross-link and the inline table are suppressed for topics
+in <code>LEGEND_OVERLAY_TOPICS</code> — that screen's live overlay
+already covers the icons. Cross-referencing the two sets: <strong>15</strong>
+of the 20 <code>ICON_HELP_AS_PAGE</code> topics also sit in
+<code>LEGEND_OVERLAY_TOPICS</code>, so their standalone page is
+registered but effectively unreachable from the current UI. That
+leaves <strong>five</strong> <code>ICON_HELP_AS_PAGE</code> topics
+outside <code>LEGEND_OVERLAY_TOPICS</code> — <code>agent_edit</code>,
+<code>flock_edit</code>, <code>swarm_edit</code>, <code>prompt_view</code>,
+<code>provider_edit</code> — where the standalone
+<code>&lt;topic&gt;_icons</code> page is still reachable today,
+alongside (not instead of) the live overlay on their own bottom bar.</p>
+
+<h2 id="topic-shape">Topic shape</h2>
 
 <p>A help topic on the screen is a series of <code>HelpCard</code>
 rows:</p>
@@ -70,53 +286,151 @@ HelpCard("Tips", "Small surprises worth knowing.")
 HelpCard("Pitfalls", "Common mistakes / edge cases to avoid.")</code></pre>
 
 <p>Each card is a (title, body) pair; the body is plain text or
-markdown-flavoured. The "Related" card pattern was dropped across
-the catalog — link by deep-linking from the rest of the UI instead,
-so users discover related screens from where they actually are
-rather than from a list inside Help.</p>
+markdown-flavoured. The auto-built <code>&lt;topic&gt;_icons</code>
+pages are the exception — they carry an <strong>empty</strong>
+<code>cards</code> list, since their table is rendered directly by
+<code>HelpScreen</code> from <code>SCREEN_ICON_HELP</code>.</p>
 
-<h2>Routing</h2>
+<p>The old "Related" card pattern was dropped. Cross-linking now
+happens two ways: deep-linking from the rest of the UI, and the
+<code>RELATED_HOME_HELP</code> table (<code>HelpContent.kt</code>),
+which renders a "Relevant Help pages" footer
+(<code>RelevantHelpPagesCard</code>) at the bottom of a per-topic page.
+Topics with no entry there render no footer.</p>
+
+<h2 id="routing">Routing &amp; the Help home page</h2>
 
 <ul>
-<li><code>helpForTopic(topicId)</code> builds the route string. The
-topicId is URL-encoded so it can carry colons / slashes / spaces.</li>
-<li>Every TitleBar takes a <code>helpTopic: String</code> arg.
-Tapping ❓ navigates to <code>help/{topicId}</code>.</li>
-<li>The Trace detail screen's ℹ icon resolves the trace's URL +
-category to one of the 7 repository topics via
-<code>HelpResolver</code> — the resolver is gated on a small
-<code>INFO_FETCH_CATEGORIES</code> set so unrelated traces don't get
-a misleading provider help.</li>
-<li>The home Help page (<code>/help</code>) surfaces the icon legend
-at the top and topic-group navigation below.</li>
+<li><code>helpForTopic(topicId)</code> (<code>NavRoutes.kt</code>)
+builds <code>"help/${encode(topicId)}"</code> — URL-encoded so the id
+can carry colons / slashes / spaces. <code>NavRoutes.HELP = "help"</code>.</li>
+<li>Every screen's <code>TitleBar</code> takes a
+<code>helpTopic: String</code> and publishes it into the bottom-bar
+state; the single <code>BottomIconBar</code> at AppNavHost scope
+paints the strip + glyph(s). In Home-bar mode, <code>HomeIconBar</code>
+reads the same state and paints red help + trace in the persistent top
+strip instead.</li>
+<li>The Help <strong>home</strong> page (<code>/help</code>, rendered
+by <code>CompactOverview</code>) shows: a Welcome card that
+interpolates <code>AppService.entries.size</code> for the provider
+count, a "Per-screen help" card, then <strong>11</strong> tap-through
+reference cards in order — About → Getting started → How it works
+(<code>concepts</code>) → Concepts &amp; glossary → Costs → Privacy →
+Backup → Translations → Icons → Info providers → AI providers — a
+Copyright card, and a case-insensitive substring search box.</li>
+<li>Search (<code>searchHelp</code>) scores every topic title
+(weight 3), card title (weight 2), card body (weight 1), collapses to
+the best card per topic, sorts descending, takes the top 12. A
+non-blank query suppresses all other home content. Per-topic pages
+have no own search — go back to Help home.</li>
+<li>The per-topic page chrome (<code>HelpFooter</code>) renders a
+"More information" card: a Help-home row (per-topic pages only), an
+About row, and a <code>GitHub: herbert256/ai</code> row. Copyright is
+GPL v2.0, Herbert Groot Jebbink.</li>
 </ul>
 
-<h2>Authoring guidance</h2>
+<h2 id="provider-repo">Per-provider &amp; per-repository pages</h2>
 
+<details class="entity" open>
+<summary>Per-provider help</summary>
+<div class="body">
+<p><code>provider_edit</code> plus one <code>provider_*</code> page per
+major cloud provider (34 verified against
+<code>ProviderCatalogHelp.kt</code>) — setup, capabilities, quirks,
+known issues. User-added / less-common providers fall through to the
+Help home page instead of a bespoke topic.</p>
+<p>Reachable from every ℹ icon next to a provider name. The page id is
+<code>providerHelpTopicId(serviceId)</code> = <code>"provider_" +
+lowercased, alphanumeric-only id</code>. Per-provider pages share an
+infrastructure helper so each card has a uniform layout
+(<code>providerCatalogHelp</code> + <code>CLOUD_PROVIDER_TAGLINES</code>).</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Per-repository help</summary>
+<div class="body">
+<p>12 <code>info_provider_*</code> pages, one per external metadata
+source (HuggingFace / OpenRouter / LiteLLM / models.dev / Helicone /
+llm-prices.com / Artificial Analysis / Requesty / llm-stats /
+genai-prices / TrueFoundry / CloudPrice) with endpoint, auth, what it
+provides, when fetched, where cached. Reachable from every Source
+button on Model Info and from the Trace detail ℹ.</p>
+<p>The Trace detail screen's ℹ resolves the trace's URL + category to
+one of the 12 topics via the free function
+<code>infoProviderForTrace(url, category)</code>
+(<code>HelpScreen.kt</code>) — not a <code>HelpResolver</code> class
+(there is none). It calls <code>infoProviderForUrl</code> (host match,
+disambiguating shared hosts like <code>raw.githubusercontent.com</code>
+via <code>urlPathPrefix</code>) then, for dual-purpose services, gates
+on category so a plain chat completion doesn't hijack the ℹ. Only
+OpenRouter sets <code>requiresChatCategoryGate = true</code>; its gate
+set is <code>INFO_FETCH_CATEGORIES = setOf("OpenRouter model specs")</code>,
+plus any category starting with <code>"pricing/"</code>.</p>
+</div>
+</details>
+
+<h2 id="authoring">Authoring guidance</h2>
+
+<details>
+<summary>Checklist for changing help topics</summary>
+<div class="body">
 <ul>
 <li>Reuse common card patterns (Overview / Add / Tips / Pitfalls) so
-users learn the structure once. Don't bring back "Related" cards.</li>
-<li>Match the topic IDs in <code>NavRoutes</code> to the help
-screen's switch.</li>
-<li>Per-provider pages share an infrastructure helper so each
-provider card has a uniform layout.</li>
-<li>The topic catalog (~190 entries) is rewritten end-to-end with
-code-accurate detail and tips — when changing a flow, the help text
-deserves the same edit so the in-app docs stay in sync. In
-particular, every full-screen overlay (model picker, scope picker,
-viewer detail, agent icon detail, alternative-icons list, icons
-grid, Find icons picker, etc.) gets its own dedicated topic so help
-is always one tap away.</li>
+users learn the structure once. Don't bring back "Related" cards
+inside a topic — wire <code>RELATED_HOME_HELP</code> instead.</li>
+<li>Match topic IDs to the screen's <code>helpTopic</code> and the
+<code>HELP_TOPICS</code> map; an unmatched id renders an empty page.</li>
+<li>When adding or changing a screen's bottom-bar icons, update its
+<code>SCREEN_ICON_HELP[topic]</code> rows in <code>IconHelp.kt</code>
+(glyph, short name, screen-specific description) — trace the actual
+TitleBar handler, never guess. Every screen with ≥1 bar icon gets the
+live overlay automatically now; once a screen's legend is complete,
+add its <code>helpTopic</code> to <code>LEGEND_OVERLAY_TOPICS</code>
+so the topic's own help page stops duplicating the table (for &gt;3
+icons, also add it to <code>ICON_HELP_AS_PAGE</code> for a standalone
+page instead of an inline one).</li>
+<li>New screens should get a help topic. Exception: the Answer matrix
+view (<code>ui/report/view/AnswerMatrix.kt</code>) deliberately reuses
+the existing <code>view_ai_report</code> topic rather than adding its
+own.</li>
+<li>When adding a new visual setting or default icon, update both the
+Settings topic and the focused UI-customization reference doc (kept
+outside this hub).</li>
 </ul>
+</div>
+</details>
 
-<h2>Icon legend</h2>
+<h2 id="bundled-docs">Bundled documentation (this hub)</h2>
 
-<p>Rendered as a 3-column table on the Help home page. Every TitleBar
-icon used across the app is listed once, with a one-line description.
-The icon legend is the canonical reference for the TitleBar action
-strip.</p>
+<p>Separately from the <code>HelpContent</code> catalog,
+<code>DocumentationScreen</code> (<code>ui/admin/DocumentationScreen.kt</code>)
+is a single WebView wrapper serving one of two bundled HTML doc hubs,
+chosen by a <code>docsSubdir</code> param:</p>
 
-<p class="backtop"><a href="#">↑ Top</a></p>
+<dl class="kv">
+<div><dt>Manual</dt>
+<div class="meta"><code>assets/docs/manual/index.html</code></div>
+<dd>Route <code>NavRoutes.DOCUMENTATION_MANUAL</code>, title "Manual",
+<code>helpTopic = "manual"</code>.</dd></div>
+<div><dt>Technical</dt>
+<div class="meta"><code>assets/docs/technical/index.html</code> — this hub</div>
+<dd>Route <code>NavRoutes.DOCUMENTATION</code>, title "Technical
+documentation", <code>helpTopic = "technical_documentation"</code>.</dd></div>
+</dl>
+
+<p>Both routes are defined in <code>DeveloperRoutes.kt</code> and
+reached from <code>AboutScreen</code>. Both <code>helpTopic</code> ids
+also exist as real <code>HelpContent</code> topics in
+<code>GlossaryHelp.kt</code>, so the WebView's own ❓ has a page to
+open. JavaScript is <strong>disabled</strong>
+(<code>javaScriptEnabled = false</code>); <code>allowFileAccess =
+true</code>, <code>allowContentAccess = false</code>. System back
+walks the WebView's own history (<code>webView.canGoBack()</code>)
+before popping the screen, giving a normal browser back experience
+across cross-doc links.</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
 
 </main>
 </body>

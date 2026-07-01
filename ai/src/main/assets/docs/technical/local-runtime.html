@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Local runtime — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Local runtime</span></header>
+<main>
+
+<h1>On-device runtime — Local LLM + LiteRT embedder</h1>
+
+<p>Two MediaPipe Tasks runtimes that run entirely on-device, no API
+key and no HTTP: an LLM (<code>LocalLlm</code>, <code>.task</code>
+bundles) and a text embedder (<code>LocalEmbedder</code>,
+<code>.tflite</code> models). Both surface through a single synthetic
+provider and are gated behind the master
+<a href="experimental.html">Experimental features</a> toggle.</p>
+
+<div class="callout">
+<p>All four files live under <code class="path">data/local/</code>:
+<code>LocalLlm.kt</code>, <code>LocalEmbedder.kt</code>,
+<code>LlmRuntime.kt</code> (the native <code>.so</code> loader), and
+<code>LocalRuntime.kt</code> (a read-only dashboard snapshot).</p>
+</div>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#provider">The synthetic AppService.LOCAL provider</a></li>
+<li><a href="#dispatch">Dispatch forks</a></li>
+<li><a href="#runtimes">LocalLlm vs LocalEmbedder</a></li>
+<li><a href="#traces">Synthetic traces</a></li>
+<li><a href="#llm-runtime">LLM native runtime (LlmRuntime)</a></li>
+<li><a href="#embedder-downloads">Embedder downloads</a></li>
+<li><a href="#dashboard">Dashboard snapshot</a></li>
+<li><a href="#setup-ui">Setup UI</a></li>
+<li><a href="#semantic-search">Local semantic search</a></li>
+<li><a href="#backup">Backup</a></li>
+<li><a href="#related">Related docs</a></li>
+</ul>
+</nav>
+
+<h2 id="provider">The synthetic AppService.LOCAL provider</h2>
+
+<p><code>LOCAL</code> is a sentinel <code>AppService</code> defined in
+the <code>AppService</code> companion object:</p>
+
+<pre><code>val LOCAL = AppService(id = "Local", baseUrl = "local://", adminUrl = "", defaultModel = "")</code></pre>
+
+<p>It is <strong>not registered in <code>ProviderRegistry</code></strong>
+&mdash; it never appears in registry-driven provider lists &mdash; and
+is reachable only because <code>AppService.findById</code>
+special-cases its id before delegating:</p>
+
+<pre><code>fun findById(id: String): AppService? =
+    if (id == LOCAL.id) LOCAL else ProviderRegistry.findById(id)</code></pre>
+
+<p><code>AppServiceAdapter</code> (the Gson serializer) serializes an
+<code>AppService</code> as its id string and deserializes through
+<code>findById</code>, so a persisted <code>ChatSession</code> whose
+provider was Local round-trips after a restart even though the
+registry has never heard of it. Pickers add the Local provider (and
+its installed <code>.task</code> models) explicitly when models
+exist, so it surfaces as a normal &quot;Local&quot; provider in chat
+and report flows &mdash; gated by the Experimental toggle. See
+<a href="datastructures.html#appservice">AppService</a> for the full
+field schema.</p>
+
+<div class="callout warn">
+<p><strong>Casing trap.</strong> The chat/report LLM sentinel id is
+<code>"Local"</code> (capital L only). The KB embedder / local-rerank /
+semantic-search provider key is the literal all-caps
+<code>"LOCAL"</code>. Different strings, different layers &mdash; see
+<a href="knowledge.html">knowledge</a>. Don't conflate them.</p>
+</div>
+
+<h2 id="dispatch">Dispatch forks</h2>
+
+<p>There is <strong>no <code>LOCAL</code> branch inside
+<code>ApiDispatch</code></strong> and no <code>LOCAL</code> value on
+<code>ApiFormat</code>. <code>AppService.LOCAL.apiFormat</code> is the
+default <code>OPENAI_COMPATIBLE</code> and is never used for a network
+call. Instead each caller checks <code>provider.id ==
+AppService.LOCAL.id</code> and routes to the on-device object,
+bypassing Retrofit / API key / retry / throttle entirely:</p>
+
+<dl class="kv">
+<div><dt>Report / agent generation</dt><div class="meta"><code>analyzeWithAgent</code>, AnalysisRepository</div><dd>&rarr; <code>LocalLlm.generate(context, agent.model, finalPrompt)</code></dd></div>
+<div><dt>Chat</dt><div class="meta"><code>sendLocalLlmStream</code>, ChatViewModel</div><dd>&rarr; <code>LocalLlm.generate</code> (response emitted as a single chunk, not a token stream)</dd></div>
+<div><dt>Rerank</dt><div class="meta"><code>runLocalRerank</code>, SecondaryRunManager</div><dd>&rarr; <code>LocalEmbedder.embed</code> + cosine-to-prompt; placeholder/cost rows saved with <code>providerId = "LOCAL"</code></dd></div>
+</dl>
+
+<p>On the report fork, success returns an <code>AnalysisResponse</code>
+with <code>httpStatusCode = 200</code>; a <code>null</code> result
+becomes a 500 whose message points the user at <em>Housekeeping &rarr;
+Local LLMs</em>.</p>
+
+<p>The <strong>streaming</strong> report entry point also
+short-circuits Local: a <code>provider.id == AppService.LOCAL.id</code>
+agent (alongside missing-key, web-search-tool, and
+no-native-streaming cases) falls through to the authoritative
+non-streaming <code>analyzeWithAgent</code> path &mdash; there is no
+token stream from the on-device engine, only the single
+<code>generate</code> result.</p>
+
+<div class="callout">
+<p><strong>RAG still works for a Local agent.</strong> The dispatch
+fork sits after the KB-context build: <code>analyzeWithAgent</code>
+retrieves hits via <code>KnowledgeService.retrieve</code> (wrapped in
+<code>runCatching</code> so an embedder hiccup falls back to the bare
+prompt), then <code>withRagPrefix</code> prepends the
+<code>&lt;context&gt;&hellip;&lt;/context&gt;</code> block to the
+prompt before <code>LocalLlm.generate</code>.</p>
+</div>
+
+<h2 id="runtimes">LocalLlm vs LocalEmbedder</h2>
+
+<div class="card">
+<h4>LocalLlm</h4>
+<p class="type"><code>data/local/LocalLlm.kt</code></p>
+<p>MediaPipe type <code>LlmInference</code> (Tasks GenAI). Files end in
+<code>.task</code>, installed under <code class="path">&lt;filesDir&gt;/local_llms/</code>
+(<code>LOCAL_LLMS_DIR</code>). Acquisition is SAF &quot;Add LLM from
+file&quot; via Kaggle / HuggingFace hand-off links. Output is a
+response <code>String?</code> (<code>null</code> on failure).</p>
+</div>
+
+<div class="card">
+<h4>LocalEmbedder</h4>
+<p class="type"><code>data/local/LocalEmbedder.kt</code></p>
+<p>MediaPipe type <code>TextEmbedder</code> (Tasks Text). Files end in
+<code>.tflite</code>, installed under <code class="path">&lt;filesDir&gt;/local_models/</code>
+(<code>LOCAL_MODELS_DIR</code>). Acquisition is in-app download of two
+published MediaPipe models, or SAF import. Output is
+<code>List&lt;List&lt;Double&gt;&gt;?</code>, L2-normalized
+(<code>null</code> on failure, <code>emptyList</code> on empty
+input).</p>
+</div>
+
+<p>Both are Kotlin <code>object</code> singletons that cache native
+handles in a <code>ConcurrentHashMap&lt;String, &hellip;&gt;</code>
+keyed by model name, built atomically via <code>computeIfAbsent</code>
+(not <code>getOrPut</code>, whose lambda can run on multiple threads
+and leak the losing multi-hundred-MB native instance). Each call
+serialises under <code>synchronized(handle)</code> because the native
+handles are <strong>not</strong> thread-safe &mdash; two parallel
+report agents pointing at the same model would otherwise corrupt the
+runtime state. Both expose <code>release(name)</code> /
+<code>releaseAll()</code> and a <code>clearAll(context): Int</code>
+that closes every engine and deletes every model file, returning the
+count removed (used by the housekeeping &quot;clear all
+configuration&quot; flow).</p>
+
+<div class="callout warn">
+<p><strong>Model-name resolution is path-traversal-hardened.</strong>
+Both <code>LocalLlm.llmFile</code> and <code>LocalEmbedder.modelFile</code>
+reject a model name that is blank, <code>"."</code>, <code>".."</code>,
+or contains a <code>/</code> or <code>\</code>, then build
+<code>&lt;dir&gt;/&lt;name&gt;.task</code> (resp. <code>.tflite</code>)
+and verify the resolved <code>canonicalPath</code> still sits under the
+model dir before returning it &mdash; so a persisted/restored
+<code>ChatSession</code> (or KB) carrying a crafted Local model name
+can't read or load a file outside <code>local_llms/</code> /
+<code>local_models/</code>. A name that fails the check resolves to
+<code>null</code>, which the engine builders turn into an
+<code>IllegalStateException("&hellip; not found in &hellip;")</code>.</p>
+</div>
+
+<p>The LLM engine is built with <code>setMaxTokens(2048)</code> &mdash;
+a conservative cap that keeps memory in check on non-flagship phones.
+The embedder is built with <code>setL2Normalize(true)</code>, and
+<code>LocalEmbedder.embed</code> reads
+<code>embedding.floatEmbedding()</code> per input and maps each
+<code>Float</code> to <code>Double</code>.</p>
+
+<h2 id="traces">Synthetic traces</h2>
+
+<p>Every <code>LocalLlm.generate</code>, <code>LocalEmbedder.embed</code>,
+<code>LocalEmbedder.download</code>, and <code>LlmRuntime.download</code>
+call writes a synthetic <code>ApiTrace</code> &mdash; but only when
+<code>ApiTracer.isTracingEnabled</code>. Generate/embed traces use
+hostname <code>"local"</code> and url
+<code>local://generate/&lt;model&gt;</code> /
+<code>local://embed/&lt;model&gt;</code>; the two download traces use
+the real download host. Bodies carry truncated previews (prompt
+<code>take(500)</code>, each embed input <code>take(120)</code>),
+durations, output dims, and any error, with <code>statusCode</code>
+200 on success / 500 on failure. These rows appear on the Trace screen
+alongside HTTP traffic and roll into backups.</p>
+
+<h2 id="llm-runtime">LLM native runtime (LlmRuntime)</h2>
+
+<p>The MediaPipe LLM inference <code>.so</code>
+(<code>libllm_inference_engine_jni.so</code>, ~26 MB for
+<code>arm64-v8a</code>) is <strong>deliberately not shipped in the
+APK</strong> &mdash; it would inflate the install for everyone,
+including users who never run a local model. <code>LlmRuntime</code>
+downloads it on demand.</p>
+
+<dl class="kv">
+<div><dt>Source</dt><div class="meta">Google Maven &middot; <code>AAR_VERSION = "0.10.35"</code></div><dd>Downloads the MediaPipe Tasks GenAI AAR (<code>tasks-genai-0.10.35.aar</code>) from <code>dl.google.com</code>, streams the whole AAR (a zip &mdash; <code>DOWNLOAD_SIZE_MB_HINT = 40</code> drives the button label), plucks the entry <code>jni/arm64-v8a/libllm_inference_engine_jni.so</code> into <code class="path">&lt;filesDir&gt;/native/</code> (<code>NATIVE_DIR</code>).</dd></div>
+<div><dt>Load</dt><div class="meta"><code>ensureLoaded</code></div><dd>Idempotent (a volatile <code>loaded</code> flag), calls <code>System.load</code> on the on-disk file. Invoked from <code>LocalLlm.getEngine</code> before any MediaPipe type is touched, because <code>LlmInference.LlmInferenceOptions</code>'s static init calls <code>System.loadLibrary(&hellip;)</code>, which only succeeds once the <code>.so</code> is already mapped via <code>System.load</code>. If the runtime isn't installed, <code>getEngine</code> throws <code>IllegalStateException("LLM runtime not installed &mdash; visit Setup &rarr; Local LLMs&hellip;")</code>.</dd></div>
+<div><dt>Delete</dt><div class="meta"></div><dd><code>System.load</code> can't be undone, so <code>delete</code> removes the on-disk file but the in-process copy stays mapped until the next app start &mdash; callers remind the user to restart.</dd></div>
+<div><dt>Version coupling</dt><div class="meta"></div><dd><code>AAR_VERSION</code> must match the <code>tasks-genai</code> Gradle dependency; a mismatch surfaces as a &quot;JNI method not found&quot; error at first <code>generate()</code>.</dd></div>
+</dl>
+
+<p>The download streams to a <code>.part</code> temp then
+atomic-renames into place (falling back to a non-atomic move when
+<code>ATOMIC_MOVE</code> isn't supported).
+<code>LocalLlm.availableLlms</code> returns <code>.task</code> files
+<strong>only when the runtime is installed</strong>, so a picker never
+hands out a model that would explode on first <code>generate()</code>.
+<code>installedTaskFiles</code> lists every <code>.task</code> on disk
+regardless, for the management screen.</p>
+
+<h2 id="embedder-downloads">Embedder downloads</h2>
+
+<p><code>LocalEmbedder.downloadable</code> lists exactly the two text
+embedders MediaPipe publishes with the Tasks metadata the runtime
+requires, both from <code>storage.googleapis.com/mediapipe-models</code>.
+Anything more exotic must arrive via SAF import with metadata stamped
+by MediaPipe Model Maker.</p>
+
+<details class="entity" open>
+<summary>universal_sentence_encoder_lite<span class="badge">default</span></summary>
+<div class="body">
+<p>&quot;Universal Sentence Encoder Lite&quot; &middot; ~25 MB &middot;
+multilingual general-purpose. <code>DEFAULT_MODEL_NAME</code> &mdash;
+the best default for most text.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>average_word_embedder</summary>
+<div class="body">
+<p>&quot;Average Word Embedder&quot; &middot; ~5 MB &middot; English
+only. Tiny + fast, lower quality, near-instant.</p>
+</div>
+</details>
+
+<p><code>download</code> streams to a <code>.part</code> temp then
+atomic-renames into place (falling back to a non-atomic
+<code>Files.move</code> when <code>ATOMIC_MOVE</code> isn't
+supported).</p>
+
+<div class="callout">
+<p>The stale-<code>.part</code> sweep (<code>sweepStalePartials</code>,
+files older than 5 min) runs <strong>only on the <code>download</code>
+path</strong>, never from <code>availableModels()</code>. A read-only
+query &mdash; the picker enumerating installed <code>.tflite</code>s
+&mdash; must not mutate the filesystem; an earlier version swept on
+every <code>availableModels()</code> call and could race-delete a
+<code>.part</code> belonging to a download in flight.</p>
+</div>
+
+<h2 id="dashboard">Dashboard snapshot</h2>
+
+<p><code>LocalRuntime</code> is a read-only object that backs the Live
+Dashboard's Local-runtime card. <code>snapshot()</code> pulls
+<code>LocalLlm.loadedModelNames()</code> / <code>currentlyGenerating</code>
+and <code>LocalEmbedder.loadedModelNames()</code> /
+<code>currentlyEmbedding</code> into a <code>Snapshot</code>.</p>
+
+<div class="card">
+<h4>Snapshot</h4>
+<p class="type"><code>LocalRuntime.Snapshot</code></p>
+<p><code>llmLoaded: List&lt;String&gt;</code>,
+<code>llmGenerating: String?</code>,
+<code>embedderLoaded: List&lt;String&gt;</code>,
+<code>embedding: String?</code>. <code>active</code> is a computed
+property, true when anything is loaded or running.</p>
+</div>
+
+<p><code>loadedModelNames()</code> returns the keys of the cached
+native-handle map. The &quot;currently running&quot; state is
+<strong>ref-counted</strong>, not a single flag: each object keeps a
+<code>ConcurrentHashMap&lt;String, AtomicInteger&gt;</code>
+(<code>generatingCounts</code> / <code>embeddingCounts</code>) that
+<code>generate</code> / <code>embed</code> increment on entry and
+decrement (dropping the key at zero) in a <code>finally</code>, so a
+model stays listed until every in-flight call against it finishes.
+<code>currentlyGenerating</code> / <code>currentlyEmbedding</code> are
+computed getters that join the sorted active-model keys (or
+<code>null</code> when idle).</p>
+
+<h2 id="setup-ui">Setup UI</h2>
+
+<p>Both runtime screens hang off a small hub. AI Setup &rarr;
+<strong>Models setup</strong> (<code>ModelsSetupScreen</code>) shows a
+<strong>Local Models</strong> card only when Experimental features is
+on &mdash; that single <code>if (experimentalFeatures)</code> block is
+the whole subsystem's UI gate.</p>
+
+<ul class="tree">
+<li><strong>ModelsSetupScreen</strong> <span class="note">&mdash; AI Setup &rarr; Models setup</span>
+  <ul>
+    <li>Local Models card <span class="note">&mdash; only when experimentalFeatures is on</span>
+      <ul>
+        <li><strong>LocalModelsSetupScreen</strong> <span class="note">&mdash; the Local models hub</span>
+          <ul>
+            <li>LocalLlmsScreen <span class="note">&mdash; Local LLMs</span></li>
+            <li>LocalLiteRtModelsScreen <span class="note">&mdash; Local LiteRT models</span></li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+  </ul>
+</li>
+</ul>
+
+<details>
+<summary>LocalLlmsScreen (Local models &rarr; Local LLMs)</summary>
+<div class="body">
+<p>Download / delete the LLM native runtime, hand-off download links,
+and SAF import of <code>.task</code> / <code>.zip</code> /
+<code>.tar.gz</code> / <code>.tgz</code> / <code>.tar</code> into
+<code>local_llms/</code> (the first <code>.task</code> entry inside an
+archive is extracted automatically), with per-row Remove.</p>
+</div>
+</details>
+
+<details>
+<summary>LocalLiteRtModelsScreen (Local models &rarr; Local LiteRT models)</summary>
+<div class="body">
+<p>Download the two published embedders or SAF-import a
+<code>.tflite</code> into <code>local_models/</code>, with per-row
+Remove.</p>
+</div>
+</details>
+
+<div class="callout">
+<p><strong>Everything that touches the filesystem or the native
+loader runs off the main thread.</strong> Both screens load their
+installed-model list in a <code>LaunchedEffect</code> via
+<code>withContext(Dispatchers.IO)</code> (a plain
+<code>remember { listFiles() }</code> blocked the first frame), the
+runtime-install button's <code>LlmRuntime.ensureLoaded</code> (a
+<code>System.load</code> of the ~26 MB <code>.so</code>) runs under
+<code>Dispatchers.IO</code>, and the Local-model counts on both the
+Models-setup card and the Local-models hub are computed off-main via
+<code>produceState</code> + <code>Dispatchers.IO</code> so a resume
+never stutters the hub.</p>
+</div>
+
+<p>Nothing is deleted when the Experimental toggle flips off &mdash;
+installed files stay and already-attached KBs keep sending context.
+The full set of Experimental gate sites is in
+<a href="experimental.html">experimental</a>.</p>
+
+<h2 id="semantic-search">Local semantic search</h2>
+
+<p><code>ui/search/LocalSemanticSearchScreen.kt</code> runs meaning
+search over saved reports with no cloud round-trip. It picks an
+installed <code>.tflite</code>, embeds the query and each report's
+title + prompt + first response via <code>LocalEmbedder.embed</code>,
+caches the vectors in <code>EmbeddingsStore</code> under provider key
+<code>"LOCAL"</code>, and ranks by
+<code>EmbeddingsStore.cosine(List&lt;Double&gt;, List&lt;Double&gt;)</code>
+&mdash; the cached vectors are kept as <code>List&lt;Double&gt;</code>,
+so this uses the <code>List&lt;Double&gt;</code> overload, not the
+<code>FloatArray</code> hot path that KB retrieval uses.</p>
+
+<p>This is one of the local embedder's RAG consumers; see
+<a href="knowledge.html">knowledge</a> for KB embedding / retrieval,
+which uses the same <code>LocalEmbedder</code> when a KB's
+<code>embedderProviderId == "LOCAL"</code> (again, all-caps &mdash;
+distinct from <code>AppService.LOCAL.id</code>).</p>
+
+<h2 id="backup">Backup</h2>
+
+<p><code>local_llms/</code>, <code>local_models/</code>,
+<code>native/</code>, and <code>applog/</code> are the four entries in
+<code>FILES_DIR_BACKUP_EXCLUDES</code>:</p>
+
+<pre><code>internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models", "native", "applog")</code></pre>
+
+<p>The multi-GB <code>.task</code> bundles, the hundreds-of-MB
+<code>.tflite</code> embedders, and the device-ABI-tied native
+<code>.so</code> are excluded from the backup zip <strong>and</strong>
+preserved through <code>clearFilesDirForRestore</code>, so a restore
+never wipes them. Full design in
+<a href="backup-restore.html">backup-restore</a>.</p>
+
+<h2 id="related">Related docs</h2>
+
+<ul>
+<li><a href="experimental.html">experimental</a> &mdash; the master
+gate that hides the whole subsystem.</li>
+<li><a href="knowledge.html">knowledge</a> &mdash; RAG; KB embedding
+can use the local embedder.</li>
+<li><a href="backup-restore.html">backup-restore</a> &mdash; the
+exclude / preserve list for the model dirs.</li>
+<li><a href="datastructures.html#appservice">datastructures</a>
+&mdash; <code>AppService</code>, <code>ApiTrace</code>.</li>
+<li><a href="persistent.html">persistent</a> &mdash; the
+<code>&lt;filesDir&gt;</code> layout.</li>
+</ul>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>

@@ -7,46 +7,73 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>Model test</span></header>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Model test</span></header>
 <main>
 
 <h1>Test all models</h1>
 
 <p>End-to-end probe of every configured model in every active
-provider, in parallel, with a fixed prompt and per-(provider, model)
-trace capture. Surfaces under <strong>Housekeeping → Test → Test all
-models</strong> and backs the auto-fed <strong>Blocked /
-Test-excluded / Inaccessible</strong> lists under AI Setup → AI Models
-setup.</p>
+provider, in parallel, with a type-appropriate fixed prompt and
+per-(provider, model) trace capture. Surfaces under
+<strong>Housekeeping &rarr; Test &rarr; Test all models</strong> and
+feeds the <strong>Blocked / Test-excluded / Inaccessible</strong>
+lists under AI Setup &rarr; AI Models. No <code>doc/*.md</code> file
+covers this subsystem yet — this page is verified directly against
+<code>viewmodel/ModelTestEngine.kt</code> and the
+<code>ui/other/ModelTest*.kt</code> screens.</p>
 
-<h2>Engine</h2>
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#engine">Engine</a></li>
+<li><a href="#partition">Catalog partition</a></li>
+<li><a href="#probes">Probe types</a></li>
+<li><a href="#lifecycle">Run lifecycle</a></li>
+<li><a href="#concurrency">Concurrency</a></li>
+<li><a href="#screens">L1 / L2 / L3 screens</a></li>
+<li><a href="#auto-feeds">Auto-feeds</a></li>
+<li><a href="#seed-assets">Seed asset files</a></li>
+<li><a href="#files">Files</a></li>
+</ul>
+</nav>
 
-<p><code>ModelTestEngine</code> owns the run. It exposes two
+<h2 id="engine">Engine</h2>
+
+<p><code>ModelTestEngine</code> owns the single run. It exposes two
 <code>StateFlow</code>s:</p>
 
 <dl class="kv">
 <div>
-<dt>currentRun</dt>
+<dt>run</dt>
 <div class="meta"><code>StateFlow&lt;ModelTestRunState?&gt;</code></div>
 <dd>The latest run snapshot — drives every L1 / L2 / L3 screen.</dd>
 </div>
 <div>
 <dt>throttledKeys</dt>
 <div class="meta"><code>StateFlow&lt;Set&lt;String&gt;&gt;</code></div>
-<dd>Live set of <code>(provider, model)</code> pairs blocked inside
-<code>ProviderThrottle.acquire</code>; drives the L1 "Throttled"
-badge.</dd>
+<dd>Live set of <code>(provider, model)</code> keys currently parked
+on the per-host gate — drives the L1 "Throttled" stat.</dd>
 </div>
 </dl>
 
-<p>A run is built from the user's provider selection. For each
-selected provider the engine partitions the catalog at
-<code>startRun</code> time into four buckets:</p>
+<p><code>hydrate(context)</code> loads the persisted run on first
+screen entry (a no-op once the flow already holds one). Pre-snapshot
+runs whose bucket counts don't reconcile against
+<code>catalogTotal</code> are backfilled from the live
+<code>Settings</code> + provider catalogs and re-saved, so an older
+persisted run still renders a correct L1 top row.</p>
+
+<h2 id="partition">Catalog partition</h2>
+
+<p>A run is built from the user's provider selection. <code>startRun</code>
+partitions every model of every selected provider into four buckets
+that always sum to <code>catalogTotal</code> by construction (the
+stats panel reconciles without rounding errors):</p>
 
 <dl class="kv">
 <div>
 <dt>For testing</dt>
-<dd>Probed in the run. Reported as Done / Error / Throttled.</dd>
+<dd>Probed in the run. Reported as Done / Error / Bench / Throttled.</dd>
 </div>
 <div>
 <dt>Inaccessible</dt>
@@ -56,94 +83,217 @@ sweep entirely; counted in <code>inaccessibleAtStart</code>.</dd>
 </div>
 <div>
 <dt>Test-excluded</dt>
-<dd>In <code>Settings.testExcludedModels</code> (cost &gt; 5¢
+<dd>In <code>Settings.testExcludedModels</code> (probe cost &gt; 5&cent;
 auto-rule + manual + seeded from <code>assets/excluded.json</code>).
 Skipped; counted in <code>excludedAtStart</code>.</dd>
 </div>
 <div>
 <dt>No chat</dt>
-<dd>Non-testable model types (IMAGE, TTS, STT, …). Dropped; counted
-in <code>noChatAtStart</code>.</dd>
+<dd>Model type is in <code>ModelType.NON_TESTABLE_TYPES</code> —
+<code>IMAGE</code>, <code>TTS</code>, <code>STT</code>,
+<code>CLASSIFY</code>, <code>OCR</code>. Dropped; counted in
+<code>noChatAtStart</code>.</dd>
 </div>
 </dl>
 
-<p>The four buckets + <code>forTestingAtStart</code> always sum to
-<code>catalogTotal</code> by construction so the stats panel
-reconciles without rounding errors.</p>
+<p>Only active providers with a non-blank API key are candidates
+(<code>testableProviders()</code>, used by the Select screen). Active
+providers with zero models after filtering never appear in the run.</p>
 
-<h2>Run lifecycle</h2>
+<h2 id="probes">Probe types</h2>
 
-<p>Each probe runs <code>analyze(provider, model, TEST_PROMPT, ...)</code>
-with the provider's default agent config. The fixed prompt is
-<code>"Reply with exactly: OK"</code>. Each <code>ModelTestState</code>
-carries the captured trace filename, the model's raw response text,
-duration, and per-call cost broken into input + output.</p>
+<p>The probe called per item depends on the model's resolved
+<code>ModelType</code> — not everything gets the same chat probe:</p>
+
+<dl class="kv">
+<div>
+<dt>CHAT / RESPONSES / UNKNOWN / null</dt>
+<dd><code>probeChat</code> — the classic <code>"Reply with exactly:
+OK"</code> prompt, capped at
+<code>AnalysisRepository.TEST_MAX_TOKENS</code> (64) output tokens so
+balance-gating providers don't pre-auth the model's whole output
+window. Counts as reachable even on <code>HTTP 200</code> + empty
+visible content, as long as the response burned output or reasoning
+tokens (gpt-5/o-series via OpenRouter with encrypted reasoning
+details; Gemini 2.5/3.x thinking budgets) — the probe's job is
+reachability, not "did it produce visible text".</dd>
+</div>
+<div>
+<dt>EMBEDDING</dt>
+<dd><code>probeEmbedding</code> — one short string through
+<code>embedWithStatus</code> (the status-returning sibling of the
+silent <code>embed()</code> RAG/Knowledge use). PASS = a vector came
+back; response text shows its dimension count.</dd>
+</div>
+<div>
+<dt>RERANK</dt>
+<dd><code>probeRerank</code> — a trivial (query, one document) pair
+through <code>callRerankApi</code>. Providers without
+<code>nativeRerankUrl</code> configured fail with an explanatory
+message.</dd>
+</div>
+<div>
+<dt>MODERATION</dt>
+<dd><code>probeModeration</code> — one innocuous input through
+<code>callModerationApi</code>. PASS = a parseable result; flagged or
+not is irrelevant, the API just has to answer. Providers without
+<code>nativeModerationUrl</code> fail the same way as rerank.</dd>
+</div>
+</dl>
+
+<p>All four funnel into the same internal <code>ProbeResult</code>
+shape (success flag, error message, response text, duration, token
+usage) so <code>runOne</code> applies the outcome uniformly regardless
+of which probe ran.</p>
+
+<h2 id="lifecycle">Run lifecycle</h2>
+
+<p>Each item runs with the provider's default agent config, wrapped
+in a 60 s <code>withTimeout</code> (a stuck free-tier worker would
+otherwise pin its per-host slot for the full ~120 s read timeout and
+block every sibling queued behind it) and
+<code>ProviderThrottle.suppressInlineRetry</code> — a 429/529 here is
+recorded as a result, not slept-and-retried in place, so it can't pin
+an <code>ioCap</code> permit for tens of seconds.</p>
 
 <ul class="tree">
 <li>PENDING 🕓
   <ul><li>permit acquired
     <ul><li>RUNNING ⏳
       <ul>
-        <li>response → PASS ✅</li>
-        <li>error → FAIL ❌</li>
+        <li>timeout (60 s) → FAIL, "Test timed out after 60s"</li>
+        <li>tier-gated error (non-serverless / "is not available on" / HTTP 404) → PASS, moved to Inaccessible</li>
+        <li>reachable response → PASS ✅</li>
+        <li>other error → FAIL ❌</li>
       </ul>
     </li></ul>
   </li></ul>
 </li>
 </ul>
 
-<p>A 429 with Retry-After ≥ 1 h auto-benches the model via
-<code>ModelCooldownStore.markUnavailable(providerId, model, availableAtMs, trace)</code>.
-The benched pair is dropped from the rest of the run and shows in the
-<strong>Model cooldowns</strong> picker thereafter. See
-<a href="cooldowns.html">cooldowns</a>.</p>
+<p>Tier-gating detection treats three error shapes as "not really a
+failure, just not reachable on this account": Together's
+"non-serverless" wording, SambaNova's "is not available on" (HTTP
+410), and a bare HTTP 404 from any provider (endpoint/model id not
+found). These items are recorded PASS with response text
+<em>"Inaccessible — tier-gated, will be skipped next sweep"</em> and
+upserted into <code>Settings.inaccessibleModels</code> — kept in
+<code>_run.items</code> so the run's Total stays stable rather than
+disappearing mid-sweep.</p>
+
+<p>A genuine PASS clears any stale <code>&gt;1h</code>-429 cooldown
+(<code>ModelCooldownStore.remove</code>) so a model that recovers
+isn't gratuitously dimmed elsewhere. Independently, the shared 429
+retry path can bench a model for the rest of the run: any provider
+whose <code>Retry-After</code> hint exceeds
+<code>LONG_RETRY_THRESHOLD_MS</code> (1 hour), a Gemini daily-quota
+hit, a Cohere trial monthly cap, or a billing/credits 429 all call
+<code>ModelCooldownStore.markUnavailable(providerId, model,
+availableAtMs, trace)</code> — the pair then shows benched in L1's
+"Bench" stat and in the <strong>Model cooldowns</strong> picker. See
+<a href="model-states.html#cooldowns">Model states — Cooldowns</a>.</p>
 
 <p>State is persisted to
 <code class="path">&lt;filesDir&gt;/test_run.json</code> (single
-document via <code>ModelTestRunStore</code>) after each item
-completion + once on run end — so a process kill mid-sweep doesn't
-lose progress. Hydration backfills empty cells on the next open;
-the catalog-stats snapshot stays stable for the lifetime of the run
-(only the live progress counters move).</p>
+document via <code>ModelTestRunStore</code>, same
+lock+atomic-write shape as <code>ChatHistoryManager</code>) after
+every item completion and once more on run end — a process kill
+mid-sweep doesn't lose progress. Live per-item Blocked /
+Test-excluded updates happen in memory as each item transitions
+(<code>AppViewModel.applyTestItemIncrement</code>); the settings
+snapshot is flushed to disk once at end-of-run / cancel, not per
+item.</p>
 
-<h2>Concurrency</h2>
+<details>
+<summary>Resume / rerun / cancel outcomes</summary>
+<div class="body">
+<p><strong>Check current test run</strong> (<code>resumeRun</code>) —
+re-dispatches a run whose coroutine died (process kill, crash) but
+still has PENDING/RUNNING items; RUNNING items with no live worker
+reset to PENDING first. Returns <code>NO_RUN</code> /
+<code>ALREADY_RUNNING</code> / <code>ALREADY_COMPLETE</code> /
+<code>RESUMED</code>, each surfaced as a toast.</p>
+<p><strong>Rerun Errors (N)</strong> (<code>rerunErrors</code>) —
+flips every FAIL item back to PENDING and re-dispatches just that
+subset; PASS items are untouched. Also permanently drops FAIL items
+that wouldn't belong in a fresh sweep any more (since added to
+Test-excluded/Inaccessible, or now a non-testable type) instead of
+re-probing them every rerun. Returns <code>NO_RUN</code> /
+<code>ALREADY_RUNNING</code> / <code>NO_ERRORS</code> /
+<code>RESTARTED</code>.</p>
+<p><strong>Cancel test</strong> (<code>cancel</code>) — cancels the
+outer coroutine + every per-item job, marks anything still
+PENDING/RUNNING as FAIL "Cancelled" (cancelled items skip the
+increment hook, so they never pollute Blocked/Test-excluded), then
+flushes settings + persists the run.</p>
+</div>
+</details>
+
+<h2 id="concurrency">Concurrency</h2>
+
+<div class="callout warn">
+<p>There is no separate <code>maxTestApiCalls</code> setting in the
+current source. The sweep sizes its own local semaphore
+(<code>ioCap</code>) to <code>GeneralSettings.maxConcurrentApiCalls</code>
+(default <strong>100</strong>) so it never binds tighter than the
+shared global cap — "no per-batch limit any more," per the engine's
+own comment.</p>
+</div>
 
 <ul>
-<li>The total in-flight cap is
-<code>GeneralSettings.maxTestApiCalls</code> (default 40). Read
-directly by the engine — <strong>not</strong> part of
-<code>ApiCallCaps</code>, so it doesn't compete with report-gen /
-fan-out / Fan Meta budgets.</li>
-<li>Per-host caps come from <code>ProviderThrottle</code> like every
-other flow (30 / min × 3 concurrent default, per-provider overrides
-apply).</li>
-<li>The engine pre-acquires permits before each probe so the L1
-"Throttled" badge can show a live count of pairs blocked in
-<code>acquire</code>.</li>
+<li>Every item goes through the shared
+<code>runThrottledBatch</code> helper (the same one Fan Out / Fan-in
+/ Fan Meta / workers use) in the canonical order
+<code>ioCap &rarr; ApiCallCaps.global &rarr; per-host
+(ProviderThrottle)</code>. See <a href="throttle.html#acquisition">Throttle
+— acquisition order</a>.</li>
+<li>Per-host caps come from <code>ProviderThrottle</code> — default
+<strong>60 calls/min</strong> and <strong>5 concurrent</strong> per
+host, per-provider overrides apply on top. See
+<a href="throttle.html">Throttle</a>.</li>
+<li>Permits are pre-acquired before each probe
+(<code>permitPreAcquired</code>) so the OkHttp interceptor doesn't
+double-acquire the same per-host semaphore and self-deadlock
+same-host probes; the L1 "Throttled" stat reflects items currently
+parked on that per-host gate.</li>
 </ul>
 
-<h2>L1 / L2 / L3 screens</h2>
+<h2 id="screens">L1 / L2 / L3 screens</h2>
 
-<p>The drill-in shape mirrors the Fan-out one (so the stats panel +
-progress bar pattern reuses). <code>ModelTestScreen</code> is the
-entry point; <code>ModelTestSelectScreen</code> picks providers
-(skipped when there's only one provider eligible — the flow jumps
-straight to the picker).</p>
+<p>The drill-in shape mirrors Fan Out's (stats panel + progress bar
+pattern reused). <code>ModelTestScreen</code>
+(<code>ui/other/ModelTest.kt</code>) owns a sealed
+<code>ModelTestNav</code> (L1 / Select / L2 / L3) with a
+<code>rememberSaveable</code> Saver + <code>BackHandler</code>, and
+auto-redirects a fresh entry with no persisted run straight to
+Select. <code>ModelTestSelectScreen</code> lists every testable
+provider with a checkbox (all pre-checked) and a per-provider
+model count; "Start test" launches the run scoped to the checked
+providers.</p>
 
 <details open>
 <summary>L1 — ModelTestL1Screen</summary>
 <div class="body">
 <ul>
-<li><strong>Stats panel</strong> (pinned at the top, split into two
-rows): catalog partition (Total / For-testing / Inaccessible /
-Excluded / No-chat) + live progress (Running / Queued / Throttled /
-Done / Errors), plus total cost in the list header.</li>
-<li>One row per provider, alphabetical, with per-provider Test +
-Cancel buttons.</li>
-<li>"Test all models" + "Cancel test" + "Check current test run"
-(resume) + "Rerun errors" actions.</li>
-<li>Math reconciles by construction; "Run" was renamed to "Running"
-and "Queue" to "Queued" with swapped colours.</li>
+<li><strong>Stats panel</strong>, two rows: the top row is the frozen
+catalog snapshot (Total / Inaccessible / Excluded / No chat / For
+testing / Costs); the bottom row is live progress (Done / Errors /
+<strong>Bench</strong> / Running / Throttled / Queued). "Errors" is
+the FAIL count minus benched items; "Bench" counts FAIL items
+currently on a &gt;1h cooldown (reactive against
+<code>ModelCooldownStore.cooldowns</code>).</li>
+<li>A progress bar shows while anything is queued or running,
+tracking <code>(Done + Errors) / Total</code>.</li>
+<li>One row per provider, alphabetical by id, with a background fill
+showing that provider's tested fraction and a status icon (running,
+all-pass, all-fail, mixed-fail, queued). Tap opens L2.</li>
+<li>Bottom buttons: idle → <strong>Test all models</strong> (opens
+Select) plus <strong>Rerun Errors (N)</strong> when the last run has
+errors; running → <strong>Check current test run</strong> +
+<strong>Cancel test</strong>.</li>
+<li>The gear icon jumps straight to AI Setup → Test-excluded models;
+the 🐞 trace icon (when present) deep-links the trace list filtered
+to this run's <code>runId</code>.</li>
 </ul>
 </div>
 </details>
@@ -151,69 +301,86 @@ and "Queue" to "Queued" with swapped colours.</li>
 <details>
 <summary>L2 — ModelTestL2Screen</summary>
 <div class="body">
-<p>Per-provider list of model rows. Each row shows status icon, model
-name, latency, cost, and (on FAIL) an error tooltip with a 🐞 deep
-link to the captured trace. The source prompt sits at the top of the
-page so the user knows what every row was tested with.</p>
+<p>One provider's item rows, sorted running/queued &rarr; failed
+&rarr; passed, then alphabetically. Each row: status icon, model
+name, and cost (when non-zero); a footer row totals the provider's
+cost. The info icon opens the provider's own edit screen (not Model
+Info). Tapping a row opens L3.</p>
 </div>
 </details>
 
 <details>
 <summary>L3 — ModelTestL3Screen</summary>
 <div class="body">
-<p>Single-model detail. HARDCODED green subject row carries the model
-name; centred dynamic icon; the captured trace deep-link; the request
-prompt; the response body; and chevron nav to walk siblings in the
-provider list.</p>
+<p>Single-model detail: status line (Passed / Failed / Running /
+Queued) with icon and colour, the error message when present,
+latency + cost, the fixed prompt, and the model's raw response text.
+The 🐞 trace icon (when a trace was captured) deep-links straight to
+that call's trace. Swipe left/right over the content steps to the
+next/previous sibling in the same provider-scoped order L2 shows —
+there's no separate chevron control.</p>
 </div>
 </details>
 
-<h2>Auto-feeds</h2>
+<h2 id="auto-feeds">Auto-feeds</h2>
 
-<p>The sweep automatically feeds three Settings lists from its
-outcomes — each user-editable under AI Setup → AI Models setup:</p>
+<p>The sweep automatically feeds three <code>Settings</code> lists
+from its outcomes — each user-editable under AI Setup → AI Models.
+Full mechanics (picker dimming, CRUD screens, prefs keys) live in
+<a href="model-states.html">Model states</a>; this is the
+test-sweep-specific slice.</p>
 
 <dl class="kv">
 <div>
 <dt>Blocked models <span class="muted">(Settings.blockedModels)</span></dt>
-<dd>Anything that returned an error above the user threshold.
-Counted as FAIL until manually un-blocked. CRUD with a reason text.</dd>
+<dd>Live, per item, as the run progresses
+(<code>applyTestItemIncrement</code>): PASS drops any existing entry
+for the pair; FAIL <strong>not</strong> on a cooldown upserts it with
+the error (truncated to 300 chars, default "Test failed"); FAIL
+<strong>on</strong> a cooldown drops it instead (the cooldown list
+owns that pair). Hand-curable with a reason text via the Blocked CRUD.</dd>
 </div>
 <div>
 <dt>Test-excluded models <span class="muted">(Settings.testExcludedModels)</span></dt>
-<dd>Models whose probe cost would exceed 5¢ get added automatically;
-the user can add or remove freely. Skipped by the sweep but still
+<dd>Auto-added when a probe's <code>totalCost</code> exceeds
+<code>COSTLY_PROBE_USD_THRESHOLD</code> (5&cent;); the user can add or
+remove freely. Skipped by future sweeps but stays fully
 picker-visible. Seeded from <code>assets/excluded.json</code> on
 every cold start via <code>TestExcludedSeed</code>.</dd>
 </div>
 <div>
 <dt>Inaccessible models <span class="muted">(Settings.inaccessibleModels)</span></dt>
-<dd>Tier-gated catalog entries the user can't actually call (Together
-non-serverless, etc.). <strong>Hidden from every picker</strong> —
-distinct from Test-excluded which only hides from the sweep.
-Auto-added on tier-gating provider errors. Seeded from
+<dd>Tier-gated catalog entries the account can't actually call
+(Together non-serverless, SambaNova retired ids, generic 404s).
+Dims but stays selectable in every picker — distinct from
+Test-excluded, which is sweep-only. Auto-added on the tier-gating
+signals in <a href="#lifecycle">Run lifecycle</a>. Seeded from
 <code>assets/inaccessible.json</code> (64 bundled entries today) via
 <code>InaccessibleSeed</code>.</dd>
 </div>
 </dl>
 
-<h2>Seed asset files</h2>
+<h2 id="seed-assets">Seed asset files</h2>
 
 <p>Both <code>assets/inaccessible.json</code> and
-<code>assets/excluded.json</code> are delta-merged on every cold start
-— bundled entries whose <code>(providerId, model)</code> key isn't
-already in the user's list are appended; existing entries are never
-overwritten. So updating an asset reaches existing installs without
-destroying user edits.</p>
+<code>assets/excluded.json</code> are delta-merged on every cold
+start — bundled entries whose <code>(providerId, model)</code> key
+isn't already in the user's list are appended; existing entries are
+never overwritten. So updating an asset reaches existing installs
+without destroying user edits.</p>
 
 <p>To curate a new bundled entry: append the row to the asset JSON,
 push a build, the next cold start picks it up.</p>
 
-<h2>Files</h2>
+<h2 id="files">Files</h2>
 
 <ul>
 <li><code>viewmodel/ModelTestEngine.kt</code> — run logic, partition,
-persistence.</li>
+probes, persistence.</li>
+<li><code>viewmodel/ThrottledBatch.kt</code> — the shared
+<code>runThrottledBatch</code> / <code>PermitHold</code> throttle
+contract (Test all models, Fan Out, Fan-in, Fan Meta, workers all go
+through this).</li>
 <li><code>data/ModelTestRunModel.kt</code> —
 <code>TestStatus</code>, <code>ModelTestState</code>,
 <code>ModelTestRunState</code> (see
@@ -224,14 +391,14 @@ single-document writer.</li>
 <li><code>data/InaccessibleSeed.kt</code> +
 <code>data/TestExcludedSeed.kt</code> — delta merge of bundled assets
 into Settings on cold start.</li>
-<li><code>ui/report/ModelTestScreen.kt</code>,
-<code>ModelTestSelectScreen.kt</code>,
-<code>ModelTestL1Screen.kt</code>,
-<code>ModelTestL2Screen.kt</code>,
-<code>ModelTestL3Screen.kt</code>.</li>
+<li><code>ui/other/ModelTest.kt</code> — nav shell
+(<code>ModelTestScreen</code>).</li>
+<li><code>ui/other/ModelTestSelect.kt</code>,
+<code>ModelTestL1.kt</code>, <code>ModelTestL2.kt</code>,
+<code>ModelTestL3.kt</code> — the four screens.</li>
 </ul>
 
-<p class="backtop"><a href="#">↑ Top</a></p>
+<p class="backtop"><a href="#">&uarr; Top</a></p>
 
 </main>
 </body>

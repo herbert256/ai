@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>Development</span></header>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Development</span></header>
 <main>
 
 <h1>Development guide</h1>
@@ -27,23 +27,23 @@
 <li><a href="#testing">Testing</a></li>
 <li><a href="#gotchas">Common gotchas</a></li>
 <li><a href="#seeding">First-run seeding + delta-merge</a></li>
-<li><a href="#migration">Precompute migration version</a></li>
+<li><a href="#capabilities">Capability precompute</a></li>
 </ul>
 </nav>
 
 <h2 id="build">Build</h2>
 
-<pre><code>JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleDebug
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleRelease</code></pre>
+<pre><code>JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleDebug
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleRelease</code></pre>
 
-<p>Toolchain: Kotlin 2.2.10, AGP 9.2.0, Gradle 9.5, Java 17 (JVM
-target 17, source / target compatibility 17), Compose BOM 2026.04.01.
-<code>compileSdk = 36</code>, <code>buildToolsVersion = "36.1.0"</code>,
-<code>minSdk = 26</code>, <code>targetSdk = 36</code>, namespace
-<code>com.ai</code>. Release builds enable
-<code>isMinifyEnabled</code> and <code>isShrinkResources</code> and
-require <code>local.properties</code> to define
-<code>KEYSTORE_FILE</code> / <code>KEYSTORE_PASSWORD</code> /
+<p>Toolchain: Kotlin 2.4.0, AGP 9.2.1, Gradle 9.5.1, Java 25 (JVM
+target 25, source/target compatibility 25), Compose BOM 2026.05.01.
+<code>compileSdk = 37</code>, <code>buildToolsVersion = "37.0.0"</code>,
+<code>minSdk = 36</code>, <code>targetSdk = 36</code>, namespace
+<code>com.ai</code>, <code>applicationId = "com.ai"</code>. Release
+builds enable <code>isMinifyEnabled</code> and
+<code>isShrinkResources</code> and require <code>local.properties</code>
+to define <code>KEYSTORE_FILE</code> / <code>KEYSTORE_PASSWORD</code> /
 <code>KEY_ALIAS</code> / <code>KEY_PASSWORD</code> — the build fails
 loudly otherwise rather than emitting an unsigned APK.</p>
 
@@ -56,19 +56,32 @@ prefs round-trip:</p>
 <div class="meta">30</div>
 <dd>TCP / TLS handshake.</dd></div>
 <div><dt>NETWORK_READ_TIMEOUT_SEC</dt>
-<div class="meta">600</div>
-<dd>Streaming reads (10 min cap on long SSE).</dd></div>
+<div class="meta">240</div>
+<dd>Streaming reads (SSE) — the <code>ReadTimeoutInterceptor</code>
+streaming branch default.</dd></div>
+<div><dt>NETWORK_NONSTREAMING_READ_TIMEOUT_SEC</dt>
+<div class="meta">120</div>
+<dd>Non-streaming reads — the <code>ReadTimeoutInterceptor</code>
+default branch.</dd></div>
 <div><dt>NETWORK_WRITE_TIMEOUT_SEC</dt>
 <div class="meta">30</div>
 <dd>Request body upload.</dd></div>
 <div><dt>TEST_CONNECTION_READ_TIMEOUT_SEC</dt>
-<div class="meta">120</div>
+<div class="meta">30</div>
 <dd>Per-provider Test API Key call.</dd></div>
 </dl>
 
+<p>These seed <code>NetworkSettings.streamingReadTimeoutSec</code>
+(240) / <code>nonStreamingReadTimeoutSec</code> (120) at startup;
+both are runtime-tunable from Settings → Network settings afterwards.
+<span class="muted">(A few in-code comments in
+<code>ReadTimeout.kt</code> / <code>TestCallTimeout.kt</code> still
+say "10 min" — stale; the real static read timeout is 240 s.)</span></p>
+
 <p>The <code>versionName</code> is computed at build time as
-<code>YY.DDD.MIN</code> (year % 100 + day-of-year + minutes-of-day)
-so two builds the same minute share a version.</p>
+<code>YY.DDD.MIN</code> (last two digits of the year, day-of-year,
+minutes-of-day) so two builds the same minute share a version;
+<code>versionCode</code> stays <code>1</code>.</p>
 
 <p>A few notable runtime dependencies (full list in
 <code>ai/build.gradle.kts</code>):</p>
@@ -77,7 +90,21 @@ so two builds the same minute share a version.</p>
 <li><strong>Retrofit + OkHttp</strong> — every cloud API call.</li>
 <li><strong>Gson</strong> — JSON serialisation for persisted models
 and trace files.</li>
+<li><strong>PDFBox-Android 2.0.27.0</strong>
+(<code>com.tom-roush:pdfbox-android</code>) — PDF text extraction
+for RAG ingest and report-PDF export.</li>
+<li><strong>MediaPipe Tasks GenAI / Tasks Text</strong> — on-device
+LLM + embedder. The ~26 MB LLM native <code>.so</code> is
+<em>not</em> bundled; it's downloaded on demand from the matching
+AAR. See <a href="local-runtime.html">local-runtime</a>.</li>
 </ul>
+
+<div class="callout">
+<p>There is <strong>no</strong> <code>androidx.datastore.preferences</code>
+dependency anywhere in this project — persistence is SharedPreferences
++ JSON files under <code>filesDir</code>/<code>cacheDir</code> only.
+Don't reach for DataStore expecting an existing pattern.</p>
+</div>
 
 <h2 id="deploy">Deploy</h2>
 
@@ -91,75 +118,82 @@ build, not only after explicit-commit prompts.</p>
 
 <h2 id="logs">Logs</h2>
 
-<pre><code>adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppLifecycle|AppLog|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|FanOutEngine|ImportExport|ModelCooldown|ModelListCache|ModelTestEngine|PricingCache|ProviderRegistry|ProviderFieldTimestamps|RateLimit|ReportExport|ReportIcons|ReportStorage|SettingsExport|Throttle"</code></pre>
+<pre><code>adb logcat | grep -E "App.bootstrap|ApiDispatch|ApiTracer|AppLog|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|ImportExport|ModelListCache|PricingCache|ProviderRegistry|ProviderFieldTimestamps|RateLimit|ReportExport|ReportStorage|SettingsExport|Throttle"</code></pre>
 
 <p>The in-app <strong>API Traces</strong> screen (Hub → AI API Traces)
 is usually a faster way to inspect what was sent / received during a
-report run — each call gets a JSON file under
+report run — each call gets a pretty-printed JSON file under
 <code class="path">&lt;filesDir&gt;/trace/</code> while
 <code>ApiTracer.isTracingEnabled</code> is on (it's on by default but
-can be toggled in Settings).</p>
+can be toggled in Settings). Secrets are redacted before the trace
+hits disk (<code>Authorization</code> / <code>x-api-key</code> /
+<code>?key=</code> query params / JSON body key fields), since trace
+files roll into backups.</p>
 
 <p>There's also the <strong>AI App log</strong> in-app viewer
 (Hub → AI App log) — a log4j-style file appender
 (<code>com.ai.data.AppLog</code>) that mirrors
 <code>android.util.Log</code> and writes everything at or above
 <strong>Settings → Logging → Level</strong> to
-<code class="path">&lt;filesDir&gt;/applog/applog_&lt;yyyyMMdd&gt;.log</code>.
-Lines are written through inline redaction so a shared log never
-carries plain secrets. The viewer supports search, level checkboxes,
-time-range pickers, tag dropdown, and a Copy / Share dialog with
-<strong>Filtered only</strong> + <strong>Last N lines /
-Complete</strong> options. See <a href="applog.html">applog</a>.</p>
+<code class="path">&lt;filesDir&gt;/applog/applog_&lt;yyyyMMdd&gt;.log</code>
+(rotated daily). Lines are written through inline redaction (Bearer
+tokens, raw <code>sk-</code> / <code>xai-</code> / <code>gsk_</code> /
+<code>key-</code> API keys, Google <code>?key=</code> query params)
+so a shared log never carries plain secrets. The viewer supports
+search, level checkboxes, time-range pickers, tag dropdown, and a
+Copy / Share dialog with <strong>Filtered only</strong> +
+<strong>Last N lines / Complete</strong> options. The code uses
+~80 distinct <code>AppLog</code> tags. See
+<a href="applog.html">applog</a>.</p>
 
 <h2 id="layout">Project layout</h2>
 
 <ul class="tree">
-<li>ai/src/main/java/com/ai/
+<li><strong>ai/src/main/java/com/ai/</strong>
   <ul>
-    <li>MainActivity.kt</li>
-    <li>data/
+    <li>MainActivity.kt <span class="note">— the only Activity (ComponentActivity)</span></li>
+    <li>data/ <span class="note">— 97 files, core data layer</span>
       <ul>
-        <li>AnalysisRepository.kt, ApiClient.kt, ApiDispatch.kt</li>
-        <li>ApiFormat.kt, ApiModels.kt, ApiStreaming.kt</li>
-        <li>ApiTracer.kt, AppLog.kt, AppService.kt</li>
-        <li>AtomicFileWrite.kt, BackupManager.kt</li>
-        <li>ChatHistoryManager.kt, DataModels.kt</li>
-        <li>EmojiExtract.kt, ExamplePromptSeed.kt</li>
-        <li>FanOutRunModel.kt, HuggingFaceCache.kt</li>
-        <li>ImageAttach.kt, InaccessibleSeed.kt</li>
-        <li>InternalPromptIconCache.kt, InternalPromptSeed.kt</li>
-        <li>ModelCooldownStore.kt, ModelListCache.kt</li>
-        <li>ModelTestRunModel.kt, ModelTestRunStore.kt</li>
-        <li>ModelType.kt, PricingCache.kt, PricingParsers.kt</li>
-        <li>PromptCache.kt, ProviderFieldTimestamps.kt</li>
-        <li>ProviderRegistry.kt, ReportStorage.kt</li>
-        <li>SecondaryResult.kt, SharedContent.kt, TestExcludedSeed.kt</li>
+        <li>AnalysisRepository, ApiClient, ApiDispatch, ApiFormat, ApiModels, ApiStreaming</li>
+        <li>ApiTracer, TracingInterceptor, TagPropagation <span class="note">— tracing + throttle context</span></li>
+        <li>RateLimitRetry, OverloadedRetry, ReadTimeout, TestCallTimeout, ProviderThrottling</li>
+        <li>AppLog, AppService, AtomicFileWrite, BackupManager, ChatHistoryManager, DataModels</li>
+        <li>EmbeddingsStore, EmojiExtract, ExamplePromptSeed, HuggingFaceCache, ImageAttach, InternalPromptSeed</li>
+        <li>Knowledge*.kt <span class="note">— RAG layer</span></li>
+        <li>ModelListCache, ModelType, PricingCache, PricingParsers, PromptCache</li>
+        <li>ProviderFieldTimestamps, ProviderRegistry, ReportStorage, SecondaryResult, SecondaryModels</li>
+        <li>TournamentRunModel, JudgeEvalRunModel, CompareRunModel, TournamentRanking, JudgeAgreement, SharedContent</li>
+        <li>local/ (4) <span class="note">— LocalLlm / LocalEmbedder / LlmRuntime / LocalRuntime</span></li>
       </ul>
     </li>
     <li>model/ <span class="note">— 2 files</span>
       <ul><li>SettingsModels.kt + SettingsHolder.kt</li></ul>
     </li>
-    <li>viewmodel/ <span class="note">— 6 files</span>
+    <li>viewmodel/ <span class="note">— 27 files</span>
       <ul>
-        <li>AppViewModel.kt + ChatViewModel.kt + ReportViewModel.kt</li>
-        <li>ReportViewModelHelpers.kt</li>
-        <li>FanOutEngine.kt + ModelTestEngine.kt</li>
+        <li>AppViewModel <span class="note">— + AppViewModelTypes.kt (GeneralSettings, extracted top-level enums)</span></li>
+        <li>ChatViewModel + ReportViewModel <span class="note">— + ReportViewModelHelpers.kt</span></li>
+        <li>BatchEngine / SecondaryBatchEngine <span class="note">— the two abstract batch-engine bases</span></li>
+        <li>extracted engines/managers <span class="note">— RegenerateBatchEngine, SecondaryRunManager, IconGenerationManager, TournamentEngine, JudgeEvalEngine, CompareEngine, FanOutEngine, ModelTestEngine, StressTestEngine, TranslatorRankEngine, MetaEditManager, TranslationRunManager, SecondaryModelSwitchManager, WorkerRunner, ThrottledBatch, BrokenWorkPolicy, BuildProgress, TranslationTypes, SecondaryCellCalls, ReplayTrack</span></li>
       </ul>
     </li>
-    <li>ui/ <span class="note">— 100 files</span>
+    <li>ui/ <span class="note">— 279 files, none at ui/ root</span>
       <ul>
-        <li>navigation/ (2) <span class="note">— AppNavHost, NavRoutes (~80 routes)</span></li>
-        <li>hub/ (1) <span class="note">— main hub + Reports / Chats hubs</span></li>
-        <li>report/ (37) <span class="note">— report flows, secondary results, exports, FanOut + L1/L2/L3 + Icons, ModelTest, Translation, FindAlternativeIcons</span></li>
+        <li>report/ (101) <span class="note">— report flows, secondary results, Fan-out/Fan-in/Tournament/Judges/Compare/Rank-translators, exports (PDF, DOCX/ODT, RTF, zipped HTML), translation, icon screens, manage/overview+edit, Get-info/regenerate, Answer matrix</span></li>
+        <li>cruds/ (48) <span class="note">— generic CRUD framework + per-entity CRUDs: workers, model-states, prompts, params, cost overrides</span></li>
+        <li>admin/ (36) <span class="note">— Housekeeping/Backup-Restore/Reset/Trim by age/Costs/Test/traces/help/provider admin/developer/docs/AppLog</span></li>
+        <li>settings/ (22) <span class="note">— SettingsScreen sub-screens + Workers/Local-runtime setup</span></li>
+        <li>shared/ (17) <span class="note">— CrudListScreen, TitleBar+BottomIconBar, AppColors, Badges, Dialogs, Cards, …</span></li>
+        <li>helpers/ (16) <span class="note">— report export builders + shared helpers</span></li>
+        <li>navigation/ (7) <span class="note">— AppNavHost, NavRoutes + the 5 route files</span></li>
+        <li>other/ (6) <span class="note">— Selection picker + misc</span></li>
         <li>chat/ (5) <span class="note">— chat + chat history + dual chat</span></li>
-        <li>search/ <span class="note">— Quick / Extended local</span></li>
-        <li>share/ (1) <span class="note">— ShareChooserScreen + helpers</span></li>
-        <li>models/ (1) <span class="note">— model search + Model Info</span></li>
-        <li>history/ (3) <span class="note">— report history + prompt history + example-prompt picker</span></li>
-        <li>settings/ (17) <span class="note">— all AI Setup sub-screens</span></li>
-        <li>admin/ (11) <span class="note">— Housekeeping, Backup/Restore, Reset, Trim, Usage, statistics, traces, help, developer, Test, AppLogScreen</span></li>
-        <li>shared/ (~9) <span class="note">— CrudListScreen, TitleBar + BottomIconBar + HardcodedSubjectRow, AppColors, CameraCapture, CsvHelpers, ExportShare, RestartAppDialog, SelectionScreens, SharedComponents, UiFormatting</span></li>
+        <li>search/ (4) <span class="note">— Quick/Extended local + Remote + Local semantic search</span></li>
+        <li>hub/ (5) <span class="note">— main hub + Reports/Chats hubs</span></li>
+        <li>history/ (3) <span class="note">— report + prompt history + picker</span></li>
+        <li>models/ (4) <span class="note">— model search + Model Info</span></li>
+        <li>share/ (3) <span class="note">— ShareChooserScreen + helpers</span></li>
+        <li>knowledge/ (1) <span class="note">— RAG Knowledge screens</span></li>
         <li>theme/ (1) <span class="note">— Material3 dark theme</span></li>
       </ul>
     </li>
@@ -167,7 +201,83 @@ Complete</strong> options. See <a href="applog.html">applog</a>.</p>
 </li>
 </ul>
 
-<p>Roughly <strong>150 Kotlin files, ~73,900 LOC</strong> total.</p>
+<p>Roughly <strong>406 Kotlin files, ~161,200 LOC</strong> total
+(<code>data</code> 97 + <code>model</code> 2 + <code>viewmodel</code>
+27 + <code>ui</code> 279 + <code>MainActivity</code>).</p>
+
+<h3 id="navigation">Navigation, in two systems</h3>
+
+<ol>
+<li><strong>Top-level routes</strong> use Jetpack Navigation Compose.
+<code>NavRoutes.kt</code> holds ~120 route-template constants plus
+arg-encoding builder helpers (e.g. <code>aiReportInfo()</code>,
+<code>traceDetail()</code>). <code>AppNavHost.kt</code> declares the
+single <code>NavHost</code> but does <strong>not</strong> register
+composables inline — registration is split across five
+<code>NavGraphBuilder</code> extension functions, each in its own
+file under <code>ui/navigation/</code>: <code>reportRoutes</code>,
+<code>settingsAdminRoutes</code>, <code>knowledgeSearchRoutes</code>,
+<code>developerRoutes</code>, <code>chatRoutes</code>. All five take
+the same <code>(navController, appViewModel, reportViewModel,
+chatViewModel, safePopBack, navigateHome)</code>.</li>
+<li><strong><code>SettingsScreen</code> sub-screens</strong> use an
+internal <code>when</code> block. <code>SettingsScreen.kt</code> holds
+an <code>enum class SettingsSubScreen</code> (~53 values:
+<code>MAIN</code>, <code>AI_SETUP</code>, <code>AI_PROVIDERS</code>,
+<code>AI_AGENTS</code>, <code>AI_PARAMETERS</code>,
+<code>SETTINGS_NETWORK</code>, <code>SETTINGS_UI</code>, …), a
+<code>rememberSaveable currentSubScreen</code>, and a large
+<code>when</code> that both renders the sub-screen and implements
+hierarchical back navigation via <code>BackHandler</code>.</li>
+</ol>
+
+<h3 id="overlay">Full-screen overlay pattern (load-bearing)</h3>
+
+<p>Many screens layer a full-screen overlay over their parent with:</p>
+
+<pre><code>if (showOverlay) { OverlayScreen(...); return }</code></pre>
+
+<p>The trailing <code>return</code> keeps the parent composable from
+continuing, which <strong>preserves the parent's
+<code>remember</code> / <code>rememberSaveable</code> state</strong>
+while the overlay is up. This is used ~60 places across
+<code>ui/</code> (e.g. the report-View grid's Costs / Icons / Matrix /
+Tournament overlays in <code>ui/report/view/</code>). Do not "fix"
+it into a separate route — the user relies on the in-place state
+preservation.</p>
+
+<h3 id="threeviewmodels">The three "view models"</h3>
+
+<p>Only <code>AppViewModel</code> is an actual androidx
+<code>ViewModel</code> (<code>class AppViewModel(application) :
+AndroidViewModel(application)</code>). <code>ReportViewModel</code>
+and <code>ChatViewModel</code> are <strong>plain classes</strong>
+that take an <code>AppViewModel</code> in their constructor and
+delegate all state to it (<code>UiState</code> /
+<code>StateFlow</code>); despite the "…ViewModel" name they do not
+extend androidx <code>ViewModel</code>.</p>
+
+<p>The extracted batch engines (<code>CompareEngine</code>,
+<code>FanOutEngine</code>, <code>TournamentEngine</code>,
+<code>JudgeEvalEngine</code>, <code>RegenerateBatchEngine</code>,
+<code>ModelTestEngine</code>, <code>StressTestEngine</code>,
+<code>TranslatorRankEngine</code>, <code>MetaEditManager</code>,
+<code>SecondaryModelSwitchManager</code>) all use
+<code>internal constructor</code>, but only half of them extend one
+of the two abstract bases: <code>FanOutEngine</code> extends the
+generic <code>abstract class BatchEngine</code> directly, while the
+four grid-shaped kinds (<code>TournamentEngine</code>,
+<code>JudgeEvalEngine</code>, <code>CompareEngine</code>,
+<code>TranslatorRankEngine</code>) extend
+<code>abstract class SecondaryBatchEngine</code> (itself unrelated to
+<code>BatchEngine</code>) — the shared template for their finalize /
+resume / remove / rerun / continue-broken flows.
+<code>RegenerateBatchEngine</code>, <code>ModelTestEngine</code>,
+<code>StressTestEngine</code>, <code>MetaEditManager</code>, and
+<code>SecondaryModelSwitchManager</code> are plain classes with no
+supertype. The managers (<code>SecondaryRunManager</code>,
+<code>IconGenerationManager</code>, <code>TranslationRunManager</code>,
+<code>WorkerRunner</code>) are public.</p>
 
 <h2 id="adding">Adding things</h2>
 
@@ -175,52 +285,98 @@ Complete</strong> options. See <a href="applog.html">applog</a>.</p>
 <summary>A new OpenAI-compatible provider</summary>
 <div class="body">
 <ol>
-<li>Add an entry to <code>assets/providers.json</code> under
-<code>providers</code>. Required: <code>id</code>, <code>baseUrl</code>,
-<code>adminUrl</code>, <code>defaultModel</code>. Optional:
-<code>apiFormat</code> (defaults to <code>OPENAI_COMPATIBLE</code>),
-<code>openRouterName</code>, <code>litellmPrefix</code>,
-<code>hardcodedModels</code>, <code>defaultModelSource</code>,
+<li>Add <strong>one new JSON file</strong> under
+<code>assets/providers/</code> — the bundled catalog is one file per
+provider (<strong>91 files</strong> today), each a bare
+<code>ProviderDefinition</code> object (<strong>no</strong>
+<code>{"providers": [...]}</code> wrapper). Required: <code>id</code>,
+<code>baseUrl</code>, <code>adminUrl</code>, <code>defaultModel</code>.
+Optional: <code>apiFormat</code> (defaults to
+<code>OPENAI_COMPATIBLE</code>), <code>openRouterName</code>,
+<code>litellmPrefix</code>, <code>hardcodedModels</code>,
+<code>mergeHardcodedModels</code>, <code>defaultModelSource</code>,
 <code>modelFilter</code>, <code>typePaths</code>,
-<code>modelsPath</code>, etc.
+<code>modelsPath</code>, <code>responsesApiPatterns</code>,
+<code>builtInEndpoints</code>, the per-provider throttle/retry
+overrides (<code>maxCallsPerProviderPerMinute</code>,
+<code>maxConcurrentCallsPerProvider</code>, <code>maxRetriesOn529</code>,
+…), etc. <code>ProviderRegistry.readBundledProviderDefs</code> reads
+every <code>*.json</code> in the folder, sorted by filename for a
+deterministic merge; one bad file is skipped, not fatal.
 <br><br>
-Note: <code>id</code> is now the <strong>only</strong> name field —
-no separate <code>displayName</code> or <code>prefsKey</code>. UI
-shows <code>id</code> directly; SharedPreferences key prefixes use
-<code>id</code> directly (e.g. <code>OpenAI_api_key</code>).</li>
-<li>If the provider exposes a different <code>chatPath</code> or
-<code>modelsPath</code>, set <code>typePaths.chat</code> and
-<code>modelsPath</code>.</li>
-<li>The bundled JSON has no top-level <code>version</code> field. The
-provider catalog ships as a flat <code>{"providers": [...]}</code>
-shape.</li>
+Note: <code>id</code> is the <strong>only</strong> name field — no
+separate <code>displayName</code> or <code>prefsKey</code>. The UI
+shows <code>id</code> directly, and SharedPreferences key prefixes
+use it directly (e.g. <code>OpenAI_api_key</code>).</li>
+<li>For a non-default chat or models path, set <code>typePaths</code>
+(e.g. <code>typePaths.chat</code>) and <code>modelsPath</code>.
+<code>chatPath</code> / <code>responsesPath</code> are computed
+getters over <code>typePaths</code>, not stored fields.</li>
+<li>The user-facing import/export wire format (the "Import
+providers.json" button + "Share providers", via
+<code>ProviderRegistry.upsertFromJson</code>) is still the flat
+<code>{"providers": [...]}</code> shape with <strong>no top-level
+<code>version</code> field</strong> — only the on-disk bundled layout
+changed to per-file.</li>
 </ol>
-<p>The first run after install reads <code>providers.json</code> and
-persists each provider into <code>ProviderRegistry</code>. To force
-a re-import on an existing install: AI Setup → Providers → Refresh
-providers (or Housekeeping → Reset → Refresh bundled assets, which
-re-pulls <code>providers.json</code> <em>and</em>
-<code>internal-prompts/</code>).</p>
-<p><code>ProviderRegistry.importFromAsset</code> rejects duplicate
-ids, drops malformed provider entries instead of NPEing later, and
-case-insensitively dedups when merging.</p>
+<p><code>AppService</code> is a plain <code>class</code> (not a
+<code>data class</code>): its <code>equals</code>/<code>hashCode</code>/
+<code>toString</code> are <strong>id-only</strong>, and it hand-writes
+a <code>copy(...)</code> funnel covering all of its fields so a newly
+added field can't be silently dropped. Add the field to the
+constructor <em>and</em> to the <code>copy(...)</code> body, and to
+<code>ProviderDefinition</code> (the Gson DTO in
+<code>ProviderRegistry.kt</code>) plus its <code>toAppService</code> /
+<code>fromAppService</code>.</p>
+<p><code>ProviderRegistry</code> starts <strong>empty</strong> on a
+fresh install. The first run reads the <code>assets/providers/</code>
+folder via <code>importFromAsset(context)</code> and persists each
+provider into the <code>provider_registry</code> SharedPreferences
+file. To force a re-import on an existing install: AI Setup →
+Providers → Refresh providers (or Housekeeping → Reset → Refresh
+bundled assets, which re-pulls the <code>assets/providers/</code> set
+<em>and</em> the <code>internal-prompts/</code> tree).</p>
+<p><code>importFromAsset</code> is append-only (never overwrites an
+existing id, returns the count of newly-added providers, <code>-1</code>
+on failure) and drops malformed entries (null/blank
+<code>id</code>/<code>baseUrl</code>) instead of NPEing later. The
+every-start delta-merge uses <code>syncFromAsset</code>, which only
+touches fields the user has <em>not</em> edited (gated by
+<code>ProviderFieldTimestamps</code>) and never appends new
+providers.</p>
 </div>
 </details>
 
 <details>
 <summary>A non-OpenAI-compatible provider</summary>
 <div class="body">
+<p><code>ApiFormat</code> has exactly four values:
+<code>OPENAI_COMPATIBLE</code> (88 of the 91 bundled providers),
+<code>ANTHROPIC</code> (just <code>Anthropic</code>),
+<code>GOOGLE</code> (just <code>Google</code>), and
+<code>REPLICATE</code> (just <code>Replicate</code>). All 88
+OpenAI-compatible providers share one set of code paths; only
+Anthropic and Google have format-specific branches. To add a
+genuinely different format:</p>
 <ol>
-<li>All of the above, plus <code>apiFormat</code> set to a new
-<code>ApiFormat</code> enum value.</li>
-<li>Add format-specific code paths in <code>ApiDispatch.kt</code>
-and <code>ApiStreaming.kt</code> (request building, response parsing,
-SSE parser).</li>
-<li>The 40 OpenAI-compatible providers all share
-<code>OPENAI_COMPATIBLE</code>; only <code>ANTHROPIC</code> and
-<code>GOOGLE</code> have their own paths. Mirror those if the new
-provider is genuinely different.</li>
+<li>Add an <code>ApiFormat</code> enum value.</li>
+<li>Add format-specific branches everywhere the dispatch switches on
+<code>service.apiFormat</code> (the compiler enforces exhaustiveness
+on the <code>when</code>s): analyze / sendChat / fetchModels / embed
+and the streaming-report dispatch in <code>ApiDispatch.kt</code>, the
+chat-stream dispatch in <code>ApiStreaming.kt</code>, per-format
+auth/URL building (endpoint URLs + header setup), and the per-format
+usage parser in <code>ReportStorage.kt</code>.</li>
+<li>Mirror the Anthropic/Google request builders, SSE content +
+usage extractors (<code>ApiStreaming.kt</code>), and the Retrofit
+interface in <code>ApiClient.kt</code>.</li>
 </ol>
+<p>For reference, per-format auth: Anthropic sends
+<code>x-api-key</code> + <code>anthropic-version: 2023-06-01</code>
+to <code>baseUrl/v1/messages</code>; Google appends a URL-encoded
+<code>?key=</code> query param to
+<code>v1beta/models/$model:generateContent</code>; OpenAI-compatible
+uses <code>Authorization: Bearer</code>.</p>
 </div>
 </details>
 
@@ -228,49 +384,97 @@ provider is genuinely different.</li>
 <summary>A new agent parameter</summary>
 <div class="body">
 <ol>
-<li>Add to <code>AgentParameters</code> (and
+<li>Add it to <code>AgentParameters</code> (and
 <code>ChatParameters</code> if it should also appear in chat) in
-<code>data/DataModels.kt</code>, and to the <code>Parameters</code>
-preset class in <code>model/SettingsModels.kt</code>.</li>
+<code>data/DataModels.kt</code>, <strong>and</strong> to the
+<code>Parameters</code> preset class in
+<code>model/SettingsModels.kt</code>.</li>
+<li>Wire the field into <strong>both</strong> parameter-fold sites —
+each is its own exhaustive constructor call, so a missing field just
+drops silently: <code>Settings.mergeParameters(ids)</code> (folds the
+preset chain, in <code>model/SettingsModels.kt</code>)
+<strong>and</strong> <code>AnalysisRepository.mergeParameters</code>
+(folds the per-call override over the agent params) plus its
+<code>filterParametersBySupported</code>. Most scalar/string fields
+use "later non-null wins"; boolean toggles are OR-ed (or AND-ed, for
+opt-outs like <code>returnCitations</code>).</li>
 <li>Add UI inputs in <code>AgentEditScreen</code>
-(<code>AgentsScreen.kt</code>) and <code>ParametersEditScreen</code>
-(<code>ParametersScreen.kt</code>).</li>
+(<code>settings/AgentsScreen.kt</code>) and
+<code>ParametersEditScreen</code> (<code>settings/ParametersScreen.kt</code>).</li>
 <li>Update the request model in <code>ApiModels.kt</code> (per
 <code>ApiFormat</code>).</li>
 <li>Pass it through in <code>ApiDispatch.kt</code> and the streaming
 methods.</li>
-<li>If it should also be settable per-turn from the chat session
-(like reasoning effort), wire it in
-<code>ChatSessionScreen</code>.</li>
+<li>If it should be settable per-turn from a chat session (like
+reasoning effort), wire it in <code>ChatSessionScreen</code>
+(<code>ui/chat/ChatScreens.kt</code>).</li>
 </ol>
+<p class="muted">For how an added parameter is <em>resolved</em> at
+call time (agent / flock / swarm / per-call precedence), see the
+parameters doc; for the system-prompt equivalent, the system-prompts
+doc.</p>
 </div>
 </details>
 
 <details>
 <summary>A new pricing tier</summary>
 <div class="body">
+<p>The lookup precedence lives in a single private
+<code>PricingCache.findPricingMatch</code> chain (which
+<code>getPricing</code> / <code>getPricingWithoutOverride</code> /
+<code>lookupPricing</code> all delegate to), first hit wins:</p>
+<ol>
+<li>OpenRouter self-report (only when the caller has
+<code>crossProviderModelList</code>)</li>
+<li>Together self-report (only when <code>pricingFromModelList</code>)</li>
+<li>manual <strong>OVERRIDE</strong></li>
+<li>LiteLLM</li>
+<li>models.dev</li>
+<li>llm-prices</li>
+<li>Artificial Analysis</li>
+<li>llm-stats</li>
+<li>OpenRouter cross-provider fallback (non-OpenRouter callers,
+gated by the OpenRouter info-provider toggle)</li>
+<li>Requesty</li>
+<li>genai-prices</li>
+<li>TrueFoundry</li>
+<li>Helicone</li>
+<li><code>DEFAULT_PRICING</code> (returned by <code>getPricing</code>
+when the chain misses)</li>
+</ol>
+<p>The class-level KDoc in <code>PricingCache.kt</code> documents the
+same OVERRIDE-ahead-of-curated-tiers ordering (though it doesn't call
+out genai-prices/TrueFoundry by name), so a user's manual correction
+can't be silently overridden by a stale catalog.
+<code>getPricingWithoutOverride</code> runs the same chain with
+<code>includeOverride = false</code>. <code>DEFAULT_PRICING</code> is
+<strong>not</strong> zero — it's
+<code>ModelPricing("default", 25e-6, 75e-6)</code> ($25/M in, $75/M
+out), so an unknown model is conservatively over-priced rather than
+free.</p>
+<p>To add a tier:</p>
 <ol>
 <li>Add a fetch function in <code>PricingCache.kt</code> (mirror
-<code>fetchHeliconeOnline</code> or
-<code>fetchLLMPricesOnline</code>).</li>
-<li>Add SharedPreferences keys for <code>&lt;tier&gt;_pricing</code>
-and <code>&lt;tier&gt;_timestamp</code>, plus the on-disk file under
+<code>fetchHeliconeOnline</code> or <code>fetchLLMPricesOnline</code>).</li>
+<li>Add timestamp + manual handling, plus the on-disk blob under
 <code class="path">&lt;filesDir&gt;/pricing/&lt;tier&gt;_pricing.json</code>
-(and a <code>_meta.json</code> sidecar for capability tiers). Bump
-to a <code>_v2</code> key if you need to invalidate stale data after
-a parser revision.</li>
-<li>Insert the tier into the lookup chain in
-<code>lookupPricing</code> and <code>getTierBreakdown</code>. Manual
-user overrides stay above the tier chain (in <code>getPricing</code>,
-after provider self-report and before the curated tiers).</li>
+(and a <code>_meta.json</code> sidecar for capability tiers), with a
+bundled fallback at <code>assets/info-providers/&lt;key&gt;.json</code>.
+Bump to a <code>_v2</code> key if a parser revision must invalidate
+stale data.</li>
+<li>Add a <code>find&lt;Tier&gt;Pricing</code> helper, then insert it
+into <code>findPricingMatch</code> (the single precedence-ordered
+chain) in the right slot, and into <code>getTierBreakdown</code>
+(+ the <code>pricesConflict</code> tier list). Keep manual OVERRIDE
+above the curated tiers.</li>
 <li>Wire a card on <code>RefreshScreen</code> and (if a free API key
 is required) a field on <code>ExternalServicesScreen</code>.</li>
-<li>Add the tier as a new column in the layered-cost CSV export
-(<code>ImportExportScreen.kt</code>).</li>
+<li>Add the tier as a new column in the layered-cost CSV export.</li>
 <li>Add the tier as a Source button on the Model Info screen.</li>
-<li>Add a per-provider help page entry under
-<code>HelpScreen.kt</code> with an ℹ deep link from the Source
-button.</li>
+<li>Add an info-provider help page (<code>InfoProviderHelp.kt</code>)
+with an ℹ deep link from the Source button — and an
+<code>INFO_PROVIDERS</code> entry in <code>HelpScreen.kt</code> so
+trace ℹ deep-links resolve.</li>
 </ol>
 </div>
 </details>
@@ -278,19 +482,17 @@ button.</li>
 <details>
 <summary>A new asset-backed seed list</summary>
 <div class="body">
-<p>Two seed loaders live in <code>data/</code>:
-<code>InaccessibleSeed.kt</code> reads
-<code>assets/inaccessible.json</code> and merges entries into
-<code>Settings.inaccessibleModels</code>;
-<code>TestExcludedSeed.kt</code> reads
-<code>assets/excluded.json</code> and merges into
-<code>Settings.testExcludedModels</code>. Both run a delta merge —
-only entries whose <code>provider:model</code> key isn't already in
-the user's list get appended on every cold start, so a new bundled
-entry reaches existing installs without destroying user edits.</p>
-<p>To curate a new entry: append a
-<code>{provider, model, reason}</code> (or
-<code>{provider, model}</code> for excluded) row to the JSON,
+<p>Several delta-merged single-file seeds live in <code>data/</code>:
+<code>TestExcludedSeed</code> reads <code>assets/excluded.json</code>
+and merges into <code>Settings.testExcludedModels</code>;
+<code>InaccessibleSeed</code> reads <code>assets/inaccessible.json</code>
+into <code>Settings.inaccessibleModels</code>;
+<code>DefaultMetaItemSeed</code> reads <code>assets/meta.json</code>.
+Each runs a delta merge — only entries not already in the user's list
+get appended on every cold start, so a new bundled entry reaches
+existing installs without destroying user edits.</p>
+<p>To curate a new entry: append a <code>{provider, model, reason}</code>
+(or <code>{provider, model}</code> for excluded) row to the JSON,
 reinstall or wait for the next cold start. The matching CRUD screens
 live under Settings → AI Setup → AI Models setup → Inaccessible
 models / Test-excluded models.</p>
@@ -298,78 +500,90 @@ models / Test-excluded models.</p>
 </details>
 
 <details>
-<summary>A new SecondaryKind (after RERANK / META / MODERATION / TRANSLATE)</summary>
+<summary>A new SecondaryKind (after RERANK / META / MODERATION / TRANSLATE / TOURNAMENT / JUDGES / COMPARE / TRANSRANK)</summary>
 <div class="body">
-<p>Most "I want a new analysis on report outputs" cases are covered
-by adding a Meta-prompt entry under Settings → AI Setup → Prompt
-management — no code changes needed. Add a new
-<code>SecondaryKind</code> enum value only when the new flow has
-fundamentally different routing (different API endpoint shape,
-different result schema, different rendering).</p>
-<p>Add an enum value to <code>SecondaryKind</code> in
-<code>data/SecondaryResult.kt</code>. The Kotlin compiler will then
-enforce exhaustive <code>when</code> on every site that maps
-<code>kind</code> to a string / colour / button label / view title /
-prompt template. Walk the resulting compile errors:</p>
+<p><code>SecondaryKind</code> (<code>data/SecondaryModels.kt</code>)
+has exactly these <strong>eight</strong> values today, in this order
+(the most recent addition is <code>TRANSRANK</code> — "Rank the
+translators", a grid-shaped kind driven by
+<code>TranslatorRankEngine</code>). Most "I want a new analysis on
+report outputs" cases need <strong>no</strong> new kind — add a
+Meta-prompt entry under Settings → AI Setup → Prompt management
+instead. Add a new <code>SecondaryKind</code> only when the flow has
+fundamentally different routing (different endpoint shape, result
+schema, or rendering).</p>
+<p>Note that there is <strong>no</strong> <code>metaTypeToKind</code>
+function — Rerank, Meta, and Moderation are dispatched by three
+separate entry methods on <code>SecondaryRunManager</code>
+(<code>runRerank</code> → <code>RERANK</code>,
+<code>runModeration</code> → <code>MODERATION</code>,
+<code>runMetaPrompt</code> → <code>META</code>), all funneling
+through the shared <code>executeSecondaryTask</code>. The grid-shaped
+kinds have dedicated engines (<code>TournamentEngine</code>,
+<code>JudgeEvalEngine</code>, <code>CompareEngine</code>,
+<code>TranslatorRankEngine</code>) and Fan-out / Fan-in / Translate
+have their own managers.</p>
+<p>Add the enum value, then walk the compiler's exhaustive-<code>when</code>
+errors:</p>
 <ul>
-<li><code>legacyKindDisplayName</code> mapping</li>
+<li><code>legacyKindDisplayName</code> mapping
+(<code>data/SecondaryResult.kt</code>)</li>
 <li><code>SecondaryResultStorage.Counts</code> +
-<code>countForReport</code></li>
-<li><code>ReportViewModel.metaTypeToKind</code> (logs unknown meta
-prompt types rather than throwing) and
-<code>executeSecondaryTask</code></li>
-<li><code>ReportScreen</code> running-row "type" cell</li>
-<li><code>SecondaryResultsScreen</code> routing (which view to render
-— picker, table, drill-in list)</li>
-<li><code>ContentDisplay.ReportCostTable</code> row mapping</li>
-<li><code>ReportExport.renderLanguageBlock</code> view-picker tabs +
-<code>renderMetaCard</code> rendering + costs Type column</li>
-<li><code>WordOdtExport.appendLanguageContent</code> +
-<code>appendCosts</code> Type column</li>
-<li><code>ZippedHtmlExport.emitLanguageSections</code> +
-<code>languageSections</code> + <code>buildReportIndex</code> +
-<code>secondaryPage</code> branches + costs Type column</li>
-<li><code>PdfExport.buildShortHtml</code> filter</li>
+<code>countForReport</code> (<code>data/SecondaryResult.kt</code>)</li>
+<li>The <code>SecondaryRunManager</code> entry method +
+<code>executeSecondaryTask</code> (or a new <code>BatchEngine</code>
+subclass if grid-shaped, à la <code>TranslatorRankEngine</code>)</li>
+<li><code>RegeneratePhase</code> + <code>RegenerateBatchEngine</code>
+if the kind should be regenerable (the grid kinds JUDGES / COMPARE /
+TRANSRANK are <strong>not</strong> regenerable phases — only
+TOURNAMENT among them is)</li>
+<li>The <code>SecondaryResultsScreen</code> routing in
+<code>ui/report/manage/SecondResults.kt</code> (picker / table /
+drill-in list) — the trace/usage "Type" string and the AI Usage
+<code>kind</code></li>
+<li><code>ContentDisplay.ReportCostTable</code> row mapping
+(<code>ui/report/manage/view/ContentDisplay.kt</code>)</li>
+<li>The report-export builders (<code>ui/helpers/</code>):
+<code>ReportExport</code> (view-picker tabs + card rendering + costs
+Type column), <code>WordOdtExport</code>, <code>ZippedHtmlExport</code>,
+and the <code>PdfExport</code> filter</li>
+<li>A help topic for any new screen and a default glyph for the
+dashboard / cost-table StatChip</li>
 </ul>
-<p>The same pattern documents itself; lean on the compiler.</p>
-<div class="callout">
-<p>Model-scoped fan-in adds a parallel surface — three Internal
-Prompt categories (<code>initiator</code>, <code>requester</code>,
-<code>model</code>) drive runs whose row carries
-<code>scopeProviderId</code> / <code>scopeModel</code> so the L2 page
-surfaces them under their own (provider, model) bucket distinct from
-the legacy total <code>fan_in</code>. The resolver is
-<code>resolveModelFanInPrompt</code> (separate from
-<code>resolveFanInPrompt</code>) with placeholders
-<code>@INITIATOR@</code>, <code>@RESPONDERS@</code>,
-<code>@RESPONDER_PAIRS@</code>. Adding a new SecondaryKind that
-needs a similar model-scoped flavour means walking those sites
-too.</p>
-</div>
+<p>The pattern documents itself; lean on the compiler.</p>
 </div>
 </details>
 
 <details>
 <summary>A new Internal Prompt category</summary>
 <div class="body">
-<p>Internal prompts have a free-form <code>category</code> string —
-<code>"meta"</code>, <code>"fan_out"</code>, <code>"fan_in"</code>,
-<code>"internal"</code> are the four in use today. Adding a new one
-means:</p>
+<p>Internal prompts carry a free-form <code>category</code> string.
+Current seeded categories (folders under
+<code>assets/internal-prompts/&lt;lang&gt;/</code>): <code>meta</code>,
+<code>meta_compare</code>, <code>fan_out</code>, <code>fan_in</code>,
+<code>workers</code>, <code>alt</code>, <code>internal</code>. To add
+one:</p>
 <ol>
-<li>Bump the <code>assets/internal-prompts/</code> to seed a default
-row.</li>
-<li>Add a sub-hub entry to <code>SetupScreens.kt</code> →
-<code>InternalPromptsHubScreen</code> (the place that counts entries
-by category and routes to
-<code>settingsInternalPromptsByCategory</code>).</li>
-<li>Add UI for the new category to
-<code>InternalPromptsScreen.kt</code> if the title / Add label needs
-to differ.</li>
-<li>The runtime only inspects <code>category</code> from
-<code>ReportViewModel.runFanOutPrompt</code> /
-<code>runFanInPrompt</code> / <code>runMetaPrompt</code>; new
-categories with new behaviour need their own entry point.</li>
+<li>Seed default rows under
+<code>assets/internal-prompts/&lt;Language&gt;/&lt;cat&gt;/</code> —
+two files per prompt: a <code>&lt;name&gt;.json</code> metadata
+sidecar (name, title, reference, agent, optional
+provider/model/parameters/systemPrompt) plus a
+<code>&lt;name&gt;.txt</code> body (real line breaks). The folder
+name is the authoritative category. They're delta-merged in on the
+next cold start by <code>InternalPromptSeed</code> (existing rows are
+never overwritten).</li>
+<li>Add a sub-hub entry in <code>SetupScreens.kt</code> →
+<code>InternalPromptsHubScreen</code> (which counts entries by
+category and routes to the per-category list).</li>
+<li>Add UI in <code>InternalPromptsScreen.kt</code> if the title /
+Add label needs to differ.</li>
+<li>The runtime only acts on a <code>category</code> if a runner
+inspects it. <code>SecondaryRunManager</code> (<code>runMetaPrompt</code>
+/ <code>runFanInPrompt</code>), <code>FanOutEngine</code>
+(<code>runFanOutPrompt</code>), and <code>CompareEngine</code>
+(<code>meta_compare</code>) own the existing categories; a new
+category with new behaviour needs its own entry point.</li>
 </ol>
 </div>
 </details>
@@ -377,15 +591,44 @@ categories with new behaviour need their own entry point.</li>
 <details>
 <summary>A new Help topic / help page</summary>
 <div class="body">
-<p><code>ui/admin/HelpContent.kt</code> has the full topic catalog
-(~190 topics — each full-screen overlay has its own dedicated entry).
-The TitleBar's ❓ takes a <code>helpTopic</code> string; help routes
-resolve it to an entry. Trace category → help topic mapping lives
-in <code>HelpScreen.kt</code> (<code>HelpResolver</code>) so a
-captured trace can deep-link from its ℹ️ to the most relevant page.
-Per-provider help pages share the infrastructure. The viewer no
-longer renders "Related" cards — link by deep-linking from the rest
-of the UI instead.</p>
+<p><code>ui/admin/HelpContent.kt</code> assembles <code>HELP_TOPICS</code>
+from 12 per-domain maps (<code>ReportsHelp.kt</code> 115,
+<code>SettingsAdminHelp.kt</code> 93,
+<code>ProviderCatalogHelp.kt</code> 38, <code>developerHelp</code> 21,
+<code>glossaryHelp</code> 18, <code>crudHelp</code> 15, …; ~365 base
+entries) plus 22 auto-built <code>&lt;topic&gt;_icons</code> pages →
+<strong>~387 topics total</strong>. Each full-screen overlay has its
+own entry. To add one:</p>
+<ol>
+<li>Add a <code>"&lt;topicId&gt;" to HelpContent(title, cards)</code>
+entry to the relevant per-domain map.</li>
+<li>Point the screen's <code>TitleBar</code> (or
+<code>ViewTitleBar</code>) <code>helpTopic</code> string at it. The
+red ❓ resolves it to the entry.</li>
+<li>If the screen is in the report-Manage family and should show the
+live icon-legend overlay, add it to <code>LEGEND_OVERLAY_TOPICS</code>
+(<code>ui/shared/SharedComponents.kt</code>). If it has &gt;3 bar
+icons, add it to <code>ICON_HELP_AS_PAGE</code>
+(<code>ui/admin/IconHelp.kt</code>) so an
+<code>&lt;topic&gt;_icons</code> page is auto-built.</li>
+</ol>
+<p>Trace ℹ deep-links resolve through
+<code>infoProviderForTrace(url, category)</code> in
+<code>HelpScreen.kt</code> (backed by <code>infoProviderForUrl</code>
++ the canonical 12-entry <code>INFO_PROVIDERS</code> list) — there is
+<strong>no</strong> <code>HelpResolver</code> class.</p>
+<div class="callout">
+<p><strong>Memory rule:</strong> every new screen needs a help topic.
+Reusing an existing topic (as the Answer matrix does with
+<code>view_ai_report</code>) is acceptable, but never ship a screen
+with no <code>helpTopic</code>.</p>
+</div>
+<p>There are also two WebView-served documentation bundles
+(<code>DocumentationScreen.kt</code>): <code>assets/docs/manual/</code>
+(helpTopic <code>manual</code>) and <code>assets/docs/technical/</code>
+(helpTopic <code>technical_documentation</code> — this page is part
+of it), reached from <code>AboutScreen</code>. JavaScript is disabled
+in that WebView.</p>
 </div>
 </details>
 
@@ -393,25 +636,52 @@ of the UI instead.</p>
 
 <p>Two layered suites:</p>
 
-<pre><code>JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew test                         # unit (fast)
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew connectedDebugAndroidTest    # instrumented (~40s on emulator)</code></pre>
+<pre><code>JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew test                         # unit (fast)
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew connectedDebugAndroidTest    # instrumented (~40s on emulator)</code></pre>
 
-<p>Unit tests use Truth; instrumented tests do too. Roughly
-<strong>26 unit-test files</strong> under
-<code class="path">ai/src/test/java/com/ai/</code> covering
-<code>ApiDispatchHelpers</code>, <code>BuildChatUrl</code>,
-<code>ResponsesUrl</code>, <code>TracerTags</code>,
-<code>DefaultClaudeMaxTokens</code>, <code>ModelType</code>,
-<code>EmbeddingsStore</code>, <code>SecondaryResultHelpers</code>,
-<code>ApiModelsUsage</code>, <code>BackupManagerRestore</code>,
-<code>AtomicFileWrite</code>, <code>SettingsGraph</code>,
-<code>ProviderDefinition</code>, <code>DualChatParameters</code>,
-<code>SettingsPreferencesUsageStats</code>,
-<code>UiFormatting</code>, <code>TraceTranslationExtraction</code>,
-<code>TraceSharePath</code>, …; and roughly <strong>22 instrumented
-tests</strong> under
-<code class="path">ai/src/androidTest/java/com/ai/</code> covering
-the Compose UI and data plumbing.</p>
+<p>Both layers use Truth. Roughly <strong>69 unit-test files</strong>
+under <code class="path">ai/src/test/java/com/ai/</code>
+(representative: <code>ApiDispatchHelpersTest</code>,
+<code>ApiMockWebServerTest</code>, <code>BuildChatUrlTest</code>,
+<code>ResponsesUrlTest</code>, <code>TracerTagsTest</code>,
+<code>DefaultClaudeMaxTokensTest</code>, <code>ModelTypeTest</code>,
+<code>EmbeddingsStoreTest</code>, <code>EmbeddingsCosineTest</code>,
+<code>SecondaryResultHelpersTest</code>, <code>ApiModelsUsageTest</code>,
+<code>BackupManagerRestoreTest</code>, <code>AtomicFileWriteTest</code>,
+<code>SettingsGraphTest</code>, <code>SettingsAiSetupGraphTest</code>,
+<code>ProviderDefinitionTest</code>, <code>AppServiceLocalTest</code>,
+<code>DualChatParametersTest</code>, <code>ParametersMergeTest</code>,
+<code>AnalysisRepositoryParametersTest</code>,
+<code>ExportRedactionTest</code>, <code>ReportMarkdownExportTest</code>,
+<code>WordOdtMarkdownTest</code>, <code>ZippedHtmlNamingTest</code>,
+<code>SemanticSearchChoicesTest</code>, <code>BulkExportUnpackTest</code>,
+<code>BrokenWorkPolicyTest</code>, <code>TranslationGroupingTest</code>,
+<code>MarkdownTablesTest</code>, …); and roughly
+<strong>27 instrumented files</strong> under
+<code class="path">ai/src/androidTest/java/com/ai/</code> (several are
+shared harnesses — <code>BottomBarHarness</code>,
+<code>PersistentStateGuard</code>, <code>TestProvider</code>) covering
+the Compose UI (<code>ChatsHubScreenTest</code>,
+<code>ReportsHubScreenTest</code>, <code>ContentDisplayTest</code>,
+<code>SharedComponentsTest</code>, <code>TitleBarTest</code>,
+<code>HelpScreenTest</code>, <code>HousekeepingScreenTest</code>,
+<code>ReportExportScreenTest</code>,
+<code>TranslationCompareScreenTest</code>,
+<code>HomeBarModeScreenTest</code>,
+<code>ReportLauncherScreensInstrumentedTest</code>,
+<code>ReportChangeResultScreensInstrumentedTest</code>,
+<code>ReportInfoScreenInstrumentedTest</code>) and device-side data
+plumbing (<code>ChatHistoryManagerInstrumentedTest</code>,
+<code>ProviderRegistryInstrumentedTest</code>,
+<code>ReportStorageInstrumentedTest</code>,
+<code>SecondaryResultStorageInstrumentedTest</code>,
+<code>ApiTracerInstrumentedTest</code>,
+<code>PricingCacheInstrumentedTest</code>, plus the export builders
+<code>ZippedHtmlBuildInstrumentedTest</code>,
+<code>DocxOdtBuildInstrumentedTest</code>,
+<code>BulkExportInstrumentedTest</code>,
+<code>BuildHtmlReportDataInstrumentedTest</code>,
+<code>JsonTraceZipInstrumentedTest</code>).</p>
 
 <div class="callout warn">
 <p><strong>Important:</strong> AGP's
@@ -421,10 +691,12 @@ If the emulator has user data you want to preserve, snapshot it
 first:</p>
 <pre><code>adb exec-out run-as com.ai tar -cf - shared_prefs files &gt; /tmp/com.ai.snapshot.tar</code></pre>
 <p>and push it back after the test run + reinstall. This is the
-"extended cycle" referenced in <code>CLAUDE.md</code>.</p>
+"extended cycle" referenced in <code>CLAUDE.md</code>. The default
+cycle is build → deploy to both targets → launch → confirm foreground
+→ commit, with <strong>no</strong> tests or snapshot/restore.</p>
 </div>
 
-<p>When changing a flow (especially generation, retry, persistence),
+<p>When changing a flow (especially generation, retry, or persistence),
 <strong>run an actual report</strong> before declaring success.
 Type-checking and unit tests verify code correctness, not feature
 correctness here.</p>
@@ -432,197 +704,322 @@ correctness here.</p>
 <h2 id="gotchas">Common gotchas</h2>
 
 <ul>
-<li><strong>Anthropic <code>max_tokens</code> is required</strong>
-(defaults to 4096). OpenAI treats it as optional. The dispatcher
-logs the override when reasoning is on.</li>
-<li><strong>Google auth uses <code>?key=</code> query param</strong>,
-URL-encoded, not Bearer token.</li>
-<li><strong>OpenAI dual API</strong>: <code>gpt-4o</code> etc. use
+<li><strong>Anthropic <code>max_tokens</code> is supplied at
+dispatch, not hardcoded.</strong> The <code>ClaudeRequest</code>
+field is nullable; <code>defaultMaxTokens</code> resolves in order:
+<code>service.maxTokensDefaults.resolveMaxTokens(model)</code> (the
+per-provider config) → the model's models.dev max-output window
+(capped against its context window minus <code>INPUT_HEADROOM</code>)
+→ a static <strong>4096</strong> fallback. That default is also
+applied to OpenAI-compatible calls (to avoid OpenRouter
+balance-gating 402s), not Anthropic-only.
+<code>claudeReasoningBundle</code> bumps <code>max_tokens</code>
+above the thinking <code>budget_tokens</code> when needed and logs
+the override.</li>
+<li><strong>Google auth uses a <code>?key=</code> query param</strong>,
+URL-encoded, not a Bearer token.</li>
+<li><strong>OpenAI dual API</strong>: <code>gpt-4o</code>-class uses
 Chat Completions; <code>gpt-5.x</code> / <code>o3</code> /
-<code>o4</code> / <code>gpt-4.1</code> use Responses API. Auto-routed
-via <code>usesResponsesApi()</code> / <code>endpointRules</code>.
-Multi-text Responses-API blocks are concatenated by the dispatch
+<code>o4</code> / <code>gpt-4.1</code> (and <code>o1</code> via
+config) use the Responses API. Routed via
+<code>usesResponsesApi(service, model)</code> =
+<code>service.responsesApiPatterns.anyMatches(model)</code>
+<strong>or</strong> (only when the provider declares any
+<code>responsesApiPatterns</code> at all — currently just OpenAI)
+<code>ModelType.infer(model) == RESPONSES</code>. The name-based
+fallback is deliberately gated so chat-only OpenAI-compatible
+gateways serving <code>gpt-5</code>/<code>o3</code>/<code>o4</code>-named
+models don't get routed to a <code>/v1/responses</code> endpoint they
+don't have. There is no <code>endpointRules</code> field — the old
+prefix list now lives in <code>ModelType.infer</code>. On the
+Responses path the system prompt goes to <code>instructions</code>,
+not a message, and multi-text blocks are concatenated by the dispatch
 layer.</li>
-<li><strong>OpenAI moderation models</strong> aren't returned by
-<code>/v1/models</code>. They ship as <code>hardcodedModels</code>
-in <code>providers.json</code> so the picker still finds them. The
-OpenAI-only fallback union in <code>Settings.withModels</code>
-preserves them across refreshes.</li>
-<li><strong>Rate-limit retry is OFF main thread.</strong> The
-interceptor has an explicit
-<code>Looper.myLooper() == getMainLooper()</code> guard. Don't
-remove it. Retry caps come from
-<code>ProviderThrottle.retryLimitsFor(host)</code> — per-provider
-override → <code>NetworkSettings.maxRetriesOn429 / retryBackoffMs429</code>.
-The sibling <code>OverloadedRetryInterceptor</code> does the same for
-529 via <code>retryLimitsFor529</code> /
-<code>maxRetriesOn529 / retryBackoffMs529</code>. Setting
-<code>maxRetriesOn429 = 0</code> is valid (no in-line retries — outer
-<code>withRetry</code> still applies). <code>withRetry</code> itself
-treats 408 / 425 / 429 as transient.</li>
-<li><strong>Per-provider throttle.</strong>
-<code>ProviderThrottle</code> keeps one semaphore + sliding-window
-deque per host. Flows that pre-acquire (Fan-out via
-<code>FanOutEngine</code>, Fan Meta batch, report-icon chain,
-alternative-icons fan-out, the model-test sweep via
-<code>ModelTestEngine</code>) MUST also set
+<li><strong>OpenAI's <code>/v1/models</code> omits moderation / TTS /
+image / STT models.</strong> OpenAI carries
+<code>mergeHardcodedModels: true</code> in its
+<code>assets/providers/OpenAI.json</code> definition;
+<code>Settings.withModels</code> unions
+<code>service.hardcodedModels</code> into the fetched list
+<strong>only</strong> for providers with that flag, so those picker
+entries survive a refresh. (If you need a specific OpenAI model to
+reappear in a picker, add it to that provider's
+<code>hardcodedModels</code> array — OpenAI currently ships none,
+relying on the catalog.)</li>
+<li><strong>Rate-limit retry is OFF main thread.</strong> Both
+<code>RateLimitRetryInterceptor</code> (429) and
+<code>OverloadedRetryInterceptor</code> (529, Anthropic
+<code>overloaded_error</code>) have an explicit
+<code>Looper.myLooper() == getMainLooper()</code> guard — don't
+remove it. They have <strong>independent budgets</strong>. Defaults
+are <strong>3 retries with 1000 ms</strong> base backoff
+(<code>NetworkSettings.maxRetriesOn429 / retryBackoffMs429</code>,
+and the <code>…529</code> siblings), exponential with ±50% jitter,
+capped at 30 s, honoring server <code>Retry-After</code>. Caps
+resolve per host via <code>ProviderThrottle.retryLimitsFor429(host)</code>
+/ <code>retryLimitsFor529(host)</code> (per-provider override →
+global default). Anthropic ships a stricter 529 override (5 retries,
+5000 ms) in <code>assets/providers/Anthropic.json</code>. Setting
+retries to 0 disables the in-line loop; the outer
+<code>AnalysisRepository.withRetry</code> still gets one more attempt
+and treats 408 / 425 / 429 as transient.
+<span class="muted">(<code>CLAUDE.md</code>'s "5× with 3 s back-off"
+is stale.)</span></li>
+<li><strong>Two throttle layers.</strong> <code>ProviderThrottle</code>
+is per-<strong>hostname</strong>: one semaphore (concurrency) +
+sliding-window deque (per-minute rate) per host, caps = per-provider
+override → global default. Separately, <code>ApiCallCaps</code>
+(<code>ApiTracer.kt</code>) is a set of coroutine-level
+<code>Semaphore</code> pools, each with its own knob —
+<code>global</code> (init 100), <code>report</code> /
+<code>translation</code> / <code>fanOut</code> / <code>fanMeta</code>
+/ <code>workers</code> (init 50 each).
+<code>resetForNewLimits(globalMax)</code> resizes <strong>every</strong>
+sub-cap to the global cap, so in practice only the single "Concurrent
+API calls" global limit binds. Batch flows acquire in the canonical
+<strong>subCap → global → per-host</strong> order via
+<code>runThrottledBatch</code> (<code>ThrottledBatch.kt</code>) /
+<code>acquireThrottledPermits</code>
+(<code>ReportViewModelHelpers.kt</code>). The key invariant: while
+<strong>parked</strong> on a saturated per-host gate, the
+<code>PermitHold</code> releases both subCap and global and re-takes
+them on the next poll — so a flow's cap counts only items holding a
+live provider slot, not items queued behind a busy host. All 7
+report-primary dispatch sites use this path now. See
+<a href="throttle.html">throttle</a>.</li>
+<li><strong>Pre-acquired flows must set
+<code>permitPreAcquired</code>.</strong> Flows that pre-acquire the
+host gate (report, fan-out, fan-meta, translation) set
 <code>ProviderThrottle.permitPreAcquired</code> on the coroutine so
-the inline <code>ProviderThrottleInterceptor</code> doesn't
-double-count. Propagation across coroutine dispatcher hops goes via
-<code>withContext(asContextElement(true))</code>; onto OkHttp workers
-via <code>TagPropagatingExecutor</code>. Provider edits go through
-<code>ProviderRegistry.save</code> which calls
-<code>ProviderThrottle.resetForNewLimits()</code> — overrides take
-effect on the next acquire. See <a href="throttle.html">throttle</a>.</li>
-<li><strong>Six per-kind concurrency ceilings</strong> live on
-<code>ApiCallCaps</code> and mirror <code>GeneralSettings</code>
-knobs on every Settings update: <code>global</code> (50),
-<code>report</code> (15), <code>translation</code> (15),
-<code>fanOut</code> (15), <code>fanMeta</code> (15),
-<code>maxTestApiCalls</code> (40 — read directly by
-<code>ModelTestEngine</code>, not part of <code>ApiCallCaps</code>).
-Surfaced in Settings → Network → <strong>Maximal API calls</strong>.
-New flows that need a budget separate from the existing kinds should
-add a sibling cap rather than reusing one.</li>
-<li><strong>Model cooldowns.</strong> A 429 with a Retry-After hint
-longer than <code>ModelCooldownStore.LONG_RETRY_THRESHOLD_MS</code>
-(1 hour) calls
-<code>markUnavailable(providerId, model, availableAtMs, traceFile)</code>.
-Engines (<code>FanOutEngine</code>, <code>ModelTestEngine</code>) skip
-benched pairs for the rest of the run; model pickers dim the row and
-show "rate-limited · back HH:mm" — see
-<a href="cooldowns.html">cooldowns</a>.</li>
+the inline <code>ProviderThrottleInterceptor</code> skips its own
+acquire and doesn't double-count. Tag/permit context propagates
+across coroutine dispatcher hops via
+<code>kotlinx.coroutines.asContextElement</code> and onto OkHttp
+workers via <code>TagPropagatingExecutor</code>
+(<code>TagPropagation.kt</code>). Provider edits go through
+<code>ProviderRegistry.save</code>, which rebuilds the host index and
+calls <code>ProviderThrottle.resetForNewLimits()</code> — overrides
+take effect on the next acquire.</li>
 <li><strong>Read-timeout interceptor split.</strong>
 <code>ReadTimeoutInterceptor</code> picks
-<code>streamingReadTimeoutSec</code> (default 10 min) vs
-<code>nonStreamingReadTimeoutSec</code> (default short) based on the
-request URL / body (<code>:streamGenerateContent</code>,
-<code>"stream":true</code> in the body). Without this every call
-would inherit the streaming timeout — a hung provider would gate a
-whole batch for minutes.</li>
+<code>streamingReadTimeoutSec</code> (default 240 s) vs
+<code>nonStreamingReadTimeoutSec</code> (default 120 s) based on the
+request (<code>:streamGenerateContent</code>, or
+<code>"stream":true</code> in the POST body);
+<code>TestCallTimeoutInterceptor</code> overrides to 30 s for the
+"Provider test" trace category. Without the split, every call would
+inherit the streaming timeout and a hung provider would gate a whole
+batch.</li>
+<li><strong>DNS-hang guard.</strong> <code>withApiCallTimeout</code>
+(<code>ApiDispatch.kt</code>) wraps each single request / stream-open
+(not the SSE read loop) in a <code>withTimeout</code> so a DNS hang —
+which OkHttp's connect/read/write timeouts miss, since they start
+after DNS — surfaces as a plain <code>IOException</code>.
+<code>withHostGate</code> sits <em>outside</em> it so a legitimate
+per-minute wait doesn't trip the guard.</li>
 <li><strong>Storage flat-id validation.</strong>
 <code>isSafeFlatId</code> (non-blank, not <code>.</code> /
 <code>..</code>, no <code>/</code> or <code>\</code>) gates the
-write side of <code>ReportStorage.saveReport / deleteReport</code>,
-<code>ChatHistoryManager.saveChatSession</code>, and
-<code>SecondaryResultStorage.save…</code>.</li>
+write side of <code>ReportStorage.saveReport / deleteReport</code>
+and <code>ChatHistoryManager.saveChatSession</code>.
+<code>SecondaryResultStorage</code> applies the equivalent flat-id +
+canonical-containment check in its <code>reportDir</code> (write) /
+<code>resolveReportDirForRead</code> (read) helpers so a
+malformed/restored id can't escape <code>secondary/</code>.
+<code>Knowledge</code> storage applies <code>isSafeKbId</code> /
+<code>isSafeSourceId</code> + containment.</li>
 <li><strong>ProviderFieldTimestamps.</strong> Per-provider per-field
 user-edit timestamps live in a separate prefs file
 (<code>provider_field_timestamps</code>).
-<code>ProviderRegistry.update</code> bumps timestamps when the new
-value differs; the every-start asset-sync paths skip fields with a
-non-null timestamp so a bundled-asset refresh never overwrites a user
-edit. Backup / restore mirrors this prefs file.</li>
+<code>ProviderRegistry.update</code> bumps a field's timestamp when
+its value changes; the every-start asset-sync
+(<code>syncFromAsset</code>) skips fields whose timestamp is
+non-null, so a bundled-asset refresh never overwrites a user edit.
+This prefs file is <strong>not</strong> backed up — it's a
+recomputable cache.</li>
 <li><strong>Backup zip</strong> mirrors <code>filesDir</code> (incl.
-<code>secondary/</code>, <code>trace/</code>, <code>pricing/</code>,
-<code>model_lists/</code>, <code>prompt_cache/</code>, plus
-<code>test_run.json</code>) and 6 SharedPreferences files
-(<code>eval_prefs</code>, <code>provider_registry</code>,
-<code>provider_field_timestamps</code>, <code>pricing_cache</code>,
-<code>dual_chat_prefs</code>, <code>huggingface_cache</code>, and
-<code>model_cooldowns</code>). New prefs files won't survive a
-restore unless added to <code>BackupManager.PREFS_TO_BACKUP</code>.
-The backup zip also mirrors <code>cacheDir</code> (exports, shared
-traces) but skips in-flight temp files (<code>ai-restore-</code>,
-<code>reset_keys_</code>, <code>ai-backup-</code>). See
+<code>reports/</code>, <code>secondary/</code>, <code>trace/</code>,
+<code>embeddings/</code>, <code>pricing/</code>,
+<code>model_lists/</code>, <code>prompt_cache/</code>,
+<code>regenerate/</code>, <code>knowledge/</code>, <code>audit/</code>,
+<code>crash/</code>) minus the <strong>four</strong>
+<code>FILES_DIR_BACKUP_EXCLUDES</code> subdirs
+(<code>local_llms/</code>, <code>local_models/</code>,
+<code>native/</code>, <code>applog/</code>), plus the
+<strong>8</strong> SharedPreferences files in
+<code>PREFS_TO_BACKUP</code> (<code>eval_prefs</code>,
+<code>provider_registry</code>, <code>pricing_cache</code>,
+<code>dual_chat_prefs</code>, <code>huggingface_cache</code>,
+<code>cloudprice_model_cache</code>, <code>model_cooldowns</code>,
+<code>view_screen_prefs</code>), plus a <code>cacheDir</code> mirror
+minus the in-flight temp prefixes (<code>ai-restore-</code>,
+<code>reset_keys_</code>, <code>ai-backup-</code> —
+<code>reset_keys_</code> holds plaintext keys and must never be
+archived). A new prefs file won't survive a restore unless added to
+<code>PREFS_TO_BACKUP</code>. Restore is
+<strong>validate-then-write</strong>: read the whole zip into memory
+(zip-bomb caps: 256 MB/entry, 1 GB total), commit prefs, <em>then</em>
+wipe + rewrite <code>filesDir</code>/<code>cacheDir</code>, so a
+crash mid-restore leaves a re-restorable state. See
 <a href="backup-restore.html">backup-restore</a>.</li>
-<li><strong>Manifest version is <code>1</code>.</strong> The backup
-format is intentionally un-versioned today — bump
-<code>MANIFEST_VERSION</code> only when the format changes in a way
-an old restore can't read.</li>
-<li><strong>No bundled <code>setup.json</code> anymore.</strong> The
-provider catalog is <code>assets/providers.json</code> and ships in
-a flat <code>{"providers": [...]}</code> shape — the older
-<code>version + providerDefinitions</code> schema is gone. Internal
-Prompts come from <code>assets/internal-prompts/</code>, Example Prompts
-from <code>assets/examples.json</code>. None of the three carry a
-top-level version.</li>
+<li><strong>Manifest version is <code>1</code>.</strong>
+<code>BackupManager.MANIFEST_VERSION = 1</code>; restore accepts
+exactly version 1. Bump only when the backup format changes in a way
+an old restore can't read. (This is separate from per-report
+<code>EXPORT_VERSION = 1</code> in <code>ReportBundle.kt</code>,
+which governs the single-report import/export zip.)</li>
+<li><strong>No single bundled catalog file.</strong> The bundled
+assets are split into per-item directories, each read by its own
+<code>*Seed</code> object: the provider catalog is
+<code>assets/providers/</code> (one bare <code>ProviderDefinition</code>
+JSON per provider, 91 files); System Prompts are
+<code>assets/prompts/system/</code> (<code>SystemPromptSeed</code>);
+Example Prompts are <code>assets/prompts/examples/</code>
+(<code>ExamplePromptSeed</code>); Internal Prompts are
+<code>assets/internal-prompts/&lt;Language&gt;/&lt;category&gt;/</code>
+(<code>&lt;name&gt;.json</code> sidecar + <code>&lt;name&gt;.txt</code>
+body, <code>InternalPromptSeed</code>); swarms are
+<code>assets/workers/swarms/</code> (<code>SwarmSeed</code>) and
+flocks <code>assets/workers/flocks/</code> (<code>FlockSeed</code>).
+The remaining single-file seeds are <code>assets/excluded.json</code>
+(<code>TestExcludedSeed</code>), <code>assets/inaccessible.json</code>
+(<code>InaccessibleSeed</code>) and <code>assets/meta.json</code>
+(<code>DefaultMetaItemSeed</code>). None carry a top-level version.
+<span class="muted">(Stale in-code comments / KDoc still mention
+<code>setup.json</code>, <code>providers.json</code>,
+<code>examples.json</code> — ignore them; only the wire/import format
+kept those flat shapes, not the on-disk layout.)</span></li>
 <li><strong><code>ApiFactory.fetchUrlAsString</code> is preferred
-over <code>URL.openStream</code></strong> for ad-hoc HTTP gets so
-the call goes through <code>TracingInterceptor</code> and
-<code>RateLimitRetryInterceptor</code> like everything else.</li>
+over <code>URL.openStream</code></strong> for ad-hoc HTTP gets so the
+call goes through <code>TracingInterceptor</code> and the retry
+interceptors like everything else.</li>
 <li><strong>Two <code>huggingface</code> keys</strong>:
-<code>huggingFaceApiKey</code> (External Services → HuggingFace,
-used for HF model-info lookups) and the optional
-<code>HuggingFace</code> provider in <code>providers.json</code>
-(HF Inference API, used as a chat provider). They are separate
-things even if both prompt for an HF token.</li>
-<li><strong>Custom providers added by the user</strong> live in the
-<code>provider_registry</code> prefs file, separate from
-<code>eval_prefs</code>. The backup zip captures both.</li>
+<code>huggingface_api_key</code> (External Services → HuggingFace,
+for HF model-info lookups, with its own <code>huggingface_cache</code>
+prefs + 7-day TTL) and the optional <code>HuggingFace</code> provider
+in <code>assets/providers/HuggingFace.json</code> (HF Inference API,
+used as a chat provider). Separate things even though both prompt for
+an HF token.</li>
 <li><strong><code>AppService.id</code> is the only name field.</strong>
-The legacy <code>displayName</code> / <code>prefsKey</code>
-collapsed into <code>id</code> in the id-unification refactor;
-backwards-compat migrations were stripped. Existing installs
-upgraded transparently because the registry already carried the
-unified ids.</li>
+The legacy <code>displayName</code> / <code>prefsKey</code> collapsed
+into <code>id</code> in the id-unification refactor; there are no
+backwards-compat migrations.</li>
+<li><strong><code>AppService.LOCAL</code> is synthetic.</strong> Its
+id is <code>"Local"</code>. It is not in <code>ProviderRegistry</code>
+— reachable only via <code>AppService.findById</code>, which
+special-cases <code>LOCAL.id</code> before delegating to
+<code>ProviderRegistry.findById</code>. Routes the dispatch to
+<code>LocalLlm.generate</code> / <code>LocalEmbedder.embed</code>
+instead of Retrofit, but surfaces as a normal "Local" provider in
+every picker. See <a href="local-runtime.html">local-runtime</a>.</li>
 <li><strong>Atomic writes are required for prefs / pricing /
-secondary writes.</strong> Use
-<code>AtomicFileWrite.writeTextAtomic</code>
-(<code>Files.move ATOMIC_MOVE</code> + tmp file fsync + parent-dir
-auto-mkdir). Bare <code>File.writeText</code> leaves a half-written
-file on crash — the sweep across the codebase fixed this in dozens
-of call sites.</li>
-<li><strong>Icons come in two flavours.</strong> Per-report icon
-(<code>Report.icon</code>, fired by
-<code>ReportViewModel.kickOffIconGeneration</code> against the
-<code>internal/icon</code> pinned-agent prompt) and per-agent 3-tier
-chain (<code>ReportAgent.icon</code>, fired by
-<code>runReportIconsForAgent</code> on every successful agent call).
-Both bypass <code>extractFirstEmoji</code> to enforce one-glyph
-normalisation; failures persist <code>iconErrorMessage</code>
-instead. Bundled prompts: <code>icon</code>, <code>report_icon</code>,
-<code>report_icon_chat</code>, <code>report_icon_3th</code>. See
+secondary / file writes.</strong> Use
+<code>AtomicFileWrite.writeTextAtomic</code> (tmp file fsync +
+<code>Files.move ATOMIC_MOVE</code> + parent-dir auto-mkdir). Bare
+<code>File.writeText</code> leaves a half-written file on crash. The
+report export builders (<code>PdfExport</code>, <code>ReportExport</code>,
+<code>ZippedHtmlExport</code>, <code>WordOdtExport</code>) and the
+local-runtime downloads use the same stage-as-<code>.part</code> +
+atomic-rename pattern so a process kill can't surface a torn
+artifact.</li>
+<li><strong>Icons come from the worker engine only.</strong>
+Per-report icon (<code>Report.icon</code>, from
+<code>workers/report-icon</code>, derived from the long title) and
+per-model icon (<code>ReportAgent.icon</code>, from
+<code>workers/model-icons</code>, derived from that model's
+<em>title</em>). The legacy response-based 3-tier per-agent fallback
+chain has been <strong>removed</strong>; <code>ReportAgent.iconWinningTier</code>
+is now always null. Some surviving KDoc/comments in
+<code>IconGenerationManager.kt</code> still describe a "3-tier
+chain" — they're stale. Find-alternative variants live under
+category <code>alt/</code>. See
 <a href="report-icons.html">report-icons</a>.</li>
 <li><strong>Background continuation.</strong> Initial report
-generation, regenerate, secondary launches (rerank / meta /
-moderation / translate), and the report-icon chain are all launched
-on <code>appViewModel.viewModelScope</code> (not the report VM's
-scope) so navigating away from the result screen doesn't cancel the
-work. The result screen recovers stale placeholders on entry via
+generation, regenerate (the phased <code>RegenerateBatchEngine</code>),
+secondary launches (rerank / meta / moderation / translate /
+tournament / judges / compare / rank-translators), and the icon flows
+are all launched on <code>appViewModel.viewModelScope</code> (not a
+report-VM scope) so navigating away doesn't cancel the work. The
+result screen recovers stale placeholders on entry via
 <code>restoreCompletedReport</code> /
-<code>hydrateAgentResultsFromStorage</code>.
-<code>deleteReport</code> cancels every job registered under its
-<code>reportId</code> prefix.</li>
+<code>hydrateAgentResultsFromStorage</code>. A 30 s read-only
+background scan (<code>startBackgroundBrokenScan</code>)
+<em>detects</em> interrupted secondary/regenerate runs and surfaces
+them on the ⚠️ Broken-work screen — it no longer auto-resumes them;
+the user restarts / retries manually. <code>deleteReport</code>
+cancels every job registered under its <code>reportId</code>.</li>
+<li><strong>Removed-agent progress bump.</strong>
+<code>executeReportTask</code> counts each launch-time agent slot
+into a fixed <code>genericReportsTotal</code>; every early-return
+branch (benched-model skip, <strong>and</strong> the removed-mid-run
+agent branch) must still bump <code>genericReportsProgress</code>, or
+the report hangs at "generating" forever (<code>KEEP_SCREEN_ON</code>
+held, no completion toast).</li>
 </ul>
 
 <h2 id="seeding">First-run seeding + every-start delta-merge</h2>
 
-<p><code>AppViewModel.bootstrap</code> runs a delta merge of bundled
-assets on <strong>every</strong> app start (not just fresh install):</p>
+<p><code>AppViewModel.bootstrap</code> (log tag <code>App.bootstrap</code>)
+runs a delta merge of bundled assets on <strong>every</strong> app
+start, not just fresh install. The first-run gate is
+<code>KEY_FIRST_RUN_BOOTSTRAPPED</code> in <code>eval_prefs</code>.</p>
 
 <ul>
-<li><code>assets/providers.json</code> — new entries are appended on
-every start. Per-field updates are gated by
-<code>ProviderFieldTimestamps</code> — a field the user has edited
-(the timestamp is non-null) is left alone; an un-edited field tracks
-the asset.</li>
-<li><code>assets/internal-prompts/</code> — bundled rows missing by
-<code>(category, name)</code> are added; existing rows are never
-overwritten. So shipping new bundled <code>internal/…</code> prompts
-(e.g. the icon-prompt set, <code>chat_title</code>, …) reaches
-existing installs the next time they cold-start.</li>
-<li><code>assets/examples.json</code> — same delta-merge by title
-(case-insensitive).</li>
+<li><code>assets/providers/</code> — new entries are appended on every
+start (<code>importFromAsset</code>). Per-field updates are gated by
+<code>ProviderFieldTimestamps</code>: a field the user has edited
+(non-null timestamp) is left alone; an un-edited field tracks the
+asset (<code>syncFromAsset</code>).</li>
+<li><code>assets/internal-prompts/&lt;Language&gt;/&lt;category&gt;/</code>
+— bundled rows missing by <code>(category, name)</code> are added;
+existing rows are never overwritten
+(<code>InternalPromptSeed.ensureAllPresent</code>). So shipping new
+bundled prompts reaches existing installs on the next cold start.</li>
+<li><code>assets/prompts/examples/</code> — delta-merged by title
+(<code>ExamplePromptSeed.ensureAllPresent</code>).</li>
+<li><code>assets/prompts/system/</code>, <code>assets/workers/swarms/</code>,
+<code>assets/workers/flocks/</code>, <code>assets/excluded.json</code>,
+<code>assets/inaccessible.json</code>, <code>assets/meta.json</code>
+— each delta-merged the same way (<code>SystemPromptSeed</code> /
+<code>SwarmSeed</code> / <code>FlockSeed</code> /
+<code>TestExcludedSeed</code> / <code>InaccessibleSeed</code> /
+<code>DefaultMetaItemSeed</code>, all <code>ensureAllPresent</code>),
+appending only missing rows.</li>
 </ul>
 
-<p>The entire bootstrap sequence emits structured DEBUG / TRACE log
-lines under the <code>AppLifecycle</code> tag, including a startup
-banner with <code>versionName</code> / <code>versionCode</code> /
-<code>BUILD_TIMESTAMP</code>. Tail the AppLog viewer (Hub → AI App
-log) during development to see the full path.</p>
+<p>There is no one-shot bundled-prompt migration block — only the
+every-start delta-merges above remain.</p>
 
-<h2 id="migration">Versioning the precompute migration</h2>
+<p>Each bootstrap action is bracketed by DEBUG <code>→</code> /
+<code>←</code> (start + end+duration) log lines under the
+<code>App.bootstrap</code> tag, with the per-action detail at TRACE
+so a default WARN/ERROR threshold stays quiet. Tail the AppLog viewer
+(Hub → AI App log) at TRACE during development to see the full
+startup path. <span class="muted">(The build timestamp is read at
+runtime from <code>assets/build-timestamp.txt</code>, not a
+<code>BuildConfig</code> constant — the old <code>BUILD_TIMESTAMP</code>
+field was removed because the config cache made it go stale.)</span></p>
 
-<p><code>AppViewModel</code> has a
-<code>CAPS_PRECOMPUTED_VERSION</code> constant gated by
-<code>KEY_CAPS_PRECOMPUTED_VERSION</code> in prefs. Bump the
-constant when the precompute logic changes and the existing on-disk
-data needs to be recomputed; the bootstrap pass will run once on the
-next launch and update the flag. The check is per-provider —
-providers that already have populated precomputed data are skipped.</p>
+<h2 id="capabilities">Capability precompute</h2>
 
-<p class="backtop"><a href="#">↑ Top</a></p>
+<p><code>Settings</code> keeps precomputed vision / web-search /
+reasoning sets (<code>recomputeAllCapabilities</code> /
+<code>recomputeCapabilities</code>), refreshed after a LiteLLM or
+models.dev catalog refresh so the picker badges pick up new catalog
+answers (Helicone is pricing-only — no recompute).
+<code>withModels</code> funnels every model list through
+<code>List.distinct</code> so duplicates can't crash the keyed
+LazyColumns.</p>
+
+<div class="callout">
+<p>There is <strong>no</strong> <code>CAPS_PRECOMPUTED_VERSION</code>
+migration flag in the current code — capability sets are recomputed
+eagerly on the relevant refresh, not gated behind a version constant.
+If you're looking for the old "precompute migration version" section,
+it no longer applies.</p>
+</div>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
 
 </main>
 </body>

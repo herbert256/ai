@@ -12,88 +12,158 @@
 
 <h1>Documentation</h1>
 
-<p>Multi-provider AI app — reports, chat, dual chat, share-target
-ingest, fan-out / fan-in. Cloud providers across three API formats.</p>
+<p>Multi-provider AI app — reports, chat, dual chat, RAG knowledge
+bases, on-device LLM and embedder, share-target ingest, fan-out /
+fan-in, and worker-judged batches (Tournament / Judges / Compare /
+Rank-the-translators).</p>
 
-<p class="muted">Kotlin 2.2.10 · Jetpack Compose · single Activity ·
-MVVM with five view models · seven external metadata repositories
-layered into one resolved view per (provider, model) pair.</p>
+<p class="muted">Kotlin 2.4.0 · Jetpack Compose · ~161,212 LOC
+across 406 Kotlin files · 91 cloud providers across four API formats
+(<code>OPENAI_COMPATIBLE</code> / <code>ANTHROPIC</code> /
+<code>GOOGLE</code> / <code>REPLICATE</code>) · 12 external metadata
+repositories layered into one resolved (provider, model)
+pricing + capability view.</p>
 
 <div class="index-section">
 <h2>For developers</h2>
 
 <a class="index-card" href="architecture.html">
   <span class="name">Architecture</span>
-  <span class="blurb">Big-picture map: navigation, view models, data layer, layered lookups, concurrency, state recovery, Fan-out.</span>
+  <span class="blurb">Big-picture map: navigation, the one real ViewModel plus its wrapper pair, data layer, layered lookups, concurrency, state recovery, Fan-out.</span>
+</a>
+
+<a class="index-card" href="ownership.html">
+  <span class="name">Ownership</span>
+  <span class="blurb">Which class owns which piece of process-scoped state — single-writer map for report/secondary/cost/UI-derived state, and the one sanctioned mirror.</span>
 </a>
 
 <a class="index-card" href="development.html">
   <span class="name">Development</span>
-  <span class="blurb">Build / deploy / test commands. How to add a provider, parameter, pricing tier, SecondaryKind, internal prompt. Gotchas.</span>
+  <span class="blurb">Build / deploy / test commands. How to add a provider, parameter, pricing tier, source type, SecondaryKind. Gotchas.</span>
 </a>
 
 <a class="index-card" href="api-formats.html">
   <span class="name">API formats</span>
-  <span class="blurb">The three dispatch paths — <code>OPENAI_COMPATIBLE</code>, <code>ANTHROPIC</code>, <code>GOOGLE</code> — and what's quirky about each.</span>
+  <span class="blurb">The four dispatch paths — <code>OPENAI_COMPATIBLE</code>, <code>ANTHROPIC</code>, <code>GOOGLE</code>, <code>REPLICATE</code> — and what's quirky about each.</span>
 </a>
 
 <a class="index-card" href="datastructures.html">
   <span class="name">Data structures</span>
-  <span class="blurb">Every non-trivial data class with every field, grouped by domain.</span>
+  <span class="blurb">Every non-trivial data class with every field, grouped by domain, collapsed into accordions.</span>
+</a>
+
+<a class="index-card" href="parameters.html">
+  <span class="name">Parameters</span>
+  <span class="blurb">How generation parameters resolve — <code>mergeParameters</code> fold rules and the precedence chain at every call site.</span>
+</a>
+
+<a class="index-card" href="system-prompts.html">
+  <span class="name">System prompts</span>
+  <span class="blurb">How the system-prompt text resolves per call site — report agent/flock/swarm chains, secondary ops, chat.</span>
 </a>
 
 <a class="index-card" href="secondary-results.html">
   <span class="name">Secondary results</span>
-  <span class="blurb">RERANK, the user-driven META kind, MODERATION, TRANSLATE, and the Fan-out / Fan-in / Fan Meta flow with three-level drill-in.</span>
+  <span class="blurb">All eight <code>SecondaryKind</code> values — Rerank, Meta, Moderate, Translate, Tournament, Judges, Compare, TransRank — plus Fan-out / Fan-in.</span>
 </a>
 
-<a class="index-card" href="model-test.html">
-  <span class="name">Model test</span>
-  <span class="blurb">"Test all models" subsystem: catalog partitioning, L1/L2/L3 drill-in, throttle integration, seeded inaccessible/excluded lists.</span>
+<a class="index-card" href="tournament-judges-compare.html">
+  <span class="name">Tournament / Judges / Compare</span>
+  <span class="blurb">Shared cell-grid model for the three worker-judged batch kinds, the seven ranking methods, and the drill-in screens.</span>
 </a>
 
-<a class="index-card" href="cooldowns.html">
-  <span class="name">Cooldowns</span>
-  <span class="blurb"><code>ModelCooldownStore</code> — auto-benching on long 429 Retry-After, CRUD screen, picker dimming, deep-link to trace.</span>
+<a class="index-card" href="ui-customization.html">
+  <span class="name">UI customization</span>
+  <span class="blurb">App home mode, the two-palette UI Colors system, and the 18-category Default icons editor.</span>
 </a>
 
 <a class="index-card" href="help.html">
   <span class="name">Help system</span>
-  <span class="blurb">In-app Help: per-screen topics, per-provider pages, per-repository pages, icon legend.</span>
+  <span class="blurb">In-app Help: per-screen topics, per-provider pages, per-repository pages, live icon-legend overlay.</span>
 </a>
 
 <a class="index-card" href="applog.html">
   <span class="name">AppLog</span>
-  <span class="blurb">In-app log4j-style file logger, daily-rotated files, viewer screens, threshold / level settings, filter UX, Copy / Share.</span>
+  <span class="blurb">In-app file logger, daily-rotated files, viewer screens, threshold / level settings, redaction, Copy / Share.</span>
 </a>
 
 <a class="index-card" href="report-icons.html">
   <span class="name">Report icons</span>
-  <span class="blurb">Per-report emoji + per-agent 3-tier icon chain, generation flow, alternative-icons picker, icons grid, cost surfacing.</span>
+  <span class="blurb">Per-report emoji + per-model title/icon generation via the worker engine, alternative-icons picker, icons grid, cost surfacing.</span>
 </a>
 
 <a class="index-card" href="throttle.html">
   <span class="name">Throttle</span>
-  <span class="blurb">Per-provider rate-limit + concurrency caps, 429-retry interceptor, read-timeout settings, per-provider override hierarchy.</span>
+  <span class="blurb">Two independent layers — per-provider rate-limit/concurrency caps and process-wide <code>ApiCallCaps</code> — plus 429/529 retry.</span>
 </a>
 </div>
 
 <div class="index-section">
 <h2>Subsystem deep dives</h2>
 
+<a class="index-card" href="workers.html">
+  <span class="name">Workers</span>
+  <span class="blurb">Agents / Flocks / Swarms — bundled seeds, the AI Workers setup hub, and how a swarm feeds single-call secondary dispatch.</span>
+</a>
+
+<a class="index-card" href="knowledge.html">
+  <span class="name">Knowledge (RAG)</span>
+  <span class="blurb">Knowledge bases, the nine source extractors, chunk/embed/retrieve pipeline, and injection into chat and report prompts.</span>
+</a>
+
+<a class="index-card" href="local-runtime.html">
+  <span class="name">Local runtime</span>
+  <span class="blurb">The synthetic <code>AppService.LOCAL</code> provider — on-device <code>LocalLlm</code> + <code>LocalEmbedder</code>, model downloads, setup UI.</span>
+</a>
+
+<a class="index-card" href="experimental.html">
+  <span class="name">Experimental features</span>
+  <span class="blurb">The master toggle and the nine surfaces it hides — on-device models, RAG/Knowledge, and Local Semantic Search.</span>
+</a>
+
+<a class="index-card" href="model-states.html">
+  <span class="name">Model states</span>
+  <span class="blurb">Cooldowns, Blocked models, Test-excluded models, Inaccessible models, and manual type/capability overrides.</span>
+</a>
+
+<a class="index-card" href="model-test.html">
+  <span class="name">Model test</span>
+  <span class="blurb">"Test all models" subsystem: catalog partitioning, probe types, L1/L2/L3 drill-in, throttle integration, auto-feeds into model states.</span>
+</a>
+
+<a class="index-card" href="regenerate.html">
+  <span class="name">Regenerate</span>
+  <span class="blurb">Get-info status board and the regenerate-batch orchestration engine — phases, resume paths, broken-work detection.</span>
+</a>
+
+<a class="index-card" href="costs.html">
+  <span class="name">Costs</span>
+  <span class="blurb">How a call is costed, the 13-step pricing lookup, usage-stats store, per-report cost ledger, manual price overrides.</span>
+</a>
+
+<a class="index-card" href="value-view.html">
+  <span class="name">Value view</span>
+  <span class="blurb">Quality-vs-cost scatter chart across ranking sources, Pareto frontier, best-value pick, tunable ranking weights.</span>
+</a>
+
 <a class="index-card" href="translation.html">
   <span class="name">Translation</span>
-  <span class="blurb">TRANSLATE secondary-kind, multi-language fan-out, translation runs, side-by-side / Translate Run / Translate Call detail screens.</span>
+  <span class="blurb">The Translate secondary-kind, multi-language fan-out for Meta, worker-swarm dispatch, translated-report viewing.</span>
+</a>
+
+<a class="index-card" href="rank-translators.html">
+  <span class="name">Rank the translators</span>
+  <span class="blurb">TransRank — judge panel scores each translator's output per language, leaderboard + per-translator drill-in.</span>
 </a>
 
 <a class="index-card" href="share-target.html">
   <span class="name">Share target</span>
-  <span class="blurb"><code>ACTION_SEND</code> / <code>ACTION_SEND_MULTIPLE</code> plumbing and the landing routes (Report, Chat).</span>
+  <span class="blurb"><code>ACTION_SEND</code> / <code>ACTION_SEND_MULTIPLE</code> plumbing, the chooser overlay, and the Report / Chat / Knowledge landing routes.</span>
 </a>
 
 <a class="index-card" href="backup-restore.html">
   <span class="name">Backup &amp; restore</span>
-  <span class="blurb">Full-app zip backup format, two-pass validate-then-write restore, post-restore catalog merge.</span>
+  <span class="blurb">Full-app zip backup format, validate-then-write restore, symlink/zip-bomb safety caps, provider-catalog handling.</span>
 </a>
 </div>
 
@@ -102,12 +172,12 @@ layered into one resolved view per (provider, model) pair.</p>
 
 <a class="index-card" href="providers.html">
   <span class="name">Providers</span>
-  <span class="blurb">All 42 cloud providers with base URL, admin URL, and non-default fields.</span>
+  <span class="blurb">All 91 cloud providers with base URL, admin URL, default model, and non-default fields.</span>
 </a>
 
 <a class="index-card" href="repositories.html">
   <span class="name">Repositories</span>
-  <span class="blurb">Seven external metadata repositories — LiteLLM, OpenRouter, models.dev, Helicone, llm-prices, Artificial Analysis, HuggingFace.</span>
+  <span class="blurb">Twelve external metadata repositories — ten pricing catalogs plus CloudPrice and HuggingFace (capabilities-only) — and the lookup precedence.</span>
 </a>
 
 <a class="index-card" href="persistent.html">
@@ -131,7 +201,9 @@ layered into one resolved view per (provider, model) pair.</p>
 <a href="architecture.html">architecture</a> →
 <a href="datastructures.html">datastructures</a> →
 <a href="development.html">development</a>.
-Pull up a subsystem doc when a specific question lands in your lap.</p>
+Pull up a subsystem doc when a specific question lands in your lap —
+<a href="ownership.html">ownership</a> is a good second stop if
+you're about to touch shared mutable state.</p>
 </div>
 
 <p class="backtop"><a href="#">↑ Top</a></p>

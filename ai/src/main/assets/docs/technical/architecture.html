@@ -7,419 +7,492 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>Architecture</span></header>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Architecture</span></header>
 <main>
 
 <h1>Architecture</h1>
+
+<p>A single-Activity Android app in Kotlin + Jetpack Compose, MVVM on
+top of <code>StateFlow</code>. There is exactly <strong>one</strong>
+real Android <code>ViewModel</code>; the other two "view models" are
+plain classes that wrap it.</p>
 
 <nav class="toc">
 <strong>Jump to</strong>
 <ul>
 <li><a href="#glance">At a glance</a></li>
 <li><a href="#nav-tree">Navigation tree</a></li>
-<li><a href="#data-layer">Data layer</a></li>
 <li><a href="#shape">Codebase shape</a></li>
 <li><a href="#appservice">AppService &amp; ApiFormat</a></li>
-<li><a href="#viewmodels">Five view models</a></li>
+<li><a href="#registry">ProviderRegistry: 91 providers as JSON assets</a></li>
+<li><a href="#viewmodels">One ViewModel, two wrappers</a></li>
 <li><a href="#nav-twotier">Two-tier navigation</a></li>
-<li><a href="#titlebar">TitleBar + green subject row</a></li>
+<li><a href="#titlebar">TitleBar action strip + icon generation</a></li>
+<li><a href="#report-screen">The report screen: Manage / Get-info / View hub</a></li>
 <li><a href="#layered">Layered lookups</a></li>
 <li><a href="#trace">Trace storage</a></li>
 <li><a href="#share">Share-target</a></li>
 <li><a href="#crud">Generic CRUD list</a></li>
 <li><a href="#overlay">Full-screen overlay pattern</a></li>
 <li><a href="#meta-scope">Two-step Meta scope</a></li>
-<li><a href="#fan">Fan-out / Fan-in / Fan Meta</a></li>
+<li><a href="#fan">Fan-out / Fan-in</a></li>
+<li><a href="#worker-batches">Worker-judged analysis batches</a></li>
 <li><a href="#concurrency">Concurrency</a></li>
-<li><a href="#streaming">Streaming</a></li>
+<li><a href="#streaming">Streaming &amp; the OpenAI dual API</a></li>
 <li><a href="#recovery">State recovery</a></li>
 <li><a href="#logging">In-app logging</a></li>
 <li><a href="#restart">Auto-restart</a></li>
+<li><a href="#persistence">Persistence map</a></li>
 <li><a href="#seeding">First-run seeding + every-start delta merge</a></li>
 </ul>
 </nav>
 
 <h2 id="glance">At a glance</h2>
-<p>A single-Activity Android app written in Kotlin + Jetpack Compose,
-MVVM with three view models on top of <code>StateFlow</code>.
-Networking goes through Retrofit + OkHttp (with custom interceptors
-for tracing and rate-limit retry). Persistence is split between
-<code>SharedPreferences</code> (user-curated config, caches) and JSON
-files under <code>filesDir</code> (reports, secondary results, traces,
-chat history, usage stats, pricing tier blobs).</p>
+<p>Networking goes through Retrofit + OkHttp with a stack of custom
+interceptors (tracing, per-host throttle, 429 / 529 retry, per-call
+read timeout). Persistence is split between <code>SharedPreferences</code>
+(user-curated config, catalog timestamps, small maps) and JSON files
+under <code>filesDir</code> (reports, secondary results, traces, chat
+history, embeddings, usage stats, pricing tier blobs, RAG knowledge
+bases).</p>
+
+<div class="callout">
+<p>There is <strong>no</strong> Jetpack DataStore at runtime. The
+<code>androidx.datastore.preferences</code> dependency is declared but
+unused — persistence is exclusively <code>SharedPreferences</code> +
+JSON files. There is no <code>AppDataStore</code> class.</p>
+</div>
 
 <h2 id="nav-tree">Navigation tree</h2>
 
-<p>Top-level structure of the single Activity, navigated through
-<code>AppNavHost</code>:</p>
+<p>Navigation is <strong>two independent systems</strong>: top-level
+routes on Jetpack Navigation Compose, and an enum-driven
+<code>when</code> block inside <code>SettingsScreen</code> for its
+sub-screens (see <a href="#nav-twotier">below</a>).</p>
 
 <ul class="tree">
-<li><strong>MainActivity</strong>
+<li><strong>MainActivity</strong> <span class="note">— the only Activity, no custom Application subclass</span>
   <ul>
-    <li>AppNavHost <span class="note">— Jetpack Navigation</span>
+    <li>AppNavHost <span class="note">— single NavHost + a CompositionLocal stack</span>
       <ul>
-        <li>HubScreen</li>
-        <li>ReportsHubScreen / ReportScreen / ReportSingleResultScreen</li>
-        <li>ChatsHubScreen / ChatScreens / DualChatScreen</li>
+        <li>HubScreen <span class="note">— HOME_SCREEN mode</span> / HomeIconBar <span class="note">— HOME_BAR mode (default)</span></li>
+        <li>ReportsHubScreen / ReportsScreen / ViewAiReportScreen
+          <ul><li>AnswerMatrixViewScreen <span class="note">— overlay tile</span></li></ul>
+        </li>
+        <li>ChatsHubScreen / ChatScreens / DualChatSessionScreen</li>
         <li>ModelInfoScreen / ModelListScreen</li>
-        <li>SearchScreens <span class="note">— Quick / Extended local</span></li>
+        <li>SearchScreens <span class="note">— Quick / Extended local + Remote semantic</span></li>
         <li>ShareChooserScreen <span class="note">— overlay before NavHost</span></li>
         <li>SettingsScreen <span class="note">— two-tier: enum-driven sub-screens</span></li>
-        <li>HousekeepingScreen <span class="note">— full screens per NavCard row</span></li>
-        <li>SecondaryResultsScreen + FanOutScreen / FanOutL1 / L2 / L3
-          <ul>
-            <li>FanOutIconsScreens <span class="note">— icons mode</span></li>
-          </ul>
-        </li>
-        <li>ModelTestScreen + ModelTestSelectScreen + ModelTestL1 / L2 / L3
-          <span class="note">— Housekeeping → Test</span></li>
-        <li>TranslationCompareScreen / TranslationL1 / L2 / L3 …</li>
-        <li>HelpScreen / TraceScreen</li>
+        <li>Monitor / Housekeeping hubs <span class="note">— icon cards + drill-ins</span></li>
+        <li>Second results / Broken-work / View tile-grid hub</li>
+        <li>HelpScreen / TraceListScreen / DocumentationScreen</li>
       </ul>
     </li>
   </ul>
 </li>
 </ul>
 
-<p>View models sit underneath; see <a href="#viewmodels">five view
-models</a>.</p>
+<p><code>NavRoutes.kt</code> holds ~125 route constants plus builder
+helpers (<code>aiReportInfo()</code>, <code>traceDetail()</code>,
+<code>helpForTopic()</code>, …) that URL-encode their args. Route
+registration is split across five <code>NavGraphBuilder</code>
+extension functions, each invoked from <code>AppNavHost</code>:</p>
 
-<h2 id="data-layer">Data layer</h2>
+<dl class="kv">
+<div><dt>reportRoutes</dt><div class="meta"><code>ReportRoutes.kt</code></div><dd>Reports, view, manage.</dd></div>
+<div><dt>settingsAdminRoutes</dt><div class="meta"><code>SettingsAdminRoutes.kt</code></div><dd>Settings, monitor, housekeeping.</dd></div>
+<div><dt>knowledgeSearchRoutes</dt><div class="meta"><code>KnowledgeSearchRoutes.kt</code></div><dd>RAG, semantic search.</dd></div>
+<div><dt>developerRoutes</dt><div class="meta"><code>DeveloperRoutes.kt</code></div><dd>Trace, about, documentation.</dd></div>
+<div><dt>chatRoutes</dt><div class="meta"><code>ChatRoutes.kt</code></div><dd>Chat, dual chat.</dd></div>
+</dl>
 
-<p>Under <code>com.ai.data</code>. Below: each class and what it owns.</p>
-
-<ul class="tree">
-<li><strong>HTTP &amp; dispatch</strong>
-  <ul>
-    <li>AnalysisRepository <span class="note">— façade with retry / fallback</span></li>
-    <li>ApiDispatch <span class="note">— selects ApiFormat-specific code path</span></li>
-    <li>ApiStreaming <span class="note">— SSE parser + Flow emission</span></li>
-    <li>ApiClient <span class="note">— Retrofit interfaces, ApiFactory</span></li>
-    <li>ApiTracer <span class="note">— OkHttp interceptor + JSON file storage + in-memory metadata cache + thread-local (reportId, category) tags + NetworkSettings + ProviderThrottle + 429 / 529 retry + read-timeout interceptors + ApiCallCaps semaphores</span></li>
-  </ul>
-</li>
-<li><strong>Logging &amp; IO</strong>
-  <ul>
-    <li>AppLog <span class="note">— log4j-style file appender + redaction</span></li>
-    <li>AtomicFileWrite <span class="note">— fsync + ATOMIC_MOVE atomic writeText</span></li>
-    <li>EmojiExtract <span class="note">— grapheme-cluster emoji isolation</span></li>
-  </ul>
-</li>
-<li><strong>Provider model</strong>
-  <ul>
-    <li>ProviderRegistry <span class="note">— runtime registry of AppService instances</span></li>
-    <li>ProviderFieldTimestamps <span class="note">— per-provider per-field user-edit ts</span></li>
-    <li>PricingCache <span class="note">— seven-tier pricing + capability lookup (tier blobs in <code class="path">filesDir/pricing/</code>)</span></li>
-    <li>ModelCooldownStore <span class="note">— auto-bench on long-Retry-After 429s</span></li>
-  </ul>
-</li>
-<li><strong>Storage</strong>
-  <ul>
-    <li>ReportStorage <span class="note">— per-report JSON file persistence</span></li>
-    <li>SecondaryResultStorage <span class="note">— RERANK / META / MODERATION / TRANSLATE persistence</span></li>
-    <li>ChatHistoryManager <span class="note">— chat session persistence</span></li>
-    <li>HuggingFaceCache <span class="note">— HF model-info cache</span></li>
-    <li>BackupManager <span class="note">— zip-based backup/restore</span></li>
-    <li>ModelListCache <span class="note">— model-list TTL bookkeeping</span></li>
-    <li>PromptCache <span class="note">— per-prompt cached responses</span></li>
-  </ul>
-</li>
-<li><strong>Fan-out runtime</strong>
-  <ul>
-    <li>FanOutRunModel <span class="note">— PairState / CombinedReportState / FanOutRunState (immutable run snapshot)</span></li>
-    <li>ModelTestRunModel <span class="note">— ModelTestState / TestStatus / ModelTestRunState</span></li>
-    <li>ModelTestRunStore <span class="note">— <code class="path">filesDir/test_run.json</code> single-doc</span></li>
-  </ul>
-</li>
-<li><strong>Bundled-asset seeds</strong>
-  <ul>
-    <li>InternalPromptSeed <span class="note">— assets/internal-prompts/ loader</span></li>
-    <li>ExamplePromptSeed <span class="note">— assets/examples.json loader</span></li>
-    <li>InaccessibleSeed <span class="note">— assets/inaccessible.json delta-merge</span></li>
-    <li>TestExcludedSeed <span class="note">— assets/excluded.json delta-merge</span></li>
-    <li>InternalPromptIconCache <span class="note">— per-Meta-prompt emoji cache</span></li>
-    <li>ImageAttach <span class="note">— vision-image downscale + JPEG-encode</span></li>
-  </ul>
-</li>
-<li><strong>Share-target</strong>
-  <ul>
-    <li>SharedContent <span class="note">— snapshot of an ACTION_SEND payload</span></li>
-  </ul>
-</li>
-</ul>
-
-<p>Out of that layer the app talks to: external APIs across 42 cloud
-providers and seven metadata repositories.</p>
+<p>A read-only background scan publishes a broken-work flag
+(<code>LocalBrokenWork</code>) that swaps the top-bar logo for a ⚠️
+opening the Broken-work screen — see <a href="#recovery">state
+recovery</a>.</p>
 
 <h2 id="shape">Codebase shape</h2>
 
-<p>~73,900 LOC across 150 Kotlin files.</p>
+<p>~161,212 LOC across 406 Kotlin files under
+<code>ai/src/main/java/com/ai</code>
+(<code>namespace = "com.ai"</code>, <code>compileSdk = 37</code>,
+<code>minSdk = 36</code>, <code>targetSdk = 36</code>; Kotlin 2.4.0 /
+AGP 9.2.1 / Compose BOM 2026.05.01, Java 25 / JVM target 25).</p>
 
 <dl class="kv">
 <div>
-<dt>data/</dt>
-<dd>41 files. HTTP, dispatch, streaming, tracer, rate limit / throttle,
-registry, pricing, cooldowns, storage, in-app file logger,
-atomic-write helpers, bundled-asset seeds.</dd>
+<dt>data/ — 97 files</dt>
+<dd>91 at the top level plus two nested packages: <code
+class="path">data/local/</code> (4 files — <code>LocalLlm</code>,
+<code>LocalEmbedder</code>, <code>LlmRuntime</code>,
+<code>LocalRuntime</code>) and <code class="path">data/preferences/</code>
+(2 files — <code>SettingsPreferences</code>,
+<code>PromptHistoryStore</code>, the first slice carved out of what
+used to be a single 1,100+ line <code>SettingsPreferences</code>).
+HTTP/dispatch/streaming, the tracer + interceptor stack, the provider
+registry, pricing, every on-disk storage object, the file logger,
+atomic-write helpers, bundled-asset seeds, the RAG/Knowledge layer,
+the on-device runtime, and the regenerate-batch + Tournament / Judge /
+Compare / TranslatorRank run models.</dd>
 </div>
 <div>
-<dt>model/</dt>
-<dd>2 files: <code>SettingsModels.kt</code>,
-<code>SettingsHolder.kt</code>.</dd>
+<dt>model/ — 2 files</dt>
+<dd><code>SettingsModels.kt</code> (the settings data classes —
+<code>ProviderConfig</code>, <code>Agent</code>, <code>Flock</code>,
+<code>Swarm</code>, <code>SwarmMember</code>, <code>Parameters</code>,
+<code>SystemPrompt</code>, <code>BlockedModel</code>, …) and
+<code>SettingsHolder.kt</code> (<code>object SettingsHolder</code>).</dd>
 </div>
 <div>
-<dt>viewmodel/</dt>
-<dd>6 files: <code>AppViewModel</code>, <code>ChatViewModel</code>,
-<code>ReportViewModel</code>, <code>ReportViewModelHelpers</code>,
-<code>FanOutEngine</code>, <code>ModelTestEngine</code>.</dd>
+<dt>viewmodel/ — 27 files</dt>
+<dd>Three top-level classes (<code>AppViewModel</code>,
+<code>ChatViewModel</code>, <code>ReportViewModel</code>) plus 24
+extracted helper / support files — see <a href="#viewmodels">below</a>.</dd>
 </div>
 <div>
-<dt>ui/</dt>
-<dd>Sub-domains: <code>hub</code>,
-<code>report</code> (incl. FanOut L1/L2/L3, FanOutIcons,
-ModelTest L1/L2/L3, Translation L1/L2/L3, Find-alternative-icons
-screens), <code>chat</code>, <code>models</code>,
-<code>search</code>, <code>history</code>,
-<code>settings</code>, <code>admin</code> (incl. AppLog),
-<code>share</code>, <code>shared</code>, <code>theme</code>,
-<code>navigation</code>.</dd>
+<dt>ui/ — 279 files</dt>
+<dd>No files sit directly at the <code>ui/</code> root; all 279 are
+in sub-domains. See the breakdown below.</dd>
 </div>
 <div>
 <dt>MainActivity.kt</dt>
-<dd>Single Activity entrypoint.</dd>
+<dd>The single entry file at the <code>com/ai</code> root.</dd>
 </div>
 </dl>
+
+<details>
+<summary>ui/ sub-domain breakdown</summary>
+<div class="body">
+<ul>
+<li><code>report</code> × 101 <span class="note">— fully nested, no files at report/ root</span>
+  <ul>
+    <li><code>report/manage</code> × 67 <span class="note">(incl. nested report/manage/view)</span></li>
+    <li><code>report/view</code> × 23</li>
+    <li><code>report/start</code> × 8</li>
+    <li><code>report/other</code> × 2</li>
+    <li><code>report/info</code> × 1</li>
+  </ul>
+</li>
+<li><code>cruds</code> × 48 <span class="note">— incl. cruds/framework (CrudListPage, CrudFormScaffold, CrudViewPage)</span></li>
+<li><code>admin</code> × 36</li>
+<li><code>settings</code> × 22</li>
+<li><code>shared</code> × 17</li>
+<li><code>helpers</code> × 16</li>
+<li><code>navigation</code> × 7</li>
+<li><code>other</code> × 6</li>
+<li><code>chat</code> × 5</li>
+<li><code>hub</code> × 5</li>
+<li><code>search</code> × 4</li>
+<li><code>models</code> × 4</li>
+<li><code>history</code> × 3</li>
+<li><code>share</code> × 3</li>
+<li><code>knowledge</code> × 1</li>
+<li><code>theme</code> × 1</li>
+</ul>
+</div>
+</details>
+
+<h3>Entry point</h3>
+
+<p><code>MainActivity</code> is the only Activity (no custom
+<code>Application</code> subclass). In <code>onCreate</code> it calls
+<code>CrashReporter.init(applicationContext)</code> <strong>before
+anything else</strong> (so an early-startup crash still lands in
+<code class="path">&lt;filesDir&gt;/crash/last-crash.txt</code>), calls
+<code>enableEdgeToEdge()</code>, handles a share intent only when
+<code>savedInstanceState == null</code> (so rotation doesn't re-import
+the shared payload), then sets content to <code>AppNavHost(...)</code>
+wrapped in <code>AppTheme</code>.</p>
 
 <h2 id="appservice">AppService and ApiFormat</h2>
 
 <p>Every cloud provider is an <code>AppService</code> with an
-<code>apiFormat</code> field — one of <code>OPENAI_COMPATIBLE</code>,
-<code>ANTHROPIC</code>, <code>GOOGLE</code>. Dispatch always keys off
-the format, never off provider identity, so 40 of 42 default
-providers share unified code paths. Adding an OpenAI-compatible
-provider is a one-line entry in <code>assets/providers.json</code>
-(see <a href="development.html">development</a>).</p>
+<code>apiFormat</code> field — exactly one of
+<code>OPENAI_COMPATIBLE</code>, <code>ANTHROPIC</code>,
+<code>GOOGLE</code>, <code>REPLICATE</code>. Dispatch always keys off
+the format, never off provider identity, so <strong>88 of the 91
+bundled providers</strong> share unified code paths; only the single
+Anthropic, Google, and Replicate providers carry format-specific
+branches. Adding an OpenAI-compatible provider is one new JSON file
+under <code class="path">assets/providers/</code> (see
+<a href="development.html">development</a>).</p>
 
-<p>The <code>AppService</code> runtime class carries far more than
-just the format field — model-routing patterns
-(<code>responsesApiPatterns</code>,
+<p><code>AppService</code> is a plain <code>class</code>,
+<strong>not</strong> a Kotlin <code>data class</code>: its
+<code>equals</code> / <code>hashCode</code> / <code>toString</code>
+are <strong>id-only</strong> (two instances are equal iff their
+<code>id</code>s match). It hand-writes a <code>copy(...)</code> funnel
+covering every field so a newly added field can't be silently
+dropped. Beyond the format field it carries:</p>
+
+<ul>
+<li>model-routing patterns — <code>responsesApiPatterns</code>,
 <code>reasoningModelPatterns</code>,
 <code>reasoningEffortAcceptPatterns</code>,
 <code>webSearchModelPatterns</code>,
-<code>adaptiveThinkingPatterns</code>), native non-chat endpoints
-(<code>nativeRerankUrl</code> for Cohere <code>/v2/rerank</code>,
-<code>nativeModerationUrl</code> for Mistral
-<code>/v1/moderations</code>, <code>nativeCapabilityUrl</code> for
-Cohere-style capability listings), pricing / list-fetch flags
-(<code>pricingFromModelList</code>,
-<code>crossProviderModelList</code>,
+<code>adaptiveThinkingPatterns</code> (lists of <code>ModelPattern</code>,
+matched against the lowercased model id);</li>
+<li>native non-chat endpoints — <code>nativeRerankUrl</code>
+(SiliconFlow, Cohere), <code>nativeModerationUrl</code> (Mistral),
+<code>nativeCapabilityUrl</code>;</li>
+<li>pricing / list-fetch flags — <code>pricingFromModelList</code>
+(Together), <code>crossProviderModelList</code> (OpenRouter),
 <code>mergeHardcodedModels</code>,
-<code>externalReasoningSignalUntrusted</code>), per-family
-<code>max_tokens</code> defaults (<code>maxTokensDefaults</code>), and
-one or more <code>builtInEndpoints</code> (DeepSeek, Mistral, Z.AI
-all ship more than one endpoint out of the box). The full field list
-is in <a href="datastructures.html#appservice">datastructures →
-AppService</a>.</p>
+<code>externalReasoningSignalUntrusted</code>,
+<code>extractApiCost</code>, <code>costTicksDivisor</code> (xAI = 1e10);</li>
+<li>per-family <code>max_tokens</code> defaults
+(<code>maxTokensDefaults</code>) and one or more
+<code>builtInEndpoints</code> — OpenAI, DeepSeek, Mistral, and Z.AI
+ship more than one endpoint;</li>
+<li>per-provider throttle overrides
+(<code>maxCallsPerProviderPerMinute</code>,
+<code>maxConcurrentCallsPerProvider</code>,
+<code>maxRetriesOn429</code>, …; <code>null</code> = inherit the
+global default).</li>
+</ul>
 
-<p>The id-unification refactor collapsed three name-like fields
+<p>Full field list in <a href="datastructures.html#appservice">datastructures
+→ AppService</a>.</p>
+
+<p>The id-unification refactor collapsed three former name-like fields
 (<code>id</code> / <code>displayName</code> / <code>prefsKey</code>)
-into one. UI shows <code>id</code> directly; SharedPreferences key
-prefixes use <code>id</code> directly (e.g.
-<code>OpenAI_api_key</code>). Bundled values come from
-<code>assets/providers.json</code>; user-added providers set their
-own. There is <strong>no longer</strong> a separate
-<code>prefsKey</code> or <code>displayName</code> field on
-<code>AppService</code>.</p>
+into one. <code>AppService.id</code> is now the stable id
+<strong>and</strong> the UI label <strong>and</strong> the
+SharedPreferences key prefix (e.g. <code>OpenAI_api_key</code>). There
+is no longer a separate <code>prefsKey</code> or
+<code>displayName</code> field.</p>
 
-<p><code>AppService.entries</code> returns the live list from
-<code>ProviderRegistry</code>, which loads <code>providers.json</code>
-on first run via <code>importFromAsset</code> and then merges any
-custom provider definitions the user imports.</p>
+<p><code>findById(id)</code> special-cases the synthetic
+<code>AppService.LOCAL</code> sentinel (<code>id = "Local"</code>)
+before delegating, and the Gson adapter writes an <code>AppService</code>
+as its <code>id</code> string and reads it back through
+<code>findById</code>, so a persisted "Local" chat session round-trips.</p>
 
-<h2 id="viewmodels">Five view models</h2>
+<h2 id="registry">ProviderRegistry: 91 providers as JSON assets</h2>
 
-<details open>
-<summary>AppViewModel</summary>
+<p>The 91 cloud providers are <strong>not</strong> hardcoded in
+Kotlin. Each is one JSON file under <code
+class="path">assets/providers/</code> (91 files, each a bare
+<code>ProviderDefinition</code> — no wrapping array).
+<code>ProviderRegistry</code> is a mutable <code>object</code> that
+starts <strong>empty</strong> on a fresh install; providers load on
+demand via <code>importFromAsset</code>, which reads every
+<code>*.json</code> under that directory (sorted for a deterministic
+merge) and persists to the <code>provider_registry</code>
+SharedPreferences file.</p>
+
+<p>Notable registry API: <code>getAll</code>, <code>findById</code>,
+<code>add</code>, <code>update</code> (bumps per-field
+<code>ProviderFieldTimestamps</code>), <code>remove</code>,
+<code>importFromAsset</code> (append-only), <code>upsertFromJson</code>
+(user import — this is the only place the
+<code>{ "providers": [...] }</code> wrapper shape is accepted),
+<code>syncFromAsset</code> (refreshes only un-edited fields, never
+appends), and <code>findByHost(host)</code> — resolves a request
+hostname to its <code>AppService</code> via a <code>hostIndex</code>
+rebuilt from <code>baseUrl</code> + <code>auxHosts</code> on every
+<code>save()</code>, used by <code>ProviderThrottle</code> for
+per-provider overrides.</p>
+
+<p>The catalog keeps every provider — key-less ones included — but
+<strong>AI Setup → Providers</strong> shows only providers with an API
+key set; a separate <strong>"Add provider - predefined"</strong>
+screen lists every registered provider with <strong>no</strong> key
+yet, so users browse the full catalog and drop in a key to promote one
+onto the main list. Full id list in
+<a href="providers.html">providers</a>.</p>
+
+<h2 id="viewmodels">One ViewModel, two wrappers</h2>
+
+<details class="entity" open>
+<summary>AppViewModel <span class="badge">the only AndroidViewModel</span></summary>
 <div class="body">
 <p>Owns <code>UiState</code> (a single bag of every UI-relevant field)
 and <code>Settings</code>. Handles bootstrap, model-list refresh,
-external + share intents, and persistence. Other view models delegate
-to it for shared state. Mutators that race the UI (provider state
-flips on Refresh All, agent test flock population) use a CAS-style
-<code>compareAndSet</code> pattern so two fan-out updates don't
-overwrite each other.</p>
-<p>Also owns the in-memory <code>iconFanOutByReport: Map&lt;reportId,
-List&lt;IconCandidate&gt;&gt;</code> map that
-<code>FindAlternativeIconsScreens</code> consumes, and the
-<code>iconRefreshTick</code> counter on <code>UiState</code> that
-forces icon-dependent recompositions when a background icon call
-settles.</p>
-<p><code>GeneralSettings</code> now carries the six concurrency
-ceilings — <code>maxConcurrentApiCalls</code> (50),
-<code>maxConcurrentReportCalls</code> (15),
-<code>maxConcurrentTranslationCalls</code> (15),
-<code>maxConcurrentFanOutCalls</code> (15),
-<code>maxConcurrentFanMetaCalls</code> (15),
-<code>maxTestApiCalls</code> (40) — mirrored into
-<code>ApiCallCaps</code> semaphores on every Settings update.</p>
+external + share intents, and persistence. Mutators that race the UI
+(provider state flips on Refresh All, agent-test flock population) use
+a CAS-style <code>updateUiState { it.copy(...) }</code> pattern so two
+fan-out updates don't overwrite each other.</p>
+<p>Also owns the in-memory icon-fan-out maps
+(<code>iconFanOutByReport</code>, <code>agentIconFanOutByAgent</code>,
+<code>pairIconFanOutByPair</code>) consumed by the alternative-icon
+pickers, the <code>iconRefreshTick</code> counter on
+<code>UiState</code>, the hot running/throttled cell-id sets for the
+worker-judged batches, the <code>brokenBatches</code>
+<code>StateFlow</code>, and the <code>backgroundResumeSweepJob</code>.</p>
 </div>
 </details>
 
-<details>
-<summary>ChatViewModel</summary>
+<details class="entity">
+<summary>ChatViewModel <span class="badge">plain class, wraps AppViewModel</span></summary>
 <div class="body">
-<p>Chat session state and streaming. Also fires the bundled
-<code>internal/chat_title</code> prompt asynchronously after the first
-assistant response and stamps <code>ChatSession.title</code> with the
-returned label.</p>
+<p>Chat session state and streaming
+(<code>sendChatMessageStream</code>, <code>sendDualChatMessage</code>).
+Routes <code>provider.id == AppService.LOCAL.id</code> chats to
+<code>LocalLlm.generate</code> (<code>sendLocalLlmStream</code>);
+prepends RAG context via <code>messagesWithRag</code> when knowledge
+bases are attached. The bundled <code>internal/chat-title</code>
+prompt that names a session is fired separately by the chat screen
+(<code>kickOffChatTitleGeneration</code> in <code>ChatScreens.kt</code>),
+not by this class.</p>
 </div>
 </details>
 
-<details>
-<summary>ReportViewModel</summary>
+<details class="entity">
+<summary>ReportViewModel <span class="badge">plain class, wraps AppViewModel</span></summary>
 <div class="body">
-<p>Report generation, secondary-result flows (RERANK / META /
-MODERATION / TRANSLATE), the multi-language fan-out for chat-type
-META and TRANSLATE, <strong>Fan-in</strong> (combine), and the
-per-agent 3-tier report-icon chain.</p>
+<p>Report generation, the eight <code>SecondaryKind</code> flows
+(RERANK / META / MODERATION / TRANSLATE / TOURNAMENT / JUDGES /
+COMPARE / TRANSRANK), the multi-language fan-out for chat-type META
+and TRANSLATE, the Fan-out / Fan-in flow, <strong>and</strong>
+per-model report icons (derived from each model's title via the
+worker engine, <code>workers/model-icons</code>).</p>
 <p>Holds an in-memory <code>_agentResults</code> flow separate from
 <code>UiState</code> so per-task completions don't ripple equality
-checks across the rest of the UiState. Holds a <code>Map&lt;String,
-TranslationRun&gt;</code> keyed by <code>runId</code> so multiple
-concurrent Translate batches don't overwrite each other.</p>
+checks across the rest of <code>UiState</code>, and delegates the
+heavy lifting to the extracted engines (<code>fanOutEngine</code>,
+<code>tournamentEngine</code>, <code>judgeEvalEngine</code>,
+<code>compareEngine</code>, <code>translatorRankEngine</code>,
+<code>secondary</code> [<code>SecondaryRunManager</code>],
+<code>regenerateBatchEngine</code>, <code>translation</code>, …).</p>
 <p>Long-running flows (initial generate, regenerate, secondary
-launches, report-icon chain) are launched on
+launches, the report-icon work) are launched on
 <code>appViewModel.viewModelScope</code> rather than the report VM's
-own scope so navigating away from the result screen doesn't cancel the
-work — <code>_agentResults</code> and <code>Report.*</code> storage
-keep the background results addressable when the screen recomposes
-back. Pure helpers live in <code>ReportViewModelHelpers.kt</code>
-(<code>providerHost</code>, <code>executeSecondaryTask</code>, etc.).</p>
+own scope, so navigating away from the result screen doesn't cancel
+the work — <code>_agentResults</code> and <code>Report.*</code>
+storage keep the background results addressable when the screen
+recomposes back. Pure helpers live in
+<code>ReportViewModelHelpers.kt</code>.</p>
 </div>
 </details>
 
-<details>
-<summary>FanOutEngine</summary>
-<div class="body">
-<p>Owns the authoritative
-<code>_runs: MutableStateFlow&lt;Map&lt;FanOutRunKey,
-FanOutRunState&gt;&gt;</code> for every active fan-out run. Each
-per-pair transition is a single atomic <code>_runs.update { … }</code>
-call, so subscribers see exactly one value per transition with no
-flicker.</p>
-<p>Per-pair <code>Job</code> map (<code>fanOutPairJobs</code>)
-registered with <code>CoroutineStart.LAZY</code> BEFORE
-<code>start()</code> so a destructive path can <code>cancelAndJoin</code>
-a specific pair before deleting its disk row. Sizes its in-flight IO
-semaphore from <code>maxConcurrentFanOutCalls</code>, layered on top
-of the per-host <code>ProviderThrottle</code>.</p>
-<p>Hosts the <strong>Fan Meta</strong> batch (a parallel emoji chain
-across every completed pair) — same shape, separate budget via
-<code>maxConcurrentFanMetaCalls</code>. Hydrates lazily from disk via
-<code>hydrate(context, reportId)</code> and delegates HTTP + save to
-<code>ReportViewModel.executeSecondaryTask</code>.</p>
-</div>
-</details>
+<h3>The 24 extracted viewmodel/ helpers</h3>
 
-<details>
-<summary>ModelTestEngine</summary>
-<div class="body">
-<p>"Test all models" runner. Exposes a single
-<code>StateFlow&lt;ModelTestRunState?&gt;</code> keyed off
-<code class="path">filesDir/test_run.json</code> and a sibling
-<code>throttledKeys: StateFlow&lt;Set&lt;String&gt;&gt;</code> so the
-L1 page can show which (provider, model) pairs are currently blocked
-in a <code>ProviderThrottle.acquire</code>.</p>
-<p>Auto-feeds the <strong>Blocked</strong>,
-<strong>Test-excluded</strong>, and <strong>Inaccessible</strong>
-lists from probe outcomes (provider-side "Unable to access
-non-serverless" routes to <code>inaccessibleModels</code>, model
-errors above the user threshold land in <code>blockedModels</code>,
-cost &gt; 5¢ + manual entries are <code>testExcludedModels</code>).</p>
-</div>
-</details>
+<ul class="tree">
+<li><strong>BatchEngine</strong> <span class="note">— abstract base: run/item job registries, deferred delete, resume-scan dedup</span>
+  <ul>
+    <li>SecondaryBatchEngine <span class="note">— template layer for the four SecondaryResult-row siblings; owns shared finalize / resume / remove / rerun / continue-broken flows behind small hooks (isItemRow, canRedispatch, redispatchRows, recomputeAggregate, clearRowForRerun, …)</span>
+      <ul>
+        <li>CompareEngine / JudgeEvalEngine / TournamentEngine / TranslatorRankEngine</li>
+      </ul>
+    </li>
+    <li>FanOutEngine <span class="note">— extends BatchEngine directly</span></li>
+    <li>TranslationRunManager <span class="note">— extends BatchEngine directly</span></li>
+  </ul>
+</li>
+<li><strong>ModelTestEngine</strong> <span class="note">— "Test all models" runner (its own sibling, not under BatchEngine)</span></li>
+<li><strong>StressTestEngine</strong></li>
+<li><strong>RegenerateBatchEngine</strong> <span class="note">— see regenerate.html</span></li>
+<li><strong>5 managers</strong>
+  <ul>
+    <li>IconGenerationManager / MetaEditManager / SecondaryModelSwitchManager / SecondaryRunManager / TranslationRunManager</li>
+  </ul>
+</li>
+<li><strong>WorkerRunner</strong> <span class="note">— one runner</span></li>
+<li><strong>8 type / support files</strong>
+  <ul>
+    <li>AppViewModelTypes.kt <span class="note">— GeneralSettings + UI enums incl. AppHomeMode</span></li>
+    <li>ReportViewModelHelpers.kt <span class="note">— providerHost, resolveSystemPromptText, acquireThrottledPermits, interleaveByHost, …</span></li>
+    <li>ThrottledBatch.kt <span class="note">— runThrottledBatch + PermitHold + BatchResume</span></li>
+    <li>TranslationTypes.kt / BrokenWorkPolicy.kt / BuildProgress.kt</li>
+    <li>ReplayTrack.kt <span class="note">— generic keyed replay-state + job track, factored out of the temperature / reasoning-effort / web-search / prompt-edit replay flows</span></li>
+    <li>SecondaryCellCalls.kt <span class="note">— the two per-item call shapes every batch engine reduces to (worker-pool; fixed-judge)</span></li>
+  </ul>
+</li>
+</ul>
 
 <h2 id="nav-twotier">Two-tier navigation</h2>
 
-<p>Top-level navigation uses Jetpack Navigation. Inside
-<code>SettingsScreen</code>, sub-screens are routed via the
-<code>SettingsSubScreen</code> enum (~32 entries covering AI Setup
-hubs, providers, models, model-types, agents, flocks, swarms,
-parameters, system prompts, internal-prompt hubs by category, example
-prompts, external services, import / export, refresh) and a
-<code>when</code> block — this keeps
+<p>Inside <code>SettingsScreen.kt</code>, sub-screens are routed via
+<code>enum class SettingsSubScreen</code> (<strong>53 values</strong>:
+<code>MAIN</code>, AI Setup hubs, providers, models, model-types,
+agents, flocks, swarms, parameters, system prompts, internal-prompt
+hubs by category, example prompts, external services,
+import/export, and the <code>SETTINGS_*</code> preference pages
+carved out of the old monolithic Settings screen — network, UI
+colors, logging, autostart, default icons, ranking weights, …). The
+current sub-screen is held in a single
+<code>rememberSaveable</code> var, and one large <code>when</code>
+block both renders the sub-screen and implements hierarchical back
+navigation (a <code>BackHandler</code> walks each child back to its
+setup parent, setup parents back to <code>AI_SETUP</code>). This keeps
 deep links into a single Settings overlay simple and lets
 back-navigation be a single state mutation.</p>
 
-<p>The top-level Settings screen itself is split into three sub-pages
-(Preferences, Privacy &amp; backup, Logging) and the Reset screen is
-split into five dedicated sub-pages — so the user lands on a short
-list rather than a wall of cards.</p>
+<h2 id="titlebar">TitleBar action strip + icon generation</h2>
 
-<h2 id="titlebar">TitleBar + green subject row</h2>
-
-<p>The top bar is a fixed three-section anatomy:</p>
-
-<dl class="kv">
-<div>
-<dt>Left</dt>
-<dd>The <strong>AI</strong> logo (vivid Material A700 blue, alpha
-0.75 so the bar reads through it; tap → Hub) and the
-<strong>❓ Help</strong> icon (tap → screen's help topic).</dd>
-</div>
-<div>
-<dt>Centre</dt>
-<dd>The dynamic report icon (when in scope), centred between the
-left button group and the right title.</dd>
-</div>
-<div>
-<dt>Right</dt>
-<dd>The hardcoded screen title (top-aligned).</dd>
-</div>
-</dl>
-
-<p>Directly below the top bar, every screen routes its dynamic
-subject through the shared <code>HardcodedSubjectRow</code> composable
-(<code>ui/shared/SharedComponents.kt</code>) — a single green-coloured
-26 sp SemiBold line, clickable into Model Info when a
-<code>(provider, model)</code> is supplied, with an optional trailing
-slot (Fan-out L3 uses it for the answerer / source role indicator).
-Self-gates on blank text and applies a <code>(-8).dp</code> offset so
-it sits tight against the title bar. The unification commit
-(<code>3143dbc7</code>) routed every former bespoke subject line
-through this one composable.</p>
-
-<p>Action icons (💬 Chat, ℹ️ Info, 📋 Copy, 📤 Share, 🔄 Refresh,
-🗑 Delete, 🐞 Trace, 📝 Memo) live in a <strong>BottomIconBar</strong>
-pinned at the bottom of the screen. Each screen's <code>TitleBar</code>
-publishes its callbacks into <code>LocalBottomIconState</code>; the
-global bar at AppNavHost scope renders them and survives nav
-transitions. Inactive icons hide; the model-response swipe-nav
-(left = next, right = previous) is wired on top.</p>
+<p>Every screen's <code>TitleBar</code> is a standardised action strip
+— <code>&lt; Back</code> plus a context-specific subset from
+{Chat, Info, Copy, Share, Refresh, Delete, Trace, Memo, Home, Help, …}.
+The glyphs are read from <code>MetadataIcons</code> /
+<code>LocalMetadataIcons</code>, not hard-coded at the call site, so
+Settings → Default icons can override them globally. Inactive icons
+hide; Home and Help are always last. The <code>&lt; Back</code> button
+can itself be hidden via Settings (system / gesture back still works).</p>
 
 <p>Two master switches drive icon generation:</p>
 
 <dl class="kv">
 <div>
 <dt>iconGenEnabled <span class="muted">(default true)</span></dt>
-<dd>Kicks off the per-report <code>internal/icon</code> call on every
-new report. Its result populates <code>Report.icon</code>; result
-page, AI Reports hub, history rows, and the title bar's leftmost icon
-all key off this. Toggling it off hides the icon row and the 📝 memo
-it mirrors; existing icons stay on disk for re-enable.</dd>
+<dd>Kicks off the per-report <code>workers/report-icon</code> call on
+every new report; the result populates <code>Report.icon</code>.
+Toggling it off skips generation while existing icons stay on disk for
+re-enable.</dd>
 </div>
 <div>
 <dt>perModelIconGenEnabled <span class="muted">(default true)</span></dt>
-<dd>Auto-fires the per-agent 3-tier chain
-(<code>runReportIconsForAgent</code>) whenever an agent's primary call
-settles to SUCCESS — both on initial generation and on regenerate.
-Toggling it off skips the chain but leaves any persisted per-agent
-icons in place.</dd>
+<dd>Auto-derives each model's icon from its <strong>title</strong> via
+the worker engine (<code>workers/model-icons</code>) whenever an
+agent's primary call settles to SUCCESS, on both initial generation
+and regenerate. The legacy response-based 3-tier per-agent icon
+fallback chain has been <strong>removed</strong>;
+<code>iconWinningTier</code> on <code>ReportAgent</code> is now always
+null.</dd>
 </div>
 </dl>
 
-<p>See <a href="report-icons.html">report-icons</a> for the full
-flow.</p>
+<p>See <a href="report-icons.html">report-icons</a> for the full flow
+(including the parallel Fan Meta icon chain).</p>
+
+<h2 id="report-screen">The report screen: Manage / Get-info / View hub</h2>
+
+<p>The report UI is a set of state-driven overlays rather than
+separate routes:</p>
+
+<ul>
+<li>The <strong>title tap cycles three screens</strong>
+(<code>cycleReportScreens</code>): Manage → Get-info →
+second-results <span class="muted">(only when at least one secondary
+result exists)</span> → back to Manage.</li>
+<li>The <strong>report-icon tap opens the View tile-grid hub</strong>
+(<code>ViewAiReportScreen</code>), where each secondary kind is a
+tile: <strong>Fan-out</strong> and <strong>Fan-in</strong> each get
+their own screen with one tile per persisted run, plus per-run
+<strong>Meta</strong> tiles, <strong>Rerank</strong>,
+<strong>Tournament</strong>, <strong>Moderation</strong>, the
+<strong>Answer matrix</strong>, <strong>Costs</strong>,
+<strong>Icons</strong>, and <strong>Value view</strong> tiles.</li>
+<li>All secondary results collapse into <strong>one</strong> "second
+results" Manage row + screen.</li>
+<li>"Pick a report" pickers back both the View hub and each Manage
+screen via a <code>ManagePickKind</code> enum that filters and titles
+the picker per source screen.</li>
+</ul>
+
+<p><strong>Answer matrix</strong> (<code>ui/report/view/AnswerMatrix.kt</code>)
+is a read-only table — one row per SUCCESS agent, columns # / Model /
+Rank / Stance / Confidence / Recommendation / Risks / Cost / Latency /
+Tokens. It performs <strong>no new API calls</strong>: rerank
+rank/score come from the latest RERANK row, and
+Stance/Confidence/Recommendation/Risks are regex-mined from the
+response body, not model-reported.</p>
+
+<p><strong>Value view</strong> (<code>ui/report/view/ValueView.kt</code>)
+plots each answer's quality-vs-cost trade-off, folding rerank ranks
+and the configurable ranking weights (Settings → Ranking weights) into
+a single value score — also read-only, no new API calls.</p>
 
 <h2 id="layered">Layered lookups</h2>
 
@@ -428,33 +501,42 @@ flow.</p>
 <details open>
 <summary>Pricing for (provider, model)</summary>
 <div class="body">
-<p>In <code>PricingCache.getPricing</code>, in order:</p>
+<p>In <code>PricingCache.getPricing</code>, first hit wins:</p>
 <ol>
-<li>Provider self-report — OpenRouter when caller is OpenRouter,
-Together when caller is Together.</li>
-<li>Manual override.</li>
-<li>LiteLLM.</li>
-<li>models.dev.</li>
-<li>llm-prices.</li>
-<li>Artificial Analysis.</li>
-<li>OpenRouter cross-provider fallback.</li>
-<li>Helicone.</li>
-<li>Default.</li>
+<li>OpenRouter self-report <span class="muted">(caller's <code>crossProviderModelList</code>)</span></li>
+<li>Together self-report <span class="muted">(caller's <code>pricingFromModelList</code>)</span></li>
+<li>Manual override</li>
+<li>LiteLLM</li>
+<li>models.dev</li>
+<li>llm-prices</li>
+<li>Artificial Analysis</li>
+<li>llm-stats</li>
+<li>OpenRouter cross-provider fallback</li>
+<li>Requesty</li>
+<li>genai-prices</li>
+<li>TrueFoundry</li>
+<li>Helicone</li>
+<li><code>DEFAULT_PRICING</code></li>
 </ol>
 <p>The large tier blobs live as files under
 <code class="path">filesDir/pricing/</code> (one per tier); only
-timestamps and the small manual-override map stay in
-<code>pricing_cache.xml</code>.</p>
+timestamps and the small manual-override map stay in the
+<code>pricing_cache</code> SharedPreferences.
+<code>DEFAULT_PRICING</code> is <strong>$25 / M input, $75 / M
+output</strong> — not zero. CloudPrice and HuggingFace are
+capabilities-only (no pricing), so they're absent from this chain: 10
+of the 12 info-provider repos participate in <code>getPricing</code>.</p>
 <div class="callout warn">
-<p>Manual user overrides win over every curated source — putting
-them after LiteLLM would silently ignore corrections users add
-specifically because LiteLLM has stale data.</p>
+<p>Manual overrides win over every curated source (but still sit
+<strong>below</strong> the two provider-self-report tiers) — putting
+them behind LiteLLM would silently ignore corrections users add
+specifically because LiteLLM's catalog is stale.</p>
 </div>
-<p><code>ensureLoaded</code> short-circuits on the main thread before
-the preload completes — UI callers get <code>DEFAULT_PRICING</code>
-during the cold window and pick up real values on the next
+<p><code>getPricing</code> short-circuits to <code>DEFAULT_PRICING</code>
+on the main thread before the preload completes — UI callers get the
+default during the cold window and pick up real values on the next
 state-driven recompose, instead of blocking Compose on the
-synchronized 1.2 MB LiteLLM parse.</p>
+synchronized LiteLLM parse.</p>
 </div>
 </details>
 
@@ -462,55 +544,60 @@ synchronized 1.2 MB LiteLLM parse.</p>
 <summary>Capabilities (vision / web-search / reasoning)</summary>
 <div class="body">
 <ol>
-<li>User override (per-provider <code>visionModels</code> /
-<code>webSearchModels</code> / <code>reasoningModels</code>).</li>
-<li>Manual <code>ModelTypeOverride</code>.</li>
-<li>Provider's own <code>/models</code> capabilities.</li>
-<li>LiteLLM.</li>
-<li>models.dev.</li>
-<li>Naming heuristic.</li>
+<li>Per-provider user override (<code>visionModels</code> /
+<code>webSearchModels</code> / <code>reasoningModels</code>)</li>
+<li>Manual <code>ModelTypeOverride</code></li>
+<li>Precomputed snapshot</li>
+<li>Provider's own <code>/models</code> capabilities</li>
+<li>LiteLLM</li>
+<li>models.dev</li>
+<li>Other info-provider capability flags (Requesty / llm-stats /
+TrueFoundry / CloudPrice — exact order and participants vary slightly
+per capability)</li>
+<li>Naming heuristic (<code>ModelType.infer</code>)</li>
 </ol>
+<p>An override flag can only <strong>add</strong> a capability, never
+clear one.</p>
 </div>
 </details>
 
-<p>Both are precomputed into <code>visionCapableComputed</code>,
-<code>webSearchCapableComputed</code>,
-<code>reasoningCapableComputed</code>, and <code>modelPricing</code>
-on <code>ProviderConfig</code> after a refresh, so the hot path on
-list-render screens is a <code>Set</code> membership check rather
-than the full layered scan.</p>
+<p>Both are precomputed into <code>ProviderConfig.visionCapableComputed</code>,
+<code>webSearchCapableComputed</code>, <code>reasoningCapableComputed</code>,
+and <code>modelPricing</code> after a refresh, so the hot path on
+list-render screens is a <code>Set</code>-membership check rather than
+the full layered scan. See <a href="repositories.html">repositories</a>.</p>
 
 <h2 id="trace">Trace storage</h2>
 
-<p><code>ApiTracer</code> writes one JSON file per outbound API call
-under <code class="path">&lt;filesDir&gt;/trace/&lt;hostname&gt;_&lt;timestamp&gt;_&lt;seq&gt;.json</code>.
-The Trace list screen needs a <code>(hostname, timestamp, statusCode,
-reportId, model, category)</code> summary per file but the file itself
-contains the full request and response bodies — often tens of KB each.
-Hardening / perf measures:</p>
+<p><code>ApiTracer</code> writes one pretty-printed JSON file per
+outbound API call under <code class="path">&lt;filesDir&gt;/trace/</code>.
+The Trace list screen needs only a <code>(hostname, timestamp,
+statusCode, reportId, model, category)</code> summary per file, but
+the file itself holds the full request and response bodies — often
+tens of KB each. Hardening / perf measures:</p>
 
 <ul>
-<li>A streaming-parse helper
-(<code>parseTraceFileInfoStreaming</code>) uses Gson's
-<code>JsonReader</code> to read only the seven
-<code>TraceFileInfo</code> fields, skipping the request body and
-stopping inside the response object once <code>statusCode</code> is
-captured. No reflective full-graph deserialise, no headers map
-allocation, no body string allocation.</li>
-<li>An in-memory <code>cachedTraceFiles</code> list is populated on
-<code>init</code> (off the UI thread, via
-<code>prewarmCache(viewModelScope)</code> from
-<code>AppViewModel.init</code>) and kept in sync by
-<code>saveTrace</code> (re-sort after append),
-<code>clearTraces</code> (empty), and
-<code>deleteTracesOlderThan</code> (filter). Subsequent reads —
-including the Trace detail screen's prev / next nav — are O(1).</li>
-<li>Trace bodies are capped at 8 MiB to prevent runaway memory on
-giant streaming responses.</li>
-<li>Auth headers are redacted at write time, not just on Copy / Share,
-so a leaked filesystem dump never carries plain keys.</li>
-<li>Trace tags <code>(reportId, category)</code> are propagated as
-thread-locals through OkHttp's dispatcher so retries and cancellations
+<li>A streaming-parse helper (<code>parseTraceFileInfoStreaming</code>)
+uses Gson's <code>JsonReader</code> to read only the metadata fields,
+skipping the request body and stopping inside the response object once
+<code>statusCode</code> is captured — no reflective full-graph
+deserialise.</li>
+<li>An in-memory <code>cachedTraceFiles</code> list (a
+<code>@Volatile</code> mirror; <code>null</code> = not built) is
+prewarmed off the UI thread and kept in sync by <code>saveTrace</code>
+/ <code>clearTraces</code> / <code>deleteTracesOlderThan</code>, so
+subsequent reads — including prev/next nav — are O(1).</li>
+<li>The OkHttp interceptor (<code>TracingInterceptor</code>, a
+separate file, gated by <code>ApiTracer.isTracingEnabled</code>) caps
+captured bodies at 8 MiB, writes a partial trace for streaming
+responses up front and tees the bytes into the same file on EOF, and
+<strong>redacts secrets</strong> in headers, <code>?key=</code>/token
+query params, and JSON body key fields at write time — so a leaked
+filesystem dump or a trace rolled into a backup never carries plain
+keys.</li>
+<li>Trace tags <code>(reportId, category, runId, model)</code> ride a
+<code>ThreadLocal</code> propagated through OkHttp's dispatcher via a
+<code>TagPropagatingExecutor</code>, so retries and cancellations
 preserve the originating call's identity.</li>
 </ul>
 
@@ -519,33 +606,42 @@ preserve the originating call's identity.</li>
 <p><code>MainActivity</code> extracts incoming <code>ACTION_SEND</code>
 / <code>ACTION_SEND_MULTIPLE</code> intents into a
 <code>SharedContent</code> snapshot (text + subject + URI list + mime).
-<code>AppNavHost</code> renders <code>ShareChooserScreen</code> as
-an <strong>overlay before the NavHost</strong> and routes the user's
-pick to one of two destinations: Report (<code>routeShareToReport</code>
-pre-fills title / prompt + base64s a single image) or Chat (stages
-<code>chatStarterText</code> in <code>UiState</code>). See
-<a href="share-target.html">share-target</a>.</p>
+<code>AppNavHost</code> renders <code>ShareChooserScreen</code> as an
+<strong>overlay before the NavHost</strong> and routes the user's pick
+to one of three landings: <strong>Report</strong> (pre-fills
+title/prompt, base64s a single image, stages non-image attachments as
+<code>pendingReportKnowledgeUris</code>), <strong>Chat</strong>
+(stages <code>chatStarterText</code> + a starter image), or
+<strong>Knowledge</strong> (only shown when Experimental features is
+on). See <a href="share-target.html">share-target</a>.</p>
 
 <h2 id="crud">Generic CRUD list</h2>
 
-<p>The <code>CrudListScreen&lt;T&gt;</code> composable backs every
+<p><code>CrudListPage&lt;T&gt;</code>
+(<code>ui/cruds/framework/CrudListPage.kt</code>) backs every
 list-of-things screen (Agents, Flocks, Swarms, Parameters, System
-Prompts, Internal Prompts per category, Example Prompts). Each
-consumer plugs in <code>itemTitle</code>, <code>itemSubtitle</code>,
-<code>onAdd</code>, <code>onEdit</code>, <code>onDelete</code> and the
-rest is shared.</p>
+Prompts, Internal Prompts per category, Example Prompts, model-state
+lists, …). Each consumer plugs in <code>items</code>, <code>line</code>
+(the compact one-line row text), <code>itemKey</code>, and
+<code>onView</code>; the page itself owns paging (swipe left/down for
+the next page, right/up for the previous) and publishes the 🆕 add
+action (<code>onAdd</code>, nullable to hide it for fixed lists) into
+the bottom icon bar. Tapping a row navigates to its own view page,
+where per-entry edit/copy/delete live — the list page itself has no
+<code>onEdit</code> / <code>onDelete</code>.</p>
 
 <h2 id="overlay">Full-screen overlay pattern</h2>
 
-<p>Many flows (model picker, scope picker, viewer screens, edit
-screens) follow:</p>
+<p>Many flows (model picker, scope picker, viewer / edit screens, the
+Answer-matrix and Costs overlays) follow:</p>
 
 <pre><code>if (showOverlay) { OverlayScreen(...); return }</code></pre>
 
-<p>The <code>return</code> inside <code>@Composable</code> preserves
-the parent's <code>remember</code> state, so backing out of the
-overlay leaves the parent's local state intact — a UX the user has
-explicitly relied on.</p>
+<p>The trailing <code>return</code> inside an <code>@Composable</code>
+preserves the parent's <code>remember</code> /
+<code>rememberSaveable</code> state, so backing out of the overlay
+leaves the parent's local state intact — a UX the user has explicitly
+relied on. This idiom appears in dozens of screens.</p>
 
 <h2 id="meta-scope">Two-step Meta scope</h2>
 
@@ -553,158 +649,225 @@ explicitly relied on.</p>
 <code>SecondaryScopeScreen</code> first, where the user can narrow the
 input set to the top-N entries of a chosen rerank, manually pick
 agents, or (when translations exist) choose which present languages
-to fan out across. Rerank-typed and Moderation-typed Meta prompts
-skip the scope screen and always run on the full set. Each scope is
-encoded onto the row at run time (<code>secondaryScope</code> field)
-so a cascade-on-prompt-change re-runs at the same scope rather than
+to fan out across. Rerank-typed and Moderation-typed prompts skip the
+scope screen and always run on the full set. Each scope is encoded
+onto the row at run time (<code>secondaryScope</code> field) so a
+cascade-on-prompt-change re-runs at the same scope rather than
 silently widening to AllReports. See
-<a href="secondary-results.html">secondary-results</a> for the full
-flow.</p>
+<a href="secondary-results.html">secondary-results</a>.</p>
 
-<h2 id="fan">Fan-out / Fan-in / Fan Meta</h2>
+<h2 id="fan">Fan-out / Fan-in</h2>
 
-<p>Fan-out execution is owned by the <strong>FanOutEngine</strong>
-view model (<code>viewmodel/FanOutEngine.kt</code>). Each pair runs
-the chosen <code>category="fan_out"</code> Internal Prompt once per
-(answerer × source) pair, with <code>@RESPONSE@</code> in the
-template replaced by the source agent's response body. Fan-in is
-still routed through <code>ReportViewModel.runFanInPrompt</code> and
-combines the per-pair rows back into a single combined-report row
-using a different prompt template (<code>category="fan_in"</code>)
-with the iterable
-<code>***Report*** @REPORT@@RESPONSES@</code> block.</p>
+<p>A separate code path under <code>ReportViewModel.runFanOutPrompt</code>
+/ <code>runFanInPrompt</code>, delegated to <strong>FanOutEngine</strong>.
+Fan-out treats each successful agent's response as a "source" and runs
+a configurable Internal Prompt (<code>category = "fan_out"</code>)
+once per (answerer model × source agent) pair;
+<code>@RESPONSE@</code> in the template is replaced by the source
+response text. Fan-in then combines those per-pair rows back into a
+single combined-report row using a <code>category = "fan_in"</code>
+template with the iterable
+<code>***Report*** @REPORT@@RESPONSES@</code> block. Both produce rows
+with <code>kind = META</code>; a row is fan-out when
+<code>fanOutSourceAgentId != null</code> and fan-in when
+<code>fanInOf != null</code>.</p>
 
-<p>The engine publishes a single
-<code>StateFlow&lt;Map&lt;FanOutRunKey, FanOutRunState&gt;&gt;</code>
-and mutates it via atomic <code>update { … }</code> calls;
-subscribers see exactly one value per pair transition with no flicker
-(no polling loop, no <code>recentlySettled</code> grace window).</p>
+<p>The drill-in is three levels deep (<code>Fan.kt</code> /
+<code>FanL1.kt</code> / <code>FanL2.kt</code> / <code>FanL3.kt</code>
+under <code>ui/report/manage/</code>):</p>
 
-<p><code>FanOutScreen</code>
-(<code>ui/report/FanOutScreen.kt</code>) is the L1 parent with a
-<code>FanOutMode</code> enum (<code>MAIN</code> vs <code>ICONS</code>);
-each level is its own file:</p>
+<ul>
+<li><strong>Level 1</strong> — one row per (answerer, prompt). Action
+buttons (Resume stale / Restart failed / Rerun complete / Delete) live
+in a collapsed Actions card. Empty-body successes count as Done, not
+Queued.</li>
+<li><strong>Level 2</strong> — one row per (answerer, source) pair,
+virtualised for smooth scrolling on long lists.</li>
+<li><strong>Level 3</strong> — single response detail with a 🐞 link
+to the original report-model trace.</li>
+</ul>
 
-<dl class="kv">
-<div>
-<dt>L1 <span class="muted">— FanOutL1Screen.kt</span></dt>
-<dd>Pinned stats panel (Total, Running, Queued, Throttled, Done,
-Errors, plus per-mode Costs), row per answerer with an in-row
-progress bar replacing the legacy "6 / 9" line. Action buttons
-collapse under one row; "Show icons" flips into ICONS mode.</dd>
-</div>
-<div>
-<dt>L2 <span class="muted">— FanOutL2Screen.kt</span></dt>
-<dd>One row per (answerer, source) pair, virtualised. Two role
-flavours via a Switch role button: Responder mode (drill into one
-answerer) vs Source mode (drill into one source).</dd>
-</div>
-<div>
-<dt>L3 <span class="muted">— FanOutL3Screen.kt</span></dt>
-<dd>Single-pair detail. The ℹ️ / 🐞 icons follow the "other" model
-in the pair; the trailing divider sits tight against the response.</dd>
-</div>
-</dl>
+<p>Concurrency is capped by <code>ApiCallCaps.fanOut</code> plus the
+shared per-provider throttle, so overlapping report / chat / meta /
+fan-out traffic all respect the same host budgets. Per-pair running
+state lives in <code>FanOutEngine.runs</code> (<code>BatchEngine</code>'s
+own keyed <code>StateFlow</code>, each pair a <code>PairState</code>),
+not a standalone <code>AppViewModel</code> flow.</p>
 
-<p><strong>Fan Meta mode</strong> runs a parallel 3-tier emoji chain
-across every completed pair. Same screen file structure
-(<code>FanOutIconsScreens.kt</code>), separate semaphore from
-<code>maxConcurrentFanMetaCalls</code>, separate Costs row tagged
-<code>Fan Meta</code>, and a <strong>Clear Fan Meta</strong> button
-wipes icon state without deleting pairs. When the user opens a report
-mid-batch the icons batch auto-resumes on screen entry.</p>
+<p>The parallel <strong>Fan Meta</strong> icon chain (one emoji hop per
+completed pair, separate budget from
+<code>maxConcurrentFanMetaCalls</code>) has its own screens
+(<code>FanMeta.kt</code> / <code>FanMetaL1.kt</code> /
+<code>FanMetaL2.kt</code> / <code>FanMetaL3.kt</code>) — see
+<a href="report-icons.html">report-icons</a>.</p>
 
-<p>Concurrency on Fan-out is layered: the per-host
-<code>ProviderThrottle</code> caps (default 30 / min × 3 concurrent
-per hostname) plus an engine-level IO semaphore sized from
-<code>maxConcurrentFanOutCalls</code> (default 15). 429s with a long
-Retry-After ≥ 1 h bench the model in
-<a href="cooldowns.html">ModelCooldownStore</a> — the engine then
-skips it for the rest of the run.</p>
+<h2 id="worker-batches">Worker-judged analysis batches</h2>
+
+<p><code>TournamentEngine</code>, <code>JudgeEvalEngine</code>, and
+<code>CompareEngine</code> are siblings of the secondary / fan-out
+engines. They use persisted <code>SecondaryResult</code> rows as their
+source of truth but keep hot running/waiting cell ids in dedicated
+<code>StateFlow</code>s on <code>AppViewModel</code> so the whole
+<code>UiState</code> tree does not recompose at batch speed.</p>
+
+<ul>
+<li><strong>Tournament</strong> creates <code>N(N-1)</code> ordered
+head-to-head match rows (each unordered pair judged twice to cancel
+position bias) plus one aggregate ranking row. Ranking is recomputed
+locally — no API calls — with Copeland / Elo / Davidson / Tideman /
+Markov from a stored win matrix. The Copeland win-rate denominator is
+<strong>per-model contested games</strong> (opponents the model
+actually played), not a fixed <code>n-1</code>.</li>
+<li><strong>Judge the judges</strong> gives every concrete judge in
+the Tournament swarm the same random answer pairs and computes each
+judge's agreement with consensus.</li>
+<li><strong>Compare with meta</strong> scores each report answer
+against selected Meta rows using <code>meta_compare</code> worker
+prompts.</li>
+<li><strong>Rank the translators</strong>
+(<code>TranslatorRankEngine</code>, kind <code>TRANSRANK</code>) is a
+fourth <code>BatchEngine</code> sibling: it judges the per-language
+translations of a report's answers head-to-head to rank translation
+quality.</li>
+</ul>
 
 <h2 id="concurrency">Concurrency</h2>
 
+<p>Throttling is <strong>two distinct layers</strong> stacked on top
+of each other.</p>
+
+<dl class="kv">
+<div>
+<dt>ProviderThrottle</dt>
+<dd>The per-hostname gate: one <code>Semaphore</code> (concurrency) +
+one sliding-window <code>Deque</code> (per-minute rate) per host.
+Limits hold across overlapping flows (report + meta + fan-out + chat
+on the same provider). Caps resolve per host at acquire time:
+per-provider override → <code>NetworkSettings</code> global default
+(<strong>60 calls/min, 5 concurrent</strong>), each
+<code>coerceAtLeast(1)</code>. Three acquire methods: blocking
+<code>acquire</code> (OkHttp interceptor), non-blocking
+<code>tryAcquire</code>, suspend <code>acquireOrWait</code>
+(coroutine-layer host gate).</dd>
+</div>
+<div>
+<dt>ApiCallCaps</dt>
+<dd>The flow-level coroutine <code>Semaphore</code> pools, independent
+of the per-host gate. <code>global</code> is the only user-tunable cap
+(default 100, Settings → Network → Maximal API calls). The per-flow
+sub-caps (<code>report</code> / <code>translation</code> /
+<code>fanOut</code> / <code>fanMeta</code> / <code>workers</code>) are
+retained for the acquisition contract but are all sized to the global
+cap at runtime, so only the global ceiling actually binds.</dd>
+</div>
+</dl>
+
+<p>The <strong>canonical batch acquisition order</strong> is sub-cap →
+<code>ApiCallCaps.global</code> → per-host gate. The private sub-cap is
+taken first so a flow queued on its own cap holds nothing shared;
+<code>global</code> is always taken before the host gate (the reverse
+deadlocked report-vs-metadata calls). While <strong>parked</strong> on
+a saturated per-host gate, the helper releases both the sub-cap and
+<code>global</code> and re-takes them in canonical order on the next
+poll — so a per-flow cap counts only items holding a live provider
+slot, never items queued behind a busy provider.
+<code>acquireThrottledPermits</code> + <code>PermitHold</code>
+(<code>ThrottledBatch.kt</code>) own this contract. Fan-out and the
+report-icon work pre-acquire permits and set
+<code>ProviderThrottle.permitPreAcquired</code> so the OkHttp
+interceptor skips its own acquire and doesn't double-count. See
+<a href="throttle.html">throttle</a>.</p>
+
+<details>
+<summary>Other concurrency notes</summary>
+<div class="body">
 <ul>
 <li>Network calls happen on <code>Dispatchers.IO</code>.</li>
-<li>Per-provider rate + concurrency caps are enforced by
-<code>ProviderThrottle</code> (one <code>Semaphore</code> + one
-sliding-window <code>Deque</code> per hostname). Limits hold across
-overlapping flows (report + meta + fan-out + chat on the same
-provider). Caps come from per-provider override →
-<code>NetworkSettings</code> global default (defaults: 30 calls/min,
-3 concurrent). User-tunable from Settings → Network and per provider.
-See <a href="throttle.html">throttle</a>.</li>
-<li>Six <strong>per-kind concurrency ceilings</strong> live on
-<code>ApiCallCaps</code> (mirrored from <code>GeneralSettings</code>
-on every Settings update): <code>global</code> (50),
-<code>report</code> (15), <code>translation</code> (15),
-<code>fanOut</code> (15), <code>fanMeta</code> (15), and the test
-sweep's standalone <code>maxTestApiCalls</code> (40, read directly by
-<code>ModelTestEngine</code>). Each request
-<code>withPermit</code>-wraps through the relevant per-kind semaphore
-before going through the per-host <code>ProviderThrottle</code> — a
-fan-out launched against six providers with 3 in-flight each adds up
-to 18 in-flight calls, but the fan-out cap clamps that to
-<code>fanOut</code> total across hosts.</li>
-<li>A 429 whose Retry-After hint exceeds 1 h (Google's "quota
-exhausted", Cohere's monthly cap, per-day token quotas reset at
-Pacific midnight) routes through
-<code>ModelCooldownStore.markUnavailable(providerId, model,
-availableAtMs, traceFile)</code>; pickers dim the row and engines
-skip it. See <a href="cooldowns.html">cooldowns</a>.</li>
-<li><code>FanOutEngine</code>, the Fan Meta batch, the per-agent
-report-icon chain, and the Find-alternative-icons fan-out all
-pre-acquire permits on the coroutine side and set
-<code>ProviderThrottle.permitPreAcquired</code> so the OkHttp
-interceptor doesn't double-count.</li>
-<li><code>ApiTracer</code> and <code>ReportStorage</code> use
-<code>ReentrantLock</code> for thread-safe file writes.</li>
+<li><code>ApiTracer</code>, <code>ReportStorage</code>, and the other
+storage objects use <code>ReentrantLock</code> for thread-safe file
+writes.</li>
 <li><code>AtomicFileWrite.writeTextAtomic</code> uses
-<code>Files.move(ATOMIC_MOVE)</code> with an <code>fsync</code> of
-the temp file before the rename, and creates the parent dir on demand
-so call sites don't have to. The same stage-as-<code>.part</code> +
-atomic-rename pattern is used by the export-share writer, the
-local-model import path, and several other "write a complete
-artifact" call sites.</li>
-<li><code>usageStatsCache</code> is a <code>ConcurrentHashMap</code>
-with a 2-second debounced flush, so heavy concurrent updates don't
-serialize on disk I/O. The flush is forced from
-<code>ViewModel.onCleared</code> (off the main thread, on
-<code>NonCancellable</code>) so a Refresh-all auto-restart can't drop
-in-flight stats.</li>
-<li><code>RateLimitRetryInterceptor</code> retries 429s with a
-configurable back-off (<code>NetworkSettings.maxRetriesOn429</code> ×
-<code>retryBackoffMs429</code>, both per-provider overridable), bails
-on coroutine cancellation, and has an explicit main-thread guard so
-it can never ANR the UI. <code>OverloadedRetryInterceptor</code> is
-the 529 (server overloaded) sibling — independent budget
-(<code>maxRetriesOn529</code> × <code>retryBackoffMs529</code>), same
-shape. <code>withRetry</code> treats <code>408 / 425 / 429</code> as
-transient (in addition to network errors) and skips retries on
-permanent 4xx failures; 5xx (including 529 after the in-line loop)
-is transient.</li>
+<code>Files.move(ATOMIC_MOVE)</code> with an <code>fsync</code> of the
+temp file before the rename, and creates the parent dir on demand. The
+same stage-as-<code>.part</code> + atomic-rename pattern backs the
+export writer and several other "write a complete artifact" sites.</li>
+<li>Usage/cost stats live in <code>ConcurrentHashMap</code> stores with
+a 2-second debounced flush, so heavy concurrent updates don't
+serialize on disk I/O; the flush is forced from <code>onCleared</code>
+so a Refresh-all auto-restart can't drop in-flight stats.</li>
+<li><code>RateLimitRetryInterceptor</code> retries <strong>429s</strong>
+with a configurable back-off (<code>NetworkSettings.maxRetriesOn429</code>
+× <code>retryBackoffMs429</code>, both default 3 × 1000 ms,
+exponential with ±50% jitter capped at 30 s, honoring server
+<code>Retry-After</code>). It bails on cancellation, has an explicit
+main-thread guard so it can never ANR the UI, and benches a model
+(<code>ModelCooldownStore</code>, see
+<a href="model-states.html#cooldowns">model states → cooldowns</a>)
+instead of retrying on long <code>Retry-After</code>s or billing-cap
+429s. <code>OverloadedRetryInterceptor</code> is the
+<strong>529</strong> sibling with an independent budget.
+<code>AnalysisRepository.withRetry</code> treats <code>408 / 425 /
+429</code> plus network errors as transient and skips permanent 4xx;
+5xx is transient.</li>
+<li><code>withApiCallTimeout</code> wraps each single request or
+stream-open (not the SSE read loop) in <code>withTimeout</code> to
+guard against indefinite DNS hangs; <code>withHostGate</code> acquires
+the per-host gate at the coroutine layer, sitting <strong>outside</strong>
+the timeout so a legitimate rate-window wait doesn't trip it. OkHttp's
+own <code>maxRequests</code> / <code>maxRequestsPerHost</code> are both
+set to 512 so OkHttp gates nothing — <code>ProviderThrottle</code> is
+the sole intended throttle.</li>
 <li>Multiple Translate batches can be in flight at once (one per
-<code>runId</code>); they share the per-provider throttle but their
-results land in their own rows.</li>
-<li>Storage write APIs validate flat ids (<code>isSafeFlatId</code>:
-non-blank, not <code>.</code> / <code>..</code>, no <code>/</code> or
-<code>\</code>) on <code>saveReport</code>, <code>deleteReport</code>,
-<code>saveChatSession</code>, <code>saveSecondaryResult</code>.</li>
-<li>Backup restore caps per-entry and total bytes before writing into
-<code>filesDir</code> / <code>cacheDir</code> from the zip.</li>
+<code>runId</code>, tracked in <code>TranslationRunManager</code>'s
+map); they share the per-provider throttle but their results land in
+their own rows.</li>
+<li>Storage write APIs validate flat ids (non-blank, not
+<code>.</code> / <code>..</code>, no <code>/</code> or <code>\</code>)
+and apply canonical-containment checks before any file op, so a
+malformed or restored id can't escape its directory.</li>
+<li>Backup restore caps per-entry (256 MB) and total (1 GB) bytes
+before writing into <code>filesDir</code> / <code>cacheDir</code> from
+the zip.</li>
 </ul>
+</div>
+</details>
 
-<h2 id="streaming">Streaming</h2>
+<h2 id="streaming">Streaming &amp; the OpenAI dual API</h2>
 
 <p>Server-Sent Events flow through <code>ApiStreaming</code>, parsed
-into <code>Flow&lt;String&gt;</code> chunks. Each
-<code>ApiFormat</code> has its own SSE parser (OpenAI's
-<code>data: {...}\n\n</code> framing per the W3C spec — data lines
-are buffered before the blank-line dispatch; Anthropic's
-<code>event:</code> + <code>data:</code> pairs; Gemini's
-chunked-JSON format). Error responses on streaming endpoints have
-their body drained and surfaced with the HTTP status, instead of
-leaving the stream half-consumed.</p>
+into <code>Flow&lt;String&gt;</code> chunks by a single W3C-compliant
+reader (<code>parseSseStream</code>) that always decodes UTF-8
+(ignoring the response charset to dodge OkHttp's ISO-8859-1 fallback),
+buffers multiple <code>data:</code> lines per event, and dispatches on
+a blank line. Per-format content extractors handle OpenAI Chat
+(<code>choices[0].delta.content</code>), OpenAI Responses
+(<code>response.output_text.delta</code>), Anthropic
+(<code>content_block_delta</code>), and Gemini
+(<code>candidates[*].content.parts[*].text</code>). The reader
+recognizes each format's terminator (<code>[DONE]</code>,
+<code>message_stop</code>, <code>response.completed</code>, Gemini's
+<code>finishReason</code>) and accepts a clean EOF only if at least one
+content chunk was emitted; otherwise it raises an <code>IOException</code>
+so a truncated stream surfaces as an error rather than a silent empty
+answer.</p>
+
+<p>OpenAI routes between two endpoints.
+<code>usesResponsesApi(service, model)</code> returns true when
+<code>service.responsesApiPatterns.anyMatches(model)</code>
+(authoritative, from the bundled provider JSON — for OpenAI: prefix
+<code>gpt-5</code>, <code>o1</code>, <code>o3</code>, <code>o4</code>,
+<code>gpt-4.1</code>) <strong>or</strong>, only when the provider
+declares a non-empty <code>responsesApiPatterns</code> list in the
+first place (currently just OpenAI), when
+<code>ModelType.infer(model) == RESPONSES</code> (the naming
+heuristic). That gate matters: chat-only OpenAI-compatible gateways
+(Poe, Vivgrid, most aggregators) also serve <code>gpt-5</code> /
+<code>o3</code> / <code>o4</code> ids, but only over
+<code>/v1/chat/completions</code> — inferring RESPONSES for them would
+send every call to a non-existent <code>/v1/responses</code> path.
+When true the dispatch uses the Responses API (system prompt →
+<code>instructions</code>, single text turn passed as a bare string);
+otherwise Chat Completions. See <a href="api-formats.html">api-formats</a>.</p>
 
 <h2 id="recovery">State recovery</h2>
 
@@ -714,44 +877,65 @@ leaving the stream half-consumed.</p>
 <li><code>restoreCompletedReport</code> and
 <code>hydrateAgentResultsFromStorage</code> rebuild the in-memory
 <code>_agentResults</code> flow from <code>ReportStorage</code> files
-when the user comes back to a finished report whose StateFlow was
+when the user returns to a finished report whose StateFlow was
 lost.</li>
-<li><code>resumeStaleFanOutPairs</code> re-reads each row before
-stamping "Interrupted" so a cold-launch in the middle of a Fan-out
-doesn't lose progress — the placeholder is recovered and only
-genuinely-stuck pairs are flagged.</li>
-<li><code>rememberSaveable</code> on key UI state (e.g. AI Usage's
-expanded provider list, Cross drill-in scope buckets per
-<code>(report, prompt)</code>) survives navigation away and back.
-Chat's staged <code>userInput</code> and <code>attachedImage</code>
-are preserved across process recreation; Dual Chat conversations
-persist across rotation / process recreation.</li>
-<li>The Report Result screen recovers stale placeholders on entry,
-so the user never lands on a forever-spinning hourglass.</li>
+<li><code>resumeStaleRunsForReport</code> is the cross-kind resume
+orchestrator, kept for <strong>explicit/manual use only</strong>
+(Regenerate / retry): it reconciles translations, then defers to each
+engine (fanOut / tournament / judgeEval / regenerateBatch) and
+re-issues interrupted single-call Meta / Rerank / Moderation
+placeholders. It is <strong>no longer invoked automatically</strong> —
+opening a report does not auto-resume its stale work.</li>
+<li>An app-wide <strong>read-only</strong> background scan
+(<code>SecondaryRunManager.startBackgroundBrokenScan</code>, fired
+once from <code>AppNavHost</code>) walks every report newer than 7
+days and <em>detects</em> interrupted work (blank content, no error,
+no duration — fan-out / tournament / judges / translation / single-Meta
+placeholders, plus dead-<code>RUNNING</code> / <code>PAUSED_ON_ERROR</code>
+regenerate jobs) without fixing anything. Classification rules live in
+<code>viewmodel/BrokenWorkPolicy.kt</code>. It publishes a
+<code>List&lt;BrokenBatch&gt;</code>; while non-empty the top-bar logo
+is replaced by a ⚠️ opening the Broken-work screen. Each row taps
+through to its report, where the user resumes work manually.</li>
+<li><code>rememberSaveable</code> on key UI state (AI Usage's expanded
+provider list, drill-in scope buckets per <code>(report, prompt)</code>,
+the selected view language, the Answer-matrix open flag) survives
+navigation away and back. Chat's staged <code>userInput</code> and
+attached image are preserved across process recreation; Dual Chat
+conversations persist across rotation.</li>
+<li>The Report Result screen recovers stale placeholders on entry, so
+the user never lands on a forever-spinning hourglass.</li>
 </ol>
+
+<p>See <a href="secondary-results.html">secondary-results</a>.</p>
 
 <h2 id="logging">In-app logging</h2>
 
-<p><code>com.ai.data.AppLog</code> is a log4j-style file appender
-that mirrors <code>android.util.Log</code> and writes every call at
-or above <code>threshold</code> to
+<p><code>com.ai.data.AppLog</code> is a log4j-style file appender that
+mirrors <code>android.util.Log</code> and writes every call at or
+above <code>threshold</code> to
 <code class="path">&lt;filesDir&gt;/applog/applog_&lt;yyyyMMdd&gt;.log</code>.
-Files rotate daily; a single <code>BufferedWriter</code> is held open
-and flushed per line so a process kill never loses the last few lines.
-Sensitive headers (<code>Bearer …</code>, raw
-<code>sk-/xai-/gsk_</code> keys, Google <code>?key=</code> params)
-are redacted inline before write.</p>
+Levels: <code>DEBUG</code> (3, also the home of former
+<code>TRACE</code> calls, now folded in), <code>INFO</code> (4),
+<code>WARN</code> (5), <code>ERROR</code> (6), <code>OFF</code> (99);
+default threshold <strong>WARN</strong>. Files rotate daily; a single
+<code>BufferedWriter</code> is held open and flushed per line so a
+process kill never loses the last few lines. Sensitive headers
+(<code>Bearer …</code>, raw <code>sk-</code> / <code>xai-</code> /
+<code>gsk_</code> keys, Google <code>?key=</code> params) are redacted
+inline before write.</p>
 
-<p>The viewer (<code>AppLogScreen</code>) lives under Hub → AI App
-log and supports search / level / time-range / tag filters with a
-Copy / Share dialog. Threshold is set from Settings → Logging
-(default INFO). See <a href="applog.html">applog</a>.</p>
+<p>The viewer (<code>AppLogScreen</code>) lives under Monitor →
+Application log and supports search / level / time-range / tag filters
+with a Copy/Share dialog. Threshold is set from Settings → Logging.
+The <code class="path">applog/</code> directory is excluded from
+backups. See <a href="applog.html">applog</a>.</p>
 
 <h2 id="restart">Auto-restart</h2>
 
-<p>After a "Refresh all" run on the Refresh screen, the app restarts
-itself to pick up freshly-persisted caches without forcing the user
-to swipe the app away:</p>
+<p>After a "Refresh all" run, the app restarts itself to pick up
+freshly-persisted caches without forcing the user to swipe the app
+away:</p>
 
 <pre><code>val launch = context.packageManager
     .getLaunchIntentForPackage(context.packageName)
@@ -760,53 +944,114 @@ launch?.flags = Intent.FLAG_ACTIVITY_NEW_TASK or
 context.startActivity(launch)
 Runtime.getRuntime().exit(0)</code></pre>
 
-<p>The same restart gate applies after restoring a backup so the
-in-memory state matches the freshly-restored on-disk state, and after
-the "Reset application" full reset.</p>
+<p>The same restart gate applies after restoring a backup (so the
+in-memory singletons — <code>ProviderRegistry</code>,
+<code>ApiTracer</code>, <code>PromptCache</code>,
+<code>ReportStorage</code>, <code>ChatHistoryManager</code> — match
+the freshly-restored disk state) and after the "Reset application"
+full reset.</p>
+
+<h2 id="persistence">Persistence map</h2>
+
+<p>Persistence is <code>SharedPreferences</code> + JSON/text files
+only — no DataStore. There are 11 distinct SharedPreferences files;
+the main one is <code>eval_prefs</code>, holding ~73 <code>KEY_*</code>
+keys (agents, flocks, swarms, parameters, system prompts, internal
+prompts, provider states, model-state lists, throttle settings, API
+keys, …). The others: <code>provider_registry</code>,
+<code>pricing_cache</code>, <code>dual_chat_prefs</code>,
+<code>huggingface_cache</code>, <code>cloudprice_model_cache</code>,
+<code>model_cooldowns</code>, <code>view_screen_prefs</code>,
+<code>last_report_tracker</code>, <code>provider_field_timestamps</code>,
+<code>update_from_cloud</code>.</p>
+
+<p><code class="path">filesDir</code> holds one subdirectory per
+storage object — <code>reports</code>, <code>secondary</code>,
+<code>trace</code>, <code>chat-history</code>, <code>embeddings</code>,
+<code>knowledge</code>, <code>pricing</code>, <code>model_lists</code>,
+<code>prompt_cache</code>, <code>regenerate</code>, <code>crash</code>,
+<code>audit</code>, <code>applog</code>, plus the on-device runtime
+dirs <code>local_llms</code>, <code>local_models</code>,
+<code>native</code> — and a handful of top-level files
+(<code>model_supported_parameters.json</code>, <code>usage-stats.json</code>,
+<code>usage-category-stats.json</code>, <code>usage-report-stats.json</code>,
+<code>prompt-history.json</code>, <code>internal_prompt_icons.json</code>).
+See <a href="persistent.html">persistent</a>.</p>
+
+<p><code>BackupManager</code> excludes
+<code>FILES_DIR_BACKUP_EXCLUDES = {"local_llms", "local_models",
+"native", "applog"}</code> — four entries (the device-ABI-tied native
+runtime and the app-log dir join the two on-device model dirs) — from
+both the backup zip and <code>clearFilesDirForRestore</code>. See
+<a href="backup-restore.html">backup-restore</a>.</p>
 
 <h2 id="seeding">First-run seeding + every-start delta merge</h2>
 
 <p><code>AppViewModel.bootstrap</code> runs through a sequence of
-structured DEBUG / TRACE log lines (under the <code>AppLifecycle</code>
-tag) so the AppLog viewer can render the entire start-up sequence
-for a support session. The bootstrap log line itself captures the
-app name, <code>versionName</code>, <code>versionCode</code>, and
-the <code>BUILD_TIMESTAMP</code>.</p>
+structured <code>DEBUG</code> log lines (under the
+<code>App.bootstrap</code> tag) so the AppLog viewer can render the
+entire start-up sequence for a support session.</p>
 
-<p>Two seed sources are <strong>delta-merged on every app start</strong>,
-not just on fresh install — both via
-<code>InternalPromptSeed.delta(...) {}</code> / equivalent that only
-adds missing entries by <code>(category, name)</code> for prompts and
-by stable id for providers:</p>
+<p>Several seed sources are <strong>delta-merged on every app
+start</strong>, not just on fresh install — each via an
+<code>ensureAllPresent(...)</code> pass that only adds missing entries
+(by <code>(category, name)</code> for prompts, by stable id for
+providers) and never overwrites an existing row:</p>
 
 <dl class="kv">
 <div>
-<dt>assets/providers.json</dt>
-<dd>Entries import on first run, and new entries are appended on
-subsequent starts. Per-field timestamps in
-<code>ProviderFieldTimestamps</code> decide which fields the
-every-start sync may overwrite — a field the user has edited
-(timestamp non-null) is left alone; an un-edited field tracks the
-asset.</dd>
+<dt>assets/providers/</dt>
+<dd>One JSON file per provider. Entries import on first run; new
+entries append on later starts. <code>ProviderFieldTimestamps</code>
+decide which fields the every-start <code>syncFromAsset</code> may
+overwrite — a field the user has edited (timestamp non-null) is left
+alone; an un-edited field tracks the asset.</dd>
 </div>
 <div>
-<dt>assets/internal-prompts/</dt>
-<dd>Internal Prompts (Meta / Fan-out / Fan-in / fixed Internal
-templates: intro / model_info / translate / rerank / moderation /
-icon / report_icon / report_icon_chat / report_icon_3th / chat_title
-/ response / …) seeded into <code>Settings.internalPrompts</code>.
-Same delta-merge rule — new bundled entries appear on the next start,
-user edits to existing entries survive.</dd>
+<dt>assets/internal-prompts/&lt;Language&gt;/</dt>
+<dd>Internal Prompts, organised by language folder then category
+sub-dir. <code>English</code> is the <strong>only</strong> bundled
+language now (the shipped Dutch translation was dropped for an
+English-only baseline); other languages are generated on-device via
+Settings → Prompt translations, with English kept as the fallback.
+Sub-dirs: <code>workers/</code> (report-icon, model-icons,
+report-title-short/long, report-language-name/icon, model-titles,
+fan-in/fan-meta, find-translation, meta, tournament,
+translate-rank/text/title, translation-icon,
+second-meta/moderation/rerank, user-note), <code>meta/</code> and
+<code>meta_compare/</code>, <code>fan_out/</code> and
+<code>fan_in/</code>, <code>alt/</code> (Find-alternative variants),
+<code>internal/</code> (chat-title, model-info, model-intro,
+test-model).</dd>
+</div>
+<div>
+<dt>assets/prompts/examples/ &amp; assets/prompts/system/</dt>
+<dd>Example Prompts and System Prompts, one <code>{title, text}</code>
+JSON file per entry, merged by title/name (case-insensitive).</dd>
+</div>
+<div>
+<dt>assets/workers/swarms/ &amp; assets/workers/flocks/</dt>
+<dd>Bundled Swarm/Flock pools, merged by name; a Flock's member agents
+resolve by name against the current agent set.</dd>
+</div>
+<div>
+<dt>assets/excluded.json &amp; assets/inaccessible.json</dt>
+<dd>Appended test-excluded / inaccessible <code>(provider, model)</code>
+entries. See <a href="model-states.html">model states</a>.</dd>
+</div>
+<div>
+<dt>assets/meta.json</dt>
+<dd>Default Meta items.</dd>
 </div>
 </dl>
 
-<p><code>assets/examples.json</code> is also delta-merged on every
-start (Example Prompts merged by title case-insensitively). The
-Housekeeping → Reset → "Restore bundled assets" path force-merges any
-missing rows back without resetting user-edited ones.</p>
-
-<p>None of the three asset files overwrite existing rows on the delta
-path, so a re-seed never destroys user edits.</p>
+<p>None of the above overwrite an existing row on this automatic path,
+so a re-seed never destroys user edits. Housekeeping → Manage data →
+"Bundled assets/*.json" → Restore is a separate,
+<strong>destructive</strong> per-catalog action: each button drops
+every row in that one list and reloads it wholesale from the asset,
+so any user edits or additions in that list are lost; other
+configuration is untouched.</p>
 
 <p class="backtop"><a href="#">↑ Top</a></p>
 

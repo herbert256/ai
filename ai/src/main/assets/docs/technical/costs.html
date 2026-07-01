@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Costs — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">&larr; Docs</a><span>Costs</span></header>
+<main>
+
+<h1>Cost tracking, AI Usage, manual overrides</h1>
+
+<p>Every billable LLM / rerank call is costed from its token usage
+&times; the resolved per-model price. The same machinery feeds four
+surfaces: the global <strong>Spend &amp; usage</strong> dashboard, the
+per-report <strong>Costs</strong> breakdown, the <strong>Model
+Info</strong> per-model usage card, and the per-report
+<strong>API-call cost ledger</strong> that drives all three.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#costing">How a call is costed</a></li>
+<li><a href="#lookup">Resolved pricing &mdash; layered lookup</a></li>
+<li><a href="#usage-store">Usage statistics store</a></li>
+<li><a href="#ledger">Per-report API-call cost ledger</a></li>
+<li><a href="#total">Per-report total</a></li>
+<li><a href="#dashboard">Spend &amp; usage dashboard</a></li>
+<li><a href="#report-costs">Per-report Costs breakdown</a></li>
+<li><a href="#overrides">Manual price overrides</a></li>
+<li><a href="#maintenance">Costs maintenance screen</a></li>
+<li><a href="#files">Files &amp; related docs</a></li>
+</ul>
+</nav>
+
+<h2 id="costing">How a call is costed</h2>
+
+<p><code>PricingCache.computeInOutCost(usage, pricing)</code>
+(<code>data/PricingCache.kt</code>) turns a <code>TokenUsage</code> +
+a resolved <code>ModelPricing</code> into <code>(inDollars,
+outDollars)</code>:</p>
+
+<ul>
+<li>Base: <code>inputTokens &times; promptPrice + outputTokens &times;
+completionPrice</code>.</li>
+<li>Cached input bills at <code>cachedReadPrice</code> (falls back to
+<code>promptPrice</code>); Anthropic cache-creation tokens bill at
+<code>cachedWritePrice</code>.</li>
+<li><strong>Above-200k tier</strong> &mdash; when
+<code>inputTokens + cachedInputTokens + cacheCreationTokens &gt;
+200,000</code> and <code>promptPriceAbove200k</code> is set, the whole
+call switches to the high-context rates (Gemini 2.5/3 Pro, legacy
+Anthropic Sonnet 4, &hellip;). Each <code>*Above200k</code> field
+falls back to its base sibling when null.</li>
+<li><strong><code>apiCost</code> shortcut</strong> &mdash; if the
+provider returns a total, it's split pro-rata across input/output by
+the simple-rate baseline so callers still get two halves. When the
+baseline rates are all zero (free / <code>DEFAULT</code> pricing) but
+the API still shipped a total, the split falls back to the token ratio
+rather than dumping 100% on output.</li>
+<li><strong>Rerank</strong> bills per search-unit, not per token:
+<code>searchUnits &times; perQueryPrice</code> (Cohere
+<code>$2 / 1000 searches</code> &rarr; <code>0.002</code> per unit,
+read from LiteLLM's <code>input_cost_per_query</code>). The token
+columns are zero by design.</li>
+</ul>
+
+<p><code>computeCost(usage, pricing)</code> is the single-number
+sibling: it returns <code>usage.apiCost</code> verbatim when the
+provider reported one, otherwise <code>inCost + outCost</code> from
+<code>computeInOutCost</code>.</p>
+
+<div class="card">
+<h4>TokenUsage</h4>
+<p class="type"><code>data/AnalysisRepository.kt</code></p>
+<p><code>inputTokens</code> (the <strong>fresh / uncached</strong>
+prompt count) and <code>outputTokens</code> are required; plus
+<code>cachedInputTokens</code>, <code>cacheCreationTokens</code>,
+<code>reasoningTokens</code> (all default 0) and the optional
+provider-reported <code>apiCost: Double?</code>.</p>
+</div>
+
+<p>The fresh / cached / creation split happens at <em>extraction</em>
+time in each provider's <code>toTokenUsage</code>
+(<code>data/ApiModels.kt</code>): OpenAI-compatible
+<code>prompt_tokens</code> is usually a cached-inclusive total, so the
+extractor subtracts the cached count to get the fresh bucket;
+providers that <strong>flatten</strong> the cached read into a
+separate field (xAI's <code>cached_tokens</code>, read after
+<code>prompt_tokens_details.cached_tokens</code> /
+<code>prompt_cache_hit_tokens</code>) set
+<code>promptTokensIncludeCachedTokens = false</code> so
+<code>prompt_tokens</code> passes through as fresh input rather than
+being double-subtracted. Anthropic's <code>input_tokens</code>
+already excludes both cache buckets, and Gemini's
+<code>cachedContentTokenCount</code> is a subset of
+<code>promptTokenCount</code>. The cost helpers then bill each bucket
+at its own rate, so a flattened provider's cached reads still land on
+<code>cachedReadPrice</code>.</p>
+
+<p><code>ModelPricing</code> (<code>data/PricingCache.kt</code>)
+carries every rate field (per-<strong>token</strong>, not
+per-million) plus the above-200k tier, the cache rates,
+<code>perQueryPrice</code>, and a <code>source</code> string naming
+the tier that answered.</p>
+
+<h2 id="lookup">Resolved pricing &mdash; layered lookup</h2>
+
+<p><code>PricingCache.getPricing(context, provider, model)</code>
+delegates to <code>findPricingMatch</code>, which walks tiers top
+&rarr; bottom, first hit wins:</p>
+
+<ol>
+<li><strong>Provider self-report</strong> (only when the caller
+<em>is</em> the source):
+  <ul>
+    <li>OpenRouter native &mdash; <code>OPENROUTER-SELF</code>
+    (<code>crossProviderModelList</code>)</li>
+    <li>Together AI native &mdash; <code>TOGETHER-SELF</code>
+    (<code>pricingFromModelList</code>)</li>
+  </ul>
+</li>
+<li><strong>Manual override</strong> &mdash; <code>OVERRIDE</code>,
+keyed <code>"&lt;provider.id&gt;:&lt;model&gt;"</code></li>
+<li>LiteLLM &mdash; <code>LITELLM</code> (curated bulk)</li>
+<li>models.dev &mdash; <code>MODELSDEV</code> (curated bulk)</li>
+<li>llm-prices &mdash; <code>LLMPRICES</code> (curated bulk)</li>
+<li>Artificial Analysis &mdash; <code>AA</code> (curated bulk)</li>
+<li>llm-stats &mdash; <code>LLMSTATS</code> (curated bulk; key +
+Stats-API onboarding)</li>
+<li>OpenRouter cross-provider fallback &mdash; <code>OPENROUTER</code>
+(only for non-OpenRouter callers)</li>
+<li>Requesty &mdash; <code>REQUESTY</code> (cross-provider router
+catalog, keyless)</li>
+<li>genai-prices &mdash; <code>GENAIPRICES</code> (Pydantic's curated
+catalog, keyless)</li>
+<li>TrueFoundry &mdash; <code>TRUEFOUNDRY</code> (community model
+registry, keyless)</li>
+<li>Helicone &mdash; <code>HELICONE</code> (last resort &mdash; known
+data-quality issues)</li>
+<li><strong>DEFAULT</strong> &mdash; <code>ModelPricing("default",
+25e-6, 75e-6)</code> = <strong>$25/M in, $75/M out</strong></li>
+</ol>
+
+<p class="muted">(<strong>CloudPrice</strong> is a capabilities-only
+info-provider &mdash; no pricing &mdash; so it never appears in this
+lookup; it feeds the capability chain only. See
+<a href="repositories.html">repositories</a> for the full twelve
+info-provider catalog, ten of which feed this chain.)</p>
+
+<div class="callout warn">
+<p>Two precedence facts are easy to get wrong (the class-level KDoc on
+<code>PricingCache</code> now describes the full layered order
+correctly, but <code>getPricing</code>'s own KDoc still calls it a
+stale "five-tier lookup" &mdash; trust the <code>findPricingMatch</code>
+body, not that comment):</p>
+<p>The <strong>manual override sits before every curated tier</strong>
+(step 2, ahead of LiteLLM). A user adding an override specifically to
+correct a stale catalog entry must win, or the Cost Config screen
+would silently ignore it. But the <strong>two provider-self-report
+tiers still beat the override</strong> (step 1): when the caller
+<em>is</em> OpenRouter or Together, that provider's own
+<code>/v1/models</code> pricing block is the authoritative billing
+rate.</p>
+</div>
+
+<p><code>DEFAULT</code> is <strong>not</strong> free &mdash; it's
+deliberately high so an uncatalogued model surfaces as an obvious
+over-estimate rather than reading $0 (which would hide a real
+spend).</p>
+
+<dl class="kv">
+<div><dt>getPricingWithoutOverride</dt><div class="meta"><code>data/PricingCache.kt</code></div><dd>Mirrors the precedence minus the manual-override step &mdash; answers "what would the layered price be without your override?" for the override form's <em>Current:</em> line and for cleanup.</dd></div>
+<div><dt>lookupPricing(provider, model)</dt><div class="meta"><code>data/PricingCache.kt</code></div><dd>Context-free, never-blocking in-memory variant. Mirrors <code>getPricing</code> exactly (incl. OVERRIDE-before-LiteLLM) but never touches disk; returns <code>DEFAULT_PRICING</code> if the catalogs aren't yet loaded. <strong>This is the variant the usage-stats chokepoint uses</strong> (below), so cost snapshots never block a token-usage event on a disk read.</dd></div>
+</dl>
+
+<div class="callout">
+<p>On the main thread before preload completes, <code>getPricing</code>
+returns <code>DEFAULT_PRICING</code> (and <code>ensureLoaded</code>
+short-circuits) so the UI never blocks on the 1.2&nbsp;MB catalog
+parse; recomposition picks up real values once the off-thread preload
+finishes. Don't try to "fix" it by removing the guard.</p>
+</div>
+
+<h2 id="usage-store">Usage statistics store &mdash; the single chokepoint</h2>
+
+<p>Every token-usage event funnels through
+<code>SettingsPreferences.updateUsageStats(provider, model, usage,
+kind, searchUnits)</code>. It does four things in one pass (and
+no-ops entirely when the master usage-statistics switch is off):</p>
+
+<ol>
+<li><strong>Live dashboard</strong> &mdash; feeds
+<code>ApiUsageRates.record</code> for the rolling 5-minute spend/token
+rate.</li>
+<li><strong>Cost snapshot</strong> &mdash;
+<code>computeUsageCostSnapshot</code> prices the call via
+<code>PricingCache.lookupPricing</code> + <code>computeInOutCost</code>
++ <code>searchUnits &times; perQueryPrice</code>. The
+<code>pricingSource</code> is forced to <code>"API_REPORTED"</code>
+when the provider sets <code>extractApiCost</code> or
+<code>costTicksDivisor</code> (OpenRouter / Perplexity / xAI),
+otherwise it's the resolved tier's <code>source</code>.</li>
+<li><strong>Three in-memory stores</strong> (<code>ConcurrentHashMap</code>),
+each keyed differently:
+  <ul>
+    <li><code>UsageStats</code> keyed
+    <strong><code>"${provider.id}::$model::$category"</code></strong></li>
+    <li><code>UsageCategoryStats</code> keyed by category</li>
+    <li><code>UsageReportStats</code> keyed by <code>reportId</code></li>
+  </ul>
+</li>
+<li><strong>Per-report ledger</strong> &mdash; appends a
+<code>ReportApiCallCost</code> row to the report (see the ledger
+section below).</li>
+</ol>
+
+<p>The <strong><code>category</code></strong> in the
+<code>UsageStats</code> key is derived from the <code>kind</code>
+argument with a single branch:</p>
+
+<pre><code>val normalizedKind = normalizeUsageKind(kind)
+val category = if (normalizedKind == "report")
+                   normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)
+               else normalizedKind</code></pre>
+
+<p>So <strong>only the default <code>report</code> kind consults the
+trace category</strong> &mdash; a primary report agent (kind
+<code>report</code>) lands under <code>ApiTracer.currentCategory</code>
+(<code>report/prompt</code>), and the parameter-sweep replays land
+under their normalized labels (Temperature sweep &rarr;
+<code>model/temperature</code>, etc). <strong>Every explicit
+non-<code>report</code> kind wins directly and the trace category is
+ignored</strong> &mdash; so a rerank lands under <code>rerank</code>,
+a meta under <code>meta</code>, a translation under
+<code>translate</code>, an icon-gen call under <code>icon</code>, and
+so on.</p>
+
+<p class="muted">The richer slash-typed labels
+(<code>after/rerank</code>, <code>meta/&lt;promptName&gt;</code>,
+<code>transrank/rank</code>, the <code>translate/...</code> family,
+&hellip;) are <strong>not</strong> what the live usage store records
+&mdash; they're the <em>structured</em> ledger types rebuilt by
+<code>reconcileApiCallCostLedger</code> (see the next two
+sections).</p>
+
+<p><code>normalizeUsageKind</code> (<code>data/ApiCallKinds.kt</code>)
+maps the legacy sweep labels and defaults a <code>null</code> kind to
+<code>"report"</code>. The kinds passed explicitly are the eight
+<code>SecondaryKind</code> strings &mdash; <code>rerank</code>,
+<code>moderation</code>, <code>meta</code>, <code>translate</code>,
+<code>tournament</code>, <code>judges</code>, <code>compare</code>,
+<code>transrank</code> &mdash; plus <code>icon</code>,
+<code>title</code>, <code>language</code>,
+<code>language-icon</code>, the chat kinds (<code>Chat</code>,
+<code>Dual chat</code>, <code>chat/rag</code>), <code>all</code>, and
+<code>settings/icons</code>.</p>
+
+<div class="card">
+<h4>UsageStats</h4>
+<p class="type"><code>model/SettingsModels.kt</code></p>
+<p><code>callCount</code>, <code>inputTokens</code> /
+<code>outputTokens</code> (<code>Long</code>), <code>searchUnits</code>,
+<code>kind</code>, and the persisted <code>inputCost?</code> /
+<code>outputCost?</code> / <code>pricingSource?</code> frozen at call
+time (legacy rows written before cost-caching have null costs and
+fall back to a live <code>PricingCache</code> lookup on read). Its
+<code>key</code> getter is
+<code>"${provider.id}::$model::$kind"</code>.</p>
+</div>
+
+<p>Rows are flushed to <code class="path">&lt;filesDir&gt;/usage-stats.json</code>
+debounced once per <code>USAGE_STATS_FLUSH_MS</code> (2 s); the
+category and report variants live in
+<code class="path">usage-category-stats.json</code> /
+<code class="path">usage-report-stats.json</code>. See
+<a href="persistent.html">persistent</a>.</p>
+
+<p>Legacy rows written before <code>kind</code> existed deserialize via
+Gson's <code>Unsafe</code> path with a runtime-null <code>kind</code>;
+<code>ensureUsageStatsCache</code> backfills them to
+<code>"report"</code> so the non-null contract holds. Parse is
+per-row, so a single unresolvable provider id (a deleted custom
+provider) doesn't drop the whole file; if <em>every</em> row fails
+(<code>ProviderRegistry</code> not yet initialised) the cache is left
+null so the next read retries.</p>
+
+<p><code>clearUsageStats</code> clears all three caches, resets the
+flush timestamp, and deletes the three JSON files.</p>
+
+<h2 id="ledger">Per-report API-call cost ledger</h2>
+
+<p>Each costed call also appends a <code>ReportApiCallCost</code> row
+to the owning report's <code>apiCallCosts</code> list when
+<code>ApiTracer.currentReportId</code> is set:</p>
+
+<div class="card">
+<h4>ReportApiCallCost</h4>
+<p class="type"><code>data/ReportModels.kt</code></p>
+<p><code>id</code>, <code>timestamp</code>, <code>type</code> (the
+live usage <code>category</code>), <code>provider</code>,
+<code>model</code>, <code>pricingTier</code>, <code>inputTokens</code> /
+<code>outputTokens</code>, <code>inputCost</code> /
+<code>outputCost</code>, <code>searchUnits</code>,
+<code>durationMs</code>, <code>traceFile</code>.</p>
+</div>
+
+<p><code>API_CALL_COST_LEDGER_VERSION = 3</code>
+(<code>data/ReportStorage.kt</code>); a report whose
+<code>apiCallCostsComplete</code> flag is set and whose
+<code>apiCallCostsVersion &gt;= 3</code> is treated as a complete
+ledger (<code>isApiCallCostLedgerCurrent</code>).</p>
+
+<p>The <strong>live</strong> append uses the bare usage
+<code>category</code> as the row <code>type</code>, and never flips
+<code>apiCallCostsComplete</code>. The canonical
+<code>&lt;category&gt;/&lt;prompt&gt;</code> types
+(<code>report/prompt</code>, <code>after/rerank</code>,
+<code>after/moderation</code>, <code>after/tournament</code>,
+<code>after/judges</code>, <code>meta/&lt;prompt&gt;</code>,
+<code>meta/compare</code>, <code>fan_out/...</code> /
+<code>fan_in/...</code>, <code>transrank/rank</code>, the
+<code>translate/...</code> family) are produced by
+<code>reconcileApiCallCostLedger</code>
+(<code>data/ReportStorage.kt</code>), which <strong>rebuilds</strong>
+the whole ledger from the structured agent / secondary / icon rows via
+<code>buildStructuredApiCallCostRows</code>, marks it complete +
+version 3, and recomputes <code>totalCost</code>. That reconcile runs
+lazily &mdash; from the Spend &amp; usage screen
+(<code>reconcileReportCostLedgers</code>) and from the per-report cost
+views &mdash; so a report's displayed types are always the structured
+ones once it has been reconciled.</p>
+
+<p>Two correctness guards live on the live-append path:</p>
+<ul>
+<li><code>appendApiCallCost</code> returns <strong>null on a dedup
+hit</strong> (<code>record.id</code> already present), otherwise a
+<code>ReportApiCallAppendResult</code>. The caller
+<code>recordReportApiCallCost</code> treats a non-null return as "a
+row was added" and bumps the per-report usage stats; returning null on
+a retry/replay with a stable id stops it inflating
+<code>UsageReportStats</code> with no matching ledger row.</li>
+<li><code>removeAgent</code> rolls deleted-agent icon spend into
+<code>Report.costsFromDeletedItems</code> as
+<code>maxOf(agentIconCost, structuredIconCallCost)</code> &mdash; some
+secondary-attributed <code>alt/report</code> icon-call rows leave the
+agent's <code>iconInputCost</code>/<code>iconOutputCost</code> at $0,
+so taking the max preserves the real spend without double-counting
+when both agree.</li>
+</ul>
+
+<h2 id="total">Per-report total</h2>
+
+<p><code>ReportStorage.computeReportTotalCost(report)</code> has two
+paths:</p>
+
+<ul>
+<li><strong>Ledger total</strong> &mdash; when
+<code>isApiCallCostLedgerCurrent(report)</code>,
+<code>ledgerTotalCost</code> just sums every
+<code>ReportApiCallCost</code> row's
+<code>inputCost + outputCost</code>. This is the source of truth for
+reconciled reports, so a new call category can never be silently
+omitted from a hard-coded allow-list.</li>
+<li><strong>Legacy total</strong> &mdash;
+<code>legacyReportTotalCost</code> sums agent primary cost + per-agent
+icon + per-agent model-title + report-level icon/title/titleLong/
+language/languageIcon costs + the Find-alt title fan-out
+<code>iconCalls</code> of <code>TITLE_ALT_TYPES =
+{"alt/report_title","alt/report_title_long","alt/model_title"}</code>
+whose <code>attributedToSecondaryId == null</code> + the user-note
+AI-title <code>iconCalls</code> of type <code>"note/title"</code>
+&mdash; the two alt categories with no structured cost home.</li>
+</ul>
+
+<p><code>costsFromDeletedItems</code> is tracked separately and
+intentionally <strong>excluded</strong> from this number &mdash; the
+Manage bottom bar and HTML export add it back in, the View Costs
+screen does not (it shows "Current items total"). When a report's own
+models were the fan-out answerers, the <strong>Value view</strong>
+folds each model's fan-out response spend into its plotted per-model
+cost (skipped when two success agents share a provider/model key)
+&mdash; that cost mechanic is detailed in
+<a href="value-view.html">value-view</a>.</p>
+
+<h2 id="dashboard">Spend &amp; usage dashboard</h2>
+
+<p>Reached from the <strong>Statistics</strong> screen
+(<code>AiStatisticsScreen</code>, help <code>ai_statistics</code>) as
+the &#128176; <strong>Spend &amp; usage</strong> link-card. The screen
+is <code>AiSpendUsageScreen</code> (help <code>ai_spend_usage</code>).
+On open it does a one-time OpenRouter pricing refresh (when stale)
+then computes its breakdown via <code>computeUsageGroups</code>
+(<code>data/DashboardStats.kt</code>) off the main thread &mdash; heavy
+because it calls <code>getPricing</code> per model, and because it
+first runs <code>reconcileReportCostLedgers</code> to bring every
+report's ledger current. Rerank rows fold
+<code>searchUnits &times; perQueryPrice</code> into their cost.</p>
+
+<p>A <strong>Total card</strong> (calls / tokens / cost, green) sits
+above a four-tab body (<code>SpendUsageMode</code>):</p>
+
+<details class="entity">
+<summary>Providers</summary>
+<div class="body">
+<p>One row per provider (Provider / Calls / Tokens / Cost /
+&#128027;), sortable by any column header (default cost, descending).
+The &#128027; opens API Traces scoped to that provider and shows only
+when that provider has a captured trace. Tapping a row opens
+<code>AiSpendUsageProviderScreen</code> (help
+<code>ai_usage_provider</code>) &mdash; the per-provider breakdown
+grouped by call kind, by pricing source (OVERRIDE / OPENROUTER /
+LITELLM / &hellip;), and by model; each model row links to that
+model's Model Info page.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Models</summary>
+<div class="body">
+<p>Usage rolled up per model across providers.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Types</summary>
+<div class="body">
+<p>One row per live usage <code>category</code> from
+<code>UsageCategoryStats</code> (e.g. <code>report/prompt</code> for
+primary agents, and the bare-kind buckets <code>rerank</code> /
+<code>meta</code> / <code>transrank</code> / <code>icon</code> /
+&hellip; for everything else &mdash; <em>not</em> the slash-typed
+ledger types); &#128027; scopes Traces to that category.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Reports</summary>
+<div class="body">
+<p>One row per report; tap opens that report's Costs section,
+&#128027; scopes Traces to the report.</p>
+</div>
+</details>
+
+<p><code>computeUsageGroups</code> also carries
+<code>getPricingStats</code> (which tiers are loaded, with entry
+counts) on its result for the dashboard hub.</p>
+
+<p>The &#129518; <strong>Costs tiers</strong> dashboard card opens
+<code>AiCostsTierScreen</code> (help <code>ai_costs_tier</code>)
+&mdash; which pricing tier <code>getPricing</code> would pick, counted
+per <code>source</code>, in two side-by-side columns:
+<strong>Config</strong> (every configured model, via
+<code>computeTierCounts</code>) and <strong>Runtime</strong> (only the
+models actually called, read from the API traces via
+<code>computeTierCountsRuntime</code>), plus catalog freshness from
+<code>catalogStats</code>.</p>
+
+<p class="muted">CSV: the layered-cost CSV export/import lives on the
+Costs maintenance screen below, not here.</p>
+
+<h2 id="report-costs">Per-report Costs breakdown</h2>
+
+<p><code>ui/report/view/Costs.kt</code> (<code>CostsViewScreen</code>,
+help <code>costs_view</code>) renders a report's spend. The data comes
+from <code>rememberReportCostData(report)</code>
+(<code>ui/report/manage/view/ContentDisplay.kt</code>), which has two
+paths:</p>
+
+<ul>
+<li><strong>Ledger fast path</strong> &mdash; when
+<code>isApiCallCostLedgerCurrent(report)</code> and
+<code>report.apiCallCosts</code> is non-empty, every
+<code>CostRow</code> is built straight from the
+<code>ReportApiCallCost</code> ledger. No re-pricing, no
+alt-subtraction bookkeeping &mdash; the ledger already holds the final
+per-call split.</li>
+<li><strong>Reconstruction path</strong> (legacy / incomplete ledger)
+&mdash; gathers and re-prices every call recorded against the report:
+  <ul>
+    <li><strong>Agent rows</strong> (<code>type = "report/prompt"</code>)
+    &mdash; use each agent's pinned <code>inputCost</code> /
+    <code>outputCost</code> (frozen at the prices in effect when the
+    report ran); rows with no pinned split fall back to a live
+    <code>computeInOutCost</code>.</li>
+    <li><strong>Secondary results</strong> &mdash; all eight
+    <code>SecondaryKind</code>s (meta / fan-out / fan-in / rerank /
+    moderation / translate / tournament / judges / compare /
+    transrank), each typed by its
+    <code>&lt;category&gt;/&lt;prompt&gt;</code>
+    (<code>after/rerank</code>, <code>after/moderation</code>,
+    <code>after/tournament</code>, <code>after/judges</code>,
+    <code>meta/&lt;name&gt;</code>, <code>meta/compare</code>,
+    <code>transrank/rank</code>, the <code>translate/...</code>
+    family) and carrying its own cost.</li>
+    <li><strong>Icon-gen</strong>, <strong>language</strong> detect +
+    icon, <strong>model titles</strong>, and the alternative-title /
+    alternative-icon fan-outs. Per-call <code>_alt</code> rows live in
+    <code>report.iconCalls</code>; their cost (and their tokens) is
+    subtracted from the owning aggregate row so totals don't
+    double-count, clamped at 0 to absorb a write-ordering skew.</li>
+  </ul>
+</li>
+</ul>
+
+<div class="card">
+<h4>CostRow</h4>
+<p class="type"><code>ui/report/manage/view/ContentDisplay.kt</code></p>
+<p><code>type</code>, <code>providerDisplay</code>, <code>model</code>,
+<code>tier</code>, <code>durationMs</code>, <code>inputTokens</code>,
+<code>outputTokens</code>, <code>inputCents</code>,
+<code>outputCents</code>, <code>traceFile</code>. Row-level cost is
+stored in <strong>cents</strong> (<code>Double</code>).</p>
+</div>
+
+<p>The View screen rolls rows up by <code>bucketFor(type)</code>
+&mdash; which is now an identity function, so the bucket keys are the
+raw <code>&lt;category&gt;/&lt;prompt&gt;</code> type strings
+themselves (<code>report/prompt</code>, <code>after/rerank</code>,
+<code>meta/compare</code>, <code>transrank/rank</code>,
+<code>fan/meta</code>, the <code>translate/...</code> family,
+&hellip;). A Total card ("Current items total", in cents) sits above a
+horizontal-bar list (bar length = share of total); sub-0.0001&cent;
+buckets are dropped. A <strong>Buckets &hArr; Models</strong> toggle
+re-rolls the same data by <code>shortModelName</code>. Tapping a bar
+drills L2 (cross-dimension) &rarr; L3 (individual calls, paged); the
+&#128027; on a call opens its exact trace via the row's
+<code>traceFile</code> (falling back to a newest-wins scan for rows
+with none). Find-alternative-title cost is detailed in
+<a href="regenerate.html">regenerate</a>.</p>
+
+<h2 id="overrides">Manual price overrides</h2>
+
+<p><code>ModelPricing</code> overrides are stored <strong>outside</strong>
+Settings &mdash; in <code>PricingCache</code> under the
+<code>manual_pricing</code> map in
+<code class="path">pricing_cache.xml</code>
+(<code>KEY_MANUAL_PRICING</code>), keyed
+<code>"provider:model"</code>, <strong>not</strong> a
+<code>filesDir</code> blob. Write via <code>setManualPricing</code>,
+read via <code>getManualPricing</code> / <code>getAllManualPricing</code>,
+drop via <code>removeManualPricing</code>.</p>
+
+<p>UI lives in two places:</p>
+
+<ul>
+<li><strong>AI Setup &rarr; Costs</strong> &mdash; per-row CRUD
+(<code>ui/cruds/costsmanualoverride/</code>, help
+<code>crud_cost_overrides</code>). List &rarr; View &rarr; Edit / Copy
+/ Add. Copy carries the prices and lets the user repoint at another
+model.</li>
+<li><strong>Add/Edit Override form</strong>
+(<code>AddManualOverrideScreen</code>,
+<code>ui/admin/StatisticsScreen.kt</code>, help
+<code>cost_override</code>) &mdash; provider + model picker,
+input/output <code>$/1M tokens</code> fields. Prices are divided by
+1,000,000 on save. Shows the <em>Current:</em> layered price
+(<code>getPricingWithoutOverride</code>) for reference, and supports
+duplicate-mode (&#128110;) to clone an existing override onto a new
+pair. Also reachable pre-filled from Model Info
+(<code>ManualCostOverrideEntryScreen</code>,
+<code>ui/admin/StatisticsScreen.kt</code>).</li>
+</ul>
+
+<p>Because the store isn't reactive, the CRUD bumps a refresh tick to
+re-read after each write. Overrides round-trip through the backup zip
+(the <code>pricing_cache</code> prefs file is in
+<code>PREFS_TO_BACKUP</code>).</p>
+
+<h2 id="maintenance">Costs maintenance screen</h2>
+
+<p><code>ui/admin/CostsMaintenanceScreen.kt</code> (Housekeeping
+&rarr; <strong>Costs</strong>, help <code>cost_config</code>) &mdash;
+the two occasional bulk operations:</p>
+
+<details class="entity">
+<summary>Cleanup</summary>
+<div class="body">
+<p><code>cleanupRedundantManualOverrides</code> drops every override
+that is dormant or redundant: covered by any catalog tier (LiteLLM /
+models.dev / Helicone / llm-prices / AA / llm-stats / OpenRouter /
+Requesty / genai-prices / TrueFoundry), equal to the built-in
+<code>DEFAULT</code>, or equal to what
+<code>getPricingWithoutOverride</code> would return anyway. Reports
+the count removed.</p>
+</div>
+</details>
+
+<details class="entity">
+<summary>Layered costs CSV</summary>
+<div class="body">
+<p><code>buildLayeredCsv</code> emits one row per active
+<code>(provider, model)</code> (via <code>getTierBreakdown</code>)
+with every tier's <code>$/M</code> price (litellm, models.dev,
+helicone, llm-prices, AA, llm-stats, override, openrouter, requesty,
+genai-prices, truefoundry, default &mdash; computed independently; the
+<code>together</code> field of <code>TierBreakdown</code> is not
+exported). <em>Export all</em> / <em>Export filtered</em> (filtered
+drops rows already covered by a catalog tier). Fill the two leading
+<code>new_input_per_million</code> / <code>new_output_per_million</code>
+columns and re-import &mdash; only rows with values are written as
+overrides via <code>setManualPricing</code> (a single-column edit
+keeps the other side at its current lookup value).</p>
+</div>
+</details>
+
+<p><code>getTierBreakdown</code> also backs the per-model layered-cost
+view and the &#128027; pricing trace; <code>pricesConflict</code>
+flags when &ge;2 catalog tiers disagree by &gt;1% (override + default
+excluded), and <code>catalogStats</code> lists the info-provider
+catalog tiers (incl. the capabilities-only CloudPrice) in lookup order
+with entry counts + timestamps for the Monitor hub.
+<code>clearInfoProviderTiers</code> wipes the catalog tiers but
+preserves manual + Together-native pricing; <code>deleteTier</code>
+drops one named tier; <code>clearAll</code> wipes everything.</p>
+
+<h2 id="files">Files &amp; related docs</h2>
+
+<dl class="kv">
+<div><dt>data/PricingCache.kt</dt><dd><code>ModelPricing</code>, <code>computeInOutCost</code>, <code>computeCost</code>, <code>getPricing</code>, <code>findPricingMatch</code>, <code>lookupPricing</code>, <code>getTierBreakdown</code>, manual-override CRUD</dd></div>
+<div><dt>data/AnalysisRepository.kt</dt><dd><code>TokenUsage</code></dd></div>
+<div><dt>data/ApiModels.kt</dt><dd>Per-provider <code>toTokenUsage</code> extractors</dd></div>
+<div><dt>data/preferences/SettingsPreferences.kt</dt><dd><code>updateUsageStats</code>, <code>computeUsageCostSnapshot</code>, <code>ensureUsageStatsCache</code>, <code>clearUsageStats</code>, <code>reconcileReportCostLedgers</code></dd></div>
+<div><dt>data/ApiCallKinds.kt</dt><dd><code>normalizeUsageKind</code>, the <code>SecondaryKind</code> strings</dd></div>
+<div><dt>model/SettingsModels.kt</dt><dd><code>UsageStats</code>, <code>UsageCategoryStats</code>, <code>UsageReportStats</code></dd></div>
+<div><dt>data/ReportModels.kt</dt><dd><code>ReportApiCallCost</code></dd></div>
+<div><dt>data/ReportStorage.kt</dt><dd><code>API_CALL_COST_LEDGER_VERSION</code>, <code>isApiCallCostLedgerCurrent</code>, <code>appendApiCallCost</code>, <code>reconcileApiCallCostLedger</code>, <code>buildStructuredApiCallCostRows</code>, <code>computeReportTotalCost</code>, <code>ledgerTotalCost</code>, <code>legacyReportTotalCost</code>, <code>TITLE_ALT_TYPES</code></dd></div>
+<div><dt>data/DashboardStats.kt</dt><dd><code>computeUsageGroups</code>, <code>computeTierCounts</code>, <code>computeTierCountsRuntime</code>, <code>catalogStats</code></dd></div>
+<div><dt>ui/admin/AiDashboardScreen.kt</dt><dd><code>AiSpendUsageScreen</code>, <code>AiSpendUsageProviderScreen</code>, <code>AiCostsTierScreen</code></dd></div>
+<div><dt>ui/report/view/Costs.kt</dt><dd><code>CostsViewScreen</code>, <code>bucketFor</code></dd></div>
+<div><dt>ui/report/manage/view/ContentDisplay.kt</dt><dd><code>rememberReportCostData</code>, <code>CostRow</code></dd></div>
+<div><dt>ui/cruds/costsmanualoverride/</dt><dd>Manual-override CRUD (List / View / Edit / Copy / Add)</dd></div>
+<div><dt>ui/admin/StatisticsScreen.kt</dt><dd><code>AddManualOverrideScreen</code>, <code>ManualCostOverrideEntryScreen</code></dd></div>
+<div><dt>ui/admin/CostsMaintenanceScreen.kt</dt><dd>Cleanup + layered-costs CSV</dd></div>
+</dl>
+
+<p class="muted">See also: <a href="repositories.html">repositories</a>
+(the twelve external metadata repos, ten of which feed this lookup)
+&middot; <a href="regenerate.html">regenerate</a> (Find-alternative-title
+call and how its cost is recorded) &middot;
+<a href="tournament-judges-compare.html">tournament-judges-compare</a>
+(the three worker-judged secondary flows and their usage kinds
+<code>tournament</code> / <code>judges</code> / <code>compare</code>)
+&middot; <a href="value-view.html">value-view</a> (the cost &times;
+quality Pareto view and its fan-out response-cost fold-in; also the
+home of the <code>transrank</code> "Rank the translators" flow whose
+ledger type is <code>transrank/rank</code>) &middot;
+<a href="persistent.html">persistent</a>
+(<code class="path">usage-stats.json</code>,
+<code class="path">usage-category-stats.json</code>,
+<code class="path">usage-report-stats.json</code>,
+<code class="path">pricing_cache.xml</code>, and the
+<code class="path">&lt;filesDir&gt;/pricing/</code> tier blobs)
+&middot; <a href="providers.html">providers</a> (providers,
+<code>crossProviderModelList</code> / <code>pricingFromModelList</code>
+self-report flags) &middot; <a href="throttle.html">throttle</a> (the
+per-host rate/concurrency gate and the <code>ApiCallCaps</code>
+flow-level pools that bound concurrent costed calls).</p>
+
+<p class="backtop"><a href="#">&uarr; Top</a></p>
+
+</main>
+</body>
+</html>
