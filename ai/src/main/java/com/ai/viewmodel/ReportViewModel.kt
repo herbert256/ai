@@ -673,13 +673,25 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Whether a report was generated with a pre-generation params override
+     *  (🌡️ advanced values / web-search / reasoning toggle). Matches the
+     *  fresh-run predicate in generateGenericReports EXACTLY — parameter
+     *  PRESETS alone do NOT count (doc/parameters.md: "any advanced value,
+     *  web-search, or reasoning toggle"). Every replay path (sweeps,
+     *  regenerate, staged edit-models) reads this so it suppresses the same
+     *  report-model / app-wide fallbacks the fresh run did — the replay
+     *  predicates used to add `parameterPresetIds.isNotEmpty()`, silently
+     *  changing preset-only reports' params between the original run and
+     *  every regenerate. */
+    private fun reportPreGenParamsActive(report: Report): Boolean =
+        report.advancedParameters != null || report.webSearchTool || report.reasoningEffort != null
+
     private fun buildTemperatureSweepTask(report: Report, state: UiState, reportAgent: ReportAgent): ReportTask? {
         val ai = state.aiSettings
         val provider = AppService.findById(reportAgent.provider) ?: return null
         val reportLevelSystemPrompt = report.reportSystemPromptId
             ?.let { ai.getSystemPromptById(it)?.prompt }
-        val preGenParamsActive = report.advancedParameters != null || report.parameterPresetIds.isNotEmpty() ||
-            report.webSearchTool || report.reasoningEffort != null
+        val preGenParamsActive = reportPreGenParamsActive(report)
         val currentAgent = reportAgent.agentId
             .takeUnless { it.startsWith("swarm:") }
             ?.let { ai.getAgentById(it) }
@@ -1939,8 +1951,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val reportLevelSystemPrompt = report.reportSystemPromptId
             ?.let { ai.getSystemPromptById(it)?.prompt }
         val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-        val preGenParamsActive = report.advancedParameters != null || report.parameterPresetIds.isNotEmpty() ||
-            report.webSearchTool || report.reasoningEffort != null
+        val preGenParamsActive = reportPreGenParamsActive(report)
         val tasks = buildReportTasks(
             ai, agents, swarmMembers + directModels, report.selectionParamsById,
             state.externalSystemPrompt, reportLevelSystemPrompt,
@@ -2258,8 +2269,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val reportLevelSystemPrompt = report.reportSystemPromptId
                 ?.let { ai.getSystemPromptById(it)?.prompt }
             val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val preGenParamsActive = report.advancedParameters != null || report.parameterPresetIds.isNotEmpty() ||
-                report.webSearchTool || report.reasoningEffort != null
+            val preGenParamsActive = reportPreGenParamsActive(report)
             val tasks = buildReportTasks(
                 ai, agents, swarmMembers + directModels, report.selectionParamsById,
                 state.externalSystemPrompt, reportLevelSystemPrompt,
