@@ -102,6 +102,15 @@ data class PairState(
     override val totalCost: Double get() =
         (inputCost ?: 0.0) + (outputCost ?: 0.0) +
             iconInputCost + iconOutputCost + titleInputCost + titleOutputCost
+    /** RESPONSE-only spend — the lens the Fan-out drill-down uses so its
+     *  per-pair costs and Total match the Fan-out L1 model row (which is
+     *  response-scoped). [totalCost] mixes in the Fan-Meta title/icon,
+     *  making L2/L3 exceed their L1 parent. */
+    val responseCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
+    /** Fan-Meta (title + icon) spend — the lens the Fan-Meta drill-down
+     *  uses so it matches the title+icon-scoped Fan-Meta L1 / Workers rows
+     *  (doc/secondary-results.md), instead of folding in the response. */
+    val metaCost: Double get() = iconInputCost + iconOutputCost + titleInputCost + titleOutputCost
 }
 
 /** Icon-chain lifecycle for this pair. Mirrors the MAIN-mode status

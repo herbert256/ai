@@ -145,7 +145,7 @@ internal fun FanMetaL2Screen(
             // Focused list: the per-pair found icon + its generated
             // title. No status icons / progress fills. Tapping a row
             // opens the L3 pair detail.
-            val rowsTotalCost = rows.sumOf { it.totalCost }
+            val rowsTotalCost = rows.sumOf { it.metaCost }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
                     Row(
@@ -173,9 +173,9 @@ internal fun FanMetaL2Screen(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
-                        if (p.totalCost > 0.0) {
+                        if (p.metaCost > 0.0) {
                             Text(
-                                formatCents(p.totalCost), fontSize = 12.sp,
+                                formatCents(p.metaCost), fontSize = 12.sp,
                                 color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 12.dp)
                             )
@@ -270,7 +270,7 @@ internal fun FanMetaMetaModelScreen(
                 Text("No titles from this meta model yet", color = AppColors.TextTertiary, fontSize = 13.sp)
             }
         } else {
-            val rowsTotalCost = rows.sumOf { it.totalCost }
+            val rowsTotalCost = rows.sumOf { it.metaCost }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
                     Row(
@@ -294,9 +294,9 @@ internal fun FanMetaMetaModelScreen(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
-                        if (p.totalCost > 0.0) {
+                        if (p.metaCost > 0.0) {
                             Text(
-                                formatCents(p.totalCost), fontSize = 12.sp,
+                                formatCents(p.metaCost), fontSize = 12.sp,
                                 color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 12.dp)
                             )

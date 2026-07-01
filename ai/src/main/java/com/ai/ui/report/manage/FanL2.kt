@@ -245,7 +245,7 @@ internal fun FanOutL2Screen(
                 )
             }
         } else {
-            val rowsTotalCost = rows.sumOf { it.totalCost }
+            val rowsTotalCost = rows.sumOf { it.responseCost }
             // Whole L2 list finished — every row would show ✅ on a
             // full green fill. Drop both per row (mirrors L1's allDone).
             val allDone = rows.isNotEmpty() && rows.all {
@@ -342,9 +342,9 @@ internal fun FanOutL2Screen(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
-                        if (p.totalCost > 0.0) {
+                        if (p.responseCost > 0.0) {
                             Text(
-                                formatCents(p.totalCost), fontSize = 11.sp,
+                                formatCents(p.responseCost), fontSize = 11.sp,
                                 color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 8.dp)
                             )

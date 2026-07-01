@@ -590,9 +590,9 @@ internal fun FanOutL3Screen(
                                 .clickable { actions.onNavigateToTraceFile(answererTrace!!) }
                         )
                     }
-                    if (pair.totalCost > 0.0) {
+                    if (pair.responseCost > 0.0) {
                         Text(
-                            "${formatCents(pair.totalCost)} ¢", fontSize = 11.sp,
+                            "${formatCents(pair.responseCost)} ¢", fontSize = 11.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                             modifier = Modifier.padding(start = 6.dp)
                         )
