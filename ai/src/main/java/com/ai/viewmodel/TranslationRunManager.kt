@@ -906,6 +906,13 @@ class TranslationRunManager(
      *  resurrects a deleted row). The Second-results list hides the row via the
      *  base [deletingRuns] set. */
     fun deleteTranslationRun(context: Context, sourceReportId: String, runId: String): Job {
+        // Cascade: a Rank-the-translators run is keyed by this translation run
+        // ("$reportId|$runId"), scores THESE translations, and drill-ins
+        // reference them. Deleting the translations without it left an
+        // in-flight rank scoring gone content (billed), a finished rank
+        // stranded on the report referencing rows that no longer resolve, and
+        // a Broken-work Continue on that rank dead-ended (scorableItems empty).
+        rvm.translatorRankEngine.deleteRun(context, com.ai.data.transRankRunKey(sourceReportId, runId))
         val runJob = runJobOf(runId)
         val itemJobs = _runs.value[runId]?.items?.values
             ?.mapNotNull { it.persistedRowId?.let(::itemJobOf) } ?: emptyList()
