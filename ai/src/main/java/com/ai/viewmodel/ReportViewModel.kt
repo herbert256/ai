@@ -1004,7 +1004,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 (if (response.isSuccess) "ok" else "err") +
                 " ${durationMs}ms" +
                 (response.tokenUsage?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
-                (cost?.let { " cost=${"%.5f".format(it)}" } ?: "")
+                (cost?.let { " cost=${String.format(java.util.Locale.US, "%.5f", it)}" } ?: "")
         )
     }
 
