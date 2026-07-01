@@ -288,7 +288,12 @@ fun extractTopRankedIds(rerankContent: String?, count: Int): List<Int>? {
     // the model's emit order.
     val ranked = entries.filter { it.rank != null }
     return if (ranked.isNotEmpty()) {
-        ranked.sortedBy { it.rank!! }.take(count).map { it.id }
+        // Ranked rows first (by rank), then any UNRANKED rows in emit order —
+        // an unranked row ranks LAST, not "doesn't exist". Dropping them made
+        // "Top 3" return only 2 when a partial-rank payload ranked 2 of 5,
+        // under-selecting the meta's scope.
+        val unranked = entries.filter { it.rank == null }
+        (ranked.sortedBy { it.rank!! } + unranked).take(count).map { it.id }
     } else {
         entries.take(count).map { it.id }
     }
