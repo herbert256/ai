@@ -241,6 +241,25 @@ fun NewReportScreen(
     }
     BackHandler { drainStagingAndBack() }
 
+    // Moderation model picker — full-screen overlay. Composed BEFORE the host
+    // Column (with the early return) so the base content doesn't stay in
+    // composition beneath it, where taps in the overlay's dead zones could
+    // fall through to the underlying prompt field / Next button.
+    if (showModerationPicker) {
+        com.ai.ui.other.ReportSelectModelsScreen(
+            aiSettings = uiState.aiSettings,
+            titleText = "Pick moderation model",
+            modelTypeFilter = com.ai.data.ModelType.MODERATION,
+            onConfirm = { pick ->
+                moderationModel = pick
+                showModerationPicker = false
+            },
+            onBack = { showModerationPicker = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_new", title = "New Report", subject = "Write your prompt, then pick models", onBackClick = drainStagingAndBack,
             onClear = { title = ""; prompt = ""; userTagBlock = ""; attachedImage = null },
@@ -429,23 +448,6 @@ fun NewReportScreen(
             placeholder = { Text("Enter your prompt...") },
             modifier = Modifier.fillMaxWidth().weight(1f), minLines = 10, colors = AppColors.outlinedFieldColors()
         )
-    }
-
-    // Moderation model picker — overlay. Single-select; tap → set the
-    // session's moderation model and close.
-    if (showModerationPicker) {
-        com.ai.ui.other.ReportSelectModelsScreen(
-            aiSettings = uiState.aiSettings,
-            titleText = "Pick moderation model",
-            modelTypeFilter = com.ai.data.ModelType.MODERATION,
-            onConfirm = { pick ->
-                moderationModel = pick
-                showModerationPicker = false
-            },
-            onBack = { showModerationPicker = false },
-            onNavigateHome = onNavigateHome
-        )
-        return
     }
 
     // Flagged-prompt dialog — same Proceed-anyway / Cancel choices the
