@@ -619,20 +619,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): List<ReportTask> {
         val appSp = general.appWideSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
         val rmSp = general.reportModelSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
-        val appPar = aiSettings.mergeParameters(general.appWideParametersIds)
-        val rmPar = aiSettings.mergeParameters(general.reportModelParametersIds)
 
         val agentTasks = agents.map { agent ->
             val ea = agent.copy(
                 apiKey = aiSettings.getEffectiveApiKeyForAgent(agent),
                 model = aiSettings.getEffectiveModelForAgent(agent)
             )
-            val selParams = aiSettings.mergeParameters(selectionParamsById[agent.id] ?: emptyList())
-            // selection → agent presets → app-wide (universal floor).
-            var params = selParams
-                ?: aiSettings.mergeParameters(agent.paramsIds)
-                ?: appPar
-                ?: AgentParameters()
+            // Per-FIELD merge down the chain, not first-non-null-LEVEL: report
+            // generation "merges down this chain" (doc/parameters.md), so a
+            // selection preset that sets only temperature must not wipe the
+            // agent/app-wide maxTokens. Concatenate the id lists low→high
+            // (app-wide, agent, selection) and fold once — mergeParameters
+            // already does per-field "later wins", so selection wins per field,
+            // falling back to agent then app-wide per field.
+            var params = aiSettings.mergeParameters(
+                general.appWideParametersIds + agent.paramsIds + (selectionParamsById[agent.id] ?: emptyList())
+            ) ?: AgentParameters()
             val spText = reportLevelSystemPrompt
                 ?: resolveSystemPromptText(aiSettings, agent.systemPromptId, findFlockSystemPromptIdForAgent(aiSettings, agent.id))
                 ?: externalSystemPrompt
@@ -655,12 +657,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 ?: (if (isDirect) rmSp else null)
                 ?: externalSystemPrompt
                 ?: appSp
-            val selPar = aiSettings.mergeParameters(selectionParamsById[sid]?.takeIf { it.isNotEmpty() } ?: emptyList())
-            var params = selPar
-                ?: (if (isDirect) aiSettings.mergeParameters(providerConfig.parametersIds) else null)
-                ?: (if (isDirect && !preGenParamsActive) rmPar else null)
-                ?: (if (!preGenParamsActive) appPar else null)
-                ?: AgentParameters()
+            // Per-FIELD merge down the chain (see the agent block). Precedence
+            // high→low: selection > provider(direct) > report-model(direct,
+            // pre-gen-gated) > app-wide(pre-gen-gated). Concatenate low→high
+            // and fold once so a per-model 🌡️ pick that sets only one field
+            // doesn't wipe the provider/report-model/app-wide others.
+            val paramIds = buildList {
+                if (!preGenParamsActive) addAll(general.appWideParametersIds)
+                if (isDirect && !preGenParamsActive) addAll(general.reportModelParametersIds)
+                if (isDirect) addAll(providerConfig.parametersIds)
+                addAll(selectionParamsById[sid] ?: emptyList())
+            }
+            var params = aiSettings.mergeParameters(paramIds) ?: AgentParameters()
             if (spText != null) params = params.copy(systemPrompt = spText)
 
             ReportTask(sid,
