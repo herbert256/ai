@@ -166,6 +166,12 @@ internal fun ReportIconFlowOverlays(
                 st.pairTitleDetailFor.value = null
                 st.targetLanguageIcon.value = false
                 st.targetLanguageDetect.value = false
+                // Also the title-flow targets — a leaked findTitlesFor
+                // ("report") re-routes the NEXT Find-alternative-icons run
+                // into the report-title flow, and its pick silently
+                // overwrites the persisted report title.
+                st.findTitlesFor.value = null
+                st.findTitlesLong.value = false
             }
         ) {
             FindIconsPickerRouter(
@@ -238,6 +244,18 @@ internal fun ReportIconFlowOverlays(
                     st.findTitlesFor.value = null
                     st.findTitlesLong.value = false
                     st.pairTitleDetailFor.value = null
+                    // The language-icon flags are owned by the report/
+                    // language Icon-lookup detail's onClose. When that
+                    // detail is NOT layered beneath this picker, backing
+                    // out must clear them here — a leaked (rememberSaveable)
+                    // targetLanguageIcon hijacks every later Find-
+                    // alternative-icons flow: the pick lands on
+                    // Report.languageIcon instead of the agent/pair/meta
+                    // icon the user was editing.
+                    if (!st.showIconDetail.value) {
+                        st.targetLanguageIcon.value = false
+                        st.targetLanguageDetect.value = false
+                    }
                 }
             )
         }
