@@ -199,7 +199,12 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     // icon's "Judge the judges" row).
     val pendingJudgeJudges = com.ai.ui.shared.LocalPendingJudgeJudges.current
     val closeTournamentOverlay = com.ai.ui.shared.LocalNavigateToCurrentReport.current
-    val onJudgeJudges: (() -> Unit)? = pendingJudgeJudges?.let { slot ->
+    // Only offer ⚖️ once every match has settled — the judge panel is
+    // derived from the COMPLETED match rows, so launching mid-run would
+    // build it from whichever judges happened to finish so far (a wrong,
+    // timing-dependent subset). The Manage-side launcher gates the same way
+    // (judgeJudgesEnabled = tournamentDone); the L1 fast-path skipped it.
+    val onJudgeJudges: (() -> Unit)? = pendingJudgeJudges?.takeIf { run?.allTerminal == true }?.let { slot ->
         { slot.value = reportId; closeTournamentOverlay?.invoke() }
     }
 
