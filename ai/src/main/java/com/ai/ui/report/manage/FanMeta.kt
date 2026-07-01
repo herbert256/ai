@@ -59,20 +59,24 @@ sealed class FanMetaNav {
     data class L2(val answererKey: String, val role: String) : FanMetaNav()
     /** L2 scoped to one meta-worker model (the workers drill-in). */
     data class L2MetaModel(val metaModelKey: String) : FanMetaNav()
-    data class L3(val answererKey: String, val sourceAgentId: String, val role: String) : FanMetaNav()
+    /** [origin] records which screen opened this pair — "L2" (a Report-
+     *  models L2), "L2MM:<metaModelKey>" (a meta-model L2), or "L1ALL"
+     *  (the flat title list) — so back returns there instead of always
+     *  synthesizing a Report-models L2 the user may never have visited. */
+    data class L3(val answererKey: String, val sourceAgentId: String, val role: String, val origin: String = "L2") : FanMetaNav()
 }
 
-/** Custom Saver — serialises to a 4-string list so rememberSaveable
+/** Custom Saver — serialises to a 5-string list so rememberSaveable
  *  survives rotation + process death. */
 private val fanMetaNavSaver: Saver<FanMetaNav, Any> = Saver(
     save = { nav ->
         when (nav) {
-            is FanMetaNav.L1 -> listOf("L1", "", "", "")
-            is FanMetaNav.Workers -> listOf("WORKERS", "", "", "")
-            is FanMetaNav.L1All -> listOf("L1ALL", "", "", "")
-            is FanMetaNav.L2 -> listOf("L2", nav.answererKey, "", nav.role)
-            is FanMetaNav.L2MetaModel -> listOf("L2MM", nav.metaModelKey, "", "")
-            is FanMetaNav.L3 -> listOf("L3", nav.answererKey, nav.sourceAgentId, nav.role)
+            is FanMetaNav.L1 -> listOf("L1", "", "", "", "")
+            is FanMetaNav.Workers -> listOf("WORKERS", "", "", "", "")
+            is FanMetaNav.L1All -> listOf("L1ALL", "", "", "", "")
+            is FanMetaNav.L2 -> listOf("L2", nav.answererKey, "", nav.role, "")
+            is FanMetaNav.L2MetaModel -> listOf("L2MM", nav.metaModelKey, "", "", "")
+            is FanMetaNav.L3 -> listOf("L3", nav.answererKey, nav.sourceAgentId, nav.role, nav.origin)
         }
     },
     restore = { list ->
@@ -84,11 +88,18 @@ private val fanMetaNavSaver: Saver<FanMetaNav, Any> = Saver(
             "L1ALL" -> FanMetaNav.L1All
             "L2" -> FanMetaNav.L2(l[1], l[3].ifEmpty { "Responder" })
             "L2MM" -> FanMetaNav.L2MetaModel(l[1])
-            "L3" -> FanMetaNav.L3(l[1], l[2], l[3].ifEmpty { "Responder" })
+            "L3" -> FanMetaNav.L3(l[1], l[2], l[3].ifEmpty { "Responder" }, l.getOrNull(4)?.ifEmpty { "L2" } ?: "L2")
             else -> FanMetaNav.L1
         }
     }
 )
+
+/** Resolve an L3's [FanMetaNav.L3.origin] back to the screen that opened it. */
+private fun fanMetaBackFromL3(n: FanMetaNav.L3): FanMetaNav = when {
+    n.origin == "L1ALL" -> FanMetaNav.L1All
+    n.origin.startsWith("L2MM:") -> FanMetaNav.L2MetaModel(n.origin.removePrefix("L2MM:"))
+    else -> FanMetaNav.L2(n.answererKey, n.role)
+}
 
 /**
  * Parent of the Fan Meta drill-in — the per-pair title + icon batch
@@ -142,7 +153,7 @@ fun FanMetaScreen(
             FanMetaNav.L1All -> FanMetaNav.L1
             is FanMetaNav.L2 -> FanMetaNav.L1
             is FanMetaNav.L2MetaModel -> FanMetaNav.Workers
-            is FanMetaNav.L3 -> FanMetaNav.L2(n.answererKey, n.role)
+            is FanMetaNav.L3 -> fanMetaBackFromL3(n)
         }
     }
 
@@ -209,7 +220,7 @@ fun FanMetaScreen(
         FanMetaNav.L1All -> FanMetaAllScreen(
             run = runState,
             onOpenPair = { ak, srcAgentId, r ->
-                nav = FanMetaNav.L3(ak, srcAgentId, r)
+                nav = FanMetaNav.L3(ak, srcAgentId, r, origin = "L1ALL")
             },
             onBack = { nav = FanMetaNav.L1 }
         )
@@ -220,7 +231,7 @@ fun FanMetaScreen(
             actions = actions,
             onSwitchRole = { newRole -> nav = FanMetaNav.L2(n.answererKey, newRole) },
             onOpenPair = { srcAgentId ->
-                nav = FanMetaNav.L3(n.answererKey, srcAgentId, n.role)
+                nav = FanMetaNav.L3(n.answererKey, srcAgentId, n.role, origin = "L2")
             },
             onBack = { nav = FanMetaNav.L1 }
         )
@@ -228,7 +239,7 @@ fun FanMetaScreen(
             run = runState,
             metaModelKey = n.metaModelKey,
             onOpenPair = { ak, srcAgentId ->
-                nav = FanMetaNav.L3(ak, srcAgentId, "Responder")
+                nav = FanMetaNav.L3(ak, srcAgentId, "Responder", origin = "L2MM:${n.metaModelKey}")
             },
             onBack = { nav = FanMetaNav.Workers }
         )
@@ -241,9 +252,9 @@ fun FanMetaScreen(
             actions = actions,
             iconRefreshTick = iconRefreshTick,
             onStepSource = { newSourceAgentId ->
-                nav = FanMetaNav.L3(n.answererKey, newSourceAgentId, n.role)
+                nav = FanMetaNav.L3(n.answererKey, newSourceAgentId, n.role, n.origin)
             },
-            onBack = { nav = FanMetaNav.L2(n.answererKey, n.role) }
+            onBack = { nav = fanMetaBackFromL3(n) }
         )
     }
 
