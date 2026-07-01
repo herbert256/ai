@@ -603,7 +603,15 @@ internal fun ReportRunScreen(
             // example prompt) — Manage layer only.
             onNewReport = if (manageLayer) navigateToNewReport else null,
             onBackClick = onDismiss,
-            onReload = if (manageLayer && currentReportId != null && isComplete) onRequestRegenerate else null,
+            // 🔄 on Manage → whole-report Regenerate; on the Get-info layer
+            // → the metadata-only fork (the confirm dialog reads
+            // st.showGetInfo to branch). Gating it to manageLayer left the
+            // Get-info fork — and onRegenerateInfo — unreachable dead code.
+            onReload = when {
+                manageLayer && currentReportId != null && isComplete -> onRequestRegenerate
+                st.showGetInfo.value && currentReportId != null -> onRequestRegenerate
+                else -> null
+            },
             onTrace = if (manageLayer && currentReportId != null) generationHandlers.onTrace else null,
             onDelete = if (manageLayer && currentReportId != null) generationHandlers.onDelete else null,
             onOpenView = if (manageLayer && currentReportId != null) onOpenViewReport else null,
