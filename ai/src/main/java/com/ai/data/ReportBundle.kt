@@ -435,6 +435,14 @@ internal fun readReportZip(
         SecondaryResultStorage.save(context, rekeyed)
         secondaryCount++
     }
+    // The total counts every secondary ZIP ENTRY, but the loop above ticks
+    // only for rows that PARSED (malformed ones are dropped by mapNotNull).
+    // Tick the dropped remainder so the counter reaches Y instead of ending
+    // short — the trace pass stays monotonic by ticking before parsing.
+    if (importId != null) {
+        val droppedSecondaries = entries.keys.count { it.startsWith("secondary/") && it.endsWith(".json") } - parsedSecondaries.size
+        repeat(droppedSecondaries.coerceAtLeast(0)) { tick() }
+    }
 
     return ReportImportSummary(
         title = report.title,
