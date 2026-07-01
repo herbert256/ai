@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.FanOutRunState
 import com.ai.data.PairState
+import com.ai.data.Report
+import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.toPairState
 import com.ai.ui.shared.AppColors
@@ -114,8 +116,22 @@ internal fun FanMetaL3Screen(
         return
     }
 
-    // L2 scope for prev/next stepping — same ordering as L2.
-    val l2Rows = remember(run, answererKey, role) {
+    // L2 scope for prev/next stepping — must match L2's VISIBLE order
+    // (label, not timestamp), or swipe/Prev-Next jumps to a seemingly
+    // random pair that isn't the adjacent row in the list.
+    val l3Report by produceState<Report?>(initialValue = null, run.reportId) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, run.reportId) }
+    }
+    val l3AgentLabels: Map<String, String> = remember(l3Report) {
+        l3Report?.agents?.associate { it.agentId to resolveModelLabel("${it.provider}|${it.model}") }
+            ?: emptyMap()
+    }
+    fun l2RowLabel(p: PairState): String = if (role == "Responder") {
+        l3AgentLabels[p.sourceAgentId] ?: p.sourceAgentId
+    } else {
+        resolveModelLabel("${p.providerId}|${p.model}")
+    }
+    val l2Rows = remember(run, answererKey, role, l3AgentLabels) {
         when (role) {
             "Initiator" -> run.pairs.values.filter {
                 run.pairs.values.any { other ->
@@ -124,7 +140,7 @@ internal fun FanMetaL3Screen(
                 }
             }
             else -> run.pairs.values.filter { "${it.providerId}|${it.model}" == answererKey }
-        }.sortedBy { it.timestamp }
+        }.sortedWith(compareBy { p -> l2RowLabel(p).lowercase() })
     }
     val curIdx = l2Rows.indexOfFirst { it.key == pair.key }
     val prev = if (curIdx > 0) l2Rows[curIdx - 1] else null

@@ -155,8 +155,19 @@ internal fun FanOutL3Screen(
 
     var confirmDelete by remember { mutableStateOf(false) }
 
-    // L2 scope for prev/next stepping — same ordering as L2.
-    val l2Rows = remember(run, answererKey, role) {
+    // L2 scope for prev/next stepping — must match L2's VISIBLE order
+    // (label, not timestamp), or Prev/Next jumps to a seemingly random
+    // pair that isn't the adjacent row in the list.
+    val l3AgentLabels: Map<String, String> = remember(report) {
+        report?.agents?.associate { it.agentId to resolveModelLabel("${it.provider}|${it.model}") }
+            ?: emptyMap()
+    }
+    fun l2RowLabel(p: PairState): String = if (role == "Responder") {
+        l3AgentLabels[p.sourceAgentId] ?: p.sourceAgentId
+    } else {
+        resolveModelLabel("${p.providerId}|${p.model}")
+    }
+    val l2Rows = remember(run, answererKey, role, l3AgentLabels) {
         when (role) {
             "Initiator" -> run.pairs.values.filter {
                 run.pairs.values.any { other ->
@@ -165,7 +176,7 @@ internal fun FanOutL3Screen(
                 }
             }
             else -> run.pairs.values.filter { "${it.providerId}|${it.model}" == answererKey }
-        }.sortedBy { it.timestamp }
+        }.sortedWith(compareBy { p -> l2RowLabel(p).lowercase() })
     }
     val curIdx = l2Rows.indexOfFirst { it.key == pair.key }
     val prev = if (curIdx > 0) l2Rows[curIdx - 1] else null
