@@ -208,13 +208,20 @@ internal fun ColumnScope.FanOutDrillInView(
     // Likewise: opening a different model on the same Fan out should
     // start in Responder mode and with no L3 selection. Without this,
     // the role state set on Model A's L2 carries to Model B's L2 even
-    // though the user picked it from a fresh L1 row.
+    // though the user picked it from a fresh L1 row. Guarded (like the
+    // prompt-id reset above) so it fires only on an ACTUAL model change —
+    // not on initial composition, where rememberSaveable has just restored
+    // a non-null selectedModelKey (rotation / process death on L3), which
+    // would otherwise wipe the restored L3 keys + role and dump the user
+    // back on L2.
+    var lastResetModelKey by remember { mutableStateOf(selectedModelKey) }
     LaunchedEffect(selectedModelKey) {
-        if (selectedModelKey != null) {
+        if (selectedModelKey != null && selectedModelKey != lastResetModelKey) {
             selectedRole = "Responder"
             l3AnswererKey = null
             l3SourceAgentId = null
         }
+        lastResetModelKey = selectedModelKey
     }
     // Full-screen overlays inside this view — `if (showX) { X(); return }`
     // pattern documented in CLAUDE.md so the parent's rememberSaveable
