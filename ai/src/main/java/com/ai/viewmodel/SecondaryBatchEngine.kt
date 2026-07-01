@@ -160,12 +160,37 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         traceCategory: String,
         body: suspend (runId: String) -> Unit,
     ): Job {
-        runJobOf(runKey)?.let { if (it.isActive) return it }
+        runJobOf(runKey)?.let {
+            if (it.isActive) {
+                // The UI arms the "Preparing…" build popup BEFORE calling
+                // into the engine and relies on this launch's finally to
+                // release it. Refusing a double-launch must release it too
+                // — otherwise the non-dismissable modal never receives
+                // finishBuild/clearBuild and wedges the screen over the
+                // still-running batch (whose Cancel button deletes it).
+                if (buildKey != null) {
+                    val p = appViewModel.batchBuildProgress.value[buildKey]
+                    if (p != null && !p.done) appViewModel.clearBuild(buildKey)
+                }
+                return it
+            }
+        }
+        // A prior (finished) run on this key is superseded, not kept:
+        // this launch mints a fresh runId, so the old rows would stay on
+        // disk forever — hidden by hydrateNewestRun in every list, yet
+        // still feeding the Manage second-results aggregate (one old ❌
+        // pinned it at error) and undeletable except with the report.
+        // Delete the old run first, rolling its spend into the report's
+        // deleted-items tally; the new coroutine joins the disk sweep
+        // before dispatching. Captured here, synchronously, so deleteRun
+        // grabs the OLD (inactive) run job — not the one launched below.
+        val supersededDelete = if (_runs.value[runKey] != null) deleteRun(context, runKey) else null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val reportId = reportIdOf(runKey)
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
             try {
+                supersededDelete?.join()
                 withTracerTags(reportId = reportId, category = traceCategory, runId = runId) {
                     body(runId)
                 }
