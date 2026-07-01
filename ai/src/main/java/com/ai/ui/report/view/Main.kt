@@ -959,7 +959,12 @@ internal fun ViewAiReportScreen(
             // reachable from Report - manage; Log + Trace from the
             // result page's bottom-bar icons (📜 App Log, 🐞 Trace
             // list).
-            add(IdentifiedTile("doc:Icons", ViewTile("Icons", com.ai.data.MetadataIconsHolder.current.image, AppColors.WarningAccent) { onViewIcons() }))
+            // Only when the per-model icon chain is enabled — otherwise the
+            // Icons view is rows of 🤖 fallback glyphs. perModelIconGenEnabled
+            // was a remember key but never actually read here.
+            if (perModelIconGenEnabled) {
+                add(IdentifiedTile("doc:Icons", ViewTile("Icons", com.ai.data.MetadataIconsHolder.current.image, AppColors.WarningAccent) { onViewIcons() }))
+            }
             // Value view — cost × quality frontier. Needs a ranking to supply
             // per-model quality scores: a rerank, tournament, Judge-the-judges,
             // Rank-the-translators, or Compare-with-meta (match %) run (the
