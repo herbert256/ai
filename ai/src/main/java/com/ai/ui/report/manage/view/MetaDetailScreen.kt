@@ -404,7 +404,16 @@ internal fun MetaDetailScreen(
             temperatureRange = providerService?.let(::temperatureRangeForProvider) ?: TemperatureRange.Default,
             state = temperatureSweepStates[temperatureSweepKey],
             onSubmit = { temps -> metaEditManager.startTemperatureSweep(context, result.reportId, result.id, temps) },
-            onUseCandidate = { index -> metaEditManager.applyTemperatureCandidate(context, result.reportId, result.id, index) },
+            onUseCandidate = { index ->
+                // apply → clear → close, matching the prompt-edit-replay
+                // handler above and the agent-side SingleResult. Applying
+                // alone dropped the sweep track key while the screen stayed
+                // mounted, so its optimistic fallback resurrected a synthetic
+                // isRunning=true state → an infinite spinner.
+                metaEditManager.applyTemperatureCandidate(context, result.reportId, result.id, index)
+                metaEditManager.clearTemperatureSweep(result.reportId, result.id)
+                showTemperatureSweep = false
+            },
             onTrace = onNavigateToTraceFile,
             onBack = {
                 metaEditManager.clearTemperatureSweep(result.reportId, result.id)
@@ -420,7 +429,12 @@ internal fun MetaDetailScreen(
             modelLabel = metaModelLabel,
             state = reasoningEffortSweepStates[reasoningEffortSweepKey],
             onSubmit = { efforts -> metaEditManager.startReasoningEffortSweep(context, result.reportId, result.id, efforts) },
-            onUseCandidate = { index -> metaEditManager.applyReasoningEffortCandidate(context, result.reportId, result.id, index) },
+            onUseCandidate = { index ->
+                // apply → clear → close (see the temperature handler).
+                metaEditManager.applyReasoningEffortCandidate(context, result.reportId, result.id, index)
+                metaEditManager.clearReasoningEffortSweep(result.reportId, result.id)
+                showReasoningEffortSweep = false
+            },
             onTrace = onNavigateToTraceFile,
             onBack = {
                 metaEditManager.clearReasoningEffortSweep(result.reportId, result.id)
@@ -437,7 +451,12 @@ internal fun MetaDetailScreen(
             originalResponse = originalContent,
             state = webSearchReplayStates[webSearchReplayKey],
             onStart = { metaEditManager.startWebSearchReplay(context, result.reportId, result.id) },
-            onUseResponse = { metaEditManager.applyWebSearchReplay(context, result.reportId, result.id) },
+            onUseResponse = {
+                // apply → clear → close (see the temperature handler).
+                metaEditManager.applyWebSearchReplay(context, result.reportId, result.id)
+                metaEditManager.clearWebSearchReplay(result.reportId, result.id)
+                showWebSearchReplay = false
+            },
             onTrace = onNavigateToTraceFile,
             onBack = {
                 metaEditManager.clearWebSearchReplay(result.reportId, result.id)
