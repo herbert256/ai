@@ -63,7 +63,24 @@ enum class RegeneratePhase {
      *  Re-dispatched via the tournament engine's resume-stale pass; the
      *  AGGREGATE ranking row is recomputed once its matches settle (not
      *  a task — it makes no API call). */
-    TOURNAMENT
+    TOURNAMENT,
+
+    /** Judge-the-judges per-cell rows (kind == JUDGES, role == MATCH).
+     *  After TOURNAMENT so the judges it evaluates are fresh. Re-dispatched
+     *  via the judge-eval engine's resume-stale pass; the AGGREGATE
+     *  consensus row is recomputed once cells settle. */
+    JUDGES,
+
+    /** Compare-with-meta per-cell rows (kind == COMPARE). After META so the
+     *  meta items it scores against are fresh. Re-dispatched via the compare
+     *  engine's resume-stale pass. */
+    COMPARE,
+
+    /** Rank-the-translators per-score-cell rows (kind == TRANSRANK, role ==
+     *  MATCH). After TRANSLATIONS so the translations it ranks are fresh.
+     *  Re-dispatched via the translator-rank engine's resume-stale pass; the
+     *  AGGREGATE ranking row is recomputed once cells settle. */
+    TRANSRANK
 }
 
 enum class RegenerateTaskState {

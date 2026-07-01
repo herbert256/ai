@@ -685,6 +685,18 @@ class RegenerateBatchEngine internal constructor(
                 // recomputes the aggregate ranking once they settle.
                 reportViewModel.tournamentEngine.resumeStaleRunsForReport(context, reportId, resetAttempts = true)
             }
+            // The three engine-owned meta-analyses: resetRowsForPhase blanked
+            // their cells (else-branch resetRowToPlaceholder); each engine's
+            // resume re-dispatches the blank cells and recomputes its aggregate.
+            RegeneratePhase.JUDGES -> {
+                reportViewModel.judgeEvalEngine.resumeStaleRunsForReport(context, reportId, resetAttempts = true)
+            }
+            RegeneratePhase.COMPARE -> {
+                reportViewModel.compareEngine.resumeStaleRunsForReport(context, reportId, resetAttempts = true)
+            }
+            RegeneratePhase.TRANSRANK -> {
+                reportViewModel.translatorRankEngine.resumeStaleRunsForReport(context, reportId, resetAttempts = true)
+            }
         }
     }
 
@@ -960,6 +972,22 @@ class RegenerateBatchEngine internal constructor(
                 label = "tournament match",
                 state = RegenerateTaskState.WAITING
             )
+        }
+
+        // JUDGES / COMPARE / TRANSRANK — the three engine-owned meta-analyses.
+        // They score refreshed upstream (answers / metas / tournament /
+        // translations), so a full Regenerate must re-run them too (doc:
+        // "every secondary result"); previously only TOURNAMENT was rebuilt
+        // and these three showed scores over the OLD content. One task per
+        // cell row; each engine's AGGREGATE is recomputed by its resume pass.
+        for (row in all.filter { it.kind == SecondaryKind.JUDGES && it.tournamentRole == com.ai.data.JUDGE_ROLE_CELL }) {
+            tasks += RegenerateTask(row.id, RegeneratePhase.JUDGES, "judge cell", RegenerateTaskState.WAITING)
+        }
+        for (row in all.filter { it.kind == SecondaryKind.COMPARE && !it.compareRunId.isNullOrBlank() }) {
+            tasks += RegenerateTask(row.id, RegeneratePhase.COMPARE, "compare cell", RegenerateTaskState.WAITING)
+        }
+        for (row in all.filter { it.kind == SecondaryKind.TRANSRANK && it.tournamentRole == com.ai.data.TRANSRANK_ROLE_CELL }) {
+            tasks += RegenerateTask(row.id, RegeneratePhase.TRANSRANK, "translator-rank cell", RegenerateTaskState.WAITING)
         }
 
         tasks

@@ -445,4 +445,7 @@ private val RegeneratePhase.label: String
         RegeneratePhase.TRANSLATIONS -> "Translations"
         RegeneratePhase.FAN_META -> "Fan Meta"
         RegeneratePhase.TOURNAMENT -> "Tournament"
+        RegeneratePhase.JUDGES -> "Judge the judges"
+        RegeneratePhase.COMPARE -> "Compare with meta"
+        RegeneratePhase.TRANSRANK -> "Rank the translators"
     }
