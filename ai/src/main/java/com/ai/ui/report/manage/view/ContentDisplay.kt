@@ -457,22 +457,22 @@ private fun ReportsViewerScreenLoaded(
     val agentsWithResults = remember(report) {
         report.agents.filter { it.reportStatus == ReportStatus.SUCCESS }.sortedBy { it.agentName.lowercase() }
     }
-    // Land directly on the one-page view when the Manage jump asked for it
-    // (the View ✋ all-models 🔧). Keyed on initialSection so re-entry honors it.
-    var showOnePage by rememberSaveable(initialSection) { mutableStateOf(initialSection == "onepage") }
-    if (showOnePage) {
-        OnePageReportView(
-            report = report,
-            agentsWithResults = agentsWithResults,
-            translationByTarget = translationByTarget,
-            langTabs = langTabs,
-            selectedLangKey = selectedLangKey,
-            onSelectLang = { pickerLangKey = it },
-            forcedLanguage = forcedLanguage,
-            onBack = { showOnePage = false }
-        )
-        return
-    }
+    // The one-page view is the viewer's only remaining body — the old
+    // Buttons/Pulldown picker viewer was removed, which left Back-from-
+    // one-page and null-section entries (external "view" instruction,
+    // ManageJump agent jumps) composing NOTHING: a dead black screen
+    // that needed a second Back to escape. Render it unconditionally
+    // and let its Back dismiss the whole viewer.
+    OnePageReportView(
+        report = report,
+        agentsWithResults = agentsWithResults,
+        translationByTarget = translationByTarget,
+        langTabs = langTabs,
+        selectedLangKey = selectedLangKey,
+        onSelectLang = { pickerLangKey = it },
+        forcedLanguage = forcedLanguage,
+        onBack = onDismiss
+    )
 }
 
 /** Full-screen overlay launched from the "View in one page" button
