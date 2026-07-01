@@ -767,6 +767,14 @@ internal fun NavGraphBuilder.reportRoutes(
                     onNavigateToViewReports = { aid -> navController.navigate(NavRoutes.aiReportViewAtAgent(aid)) },
                     onRemoveAgent = { r, a -> reportViewModel.removeAgentFromReport(rmContext, r, a) },
                     onRegenerateAgent = { r, a -> reportViewModel.regenerateAgent(rmContext, r, a) },
+                    // Delete a single TRANSLATE row (the row's "Active language
+                    // only" / translation-compare 🗑). The overlay-stack call
+                    // site wires this; the standalone route was missed, so the
+                    // default no-op made both deletes silent — the screen
+                    // popped as if deleted but the row remained.
+                    onDeleteRowById = { resultId ->
+                        reportViewModel.secondary.deleteSecondaryResult(rmContext, rid, resultId)
+                    },
                     temperatureSweepStates = temperatureSweepStates,
                     onStartTemperatureSweep = { r, a, temps ->
                         reportViewModel.startTemperatureSweep(rmContext, r, a, temps)
