@@ -34,7 +34,7 @@ fun ResetRuntimeDataScreen(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("Clear runtime data?") },
-            text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, per-report audit logs, prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the six Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
+            text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, per-report audit logs, prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the eleven Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
             confirmButton = {
                 OutlinedButton(
                     onClick = {
@@ -58,7 +58,7 @@ fun ResetRuntimeDataScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Wipes the activity + personal-history surface that accumulates while the app is in use: rolling app logs, chat sessions, API traces, AI reports (incl. their secondary-result rows), prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys), knowledge bases, the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache are all preserved.",
+                "Wipes the activity + personal-history surface that accumulates while the app is in use: rolling app logs, chat sessions, API traces, AI reports (incl. their secondary-result rows), prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys), knowledge bases, the eleven Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache are all preserved.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             OutlinedButton(
@@ -84,7 +84,7 @@ fun ResetInfoProvidersScreen(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("Clear Info providers?") },
-            text = { Text("This permanently deletes every cached tier from the six Info providers (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis) and the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing are preserved. Until you run Refresh again, pricing lookups will fall back to DEFAULT.") },
+            text = { Text("This permanently deletes every cached tier from the eleven Info providers (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice) and the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing are preserved. Until you run Refresh again, pricing lookups will fall back to DEFAULT.") },
             confirmButton = {
                 OutlinedButton(
                     onClick = {
@@ -104,7 +104,7 @@ fun ResetInfoProvidersScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Drops the per-provider pricing tier blobs and prefs entries from the six Info providers — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis — plus the OpenRouter model-specs cache. Manual cost overrides survive (they sit above the Info tiers in the layered lookup) and Together's native self-reported pricing also survives. Pricing lookups will fall back to DEFAULT_PRICING until Housekeeping → Refresh repopulates the caches.",
+                "Drops the per-provider pricing tier blobs and prefs entries from the eleven Info providers — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice — plus the OpenRouter model-specs cache. Manual cost overrides survive (they sit above the Info tiers in the layered lookup) and Together's native self-reported pricing also survives. Pricing lookups will fall back to DEFAULT_PRICING until Housekeeping → Refresh repopulates the caches.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             OutlinedButton(

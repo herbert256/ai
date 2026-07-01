@@ -599,19 +599,19 @@ fun RefreshScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            // Refresh all — runs the six catalog sources and the
+            // Refresh all — runs the eleven catalog sources and the
             // per-provider Workers phase in parallel. Status renders on
             // a full-screen progress page owned by AppViewModel, so the
             // user can navigate away and come back to a live view.
             if (hasAnyKeyedProvider) {
                 RefreshAction(
                     label = "Refresh all",
-                    description = "Refresh the six catalog sources and the per-provider workers (key test, model list, default agent) in parallel. Continues in the background if you navigate away.",
+                    description = "Refresh the eleven catalog sources and the per-provider workers (key test, model list, default agent) in parallel. Continues in the background if you navigate away.",
                     enabled = !isAnyRunning,
                     onClick = { onStartRefreshAll() }
                 )
                 // Worker-only variant: same per-provider feedback as
-                // Refresh-all, but skips the six external catalog fetches.
+                // Refresh-all, but skips the eleven external catalog fetches.
                 // Useful when the user only wants to re-seed default
                 // agents or re-test keys without paying the catalog
                 // round-trip time / quota.
@@ -626,7 +626,7 @@ fun RefreshScreen(
             // Info Providers sub-page — same RefreshAction shape as the
             // two cards above so the three cards on this screen all
             // read as one column of equal-weight buttons. The button
-            // drills into the sub-page that lists the six catalog
+            // drills into the sub-page that lists the eleven catalog
             // sources with their own progress rows.
             RefreshAction(
                 label = "Info providers",
