@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -51,6 +53,38 @@ import kotlinx.coroutines.withContext
 
 private val userTagRegex = Regex("""<user>.*?</user>""", RegexOption.DOT_MATCHES_ALL)
 
+/** Saver letting the flagged-prompt dialog survive the 🐞 trace
+ *  round-trip (same rationale as ChatScreens' FlaggedStateSaver — a
+ *  forward nav disposes this composition, and plain remember dropped
+ *  the Proceed/Cancel choice right after the user viewed the trace).
+ *  Encodes the fired categories; scores aren't shown in the dialog. */
+private val FlaggedTripleSaver = Saver<Triple<String, com.ai.data.ModerationInputResult, String?>?, java.util.ArrayList<Any?>>(
+    save = { state ->
+        if (state == null) java.util.ArrayList()
+        else java.util.ArrayList<Any?>().apply {
+            add(state.first)
+            add(java.util.ArrayList(state.second.firedCategories))
+            add(state.third)
+        }
+    },
+    restore = { list ->
+        if (list.isEmpty()) null
+        else {
+            @Suppress("UNCHECKED_CAST")
+            val fired = (list[1] as java.util.ArrayList<String>).toList()
+            Triple(
+                list[0] as String,
+                com.ai.data.ModerationInputResult(
+                    flagged = true,
+                    categories = fired.associateWith { true },
+                    scores = emptyMap()
+                ),
+                list[2] as? String
+            )
+        }
+    }
+)
+
 @Composable
 fun NewReportScreen(
     viewModel: AppViewModel,
@@ -66,17 +100,25 @@ fun NewReportScreen(
     val uiState by viewModel.uiState.collectAsState()
     val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
 
-    var title by remember {
+    // rememberSaveable throughout: tapping ❓ Help or the flagged dialog's
+    // 🐞 trace link is a FORWARD navigation that disposes this composition
+    // (the same hop manage/Savers.kt documents). With plain remember the
+    // typed prompt/title reverted to the prefs snapshot of the PREVIOUS
+    // report and the moderation pick + flagged dialog vanished on return.
+    var title by rememberSaveable {
         mutableStateOf(initialTitle.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: "" })
     }
     val rawPrompt = remember { initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" } }
-    var userTagBlock by remember { mutableStateOf(userTagRegex.find(rawPrompt)?.value ?: "") }
-    var prompt by remember { mutableStateOf(rawPrompt.replace(userTagRegex, "").trim()) }
+    var userTagBlock by rememberSaveable { mutableStateOf(userTagRegex.find(rawPrompt)?.value ?: "") }
+    var prompt by rememberSaveable { mutableStateOf(rawPrompt.replace(userTagRegex, "").trim()) }
     // (mime, base64) of an optional image attached to the prompt — passed
     // through to every agent in the report. Seeded from UiState when the
-    // share-target chooser staged an image into reportImageBase64/Mime
-    // before navigating here; we clear those fields on first composition
-    // so a later return to this screen doesn't re-stage the same image.
+    // share-target chooser staged an image into reportImageBase64/Mime.
+    // The staging fields are kept in SYNC with this local state (instead
+    // of drained on first composition) so a Help / trace-viewer hop
+    // re-seeds the image on return — base64 payloads are too large for
+    // rememberSaveable's Binder bundle. The staging drains on the real
+    // exits (Back, Next) below, so a later fresh visit doesn't re-stage.
     var attachedImage by remember {
         mutableStateOf<Pair<String, String>?>(
             uiState.reportImageMime?.let { mime ->
@@ -84,25 +126,22 @@ fun NewReportScreen(
             }
         )
     }
-    LaunchedEffect(Unit) {
-        if (uiState.reportImageBase64 != null || uiState.reportImageMime != null) {
-            viewModel.updateUiState { it.copy(reportImageBase64 = null, reportImageMime = null) }
-        }
+    LaunchedEffect(attachedImage) {
+        viewModel.updateUiState { it.copy(
+            reportImageBase64 = attachedImage?.second,
+            reportImageMime = attachedImage?.first
+        ) }
     }
 
-    // Snapshot of any non-image URIs the share-target chooser routed
-    // here as "files attach as Knowledge". The banner below offers a
-    // one-tap auto-attach: create a fresh KB, ingest the URIs, append
-    // the KB id to attachedKnowledgeBaseIds so the report run uses
-    // RAG against them. Drained on attach / skip / discard so a later
-    // return to this screen doesn't re-stage the same files.
+    // Non-image URIs the share-target chooser routed here as "files
+    // attach as Knowledge". The banner below offers a one-tap
+    // auto-attach: create a fresh KB, ingest the URIs, append the KB id
+    // to attachedKnowledgeBaseIds so the report run uses RAG against
+    // them. Read LIVE from UiState (not snapshotted + drained on first
+    // composition) so the banner survives a Help hop; the staging
+    // drains on attach / skip and on the real exits below.
     var sharedKbState by remember { mutableStateOf<SharedKbBannerState>(SharedKbBannerState.Idle) }
-    val sharedKbUris = remember { uiState.pendingReportKnowledgeUris }
-    LaunchedEffect(Unit) {
-        if (uiState.pendingReportKnowledgeUris.isNotEmpty()) {
-            viewModel.updateUiState { it.copy(pendingReportKnowledgeUris = emptyList()) }
-        }
-    }
+    val sharedKbUris = uiState.pendingReportKnowledgeUris
     var attachError by remember { mutableStateOf<String?>(null) }
     var useWebSearch by remember { mutableStateOf(false) }
     // Per-report reasoning level. "" = none; one of low/medium/high
@@ -114,11 +153,21 @@ fun NewReportScreen(
     // "Report - setup" screen (step 3), not as icons here.
     // Optional moderation pre-check — when set, the prompt runs through
     // the chosen moderation model before any agent fires. Mirrors the
-    // chat session screen.
-    var moderationModel by remember { mutableStateOf<Pair<com.ai.data.AppService, String>?>(null) }
-    var showModerationPicker by remember { mutableStateOf(false) }
-    var pendingFlagged by remember { mutableStateOf<Triple<String, com.ai.data.ModerationInputResult, String?>?>(null) }
-    var moderationError by remember { mutableStateOf<String?>(null) }
+    // chat session screen, including its savers (AppService itself
+    // isn't bundle-storable — store the provider id + model name and
+    // re-resolve on restore).
+    val moderationSaver = remember {
+        Saver<Pair<com.ai.data.AppService, String>?, ArrayList<String>>(
+            save = { p -> if (p == null) arrayListOf() else arrayListOf(p.first.id, p.second) },
+            restore = { l -> if (l.size < 2) null else com.ai.data.AppService.findById(l[0])?.let { it to l[1] } }
+        )
+    }
+    var moderationModel by rememberSaveable(stateSaver = moderationSaver) { mutableStateOf<Pair<com.ai.data.AppService, String>?>(null) }
+    var showModerationPicker by rememberSaveable { mutableStateOf(false) }
+    var pendingFlagged by rememberSaveable(stateSaver = FlaggedTripleSaver) {
+        mutableStateOf<Triple<String, com.ai.data.ModerationInputResult, String?>?>(null)
+    }
+    var moderationError by rememberSaveable { mutableStateOf<String?>(null) }
     var isModerating by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -179,8 +228,21 @@ fun NewReportScreen(
         }
     }
 
+    // Real exits drain the share-target staging (image + KB uris) so a
+    // LATER fresh visit doesn't re-stage them. The Help / trace hop is a
+    // forward nav and deliberately keeps the staging (see attachedImage
+    // above), which is why the drain lives here and not on composition.
+    val drainStagingAndBack: () -> Unit = {
+        viewModel.updateUiState { it.copy(
+            reportImageBase64 = null, reportImageMime = null,
+            pendingReportKnowledgeUris = emptyList()
+        ) }
+        onNavigateBack()
+    }
+    BackHandler { drainStagingAndBack() }
+
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_new", title = "New Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack,
+        TitleBar(helpTopic = "report_new", title = "New Report", subject = "Write your prompt, then pick models", onBackClick = drainStagingAndBack,
             onClear = { title = ""; prompt = ""; userTagBlock = ""; attachedImage = null },
             onAttach = { showAttachChooser = true },
             onValidatePrompt = { if (moderationModel == null) showModerationPicker = true else moderationModel = null },
@@ -205,12 +267,22 @@ fun NewReportScreen(
                         val s = sharedKbState
                         if (s is SharedKbBannerState.Done) {
                             viewModel.updateUiState { st ->
-                                st.copy(attachedKnowledgeBaseIds = (st.attachedKnowledgeBaseIds + s.kbId).distinct())
+                                st.copy(
+                                    attachedKnowledgeBaseIds = (st.attachedKnowledgeBaseIds + s.kbId).distinct(),
+                                    // Consumed — a Help hop after attach must
+                                    // not resurrect the banner for a re-ingest.
+                                    pendingReportKnowledgeUris = emptyList()
+                                )
                             }
                         }
                     }
                 },
-                onSkip = { sharedKbState = SharedKbBannerState.Skipped }
+                onSkip = {
+                    sharedKbState = SharedKbBannerState.Skipped
+                    // sharedKbState is composition-local; drain the staging so
+                    // the banner stays skipped across a Help hop too.
+                    viewModel.updateUiState { it.copy(pendingReportKnowledgeUris = emptyList()) }
+                }
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -256,6 +328,12 @@ fun NewReportScreen(
                             webSearchTool = useWebSearch,
                             reasoningEffort = reasoningEffort.ifBlank { null }
                         )
+                        // Staging consumed by the selection flow — drain it so
+                        // a later fresh visit doesn't re-stage the same image.
+                        viewModel.updateUiState { it.copy(
+                            reportImageBase64 = null, reportImageMime = null,
+                            pendingReportKnowledgeUris = emptyList()
+                        ) }
                     }
 
                     val mod = moderationModel
