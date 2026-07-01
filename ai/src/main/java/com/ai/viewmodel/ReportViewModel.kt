@@ -965,17 +965,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ?.any { it.agentId == task.resultId } == true
         if (!stillPresent) {
             AppLog.d("Report", "skip UI publish for deleted agent=${task.resultId} report=$reportId")
-            // The agent was removed mid-run, but its slot was counted into the
-            // fixed genericReportsTotal at launch. Skip publishing its result,
-            // but STILL bump progress — otherwise reportsProgress can never
-            // reach reportsTotal, isComplete stays false forever, and the
-            // report is stuck showing 'generating' (KEEP_SCREEN_ON on, no
-            // completion toast).
-            if (!isRegeneration && !headless && uiOwned()) {
-                appViewModel.updateUiState { state ->
-                    state.copy(genericReportsProgress = state.genericReportsProgress + 1)
-                }
-            }
+            // The agent was removed mid-run. removeAgentInternal already
+            // decremented genericReportsTotal for this (unfinished) slot, so
+            // DON'T bump progress here — doing both was a double-compensation
+            // that pushed final progress to total+1 and fired isComplete one
+            // task early (a still-running sibling kept its hourglass on a
+            // report shown as complete). The removal path now owns the
+            // accounting; the counters stay balanced without a late bump.
             return
         }
         if (!headless && uiOwned()) _agentResults.update { it + (task.resultId to response) }
@@ -2877,7 +2873,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val removedWasFinished = removedStatus == ReportStatus.SUCCESS ||
                 removedStatus == ReportStatus.ERROR ||
                 removedStatus == ReportStatus.STOPPED
-            ReportStorage.removeAgent(context, reportId, agentId)
+            // Guard the counter update on the agent actually existing — a
+            // double-tap on "Remove model" would otherwise decrement the
+            // total twice for one agent.
+            val actuallyRemoved = ReportStorage.removeAgent(context, reportId, agentId)
             // Cascade: every TRANSLATE row whose translateSourceKind =
             // "AGENT" and translateSourceTargetId == this agent's id is
             // now an orphan. Drop them so the on-disk state matches the
@@ -2898,21 +2897,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             ReportStorage.bumpReportTimestamp(context, reportId)
             _agentResults.update { it - agentId }
-            appViewModel.updateUiState { state ->
-                if (state.currentReportId != reportId) {
-                    state
-                } else {
-                    val newTotal = (state.genericReportsTotal - 1).coerceAtLeast(0)
-                    val newProgress = if (removedWasFinished) {
-                        (state.genericReportsProgress - 1).coerceAtLeast(0)
+            if (actuallyRemoved) {
+                appViewModel.updateUiState { state ->
+                    if (state.currentReportId != reportId) {
+                        state
                     } else {
-                        state.genericReportsProgress.coerceAtMost(newTotal)
+                        val newTotal = (state.genericReportsTotal - 1).coerceAtLeast(0)
+                        val newProgress = if (removedWasFinished) {
+                            (state.genericReportsProgress - 1).coerceAtLeast(0)
+                        } else {
+                            state.genericReportsProgress.coerceAtMost(newTotal)
+                        }
+                        state.copy(
+                            genericReportsSelectedAgents = state.genericReportsSelectedAgents - agentId,
+                            genericReportsTotal = newTotal,
+                            genericReportsProgress = newProgress
+                        )
                     }
-                    state.copy(
-                        genericReportsSelectedAgents = state.genericReportsSelectedAgents - agentId,
-                        genericReportsTotal = newTotal,
-                        genericReportsProgress = newProgress
-                    )
                 }
             }
         }
