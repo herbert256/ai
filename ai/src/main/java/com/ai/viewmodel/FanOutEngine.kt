@@ -482,10 +482,10 @@ class FanOutEngine internal constructor(
             SecondaryScope.AllReports -> successful
             is SecondaryScope.Manual -> successful.filter { it.agentId in scope.agentIds }
             is SecondaryScope.TopRanked -> {
+                // Resolve via the rerank's frozen snapshot, not raw positions,
+                // so a success-set change doesn't reselect different models.
                 val rerank = SecondaryResultStorage.get(context, report.id, scope.rerankResultId)
-                val topIds = extractTopRankedIds(rerank?.content, scope.count)
-                if (topIds.isNullOrEmpty()) successful
-                else topIds.mapNotNull { idx -> successful.getOrNull(idx - 1) }
+                com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful).ifEmpty { successful }
             }
         }
         return scoped.size.takeIf { it > 0 } ?: successful.size.coerceAtLeast(1)
@@ -1098,10 +1098,11 @@ class FanOutEngine internal constructor(
                     val sources = when (scopeChoice) {
                         SecondaryScope.AllReports -> successful
                         is SecondaryScope.TopRanked -> {
+                            // Resolve via the rerank's frozen snapshot, not raw
+                            // positions, so a success-set change since the rerank
+                            // doesn't fan out over different models than ranked.
                             val rerank = SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
-                            val topIds = com.ai.data.extractTopRankedIds(rerank?.content, scopeChoice.count)
-                            if (topIds.isNullOrEmpty()) successful
-                            else topIds.mapNotNull { idx -> successful.getOrNull(idx - 1) }
+                            com.ai.data.resolveTopRankedAgents(rerank, scopeChoice.count, successful).ifEmpty { successful }
                         }
                         is SecondaryScope.Manual -> successful.filter { it.agentId in scopeChoice.agentIds }
                     }

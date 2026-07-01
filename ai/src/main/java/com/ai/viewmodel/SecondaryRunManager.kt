@@ -972,15 +972,14 @@ class SecondaryRunManager(
                     val includeIds: Set<Int>? = when (scope) {
                         com.ai.data.SecondaryScope.AllReports -> null
                         is com.ai.data.SecondaryScope.TopRanked -> {
+                            // Snapshot-mapped resolution — same as runMetaPrompt —
+                            // so a success-set change doesn't reselect different
+                            // models (see resolveTopRankedAgents).
                             val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
-                            val ids = com.ai.data.extractTopRankedIds(rerank?.content, scope.count)
-                            // Clamp stale 1-based positions to the current
-                            // successful count — same as runMetaPrompt — so a
-                            // removed agent can't leave an out-of-range id that
-                            // inflates @COUNT@ above the emitted result blocks.
-                            val nSuccess = report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                            val valid = ids?.filter { it in 1..nSuccess }
-                            if (valid.isNullOrEmpty()) null else valid.toSet()
+                            val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                            val topAgents = com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful)
+                            val positions = topAgents.map { a -> successful.indexOfFirst { it.agentId == a.agentId } + 1 }.filter { it >= 1 }.toSet()
+                            positions.ifEmpty { null }
                         }
                         is com.ai.data.SecondaryScope.Manual -> {
                             val successful = report.agents.filter {
@@ -1362,17 +1361,16 @@ class SecondaryRunManager(
                 val includeIds: Set<Int>? = when (scopeChoice) {
                     SecondaryScope.AllReports -> null
                     is SecondaryScope.TopRanked -> {
+                        // Map the rerank's [N] positions through its frozen
+                        // sourceAgentIds snapshot to the CURRENT-success agents,
+                        // then to current positions — a bare position clamp would
+                        // silently feed a DIFFERENT model when the success set
+                        // changed since the rerank (see resolveTopRankedAgents).
                         val rerank = SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
-                        val ids = extractTopRankedIds(rerank?.content, scopeChoice.count)
-                        // The rerank stored 1-based positions, which go stale
-                        // if the agent set changed since (e.g. an agent was
-                        // removed): an out-of-range id would feed a
-                        // non-existent agent and inflate @COUNT@. Clamp to the
-                        // current successful count; positions still in range
-                        // are honoured.
-                        val nSuccess = report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                        val valid = ids?.filter { it in 1..nSuccess }
-                        if (valid.isNullOrEmpty()) null else valid.toSet()
+                        val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                        val topAgents = com.ai.data.resolveTopRankedAgents(rerank, scopeChoice.count, successful)
+                        val positions = topAgents.map { a -> successful.indexOfFirst { it.agentId == a.agentId } + 1 }.filter { it >= 1 }.toSet()
+                        positions.ifEmpty { null }
                     }
                     is SecondaryScope.Manual -> {
                         // Manual is expressed as agentIds; convert to the

@@ -1432,6 +1432,28 @@ fun successOrderedAgentIds(report: Report): List<String> =
         .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
         .map { it.agentId }
 
+/** Resolve a TopRanked scope's rerank `[N]` positions to the CURRENT-success
+ *  agents they name. Each position is mapped through the rerank row's frozen
+ *  [SecondaryResult.sourceAgentIds] snapshot (the success order AT RERANK
+ *  time) to an agentId, then to the still-present current-success agent — so
+ *  a success-set change since the rerank (an agent removed, a failed→SUCCESS
+ *  regenerate inserting into the list) doesn't silently reselect a DIFFERENT
+ *  model at the same position. Mirrors how `Manual` scope keys on stable
+ *  agentIds. Legacy rerank rows written before the snapshot existed fall back
+ *  to the old direct-position interpretation (positions into the current
+ *  success set). [successful] must be the current success-nonblank agents in
+ *  [buildResultsBlock] order. */
+fun resolveTopRankedAgents(rerankRow: SecondaryResult?, count: Int, successful: List<ReportAgent>): List<ReportAgent> {
+    val positions = extractTopRankedIds(rerankRow?.content, count) ?: return emptyList()
+    val snapshot = rerankRow?.sourceAgentIds
+    return if (!snapshot.isNullOrEmpty()) {
+        positions.mapNotNull { p -> snapshot.getOrNull(p - 1) }               // agentIds frozen at rerank time
+            .mapNotNull { aid -> successful.firstOrNull { it.agentId == aid } } // still-present current agents
+    } else {
+        positions.mapNotNull { p -> successful.getOrNull(p - 1) }             // legacy: positions into current success
+    }
+}
+
 /** Resolve the 1-based [N] ids a rerank/moderation row's content
  *  references back to "provider / model" labels. Prefers the row's
  *  run-time [SecondaryResult.sourceAgentIds] snapshot — resolving

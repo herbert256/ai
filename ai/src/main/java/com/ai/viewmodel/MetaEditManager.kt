@@ -151,14 +151,14 @@ class MetaEditManager internal constructor(
             val includeIds: Set<Int>? = when (scope) {
                 SecondaryScope.AllReports -> null
                 is SecondaryScope.TopRanked -> {
+                    // Snapshot-mapped resolution — same as runMetaPrompt — so a
+                    // success-set change doesn't reselect different models than
+                    // the rerank ranked (see resolveTopRankedAgents).
                     val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
-                    val ids = extractTopRankedIds(rerank?.content, scope.count)
-                    // Clamp stale 1-based positions to the current successful
-                    // count (same as runMetaPrompt) so a removed agent can't
-                    // leave an out-of-range id that inflates @COUNT@.
-                    val nSuccess = report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    val valid = ids?.filter { it in 1..nSuccess }
-                    if (valid.isNullOrEmpty()) null else valid.toSet()
+                    val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    val topAgents = com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful)
+                    val positions = topAgents.map { a -> successful.indexOfFirst { it.agentId == a.agentId } + 1 }.filter { it >= 1 }.toSet()
+                    positions.ifEmpty { null }
                 }
                 is SecondaryScope.Manual -> {
                     val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
