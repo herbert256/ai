@@ -963,6 +963,12 @@ class RegenerateBatchEngine internal constructor(
             // (compareAgentId/compareToResultId, no meta-prompt call) — they
             // must NOT be swept into the single-call META resume path.
             r.kind != SecondaryKind.COMPARE &&
+            // TRANSRANK score cells + the aggregate ranking row are owned by
+            // TranslatorRankEngine. They carry a resolvable metaPromptId, but
+            // the rank prompt's @ORIGINAL@/@TRANSLATION@/@LANGUAGE_*@ tokens
+            // are only substituted by that engine — the single-call META path
+            // would wipe the scores and re-issue the raw template verbatim.
+            r.kind != SecondaryKind.TRANSRANK &&
             r.fanOutSourceAgentId == null &&
             r.fanInOf == null
 
