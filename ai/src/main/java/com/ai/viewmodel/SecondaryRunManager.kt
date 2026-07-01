@@ -1170,7 +1170,15 @@ class SecondaryRunManager(
         // translated prompt/title/native + per-agent translated body map.
         val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
         val langCtx = lookupLanguageTranslations(report, allSecondaries, sourceLanguage)
-        val perReport: List<Pair<String, List<String>>> = successful.map { source ->
+        // Combine only the reports the FAN-OUT actually ran over — the distinct
+        // source agents that produced fan-out rows — not every successful
+        // agent. Enumerating the full unscoped success set injected empty
+        // ***Report*** blocks for out-of-scope sources and overstated
+        // @COUNT@/@FAN_OUT_COUNT@ (claiming N reports / N-1 responses when the
+        // fan-out was scoped to fewer).
+        val sourceAgentIdsWithRows = fanOutRows.mapNotNull { it.fanOutSourceAgentId }.toSet()
+        val sourceAgents = successful.filter { it.agentId in sourceAgentIdsWithRows }
+        val perReport: List<Pair<String, List<String>>> = sourceAgents.mapNotNull { source ->
             val fanOutResponses = successful.mapNotNull other@{ other ->
                 if (other.agentId == source.agentId) return@other null
                 // Pick the next un-consumed row for this (provider, model,
@@ -1185,6 +1193,9 @@ class SecondaryRunManager(
                 val c = row.content
                 if (c.isNullOrBlank()) null else c.trim()
             }
+            // Drop a source whose reactions all failed — otherwise it renders
+            // as an empty ***Report*** block.
+            if (fanOutResponses.isEmpty()) return@mapNotNull null
             // Each @REPORT@ slot: translated body when available, original
             // otherwise. Without this, a Dutch fan-in feeds the picked
             // model the Dutch @RESPONSES@ but English @REPORT@.
@@ -1192,12 +1203,15 @@ class SecondaryRunManager(
                 ?: source.responseBody?.trim().orEmpty()
             sourceBody to fanOutResponses
         }
-        if (perReport.all { it.second.isEmpty() }) return null
+        if (perReport.isEmpty()) return null
         val resolved = resolveFanInPrompt(
             template = metaPrompt.text,
             question = langCtx?.prompt ?: report.prompt,
             count = perReport.size,
-            fanOutCount = (perReport.size - 1).coerceAtLeast(0),
+            // Per-source reaction count (varies with scope/failures); use the
+            // richest report's count so the token never claims MORE responses
+            // than any report actually shows.
+            fanOutCount = perReport.maxOf { it.second.size },
             perReport = perReport,
             title = langCtx?.title ?: report.title
         )
