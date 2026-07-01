@@ -187,13 +187,36 @@ private fun parseConfidence(raw: String?): Double? {
     return (if (v > 1.0) v / 100.0 else v).coerceIn(0.0, 1.0)
 }
 
+private val forToA = Regex("\\b(for|to) a\\b")
+private val forToB = Regex("\\b(for|to) b\\b")
+private val wordA = Regex("\\ba\\b")
+private val wordB = Regex("\\bb\\b")
+
 private fun normaliseVerdict(raw: String?): String {
     val s = raw?.trim()?.lowercase() ?: return "tie"
+    // Explicit, unambiguous signals for each side — including "win FOR b" /
+    // "edge TO b" where the winner is the OBJECT, so a sentence starting with
+    // the article "a" but awarding B resolves to B, not A.
+    val aExplicit = s == "a" || s == "\"a\"" || s == "1" ||
+        s.contains("response a") || s.contains("response 1") ||
+        s.contains("answer a") || s.contains("answer 1") || s.contains("first") ||
+        forToA.containsMatchIn(s)
+    val bExplicit = s == "b" || s == "\"b\"" || s == "2" ||
+        s.contains("response b") || s.contains("response 2") ||
+        s.contains("answer b") || s.contains("answer 2") || s.contains("second") ||
+        forToB.containsMatchIn(s)
+    // Bare leading token ("a wins" / "b is better") is the verdict ONLY when
+    // neither side is explicitly signalled AND the other side isn't referenced
+    // at all — so the leading "a"/"b" is the slot letter, not the indefinite
+    // article of a sentence that mentions both (the old startsWith("a ")
+    // matched the article and inverted the winner).
+    val aLead = !aExplicit && !bExplicit && (s.startsWith("a ") || s.startsWith("1 ")) && !wordB.containsMatchIn(s)
+    val bLead = !aExplicit && !bExplicit && (s.startsWith("b ") || s.startsWith("2 ")) && !wordA.containsMatchIn(s)
+    val a = aExplicit || aLead
+    val b = bExplicit || bLead
     return when {
-        s == "a" || s.startsWith("\"a\"") || s == "1" || s.contains("first") ||
-            s.startsWith("a ") || s.contains("response a") -> "A"
-        s == "b" || s.startsWith("\"b\"") || s == "2" || s.contains("second") ||
-            s.startsWith("b ") || s.contains("response b") -> "B"
-        else -> "tie"
+        a && !b -> "A"
+        b && !a -> "B"
+        else -> "tie"   // neither, or BOTH signalled (ambiguous) → no-decision
     }
 }
