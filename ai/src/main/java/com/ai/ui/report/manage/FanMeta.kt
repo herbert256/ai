@@ -181,9 +181,14 @@ fun FanMetaScreen(
             runningSet = runningMetaSet,
             throttledSet = throttledMetaSet,
             onShowResponses = onShowResponses,
-            // Fan Meta starts at the Initiator view (active model is the
-            // source) so the user sees their model's result up top.
-            onOpenModel = { ak -> nav = FanMetaNav.L2(ak, "Initiator") },
+            // Open L2 in the ANSWERER-scoped role ("Responder" / the else
+            // branch) — the L1 model row is grouped and counted by answerer
+            // (providerId|model), so it must open the same set. Opening the
+            // "Initiator" filter showed a different subset and, when the
+            // run's responders ≠ sources (independent Manual/TopRanked
+            // subsets), matched nothing → L2 stuck on "collecting
+            // information…" forever. The user can still flip the role in L2.
+            onOpenModel = { ak -> nav = FanMetaNav.L2(ak, "Responder") },
             onOpenWorkers = { nav = FanMetaNav.Workers },
             onOpenTitles = { nav = FanMetaNav.L1All },
             onReload = onReloadMeta,
