@@ -368,6 +368,14 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
                 return@launch
             }
             for (runKey in runKeysForReport(reportId)) {
+                // Skip a run whose own launchRun coroutine is still active:
+                // between startRun's saveAll and its dispatch job-registration
+                // every placeholder reads "stale" (blank + no item job), so a
+                // resume scan firing in that window (regenerate phase overlap,
+                // dev-route sweep) would re-dispatch those rows — double
+                // billing, and the duplicate registration then cancels one of
+                // the two batches. beginResumeScan only dedupes scan-vs-scan.
+                if (isRunActive(runKey)) continue
                 if (!beginResumeScan(runKey)) continue
                 try {
                     val run = _runs.value[runKey] ?: continue
