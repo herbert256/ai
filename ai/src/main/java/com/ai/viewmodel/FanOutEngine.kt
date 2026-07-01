@@ -467,11 +467,18 @@ class FanOutEngine internal constructor(
         val traceFile: String?
     )
 
-    private fun resolveFanOutSourceCount(context: Context, report: Report, row: SecondaryResult): Int {
+    private fun resolveFanOutSourceCount(context: Context, report: Report, row: SecondaryResult): Int =
+        resolveFanOutSourceCountForScope(context, report, SecondaryScope.decodeOrAllReports(row.secondaryScope))
+
+    /** The scoped source count that resolves the prompt's @COUNT@ token —
+     *  the number of report answers the fan-out actually ran over, not the
+     *  full success count. Used by both the single-pair replay (from a row's
+     *  secondaryScope) and the whole-run rerun (from the run's scope). */
+    private fun resolveFanOutSourceCountForScope(context: Context, report: Report, scope: SecondaryScope): Int {
         val successful = report.agents.filter {
             it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
         }
-        val scoped = when (val scope = SecondaryScope.decodeOrAllReports(row.secondaryScope)) {
+        val scoped = when (scope) {
             SecondaryScope.AllReports -> successful
             is SecondaryScope.Manual -> successful.filter { it.agentId in scope.agentIds }
             is SecondaryScope.TopRanked -> {
@@ -1748,9 +1755,11 @@ class FanOutEngine internal constructor(
         val report = ReportStorage.getReport(context, run.reportId) ?: return
         val aiSettings = appViewModel.uiState.value.aiSettings
         val cat = "${run.metaPrompt.category}/${run.metaPrompt.name}"
-        val sourceCount = report.agents.count {
-            it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-        }
+        // Resolve @COUNT@ from the run's SCOPED source count (matching the
+        // fresh run and the single-pair replay), not the full success count —
+        // a Manual/TopRanked-scoped fan-out otherwise re-issued reruns telling
+        // the model a wrong report count, diverging from the fresh answers.
+        val sourceCount = resolveFanOutSourceCountForScope(context, report, run.scope)
         // Resolve the run's language context once so a translated
         // fan-out's reruns fire against the translated body + prompt
         // (matching the original batch), not the untranslated source.
