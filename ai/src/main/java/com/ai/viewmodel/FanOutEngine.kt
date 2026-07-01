@@ -1823,8 +1823,15 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             val pair = run.pairs[pairKey] ?: return@launch
             itemJobOf(pair.id)?.cancelAndJoin()
+            // The L3 delete dialog promises "The API cost stays counted in
+            // the report total" — roll the pair's disk-truth spend
+            // (response + title + icon) into costsFromDeletedItems like
+            // every sibling delete path; this was the one that didn't.
+            val costDelta = SecondaryResultStorage.get(context, run.reportId, pair.id)?.fullCost()
+                ?: pair.totalCost
             SecondaryResultStorage.delete(context, run.reportId, pair.id)
             ReportStorage.removeFanOutIconCalls(context, run.reportId, setOf(pair.id))
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
             dropPair(runKey, pairKey)
             ReportStorage.bumpReportTimestamp(context, run.reportId)
         }
