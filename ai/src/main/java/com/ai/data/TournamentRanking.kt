@@ -116,6 +116,11 @@ fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (metho
 fun copeland(m: WinMatrix): List<RankRow> {
     val n = m.n
     if (n == 0) return emptyList()
+    // Lone participant scores 100, matching the other six methods (a bare
+    // n==1 would otherwise give 100·0/1 = 0, making the same model read 0
+    // under Copeland and 100 everywhere else — inconsistent in the Combined
+    // fold and the podium's cross-method table).
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
     val scored = (0 until n).map { i ->
         val w = (0 until n).sumOf { j -> m.wins[i][j] }
         // Denominator = opponents this model actually played (contested
