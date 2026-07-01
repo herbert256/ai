@@ -310,6 +310,16 @@ internal fun readReportZip(
         parsedSecondaries.mapNotNull { it.translationRunId?.takeIf { id -> id.isNotBlank() } }
             .distinct()
             .associateWith { UUID.randomUUID().toString() }
+    // Fresh trace-run runId per distinct old id, same GLOBAL-keying reason as
+    // translationRunId: ApiTracer.getTraceFilesForRun filters by runId alone,
+    // so reusing the bundle's runIds would make the original report's (and a
+    // re-import's) run-filtered 🐞 trace lists mix both reports' calls.
+    // Lazily populated so every run-id source (report, agents, secondaries'
+    // runId/iconRunId/titleRunId/tournamentJudgeRunId/compareRunId, and the
+    // traces themselves) maps consistently. Blank/null pass through.
+    val runIdMap = mutableMapOf<String, String>()
+    fun remapRunId(old: String?): String? =
+        old?.takeIf { it.isNotBlank() }?.let { runIdMap.getOrPut(it) { UUID.randomUUID().toString() } } ?: old
 
     // Pass 2 — import every trace under a freshly-minted filename and
     // record old→new so the rows' traceFile pointers can be rewritten
@@ -330,7 +340,7 @@ internal fun readReportZip(
             val parsed = try { gson.fromJson(String(bytes, Charsets.UTF_8), ApiTrace::class.java) }
                 catch (e: Exception) { AppLog.w("ImportExport", "skipped bad trace $key: ${e.message}"); return@forEach }
                 ?: return@forEach
-            val newName = ApiTracer.saveTrace(parsed.copy(reportId = newReportId), filename = null)
+            val newName = ApiTracer.saveTrace(parsed.copy(reportId = newReportId, runId = remapRunId(parsed.runId)), filename = null)
                 ?: return@forEach
             // Zip entry is "traces/<originalFilename>"; the basename is
             // exactly the value stored in the rows' traceFile fields.
@@ -385,7 +395,8 @@ internal fun readReportZip(
         titleTraceFile = remapTrace(parsedReport.titleTraceFile),
         titleLongTraceFile = remapTrace(parsedReport.titleLongTraceFile),
         languageTraceFile = remapTrace(parsedReport.languageTraceFile),
-        languageIconTraceFile = remapTrace(parsedReport.languageIconTraceFile)
+        languageIconTraceFile = remapTrace(parsedReport.languageIconTraceFile),
+        runId = remapRunId(parsedReport.runId)
     )
     ReportStorage.persistNewReport(context, report)
     tick()
@@ -411,7 +422,15 @@ internal fun readReportZip(
                 else -> parsed.translateSourceTargetId?.let { secIdMap[it] }
             },
             translationRunId = parsed.translationRunId?.let { translateRunIdMap[it] ?: it },
-            traceFile = remapTrace(parsed.traceFile)
+            traceFile = remapTrace(parsed.traceFile),
+            // Re-mint the batch/trace run ids too (globally keyed) so the
+            // imported rows' run-filtered trace lists and batch grouping
+            // don't collide with the source report's.
+            runId = remapRunId(parsed.runId),
+            iconRunId = remapRunId(parsed.iconRunId),
+            titleRunId = remapRunId(parsed.titleRunId),
+            tournamentJudgeRunId = remapRunId(parsed.tournamentJudgeRunId),
+            compareRunId = remapRunId(parsed.compareRunId)
         )
         SecondaryResultStorage.save(context, rekeyed)
         secondaryCount++
