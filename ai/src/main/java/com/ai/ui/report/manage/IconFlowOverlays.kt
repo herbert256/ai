@@ -360,7 +360,12 @@ internal fun ReportIconFlowOverlays(
             onNavigateToModelInfo = onNavigateToModelInfo,
             continueChat = continueChat,
             onOpenPicker = {
-                st.showIconDetail.value = false
+                // LAYER, don't replace: the picker (checked earlier in this
+                // file) renders on top while showIconDetail stays true, so
+                // back returns to the Icon-lookup detail. Clearing it here
+                // dropped the detail from the back stack (back skipped two
+                // levels) — and left targetLanguageIcon orphaned since the
+                // detail's onClose, which owns that flag, never ran.
                 st.showFindIconsPicker.value = true
             },
             onOpenAltIcons = { st.showAlternativeIcons.value = true },
