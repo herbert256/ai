@@ -350,7 +350,7 @@ private fun CompactOverview(
     )
     HomeSubpageLink(
         mi.openManage, "How it works",
-        "Cross-screen behaviours — background sweeps, auto-reconcile, 429 / 529 retry policy, cost-aware hesitation. Anything the app does that isn't tied to one screen.",
+        "Cross-screen behaviours — background sweeps, auto-reconcile, 429 / 529 retry policy, worker-swarm throughput. Anything the app does that isn't tied to one screen.",
         onClick = { onNavigateToTopic("concepts") }
     )
     HomeSubpageLink(
@@ -375,7 +375,7 @@ private fun CompactOverview(
     )
     HomeSubpageLink(
         mi.translationRow, "Translations & multi-language",
-        "How translation runs work — what gets translated, single- vs multi-model, the Speed / Mixed / Cost mode toggle, Restart-failed semantics, the self-healing background paths.",
+        "How translation runs work — what gets translated, the worker-swarm dispatch (no model picker), Restart-failed semantics, the self-healing background paths.",
         onClick = { onNavigateToTopic("help_translations") }
     )
     HomeSubpageLink(
@@ -622,7 +622,7 @@ private fun HelpIconTable() {
     }
 }
 
-/** Directory card listing the seven info providers — same set as the
+/** Directory card listing the twelve info providers — same set as the
  *  Sources card on Model Info. Each row drills into the matching
  *  per-provider help topic via [onNavigateToTopic]. */
 @Composable
@@ -710,10 +710,10 @@ fun infoProviderForDisplayName(name: String?): InfoProviderRef? {
 
 /** Topic id for a cloud-provider help page. Lowercase + strip
  *  non-alphanumerics so an [AppService.id] like "Novita.ai" or
- *  "01.AI" maps to "provider_novitaai" / "provider_01ai" without a
- *  regex collision. Returns the id even when no [HELP_TOPICS] entry
- *  exists; the lookup gracefully falls through to the home page on
- *  a missing key (user-added providers, etc.). */
+ *  "GMI-Cloud" maps to "provider_novitaai" / "provider_gmicloud"
+ *  without a regex collision. Returns the id even when no
+ *  [HELP_TOPICS] entry exists; the lookup gracefully falls through
+ *  to the home page on a missing key (user-added providers, etc.). */
 fun providerHelpTopicId(serviceId: String): String =
     "provider_" + serviceId.lowercase().filter { it.isLetterOrDigit() }
 
@@ -732,6 +732,15 @@ private val CLOUD_PROVIDER_TAGLINES: Map<String, String> = mapOf(
     "provider_perplexity" to "Sonar — search-grounded answers + citations",
     "provider_together" to "Together AI — open-weight catalog; bare-array `/models`",
     "provider_openrouter" to "Aggregator — proxies dozens of upstream providers",
+    "provider_mergegateway" to "Merge Gateway — routes OpenAI / Anthropic / Google / Bedrock",
+    "provider_vercelaigateway" to "Vercel AI Gateway — ~300 models, zero-markup pricing",
+    "provider_glama" to "Glama Gateway — OpenAI-compatible aggregator, ~80 models",
+    "provider_requesty" to "Requesty — LLM router over 500+ models with fallbacks",
+    "provider_aimlapi" to "AI-ML-API — aggregator, 600+ chat / image / audio models",
+    "provider_atlascloud" to "Atlas Cloud — aggregator, ~130 open-weight models",
+    "provider_parasail" to "Parasail — serverless open-weight inference, aggressive pricing",
+    "provider_baseten" to "Baseten Model APIs — curated frontier open-weight catalog",
+    "provider_gmicloud" to "GMI Cloud — serverless GPU inference, open-weight catalog",
     "provider_siliconflow" to "SiliconCloud — Qwen / DeepSeek mirror (China)",
     "provider_zai" to "Zhipu AI — GLM family (China)",
     "provider_moonshot" to "Moonshot AI — Kimi long-context (China)",
@@ -744,7 +753,6 @@ private val CLOUD_PROVIDER_TAGLINES: Map<String, String> = mapOf(
     "provider_replicate" to "Replicate — public model marketplace",
     "provider_huggingface" to "HF Inference API — open-weight model serving",
     "provider_deepinfra" to "DeepInfra — open-weight serverless inference",
-    "provider_hyperbolic" to "Hyperbolic — open-weight + image/audio inference",
     "provider_novitaai" to "Novita.ai — open-weight serverless inference",
     "provider_nebiusaistudio" to "Nebius AI Studio — Llama / DeepSeek / Qwen",
     "provider_chutes" to "Chutes — Bittensor-backed open-weight serving",
@@ -865,10 +873,10 @@ private val INFO_FETCH_CATEGORIES = setOf("OpenRouter model specs")
 private fun isInfoFetchCategory(category: String?): Boolean =
     category != null && (category in INFO_FETCH_CATEGORIES || category.startsWith("pricing/"))
 
-/** Resolve a URL to one of the 9 info providers. Matches by host
+/** Resolve a URL to one of the 12 info providers. Matches by host
  *  first, then disambiguates via [InfoProviderRef.urlPathPrefix] for
  *  hosts shared by multiple providers (raw.githubusercontent.com).
- *  Returns null when the URL doesn't belong to any of the 9. */
+ *  Returns null when the URL doesn't belong to any of the 12. */
 fun infoProviderForUrl(url: String?): InfoProviderRef? {
     if (url.isNullOrBlank()) return null
     val (host, path) = try {
@@ -882,7 +890,7 @@ fun infoProviderForUrl(url: String?): InfoProviderRef? {
     }
 }
 
-/** Resolve a captured trace's URL + category to one of the 9
+/** Resolve a captured trace's URL + category to one of the 12
  *  providers. For dual-purpose services (OpenRouter), the category
  *  must be one of [INFO_FETCH_CATEGORIES]; otherwise a chat
  *  completion would hijack the ℹ️. */

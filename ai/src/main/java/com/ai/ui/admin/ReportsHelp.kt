@@ -178,12 +178,10 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Report — select models",
         cards = listOf(
             HelpCard("Overview", "The model-selection page in the report flow. Empty model list at first; +Agent / +Flock / +Swarm / +Model / +Report fill it; Next advances to Report - setup, where the system prompt, parameters and worker routing are chosen and Generate report fires the dispatch."),
-            HelpCard("Add buttons", "+Agent picks one saved agent, +Flock adds every member of a flock, +Swarm adds every (provider, model) pair in a swarm, +Model is the single-select all-providers picker, +Report copies the model list from a previous report. Repeated taps stack — you can mix sources."),
-            HelpCard("Params", "Opens Advanced Parameters — temperature, max tokens, system prompt, etc. The button reads Params ✓ when an override is active. Clear all wipes the override and the dispatched call uses each agent's default parameter set."),
+            HelpCard("Add buttons", "+Agent picks one saved agent, +Flock adds every member of a flock, +Swarm adds every (provider, model) pair in a swarm, +Model is the multi-select all-providers picker (tap as many as you want, then Back), +Report copies the model list from a previous report. Repeated taps stack — you can mix sources."),
             HelpCard("Next", "Advances to Report - setup — the step that sets the report's system prompt and parameters and decides who generates the report info, the model info, and which pool the worker batches use. The Generate report button there fires the dispatch for every model in the list and flips the screen to Report - manage as soon as the first row starts streaming."),
-            HelpCard("Update model list (edit mode)", "When you reach this page via Edit → Models on a finished report, the bottom button switches to Update model list. It stages the new list and pops back without re-running — you re-fire later from Report - manage → Action row → Regenerate."),
-            HelpCard("System prompt", "Optional per-report system prompt picker. The selection is stored on the Report so a Regenerate keeps the same instruction. Independent of any per-agent system prompt — both can apply."),
-            HelpCard("Reached from", "Hub → New AI Report → enter title + prompt → Continue. Or History → open an existing report → Action row → Edit → Models — that variant lands here in edit mode (button reads Update model list).")
+            HelpCard("Update model list (edit mode)", "When you reach this page via the ✏️ Edit report overview's Edit models row on a finished report, the bottom button switches to Update model list. It stages the new list and pops back without re-running — you re-fire later from Report - manage's title-bar 🔄 Regenerate."),
+            HelpCard("Reached from", "Hub → New AI Report → enter title + prompt → Continue. Or History → open an existing report → ✏️ Edit report overview → Edit models — that variant lands here in edit mode (button reads Update model list).")
         )
     ),
     "report_select_workers" to HelpContent(
@@ -214,15 +212,15 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_run" to HelpContent(
         title = "Help - Report - manage",
         cards = listOf(
-            HelpCard("Overview", "The post-Generate page in the report flow. Per-agent rows stream in as each model returns; the Action row at the bottom exposes the operations you can apply to the finished run. Sibling of the pre-Generate Report - select models — a Generate (or opening a saved report from History) lands you here."),
+            HelpCard("Overview", "The post-Generate page in the report flow. Per-agent rows stream in as each model returns; every operation you can apply to the run sits as an icon on the title bar and bottom bar (see 'Icon-based actions' below). Sibling of the pre-Generate Report - select models — a Generate (or opening a saved report from History) lands you here."),
             HelpCard("Statistics line", "Directly under the title bar's orange title: the report's API-call count, its total API time in seconds, and the running cost in cents (¢). The cost updates live as each call settles; tap the line to open the report's costs screen. The same line appears on Report - titles/icons/... and Report - second results."),
             HelpCard("Per-agent rows", "One card per dispatched model. While the call is in flight the row shows progress; on completion it carries the response, token + cost cell, optional 🐞 trace icon, and the auto-generated per-model emoji once the icon worker finishes."),
             HelpCard("Row labels", "Report rows show generated per-model titles by default. Tap 🔤 in the icon bar to switch those rows to raw provider/model names; tap it again to return to titles."),
-            HelpCard("Action row — while running", "STOP cancels every in-flight call (rows mid-stream complete what they've received, then mark CANCELLED). Background drops you back to Hub while the run continues; reopening the report shows the in-flight rows still streaming."),
-            HelpCard("Action row — when complete", "View, Edit, Copy, Pin/Unpin, Create, Fan Out, Tournament. Regenerate / Delete / Export live as title-bar icons (🔄 / 🗑 / 📤) rather than action-row buttons to avoid duplicating the same tap target."),
+            HelpCard("While running", "There's no dedicated Stop button — leaving the screen (Back) lets the run keep going in the background and pops a toast when it's ready; reopening the report shows the in-flight rows still streaming. Deleting the report (🗑) cancels every in-flight call for it first, so that's the way to abort a run outright."),
+            HelpCard("Icon-based actions, not an action row", "Once generation is complete, every operation is an icon rather than a labelled button: 🔄 Regenerate, 🐞 Trace, 🗑 Delete, 👁 View (opens the View hub tile grid), ✏️ Edit (opens the Edit report overview), 💬 Chat, 📤 Share/Export, 👯 Copy report and 📌 Pin/Unpin sit on the title bar; 🔗 Add (the Meta / Compare-with-meta launcher), 🔱 Fan out, 🏆 Rerank, 🚦 Moderation, 🌐 Translate and the Tournament icon live on the Report - second results layer's bar."),
             HelpCard("Pick workers at run time", "Tournament, Compare and Translate follow the report's Worker batches choice (👷 Report - setup); Meta and Fan-in follow that screen's separate Meta card. Prompt configuration runs each batch on its Internal Prompt's workers — and a prompt set to *SELECT (Settings → Prompt management) opens the +Agent/+Flock/+Swarm/+Model picker first. User selectable for each batch forces that picker on every batch; One time selectable asks once and reuses the group; Report models never asks. Rerank and Moderation always use their own prompt's workers. Judge-the-judges and Rank-the-translators have no worker picker at all — they reuse the actual judges of the Tournament / translators of the Translation they evaluate."),
             HelpCard("Per-model icons (auto-run)", "When Settings -> Metadata & icons -> Generate per model icons is on, each successful response schedules the workers/model-icons flow. The worker derives an emoji from the generated model title and response context, stores it on that report row, and falls back to the Default icons report-model glyph if no usable emoji is produced. Icon costs appear on the row/report cost breakdown and in AI Usage."),
-            HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary on this report. Edit popup is Prompt / Title / Models / Parameters — picking Models lands on Report - select models in edit mode."),
+            HelpCard("View and Edit", "👁 View opens the View hub — the tile-grid overview of everything this report has to look at (Reports, Prompt, Costs, plus a tile per secondary kind the report carries). ✏️ Edit opens the full-screen Edit report overview (icon, titles, parameters/system-prompt line, prompt card, and Edit models/icons/titles at the bottom) — picking Edit models lands on Report - select models in edit mode."),
             HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect. Until then the displayed rows reflect the old configuration."),
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate."),
             HelpCard("Reached from", "Pressing Generate report on Report - setup. Or History → open any saved report — you land here directly, skipping the selection pages."),
@@ -247,7 +245,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Regenerate report",
         cards = listOf(
             HelpCard("Overview", "The 🔁 icon on the Manage screen opens a confirm dialog; OK enqueues an app-restart-survivable batch that re-runs everything on the report in a fixed order. Replaces the legacy one-shot regenerate that only touched the agent rows."),
-            HelpCard("Phase order", "1) Report icon. 2) Language (detection + language-icon). 3) Model reports (agents). 4) Meta — single-call meta + rerank + moderation. 5) Fan-out — every fan-out pair. 6) Fan-in — combined-report rows. 7) Translations. 8) Fan Meta — one worker call per fan-out pair regenerates its title + icon. The batch moves to the next phase only when every row in the current phase is SUCCESS."),
+            HelpCard("Phase order", "1) Title (short + long — runs before the icon so the icon can derive from the fresh long title). 2) Report icon. 3) Language (detection + language-icon). 4) Model reports (agents). 5) Meta — single-call meta + rerank + moderation (Judge-the-judges and Compare are excluded — they resume from their own screens). 6) Fan-out — every fan-out pair. 7) Fan-in — combined-report rows. 8) Translations. 9) Fan Meta — one worker call per fan-out pair regenerates its title + icon. 10) Tournament — every match row (the ranking itself is recomputed once its matches settle, not a task). The batch moves to the next phase only when every row in the current phase is SUCCESS."),
             HelpCard("Halt + restart on error", "Halts on the first row that ends ❌ in any phase. The Regenerate row on Manage turns ❌. Fix the offending row (delete + rerun via the existing per-row UI), then tap Restart on the Regenerate detail screen. A halted batch also surfaces on the ⚠️ Broken-work screen (the 30 s background scan detects it) — but resuming is always a manual Restart now; the app no longer auto-resumes."),
             HelpCard("Survives app kill", "The job's task list + status lives on disk under <filesDir>/regenerate/<reportId>.json. After an app kill the background scan flags the interrupted batch on the ⚠️ Broken-work screen instead of silently reviving it — open the report and tap Restart on the Regenerate detail screen to pick up from the current phase."),
             HelpCard("Cancel + re-enqueue", "The detail screen's Cancel button stops scheduling new phases (in-flight HTTP calls finish normally). Tap Restart to resume from where it stopped. A fresh enqueue (tap 🔁 again) replaces the existing job and starts from phase 1."),
@@ -356,20 +354,15 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Compare with meta",
         cards = listOf(
             HelpCard("What it is", "The results grid for a Compare-with-meta run: each report answer scored 0–100 for how closely it matches the chosen meta result, judged by the worker engine. Start one from the report's 🆕 Create launcher → Compare with meta, then pick one meta result (it runs the same-named meta-compare prompt automatically)."),
-            HelpCard("Statistics + list", "The counters show Total / Done / Error / Run / Wait / Queue / Costs (Wait = parked on a provider rate-limit cap). Cells are worker-judged, so a rate-limited judge is skipped and another picked — no Bench column is used, and terminal failures count as Error. Below them each report answer is listed with its score against the meta result. Tap an answer to drill into its cell, then the cell for the full detail."),
+            HelpCard("Statistics + list", "The counters show Total / Done / Error / Run / Wait / Queue / Costs (Wait = parked on a provider rate-limit cap). Cells are worker-judged, so a rate-limited judge is skipped and another picked — no Bench column is used, and terminal failures count as Error. Below them each report answer is listed with its score against the meta result — one cell per answer, since a run only ever scores against the one meta item you picked. Tap an answer to open its full detail directly."),
             HelpCard("Actions", "🔄 redoes the whole comparison from scratch, 🗑 deletes the run, 'Restart failed' re-scores any errored cells.")
         )
     ),
     "compare_l2" to HelpContent(
-        title = "Help - Compare group",
+        title = "Help - Compare with meta - model",
         cards = listOf(
-            HelpCard("What you see", "Every cell in the chosen group, best score first. In a Report-models group each row is a meta item with this answer's score against it; in a Meta-items group each row is an answer with its score against this meta item. Tap a row for the full cell detail.")
-        )
-    ),
-    "compare_l3" to HelpContent(
-        title = "Help - Compare cell",
-        cards = listOf(
-            HelpCard("What you see", "One score: the big percentage, the answer model vs the meta item, the worker's one-line reason, which worker scored it, and the two full texts (the answer and the meta result). Swipe horizontally to step through the other cells in this group; the 🔄 in the title bar re-scores this cell.")
+            HelpCard("What you see", "One report answer's score against the picked meta item: the big percentage, the answer model vs. the meta item, the worker's one-line reason (when given), and which worker scored it. A 'Report model' / 'Compare model' card below names both sides plus the meta-compare prompt used (with a pencil to jump to editing it), followed by an API-interaction card showing the resolved prompt + the worker's reply."),
+            HelpCard("Reload", "The 🔄 in the title bar re-scores just this cell in place, replacing its score, reason and cost.")
         )
     ),
     // Per-scope Icon-lookup help — one topic for each of the six
@@ -533,7 +526,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar — 🧭", "Opens Web search replay for this model response. It reruns the same report call with web search enabled, appends the freshness instruction to the prompt, and lets you apply only the new response body."),
             HelpCard("Translation info", "Shown only when this report has a sourceReportId and the matching agent's responseBody is loaded — opens TranslationCompareScreen with original on top, translation on bottom."),
             HelpCard("Continue in chat", "Disabled when the response is blank or errored. Opens the Continue picker (current history+model / pick agent / configure on the fly)."),
-            HelpCard("Pitfalls", "Removing the last successful agent from a report leaves it empty — reopen the parent report and re-run from the Action row.")
+            HelpCard("Pitfalls", "Removing the last successful agent from a report leaves it empty — reopen the parent report and tap the title-bar 🔄 to Regenerate.")
         )
     ),
     "report_continue_in_chat" to HelpContent(
@@ -564,7 +557,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Rerank rendering", "Tries to parse the structured JSON ([{id, rank, score, reason}, ...]) and render a sorted RerankTable. Falls back to raw markdown via ContentWithThinkSections when the model deviated from the schema."),
             HelpCard("Moderation rendering", "Parses [{id, flagged, categories, scores}, ...] into a ModerationTable with 🚩 / ✓ flags, fired categories, and the top 3 scores. Falls back to raw text on bad JSON."),
             HelpCard("Meta rendering", "Always renders via ContentWithThinkSections so <think> blocks collapse and the rest is plain Markdown-ish text."),
-            HelpCard("Title bar — 🔄", "Not wired here — re-run a secondary by deleting and re-firing from the report's Action row."),
+            HelpCard("Title bar — 🔄", "Not wired here — re-run a secondary by deleting it and re-firing it from its own launcher on Manage (🔗 Add, or the Rerank / Moderation icon)."),
             HelpCard("Title bar — ℹ️", "Wired when the providerId resolves. Jumps to Model Info for this row's (provider, model) pair."),
             HelpCard("Title bar — 🗑", "Wired. Opens 'Delete this <kindLabel>?' confirm; confirming calls onDelete and pops back."),
             HelpCard("Title bar — 🐞", "Wired when tracing is on and a matching trace exists (reportId + this row's model, max-by-timestamp)."),
@@ -625,7 +618,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("HTTP statistics", "After every pair is ✅ or ❌, the 📈 bottom-bar icon opens Fan out statistics. It groups final saved pair outcomes by answerer model and splits HTTP into 200, 429, 529, other 4xx, other 5xx, Other and No HTTP."),
             HelpCard("Combine reports", "When at least one fan-in prompt exists, the screen exposes 'Run combine reports' — fires a meta call against the fan-out matrix's results."),
             HelpCard("Per-answerer delete", "Drops every cell where this answerer participated. Fan-out list refresh tick bumps so the L1 list reflects the gap on pop-back."),
-            HelpCard("Pitfalls", "Cell count is N×(N-1) for an N-agent run; cost grows fast. Watch the Action row's cost summary before pressing Restart on large grids.")
+            HelpCard("Pitfalls", "Cell count is N×(N-1) for an N-agent run; cost grows fast. Watch the stats row's Costs figure before pressing Restart on large grids.")
         )
     ),
     "secondary_fan_out_stats" to HelpContent(
@@ -704,8 +697,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "costs_view" to HelpContent(
         title = "Help - Costs",
         cards = listOf(
-            HelpCard("What you see", "What this report has cost so far. A big yellow 💰 Total at the top sums every API call this report has fired; below it, a row per spending bucket — Reports, Meta, Fan-out, Fan-in, Translate, Moderation, Rerank, Icons, Language — showing how much of the total went there."),
-            HelpCard("How to read it", "Each bucket row carries three things: the percentage of the grand total, the absolute amount, and a horizontal bar coloured yellow-to-orange whose length matches that share. A glance tells you whether one kind dominates spending or the cost is spread out. Buckets that cost nothing are hidden entirely; very small buckets still render a thin sliver so they don't disappear. The call count on the right tells you how many requests landed in that bucket.")
+            HelpCard("What you see", "What this report has cost so far. A big yellow 💰 Total at the top sums every API call this report has fired; below it, a row per raw cost type — the exact `<category>/<prompt>` key each call was stamped with (e.g. `report/prompt`, `meta/compare`, `workers/model-icons`, the `translate/…` family) — showing how much of the total went there. There's no friendly renaming or lumping into hand-picked buckets like 'Meta' or 'Icons' anymore; every distinct internal prompt (and the `report` rows) gets its own row."),
+            HelpCard("How to read it", "Each row carries three things: the percentage of the grand total, the absolute amount, and a horizontal bar coloured yellow-to-orange whose length matches that share. A glance tells you whether one kind dominates spending or the cost is spread out. Rows that cost nothing are hidden entirely; very small ones still render a thin sliver so they don't disappear. The call count on the right tells you how many requests landed in that row. A Buckets ⇄ Models pill above the list re-rolls the same calls by model instead of by type; tapping any bar drills into that group's models (or vice versa), and a further tap opens the individual calls.")
         )
     ),
     "reports_view" to HelpContent(
@@ -840,18 +833,6 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Saved back to the template", "When your edits can be cleanly re-applied (the markers' values are still found verbatim), the edited wording is saved onto the alt template, so the next Find-alternative starts from your version. If you edited inside a data region — or a value was empty — it can't be re-abstracted safely, so it's used for this run only and the template is left untouched."),
         )
     ),
-    "report_parameters" to HelpContent(
-        title = "Help - Advanced Parameters",
-        cards = listOf(
-            HelpCard("Overview", "Per-report parameter override that wins over each agent's own settings for this run only. Apply stamps hasPendingParametersChange so the result screen shows the pending banner."),
-            HelpCard("Numeric fields", "Temperature (0.0–2.0), max tokens, top P (0.0–1.0), top K, frequency / presence penalty (-2.0–2.0), seed. Empty fields mean 'inherit' — only non-blank values become part of the override."),
-            HelpCard("System prompt", "Multi-line (3–5 lines visible). Replaces the agent / flock / swarm system prompt for this run when non-blank."),
-            HelpCard("Web search / Citations / Recency", "xAI-style and Perplexity-style toggles. Recency takes 'day', 'week', 'month', 'year' — anything else is dropped silently."),
-            HelpCard("Apply", "Builds an AgentParameters from non-blank values. If everything is blank/default, calls onApply(null) — i.e. clears the override."),
-            HelpCard("Clear all", "Wipes every field and calls onApply(null). Useful when starting over."),
-            HelpCard("Pitfalls", "Provider-specific fields (e.g. Anthropic ignores frequency/presence penalty) are silently dropped server-side — check the trace if behaviour surprises you."),
-        )
-    ),
     "report_export_sheet" to HelpContent(
         title = "Help - Export report",
         cards = listOf(
@@ -881,27 +862,6 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Working state", "While the zip / delete is in flight, both buttons are disabled and the export label switches to 'Working…'."),
             HelpCard("Status line", "Final operation result lives as a small grey line at the bottom — 'Deleted N reports.', 'Bundled N reports.', or 'Nothing to export.'."),
             HelpCard("Pitfalls", "Delete is irreversible — once the cutoff fires, those reports' secondaries and trace files go too. Take an Export all first if you might want them back."),
-        )
-    ),
-    "report_view_picker" to HelpContent(
-        title = "Help - View — picker",
-        cards = listOf(
-            HelpCard("Overview", "Full-screen picker reached from the Report Result action row's View button. Each row is a separate view of the current report."),
-            HelpCard("Reports", "Opens the per-agent reports viewer. Detail line shows N of M agents succeeded so you can spot a partially-failed run before drilling in."),
-            HelpCard("Prompt", "Opens the report's full prompt as scrollable text. Detail line previews the first non-blank line (≤80 chars)."),
-            HelpCard("Costs", "Tokens + cost breakdown across all agents and secondaries. Detail line shows the secondary spend so far in USD when there is any."),
-            HelpCard("Log", "Opens the App Log Viewer for this report's creation-day log file, pre-filtered to the report's log-id. Every app-log line written while working on a report is tagged ` [#<reportId>]` at the end, so this shows only that report's activity. A run that spilled into the next day is reachable via the viewer's prev/next file buttons — the filter persists across files."),
-            HelpCard("Per-Meta-prompt rows", "One row per Meta-prompt name with at least one persisted secondary on this report. Detail = run count; secondary line = the kind label (Rerank / Summarize / Compare / Moderate)."),
-        )
-    ),
-    "report_edit_picker" to HelpContent(
-        title = "Help - Edit — picker",
-        cards = listOf(
-            HelpCard("Overview", "Full-screen picker reached from the Report Result action row's Edit button. Each row routes to a separate edit screen for one slice of the report."),
-            HelpCard("Prompt", "Opens the multi-line prompt editor. Detail line previews the first non-blank line (≤80 chars). Saving stamps a 'Changes pending: prompt' banner on the result screen until you Regenerate."),
-            HelpCard("Title", "Single-line title editor. No pending-changes flag — title is metadata only."),
-            HelpCard("Models", "Routes back to the selection phase with the report's existing model list staged for in-place editing. The detail line says how many models are currently on the report."),
-            HelpCard("Parameters", "Opens the per-report parameter override (temperature, max tokens, top P, stop sequences, etc). Detail line is a generic field hint."),
         )
     ),
     "report_fan_out_confirm" to HelpContent(
@@ -996,7 +956,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Translation run — types",
         cards = listOf(
             HelpCard("Overview", "Level 1 of the translation run drill-in: the run grouped by translation type (the trace/cost category each item belongs to — the prompt, fan-out responses, Meta results, and so on). Tap a type to see its items. The 🐜 icon opens Translation workers — the same run grouped by the model that translated each item."),
-            HelpCard("Mode (Speed / Mixed / Cost)", "Three-way toggle above the stats panel. Cost (default) — cheap models drain the queue first, expensive ones hesitate proportional to their price ratio (up to 2 min between pulls). Mixed — softened bias (up to 5 s). Speed — no hesitation, every model pulls as fast as its per-host caps allow; highest throughput, highest spend. Switchable mid-run; the change takes effect on the next queue pull (within ~1 s). Saved per-run on disk so a process kill / app restart preserves your choice."),
+            HelpCard("Throughput", "Every worker pulls from the shared queue as fast as its per-host caps allow — there's no cost-based hesitation or Speed/Mixed/Cost mode to pick anymore. Faster models naturally complete more items; a benched (rate-limit cooldown) model stops pulling and its share flows to the healthy workers."),
             // "429 / 529 handling" relocated to the "concepts" topic
             // (Help home → How it works) — same OkHttp retry behaviour
             // applies across every screen that fires a translation
@@ -1050,14 +1010,12 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "content_model_response" to HelpContent(
-        title = "Help - Model response",
+        title = "Help - View Reports",
         cards = listOf(
-            HelpCard("Overview", "Full-screen viewer for one agent's response on a saved report. The agent picker dropdown sits below the title bar; the active model's body fills the rest of the screen. Other content modes — Prompt, Cost summary, View on one page — have their own help pages."),
+            HelpCard("Overview", "Reached from the View hub's Reports tile. Toggles between three sections for this report — Prompt, Costs, and View on one page (concatenates every agent's response onto a single scrollable page) — each with its own help page. There is no per-agent picker on this screen any more; to read one specific agent's response on its own screen with swipe-to-switch, tap that agent's row directly from Manage a report instead, which opens the separate Model response screen."),
             HelpCard("Loading state", "Reports are loaded on Dispatchers.IO via produceState — a Loading sentinel keeps the empty-state text from flashing while the JSON parse runs."),
-            HelpCard("Language picker row", "When the report has TRANSLATE rows, a FlowRow of buttons (Original + one per distinct targetLanguage) sits below the title bar. Selecting a non-Original key overlays the translated body onto the active agent's response."),
-            HelpCard("Agent picker", "Dropdown over the FlowRow of agents — built from successful (SUCCESS-status) agents sorted alphabetically. The button label rebuilds from agent.provider + agent.model so the Model name layout setting wins."),
-            HelpCard("Active model header", "Provider — model in blue under the picker, with a 🐞 next to it when tracing is on and a matching trace exists for (reportId, agent.model, max-by-timestamp)."),
-            HelpCard("Body rendering", "ContentWithThinkSections handles <think> collapsibles, citations, related-questions blocks, and search results — so models that emit any of those render structured rather than raw."),
+            HelpCard("Language picker", "When the report has TRANSLATE rows, a row of language tabs (icon-based — the cached translation emoji per language, falling back to the language name) sits below the title bar. Selecting a non-Original tab overlays translated bodies onto the active section."),
+            HelpCard("Pitfalls", "Citations, search-result blocks, and related-questions are not rendered here or on the Model response screen — only <think> collapsibles and GFM tables get structured treatment; everything else renders as plain markdown."),
         )
     ),
     "content_one_page" to HelpContent(
@@ -1072,11 +1030,12 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "cost_view" to HelpContent(
         title = "Help - Cost summary",
         cards = listOf(
-            HelpCard("Overview", "Read-only cost view for the report — three compact, sortable lists (By type · By model · All calls) covering every API call counted against this report (agents + secondaries + translations). Reached from the result page's View → Costs button."),
+            HelpCard("Overview", "Read-only cost view for the report — By type / By model / All calls, covering every API call counted against this report (agents + secondaries + translations). Reached from the result page's View → Costs button."),
             HelpCard("Tap a row", "Opens a popup with the full breakdown for that group or call — calls, in/out tokens, in/out cents, total, plus tier and duration on All-calls rows. Tap Close to dismiss."),
-            HelpCard("Sortable columns", "Tap any column header to sort by that column. Tap the active column again to flip direction (▲ ascending / ▼ descending). Each list remembers its own sort independently. Default sort is Total descending."),
-            HelpCard("Row display", "One line per row — model column shows only the part after the last `/` (no provider prefix), full provider/model is in the popup. The bold Total row at the end of By type sums every call in the report. If items were deleted with non-zero spend, an orange `deleted +X.XX ¢` line shows directly above the Total."),
-            HelpCard("Translation costs", "Translation calls are billed against the same model that ran them — they appear as 'translate' kind rows. The language picker is hidden in cost mode since costs aggregate every call."),
+            HelpCard("By type — collapsible tree", "Grouped by the prefix before the `/` in each call's raw `<category>/<prompt>` type (report, meta, workers, alt, after, translate, …). Tap a prefix header to expand its member type rows underneath, each still tapping through to its own breakdown; both groups and members sort by cost, highest first — there's no per-column sort here."),
+            HelpCard("By model — sortable columns", "Tap any column header to sort by that column. Tap the active column again to flip direction (▲ ascending / ▼ descending). Model shows only the part after the last `/` (no provider prefix); full provider/model is in the popup. Default sort is Total descending."),
+            HelpCard("Totals", "The bold Total row at the end of By type sums every call in the report. If items were deleted with non-zero spend, an orange `deleted +X.XX ¢` line shows directly above it."),
+            HelpCard("Translation costs", "Translation calls are billed against the same model that ran them — they group under the `translate` prefix in By type (e.g. `translate/text`, `translate/title`). The language picker is hidden in cost mode since costs aggregate every call."),
             HelpCard("Empty state", "When neither the agents nor any secondary carries a tokenUsage record, the body reads '(no usage recorded)'. This usually means the run was cancelled before the first response landed."),
             HelpCard("Pitfalls", "Costs use CURRENT pricing — if the provider changed prices since the run, the displayed cost is the today-rate, not the as-billed rate."),
         )

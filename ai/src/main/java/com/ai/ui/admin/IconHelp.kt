@@ -25,6 +25,7 @@ private val ICON_LOOKUP_ROWS = listOf(
     Triple("ℹ️", "Information", "Open the generating model's info."),
     Triple("📋", "Copy", "Copy the API request / response text."),
     Triple("📤", "Share", "Share the API request / response text."),
+    Triple("🔄", "Regenerate", "Re-run this icon's generation call (some icon scopes only)."),
     Triple("🐞", "Trace", "Open the API trace for this icon generation."),
 )
 
@@ -37,25 +38,23 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("🗂️", "All reports", "Browse the full list of reports."),
         Triple("📥", "Import report", "Pick a report .zip and import it as a new report."),
     ),
+    // NOTE: this is the Manage layer specifically (activeReportLayer == 1)
+    // — Run.kt publishes a DIFFERENT icon set per layer under DIFFERENT
+    // topic ids ("report_get_info" / "report_second_results"). The 🔗 Meta /
+    // 🔱 Fan Out / 🥊 Tournament / 🌐 Translate / 🏆 Rerank / 🚦 Moderation
+    // launchers live only on "report_second_results" (no per-screen legend
+    // of its own today — falls back to the generic glyph descriptions).
     "report_run" to listOf(
-        Triple("🆕", "New report", "Open the New Report start screen — New report, Start with a previous report, or Start with an example prompt."),
-        Triple("🔗", "Meta", "Add a meta analysis to this report: a Meta prompt over the answers, or Compare with meta."),
-        Triple("🔱", "Fan Out", "Open this report's Fan Out, or start a new one when none exists yet."),
-        Triple("🥊", "Tournament", "Head-to-head tools: run a Tournament over the answers, or Judge the judges."),
-        Triple("🌐", "Translate", "Translate the report into one or more other languages."),
-        Triple("🏆", "Rerank", "Rank the answers best-first — opens the report's rerank, or picks a model to run one."),
-        Triple("🚦", "Moderation", "Safety-check the answers — opens the report's moderation, or picks a model to run one."),
+        Triple("🆕", "New report", "Open the New Report start screen — New report, Start with a previous prompt, or Start with an example prompt."),
         Triple("💬", "Chat", "Start a chat seeded with this report's prompt."),
         Triple("🗂️", "Switch report", "Pick another report to manage."),
         Triple("ℹ️", "Information", "Open the per-report info screen."),
-        Triple("📌", "Pin / unpin", "Keep this report at the top of the lists (orange when pinned)."),
-        Triple("👷", "Setup", "Re-open Report - setup to change who handles report info, model info and the worker batches."),
+        Triple("📌", "Pin / unpin", "Keep this report at the top of the lists (dimmed when not pinned)."),
         Triple("🔤", "Row labels", "Toggle the report / meta / rerank / moderation rows between their titles and the model name."),
         Triple("📤", "Export", "Export / share the report (once the run has completed)."),
         Triple("👯", "Duplicate", "Make a copy of this report."),
         Triple("👁", "View", "Open the per-agent results / View hub for this report."),
-        Triple("✍️", "Add note", "Attach a free-text note to this report."),
-        Triple("📒", "Notes", "Show every user note in this report."),
+        Triple("📒", "Notes", "Show every user note in this report; add one from there."),
         Triple("✏️", "Edit", "Change the prompt, title, models, parameters or system prompt."),
         Triple("🔄", "Regenerate", "Re-run every agent and existing operation (once the run has completed)."),
         Triple("🗑", "Delete", "Delete this report (asks to confirm)."),
@@ -68,9 +67,10 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("🎭", "System prompt", "Pick the system prompt used for the next reply."),
         Triple("🌡️", "Parameters", "Pick the parameter preset(s) used for the next reply."),
     ),
+    // Only 3 icons now — Parameters / System prompt moved to the next step
+    // (Report - select models / Report - setup). Embeds inline; kept out of
+    // ICON_HELP_AS_PAGE below.
     "report_new" to listOf(
-        Triple("🌡️", "Parameters", "Configure API parameters: pick the preset(s) for this report."),
-        Triple("🎭", "System prompt", "Pick the system prompt for this report."),
         Triple("🧽", "Clear", "Clear the title, prompt and any attached image."),
         Triple("📎", "Attach", "Attach an image (vision) to send with the prompt."),
         Triple("🚩", "Validate prompt", "Pick a moderation model to screen the prompt first; tap again to clear it."),
@@ -81,19 +81,25 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("🌡️", "Parameters", "Pick the parameter preset(s) for this agent."),
         Triple("🎭", "System prompt", "Pick this agent's system prompt."),
         Triple("🧽", "Reset", "Discard your edits and restore the saved agent."),
+        Triple("👯", "Duplicate", "Duplicate this agent as a new one (editing an existing agent)."),
         Triple("👁", "View", "Open this agent's read-only view (editing an existing agent)."),
+        Triple("🗑", "Delete", "Delete this agent (editing an existing agent)."),
     ),
     "flock_edit" to listOf(
         Triple("🌡️", "Parameters", "Pick the parameter preset(s) for this flock."),
         Triple("🎭", "System prompt", "Pick this flock's system prompt."),
         Triple("🧽", "Reset", "Discard your edits and restore the saved flock."),
+        Triple("👯", "Duplicate", "Duplicate this flock as a new one (editing an existing flock)."),
         Triple("👁", "View", "Open this flock's read-only view (editing an existing flock)."),
+        Triple("🗑", "Delete", "Delete this flock (editing an existing flock)."),
     ),
     "swarm_edit" to listOf(
         Triple("🌡️", "Parameters", "Pick the parameter preset(s) for this swarm."),
         Triple("🎭", "System prompt", "Pick this swarm's system prompt."),
         Triple("🧽", "Reset", "Discard your edits and restore the saved swarm."),
+        Triple("👯", "Duplicate", "Duplicate this swarm as a new one (editing an existing swarm)."),
         Triple("👁", "View", "Open this swarm's read-only view (editing an existing swarm)."),
+        Triple("🗑", "Delete", "Delete this swarm (editing an existing swarm)."),
     ),
     "internal_prompt_edit" to listOf(
         Triple("🌡️", "Parameters", "Pick the parameter preset this prompt uses (overrides the agent / app default)."),
@@ -315,32 +321,24 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     ),
 
     // ===== Deep report drill-ins (pages) =====
+    // Reload / Refine-chat / Temperature sweep / Reasoning Effort / Web
+    // search replay are no longer separate bottom-bar icons here — they're
+    // consolidated behind ✏️ Edit's "Change response" menu. 🐞 Trace also
+    // moved off the bottom bar (it now sits next to the big response icon
+    // inline). 🌡️ / 🎭 belong to the nested "Edit prompt" replay screen,
+    // which reuses this same helpTopic.
     "report_single_result" to listOf(
-        Triple("💬", "Chat", "Continue this response in a chat."),
         Triple("ℹ️", "Information", "Open this model's info."),
         Triple("📋", "Copy", "Copy the response text."),
         Triple("📤", "Share", "Share the response text."),
         Triple("👁", "View", "Open the full per-agent View."),
-        Triple("🗣️", "Refine", "Chat with this model to refine its answer; Apply folds a reply back into the report."),
-        Triple("🎲", "Temperature sweep", "Run three replay calls at different temperatures and choose one response."),
-        Triple("🧠", "Reasoning Effort", "Run replay calls with None, Low, Medium and High reasoning effort and choose one response."),
-        Triple("🧭", "Web search replay", "Replay this model response with web search enabled and choose the fresh response."),
+        Triple("🌐", "Compare", "Show the original and its translation side by side."),
         Triple("✍️", "Add note", "Attach a free-text note to this model response."),
-        Triple("🌐", "Compare", "Show the original and its translation side by side."),
-        Triple("🔄", "Regenerate", "Re-run this single model."),
-        Triple("🗑", "Delete", "Remove this response (with multiple languages, just the active one)."),
-        Triple("🐞", "Trace", "Open the API trace for this response."),
-    ),
-    "content_model_response" to listOf(
+        Triple("✏️", "Edit", "Open the Change response menu — Reload, Edit prompt, Chat (refine in place), Temperature sweep, Reasoning Effort or Web search."),
+        Triple("🌡️", "Parameters", "On the Edit-prompt replay screen: pick different parameters for the replay call."),
+        Triple("🎭", "System prompt", "On the Edit-prompt replay screen: pick a different system prompt for the replay call."),
         Triple("💬", "Chat", "Continue this response in a chat."),
-        Triple("ℹ️", "Information", "Open this model's info."),
-        Triple("📋", "Copy", "Copy the response text."),
-        Triple("📤", "Share", "Share the response text."),
-        Triple("👁", "View", "Open the full per-agent View."),
-        Triple("🌐", "Compare", "Show the original and its translation side by side."),
-        Triple("🔄", "Regenerate", "Re-run this single model."),
         Triple("🗑", "Delete", "Remove this response (with multiple languages, just the active one)."),
-        Triple("🐞", "Trace", "Open the API trace for this response."),
     ),
     "secondary_detail" to listOf(
         Triple("ℹ️", "Information", "Open the model's info."),
@@ -369,30 +367,38 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     ),
     "secondary_fan_out_l1" to listOf(
         Triple("👁", "View", "Open the fan-out in the View screen."),
+        Triple("📈", "Stats", "Open this run's live HTTP stats (once the run has recorded activity this session)."),
         Triple("✍️", "Add note", "Attach a free-text note to this fan-out run."),
         Triple("🔄", "Regenerate", "Re-run the whole fan-out."),
         Triple("🗑", "Delete", "Delete this fan-out run."),
+        Triple("🆕", "New Fan Out", "Start another Fan Out (opens the meta-prompt / responders picker)."),
         Triple("🐞", "Trace", "Open the API trace for the fan-out."),
     ),
+    // 👯 is "Create report" here (build a new standalone report from this
+    // model's fan-out conversation) — NOT the inline "Switch role" button,
+    // which is a plain body button, not a bottom-bar icon.
     "secondary_fan_out_l2" to listOf(
         Triple("ℹ️", "Information", "Open this model's info."),
-        Triple("👯", "Switch role", "Swap this model between Initiator and Responder (fan-out mode)."),
+        Triple("👯", "Create report", "Build a new report from this model's fan-out conversation — its answer as the prompt, each pairing as an agent."),
         Triple("👁", "View", "Open this model's fan-out in the View screen."),
         Triple("🗑", "Delete", "Delete this model's fan-out rows."),
-        Triple("🐞", "Trace", "Open the API trace."),
+        Triple("🐞", "Trace", "Open the API trace for this model's report-agent run (Initiator role only)."),
     ),
+    // 🗣️ Refine / 🎲 Temperature sweep / 🧠 Reasoning Effort / 🧭 Web search
+    // replay are no longer separate icons — consolidated behind ✏️ Edit's
+    // "Change response" menu (same as report_single_result).
     "secondary_fan_out_l3" to listOf(
         Triple("ℹ️", "Information", "Open the answering model's info."),
         Triple("👁", "View", "Open this pair in the View screen."),
-        Triple("🗣️", "Refine", "Chat with this model to refine its answer; Apply folds a reply back into the report."),
         Triple("✍️", "Add note", "Attach a free-text note to this fan-out response."),
-        Triple("🔄", "Regenerate", "Re-run this initiator → responder pair."),
+        Triple("✏️", "Edit", "Open the Change response menu — Reload, Edit prompt, Chat (refine in place), Temperature sweep, Reasoning Effort or Web search."),
         Triple("🗑", "Delete", "Delete this pair."),
         Triple("🐞", "Trace", "Open the API trace for this pair."),
     ),
     "translation_run_l1" to listOf(
         Triple("👁", "View", "Open this translation in the View screen."),
         Triple("🐜", "Workers", "Open the per-model worker breakdown."),
+        Triple("🏅", "Rank translators", "Rank the models that produced this translation (start or open the batch)."),
         Triple("🔄", "Regenerate", "Re-run the whole translation."),
         Triple("🗑", "Delete", "Delete this translation run."),
         Triple("🐞", "Trace", "Open the API trace for the translation."),
@@ -405,9 +411,10 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("🗑", "Delete", "Delete this translation call."),
         Triple("🐞", "Trace", "Open the API trace for this call."),
     ),
+    // Tapping a row opens a popup (calls/tokens/cents breakdown), not a
+    // trace navigation — there's no 🐞 icon on either screen using this topic.
     "cost_view" to listOf(
         Triple("👁", "View", "Open the costs in the View screen."),
-        Triple("🐞", "Trace", "Open the API trace tied to a call."),
     ),
     "icon_lookup_main" to ICON_LOOKUP_ROWS,
     "icon_lookup_agent" to ICON_LOOKUP_ROWS,
@@ -466,11 +473,11 @@ internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
  *  (and the ❔ bottom-bar glyph). Everything else in [SCREEN_ICON_HELP]
  *  embeds its table inline under the main help page. */
 internal val ICON_HELP_AS_PAGE: Set<String> = setOf(
-    "report_run", "report_new",
+    "report_run",
     "agent_edit", "flock_edit", "swarm_edit",
     "provider_edit",
     // deep report drill-ins
-    "report_single_result", "content_model_response", "secondary_detail",
+    "report_single_result", "secondary_detail",
     "prompt_view", "secondary_list",
     "secondary_fan_out_l1", "secondary_fan_out_l2", "secondary_fan_out_l3",
     "translation_run_l1", "translation_run_l3",
@@ -483,13 +490,11 @@ internal val ICON_HELP_AS_PAGE: Set<String> = setOf(
  *  local to avoid a cycle with the full HELP_TOPICS map assembly. */
 private val HELP_TOPICS_BASE_TITLES: Map<String, String> = mapOf(
     "report_run" to "Report — manage",
-    "report_new" to "New AI report",
     "agent_edit" to "Agent",
     "flock_edit" to "Flock",
     "swarm_edit" to "Swarm",
     "provider_edit" to "Provider",
     "report_single_result" to "Model response",
-    "content_model_response" to "Model response",
     "secondary_detail" to "Secondary detail",
     "prompt_view" to "Prompt",
     "secondary_list" to "Secondary results",

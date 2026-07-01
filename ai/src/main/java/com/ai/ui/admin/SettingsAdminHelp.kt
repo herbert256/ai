@@ -37,7 +37,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Reached from AI Reports → Start with an example prompt. Lists every Example prompt in your library, sorted alphabetically by title. Tap a row to open New Report seeded with the prompt's (title, text)."),
             HelpCard("Search field", "Filters by title OR text (case-insensitive). The trailing ✕ clears."),
             HelpCard("Per-row content", "Title in white; the first line of the text dimmed underneath."),
-            HelpCard("Empty state", "Shown when no example prompts exist. Curate them under AI Setup → Prompt management → Example prompts, or load the bundled set via Housekeeping → Prompts → Add new prompts from assets/examples.json."),
+            HelpCard("Empty state", "Shown when no example prompts exist. Curate them under AI Setup → Prompt management → Example prompts — the bundled starter set (assets/prompts/examples/) also merges in automatically on every app start, adding any title you don't already have without touching ones you've edited."),
         )
     )
 ,
@@ -69,17 +69,18 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "settings_autostart" to HelpContent(
         title = "Help - Autostart",
         cards = listOf(
-            HelpCard("Overview", "What the app starts automatically when a report finishes. Three controls, all gathered here (previously split across Other settings, Metadata & icons, and AI Setup). Toggles autosave with a 400 ms debounce."),
-            HelpCard("Auto create Rerank and Moderation", "Default ON. When a report's models all finish, the app auto-creates one Rerank and one Moderation, each using the first rerank- / moderation-capable model found across your active providers. A kind is skipped when no capable model exists or that report already has one. Creating either by hand still opens the model picker."),
-            HelpCard("Autostart Fan Meta", "Default ON. When a Fan Out finishes with no errored pairs, automatically run its Fan Meta batch (one call per pair produces the title + icon). A run with any errored pair is left for you to start manually."),
-            HelpCard("Default meta items", "Opens the list of meta prompts that auto-run when a report finishes. Add or remove entries there; each runs as soon as the report's models complete."),
+            HelpCard("Overview", "What the app starts automatically when a report finishes, all gathered here (previously split across Other settings, Metadata & icons, and AI Setup). A master switch plus three items it gates. Toggles autosave with a 400 ms debounce."),
+            HelpCard("Autostart items (master)", "Default OFF. While off, the app never autostarts anything when a report finishes — auto Rerank/Moderation and Default meta items are all skipped — and the three items below stay hidden. Turn it on to reveal and enable them."),
+            HelpCard("Auto create Rerank and Moderation", "Default ON (takes effect once the master switch above is on). When a report's models all finish, the app auto-creates one Rerank and one Moderation, each using the first rerank- / moderation-capable model found across your active providers. A kind is skipped when no capable model exists or that report already has one. Creating either by hand still opens the model picker."),
+            HelpCard("Autostart Fan Meta", "Default ON (also gated by the master switch). When a Fan Out finishes with no errored pairs, automatically run its Fan Meta batch (one call per pair produces the title + icon). A run with any errored pair is left for you to start manually."),
+            HelpCard("Default meta items", "Only shown while the master switch is on. Opens the list of meta prompts that auto-run when a report finishes. Add or remove entries there; each runs as soon as the report's models complete."),
         )
     ),
     "settings_ranking_weights" to HelpContent(
         title = "Help - Ranking weights",
         cards = listOf(
             HelpCard("What this is", "A weight from 0 to 10 for each ranking the app can produce: Rerank, Judge-the-judges, Translations, Compare-with-meta, and every Tournament method (Copeland, Elo, Davidson, Markov, Schulze, Colley, Trueskill2). Drag a slider to set a weight."),
-            HelpCard("Defaults", "Rerank 3, Judges 6, Translations 6, and every Tournament method 2 each. The 🧽 in the icons bar resets all sliders to these defaults."),
+            HelpCard("Defaults", "Rerank 3, Judges 6, Translations 6, Compare 4, and every Tournament method 2 each. The 🧽 in the icons bar resets all sliders to these defaults."),
             HelpCard("Saving", "Changes save automatically. Weights are stored per value — a slider left at its default isn't stored, so future default changes still apply to it.")
         )
     ),
@@ -173,9 +174,9 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "One card per batch that needs attention. A background scan checks every report from the last 7 days at app start and every 30 seconds; while anything needs attention the top-bar AI logo is replaced by a ⚠️ that opens this screen."),
             HelpCard("Two states", "Each card shows up to two lines: unfinished (items stranded by an app-kill — started but never finished) and errors (items that failed). The count is per batch run — one fan-out prompt, one translation language, one tournament, and so on."),
-            HelpCard("Continue", "The six batch families — Fan Out, Fan Meta, Tournament, Judge the judges, Compare, Translation — show a single card-level Continue. It works like starting the batch fresh: it stops the batch, re-queues every broken item (both unfinished and errored) behind a \"Preparing N / M…\" popup, restarts it, and drops you on that batch's own screen. Finished items are kept — no re-spend. Per line you still get view (open the item list) and delete."),
+            HelpCard("Continue", "The seven batch families — Fan Out, Fan Meta, Tournament, Judge the judges, Compare, Translation, Rank the translators — show a single card-level Continue. It works like starting the batch fresh: it stops the batch, re-queues every broken item (both unfinished and errored) behind a \"Preparing N / M…\" popup, restarts it, and drops you on that batch's own screen. Finished items are kept — no re-spend. Per line you still get view (open the item list) and delete."),
             HelpCard("Restart (other families)", "A stalled regenerate job, the Report models card, and single Meta / Rerank / Moderation calls keep the older per-line restart instead of Continue: restart re-fires errored items or re-dispatches unfinished ones in place. Delete drops items (no API calls; finished items are kept). Fan Meta unfinished can't be deleted — the underlying answer stays."),
-            HelpCard("Coverage", "Covers all six batch families — Fan Out, Fan Meta, Tournament, Judge the judges, Compare, and Translation (Continue) — plus a stalled regenerate job and single Meta / Rerank / Moderation calls (restart / delete; a single-item entry shows its error message right on the card; regenerate has no item list, so no view). A card drops off once its work is cleared, on the next scan."),
+            HelpCard("Coverage", "Covers all seven batch families — Fan Out, Fan Meta, Tournament, Judge the judges, Compare, Translation, and Rank the translators (Continue) — plus a stalled regenerate job and single Meta / Rerank / Moderation calls (restart / delete; a single-item entry shows its error message right on the card; regenerate has no item list, so no view). A card drops off once its work is cleared, on the next scan."),
             HelpCard("Report models", "A \"Report models\" card covers the report's own model responses (not a secondary batch): models that errored, or were left PENDING/RUNNING by an app-kill (shown as interrupted). With one broken model the card shows the model's name and taps straight to its Model response screen; with several it shows \"Report models\" and opens a list of them. You restart / remove a model from its Model response screen."),
         )
     ),
@@ -192,14 +193,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Setup",
         cards = listOf(
             HelpCard("Overview", "Top-level hub for AI configuration. Each card opens a sub-hub or list — counts on the right show how many entries you have so you can tell at a glance what is configured."),
-            HelpCard("Providers", "Per-provider API keys, state, default model, endpoints, pricing, and throttle/retry overrides. Count = number of registered providers (42 ship by default plus any you add)."),
-            HelpCard("Models", "Sub-hub: per-provider Models, Model Types (default API paths), and Manual model types overrides. Count = total models across active providers only."),
+            HelpCard("Providers", "Per-provider API keys, state, default model, endpoints, pricing, and throttle/retry overrides. Count = number of registered providers (91 ship by default plus any you add)."),
+            HelpCard("Models", "Sub-hub: Search models, per-provider Models, Base models, Model Types (default API paths), Manual model types overrides, Local models (when Experimental features is on), and the model-state lists. Count = total models across active providers only."),
             HelpCard("Workers", "Sub-hub for Agents, Flocks, Swarms. Disabled until at least one provider has an API key. Count = active agents + flocks + swarms."),
             HelpCard("Prompt management", "Sub-hub: System prompts, Internal prompts, Fan out/in prompts, Worker prompts, Alternative prompts, Compare prompts, and Example prompts. Count = reusable prompt entries."),
             HelpCard("Parameters", "Direct CRUD for parameter presets (temperature, max tokens, system prompt, web-search flags, reasoning effort)."),
-            HelpCard("Local models", "Sub-hub for on-device LLM and LiteRT embedder assets. These drive the synthetic Local provider, Local semantic search, and local-embedder Knowledge bases."),
             HelpCard("Costs", "Opens the manual cost-override list. Count = number of manual override entries currently saved."),
-            HelpCard("External Services", "HuggingFace, OpenRouter, Artificial Analysis API keys. Count = number of those keys that are non-blank."),
+            HelpCard("External Services", "HuggingFace, OpenRouter, Artificial Analysis, and llm-stats API keys. Count = number of those keys that are non-blank."),
+            HelpCard("Info providers", "Enable/disable the twelve external pricing & capability catalogs. Count = how many are currently enabled."),
+            HelpCard("App settings", "App-wide and report-model default System prompt / Parameters, used when nothing more specific is set."),
         )
     ),
     "agents" to HelpContent(
@@ -450,18 +452,19 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "external_services" to HelpContent(
         title = "Help - External Services",
         cards = listOf(
-            HelpCard("Overview", "API keys for three non-LLM auxiliary services consumed by the app. Each field auto-saves on every keystroke (no debounce here)."),
+            HelpCard("Overview", "API keys for four non-LLM auxiliary services consumed by the app. Each field autosaves 400 ms after you stop typing (and flushes immediately on back)."),
             HelpCard("HuggingFace", "Used by the Model Info lookup to pull model cards / context-length / license fields. Get a free token at huggingface.co/settings/tokens."),
             HelpCard("OpenRouter", "Used for pricing data and model specifications (capability flags, supported parameters). Same key flows into Refresh → OpenRouter."),
             HelpCard("Artificial Analysis", "Pricing snapshot plus quality / speed scores. Free tier — sign up at artificialanalysis.ai/api. Used by Refresh → Artificial Analysis."),
-            HelpCard("Tips", "Filling these unlocks the matching Refresh actions on the Refresh screen — without an OpenRouter key the OpenRouter button is disabled, same for Artificial Analysis."),
+            HelpCard("llm-stats", "Pricing + benchmark scores from api.llm-stats.com. Free — sign up at llm-stats.com and complete the Stats-API onboarding (the key 403s until that's done). Used by Refresh → llm-stats."),
+            HelpCard("Tips", "Filling these unlocks the matching Refresh actions on the Refresh screen — without a key the OpenRouter / Artificial Analysis / llm-stats buttons stay disabled."),
             HelpCard("Pitfalls", "These are NOT LLM provider keys — adding an OpenAI / Anthropic key here will not register the provider. Use Settings → AI Setup → Providers for that."),
         )
     ),
     "info_providers_setup" to HelpContent(
         title = "Help - Info providers",
         cards = listOf(
-            HelpCard("Overview", "Switch each of the 9 external catalogs (LiteLLM, models.dev, llm-prices, Artificial Analysis, llm-stats, OpenRouter, Requesty, Helicone, HuggingFace) on or off. Checked = the app may use it; default is all on. Each toggle saves immediately."),
+            HelpCard("Overview", "Switch each of the twelve external catalogs (LiteLLM, models.dev, llm-prices, Artificial Analysis, llm-stats, OpenRouter, Requesty, genai-prices, TrueFoundry, CloudPrice, Helicone, HuggingFace) on or off. Checked = the app may use it; default is all on. Each toggle saves immediately."),
             HelpCard("What 'off' means", "An unchecked source is not consulted ANYWHERE — pricing lookups, capability flags (vision / web-search / reasoning) and context/output-token limits all skip it, and it's skipped on Refresh (no network). On Model Info its Source button + Costs row disappear."),
             HelpCard("Why turn one off", "Drop a catalog you find inaccurate for your models so it stops winning the layered price lookup, or stop a source you don't want the app hitting over the network."),
             HelpCard("OpenRouter nuance", "Turning OpenRouter off disables its cross-provider price/capability catalog. It does NOT change pricing for calls you make THROUGH OpenRouter as your own provider (that's the provider billing its own call)."),
@@ -489,7 +492,12 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Helicone", "Pulls helicone.ai/api/llm-costs. Pricing-only fallback after LiteLLM and models.dev."),
             HelpCard("llm-prices.com", "Pulls Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers."),
             HelpCard("Artificial Analysis", "Pulls pricing + intelligence_index + output speed. Disabled until the Artificial Analysis key is set under External Services."),
-            HelpCard("Capability recompute", "LiteLLM and models.dev refreshes call aiSettings.recomputeAllCapabilities() so vision / web-search precomputed sets pick up the new catalog. Helicone is pricing-only — no recompute."),
+            HelpCard("Requesty", "Pulls the Requesty router catalog (router.requesty.ai/v1/models) — per-token pricing + capability flags. Keyless cross-provider fallback after OpenRouter."),
+            HelpCard("llm-stats", "Pulls api.llm-stats.com — per-provider pricing + benchmark scores. Disabled until the llm-stats key is set under External Services (and needs Stats-API onboarding on that account, or the call 403s)."),
+            HelpCard("genai-prices", "Pulls Pydantic's genai-prices catalog (raw.githubusercontent.com/pydantic/genai-prices) — curated $/M pricing + context windows. Keyless community fallback after Requesty."),
+            HelpCard("TrueFoundry", "Downloads the TrueFoundry model registry (github.com/truefoundry/models) — per-token pricing + capability flags. Keyless; pulls and unpacks the whole-repo archive, so this download is larger than the others."),
+            HelpCard("CloudPrice", "Pulls CloudPrice's catalog (ai.cloudprice.net) — capabilities + context windows only, no pricing. Keyless; feeds the vision / tool / reasoning capability flags."),
+            HelpCard("Capability recompute", "LiteLLM, models.dev, Requesty, llm-stats, TrueFoundry, and CloudPrice refreshes call aiSettings.recomputeAllCapabilities() so vision / web-search / reasoning precomputed sets pick up the new catalog. Helicone, llm-prices.com, Artificial Analysis, and genai-prices are pricing/benchmark-only — no recompute."),
             HelpCard("Tips", "Each card has its own ℹ️ button that deep-links to that catalog's per-provider help page (the same one you reach from Model Info → Source button).")
         )
     ),
@@ -534,13 +542,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "setup_models" to HelpContent(
         title = "Help - Models setup",
         cards = listOf(
-            HelpCard("Overview", "Sub-hub under AI Setup. First card: Search models (a cross-provider catalog browser). Then Models (per active provider), Model Types (default API path per type), Manual model types overrides, plus the model-state lists (cooldowns, blocked, test-excluded, inaccessible)."),
+            HelpCard("Overview", "Sub-hub under AI Setup. Search models (a cross-provider catalog browser), Providers / Models (per active provider), Base models (grouped by base name), Model Types (default API path per type), Manual model types overrides, Local Models (only shown when Experimental features is on), plus the four model-state lists (cooldowns, blocked, test-excluded, inaccessible)."),
             HelpCard("Search models", "Opens a full-catalog search that looks exactly like the +Model report picker — provider filter, search box, capability badges and live pricing — but tapping a row opens that model's Model Info page instead of selecting it. Disabled until at least one provider is active."),
-            HelpCard("Models", "Disabled until you have at least one active provider. Drills into the per-provider model lists. Count = total models across active providers."),
-            HelpCard("Model Types", "List of the 9 model kinds from ModelType.ALL with their default API paths. Count = number of types."),
+            HelpCard("Providers / Models", "Disabled until you have at least one active provider. Drills into the per-provider model lists. Count = total models across active providers."),
+            HelpCard("Base models", "Every model grouped by base name — version count and provider coverage in one row per base model. Count = number of distinct base models."),
+            HelpCard("Model Types", "List of the 10 model kinds from ModelType.ALL with their default API paths. Count = number of types."),
             HelpCard("Manual model types overrides", "CRUD for (provider, model, type, capabilities) overrides that win over autodetection. Count = number of overrides currently saved."),
+            HelpCard("Local Models", "Only shown when Experimental features is on. Sub-hub for on-device LLM and LiteRT embedder assets — drives the synthetic Local provider, Local semantic search, and local-embedder Knowledge bases."),
             HelpCard("Tips", "Resolution order at dispatch: per-provider Type paths (Provider edit → Definition · API) → Model Types defaults → ModelType.DEFAULT_PATHS hardcoded fallback."),
-            HelpCard("Pitfalls", "If no provider is active the Models card stays grey-blue and unclickable."),
+            HelpCard("Pitfalls", "If no provider is active the Providers / Models card stays grey-blue and unclickable."),
         )
     ),
     "setup_models_search" to HelpContent(
@@ -585,8 +595,8 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Housekeeping",
         cards = listOf(
             HelpCard("Overview", "Maintenance hub using the same icon-card layout as Monitor. Each card opens a full screen with its own help topic."),
-            HelpCard("Cards", "Backup & Restore, Export & Import, Update from cloud, Costs, Test, Trim by age, and Manage data. The list moves from safe/inspectable actions toward more destructive cleanup actions."),
-            HelpCard("Related maintenance", "Prompt-bundle editing lives under Settings -> AI Setup -> Prompt management. Manual pricing cleanup lives under Settings -> AI Setup -> Costs. Usage and spend inspection lives under Monitor."),
+            HelpCard("Cards", "Backup & Restore, Export & Import, Manage data, Trim by age, Update from cloud, Costs, Test, Prompt translations, and Caches. Costs and Test (and Trim by age, when there's nothing yet to trim) hide themselves on a fresh install with no active provider."),
+            HelpCard("Related maintenance", "Per-row prompt editing lives under Settings -> AI Setup -> Prompt management; Prompt translations here only generates/manages per-language variants of the internal prompts. Per-row pricing overrides live under Settings -> AI Setup -> Costs; the Costs card here is the bulk cleanup + layered-CSV maintenance. Usage and spend inspection lives under Monitor."),
             HelpCard("Tips", "Backup before any of the destructive actions under Manage data — Reset application, Clear runtime data, and Clear all configuration are not undoable."),
         )
     ),
@@ -665,7 +675,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Backup", "Green button. Default filename `ai-backup-<yyyymmdd>.zip`. Includes configuration, API keys, reports, chats, API traces, prompt cache."),
             HelpCard("Restore", "Blue button. Picker is restricted to .zip plus application/octet-stream (some providers report .zip with the latter mime). Confirmation dialog appears first. The restore is validate-then-write: the zip is parsed before any current file is touched."),
             HelpCard("Auto-restart", "On successful restore the app shows a toast, waits ~800ms, then relaunches itself with FLAG_ACTIVITY_NEW_TASK + CLEAR_TASK and kills the current process. The next launch reads the restored data fresh."),
-            HelpCard("Pitfalls", "A failed restore leaves the device in a partial state (validate-then-write reduces the window but cannot eliminate it)."),
+            HelpCard("Pitfalls", "A failed restore leaves the device in a partial state (validate-then-write reduces the window but cannot eliminate it). The zip deliberately excludes installed Local LLM (.task) and LiteRT embedder (.tflite) files — they can run multi-GB each — so restoring onto a fresh device still needs those re-downloaded separately under AI Setup → Local models."),
         )
     ),
     "trim_by_age" to HelpContent(
@@ -692,14 +702,14 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Add Example", "Top button opens the editor with a blank example."),
             HelpCard("Row tap", "Opens the editor — change title and body."),
             HelpCard("Row subtitle", "First non-blank line of the body, truncated."),
-            HelpCard("Empty state", "No examples yet — tap Add Example to create the first one. Load fresh examples from assets/examples.json via the Internal-prompts loader."),
+            HelpCard("Empty state", "No examples yet — tap Add Example to create the first one. The bundled starter set (assets/prompts/examples/) also merges in automatically the next time the app starts."),
         )
     ),
     "example_prompt_edit" to HelpContent(
         title = "Help - Example prompt (edit)",
         cards = listOf(
-            HelpCard("Overview", "Two-field CRUD: Title (required, also the de-dup key for Load new prompts) plus Text (free-form template body)."),
-            HelpCard("Title", "Required. Used as the case-insensitive de-dup key when Housekeeping → Prompts → Add new prompts from assets/examples.json runs — same title means the bundled row is skipped."),
+            HelpCard("Overview", "Two-field CRUD: Title (required, also the de-dup key for the automatic startup merge) plus Text (free-form template body)."),
+            HelpCard("Title", "Required. Used as the case-insensitive de-dup key when the bundled assets/prompts/examples/ set merges in on every app start — a title you already have is left untouched; only new titles get added."),
             HelpCard("Text", "Multi-line body, no enforced placeholder set. Free-form starter the user pastes into the New Report prompt field; the app does not substitute anything automatically."),
             HelpCard("Tips", "Example prompts are pure data, not bound to any app feature. Add as many as you like; reorder via Title since the list sorts alphabetically."),
         )
@@ -712,15 +722,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Providers / models / agents", "Refresh = per-provider key test → model-list fetch → default-agent rewrite (skips the external catalogs). Restore = opens the assets/*.json restore screen where \"back to assets/providers/\" reloads provider definitions. The Refresh button needs at least one keyed provider."),
             HelpCard("Info providers", "The one fully-paired subject. Refresh opens the eleven-catalog refresh page (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice); Clear drops their cached pricing tiers plus the OpenRouter model-specs cache (manual overrides + Together's native pricing survive)."),
             HelpCard("Runtime data / Configuration / Bundled assets", "Clear-only subjects. Runtime data wipes logs/chats/traces/reports/prompt-history/usage. Configuration wipes keys/agents/prompts/parameters. Bundled assets/*.json restores providers/prompts/examples/meta/workers from the shipped JSON."),
-            HelpCard("Pitfalls", "Each reset action still opens its own confirmation dialog on the next screen — nothing destructive happens straight from this hub. Reset application's confirmation is CASE-sensitive (literally \"RESET\"). The Providers \"Restore\" and Bundled-assets \"Restore\" open the same assets/*.json screen."),
+            HelpCard("Pitfalls", "Each reset action still opens its own confirmation dialog on the next screen — nothing destructive happens straight from this hub. Reset application's confirmation is a plain Reset / Cancel dialog, no type-to-confirm. The Providers \"Restore\" and Bundled-assets \"Restore\" open the same assets/*.json screen."),
         )
     ),
     "reset_runtime" to HelpContent(
         title = "Help - Clear runtime data",
         cards = listOf(
             HelpCard("Overview", "Wipes the activity + personal-history surface that accumulates while the app is in use. The wipe completes immediately after confirmation; a Toast reports the per-bucket counts."),
-            HelpCard("What it wipes", "Rolling app logs under <filesDir>/applog/, every chat session, every API trace file, every AI report (the report JSON + its cascaded SecondaryResult rows for rerank / summary / fan-out etc.), the prompt-history file, and the usage-statistics ledger."),
-            HelpCard("What it keeps", "The eleven Info-provider pricing caches and the per-provider model-list cache. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys, External Services keys) is fully preserved."),
+            HelpCard("What it wipes", "Rolling app logs under <filesDir>/applog/, every chat session, every API trace file, every AI report (the report JSON + its cascaded SecondaryResult rows for rerank / summary / fan-out etc.), per-report audit logs, the prompt-history file, the usage-statistics ledger, and the last \"Test all models\" run."),
+            HelpCard("What it keeps", "Knowledge bases, the local semantic-search embedding cache, the eleven Info-provider pricing caches, and the per-provider model-list cache. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys, External Services keys) is fully preserved."),
             HelpCard("When to use", "Privacy-driven cleanup — chats, traces, reports and prompt history contain copies of your prompts and the model responses. Also useful when you want to start a clean activity baseline without losing any setup."),
             HelpCard("Pitfalls", "Reports go through SecondaryResultStorage.deleteAllForReport on the way out, so all the fan-out / rerank / summary rows for each report disappear too. The wipe is destructive — Backup & Restore is the only undo path. The Application log viewer goes empty until the app writes new entries."),
         )
@@ -738,8 +748,8 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "reset_configuration" to HelpContent(
         title = "Help - Clear all configuration",
         cards = listOf(
-            HelpCard("Overview", "Wipes every piece of the app's configuration surface — keys, providers, workers, prompts — in one shot. Reports, chats, traces, and usage stats are preserved."),
-            HelpCard("What it wipes", "Every provider's API key, model list, endpoints; every agent, flock, swarm; every parameter preset; every system prompt, internal prompt, example prompt; HuggingFace / OpenRouter / Artificial Analysis keys; user name + default email."),
+            HelpCard("Overview", "Wipes every piece of the app's configuration surface — keys, providers, workers, prompts, and even installed on-device model files — in one shot. Reports, chats, traces, and usage stats are preserved."),
+            HelpCard("What it wipes", "Every provider's API key, model list, endpoints; every agent, flock, swarm; every parameter preset; every system prompt, internal prompt, example prompt; HuggingFace / OpenRouter / Artificial Analysis / llm-stats keys; user name + default email. Also deletes every installed Local LLM (.task) and LiteRT embedder (.tflite) file from disk — the confirm toast reports how many of each were removed."),
             HelpCard("What it keeps", "Reports, chats, traces, usage statistics, the eleven Info-provider pricing caches, the OpenRouter model-specs cache, and the per-provider model-list cache."),
             HelpCard("When to use", "Starting over with a fresh provider/agent setup while keeping your accumulated reports and chats. Less surgical than the asset-restore options; less destructive than Reset application."),
             HelpCard("Pitfalls", "There is no undo apart from Backup & Restore."),
@@ -750,9 +760,11 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Per-asset restore buttons — providers / internal-prompts / examples / system-prompts / meta.json / workers. Each drops every entry in the matching list and reloads it from the bundled JSON asset. Scoped: a providers restore doesn't touch prompts and vice versa."),
             HelpCard("back to assets/providers/", "Drops every provider definition currently in the registry (including any hand-edited fields) and reloads assets/providers/ verbatim. Per-provider API keys, model lists, and agents live outside the registry and survive."),
-            HelpCard("back to assets/internal-prompts/", "Drops every Internal prompt (including any you customized) and reloads the bundled assets/internal-prompts/ tree (one folder per category, a .json + .txt pair per prompt). Categories (meta / fan_out / fan_in / icons / info / intra / internal) all reset together."),
-            HelpCard("back to assets/prompts/examples/", "Drops every Example prompt (including any you authored) and reloads assets/prompts/examples/. Doesn't touch Internal or System prompts."),
-            HelpCard("back to assets/workers/", "Drops every Swarm and Flock (including any you authored and the default agents flock) and reloads the whole bundled assets/workers/ tree — swarms/ (Level 1-3 + the default 'workers' pool) and flocks/. Flock members are re-matched to your agents by name. Unlike the silent every-start merge, this is a full replace, so an edited bundled pool actually re-seeds. Agents/providers/prompts untouched; regenerate the default agents flock via Housekeeping → Refresh."),
+            HelpCard("back to assets/internal-prompts/", "Drops every Internal prompt (including any you customized) and reloads the bundled assets/internal-prompts/English/ tree (one folder per category, a .json + .txt pair per prompt). Categories (alt / fan_in / fan_out / internal / meta / meta_compare / workers) all reset together. Generated per-language translations (Housekeeping → Prompt translations) are untouched."),
+            HelpCard("back to assets/prompts/examples/", "Drops every Example prompt (including any you authored) and reloads the bundled assets/prompts/examples/ tree (one JSON file per prompt). Doesn't touch Internal or System prompts."),
+            HelpCard("back to assets/prompts/system/", "Drops every System prompt (including any you authored) and reloads the bundled assets/prompts/system/ tree (one JSON file per prompt). Doesn't touch Internal or Example prompts."),
+            HelpCard("back to assets/meta.json", "Drops every Default meta item (the meta prompts that auto-run when a report finishes, configured under Settings → Autostart) and reloads them from the bundled assets/meta.json."),
+            HelpCard("back to assets/workers/", "Drops every Swarm and Flock (including any you authored and the default agents flock) and reloads the whole bundled assets/workers/ tree — swarms/ (Level 1-3 + the default 'workers' pool) and flocks/. Flock members are re-matched to your agents by name. Unlike the silent every-start merge, this is a full replace, so an edited bundled pool actually re-seeds. Agents/providers/prompts untouched; regenerate the default agents flock via Housekeeping → Manage data."),
             HelpCard("When to use", "Quick rollback when an edit went wrong, or when you've forked the bundle and want to see what the bundled values currently look like compared to your custom set."),
             HelpCard("Pitfalls", "User-authored entries in the targeted list are wiped. Use Backup first if you have hand-built prompts you want back. Bundled-asset failures (missing file, parse error) leave the targeted list empty — the Toast reports failure."),
         )
@@ -760,9 +772,9 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "reset_application" to HelpContent(
         title = "Help - Reset application",
         cards = listOf(
-            HelpCard("Overview", "Factory-style reset. API keys (per-provider plus HuggingFace / OpenRouter / Artificial Analysis) are preserved; everything else is wiped; providers + internal prompts reload from assets."),
+            HelpCard("Overview", "Factory-style reset. API keys (per-provider plus HuggingFace / OpenRouter / Artificial Analysis / llm-stats) are preserved; everything else is wiped; providers + internal prompts reload from assets."),
             HelpCard("Confirmation gate", "A plain Reset / Cancel dialog gates the action — no type-to-confirm. Tap Reset to run."),
-            HelpCard("What survives", "API keys (per-provider + 3 external). That's it."),
+            HelpCard("What survives", "API keys (per-provider + 4 external). That's it."),
             HelpCard("What dies", "Agents, flocks, swarms, parameter presets, system prompts, custom-added providers, per-agent API key overrides, custom endpoints, all reports / chats / traces / prompt history / usage statistics, pricing and model-list caches."),
             HelpCard("After it runs", "A four-button banner appears at the top of the page: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys. Pick one — the in-memory state isn't fresh until you restart (directly or via one of the Refresh paths)."),
         )
@@ -947,12 +959,12 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Per-row Add Manual Override at the top, the list of currently configured overrides in the middle, and at the bottom two collapsed maintenance cards (Cleanup and Layered costs) lifted from the former Housekeeping → Manual cost overrides screen. The maintenance cards stay collapsed by default — the main task here is curating per-row overrides; cleanup and bulk CSV are occasional."),
             HelpCard("Add Manual Override", "Green button — opens AddManualOverrideScreen as a full-screen overlay. The single-row form."),
-            HelpCard("Cleanup (collapsed)", "Drops every manual override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it."),
+            HelpCard("Cleanup (collapsed)", "Drops every manual override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, OpenRouter, Requesty, genai-prices, or TrueFoundry), equal to the built-in default, or equal to what the lookup would return without it."),
             HelpCard("Layered costs (collapsed) · Export all", "CSV with one row per (provider, model) for every active provider. Two leading override columns are blank; remaining columns show every catalog tier's $/M-token price in run-time precedence order."),
             HelpCard("Layered costs · Export filtered", "Same shape but drops rows already covered by any catalog tier — surfaces only the (provider, model) pairs the user would actually need to override manually."),
             HelpCard("Layered costs · Import manual changed costs", "Reads the same CSV back. Only rows where the user filled in the two leading override columns are applied via PricingCache.setManualPricing. Blank rows are silently ignored."),
             HelpCard("Per-row card", "Provider name (blue), model id, current input/output prices in $/1M tokens. Two buttons in view mode: Remove (red) / Edit. Edit mode shows two input fields plus Cancel / Save."),
-            HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report → manual override → LiteLLM → models.dev → llm-prices → Artificial Analysis → OpenRouter cross-provider fallback → Helicone → DEFAULT."),
+            HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report (OpenRouter / Together, when that's the calling provider) → manual override → LiteLLM → models.dev → llm-prices → Artificial Analysis → llm-stats → OpenRouter cross-provider fallback → Requesty → genai-prices → TrueFoundry → Helicone → DEFAULT."),
             HelpCard("Tips", "Stored as $/token internally — the form takes $/1M tokens and divides by 1,000,000 on save (and multiplies by it on edit-load)."),
             HelpCard("Pitfalls", "Manual override comes AFTER the curated tiers — if LiteLLM has a price, your override may not actually win. Cleanup drops those redundant entries."),
         )

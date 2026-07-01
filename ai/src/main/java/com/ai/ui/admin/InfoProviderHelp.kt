@@ -4,11 +4,11 @@ internal val infoProviderHelp: Map<String, HelpContent> = mapOf(
     "info_provider_huggingface" to HelpContent(
         title = "Help - HuggingFace (info provider)",
         cards = listOf(
-            HelpCard("Overview", "Hugging Face Inc. runs the largest public registry of machine-learning models, datasets, and demo \"Spaces\". For this app it's a metadata source: we read its model-card API to pull license, context length, capability tags, and the README blurb that surfaces on Model Info."),
+            HelpCard("Overview", "Hugging Face Inc. runs the largest public registry of machine-learning models, datasets, and demo \"Spaces\". For this app it's a metadata source: we read its model-card API to pull author, pipeline/library tags, download and like counts, license, base model, and language — surfaced as the HuggingFace section on Model Info, plus the full raw JSON under Sources."),
             HelpCard("What we use it for", "Per-model lookups against `https://huggingface.co/api/models/{id}`. Surfaces in Model Info → Sources card under HuggingFace as the raw JSON the call returned. Not a pricing source — HF doesn't publish per-token costs."),
-            HelpCard("Endpoint", "`https://huggingface.co/api/models/{id}` (model card metadata). Anonymous calls are rate-limited; setting an HF token under External Services raises the limit and unlocks gated model metadata."),
-            HelpCard("Freshness", "Lookups are on-demand — each Model Info open re-hits HF for that one model. There's no scheduled refresh because the data is already model-scoped."),
-            HelpCard("Pitfalls", "Gated / private models return 401 without a token. Some \"models\" are duplicate aliases (e.g. fine-tuned forks) — the API returns whatever the user typed, not a canonical id. Long descriptions can balloon the response — we render the JSON tree truncated."),
+            HelpCard("Endpoint", "`https://huggingface.co/api/models/{id}` (model card metadata). An HF token under External Services is required — without one the app skips the lookup entirely (no anonymous fallback); with one it also unlocks gated model metadata."),
+            HelpCard("Freshness", "Lookups are on-demand and cached per (provider, model) for 7 days, including misses — reopening Model Info within that window reuses the cached result instead of re-hitting HF. There's no scheduled bulk refresh because the data is already model-scoped."),
+            HelpCard("Pitfalls", "No token set → the lookup is skipped silently and the HuggingFace section just doesn't appear, rather than erroring. Gated / private models still return 401 with a token until you accept the model's terms on the HF Hub. Some \"models\" are duplicate aliases (e.g. fine-tuned forks) with their own separate HF entries. Long descriptions can balloon the response — we render the JSON tree truncated."),
         )
     ),
     "info_provider_openrouter" to HelpContent(
@@ -16,8 +16,8 @@ internal val infoProviderHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "OpenRouter is an aggregator that proxies requests to dozens of upstream AI providers behind a single API. The app uses it in two roles: as an AI provider itself (chat / completion) AND as a metadata + pricing catalog spanning every model OpenRouter routes to."),
             HelpCard("What we use it for", "Two endpoints: a global catalog with prompt / completion prices, and a per-model specs lookup with capability fields (context, supports vision, supports tools, etc.). Both feed the layered pricing lookup and Model Info."),
-            HelpCard("Endpoint", "Catalog: `https://openrouter.ai/api/v1/models` (auth optional but recommended). Per-model: `https://openrouter.ai/api/v1/models/{id}/endpoints`. API key under External Services raises rate limits."),
-            HelpCard("Freshness", "Refreshed on demand from Refresh → OpenRouter (full catalog) or implicitly when Model Info opens (per-model specs). Catalog refresh disables when no API key is set."),
+            HelpCard("Endpoint", "`https://openrouter.ai/api/v1/models` — the same catalog call backs both the bulk pricing refresh and the per-model specs lookup (matched by id). An OpenRouter API key under External Services is required for both; there's no anonymous fallback."),
+            HelpCard("Freshness", "Refreshed on demand from Refresh → OpenRouter (full catalog), or implicitly when Model Info opens (per-model specs, held in an in-memory cache for 6 hours). Both are disabled when no API key is set."),
             HelpCard("Pitfalls", "OpenRouter quotes the upstream provider's price plus its own margin; numbers can drift from the provider's own published rates. Model ids are slash-prefixed (`anthropic/claude-3-5-sonnet`) — the catalog uses those, while LiteLLM uses bare ids."),
         )
     ),
@@ -54,7 +54,7 @@ internal val infoProviderHelp: Map<String, HelpContent> = mapOf(
     "info_provider_llm_prices" to HelpContent(
         title = "Help - llm-prices.com (info provider)",
         cards = listOf(
-            HelpCard("Overview", "llm-prices is Simon Willison's hand-curated tracker of frontier-model pricing across roughly 10 vendors (OpenAI, Anthropic, Google, xAI, Meta, Mistral, DeepSeek, …). Smaller scope than LiteLLM but updated quickly when prices change."),
+            HelpCard("Overview", "llm-prices is Simon Willison's hand-curated tracker of frontier-model pricing across 10 vendors (OpenAI, Anthropic, Google, xAI, Amazon, Mistral, DeepSeek, Qwen, MiniMax, Moonshot AI). Smaller scope than LiteLLM but updated quickly when prices change."),
             HelpCard("What we use it for", "Pricing fallback. Per-vendor JSON files in the simonw/llm-prices GitHub repo; one file per vendor, fetched on demand."),
             HelpCard("Endpoint", "`https://raw.githubusercontent.com/simonw/llm-prices/main/data/{vendor}.json` (no auth). Refreshed on demand from Refresh → llm-prices.com."),
             HelpCard("Freshness", "Hand-maintained, often updated within hours of a price announcement. Coverage is intentionally narrow — it's a curated hot-list of frontier models, not a complete catalog."),

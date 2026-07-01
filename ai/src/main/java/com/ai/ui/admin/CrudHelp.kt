@@ -13,9 +13,9 @@ package com.ai.ui.admin
  *  "and here's how the list / view / add / edit mechanics work". */
 private val crudHowItWorksCard = HelpCard(
     "Managing the list",
-    "This is a list screen. Tap 👁 to view an entry, 🔧 to manage it, and 🆕 to " +
-        "add a new one. Open an entry to read it, then ✏️ to edit or 🗑 to delete. " +
-        "See \"How CRUD screens work\" below for the full walkthrough."
+    "This is a list screen. Tap a row to open it, and 🆕 to add a new one. From " +
+        "there ✏️ edits, 👯 duplicates, and 🗑 deletes. See \"How CRUD screens work\" " +
+        "below for the full walkthrough."
 )
 
 private fun crud(title: String, vararg cards: HelpCard): HelpContent =
@@ -30,14 +30,17 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
                 "Several setup areas of the app are simple managed lists: a list of " +
                     "saved entries you can Create, Read, Update and Delete (\"CRUD\"). " +
                     "Agents, flocks, swarms, system prompts, model overrides and the " +
-                    "like all share the same four-screen pattern, so once you know one " +
+                    "like all share the same underlying pattern, so once you know one " +
                     "you know them all."
             ),
             HelpCard(
                 "The four screens",
                 "• List — every saved entry, one per row. 🆕 adds a new one.\n" +
-                    "• View — tap an entry (👁) to read all its fields. From here ✏️ " +
-                    "edits, 📄/copy duplicates it as a starting point, and 🗑 deletes it.\n" +
+                    "• View — tap an entry to read all its fields. From here ✏️ " +
+                    "edits, 👯 duplicates it as a starting point, and 🗑 deletes it. A " +
+                    "few CRUDs (Agents, Flocks, Swarms, System/Example/Internal prompts, " +
+                    "Default meta items) skip this step and open Edit directly on tap, " +
+                    "with the same 👯 / 🗑 living on the edit form's own bar.\n" +
                     "• Add — a blank form to create a new entry.\n" +
                     "• Edit — the same form pre-filled with an existing entry."
             ),
@@ -50,7 +53,7 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "crud_cost_overrides" to crud(
-        "Cost overrides",
+        "Manual cost overrides",
         HelpCard(
             "What this manages",
             "Your own per-model price corrections. When the app's built-in price " +
@@ -62,9 +65,11 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
         "Blocked models",
         HelpCard(
             "What this manages",
-            "Models you never want to use. A blocked model is hidden from the model " +
-                "pickers and skipped by bulk operations, with an optional note saying " +
-                "why you blocked it (too expensive, unreliable, deprecated, …)."
+            "Models you never want to use. A blocked model shows dimmed with a 🚫 " +
+                "caption in every picker — it's still pickable if you insist — and " +
+                "\"Test all models\" keeps it in sync automatically (a FAIL blocks it, " +
+                "a later PASS un-blocks it). Add one by hand too, with an optional " +
+                "reason (too expensive, unreliable, deprecated, …)."
         )
     ),
     "crud_model_cooldowns" to crud(
@@ -81,8 +86,10 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
         HelpCard(
             "What this manages",
             "Models the app tried but couldn't reach (wrong key, no access, removed). " +
-                "Keeping them listed here keeps the pickers clean; remove an entry to " +
-                "give the model another chance once you think it should work again."
+                "Keeping them listed here dims them with a 🔒 caption everywhere they'd " +
+                "otherwise show up, so you don't burn a call on one by accident; remove " +
+                "an entry to give the model another chance once you think it should " +
+                "work again."
         )
     ),
     "crud_default_meta_items" to crud(
@@ -96,7 +103,8 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
         HelpCard(
             "When they run",
             "Whenever a report's models all finish, one meta result is created for " +
-                "every row here — no need to start it by hand. A row is skipped if its " +
+                "every row here — no need to start it by hand. A row is skipped if it's " +
+                "switched off (the Active toggle keeps a row without running it), its " +
                 "meta prompt no longer exists, its target can't be resolved, or that " +
                 "report already has a result for that meta prompt."
         ),
@@ -112,9 +120,10 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
         "Manual model types",
         HelpCard(
             "What this manages",
-            "Your hand-set classification for a model — for example marking a model as " +
-                "a reasoning, vision or embedding model when auto-detection got it " +
-                "wrong. This steers where the model shows up and how it's used."
+            "Your hand-set classification for a model — its API type (chat, " +
+                "embedding, image, tts, …) plus the vision / web-search / reasoning " +
+                "capability flags, for when auto-detection got any of them wrong. " +
+                "This steers where the model shows up and how it's used."
         )
     ),
     "crud_test_excluded" to crud(
@@ -178,7 +187,8 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
             "What this manages",
             "An agent is a saved provider + model + its settings, given a name. Agents " +
                 "are the building block you pick when launching a report or chat, and " +
-                "they're what flocks and swarms are made of."
+                "they're what flocks are made of (a swarm instead picks provider + " +
+                "model pairs directly, with no saved agent involved)."
         )
     ),
     "crud_flocks" to crud(

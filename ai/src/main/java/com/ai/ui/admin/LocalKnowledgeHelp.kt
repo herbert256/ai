@@ -25,7 +25,7 @@ internal val localKnowledgeHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Installs on-device text embedders for Local semantic search and Knowledge bases that use the Local embedder. These are MediaPipe/LiteRT .tflite models with Tasks metadata."),
             HelpCard("Curated downloads", "Each download button installs a known-compatible embedder into app storage. Already-installed models show as installed and the download button is disabled."),
-            HelpCard("Add model from file", "Imports a .tflite from Android's file picker. Only models with the right MediaPipe Tasks metadata can load; a plain TensorFlow Lite model without that metadata may import but fail at runtime."),
+            HelpCard("Add model from file", "Imports a .tflite from Android's file picker. The app loads it as a MediaPipe text embedder before publishing it; a plain TensorFlow Lite model without the required Tasks metadata is rejected immediately instead of appearing as a broken installed model."),
             HelpCard("Installed list", "Installed models are listed by name with a Remove action. Removing releases the model if loaded and deletes the local .tflite file."),
             HelpCard("Where they appear", "Installed embedders show in Local semantic search and as Local options when creating a Knowledge base.")
         )
@@ -44,7 +44,7 @@ internal val localKnowledgeHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Local semantic search",
         cards = listOf(
             HelpCard("Overview", "Meaning-based search across saved reports using an installed on-device embedder. No cloud provider is called for the query or report embeddings."),
-            HelpCard("Model picker", "Choose one installed Local LiteRT embedder. If the list is empty, install one under Settings -> AI Setup -> Local models -> Local LiteRT models."),
+            HelpCard("Model picker", "Choose one installed Local LiteRT embedder. If the list is empty, install one under Settings -> AI Setup -> Models -> Local Models -> Local LiteRT models (Local Models only shows when Experimental features is on)."),
             HelpCard("Query", "Enter up to three lines. The whole query is embedded as one vector and compared with vectors built from each report's title, prompt, and the first non-blank model response."),
             HelpCard("Indexing and cache", "Existing report embeddings are reused when the report content hash, provider key, and model name match. New or edited reports are embedded and stored for the next run."),
             HelpCard("Results", "The top ten positive cosine matches are shown with title, timestamp, score, and the standard Manage/View action icons. Rows are sorted by score descending."),
@@ -107,8 +107,8 @@ internal val localKnowledgeHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Provider view",
         cards = listOf(
             HelpCard("Overview", "Read-only provider profile with endpoints, capabilities, default settings, and catalog status. It is meant for inspection without entering the full provider editor."),
-            HelpCard("Endpoints", "Endpoint rows show the API path choices the app can use for this provider, including generated or LiteLLM-derived endpoints when available."),
-            HelpCard("Capabilities", "Capability chips summarize whether the provider/model catalog supports chat, embeddings, vision, web search, reasoning, moderation, rerank, and related features."),
+            HelpCard("Endpoints", "Shows the provider's base URL, admin URL when set, and its list of named built-in endpoints. Endpoints materialized on the fly from a LiteLLM path pick while creating an Agent don't show here — see the Agent's own endpoint field for that."),
+            HelpCard("Capabilities", "Rows show provider-level flags: citations, search recency, native rerank, native moderation, whether cost is extracted from the API response, whether pricing comes from the /models list, and whether the provider exposes a cross-provider model catalog."),
             HelpCard("Editing", "Use the manage/edit action when you need to change API keys, state, defaults, endpoints, pricing, or throttle overrides.")
         )
     ),
@@ -116,9 +116,9 @@ internal val localKnowledgeHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Model Info view",
         cards = listOf(
             HelpCard("Overview", "Deep model profile combining local configuration, provider catalog data, external metadata, pricing, capability flags, usage, workers, and AI-generated introductions."),
-            HelpCard("Provider and raw sources", "The provider name opens Provider view. Source buttons open the raw metadata used for this model, such as provider catalog JSON, OpenRouter, models.dev, LiteLLM, Hugging Face, Helicone, llm-prices, or Artificial Analysis when present."),
-            HelpCard("Capabilities and costs", "Capability chips describe what the dispatcher believes the model can do. Cost cards use the layered pricing lookup and show whether values came from provider metadata, manual overrides, external catalogs, or defaults."),
-            HelpCard("Usage and workers", "Usage sections show where the model appears in reports/workers and how it has been used. Worker sections help explain why a model may be selected by automated icon, title, tournament, or metadata flows."),
+            HelpCard("Provider and raw sources", "The provider name in the hero card opens Provider view. The Sources card lists a row per info-provider catalog enabled under AI Setup — HuggingFace, OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, and CloudPrice. A row is faded and un-tappable when that catalog has no data for this model; otherwise tapping it opens the raw fields as a structured tree."),
+            HelpCard("Capabilities and costs", "The Capabilities card lists what the dispatcher believes the model can do — vision, web search, thinking/reasoning, PDF input, deprecation notices, and any default temperature or stop sequences. The Costs card walks the layered pricing lookup and shows every catalog that reports a price for this model, or notes when none does and the built-in default applies."),
+            HelpCard("Usage and workers", "Usage cards show call count, token totals, cost, and recent reports that used this model. The Workers card lists every saved Agent, Flock, or Swarm that references this exact provider/model pair, with a tap-through to that entity's read-only view."),
             HelpCard("AI introduction", "When available, the intro is generated from model metadata and cached. It is informational; it does not change dispatch behavior.")
         )
     )
