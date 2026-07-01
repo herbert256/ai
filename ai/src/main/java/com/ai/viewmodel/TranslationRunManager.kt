@@ -1745,14 +1745,30 @@ class TranslationRunManager(
                 coroutineContext[Job]?.let { registerRunJob(runId, it) }
             }
 
+            // Reuse an existing TRANSLATE row for the same (kind, target,
+            // language) triple instead of always minting a fresh UUID — an
+            // errored row (blank content reads as "missing" in the popup) or
+            // an already-DONE row would otherwise leave a duplicate: the new
+            // placeholder wins runTranslationSubset's last-writer rowByKindTarget
+            // map while the old row lingers in the run, keeping a phantom ❌
+            // (Broken-work never clears) or two translations of one item.
+            val existingByTriple = allSecondaries
+                .filter {
+                    it.kind == SecondaryKind.TRANSLATE &&
+                        it.targetLanguage == targetLanguageName
+                }
+                .associateBy { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
             // Persist placeholder TRANSLATE rows — same pattern as
             // addCrossTranslationItems. Map the (sourceKind, targetId)
             // back to the placeholder row id so runTranslationSubset's
             // rowByKindTarget lookup picks it up and saveOneTranslationItem
             // overwrites this row in place.
             val placeholderRows = items.map { item ->
+                val existing = existingByTriple[item.sourceKind + ":" + item.targetId]
                 SecondaryResult(
-                    id = java.util.UUID.randomUUID().toString(),
+                    // Reuse the existing row's id so this run overwrites it in
+                    // place — no duplicate, and its prior cost carries.
+                    id = existing?.id ?: java.util.UUID.randomUUID().toString(),
                     reportId = reportId,
                     kind = SecondaryKind.TRANSLATE,
                     providerId = "",
