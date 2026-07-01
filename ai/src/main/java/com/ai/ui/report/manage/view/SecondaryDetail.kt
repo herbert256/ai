@@ -264,28 +264,23 @@ internal fun SecondaryResultDetailScreen(
 
     // Build the same id → "provider / model" map the @RESULTS@ block
     // used (success-ordered, 1-based) so the viewer can show real model
-    // names instead of the bracketed [N] ids. Also build the parallel
-    // id → response body map — used by the per-row moderation detail
-    // screen to surface the exact text that was moderated.
-    val agentLabelsState = produceState(initialValue = emptyMap<Int, String>(), result.reportId) {
+    // names instead of the bracketed [N] ids, resolved through the row's
+    // run-time sourceAgentIds snapshot (current-set fallback for legacy
+    // rows) so agent removals can't shift the numbering. Also build the
+    // parallel id → response body map — used by the per-row moderation
+    // detail screen to surface the exact text that was moderated.
+    val effRow = resultFresh ?: result
+    val agentLabelsState = produceState(initialValue = emptyMap<Int, String>(), result.reportId, effRow.sourceAgentIds) {
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, result.reportId) ?: return@withContext emptyMap<Int, String>()
-            report.agents
-                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                .mapIndexed { idx, agent ->
-                    val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
-                    (idx + 1) to "$provDisplay / ${agent.model}"
-                }.toMap()
+            com.ai.data.sourceAgentLabels(report, effRow)
         }
     }
     val agentLabels = agentLabelsState.value
-    val agentResponsesState = produceState(initialValue = emptyMap<Int, String>(), result.reportId) {
+    val agentResponsesState = produceState(initialValue = emptyMap<Int, String>(), result.reportId, effRow.sourceAgentIds) {
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, result.reportId) ?: return@withContext emptyMap<Int, String>()
-            report.agents
-                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                .mapIndexed { idx, agent -> (idx + 1) to (agent.responseBody ?: "") }
-                .toMap()
+            com.ai.data.sourceAgentResponses(report, effRow)
         }
     }
     val agentResponses = agentResponsesState.value

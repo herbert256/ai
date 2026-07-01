@@ -183,7 +183,11 @@ class SecondaryRunManager(
                         }
                     if (responses.isEmpty()) return@withTracerTags
                     val agentName = "Local / ${shortModelName(modelName)}"
-                    val placeholder = SecondaryResultStorage.create(context, reportId, SecondaryKind.RERANK, "LOCAL", modelName, agentName)
+                    val placeholder = SecondaryResultStorage.create(context, reportId, SecondaryKind.RERANK, "LOCAL", modelName, agentName) {
+                        // Freeze the [N] numbering (same success order as
+                        // `responses` above) for the detail screen.
+                        it.copy(sourceAgentIds = com.ai.data.successOrderedAgentIds(report))
+                    }
                     ReportStorage.bumpReportTimestamp(context, reportId)
 
                     val started = System.currentTimeMillis()
@@ -295,7 +299,10 @@ class SecondaryRunManager(
                             metaPromptId = rerankPrompt.id,
                             metaPromptName = rerankPrompt.name,
                             secondaryParameterPresetIds = paramsIds,
-                            secondarySystemPromptId = systemPromptId
+                            secondarySystemPromptId = systemPromptId,
+                            // Freeze the [N] numbering the results block used —
+                            // the detail screen resolves through this snapshot.
+                            sourceAgentIds = com.ai.data.successOrderedAgentIds(report)
                         )
                     }
                     runSecondaryViaSwarm(
@@ -376,7 +383,10 @@ class SecondaryRunManager(
                             targetLanguage = sourceLanguage,
                             targetLanguageNative = native,
                             metaPromptId = moderationPrompt.id,
-                            metaPromptName = moderationPrompt.name
+                            metaPromptName = moderationPrompt.name,
+                            // Freeze the [N] numbering the moderation inputs
+                            // used — the detail screen resolves through this.
+                            sourceAgentIds = com.ai.data.successOrderedAgentIds(report)
                         )
                     }
                     runSecondaryViaSwarm(
@@ -974,11 +984,19 @@ class SecondaryRunManager(
                         count = successfulCount, title = report.title
                     )
                     val referenceLegend = if (metaPrompt.reference) buildReferenceLegend(report, includeIds) else null
+                    // The rebuilt results block re-numbers [N] by the CURRENT
+                    // success order — re-freeze the snapshot so the detail
+                    // screens resolve the re-issued content, not the agent
+                    // set of the original run.
+                    val refreshedPlaceholder = if (kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION) {
+                        placeholder.copy(sourceAgentIds = com.ai.data.successOrderedAgentIds(report))
+                            .also { SecondaryResultStorage.save(context, it) }
+                    } else placeholder
                     executeSecondaryTask(
                         context, reportId, kind, metaPrompt,
                         provider, model, resolvedPrompt, aiSettings, report,
                         lang, langNative, referenceLegend,
-                        existingPlaceholder = placeholder,
+                        existingPlaceholder = refreshedPlaceholder,
                         scopeEncoded = placeholder.secondaryScope
                     )
                 }

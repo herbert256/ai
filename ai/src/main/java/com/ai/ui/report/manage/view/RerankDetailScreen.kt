@@ -96,16 +96,14 @@ internal fun RerankDetailScreen(
     val displayContent = eff.content
 
     // id → "provider / model" map (success-ordered, 1-based) — the rerank table
-    // resolves each bracketed [N] back to a real model name through it.
-    val agentLabelsState = produceState(initialValue = emptyMap<Int, String>(), result.reportId) {
+    // resolves each bracketed [N] back to a real model name through the row's
+    // run-time sourceAgentIds snapshot (current-set fallback for legacy rows),
+    // so an agent removal / regenerate can't shift the labels onto the wrong
+    // models. Keyed on the snapshot so a reload's re-stamp re-resolves.
+    val agentLabelsState = produceState(initialValue = emptyMap<Int, String>(), result.reportId, eff.sourceAgentIds) {
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, result.reportId) ?: return@withContext emptyMap<Int, String>()
-            report.agents
-                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                .mapIndexed { idx, agent ->
-                    val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
-                    (idx + 1) to "$provDisplay / ${agent.model}"
-                }.toMap()
+            com.ai.data.sourceAgentLabels(report, eff)
         }
     }
     val agentLabels = agentLabelsState.value

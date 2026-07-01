@@ -1415,6 +1415,60 @@ fun buildResultsBlock(report: Report, includeIds: Set<Int>? = null): String {
     return sb.toString()
 }
 
+/** The success-ordered agentIds [buildResultsBlock] numbers 1-based —
+ *  stamped onto RERANK / MODERATION rows at run time (see
+ *  [SecondaryResult.sourceAgentIds]) so their detail screens keep
+ *  resolving [N] correctly after the report's agent set changes. */
+fun successOrderedAgentIds(report: Report): List<String> =
+    report.agents
+        .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+        .map { it.agentId }
+
+/** Resolve the 1-based [N] ids a rerank/moderation row's content
+ *  references back to "provider / model" labels. Prefers the row's
+ *  run-time [SecondaryResult.sourceAgentIds] snapshot — resolving
+ *  through the report's CURRENT success set silently mislabels every
+ *  row once an agent removal or a failed→success regenerate shifts
+ *  the numbering. Rows written before the snapshot existed fall back
+ *  to the current-set map (drift risk, but nothing better exists). */
+fun sourceAgentLabels(report: Report, row: SecondaryResult): Map<Int, String> {
+    val snapshot = row.sourceAgentIds
+    if (!snapshot.isNullOrEmpty()) {
+        val byId = report.agents.associateBy { it.agentId }
+        return snapshot.mapIndexed { idx, id ->
+            val agent = byId[id]
+            val label = if (agent != null) {
+                val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
+                "$provDisplay / ${agent.model}"
+            } else "(removed model)"
+            (idx + 1) to label
+        }.toMap()
+    }
+    return report.agents
+        .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+        .mapIndexed { idx, agent ->
+            val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
+            (idx + 1) to "$provDisplay / ${agent.model}"
+        }.toMap()
+}
+
+/** Companion to [sourceAgentLabels]: the same 1-based ids resolved to
+ *  the agents' response bodies (the exact text a moderation call ran
+ *  on). A removed agent's body is gone — empty string. */
+fun sourceAgentResponses(report: Report, row: SecondaryResult): Map<Int, String> {
+    val snapshot = row.sourceAgentIds
+    if (!snapshot.isNullOrEmpty()) {
+        val byId = report.agents.associateBy { it.agentId }
+        return snapshot.mapIndexed { idx, id ->
+            (idx + 1) to (byId[id]?.responseBody ?: "")
+        }.toMap()
+    }
+    return report.agents
+        .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+        .mapIndexed { idx, agent -> (idx + 1) to (agent.responseBody ?: "") }
+        .toMap()
+}
+
 /** Build the reference legend appended to a chat-type Meta-prompt
  *  result when its `reference` flag is true. Mirrors
  *  [buildResultsBlock]'s 1-based id assignment so each `[N]` in the

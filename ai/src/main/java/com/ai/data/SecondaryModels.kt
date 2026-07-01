@@ -117,6 +117,14 @@ data class SecondaryResult(
      *  before this field existed; cascade defaults to AllReports
      *  there, matching prior behaviour. */
     val secondaryScope: String? = null,
+    /** RERANK / MODERATION only: the success-ordered agentIds whose
+     *  1-based positions the row's stored content references as [N],
+     *  frozen at run time. The detail screens resolve [N] through this
+     *  snapshot — resolving through the report's CURRENT success set
+     *  mislabeled every row after an agent removal or a failed→success
+     *  regenerate shifted the numbering. Null on rows from other kinds
+     *  and on legacy rows (viewers fall back to the current-set map). */
+    val sourceAgentIds: List<String>? = null,
     /** Secondary-call parameter/system-prompt selections captured when
      *  this row was launched. Fan-out pair variation replays use them
      *  to preserve the original call shape; legacy rows fall back to
