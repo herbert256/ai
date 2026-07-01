@@ -211,6 +211,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { set.remove(job); if (set.isEmpty()) regenerateJobs.remove(reportId, set) }
     }
 
+    /** Single-agent regenerate ("Call model API again") jobs, keyed by
+     *  "$reportId|$agentId", so removeAgentInternal can cancel the specific
+     *  in-flight call when its agent is removed — otherwise it runs to a
+     *  (billed) completion whose write then no-ops onto the gone agent.
+     *  Mirrors the sweep/replay/icon per-agent cancellation. */
+    private val regenerateAgentJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private fun regenerateAgentKey(reportId: String, agentId: String) = "$reportId|$agentId"
+
     /** True while any primary work for [reportId] is live in THIS process —
      *  the initial generation ([activeGenerationReportId]), a single/all-agent
      *  regenerate ([regenerateJobs]), or a regenerate-batch run. After a
@@ -2723,6 +2731,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // the Broken-work recovery can join one agent's regenerate.
         return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             trackRegenerateJob(reportId, coroutineContext[Job]!!)
+            // Also register per-agent so removeAgentInternal can cancel THIS
+            // call specifically when its agent is removed mid-flight.
+            val agentJobKey = regenerateAgentKey(reportId, agentId)
+            regenerateAgentJobs[agentJobKey] = coroutineContext[Job]!!
+            coroutineContext[Job]!!.invokeOnCompletion {
+                regenerateAgentJobs.remove(agentJobKey, coroutineContext[Job])
+            }
             withTracerTags(reportId = reportId, category = "Report regenerate agent") {
             val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
             val ra = report.agents.find { it.agentId == agentId } ?: return@withTracerTags
@@ -2875,6 +2890,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         webSearchReplay.cancel(WebSearchReplayState.key(reportId, agentId))
         promptEditReplay.cancel(PromptEditReplayState.key(reportId, agentId))
         agentIconFanOutJobs.remove(agentIconJobKey(reportId, agentId))?.cancel()
+        // The sixth job family: a single-agent "Call model API again" in
+        // flight for this agent. f4682ae61 covered the other five; without
+        // this the regenerate ran to a billed completion whose write no-ops
+        // onto the now-gone agent.
+        regenerateAgentJobs.remove(regenerateAgentKey(reportId, agentId))?.cancel()
         run {
             val removedStatus = ReportStorage.getReport(context, reportId)
                 ?.agents
