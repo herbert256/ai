@@ -74,9 +74,13 @@ internal fun ReportSelectFromReportOverlay(
             val copied = report.agents.mapNotNull { ra ->
                 val savedAgent = aiSettings.getAgentById(ra.agentId)
                 if (savedAgent != null) expandAgentToModel(savedAgent, aiSettings)
-                else AppService.findById(ra.provider)?.let { prov ->
-                    toReportModel(prov, ra.model)
-                }
+                // Skip inactive providers on the deleted-agent fallback too —
+                // expandAgentToModel already drops them, so without this the
+                // two branches behaved oppositely for the same provider (a
+                // copied model that can't run gets added anyway).
+                else AppService.findById(ra.provider)
+                    ?.takeIf { aiSettings.isProviderActive(it) }
+                    ?.let { prov -> toReportModel(prov, ra.model) }
             }
             onCommit(copied)
             onClose()
