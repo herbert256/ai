@@ -145,15 +145,28 @@ internal val AppServiceSaver: Saver<AppService?, String> = Saver(
     restore = { s -> if (s.isBlank()) null else AppService.findById(s) }
 )
 
+/** Process-lifetime holder for the alt-translation source text, keyed by
+ *  "$reportId|$itemId". The [AltTranslateTargetSaver] stashes the (possibly
+ *  very large) model response HERE rather than in the saved-instance Bundle
+ *  — a several-hundred-KB response parceled into the Bundle could trip the
+ *  ~1 MB Binder limit and crash the app with TransactionTooLargeException on
+ *  background. This survives rotation (same process); a true process death
+ *  loses it (the flow then aborts gracefully on a null source). */
+private val altTranslateSourceCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
 /** Saver for the "Find alternative translation" target so the picker /
- *  candidate overlay survives rotation + process death. */
+ *  candidate overlay survives rotation. */
 internal val AltTranslateTargetSaver: Saver<AltTranslateTarget?, Any> = listSaver(
     save = { t ->
         if (t == null) emptyList()
-        else listOf(
-            t.reportId, t.runId, t.itemId, t.isTitleKind.toString(),
-            t.sourceText, t.traceType, t.targetLanguageName, t.persistedRowId ?: ""
-        )
+        else {
+            // Stash the big source text in the process cache, parcel only ids.
+            altTranslateSourceCache["${t.reportId}|${t.itemId}"] = t.sourceText
+            listOf(
+                t.reportId, t.runId, t.itemId, t.isTitleKind.toString(),
+                t.traceType, t.targetLanguageName, t.persistedRowId ?: ""
+            )
+        }
     },
     restore = { l ->
         if (l.isEmpty()) null
@@ -162,10 +175,11 @@ internal val AltTranslateTargetSaver: Saver<AltTranslateTarget?, Any> = listSave
             runId = l[1],
             itemId = l[2],
             isTitleKind = l[3].toBoolean(),
-            sourceText = l[4],
-            traceType = l[5],
-            targetLanguageName = l[6],
-            persistedRowId = l[7].takeIf { it.isNotEmpty() }
+            // Empty on a true process death (cache gone) — the flow aborts.
+            sourceText = altTranslateSourceCache["${l[0]}|${l[2]}"] ?: "",
+            traceType = l[4],
+            targetLanguageName = l[5],
+            persistedRowId = l[6].takeIf { it.isNotEmpty() }
         )
     }
 )
