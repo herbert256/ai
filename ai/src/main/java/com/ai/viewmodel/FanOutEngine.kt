@@ -1863,10 +1863,18 @@ class FanOutEngine internal constructor(
             }
             ReportStorage.removeFanOutIconCalls(context, run.reportId, pairIds)
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
+            // Reconstruct the responder subset from the run's own pairs when
+            // it wasn't persisted: run.responderIds is in-memory only and
+            // hydrate() nulls it, so a Rerun-complete after a report reopen
+            // (or any re-hydrate) fell back to ALL successful answerers and
+            // ballooned a hand-picked 3-of-12 run into the full 12×11 matrix.
+            // The distinct answerers of the existing pairs ARE that subset.
+            val responderIds = run.responderIds
+                ?: run.pairs.values.map { it.answererAgentId }.toSet().takeIf { it.isNotEmpty() }
             dropRun(runKey)
             // Re-fire through the engine's own launch path, reproducing the
             // original run's scope + responder set.
-            startRun(context, run.reportId, run.metaPrompt, run.scope, run.responderIds, run.sourceLanguage)
+            startRun(context, run.reportId, run.metaPrompt, run.scope, responderIds, run.sourceLanguage)
         }
 
     /** Drop every pair row in the run + the run itself. Combined-
