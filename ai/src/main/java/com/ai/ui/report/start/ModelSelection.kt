@@ -7,6 +7,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -56,8 +57,13 @@ fun ModelSelectionScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    var pickedParamsIds by remember { mutableStateOf<List<String>>(emptyList()) }
-    var pickedSystemPromptId by remember { mutableStateOf<String?>(null) }
+    // rememberSaveable: every selected-model row is modelInfoClickable, and
+    // tapping one pops out to Model Info (unmounting AI_REPORTS). The hoisted
+    // model list survives that hop via ReportModelListSaver; without saving
+    // these too the 🌡️/🎭 picks were silently reset to empty on return and
+    // the run fired with defaults. (List<String>/String? are bundle-savable.)
+    var pickedParamsIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    var pickedSystemPromptId by rememberSaveable { mutableStateOf<String?>(null) }
     var showSecParamsDialog by remember { mutableStateOf(false) }
     var showSecSystemPromptDialog by remember { mutableStateOf(false) }
     if (showSecParamsDialog) {
