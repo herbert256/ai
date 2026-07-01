@@ -18,7 +18,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -69,8 +71,13 @@ fun ReportInfoScreen(
     val context = LocalContext.current
 
     val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
+    // Distinguish "still loading" from "genuinely missing": null-initial +
+    // r == null rendered "Report not found." on the first frame(s), plainly
+    // visible on large image-attached reports parsed off the UI thread.
+    var reportLoaded by remember(reportId) { mutableStateOf(false) }
     val report by produceState<Report?>(initialValue = null, reportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+        reportLoaded = true
     }
     // Refresh the secondary summary + total-API-time when a secondary
     // completes / is deleted while the info screen stays open.
@@ -94,7 +101,10 @@ fun ReportInfoScreen(
 
         if (r == null) {
             Spacer(Modifier.height(24.dp))
-            Text("Report not found.", color = AppColors.TextTertiary, fontSize = 14.sp)
+            Text(
+                if (reportLoaded) "Report not found." else "Loading…",
+                color = AppColors.TextTertiary, fontSize = 14.sp
+            )
             return@Column
         }
 
