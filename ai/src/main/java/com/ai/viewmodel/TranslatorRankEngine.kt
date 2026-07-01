@@ -489,7 +489,13 @@ class TranslatorRankEngine internal constructor(
             val sourceRunId = anchor.translationRunId.orEmpty()
             val key = transRankRunKey(reportId, sourceRunId)
             val aggRow = group.firstOrNull { it.tournamentRole == TRANSRANK_ROLE_AGGREGATE }
-            val cells = group.mapNotNull { it.toTransRankCellState() }.associateBy { it.key }
+            // itemsFromGroup (not a raw disk map): preserves a live RUNNING
+            // status the disk placeholder can't show yet, so a mid-run
+            // hydrate (resume-scan preamble, remove-model cascade) doesn't
+            // flip in-flight cells back to PENDING in the L1 counters. The
+            // other three engines already merge this way.
+            @Suppress("UNCHECKED_CAST")
+            val cells = itemsFromGroup(key, group) as Map<String, TransRankCellState>
             // Keep the run visible even if the translate-rank prompt was deleted
             // or renamed since it ran: fall back to a synthetic prompt built from
             // the row metadata (blank text / no workers) so the run hydrates
@@ -501,14 +507,21 @@ class TranslatorRankEngine internal constructor(
                 category = "workers"
             )
             // Don't re-publish a run whose delete is mid-flight (rows still on disk).
-            _runs.update {
-                if (isDeleting(key)) it else it + (key to TransRankRunState(
-                    key = key, reportId = reportId, runId = anchor.tournamentJudgeRunId!!,
-                    sourceTranslationRunId = sourceRunId,
-                    targetLanguageName = anchor.targetLanguage ?: "",
-                    targetLanguageNative = anchor.targetLanguageNative ?: anchor.targetLanguage ?: "",
-                    prompt = prompt, cells = cells, aggregateRowId = aggRow?.id
-                ))
+            _runs.update { runs ->
+                if (isDeleting(key)) runs else {
+                    // Preserve a live run's run-only prompt (an overridePromptText
+                    // edit) across a mid-run hydrate — disk carries the settings
+                    // prompt, so rebuilding from it alone would drop the edit and
+                    // later cell reruns would mix edited and unedited prompt text.
+                    val effPrompt = runs[key]?.takeIf { it.runId == anchor.tournamentJudgeRunId }?.prompt ?: prompt
+                    runs + (key to TransRankRunState(
+                        key = key, reportId = reportId, runId = anchor.tournamentJudgeRunId!!,
+                        sourceTranslationRunId = sourceRunId,
+                        targetLanguageName = anchor.targetLanguage ?: "",
+                        targetLanguageNative = anchor.targetLanguageNative ?: anchor.targetLanguage ?: "",
+                        prompt = effPrompt, cells = cells, aggregateRowId = aggRow?.id
+                    ))
+                }
             }
         }
     }
