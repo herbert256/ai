@@ -1785,12 +1785,19 @@ class IconGenerationManager(
         context: Context,
         reportId: String,
         pairId: String,
-        title: String
+        title: String,
+        /** "provider/model" of the picked candidate. Pass it through so
+         *  titleModel reflects the chosen worker — the per-candidate
+         *  bumpFanOutTitleCost stamps titleModel with whichever candidate
+         *  completed last, which is only the picked one for a single-model
+         *  fan-out. */
+        model: String
     ) {
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             SecondaryResultStorage.setFanOutTitle(
                 context, reportId, pairId, title,
-                promptUsed = "model_title_alt"
+                promptUsed = "model_title_alt",
+                model = model
             )
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)

@@ -575,8 +575,8 @@ fun ReportsScreenNav(
             reportViewModel.iconGen.resolveAltPrompt(context, aiSettings, flow)
         },
         onStashAltEdit = { reportViewModel.iconGen.pendingAltEdit = it },
-        onPickPairTitle = { rid, pairId, title ->
-            reportViewModel.iconGen.pickPairTitleAlternative(context, rid, pairId, title)
+        onPickPairTitle = { rid, pairId, title, model ->
+            reportViewModel.iconGen.pickPairTitleAlternative(context, rid, pairId, title, model)
         },
         onRestartPairTitleFanOut = { rid, pairId ->
             reportViewModel.iconGen.restartPairTitleFanOut(rid, pairId)

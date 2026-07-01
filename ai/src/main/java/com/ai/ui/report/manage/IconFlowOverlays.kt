@@ -37,7 +37,7 @@ internal fun ReportIconFlowOverlays(
     onRestartPairIconFanOut: (reportId: String, pairId: String) -> Unit,
     pairTitleFanOutByPair: Map<String, List<TitleCandidate>>,
     onStartPairTitleFanOut: (reportId: String, pairId: String, models: List<ReportModel>) -> Unit,
-    onPickPairTitle: (reportId: String, pairId: String, title: String) -> Unit,
+    onPickPairTitle: (reportId: String, pairId: String, title: String, model: String) -> Unit,
     onRestartPairTitleFanOut: (reportId: String, pairId: String) -> Unit,
     onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean, paramsIds: List<String>, systemPromptId: String?) -> Unit,
     onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit,
@@ -272,7 +272,11 @@ internal fun ReportIconFlowOverlays(
             AlternativeTitlesScreen(
                 candidates = pairTitleFanOutByPair[pairTitleId].orEmpty(),
                 onPickTitle = { picked ->
-                    onPickPairTitle(currentReportId, pairTitleId, picked.title)
+                    // Pass the PICKED candidate's model so titleModel reflects
+                    // the worker the user chose — not whichever fan-out
+                    // candidate happened to complete (and stamp titleModel)
+                    // last.
+                    onPickPairTitle(currentReportId, pairTitleId, picked.title, "${picked.provider.id}/${picked.model}")
                     st.showAlternativeTitles.value = false
                     st.showFindIconsPicker.value = false
                     st.pairTitleDetailFor.value = null
