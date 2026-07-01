@@ -178,6 +178,19 @@ class CompareEngine internal constructor(
      *  Pre-creates agents×meta CELL placeholders (sentinel provider/model),
      *  publishes the run with all cells PENDING, then scores each cell through
      *  the worker batch. */
+    /** Delete the current run and immediately re-score over the same meta
+     *  items + prompt — on viewModelScope, NOT the caller's screen scope.
+     *  Redo used to run delete+start on the CompareScreen's
+     *  rememberCoroutineScope, so a Back press during the delete (the
+     *  interim "No compare run" screen invites it) cancelled the scope,
+     *  the join() threw, and startRun never fired — the run was gone with
+     *  nothing re-created. Mirrors Tournament/JudgeEval.rerunBatch. */
+    fun rerunBatch(context: Context, reportId: String, metaResultIds: List<String>, promptId: String): Job =
+        appViewModel.viewModelScope.launch {
+            deleteRun(context, reportId).join()
+            startRun(context, reportId, metaResultIds, promptId)
+        }
+
     fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null, overridePromptText: String? = null): Job? =
         launchRun(context, reportId, buildKey, TRACE_CATEGORY) { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings

@@ -285,11 +285,9 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
                 androidx.compose.material3.TextButton(onClick = {
                     confirmRedo = false
                     level = 1
-                    scope.launch {
-                        engine.deleteRun(context, reportId).join()
-                        // Re-launch over the same meta items + prompt.
-                        engine.startRun(context, reportId, run.metaResultIds, run.comparePrompt.id)
-                    }
+                    // On viewModelScope, not this screen's scope: a Back press
+                    // during the delete must not abort the re-score.
+                    engine.rerunBatch(context, reportId, run.metaResultIds, run.comparePrompt.id)
                 }) { Text("Redo") }
             },
             dismissButton = {
