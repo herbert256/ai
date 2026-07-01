@@ -610,7 +610,7 @@ class RegenerateBatchEngine internal constructor(
     }
 
 
-    private fun dispatchPhase(
+    private suspend fun dispatchPhase(
         context: Context, reportId: String,
         phase: RegeneratePhase, phaseTasks: List<RegenerateTask>
     ) {
@@ -638,7 +638,18 @@ class RegenerateBatchEngine internal constructor(
             RegeneratePhase.META, RegeneratePhase.FAN_IN -> {
                 val rows = SecondaryResultStorage.listForReport(context, reportId)
                     .filter { it.id in phaseTasks.map { t -> t.rowId }.toSet() }
-                rows.forEach { reportViewModel.secondary.resumeStaleMetaPlaceholder(context, reportId, it) }
+                // RERANK first, JOINED, before everything else: TopRanked-
+                // scoped metas resolve their agent subset from the rerank
+                // row's content at dispatch time — resetRowsForPhase just
+                // blanked it, so firing everything concurrently made
+                // extractTopRankedIds(null) fall back to AllReports and
+                // silently widen the meta's scope. Same ordering the
+                // pre-batch cascade documented ("RERANK first because
+                // chat-type META runs may consume it as Top-Ranked scope").
+                val (reranks, rest) = rows.partition { it.kind == SecondaryKind.RERANK }
+                reranks.mapNotNull { reportViewModel.secondary.resumeStaleMetaPlaceholder(context, reportId, it) }
+                    .forEach { it.join() }
+                rest.forEach { reportViewModel.secondary.resumeStaleMetaPlaceholder(context, reportId, it) }
             }
             RegeneratePhase.FAN_OUT -> {
                 // The engine re-dispatches every stale fan-out pair on the
