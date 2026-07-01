@@ -1818,7 +1818,11 @@ class FanOutEngine internal constructor(
         // batch screen while the dispatch below keeps running in the background.
         if (buildKey != null) appViewModel.finishBuild(buildKey)
         if (resets.isEmpty()) return
-        withTracerTags(reportId = run.reportId, category = cat) {
+        // Tag the rerun traffic with the run's id — without a runId,
+        // RunHttpStats.record no-ops, so the Fan-out stats screen and the L1
+        // 🐞 run-filtered trace list silently excluded every rerun call.
+        val runId = run.pairs.values.firstNotNullOfOrNull { it.runId ?: it.iconRunId ?: it.titleRunId }
+        withTracerTags(reportId = run.reportId, category = cat, runId = runId) {
             runThrottledBatch(
                 items = resets,
                 hostOf = { AppService.findById(it.pair.providerId)?.let { s -> providerHost(s) } },
