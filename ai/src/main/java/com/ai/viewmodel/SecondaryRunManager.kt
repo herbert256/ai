@@ -644,13 +644,22 @@ class SecondaryRunManager(
             // One-time pass first: a hard-killed batch leaves blank placeholder
             // cells whose run is no longer active. Mark them interrupted up front
             // so the very first scan flags them, instead of waiting out the
-            // stale-placeholder grace.
-            try {
-                finalizeAbandonedLeftovers(context)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                AppLog.w("BrokenScan", "startup finalize failed: ${e.javaClass.simpleName}: ${e.message}")
+            // stale-placeholder grace. ONLY on a genuine process cold start —
+            // on a mere Activity recreation (rotation) the batch coroutines
+            // survive on the app-scoped viewModelScope while the recreated
+            // ReportViewModel's engine registries are empty, so liveStateFor
+            // would see no in-flight work and this zero-grace pass would stamp
+            // a healthy live run's queued cells "Interrupted". The normal
+            // 60s-graced scan below still catches truly stuck rows.
+            if (!appViewModel.abandonedLeftoversFinalized) {
+                appViewModel.abandonedLeftoversFinalized = true
+                try {
+                    finalizeAbandonedLeftovers(context)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    AppLog.w("BrokenScan", "startup finalize failed: ${e.javaClass.simpleName}: ${e.message}")
+                }
             }
             while (kotlinx.coroutines.currentCoroutineContext()[Job]?.isActive == true) {
                 try {

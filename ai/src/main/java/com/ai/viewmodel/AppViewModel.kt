@@ -70,6 +70,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  re-fires the effect. */
     @Volatile var backgroundResumeSweepJob: Job? = null
 
+    /** True once the zero-grace startup finalize has run in THIS process.
+     *  AppViewModel survives Activity config changes (it's `viewModel()`-
+     *  scoped) but not process death — so a false value means a genuine
+     *  cold start (batch coroutines on viewModelScope are gone, blank
+     *  placeholders are truly abandoned), while true means a mere Activity
+     *  recreation where a live batch's coroutines survive but the recreated
+     *  ReportViewModel's engine registries are empty. Skipping the
+     *  zero-grace pass on recreation stops it stamping a healthy live run's
+     *  queued cells "Interrupted". */
+    @Volatile var abandonedLeftoversFinalized = false
+
     /** Reports with interrupted work the background scan has detected but
      *  deliberately NOT fixed. Drives the ⚠️ top-bar badge (non-empty →
      *  the right-side AI logo is replaced by a warning that opens the
