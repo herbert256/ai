@@ -1529,15 +1529,19 @@ class IconGenerationManager(
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            // Clear the pre-inserted ⏳ candidates if the target vanished (see
+            // startAgentIconFanOut).
             val pair = SecondaryResultStorage.listForReport(context, reportId)
-                .firstOrNull { it.id == pairId } ?: return@launch
+                .firstOrNull { it.id == pairId }
+                ?: run { appViewModel.updatePairIconFanOut(pairId) { emptyList() }; return@launch }
             // Fan-out pairs carry a source agent; Rerank / Moderation /
             // non-fan-out Meta rows don't. Keep going either way — the
             // @SOURCE_RESPONSE@ / @META_PROMPT@ tokens just resolve empty
             // for a sourceless row, so this same flow re-finds the icon
             // for ANY SecondaryResult (keyed on its row id).
             val sourceAgentId = pair.fanOutSourceAgentId
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val report = ReportStorage.getReport(context, reportId)
+                ?: run { appViewModel.updatePairIconFanOut(pairId) { emptyList() }; return@launch }
             val sourceAgent = sourceAgentId?.let { sid -> report.agents.firstOrNull { it.agentId == sid } }
             val metaPrompt = pair.metaPromptId?.let { mid ->
                 aiSettings.internalPrompts.firstOrNull { it.id == mid }
@@ -1708,8 +1712,11 @@ class IconGenerationManager(
             unique.map { TitleCandidate.Running(it.provider, it.model) }
         }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            // Clear the pre-inserted ⏳ candidates if the target vanished (see
+            // startAgentIconFanOut).
             val pair = SecondaryResultStorage.listForReport(context, reportId)
-                .firstOrNull { it.id == pairId } ?: return@launch
+                .firstOrNull { it.id == pairId }
+                ?: run { appViewModel.updatePairTitleFanOut(pairId) { emptyList() }; return@launch }
             val resolved = altEdit?.edited ?: altPrompt.text.replace("@RESPONSE@", pair.content.orEmpty())
             unique.forEach { item ->
                 launch {
@@ -2288,8 +2295,12 @@ class IconGenerationManager(
         val altEdit = consumeAltEdit()
         appViewModel.updateAgentTitleFanOut(agentId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
-            val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
+            // Clear the pre-inserted ⏳ candidates if the target vanished (see
+            // startAgentIconFanOut).
+            val report = ReportStorage.getReport(context, reportId)
+                ?: run { appViewModel.updateAgentTitleFanOut(agentId) { emptyList() }; return@launch }
+            val ra = report.agents.firstOrNull { it.agentId == agentId }
+                ?: run { appViewModel.updateAgentTitleFanOut(agentId) { emptyList() }; return@launch }
             val resolved = altEdit?.edited ?: altPrompt.text.replace("@RESPONSE@", ra.responseBody.orEmpty())
             unique.forEach { item ->
                 launch { runTitleCandidate(context, reportId, agentId, item, resolved, "alt/model_title", aiSettings, paramsIds, systemPromptId, altPrompt) }
@@ -2566,8 +2577,13 @@ class IconGenerationManager(
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
-            val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
+            // Clear the pre-inserted ⏳ candidates if the target vanished
+            // between opening the picker and this dispatch — otherwise the
+            // Running rows spin forever and hasActiveFanOut pins the button.
+            val report = ReportStorage.getReport(context, reportId)
+                ?: run { appViewModel.updateAgentIconFanOut(agentId) { emptyList() }; return@launch }
+            val ra = report.agents.firstOrNull { it.agentId == agentId }
+                ?: run { appViewModel.updateAgentIconFanOut(agentId) { emptyList() }; return@launch }
             val reportPrompt = report.prompt
             val agentResponse = ra.responseBody.orEmpty()
             val resolved = altEdit?.edited ?: altPrompt.text
