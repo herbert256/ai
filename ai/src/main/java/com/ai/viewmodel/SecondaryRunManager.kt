@@ -905,7 +905,14 @@ class SecondaryRunManager(
                     // robin the pick advances the shared per-report cursor
                     // so resumed rows honour the rotation share too.
                     val freshWorker = if (kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION) {
-                        val candidates = resolveBatchSwarm(report, metaPrompt.workers, null)
+                        // alwaysPromptWorkers, like the runRerank/runModeration
+                        // launch sites: these kinds opt out of the report's
+                        // Worker-batches choice. Without it, REPORT_MODELS mode
+                        // resolved a resumed Moderation onto a report answer
+                        // model — a chat model receiving a /v1/moderations
+                        // call → guaranteed provider error, pausing the
+                        // regenerate batch; Rerank lost its dedicated chain.
+                        val candidates = resolveBatchSwarm(report, metaPrompt.workers, null, alwaysPromptWorkers = true)
                             .flatMap { aiSettings.expandWorker(it) }
                             .mapNotNull { w ->
                                 aiSettings.resolveWorker(w)?.let { a -> a.provider to aiSettings.getEffectiveModelForAgent(a) }
