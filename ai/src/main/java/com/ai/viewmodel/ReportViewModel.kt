@@ -783,8 +783,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         // Rerank now runs through its worker swarm (chat-JSON, with a
         // native rerank member auto-routed), so it no longer needs a
-        // rerank-capable model selected up front.
-        if (!hasKind(SecondaryKind.RERANK)) secondary.runRerank(context, reportId)
+        // rerank-capable model selected up front. A rerank ORDERS answers, so
+        // it's only meaningful with ≥2 — auto-creating it on a 1-answer report
+        // (common: single-model reports) wasted a worker call ranking a lone
+        // item and left a junk row. Moderation is fine at 1, so it keeps the
+        // <1 gate above.
+        if (successCount >= 2 && !hasKind(SecondaryKind.RERANK)) secondary.runRerank(context, reportId)
         // Moderation still needs a native moderation model (only Mistral
         // is wired), so gate on one being active to avoid an error row.
         val hasModModel = firstModelOfType(aiSettings, ModelType.MODERATION) != null
