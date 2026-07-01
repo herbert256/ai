@@ -657,7 +657,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         }
         val inCents = inDollars * 100
         val outCents = outDollars * 100
-        CostRow("report/prompt", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents, agent.traceFile)
+        CostRow("report/prompt", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.billedInputTokens, tu.billedOutputTokens, inCents, outCents, agent.traceFile)
     }
     // Find-alternative-icons fan-out cost subtraction. Every alt
     // call is recorded as its own IconCallRecord with `type` set to
@@ -920,8 +920,10 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         // alt call's tokens into s.tokenUsage, and the per-call alt row
         // below re-adds them, so strip the alt portion here too.
         val srAltTok = altTokensBySecondary[s.id]
-        val inTokens = (tu.inputTokens - (srAltTok?.first ?: 0)).coerceAtLeast(0)
-        val outTokens = (tu.outputTokens - (srAltTok?.second ?: 0)).coerceAtLeast(0)
+        // Billed totals (uncached+cached+cache-creation / output+reasoning) so
+        // the token columns match the cents, which price every class.
+        val inTokens = (tu.billedInputTokens - (srAltTok?.first ?: 0)).coerceAtLeast(0)
+        val outTokens = (tu.billedOutputTokens - (srAltTok?.second ?: 0)).coerceAtLeast(0)
         // Cost-table "Type" column: prefer the user-given Meta prompt
         // name so a "Compare" row reads "compare", a "Critique" row
         // reads "critique", etc. Rerank / moderation / translate keep

@@ -41,6 +41,13 @@ data class TokenUsage(
     val reasoningTokens: Int = 0
 ) {
     val totalTokens: Int get() = inputTokens + outputTokens + cachedInputTokens + cacheCreationTokens + reasoningTokens
+    /** All input-side tokens the call is BILLED on: uncached + cached +
+     *  cache-creation. [inputTokens] alone is the uncached portion, so a cost
+     *  table showing only it understates the token count (the cents already
+     *  price every class). */
+    val billedInputTokens: Int get() = inputTokens + cachedInputTokens + cacheCreationTokens
+    /** All output-side billed tokens: visible output + hidden reasoning. */
+    val billedOutputTokens: Int get() = outputTokens + reasoningTokens
 }
 
 /**

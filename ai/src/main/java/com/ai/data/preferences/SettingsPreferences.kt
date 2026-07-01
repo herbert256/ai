@@ -664,8 +664,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         if (!usageStatsEnabled) return
         // Feed the Live Dashboard's rolling spend/token rate (in-memory, 5-min
         // window) — this is the single chokepoint every token site funnels through.
-        val inputTokens = usage.inputTokens
-        val outputTokens = usage.outputTokens
+        // Billed totals (uncached+cached+cache-creation / output+reasoning) so
+        // the persisted ledger's token counts match what the cost prices —
+        // storing only the uncached inputTokens understated them.
+        val inputTokens = usage.billedInputTokens
+        val outputTokens = usage.billedOutputTokens
         com.ai.data.ApiUsageRates.record(provider, model, inputTokens, outputTokens)
         val normalizedKind = normalizeUsageKind(kind)
         val category = if (normalizedKind == "report") {

@@ -2032,8 +2032,9 @@ object ReportStorage {
             provider = provider.id,
             model = model,
             pricingTier = if (provider.reportsApiCost() || usage.apiCost != null) "API_REPORTED" else pricing.source,
-            inputTokens = usage.inputTokens,
-            outputTokens = usage.outputTokens,
+            // Billed totals so the ledger's token counts match the priced cost.
+            inputTokens = usage.billedInputTokens,
+            outputTokens = usage.billedOutputTokens,
             inputCost = inputCost,
             outputCost = outputCost,
             traceFile = info.filename
