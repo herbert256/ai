@@ -172,7 +172,13 @@ fun parseSimilarityScore(content: String?): CompareScore? {
         }
     }
 
-    // Last resort: the first number anywhere in the reply.
+    // Last resort: a number written as a PERCENTAGE (…%) anywhere in the
+    // reply — far more likely to be the score than a bare first number, which
+    // could be a year ("2020 baseline"), a model digit ("GPT-4"), or a list
+    // index. Only if there's no %-number do we fall back to the first number.
+    Regex("""(\d+(?:\.\d+)?)\s*%""").find(cleaned)?.let { mr ->
+        mr.groupValues[1].toDoubleOrNull()?.let { return CompareScore(it.toInt().coerceIn(0, 100), reason) }
+    }
     parsePercentNumber(cleaned)?.let { return CompareScore(it, reason) }
     return null
 }
