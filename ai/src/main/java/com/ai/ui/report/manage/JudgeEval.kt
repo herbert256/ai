@@ -177,21 +177,14 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     var showAddJudge by rememberSaveable { mutableStateOf(false) }
     // Set when the user taps ✏️ to edit the swarm; checked on the way back
     // (the overlay is disposed on nav-out and recomposed on nav-in) to offer a
-    // rerun if the swarm's judges no longer match this batch's judges.
-    var awaitingEditReturn by rememberSaveable { mutableStateOf(false) }
-    var confirmRerun by rememberSaveable { mutableStateOf(false) }
     var confirmRedo by rememberSaveable { mutableStateOf(false) }
     var l1Mode by rememberSaveable { mutableStateOf(JudgeEvalL1Mode.JUDGES) }
-    LaunchedEffect(Unit) {
-        if (awaitingEditReturn) {
-            awaitingEditReturn = false
-            val active = engine.activeJudgeKeys()
-            val batch = engine.runByKey(reportId)?.cells?.values?.map { it.judgeKey }?.toSet()
-            if (active != null && batch != null && batch.isNotEmpty() && active != batch) {
-                confirmRerun = true
-            }
-        }
-    }
+    // NOTE: no "swarm changed → rerun?" offer. Judge-the-judges derives its
+    // judge panel from the Tournament's actual MATCH rows, not the
+    // configurable swarm (startRun ignores overrideWorkers/swarm), so a
+    // rerun always uses the SAME judges — the old offer fired spuriously
+    // whenever the swarm-resolved set differed from the tournament set
+    // (normal under REPORT_MODELS) and re-billed the batch for no change.
     // Debounce navigation: a single tap whose target navigates away can have
     // its release land on the freshly-composed destination's clickable at the
     // same spot (the L1 match row → by-match list "tap-through"). Ignore any
@@ -271,8 +264,10 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
             onAddJudge = { showAddJudge = true },
             onDeleteJudge = { confirmDeleteJudge = it },
             onEditSwarm = {
+                // Swarm edits affect FUTURE tournaments only — this batch's
+                // judges are fixed to the tournament that ran. No rerun offer
+                // on return (see the note at the top of this composable).
                 engine.activeSwarmId()?.let {
-                    awaitingEditReturn = true
                     navigateToRoute(com.ai.ui.navigation.NavRoutes.settingsSwarmEdit(it))
                 }
             },
@@ -326,25 +321,6 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
         )
     }
 
-    if (confirmRerun) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { confirmRerun = false },
-            title = { Text("Rerun the batch?") },
-            text = {
-                Text("The judge swarm changed and no longer matches this batch's judges. Rerun the batch with the current swarm? The existing run is replaced.")
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    confirmRerun = false
-                    level = 1
-                    engine.rerunBatch(context, reportId)
-                }) { Text("Rerun") }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { confirmRerun = false }) { Text("Keep") }
-            }
-        )
-    }
 }
 
 // ---------- L1 ----------
