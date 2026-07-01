@@ -77,17 +77,6 @@ internal fun MetaDetailScreen(
     val metaEditManager = com.ai.ui.shared.LocalMetaEditManager.current
     val aiSettings = com.ai.ui.shared.LocalAiSettings.current
 
-    // Find the trace file for this meta call: same report, same model,
-    // timestamp closest to the result. May be null when tracing was off.
-    val traceFilenameState = produceState<String?>(initialValue = null, result.id) {
-        value = withContext(Dispatchers.IO) {
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == result.reportId && it.model == result.model }
-                .minByOrNull { kotlin.math.abs(it.timestamp - result.timestamp) }?.filename
-        }
-    }
-    val baseTraceFilename = traceFilenameState.value
-
     // TRANSLATE secondaries → the language icon picker for this META row.
     val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), result.reportId) {
         value = withContext(Dispatchers.IO) {
@@ -116,6 +105,19 @@ internal fun MetaDetailScreen(
     val eff = resultFresh ?: result
     val providerService = AppService.findById(eff.providerId)
     val provider = providerService?.id ?: eff.providerId
+
+    // Find the trace file for this meta call: same report, closest timestamp,
+    // matching the FRESH model (eff) and re-keyed on secDataVersion so 🐞
+    // follows a "Switch model / agent" — keying on the stale result.model kept
+    // opening the pre-switch model's trace. May be null when tracing was off.
+    val traceFilenameState = produceState<String?>(initialValue = null, result.id, secDataVersion, eff.model) {
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == result.reportId && it.model == eff.model }
+                .minByOrNull { kotlin.math.abs(it.timestamp - eff.timestamp) }?.filename
+        }
+    }
+    val baseTraceFilename = traceFilenameState.value
 
     val langTabs = remember(translates, result.id, result.targetLanguage, reportLanguageName) {
         val mineTranslates = translates.filter {

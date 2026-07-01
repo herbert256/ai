@@ -63,17 +63,6 @@ internal fun RerankDetailScreen(
         ?: com.ai.data.legacyKindDisplayName(result.kind)
     var confirmDelete by remember { mutableStateOf(false) }
 
-    // Trace file for this rerank call: same report + model, timestamp closest
-    // to the row. Null when tracing was off at call time.
-    val traceFilenameState = produceState<String?>(initialValue = null, result.id) {
-        value = withContext(Dispatchers.IO) {
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == result.reportId && it.model == result.model }
-                .minByOrNull { kotlin.math.abs(it.timestamp - result.timestamp) }?.filename
-        }
-    }
-    val traceFilename = traceFilenameState.value
-
     val parentReportState = produceState<com.ai.data.Report?>(initialValue = null, result.reportId) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, result.reportId) }
     }
@@ -93,6 +82,19 @@ internal fun RerankDetailScreen(
     val eff = resultFresh ?: result
     val providerService = AppService.findById(eff.providerId)
     val provider = providerService?.id ?: eff.providerId
+
+    // Trace file for this rerank call: same report + model, timestamp closest
+    // to the row. Resolved from the FRESH row (eff) and re-keyed on
+    // secDataVersion so 🐞 follows a model switch — keying on result.model
+    // kept opening the pre-switch model's trace. Null when tracing was off.
+    val traceFilenameState = produceState<String?>(initialValue = null, result.id, secDataVersion, eff.model) {
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == result.reportId && it.model == eff.model }
+                .minByOrNull { kotlin.math.abs(it.timestamp - eff.timestamp) }?.filename
+        }
+    }
+    val traceFilename = traceFilenameState.value
     val displayContent = eff.content
 
     // id → "provider / model" map (success-ordered, 1-based) — the rerank table
