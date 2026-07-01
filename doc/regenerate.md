@@ -19,32 +19,34 @@ This doc owns the **orchestration**. The icon-generation content
 ## Get info
 
 The Manage hub collapses the separate metadata-generation jobs
-into one **info** row (built in `GenerationPhase.kt`, ~line 791 —
-`RowTypeCell("info")` with an `onGetInfo()` click). The info row is
+into one **info** row (`InfoSummaryRow` in `SummaryRows.kt:80` —
+renders `RowTypeCell("info")`; called from `GenerationPhase.kt:806`
+with `onClick = onGetInfo`). The info row is
 **always the first row** on Manage — it sits above the Regenerate
 batch row, which sits above the **second** results row (the three
 summary rows render in the order `info → regenerate → second`).
-Tapping it opens `ReportGetInfoScreen` (`GetInfo.kt:357`, launched
-from `Run.kt:705`), help topic `report_get_info`. The screen is a
+Tapping it opens `ReportGetInfoScreen` (`GetInfo.kt:360`, launched
+from `Run.kt:856`), help topic `report_get_info`. The screen is a
 layer over the Manage hub — `publishBottomBar = false`, so Manage
 keeps publishing its own bottom bar and the screen total surfaces
 there.
 
 **Title-tap cycle.** Get-info is one of three report screens the
-title bar cycles through (`cycleReportScreens`, `Run.kt:151`):
-**Manage → Get-info → second-results → Manage**, with the
-second-results step skipped when the report has no secondary
-results (`secondEnabled || secondTotal > 0.0`). The screen passes
-`onCycleNext = cycleReportScreens` with `forceTitleClick = true`,
-so a title tap advances rather than peeling back (Back / the report
-icon still peel one layer to Manage). The **second results** row /
-screen (`SecondResults.kt`, `ReportSecondResultsScreen`) is the
-secondary-result analogue of Get-info — it collapses every
-secondary-result row (rerank / meta / moderation / translate /
-fan-out / tournament / judges / compare / rank) into one board.
-See [secondary-results.md](secondary-results.md).
+title bar cycles through (`cycleReportScreens`, `Run.kt:164`):
+**Manage → Get-info → second-results → Manage**, unconditionally —
+the second-results row/step used to be skipped when the report had
+no secondary results, but is now always shown (so the
+second-results screen stays one tap away even before anything has
+run). The screen passes `onCycleNext = cycleReportScreens` with
+`forceTitleClick = true`, so a title tap advances rather than
+peeling back (Back / the report icon still peel one layer to
+Manage). The **second results** row / screen (`SecondResults.kt`,
+`ReportSecondResultsScreen`) is the secondary-result analogue of
+Get-info — it collapses every secondary-result row (rerank / meta /
+moderation / translate / fan-out / tournament / judges / compare /
+rank) into one board. See [secondary-results.md](secondary-results.md).
 
-`buildInfoJobs` (`GetInfo.kt:88`) is the single source of truth
+`buildInfoJobs` (`GetInfo.kt:89`) is the single source of truth
 for the rows — used by both the Info screen *and* the Manage info
 row, so the two never disagree. It's a pure function of the report
 plus the relevant gates. Only **enabled** jobs are emitted, and the
@@ -74,7 +76,7 @@ left spinning *Queued…* forever. This covers legacy reports and
 copies/fan-out-derived reports whose metadata was inherited rather
 than generated.
 
-`InfoJobState` (`GetInfo.kt:35`) has five values — `CLOCK` (⏰
+`InfoJobState` (`GetInfo.kt:36`) has five values — `CLOCK` (⏰
 queued), `RUNNING` (animated hourglass), `FAILED` (❌), `EMPTY` (⊘
 terminal-no-result, grey) and `DONE` (the generated icon, else ✅).
 
@@ -87,7 +89,7 @@ prompt-name — but `icon` / `modelTitle` left null, e.g. an
 empty/unparseable model reply) is terminal — model-title settles to
 `EMPTY` ("· no title"), model-icon to `DONE` — via
 `ReportAgent.modelIconAttempted()` / `modelTitleAttempted()`
-(`GetInfo.kt:63`, `:71`), so the Manage **info** row doesn't keep
+(`GetInfo.kt:64`, `:72`), so the Manage **info** row doesn't keep
 the animated hourglass spinning forever. (Per-model analogue of the
 report-level `iconNeverRan` guard.)
 
@@ -98,20 +100,20 @@ icon/title toggled on after generation — would previously fall to
 the `else -> RUNNING` branch and spin the hourglass forever.
 `titleStateFor` / the icon-state `when` now short-circuit on
 `completedAt != null` to terminal (`EMPTY` for title, `DONE` for
-icon) *before* that fallback (`GetInfo.kt:267`, `:311`). During
+icon) *before* that fallback (`GetInfo.kt:268`, `:312`). During
 live generation `completedAt` is null, so a freshly-succeeded model
 still correctly shows `RUNNING` while its enrichment call is in
 flight. The report-level analogue is `reportPending`
-(`GetInfo.kt:109`): a report-level `CLOCK` keeps the aggregate
+(`GetInfo.kt:110`): a report-level `CLOCK` keeps the aggregate
 spinning only while `completedAt == null`; once the report is
 finished an unstarted job reads as terminal (still shown as ⏰) and
 doesn't pin the Manage row to ⏳.
 
-`aggregateInfoState` (`GetInfo.kt:328`) drives the Manage row's
+`aggregateInfoState` (`GetInfo.kt:329`) drives the Manage row's
 status cell: ❌ if any job FAILED, else ⏳ while any job is still
 genuinely `pending`, else ✅ (or the report's own icon). A `CLOCK`
 left by an **ERRORed** or **STOPPED** model is *not* pending
-(`perModelPending`, `GetInfo.kt:276`) — a finished report with one
+(`perModelPending`, `GetInfo.kt:277`) — a finished report with one
 failed model settles to ✅ rather than spinning forever.
 
 Rows are clickable to their existing detail screens (icon detail,
@@ -126,14 +128,15 @@ scoped to **info jobs only** (the model responses + secondary
 results are left untouched, and each new call's cost is *added* on
 top of the report's existing spend):
 
-- **Bottom-bar 🔄** (Manage's reload, repurposed while the Get-info
-  layer is up — `Run.kt:589`) → `regenerateReportInfo`
-  (`ReportViewModel.kt:2064`): re-runs language, title→icon, and
+- **Bottom-bar 🔄** (Manage's reload; the confirm dialog it opens
+  forks on whether the Get-info layer is up — `Run.kt:740`) →
+  `regenerateReportInfo`
+  (`ReportViewModel.kt:2024`): re-runs language, title→icon, and
   per-model enrichment for every successful agent. Pops a
   "Regenerate report info?" confirm first.
 - **"Restart errors"** button — rendered only when at least one job
-  is `FAILED` (`GetInfo.kt:459`) → `restartReportInfoErrors`
-  (`ReportViewModel.kt:2021`): clears the error state of *only* the
+  is `FAILED` (`GetInfo.kt:501`) → `restartReportInfoErrors`
+  (`ReportViewModel.kt:1981`): clears the error state of *only* the
   errored rows and re-fires just the failed side (title-error
   re-runs title→icon together since the icon derives from the
   title; per-model re-runs only the side — icon or model-title —
@@ -141,7 +144,7 @@ top of the report's existing spend):
 
 **⚠️ warning lights immediately on error.** The Manage hub stays
 composed underneath the Get-info / second-results layers, so its
-`reportHasError` check (`Main.kt:403` — any `FAILED` info job, any
+`reportHasError` check (`Main.kt:410` — any `FAILED` info job, any
 `FAILED` secondary, or any errored agent) fires a `LaunchedEffect`
 that calls `LocalRefreshBrokenWork` to force a Broken-work scan
 *now*, surfacing the ⚠️ top-bar badge the instant a red ❌ appears
@@ -202,7 +205,7 @@ Notes on specific phases:
   match rows settle. `JUDGES` and `COMPARE` cells are owned by
   their own engines (`JudgeEvalEngine` / `CompareEngine`) and are
   deliberately excluded from the regenerate batch (`isMetaPhaseRow`,
-  `RegenerateBatchEngine.kt:945`, which excludes `TRANSLATE`,
+  `RegenerateBatchEngine.kt:957`, which excludes `TRANSLATE`,
   `TOURNAMENT`, `JUDGES`, `COMPARE` plus fan-out / fan-in rows).
 - **`TRANSRANK`** ("Rank the translators", the 8th `SecondaryKind`)
   has *no* dedicated regenerate phase and is **not** excluded by
@@ -219,7 +222,7 @@ Notes on specific phases:
   prior manual resume ran up — otherwise the pair/match would be
   terminalized instantly and never re-fire.
 
-`buildTaskList` (`RegenerateBatchEngine.kt:788`) builds the task
+`buildTaskList` (`RegenerateBatchEngine.kt:793`) builds the task
 set from the report's *current* contents:
 
 - `TITLE` / `ICON` / `LANGUAGE` only when the matching gate is on
@@ -308,7 +311,7 @@ Resume paths, all idempotent:
   is PAUSED_ON_ERROR, or RUNNING with no live orchestrator in *this*
   process (app-kill-interrupted); false for DONE / CANCELLED and a
   genuinely-live orchestrator. `detectBrokenBatchesForReport`
-  (`SecondaryRunManager.kt:733`) turns a true into one synthetic
+  (`SecondaryRunManager.kt:754`) turns a true into one synthetic
   `BrokenBatch(kind = REGENERATE)` — `errorCount = 1` /
   "Paused on an error" when PAUSED, `unfinishedCount = 1` /
   "Interrupted mid-run" when RUNNING-but-dead.

@@ -50,11 +50,11 @@ A few notable runtime dependencies (full list in `ai/build.gradle.kts`):
   The ~26 MB LLM native `.so` is *not* bundled; it is downloaded on
   demand from the matching AAR (see [local-runtime.md](local-runtime.md)).
 
-> The `androidx.datastore.preferences` dependency is declared in
-> `gradle/libs.versions.toml` but **unused** — there are zero
-> DataStore API calls in the source tree. Persistence is
-> SharedPreferences + JSON files under `filesDir`/`cacheDir` only.
-> Don't reach for DataStore expecting an existing pattern.
+> There is no `androidx.datastore.preferences` dependency anywhere in
+> this project (`gradle/libs.versions.toml` / `ai/build.gradle.kts`) —
+> persistence is SharedPreferences + JSON files under
+> `filesDir`/`cacheDir` only. Don't reach for DataStore expecting an
+> existing pattern.
 
 ## Deploy
 
@@ -100,7 +100,7 @@ Complete** options. The code uses ~80 distinct `AppLog` tags. See
 ```
 ai/src/main/java/com/ai/
 ├── MainActivity.kt                   # the only Activity (ComponentActivity)
-├── data/                             # 88 files, core data layer
+├── data/                             # 97 files, core data layer
 │   ├── (HTTP, dispatch, streaming, tracer, throttle, registry, …)
 │   ├── AnalysisRepository.kt   ApiClient.kt     ApiDispatch.kt
 │   ├── ApiFormat.kt            ApiModels.kt     ApiStreaming.kt
@@ -120,19 +120,21 @@ ai/src/main/java/com/ai/
 │   └── local/  (4)             # LocalLlm / LocalEmbedder / LlmRuntime / LocalRuntime
 ├── model/                            # 2 files
 │   └── SettingsModels.kt + SettingsHolder.kt
-├── viewmodel/                        # 24 files
+├── viewmodel/                        # 27 files
 │   ├── AppViewModel.kt  (+ AppViewModelTypes.kt holding GeneralSettings
 │   │   and the extracted top-level enums)
 │   ├── ChatViewModel.kt + ReportViewModel.kt (+ ReportViewModelHelpers.kt)
-│   ├── BatchEngine.kt — abstract base the batch engines extend
+│   ├── BatchEngine.kt / SecondaryBatchEngine.kt — the two abstract
+│   │   batch-engine bases (see "The three view models" below)
 │   └── extracted engines/managers: RegenerateBatchEngine,
 │       SecondaryRunManager, IconGenerationManager, TournamentEngine,
 │       JudgeEvalEngine, CompareEngine, FanOutEngine, ModelTestEngine,
 │       StressTestEngine, TranslatorRankEngine, MetaEditManager,
 │       TranslationRunManager, SecondaryModelSwitchManager, WorkerRunner,
-│       ThrottledBatch, BrokenWorkPolicy, BuildProgress, TranslationTypes
-└── ui/                               # 273 files (no files at the ui/ root)
-    ├── report/      (98)             # report flows, secondary results,
+│       ThrottledBatch, BrokenWorkPolicy, BuildProgress, TranslationTypes,
+│       SecondaryBatchEngine, SecondaryCellCalls, ReplayTrack
+└── ui/                               # 279 files (no files at the ui/ root)
+    ├── report/      (101)            # report flows, secondary results,
     │                                 # Fan-out / Fan-in / Tournament / Judges /
     │                                 # Compare / Rank-translators screens,
     │                                 # exports (PDF, DOCX/ODT, RTF, zipped HTML),
@@ -142,7 +144,7 @@ ai/src/main/java/com/ai/
     ├── cruds/       (48)             # generic CRUD framework + per-entity
     │                                 # CRUDs: workers (agents/flocks/swarms),
     │                                 # model-states, prompts, params, cost overrides
-    ├── admin/       (35)             # Housekeeping / Backup-Restore / Reset /
+    ├── admin/       (36)             # Housekeeping / Backup-Restore / Reset /
     │                                 # Trim by age / Costs / Test / traces / help /
     │                                 # provider admin / developer / docs / AppLog
     ├── settings/    (22)             # SettingsScreen sub-screens + Workers /
@@ -157,14 +159,14 @@ ai/src/main/java/com/ai/
     │                                 # + Local semantic search screens
     ├── hub/         (5)             # main hub + Reports / Chats hubs
     ├── history/     (3)              # report + prompt history + picker
-    ├── models/      (3)              # model search + Model Info
-    ├── share/       (2)              # ShareChooserScreen + helpers
+    ├── models/      (4)              # model search + Model Info
+    ├── share/       (3)              # ShareChooserScreen + helpers
     ├── knowledge/   (1)              # RAG Knowledge screens
     └── theme/       (1)              # Material3 dark theme
 ```
 
-Roughly **388 Kotlin files, ~153,180 LOC** total
-(`data` 88 + `model` 2 + `viewmodel` 24 + `ui` 273 + `MainActivity`).
+Roughly **406 Kotlin files, ~161,200 LOC** total
+(`data` 97 + `model` 2 + `viewmodel` 27 + `ui` 279 + `MainActivity`).
 
 ### Navigation, in two systems
 
@@ -179,7 +181,7 @@ Roughly **388 Kotlin files, ~153,180 LOC** total
    `chatRoutes`. All five take the same `(navController, appViewModel,
    reportViewModel, chatViewModel, safePopBack, navigateHome)`.
 2. **`SettingsScreen` sub-screens** use an internal `when` block.
-   `SettingsScreen.kt` holds an `enum class SettingsSubScreen` (~40
+   `SettingsScreen.kt` holds an `enum class SettingsSubScreen` (~53
    values: `MAIN`, `AI_SETUP`, `AI_PROVIDERS`, `AI_AGENTS`,
    `AI_PARAMETERS`, `SETTINGS_NETWORK`, `SETTINGS_UI`, …), a
    `rememberSaveable currentSubScreen`, and a large `when` that both
@@ -212,9 +214,17 @@ do not extend androidx `ViewModel`. The extracted batch engines
 (`CompareEngine`, `FanOutEngine`, `TournamentEngine`,
 `JudgeEvalEngine`, `RegenerateBatchEngine`, `ModelTestEngine`,
 `StressTestEngine`, `TranslatorRankEngine`, `MetaEditManager`,
-`SecondaryModelSwitchManager`) use `internal constructor` and most
-extend the `abstract class BatchEngine`; the managers
-(`SecondaryRunManager`, `IconGenerationManager`,
+`SecondaryModelSwitchManager`) all use `internal constructor`, but
+only half of them extend one of the two abstract bases:
+`FanOutEngine` extends the generic `abstract class BatchEngine`
+directly, while the four grid-shaped kinds (`TournamentEngine`,
+`JudgeEvalEngine`, `CompareEngine`, `TranslatorRankEngine`) extend
+`abstract class SecondaryBatchEngine` (itself unrelated to
+`BatchEngine`) — the shared template for their finalize / resume /
+remove / rerun / continue-broken flows. `RegenerateBatchEngine`,
+`ModelTestEngine`, `StressTestEngine`, `MetaEditManager`, and
+`SecondaryModelSwitchManager` are plain classes with no supertype.
+The managers (`SecondaryRunManager`, `IconGenerationManager`,
 `TranslationRunManager`, `WorkerRunner`) are public.
 
 ## Adding things
@@ -222,7 +232,7 @@ extend the `abstract class BatchEngine`; the managers
 ### A new OpenAI-compatible provider
 
 1. Add **one new JSON file** under `assets/providers/` — the bundled
-   catalog is now one file per provider (51 files), each a bare
+   catalog is now one file per provider (91 files), each a bare
    `ProviderDefinition` object (**no** `{"providers": [...]}` wrapper).
    Required: `id`, `baseUrl`, `adminUrl`, `defaultModel`. Optional:
    `apiFormat` (defaults to `OPENAI_COMPATIBLE`), `openRouterName`,
@@ -271,9 +281,9 @@ which only touches fields the user has *not* edited (gated by
 
 ### A non-OpenAI-compatible provider
 
-`ApiFormat` has exactly four values: `OPENAI_COMPATIBLE` (48 of the
-51 bundled providers), `ANTHROPIC` (just `Anthropic`), `GOOGLE`
-(just `Google`), and `REPLICATE` (just `Replicate`). All 48 OpenAI-compatible providers share one set
+`ApiFormat` has exactly four values: `OPENAI_COMPATIBLE` (88 of the
+91 bundled providers), `ANTHROPIC` (just `Anthropic`), `GOOGLE`
+(just `Google`), and `REPLICATE` (just `Replicate`). All 88 OpenAI-compatible providers share one set
 of code paths; only Anthropic and Google have format-specific
 branches. To add a genuinely different format:
 
@@ -330,13 +340,16 @@ hit wins: (1) **OpenRouter self-report** (only when the caller
 provider has `crossProviderModelList`) → (2) **Together self-report**
 (only when `pricingFromModelList`) → (3) **manual OVERRIDE** →
 (4) LiteLLM → (5) models.dev → (6) llm-prices → (7) Artificial
-Analysis → (8) OpenRouter cross-provider fallback (for non-OpenRouter
-callers) → (9) Helicone → (10) `DEFAULT_PRICING` (returned by
-`getPricing` when `findPricingMatch` misses). The class-level KDoc in
-`PricingCache.kt` now matches this order (OVERRIDE ahead of the
-curated tiers), so a user's manual correction can't be silently
-overridden by a stale catalog. `getPricingWithoutOverride` runs the
-same chain with `includeOverride = false`.
+Analysis → (8) llm-stats → (9) OpenRouter cross-provider fallback
+(for non-OpenRouter callers, gated by the OpenRouter info-provider
+toggle) → (10) Requesty → (11) genai-prices → (12) TrueFoundry →
+(13) Helicone → (14) `DEFAULT_PRICING` (returned by `getPricing`
+when `findPricingMatch` misses). The class-level KDoc in
+`PricingCache.kt` documents the same OVERRIDE-ahead-of-curated-tiers
+ordering (though it doesn't call out genai-prices/TrueFoundry by
+name), so a user's manual correction can't be silently overridden by
+a stale catalog. `getPricingWithoutOverride` runs the same chain
+with `includeOverride = false`.
 
 To add a tier:
 
@@ -436,10 +449,10 @@ seeded categories (folders under `assets/internal-prompts/<lang>/`):
 ### A new Help topic / help page
 
 `ui/admin/HelpContent.kt` assembles `HELP_TOPICS` from 12 per-domain
-maps (`ReportsHelp.kt` 112, `SettingsAdminHelp.kt` 90,
-`ProviderCatalogHelp.kt` 44, `developerHelp` 21, `glossaryHelp` 18,
-`crudHelp` 15, …; ~359 base entries) plus 22 auto-built
-`<topic>_icons` pages → **~381 topics total**. Each full-screen
+maps (`ReportsHelp.kt` 115, `SettingsAdminHelp.kt` 93,
+`ProviderCatalogHelp.kt` 38, `developerHelp` 21, `glossaryHelp` 18,
+`crudHelp` 15, …; ~365 base entries) plus 22 auto-built
+`<topic>_icons` pages → **~387 topics total**. Each full-screen
 overlay has its own entry. To add one:
 
 1. Add a `"<topicId>" to HelpContent(title, cards)` entry to the
@@ -454,7 +467,7 @@ overlay has its own entry. To add one:
 
 Trace ℹ deep-links resolve through `infoProviderForTrace(url,
 category)` in `HelpScreen.kt` (backed by `infoProviderForUrl` + the
-canonical 7-entry `INFO_PROVIDERS` list) — there is **no**
+canonical 12-entry `INFO_PROVIDERS` list) — there is **no**
 `HelpResolver` class.
 
 > Memory rule: **every new screen needs a help topic.** Reusing an
@@ -476,7 +489,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew test                         # 
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew connectedDebugAndroidTest    # instrumented (~40s on emulator)
 ```
 
-Both layers use Truth. Roughly **59 unit-test files** under
+Both layers use Truth. Roughly **69 unit-test files** under
 `ai/src/test/java/com/ai/` (representative: `ApiDispatchHelpersTest`,
 `ApiMockWebServerTest`, `BuildChatUrlTest`, `ResponsesUrlTest`,
 `TracerTagsTest`, `DefaultClaudeMaxTokensTest`, `ModelTypeTest`,
@@ -499,7 +512,8 @@ Both layers use Truth. Roughly **59 unit-test files** under
 `HousekeepingScreenTest`, `ReportExportScreenTest`,
 `TranslationCompareScreenTest`, `HomeBarModeScreenTest`,
 `ReportLauncherScreensInstrumentedTest`,
-`ReportChangeResultScreensInstrumentedTest`) and device-side data
+`ReportChangeResultScreensInstrumentedTest`,
+`ReportInfoScreenInstrumentedTest`) and device-side data
 plumbing (`ChatHistoryManagerInstrumentedTest`,
 `ProviderRegistryInstrumentedTest`, `ReportStorageInstrumentedTest`,
 `SecondaryResultStorageInstrumentedTest`,
@@ -540,12 +554,16 @@ unit tests verify code correctness, not feature correctness here.
 - **OpenAI dual API**: `gpt-4o`-class uses Chat Completions; `gpt-5.x`
   / `o3` / `o4` / `gpt-4.1` (and `o1` via config) use the Responses
   API. Routed via `usesResponsesApi(service, model)` =
-  `service.responsesApiPatterns.anyMatches(model)` **or**
-  `ModelType.infer(model) == RESPONSES`. There is no `endpointRules`
-  field — the old prefix list now lives in `ModelType.infer`. On the
-  Responses path the system prompt goes to `instructions`, not a
-  message, and multi-text blocks are concatenated by the dispatch
-  layer.
+  `service.responsesApiPatterns.anyMatches(model)` **or** (only when
+  the provider declares any `responsesApiPatterns` at all — currently
+  just OpenAI) `ModelType.infer(model) == RESPONSES`. The
+  name-based fallback is deliberately gated so chat-only
+  OpenAI-compatible gateways serving `gpt-5`/`o3`/`o4`-named models
+  don't get routed to a `/v1/responses` endpoint they don't have.
+  There is no `endpointRules` field — the old prefix list now lives
+  in `ModelType.infer`. On the Responses path the system prompt goes
+  to `instructions`, not a message, and multi-text blocks are
+  concatenated by the dispatch layer.
 - **OpenAI's `/v1/models` omits moderation / TTS / image / STT
   models.** OpenAI carries `mergeHardcodedModels: true` in its
   `assets/providers/OpenAI.json` definition; `Settings.withModels` unions
@@ -632,9 +650,10 @@ unit tests verify code correctness, not feature correctness here.
   `prompt_cache/`, `regenerate/`, `knowledge/`, `audit/`, `crash/`)
   minus the **four** `FILES_DIR_BACKUP_EXCLUDES` subdirs
   (`local_llms/`, `local_models/`, `native/`, `applog/`), plus the
-  **7** SharedPreferences files in `PREFS_TO_BACKUP` (`eval_prefs`,
+  **8** SharedPreferences files in `PREFS_TO_BACKUP` (`eval_prefs`,
   `provider_registry`, `pricing_cache`, `dual_chat_prefs`,
-  `huggingface_cache`, `model_cooldowns`, `view_screen_prefs`), plus
+  `huggingface_cache`, `cloudprice_model_cache`, `model_cooldowns`,
+  `view_screen_prefs`), plus
   a `cacheDir` mirror minus the in-flight temp prefixes
   (`ai-restore-`, `reset_keys_`, `ai-backup-` — `reset_keys_` holds
   plaintext keys and must never be archived). A new prefs file
@@ -652,7 +671,7 @@ unit tests verify code correctness, not feature correctness here.
 - **No single bundled catalog file.** The bundled assets are now split
   into per-item directories, each read by its own `*Seed` object:
   the provider catalog is `assets/providers/` (one bare
-  `ProviderDefinition` JSON per provider, 51 files); System Prompts
+  `ProviderDefinition` JSON per provider, 91 files); System Prompts
   are `assets/prompts/system/` (`SystemPromptSeed`); Example Prompts
   are `assets/prompts/examples/` (`ExamplePromptSeed`); Internal
   Prompts are `assets/internal-prompts/<Language>/<category>/`
@@ -677,6 +696,13 @@ unit tests verify code correctness, not feature correctness here.
 - **`AppService.id` is the only name field.** The legacy
   `displayName` / `prefsKey` collapsed into `id` in the
   id-unification refactor; there are no backwards-compat migrations.
+- **`AppService.LOCAL` is synthetic.** Its id is `"Local"`. It is
+  not in `ProviderRegistry` — reachable only via `AppService.findById`,
+  which special-cases `LOCAL.id` before delegating to
+  `ProviderRegistry.findById`. Routes the dispatch to
+  `LocalLlm.generate` / `LocalEmbedder.embed` instead of Retrofit, but
+  surfaces as a normal "Local" provider in every picker. See
+  [local-runtime.md](local-runtime.md).
 - **Atomic writes are required for prefs / pricing / secondary / file
   writes.** Use `AtomicFileWrite.writeTextAtomic` (tmp file fsync +
   `Files.move ATOMIC_MOVE` + parent-dir auto-mkdir). Bare

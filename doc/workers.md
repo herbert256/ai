@@ -48,8 +48,8 @@ Field notes:
   Both fall back to the provider's stored value through the
   resolver helpers `getEffectiveModelForAgent` and
   `getEffectiveApiKeyForAgent`
-  ([`SettingsModels.kt:699`](../ai/src/main/java/com/ai/model/SettingsModels.kt),
-  `:698`):
+  ([`SettingsModels.kt:724`](../ai/src/main/java/com/ai/model/SettingsModels.kt),
+  `:723`):
 
   ```kotlin
   fun getEffectiveApiKeyForAgent(agent) = agent.apiKey.ifBlank { getApiKey(agent.provider) }
@@ -57,12 +57,12 @@ Field notes:
   ```
 
   `getModel(service)` returns `service.defaultModel`
-  (`:358`) and `getApiKey(service)` returns the stored
-  provider key (`:356`). So an agent left on a provider's
+  (`:368`) and `getApiKey(service)` returns the stored
+  provider key (`:366`). So an agent left on a provider's
   default-model alias resolves at use time, not at save time.
 - **Flock stores agent *ids***, not copies —
   `getAgentsForFlock` maps them back live
-  ([`SettingsModels.kt:772`](../ai/src/main/java/com/ai/model/SettingsModels.kt)),
+  ([`SettingsModels.kt:797`](../ai/src/main/java/com/ai/model/SettingsModels.kt)),
   so editing an agent updates every flock that references it.
   Ids that no longer resolve are silently skipped
   (`mapNotNull`).
@@ -74,15 +74,15 @@ Field notes:
   is auto-managed: the per-provider **Test** button (via
   `markProviderTestedOk` →
   `Settings.ensureDefaultAgentInFlock`,
-  [`AppViewModel.kt:1374`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt) /
-  [`SettingsModels.kt:933`](../ai/src/main/java/com/ai/model/SettingsModels.kt))
+  [`AppViewModel.kt:1468`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt) /
+  [`SettingsModels.kt:942`](../ai/src/main/java/com/ai/model/SettingsModels.kt))
   adds the provider's tested model as an agent and joins it to this
   flock, and the **Refresh All → Providers / models / default
   agents** step (and the standalone **Refresh workers** step)
   empties it first
-  ([`AppViewModel.kt:1675`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt),
-  `:1734`) then repopulates it from each provider's worker phase
-  (`runWorkerPhase`, `:1896`).
+  ([`AppViewModel.kt:1790`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt),
+  `:1849`) then repopulates it from each provider's worker phase
+  (`runWorkerPhase`, `:2038`).
 
 Full field tables: [datastructures.md](datastructures.md).
 
@@ -111,7 +111,7 @@ The bundled set that currently ships:
 
 | File | Kind | Name | Members |
 |---|---|---|---|
-| `swarms/workers.json` | Swarm | `workers` | Mistral `mistral-medium-latest`, OpenAI `gpt-4o-mini`, Groq `llama-3.3-70b-versatile`, Cerebras `gpt-oss-120b`, DeepSeek `deepseek-v4-flash` |
+| `swarms/workers.json` | Swarm | `workers` | Mistral `mistral-medium-latest`, OpenAI `gpt-4o-mini`, Groq `llama-3.3-70b-versatile`, Cerebras `gpt-oss-120b`, DeepSeek `deepseek-v4-flash`, Google `gemini-3.5-flash`, Anthropic `claude-haiku-4-5-20251001`, xAI `grok-4.20-0309-non-reasoning`, Cohere `command-r-08-2024`, DeepInfra `google/gemma-3-12b-it`, Together `Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, SiliconFlow `Qwen/Qwen3-14B` |
 | `swarms/level-1.json` | Swarm | `Level 1` | Anthropic `claude-haiku-4-5-20251001`, DeepSeek `deepseek-v4-flash`, Mistral `mistral-small-latest`, OpenAI `gpt-5.4-nano`, Google `gemini-2.5-flash-lite`, xAI `grok-4-1-fast-non-reasoning` |
 | `swarms/level-2.json` | Swarm | `Level 2` | Anthropic `claude-sonnet-4-6`, DeepSeek `deepseek-chat`, Mistral `mistral-medium-latest`, OpenAI `gpt-5.4-mini`, xAI `grok-4.3`, Google `gemini-2.5-flash` |
 | `swarms/level-3.json` | Swarm | `Level 3` | Anthropic `claude-opus-4-7`, DeepSeek `deepseek-v4-pro`, Google `gemini-3.1-pro-preview`, Mistral `mistral-large-latest`, xAI `grok-4.20-0309-reasoning`, OpenAI `gpt-5.5` |
@@ -126,8 +126,8 @@ tiers offered as one-tap report picks.
 **Merge is idempotent and non-destructive.** On launch
 `AppViewModel` reads the assets and calls
 `SwarmSeed.ensureAllPresent` / `FlockSeed.ensureAllPresent`
-([`AppViewModel.kt:757`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt),
-`:780`): any bundled item whose name (case-insensitive) is not
+([`AppViewModel.kt:810`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt),
+`:833`): any bundled item whose name (case-insensitive) is not
 already present is appended with a **fresh UUID**; existing rows —
 including user edits to a same-named swarm — are left strictly
 alone. A single unparseable / unknown-provider file is skipped,
@@ -136,19 +136,19 @@ not fatal. Flocks seed after agents so their `agentNames` resolve.
 ## The AI Workers setup hub
 
 `Settings → AI Setup → Workers` opens `WorkersSetupScreen`
-([`SetupScreens.kt:197`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt)),
+([`SetupScreens.kt:215`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt)),
 a sub-hub with three nav cards plus a model-search entry. The AI
 Setup landing's own **Workers** card (subtitle "Agents, Flocks,
 and Swarms", badge = `agentCount + flocks.size + swarms.size`) and
 all sub-cards are **gated on `hasApiKey`** (`Settings.hasAnyApiKey()`,
-[`SettingsModels.kt:694`](../ai/src/main/java/com/ai/model/SettingsModels.kt)) —
+[`SettingsModels.kt:719`](../ai/src/main/java/com/ai/model/SettingsModels.kt)) —
 disabled until at least one provider has a key set
-([`SetupScreens.kt:48`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt),
-`:78`, `:222-228`). The **Agents** card badge counts only agents
+([`SetupScreens.kt:50`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt),
+`:81`, `:240-246`). The **Agents** card badge counts only agents
 whose provider is **active** (`isProviderActive` ⇒ provider
 state `"ok"`,
-[`SettingsModels.kt:350`](../ai/src/main/java/com/ai/model/SettingsModels.kt));
-`agentCount` at `SetupScreens.kt:54`/`:205`. The Flocks and
+[`SettingsModels.kt:360`](../ai/src/main/java/com/ai/model/SettingsModels.kt));
+`agentCount` at `SetupScreens.kt:56`/`:223`. The Flocks and
 Swarms badges show the raw `flocks.size` / `swarms.size`.
 
 Nav-card subtitles (verbatim in source): Agents "Named model
@@ -164,7 +164,7 @@ provider/model pairs".
 Routing + back-stack live in
 [`SettingsScreen.kt`](../ai/src/main/java/com/ai/ui/settings/SettingsScreen.kt)
 (the `SettingsSubScreen` enum at `:32`; the three list sub-screens
-back out to `AI_WORKERS_SETUP` at `:240-241`, which in turn backs
+back out to `AI_WORKERS_SETUP` at `:267-268`, which in turn backs
 out to `AI_SETUP`).
 
 ## CRUD shape
@@ -197,9 +197,9 @@ callback;
 
 **Copy** is the 👯 duplicate affordance inside the legacy edit
 form: it appends `-copy` to the name
-([`AgentsScreen.kt:93`](../ai/src/main/java/com/ai/ui/settings/AgentsScreen.kt))
+([`AgentsScreen.kt:92`](../ai/src/main/java/com/ai/ui/settings/AgentsScreen.kt))
 and a Save in that state writes a fresh `UUID`
-(`AgentsScreen.kt:177`), so the duplicate lands as a new item
+(`AgentsScreen.kt:147`), so the duplicate lands as a new item
 rather than overwriting the original; the duplicate name is
 treated as a collision against the source so the user can't save
 `<name>-copy` over it. **Save** upserts by id (replace-if-id-
@@ -219,7 +219,7 @@ which is identical for all three because they share the
 Help topics: `crud_agents`, `crud_flocks`, `crud_swarms`
 ([`CrudHelp.kt:175`](../ai/src/main/java/com/ai/ui/admin/CrudHelp.kt))
 and `setup_workers`
-([`SettingsAdminHelp.kt:525`](../ai/src/main/java/com/ai/ui/admin/SettingsAdminHelp.kt)).
+([`SettingsAdminHelp.kt:557`](../ai/src/main/java/com/ai/ui/admin/SettingsAdminHelp.kt)).
 
 ## How workers feed model selection
 
@@ -228,13 +228,13 @@ Workers are never "run" directly — they **expand into
 `SelectionOverlays`
 ([`report/start/SelectionOverlays.kt`](../ai/src/main/java/com/ai/ui/report/start/SelectionOverlays.kt))
 wires the three pickers to expander functions in
-[`SettingsModels.kt:1026`](../ai/src/main/java/com/ai/model/SettingsModels.kt):
+[`SettingsModels.kt:1035`](../ai/src/main/java/com/ai/model/SettingsModels.kt):
 
 | Pick | Expander | Yields |
 |---|---|---|
-| Agent | `expandAgentToModel` (`:1033`) | **one** target (null if provider inactive) |
-| Flock | `expandFlockToModels` (`:1026`) | one target **per active member agent** |
-| Swarm | `expandSwarmToModels` (`:1039`) | one target **per active member pair** |
+| Agent | `expandAgentToModel` (`:1042`) | **one** target (null if provider inactive) |
+| Flock | `expandFlockToModels` (`:1035`) | one target **per active member agent** |
+| Swarm | `expandSwarmToModels` (`:1048`) | one target **per active member pair** |
 
 Inactive-provider members are silently dropped (every expander
 filters on `isProviderActive`). The resulting `ReportModel`
@@ -254,9 +254,9 @@ carries a `type`/`sourceType` tag and the resolved key/params:
 
 Pickers add into the active target bucket, then the whole list
 is run through `deduplicateModels`
-([`SettingsModels.kt:1045`](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
+([`SettingsModels.kt:1054`](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 Dedup keys by `deduplicationKey = "${provider.id}:$model"`
-(`:1023`) into a `LinkedHashMap` (first-appearance order
+(`:1032`) into a `LinkedHashMap` (first-appearance order
 preserved); on a collision an **agent-sourced** entry (non-null
 `agentId` — a direct agent or a flock member) replaces a bare
 manual / swarm pick, so the surviving row keeps the api key and
@@ -269,7 +269,7 @@ members), an active-vs-total member count, and an ℹ️ info screen
 listing each member with provider, model, capability badges, and
 cost. Chat reuses the agent picker directly: picking an agent
 navigates to `aiChatWithAgent(id)`
-([`NavRoutes.kt:228`](../ai/src/main/java/com/ai/ui/navigation/NavRoutes.kt),
+([`NavRoutes.kt:229`](../ai/src/main/java/com/ai/ui/navigation/NavRoutes.kt),
 call site
 [`ChatRoutes.kt:79`](../ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt)).
 
@@ -282,7 +282,7 @@ report/model/translation icons + titles, tournament, user-note)
 each carry an ordered **`workers` fallback chain**
 ([`SettingsModels.kt:258`](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 Every bundled worker prompt ships with a single chain entry — the
-`workers` **swarm** — so the cheap 5-member `workers` swarm is the
+`workers` **swarm** — so the cheap 12-member `workers` swarm is the
 default model pool for all of these single-call kinds. (There's no
 `tournament`-specific pool; `tournament.json` also points at
 `workers`.)
@@ -293,11 +293,11 @@ is one of four kinds, told apart by which field is non-`*N/A`:
 **Model** (`provider`+`model`), **Agent** (`agent` name),
 **Flock** (`flock` name), **Swarm** (`swarm` name).
 `Settings.expandWorker`
-([`SettingsModels.kt:756`](../ai/src/main/java/com/ai/model/SettingsModels.kt))
+([`SettingsModels.kt:781`](../ai/src/main/java/com/ai/model/SettingsModels.kt))
 flattens a Flock → one agent-name worker per **active** member
 agent and a Swarm → one provider+model worker per **active**
 member, so each member becomes its own fallback candidate;
-`resolveWorker` (`:744`) turns a single worker into a dispatchable
+`resolveWorker` (`:769`) turns a single worker into a dispatchable
 `Agent` (a pinned provider+model yields a synthetic agent; a named
 agent is looked up in `agents`).
 
@@ -306,7 +306,7 @@ members so a single-call kind picks one at random and a batch
 spreads across the pool:
 
 - **`SecondaryRunManager.runSecondaryViaSwarm`**
-  ([`SecondaryRunManager.kt:67`](../ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt))
+  ([`SecondaryRunManager.kt:84`](../ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt))
   — one single-result secondary row (rerank / moderation / meta /
   fan-in / translate / transrank). Expands the swarm, tries
   members in shuffled order, re-stamps the placeholder's
@@ -339,17 +339,22 @@ is `*CONFIGURED` (default — run against the prompt's saved
 picker just before the work starts and run against the user's
 pick; never written back).
 
-### Per-report worker config — "Report - select workers"
+### Per-report worker config — "Report - setup"
 
 The old single ♻️ models-as-workers flag is replaced by a per-report
 `Report.workerConfig: ReportWorkerConfig`
 ([`ReportModels.kt`](../ai/src/main/java/com/ai/data/ReportModels.kt)),
-picked on the **"Report - select workers"** screen
-([`SelectWorkers.kt`](../ai/src/main/java/com/ai/ui/report/start/SelectWorkers.kt))
+picked on the **"Report - setup"** screen (composable
+`ReportSelectWorkersScreen`,
+[`SelectWorkers.kt`](../ai/src/main/java/com/ai/ui/report/start/SelectWorkers.kt))
 — the step between "Report - select models" and "Manage a report"
 that also hosts the **Generate report** button — and editable later
 via the Manage bottom-bar **👷** icon (same screen, Save instead of
-Generate; `ReportStorage.setWorkerConfig`). Three cards:
+Generate; `ReportStorage.setWorkerConfig`). "Report - setup" itself
+holds the System prompt, Parameters and Second result options cards
+plus a **Workers** nav card; tapping Workers opens a nested
+full-screen **Workers** step (`ReportWorkersScreen`, same file) that
+holds the four worker-routing cards:
 
 - **Report info** (`reportInfo`: `PROMPT` | `CUSTOM` +
   `reportInfoWorkers`) — who generates the report icon, short/long
@@ -360,8 +365,8 @@ Generate; `ReportStorage.setWorkerConfig`). Three cards:
   generates each answer's per-model title + icon. `OWN_MODEL` runs
   them on the answer's own model
   (`InternalPrompt.withOwnModelWorker` → `singleModelWorker`).
-- **Worker batches** (`batches`: `PROMPT` | `REPORT_MODELS` |
-  `SELECT_EACH` | `SELECT_ONCE` + `batchWorkers`,
+- **Worker batches** ("Batches" card; `batches`: `PROMPT` |
+  `REPORT_MODELS` | `SELECT_EACH` | `SELECT_ONCE` + `batchWorkers`,
   `workerSelection`: `WHEN_AVAILABLE` | `ROUND_ROBIN`) — the pool
   for Fan Meta, Translation, Tournament, Compare.
   **Rerank / Moderation** are exempt — they pass `alwaysPromptWorkers
@@ -380,6 +385,17 @@ Generate; `ReportStorage.setWorkerConfig`). Three cards:
   `meta = true` to `resolveBatchSwarm` / `workerPlanFor` /
   `workerScheduleFor` / `launchWithWorkerPlan` for those two.
 
+A **"Use report models"** switch at the top of the Workers step
+(`useReportModels`) is a one-tap shortcut that force-sets `modelInfo`
+= `OWN_MODEL`, `batches` = `REPORT_MODELS` + `workerSelection` =
+`ROUND_ROBIN`, and `metaBatches` = `REPORT_MODELS` + `metaWorkerSelection`
+= `ROUND_ROBIN`, hiding the Model info / Batches / Meta cards underneath
+it while it's on. The "Report - setup" screen's own **Second result
+options** card (`secondResultSelectScope`, `secondResultRuntimeParams`)
+is unrelated to worker routing — it gates whether launching a Meta /
+Fan-out secondary from the second-results hub first shows a scope
+picker / a runtime prompt editor, or runs straight with the defaults.
+
 Batch-pool precedence lives in one place — `resolveBatchSwarm` /
 `InternalPrompt.withBatchWorkers`
 ([`ReportViewModelHelpers.kt`](../ai/src/main/java/com/ai/viewmodel/ReportViewModelHelpers.kt)):
@@ -389,7 +405,7 @@ pick > a persisted `SELECT_ONCE` group > the prompt's configured
 chain. The UI side of the same decision is `workerPlanFor` +
 `launchWithWorkerPlan`
 ([`RuntimeWorkerPicker.kt`](../ai/src/main/java/com/ai/ui/report/manage/RuntimeWorkerPicker.kt)),
-used by all ten type-B launch sites: `PROMPT` honours the prompt's
+used by all eleven type-B launch sites: `PROMPT` honours the prompt's
 `*SELECT` picker; `SELECT_EACH` forces the picker on every batch;
 `SELECT_ONCE` shows it once — the first pick is persisted
 first-write-wins via `ReportStorage.setBatchWorkersIfEmpty` and
@@ -421,7 +437,7 @@ no-op there.
 Agents (and flocks/swarms) carry `paramsIds` + `systemPromptId`
 references. The full merge precedence — how multiple presets
 fold (`mergeParameters`,
-[`SettingsModels.kt:994`](../ai/src/main/java/com/ai/model/SettingsModels.kt)),
+[`SettingsModels.kt:1003`](../ai/src/main/java/com/ai/model/SettingsModels.kt)),
 how the report-generation agent / swarm chains layer
 selection / report-level / app-wide overrides, and how an agent
 system prompt combines with a Parameters preset's own prompt —
@@ -432,7 +448,7 @@ is documented once in the dedicated docs:
 
 In brief: `resolveAgentParameters(agent) =
 mergeParameters(agent.paramsIds) ?: AgentParameters()`
-(`SettingsModels.kt:697`); `mergeParameters` folds presets
+(`SettingsModels.kt:722`); `mergeParameters` folds presets
 left→right with "later non-null wins" for scalar/string fields,
 OR for `responseFormatJson`/`searchEnabled`/`webSearchTool`, and
 AND for `returnCitations`.

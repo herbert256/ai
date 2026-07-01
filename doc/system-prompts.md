@@ -33,7 +33,7 @@ a free-text `systemPrompt`, and an `InternalPrompt` references a preset by **nam
 
 | Level | Set it at |
 |---|---|
-| Per-report (🎭) | New AI Report / Manage report → 🎭 "Define AI model system prompt" picker (`reportSystemPromptId`) |
+| Per-report (🎭) | New AI Report / Manage report → 🎭 "Define model system prompt" picker (`reportSystemPromptId`) |
 | **Agent** | AI Setup → Workers → Agents → edit (🎭) → `Agent.systemPromptId` |
 | **Flock / Swarm** | AI Setup → Workers → Flocks / Swarms → edit (🎭) → `Flock.systemPromptId` / `Swarm.systemPromptId` |
 | **Provider** | AI Setup → Providers → a provider → edit (🎭) → `ProviderConfig.systemPromptId` |

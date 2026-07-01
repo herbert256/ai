@@ -19,8 +19,16 @@ and a red **❓** (`HELP`, U+2753, renders red — Android ignores tint
 on emoji, so the colour is the glyph's own). Both are defined in
 `data/MetadataDefaults.kt` and surface as `mi.helpLegend` / `mi.help`.
 The red ❓ always opens the screen's main help topic; the white ❔
-either opens a *live icon-legend overlay* (on report-Manage screens)
-or links to a *static icon-table help page* (everywhere else).
+always opens a *live icon-legend overlay* listing the screen's own
+bottom-bar icons, and shows on **every** screen that renders through
+the generic `BottomIconBar` and carries at least one action icon —
+not just the report-Manage family. The View family (report View
+screens, plus the Model Info / provider / flock / swarm / HTML-preview
+view screens, all of which route through their own `ViewBottomBar`)
+shows only the red ❓; the white ❔ was removed there. A *static
+icon-table help page* still exists as content, but it's reached from
+a topic's main help page (the "❔ Icons on this screen" cross-link),
+never directly from the bottom bar.
 
 There is also a separate, larger **documentation** system — two
 bundled HTML hubs served in a WebView (`DocumentationScreen`,
@@ -55,23 +63,23 @@ adding 12 per-domain maps plus one auto-built map:
 | Map file | Entries | Covers |
 |---|---:|---|
 | `ProviderSettingsHelp.kt` | 12 | Provider setup / config cards |
-| `InfoProviderHelp.kt` | 7 | One `info_provider_*` page per metadata repository |
+| `InfoProviderHelp.kt` | 12 | One `info_provider_*` page per metadata repository |
 | `GlossaryHelp.kt` | 18 | The Help-home reference topics (see below) + `about` / `dependencies` / `manual` / `technical_documentation` |
-| `ReportsHelp.kt` | 112 | The whole reports flow + every report-Manage drill-in |
+| `ReportsHelp.kt` | 115 | The whole reports flow + every report-Manage drill-in |
 | `SearchHelp.kt` | 4 | Search / local semantic search |
 | `LocalKnowledgeHelp.kt` | 13 | RAG knowledge bases + on-device runtime |
-| `SettingsAdminHelp.kt` | 90 | Settings sub-screens + Housekeeping |
+| `SettingsAdminHelp.kt` | 93 | Settings sub-screens + Housekeeping |
 | `DeveloperHelp.kt` | 21 | Trace, logs, developer tools |
 | `ChatHelp.kt` | 9 | Chat hub, session, Dual Chat |
-| `ModelsHelp.kt` | 14 | Model lists, states, info |
-| `ProviderCatalogHelp.kt` | 44 | `providers` overview + `provider_edit` + 42 `provider_*` per-provider pages |
-| `CrudHelp.kt` | 1 | Shared CRUD overview |
+| `ModelsHelp.kt` | 15 | Model lists, states, info |
+| `ProviderCatalogHelp.kt` | 38 | `providers` + `providers_predefined` + `provider_edit` + 35 `provider_*` per-provider pages |
+| `CrudHelp.kt` | 15 | `crud_generic` overview + 14 per-CRUD topics (via the shared `crud()` helper) |
 
-That is **345 base `HelpContent` entries**. On top of those,
+That is **365 base `HelpContent` entries**. On top of those,
 `ICON_HELP_TOPIC_CONTENT` auto-builds **22** empty-bodied
 `<topic>_icons` pages (one per `ICON_HELP_AS_PAGE` member; the table
 itself is rendered by `HelpScreen`, not stored in the `HelpContent`),
-for **367 topics** total.
+for **387 topics** total.
 
 Topics group, roughly, into:
 
@@ -101,16 +109,19 @@ Topics group, roughly, into:
 - **Help home references** — the tap-through reference cards listed
   below, plus the auto-built `<topic>_icons` icon-table pages.
 - **Per-provider** — `provider_edit` plus one `provider_*` page per
-  cloud provider, with setup, capabilities, quirks, known issues.
-  Reachable from every ℹ icon next to a provider name (the page id is
-  `providerHelpTopicId(serviceId)` = `"provider_" + lowercased,
-  alphanumeric-only id`).
-- **Per-repository** — seven `info_provider_*` pages, one per
-  external metadata source (HuggingFace / OpenRouter / LiteLLM /
-  models.dev / Helicone / llm-prices.com / Artificial Analysis) with
-  endpoint, auth, what it provides, when fetched, where cached.
-  Reachable from every Source button on Model Info and from the
-  Trace detail ℹ (see *Routing*).
+  major cloud provider (35 of the registered providers have a bespoke
+  page; the rest — including every user-added provider — fall through
+  to the Help home page), with setup, capabilities, quirks, known
+  issues. Reachable from every ℹ icon next to a provider name (the
+  page id is `providerHelpTopicId(serviceId)` = `"provider_" +
+  lowercased, alphanumeric-only id`).
+- **Per-repository** — 12 `info_provider_*` pages, one per external
+  metadata source (HuggingFace / OpenRouter / LiteLLM / models.dev /
+  Helicone / llm-prices.com / Artificial Analysis / Requesty /
+  llm-stats / genai-prices / TrueFoundry / CloudPrice) with endpoint,
+  auth, what it provides, when fetched, where cached. Reachable from
+  every Source button on Model Info and from the Trace detail ℹ (see
+  *Routing*).
 
 ### Help-home reference topics
 
@@ -132,36 +143,30 @@ the map has 18 entries, not 14.
 ## The two help glyphs
 
 `BottomIconBar` (`SharedComponents.kt`) renders the screen's action
-icons (up to 7 per row, wrapping to additional left-aligned rows)
-and pins the help glyph(s) to the right of the **last** row; the
-glyphs never count toward the 7-per-row cap. The **red ❓**
+icons at a fixed scale, filling each left-aligned row with as many
+icons as fit the available width and wrapping to additional rows as
+needed (the last row reserves space for the right-pinned help
+glyph(s), which never count toward a row's capacity — there's no
+fixed per-row cap any more). The **red ❓**
 (`showScreenHelp = !suppressScreenTraceAndHelp`) navigates to the
 screen's main help topic; it shows in the bottom bar by default and
 is relocated to the persistent top Home bar in Home-bar mode (where
 the bottom bar is rendered with `suppressScreenTraceAndHelp = true`).
-A second, **white ❔** appears just to its left in two distinct
-behaviours, selected by `useLegend = (icons?.helpTopic in
-LEGEND_OVERLAY_TOPICS) && specs.isNotEmpty()`:
+A second, **white ❔** appears just to its left whenever the screen
+has at least one bar icon at all: `useLegend = specs.isNotEmpty()`,
+`showSecondHelp = useLegend`. Unlike the red ❓, the white ❔ isn't
+gated by topic id or icon count any more — every screen using the
+generic `BottomIconBar` gets it once `specs` is non-empty, and tapping
+it always opens the live overlay (below). There is no longer a code
+path where the bottom bar links straight to a static icon-table page.
 
-- `showLegendHelp = useLegend`
-- `showIconPageHelp = !useLegend && iconTopic != null && specs.size > 3`
-- `showSecondHelp = showLegendHelp || showIconPageHelp`
+### Live icon-legend overlay (every `BottomIconBar` screen)
 
-### Live icon-legend overlay (report-Manage screens)
-
-On screens whose `helpTopic` is in `LEGEND_OVERLAY_TOPICS`
-(`SharedComponents.kt`, **56 entries** — the whole report-Manage
-family: `reports_hub` and `report_run` plus its edit / create /
-get-info / icons / titles overlays and sub-editors; the Meta /
-secondary / fan-out / **fan-meta** drill-ins (`fan_meta`,
-`fan_meta_workers`); the translation drill-ins (incl.
-`translation_workers`); the tournament drill-ins (incl.
-`tournament_workers`); the judge-the-judges drill-ins (`judge_eval_l1`
-… `judge_eval_match`); the Find-alternative and icon-lookup screens;
-the per-agent result / content / cost screens; `regenerate_batch`;
-`report_notes`; `report_agent_chat`; etc.) — the white ❔ opens a
-**full-screen live overlay** titled "`<screen title>` - icons"
-(`IconLegendOverlay`).
+On **every screen that renders through the generic `BottomIconBar`**
+and shows at least one bar icon, the white ❔ opens a **full-screen
+live overlay** titled "`<screen title>` - icons" (`IconLegendOverlay`).
+This used to be gated to an allowlist; it no longer is — see *The two
+help glyphs* above.
 
 - The overlay lists the icons **currently visible in that screen's
   bottom bar** — two columns: the big glyph, then the icon's name +
@@ -175,31 +180,49 @@ the per-agent result / content / cost screens; `regenerate_batch`;
 - The overlay's own single glyph is a **red ❓** that opens the
   screen's main help page (the live overlay already covers the
   icons, so it no longer points at the standalone icon-table page).
-- On these screens the white ❔ shows **whenever there is ≥1 bar
-  icon** (`useLegend && specs.isNotEmpty()`) — the old "min 3 icons"
-  rule no longer gates it.
 
-On these overlay screens, `HelpScreen` deliberately **does not**
-render the inline icon-table, nor the "❔ Icons on this screen"
-cross-link — the live overlay replaced the static `<topic>_icons`
-page in the user flow. Both suppressions check
-`topicId !in LEGEND_OVERLAY_TOPICS` (`HelpScreen.kt`).
+`LEGEND_OVERLAY_TOPICS` (`SharedComponents.kt`, **57 entries** — the
+whole report-Manage family: `reports_hub` and `report_run` plus its
+edit / create / get-info / icons / titles overlays and sub-editors;
+the Meta / secondary / fan-out / **fan-meta** drill-ins (`fan_meta`,
+`fan_meta_workers`); the translation drill-ins (incl.
+`translation_workers`); the tournament drill-ins (incl.
+`tournament_workers`); the judge-the-judges drill-ins (`judge_eval_l1`
+… `judge_eval_match`); the Find-alternative and icon-lookup screens;
+the per-agent result / content / cost screens; `regenerate_batch`;
+`report_notes`; `report_agent_chat`; etc.) no longer decides whether
+the *bottom-bar* ❔ shows — that's now unconditional. Its remaining
+job is `HelpScreen`-side: for topics in this set, `HelpScreen`
+deliberately **does not** render the inline icon-table, nor the "❔
+Icons on this screen" cross-link, on that topic's main help page —
+the live overlay already replaced that content in the user flow. Both
+suppressions check `topicId !in LEGEND_OVERLAY_TOPICS` (`HelpScreen.kt`).
 
-### Static icon-table help page (everywhere else)
+### Static icon-table help page (reached from the help page, not the bottom bar)
 
-On **non-overlay screens** (Settings, CRUD, Chat, etc.) the white ❔
-**navigates to the static `<topic>_icons` help page** — a flat icon
-table rendered by `IconHelpTable` from `SCREEN_ICON_HELP`. It appears
-only when the screen has its own `<topic>_icons` page **and** more
-than 3 action icons (the "crowded bar" rule, `specs.size > 3`).
-Screens with a `<topic>_icons` page also get the "❔ Icons on this
-screen" cross-link at the top of their main help page. Topics that
-show 1–3 icons embed the same table **inline** under their main help
-page instead of getting a standalone page. `ICON_HELP_AS_PAGE`
-(`IconHelp.kt`, 22 entries) selects which topics are promoted to
-their own page; `ICON_HELP_TOPIC_CONTENT` then auto-registers a
+The bottom-bar ❔ no longer links to a static page anywhere — that
+path was dropped when the live overlay (above) was rolled out to
+every `BottomIconBar` screen. The static `<topic>_icons` help page
+still exists as *content*: a flat icon table rendered by
+`IconHelpTable` from `SCREEN_ICON_HELP`, reached only via the "❔
+Icons on this screen" cross-link at the top of a topic's main help
+page (itself opened by the red ❓). `ICON_HELP_AS_PAGE`
+(`IconHelp.kt`, 22 entries — originally curated as "whose screen
+shows more than 3 icons") selects which topics get a standalone
+`<topic>_icons` page; `ICON_HELP_TOPIC_CONTENT` then auto-registers a
 matching empty `HelpContent` so `HELP_TOPICS.containsKey("<topic>_icons")`
-succeeds and the ❔ glyph + cross-link light up.
+succeeds and the cross-link lights up. Topics with 1–3 icons that
+aren't promoted embed the same table **inline** under their main help
+page instead of getting a standalone page.
+
+Both the cross-link and the inline table are suppressed for topics in
+`LEGEND_OVERLAY_TOPICS` — that screen's live overlay already covers
+the icons, so the static/inline table would be redundant there. That
+leaves six `ICON_HELP_AS_PAGE` topics outside `LEGEND_OVERLAY_TOPICS`
+(`report_new`, `agent_edit`, `flock_edit`, `swarm_edit`, `prompt_view`,
+`provider_edit`) as the topics where the standalone `<topic>_icons`
+page is still reachable in the current UI — alongside, not instead
+of, the live overlay from their own bottom bar.
 
 ## Topic shape
 
@@ -236,9 +259,12 @@ with no `RELATED_HOME_HELP` entry render no footer.
   scope paints the strip and the help glyph(s). In Home bar mode,
   `HomeIconBar` reads the same title-bar state and paints red help
   plus trace in the persistent top strip instead. Tapping the red ❓
-  navigates to `help/{topicId}`; the white ❔ either opens the live
-  `IconLegendOverlay` (on `LEGEND_OVERLAY_TOPICS` screens) or
-  navigates to `help/{topicId}_icons` (the static icon page).
+  navigates to `help/{topicId}`; the white ❔ opens the live
+  `IconLegendOverlay` in place, on every `BottomIconBar` screen that
+  has a bar icon — it no longer navigates anywhere. (The static
+  `help/{topicId}_icons` page still exists and is still reachable,
+  but only from the "❔ Icons on this screen" cross-link on the
+  topic's own help page, not from the bottom bar.)
 - The Help **home** page (`/help`, rendered by `CompactOverview`)
   shows: a Welcome card whose text interpolates
   `AppService.entries.size` for the provider count, a "Per-screen
@@ -261,13 +287,13 @@ with no `RELATED_HOME_HELP` entry render no footer.
 ### Trace → repository help
 
 The Trace detail screen's ℹ icon resolves the trace's URL +
-category to one of the seven repository topics via the free function
+category to one of the 12 repository topics via the free function
 **`infoProviderForTrace(url, category)`** (`HelpScreen.kt`) — *not*
 a `HelpResolver` class (there is none). It calls `infoProviderForUrl`
 (host match, disambiguating shared hosts like `raw.githubusercontent.com`
 via `urlPathPrefix`) and then, for dual-purpose services, gates on
 category so a plain chat completion doesn't hijack the ℹ. The canonical
-seven-entry `INFO_PROVIDERS` list and all the resolver helpers
+12-entry `INFO_PROVIDERS` list and all the resolver helpers
 (`infoProviderForUrl`, `infoProviderForTrace`, `infoProviderForDisplayName`)
 live in `HelpScreen.kt`. Only OpenRouter sets
 `requiresChatCategoryGate = true`; its gate set is
@@ -284,7 +310,7 @@ category that `startsWith("pricing/")`.
 - Per-provider pages share an infrastructure helper so each provider
   card has a uniform layout (`providerCatalogHelp` +
   `CLOUD_PROVIDER_TAGLINES`).
-- The topic catalog (~367 entries) carries code-accurate detail and
+- The topic catalog (~387 entries) carries code-accurate detail and
   tips — when changing a flow, the help text deserves the same edit
   so the in-app docs stay in sync. Every full-screen overlay (model
   picker, scope picker, viewer detail, agent icon detail,
@@ -293,14 +319,17 @@ category that `startsWith("pricing/")`.
 - When adding a new visual setting or default icon, update both the
   Settings topic and the focused reference doc
   [ui-customization.md](ui-customization.md).
-- When adding or changing a report-Manage screen's bottom-bar icons,
-  update its `SCREEN_ICON_HELP[topic]` rows in `IconHelp.kt` (glyph,
-  short name, screen-specific description) so the live icon-legend
-  overlay reads correctly — trace the actual TitleBar handler, never
-  guess. Add the screen's `helpTopic` to `LEGEND_OVERLAY_TOPICS` to
-  give it the live overlay; otherwise it falls back to the static
-  `<topic>_icons` page path (and, for >3 icons, add the topic to
-  `ICON_HELP_AS_PAGE`).
+- When adding or changing a screen's bottom-bar icons, update its
+  `SCREEN_ICON_HELP[topic]` rows in `IconHelp.kt` (glyph, short name,
+  screen-specific description) so the live icon-legend overlay reads
+  correctly — trace the actual TitleBar handler, never guess. Every
+  screen with ≥1 bar icon gets the live overlay automatically now;
+  once a screen's `SCREEN_ICON_HELP` legend is complete, add its
+  `helpTopic` to `LEGEND_OVERLAY_TOPICS` (`SharedComponents.kt`) so
+  the topic's own help page stops duplicating the same table inline
+  / via cross-link (for >3 icons, also add the topic to
+  `ICON_HELP_AS_PAGE` so it gets a standalone `<topic>_icons` page
+  instead of an inline one).
 - New screens should get a help topic. Note that the recent **Answer
   matrix** view (`ui/report/view/AnswerMatrix.kt`, reached from the
   *Matrix* tile in the report View grid) deliberately **reuses** the
@@ -320,12 +349,12 @@ There are two distinct icon legends:
   `help_home_icons` subpage to see it.)
 - **Per-screen legends** — `SCREEN_ICON_HELP` (`IconHelp.kt`),
   describing just the icons a given screen shows, with
-  screen-specific wording. These drive both the static
-  `<topic>_icons` icon-table pages (non-overlay screens, via
-  `IconHelpTable`) and the live `IconLegendOverlay` (report-Manage
-  screens). `DEFAULT_BAR_ICON_HELP` (`IconHelp.kt`) is the per-glyph
-  fallback the live overlay uses for any bar icon a screen's own
-  legend omits.
+  screen-specific wording. These drive both the live
+  `IconLegendOverlay` (every `BottomIconBar` screen with a bar icon)
+  and the static `<topic>_icons` icon-table pages / inline tables
+  reached from a topic's own help page, via `IconHelpTable`.
+  `DEFAULT_BAR_ICON_HELP` (`IconHelp.kt`) is the per-glyph fallback
+  the live overlay uses for any bar icon a screen's own legend omits.
 
 ## Bundled documentation (WebView)
 

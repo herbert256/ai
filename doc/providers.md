@@ -13,7 +13,7 @@ the pricing tiers `litellmPrefix` / `openRouterName` / `pricingFromModelList`
 ## How the catalog loads
 
 The catalog is **one JSON file per provider** under `assets/providers/`
-— 51 files, each a bare `ProviderDefinition` object (no
+— 91 files, each a bare `ProviderDefinition` object (no
 `{"providers": [...]}` wrapper, no top-level `version`). It is **not**
 hardcoded in Kotlin. `ProviderRegistry` (`data/ProviderRegistry.kt`)
 is a mutable `object` that starts **empty** on a fresh install; the
@@ -54,7 +54,7 @@ expects a top-level `{"providers": [...]}` wrapper.
 `AppService` is intentionally **not** a Kotlin `data class`: its
 `equals` / `hashCode` / `toString` are **id-only** (two services are
 equal iff their ids match), and it hand-writes a `copy(...)` funnel
-covering all 40 fields so a newly added field can't be silently dropped
+covering all 41 fields so a newly added field can't be silently dropped
 on update. The synthetic `AppService.LOCAL` (`id = "Local"`, `baseUrl =
 "local://"`) is declared in the companion object, is **not** in the
 registry, and routes to the on-device runtime — see
@@ -102,43 +102,98 @@ OpenRouter pricing key is `<openRouterName>/<modelId>`.
 | **Anthropic** | `https://api.anthropic.com/` | `https://console.anthropic.com/settings/keys` | `claude-haiku-4-5-20251001` | `apiFormat=ANTHROPIC`, `typePaths.chat=v1/messages`, `openRouterName=anthropic`, `modelFilter=claude`, 8 hardcoded models, `defaultModelSource=API`, `reasoningModelPatterns`/`webSearchModelPatterns`/`adaptiveThinkingPatterns` (opus-4-7), `maxTokensDefaults` (opus-4=32000, sonnet/haiku-4 & claude-3.5=8192), `maxRetriesOn529=5`, `retryBackoffMs529=5000` |
 | **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.5-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `modelListFormat=array`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API`, `reasoningModelPatterns`/`webSearchModelPatterns` (gemini-2.x), `maxCallsPerProviderPerMinute=60` |
 | **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `promptTokensIncludeCachedTokens=false`, `litellmPrefix=xai`, `modelFilter=grok`, `defaultModelSource=API`, `externalReasoningSignalUntrusted=true`, `reasoningModelPatterns`/`reasoningEffortAcceptPatterns` for grok-3/4 |
-| **Groq** | `https://api.groq.com/openai/` | `https://console.groq.com/keys` | `llama-3.3-70b-versatile` | `litellmPrefix=groq`, `defaultModelSource=API` |
+| **Groq** | `https://api.groq.com/openai/` | `https://console.groq.com/keys` | `meta-llama/llama-4-scout-17b-16e-instruct` | `litellmPrefix=groq`, `defaultModelSource=API` |
 | **DeepSeek** | `https://api.deepseek.com/` | `https://platform.deepseek.com/api_keys` | `deepseek-chat` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=deepseek`, `litellmPrefix=deepseek`, `modelFilter=deepseek`, `defaultModelSource=API`, `mergeHardcodedModels=true`, **2 hardcoded models** (`deepseek-chat`, `deepseek-reasoner`) merged with `/models` because the live list is sometimes missing, `builtInEndpoints` (Chat Completions + Beta/FIM). DeepSeek is the pinned agent for the bundled `internal/chat-title` prompt — cheap, fast, reliable |
 | **Mistral** | `https://api.mistral.ai/` | `https://console.mistral.ai/api-keys/` | `mistral-small-latest` | `seedFieldName=random_seed`, `openRouterName=mistralai`, `modelFilter=mistral\|open-mistral\|codestral\|pixtral`, `defaultModelSource=API`, `nativeModerationUrl=https://api.mistral.ai/v1/moderations`, `builtInEndpoints` (Chat Completions + Codestral), `maxCallsPerProviderPerMinute=30`, `maxConcurrentCallsPerProvider=3` |
 | **Perplexity** | `https://api.perplexity.ai/` | `https://www.perplexity.ai/settings/api` | `sonar` | `typePaths.chat=chat/completions`, `openRouterName=perplexity`, `supportsCitations=true`, `supportsSearchRecency=true`, `modelFilter=sonar\|llama`, 4 hardcoded models |
-| **Together** | `https://api.together.xyz/` | `https://api.together.xyz/settings/api-keys` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | `modelListFormat=array`, `litellmPrefix=together_ai`, `modelFilter=chat\|instruct\|llama`, `defaultModelSource=API`, `pricingFromModelList=true` |
+| **Together** | `https://api.together.xyz/` | `https://api.together.xyz/settings/api-keys` | `Qwen/Qwen2.5-7B-Instruct-Turbo` | `modelListFormat=array`, `litellmPrefix=together_ai`, `modelFilter=chat\|instruct\|llama`, `defaultModelSource=API`, `pricingFromModelList=true` |
 | **OpenRouter** | `https://openrouter.ai/api/` | `https://openrouter.ai/keys` | `ibm-granite/granite-4.0-h-micro` | `extractApiCost=true`, `crossProviderModelList=true`, `defaultModelSource=API`, `maxCallsPerProviderPerMinute=90`, `maxConcurrentCallsPerProvider=8` |
-| **MergeGateway** | `https://api-gateway.merge.dev/` | `https://gateway.merge.dev/settings/api-keys` | `anthropic/claude-opus-4-8` | OpenRouter-style control-plane gateway (merge.dev). Both chat and models use the OpenAI-compat shim: `typePaths.chat=v1/openai/chat/completions`, `modelsPath=v1/openai/models` (the native `v1/models` is a different non-OpenAI schema — object-valued `aliases`, ids under `model` not `id` — that the shared parser can't read). Slash-prefixed cross-provider ids (`anthropic/…` use dashes, `google/…`/`deepseek/…` use dots). `defaultModelSource=API`, `mergeHardcodedModels=true`, **6 hardcoded models** (Claude / Gemini / DeepSeek). No `openRouterName`/`litellmPrefix` — the slash ids match the OpenRouter cross-provider pricing catalog directly |
-| **VercelAIGateway** | `https://ai-gateway.vercel.sh/` | `https://vercel.com/dashboard/ai-gateway/api-keys` | `openai/gpt-4.1-nano` | Cross-provider gateway (~300 models, zero markup). Standard OpenAI shim: `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed `creator/model` ids — Anthropic here uses **dots** (`anthropic/claude-opus-4.8`). `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models. No `openRouterName`/`litellmPrefix` |
-| **Glama** | `https://gateway.glama.ai/` | `https://glama.ai/settings/gateway` | `deepseek/deepseek-chat-v3` | OpenAI-compatible aggregator (~80 models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed ids, Anthropic in **dash** form; OpenAI ids carry a date suffix. `defaultModelSource=API`, `mergeHardcodedModels=true`, 4 hardcoded models. No Google models in the catalog |
-| **Requesty** | `https://router.requesty.ai/` | `https://app.requesty.ai/` | `google/gemini-2.5-flash-lite` | OpenAI-compatible router (500+ models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed ids (dash-form Anthropic); some ids carry routing suffixes (`:priority`/`:flex`). `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
-| **AI-ML-API** | `https://api.aimlapi.com/` | `https://aimlapi.com/app/keys` | `mistralai/mistral-nemo` | OpenAI-compatible aggregator (600+ chat/image/audio models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Catalog carries both dashed and dotted Anthropic aliases plus dated snapshots — live `v1/models` is the source of truth. `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
-| **AtlasCloud** | `https://api.atlascloud.ai/` | `https://www.atlascloud.ai/console/api-keys` | `deepseek-ai/DeepSeek-V3-0324` | OpenAI-compatible aggregator (~130 open-weight models incl. `zai-org/glm-5.2`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. The `/v1/models` body wraps the list as `{code,msg,data:[{id}]}` — parser reads `data[]`. `defaultModelSource=API`, `mergeHardcodedModels=true`, 5 hardcoded models. No `openRouterName`/`litellmPrefix` |
-| **Parasail** | `https://api.parasail.io/` | `https://saas.parasail.io/keys` | `meta-llama/Llama-3.3-70B-Instruct` | Serverless open-weight host (~70 models; self-hosts `zai-org/GLM-5.2`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Ids in two flavours: HF-style (`zai-org/GLM-5.2`) and Parasail aliases (`parasail-glm-52`), `*-FP8` = quantized. `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
-| **Baseten** | `https://inference.baseten.co/` | `https://app.baseten.co/settings/api_keys` | `openai/gpt-oss-120b` | Model-APIs inference host — small curated catalog (~11: gpt-oss, GLM incl. self-hosted `zai-org/GLM-5.2`, Kimi, DeepSeek-V4, Nemotron). Host is `inference.baseten.co` (not `app`/`api.baseten.co`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. `defaultModelSource=API`, `mergeHardcodedModels=true`, 5 hardcoded models |
-| **GMI-Cloud** | `https://api.gmi-serving.com/` | `https://console.gmicloud.ai/` | `deepseek-ai/DeepSeek-V3.2` | Serverless GPU inference (~66 models; self-hosts `zai-org/GLM-5.2-FP8`). Host is `api.gmi-serving.com`, JWT bearer key. `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. GLM ships `-FP8`-quantized. `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models. Dash id (slash would break the Model Info route) |
-| **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `Qwen/Qwen2.5-7B-Instruct` | `defaultModelSource=API`, 9 hardcoded models, `nativeRerankUrl=https://api.siliconflow.com/v1/rerank` |
+| **MergeGateway** | `https://api-gateway.merge.dev/` | `https://gateway.merge.dev/settings/api-keys` | `ai21/jamba-1-5-large` | OpenRouter-style control-plane gateway (merge.dev). Both chat and models use the OpenAI-compat shim: `typePaths.chat=v1/openai/chat/completions`, `modelsPath=v1/openai/models` (the native `v1/models` is a different non-OpenAI schema — object-valued `aliases`, ids under `model` not `id` — that the shared parser can't read). Slash-prefixed cross-provider ids (`anthropic/…` use dashes, `google/…`/`deepseek/…` use dots). `defaultModelSource=API`, `mergeHardcodedModels=true`, **6 hardcoded models** (Claude / Gemini / DeepSeek). No `openRouterName`/`litellmPrefix` — the slash ids match the OpenRouter cross-provider pricing catalog directly |
+| **VercelAIGateway** | `https://ai-gateway.vercel.sh/` | `https://vercel.com/dashboard/ai-gateway/api-keys` | `arcee-ai/trinity-mini` | Cross-provider gateway (~300 models, zero markup). Standard OpenAI shim: `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed `creator/model` ids — Anthropic here uses **dots** (`anthropic/claude-opus-4.8`). `defaultModelSource=API`, `mergeHardcodedModels=true`, 7 hardcoded models. No `openRouterName`/`litellmPrefix` |
+| **Glama** | `https://gateway.glama.ai/` | `https://glama.ai/settings/gateway` | `zai/glm-4.6` | OpenAI-compatible aggregator (~80 models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed ids, Anthropic in **dash** form; OpenAI ids carry a date suffix. `defaultModelSource=API`, `mergeHardcodedModels=true`, 5 hardcoded models. No Google models in the catalog |
+| **Requesty** | `https://router.requesty.ai/` | `https://app.requesty.ai/` | `openai-responses/gpt-4.1-nano` | OpenAI-compatible router (500+ models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Slash-prefixed ids (dash-form Anthropic); some ids carry routing suffixes (`:priority`/`:flex`). `defaultModelSource=API`, `mergeHardcodedModels=true`, 7 hardcoded models |
+| **AI-ML-API** | `https://api.aimlapi.com/` | `https://aimlapi.com/app/keys` | `mistralai/mistral-nemo` | OpenAI-compatible aggregator (600+ chat/image/audio models). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Catalog carries both dashed and dotted Anthropic aliases plus dated snapshots — live `v1/models` is the source of truth. `defaultModelSource=API`, `mergeHardcodedModels=true`, 7 hardcoded models |
+| **AtlasCloud** | `https://api.atlascloud.ai/` | `https://www.atlascloud.ai/console/api-keys` | `bytedance/doubao-seed-2.0-pro-260215` | OpenAI-compatible aggregator (~130 open-weight models incl. `zai-org/glm-5.2`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. The `/v1/models` body wraps the list as `{code,msg,data:[{id}]}` — parser reads `data[]`. `defaultModelSource=API`, `mergeHardcodedModels=true`, 5 hardcoded models, `maxTokensDefaults` (deepseek-v3 → 8192). No `openRouterName`/`litellmPrefix` |
+| **Parasail** | `https://api.parasail.io/` | `https://saas.parasail.io/keys` | `arcee-ai/Trinity-Large-Thinking` | Serverless open-weight host (~70 models; self-hosts `zai-org/GLM-5.2`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. Ids in two flavours: HF-style (`zai-org/GLM-5.2`) and Parasail aliases (`parasail-glm-52`), `*-FP8` = quantized. `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
+| **Baseten** | `https://inference.baseten.co/` | `https://app.baseten.co/settings/api_keys` | `moonshotai/Kimi-K2.5` | Model-APIs inference host — small curated catalog (~11: gpt-oss, GLM incl. self-hosted `zai-org/GLM-5.2`, Kimi, DeepSeek-V4, Nemotron). Host is `inference.baseten.co` (not `app`/`api.baseten.co`). `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. `defaultModelSource=API`, `mergeHardcodedModels=true`, 5 hardcoded models |
+| **GMI-Cloud** | `https://api.gmi-serving.com/` | `https://console.gmicloud.ai/` | `XiaomiMiMo/MiMo-V2.5-Pro` | Serverless GPU inference (~66 models; self-hosts `zai-org/GLM-5.2-FP8`). Host is `api.gmi-serving.com`, JWT bearer key. `typePaths.chat=v1/chat/completions`, default `modelsPath=v1/models`. GLM ships `-FP8`-quantized. `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models. Dash id (slash would break the Model Info route) |
+| **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `ByteDance-Seed/Seed-OSS-36B-Instruct` | `defaultModelSource=API`, 9 hardcoded models, `nativeRerankUrl=https://api.siliconflow.com/v1/rerank` |
 | **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.5-air` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm\|codegeex\|charglm`, 7 hardcoded models, `defaultModelSource=API`, `builtInEndpoints` (Chat Completions + Coding) |
 | **Moonshot** | `https://api.moonshot.ai/` | `https://platform.moonshot.ai/console/api-keys` | `kimi-latest` | `openRouterName=moonshot`, 4 hardcoded models, `defaultModelSource=API` |
 | **Cohere** | `https://api.cohere.ai/compatibility/` | `https://dashboard.cohere.com/` | `command-r7b-12-2024` | `openRouterName=cohere`, `auxHosts=[api.cohere.com]`, `maxCallsPerProviderPerMinute=19`, native `nativeRerankUrl=https://api.cohere.com/v2/rerank` + `nativeCapabilityUrl=https://api.cohere.com/v1/models` |
-| **Fireworks** | `https://api.fireworks.ai/inference/` | `https://app.fireworks.ai/` | `accounts/fireworks/models/gpt-oss-120b` | `defaultModelSource=API`, `maxCallsPerProviderPerMinute=12`, `maxConcurrentCallsPerProvider=2` |
-| **Cerebras** | `https://api.cerebras.ai/` | `https://cloud.cerebras.ai/` | `gpt-oss-120b` | `defaultModelSource=API` |
-| **SambaNova** | `https://api.sambanova.ai/` | `https://cloud.sambanova.ai/` | `Meta-Llama-3.3-70B-Instruct` | 5 hardcoded models |
+| **Fireworks** | `https://api.fireworks.ai/inference/` | `https://app.fireworks.ai/` | `accounts/fireworks/models/deepseek-v4-pro` | `defaultModelSource=API`, `maxCallsPerProviderPerMinute=12`, `maxConcurrentCallsPerProvider=2` |
+| **Cerebras** | `https://api.cerebras.ai/` | `https://cloud.cerebras.ai/` | `gpt-oss-120b` | `defaultModelSource=API`, `maxCallsPerProviderPerMinute=30`, `maxConcurrentCallsPerProvider=2` |
+| **SambaNova** | `https://api.sambanova.ai/` | `https://cloud.sambanova.ai/` | `gemma-4-31B-it` | 5 hardcoded models |
 | **MiniMax** | `https://api.minimax.io/` | `https://platform.minimax.io/` | `MiniMax-M2.1` | `openRouterName=minimax`, 4 hardcoded models |
-| **NVIDIA** | `https://integrate.api.nvidia.com/` | `https://build.nvidia.com/` | `meta/llama-3.3-70b-instruct` | `defaultModelSource=API`. The NIM catalog lists many models that 404 ("not found for account") until you enable them on build.nvidia.com — the default is a broadly-available one |
+| **NVIDIA** | `https://integrate.api.nvidia.com/` | `https://build.nvidia.com/` | `nvidia/nemotron-3-super-120b-a12b` | `defaultModelSource=API`. The NIM catalog lists many models that 404 ("not found for account") until you enable them on build.nvidia.com — the default is a broadly-available one |
 | **Replicate** | `https://api.replicate.com/v1/` | `https://replicate.com/account/api-tokens` | `meta/meta-llama-3-8b-instruct` | `apiFormat=REPLICATE` — async predictions API (`POST v1/models/{owner}/{name}/predictions` with `Prefer: wait`), not OpenAI-compatible. 2 hardcoded models; chat models only |
-| **HuggingFace** | `https://api-inference.huggingface.co/` | `https://huggingface.co/settings/tokens` | `meta-llama/Llama-3.1-70B-Instruct` | 4 hardcoded models |
-| **DeepInfra** | `https://api.deepinfra.com/v1/openai/` | `https://deepinfra.com/dash/api_keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `typePaths.chat=chat/completions` + `typePaths.embedding=embeddings`, `modelsPath=models`, `defaultModelSource=API` |
-| **Hyperbolic** | `https://api.hyperbolic.xyz/` | `https://app.hyperbolic.xyz/settings` | `deepseek-ai/DeepSeek-V3-0324` | `defaultModelSource=API`. Small serverless LLM catalog (~5 models); large models cold-start slowly |
-| **Novita.ai** | `https://api.novita.ai/v3/openai/` | `https://novita.ai/settings/key-management` | `zai-org/glm-5.2` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API`. Self-hosts Z.AI's open-weight GLM-5.2 |
-| **NebiusAIStudio** | `https://api.studio.nebius.com/` | `https://studio.nebius.com/settings/api-keys` | `zai-org/GLM-5.2` | `defaultModelSource=API`. Self-hosts Z.AI's open-weight GLM-5.2 (a reasoning model — needs room in `max_tokens`) |
-| **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `moonshotai/Kimi-K2.6-TEE` | `defaultModelSource=API` |
+| **HuggingFace** | `https://router.huggingface.co/` | `https://huggingface.co/settings/tokens` | `deepseek-ai/DeepSeek-V3.1` | 4 hardcoded models |
+| **DeepInfra** | `https://api.deepinfra.com/v1/openai/` | `https://deepinfra.com/dash/api_keys` | `stepfun-ai/Step-3.7-Flash` | `typePaths.chat=chat/completions` + `typePaths.embedding=embeddings`, `modelsPath=models`, `defaultModelSource=API` |
+| **Novita.ai** | `https://api.novita.ai/v3/openai/` | `https://novita.ai/settings/key-management` | `inclusionai/ling-2.6-flash` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API` |
+| **NebiusAIStudio** | `https://api.studio.nebius.com/` | `https://studio.nebius.com/settings/api-keys` | `NousResearch/Hermes-4-70B` | `defaultModelSource=API` |
+| **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `google/gemma-4-31B-turbo-TEE` | `defaultModelSource=API` |
+| **AI21** | `https://api.ai21.com/` | `https://docs.ai21.com/reference/jamba-1-6-api-ref` | `jamba-mini` | `modelsPath=studio/v1/models`, `typePaths.chat=studio/v1/chat/completions`, `defaultModelSource=API` |
+| **AIHubMix** | `https://aihubmix.com/` | `https://docs.aihubmix.com/en/api/Aihubmix-Integration` | `gpt-4o-mini` | `defaultModelSource=API` |
+| **AbacusAI** | `https://routellm.abacus.ai/` | `https://abacus.ai/help/developer-platform/route-llm/` | `gpt-4o-mini` | `defaultModelSource=API` |
+| **Alibaba** | `https://ws-dft0j6dsrm76r6ud.eu-central-1.maas.aliyuncs.com/compatible-mode/` | `https://modelstudio.console.alibabacloud.com/` | `qwen3.7-plus` | `defaultModelSource=API`, `mergeHardcodedModels=true`, 7 hardcoded models |
+| **Amazon** | `https://bedrock-mantle.eu-central-1.api.aws/` | `https://eu-central-1.console.aws.amazon.com/bedrock-mantle/?region=eu-central-1` | `qwen.qwen3-next-80b-a3b-instruct` | `defaultModelSource=API`, `mergeHardcodedModels=true`, 6 hardcoded models |
+| **AnyAPI** | `https://api.anyapi.ai/` | `https://docs.anyapi.ai/` | `openai/gpt-4-turbo` | `defaultModelSource=API` |
+| **Auriko** | `https://api.auriko.ai/` | `https://docs.auriko.ai/quickstart` | `gpt-4o` | `defaultModelSource=API` |
+| **Avian** | `https://api.avian.io/` | `https://avian.io/docs/` | `deepseek/deepseek-v3.2` | `defaultModelSource=API` |
+| **Clarifai** | `https://api.clarifai.com/` | `https://docs.clarifai.com/compute/inference/open-ai/` | `openai/chat-completion/models/gpt-oss-120b` | `modelsPath=v2/ext/openai/v1/models`, `typePaths.chat=v2/ext/openai/v1/chat/completions`, `defaultModelSource=API` |
+| **Cortecs** | `https://api.cortecs.ai/` | `https://docs.cortecs.ai/api-overview/chat-completions` | `gemma-4-31b-it` | `defaultModelSource=API` |
+| **CrofAI** | `https://crof.ai/` | `https://github.com/nahcrof-code/crofAI` | `glm-4.7-flash` | `defaultModelSource=API` |
+| **Crusoe** | `https://api.inference.crusoecloud.com/` | `https://docs.crusoecloud.com/quickstart/getting-started-with-managed-inference` | `openai/gpt-oss-120b` | `defaultModelSource=API` |
+| **DigitalOcean** | `https://inference.do-ai.run/` | `https://docs.digitalocean.com/products/inference/how-to/use-chat-completions-api/` | `openai-gpt-4o-mini` | `defaultModelSource=API` |
+| **Doubleword** | `https://api.doubleword.ai/` | `https://docs.doubleword.ai/inference-api/creating-an-api-key` | `openai-gpt-oss-20b` | `defaultModelSource=API` |
+| **Evroc** | `https://models.think.evroc.com/` | `https://docs.evroc.com/products/think/concepts.html` | `mistralai/Ministral-8B-Instruct-2410` | `defaultModelSource=API` |
+| **FastRouter** | `https://api.fastrouter.ai/` | `https://docs.fastrouter.ai/api-reference/chat-completions` | `openai/gpt-4o-mini` | `modelsPath=api/v1/models`, `typePaths.chat=api/v1/chat/completions`, `defaultModelSource=API` |
+| **FriendliAI** | `https://api.friendli.ai/` | `https://friendli.ai/docs/guides/serverless_endpoints/openai-compatibility` | `meta-llama/Llama-3.1-8B-Instruct` | `modelsPath=serverless/v1/models`, `typePaths.chat=serverless/v1/chat/completions`, `defaultModelSource=API` |
+| **Frogbot** | `https://app.frogbot.ai/` | `https://docs.frogbot.ai/` | `claude-haiku-4-5` | `modelsPath=api/v1/models`, `typePaths.chat=api/v1/chat/completions`, `defaultModelSource=API` |
+| **GitHubModels** | `https://models.github.ai/` | `https://docs.github.com/en/rest/models/inference` | `openai/gpt-4.1-mini` | `modelListFormat=array`, `modelsPath=catalog/models`, `typePaths.chat=inference/chat/completions`, `defaultModelSource=API` |
+| **HeliconeGateway** | `https://ai-gateway.helicone.ai/` | `https://docs.helicone.ai/rest/ai-gateway/post-v1-chat-completions` | `gpt-4o-mini` | `defaultModelSource=API` |
+| **IONet** | `https://api.intelligence.io.solutions/` | `https://io.net/docs/reference/ai-models/get-started-with-io-intelligence-api` | `meta-llama/Llama-3.3-70B-Instruct` | `modelsPath=api/v1/models`, `typePaths.chat=api/v1/chat/completions`, `defaultModelSource=API` |
+| **Inceptron** | `https://api.inceptron.io/` | `https://docs.inceptron.io/introduction` | `MiniMaxAI/MiniMax-M2.5` | `defaultModelSource=API` |
+| **Jiekou** | `https://api.jiekou.ai/` | `https://docs.jiekou.ai/docs/models/reference-authentication` | `qwen/qwen-2.5-72b-instruct` | `modelsPath=openai/v1/models`, `typePaths.chat=openai/v1/chat/completions`, `defaultModelSource=API` |
+| **KiloCode** | `https://api.kilo.ai/` | `https://kilo.ai/docs/gateway/api-reference` | `google/gemini-3.1-flash-lite` | `modelsPath=api/gateway/models`, `typePaths.chat=api/gateway/chat/completions`, `defaultModelSource=API` |
+| **LLMGateway** | `https://api.llmgateway.io/` | `https://docs.llmgateway.io/quick-start` | `gpt-4o` | `defaultModelSource=API` |
+| **Lambda** | `https://api.lambda.ai/` | `https://docs.lambda.ai/public-cloud/lambda-inference-api/` | `llama3.1-8b-instruct` | `defaultModelSource=API` |
+| **LibertAI** | `https://api.libertai.io/` | `https://docs.libertai.io/apis/text/usage.html` | `hermes-3-8b-tee` | `defaultModelSource=API` |
+| **LlamaGate** | `https://api.llamagate.dev/` | `https://docs.litellm.ai/docs/providers/llamagate` | `llama-3.1-8b` | `defaultModelSource=API` |
+| **MegaNova** | `https://api.meganova.ai/` | `https://docs.meganova.ai/api-reference` | `openai/gpt-5-mini` | `defaultModelSource=API` |
+| **ModelScope** | `https://api-inference.modelscope.cn/` | `https://modelscope.cn/docs/model-service/API-Inference/intro` | `Qwen/Qwen2.5-72B-Instruct` | `defaultModelSource=API` |
+| **NanoGPT** | `https://nano-gpt.com/` | `https://docs.nano-gpt.com/introduction` | `google/gemini-3-flash-preview` | `modelsPath=api/v1/models`, `typePaths.chat=api/v1/chat/completions`, `defaultModelSource=API` |
+| **NearAI** | `https://cloud-api.near.ai/` | `https://docs.near.ai/cloud/guides/openai-compatibility/` | `Qwen/Qwen3-30B-A3B-Instruct-2507` | `defaultModelSource=API` |
+| **NeuralWatt** | `https://api.neuralwatt.com/` | `https://portal.neuralwatt.com/docs/api/overview` | `glm-5.2` | `defaultModelSource=API` |
+| **Nscale** | `https://inference.api.nscale.com/` | `https://docs.nscale.com/docs/getting-started/overview` | `meta-llama/Llama-3.1-8B-Instruct` | `defaultModelSource=API` |
+| **OVHcloud** | `https://oai.endpoints.kepler.ai.cloud.ovh.net/` | `https://help.ovhcloud.com/csm/en-public-cloud-ai-endpoints-getting-started` | `Mistral-7B-Instruct-v0.3` | `defaultModelSource=API` |
+| **Ollama** | `https://ollama.com/` | `https://docs.ollama.com/api/openai-compatibility` | `gpt-oss:20b` | `defaultModelSource=API`. Ollama's hosted cloud endpoint — distinct from the synthetic on-device `AppService.LOCAL` |
+| **OpenCodeZen** | `https://opencode.ai/` | `https://opencode.ai/docs/zen/` | `deepseek-v4-flash` | `modelsPath=zen/v1/models`, `typePaths.chat=zen/v1/chat/completions`, `defaultModelSource=API` |
+| **OrcaRouter** | `https://api.orcarouter.ai/` | `https://www.orcarouter.ai/` | `deepseek/deepseek-v4-flash` | `defaultModelSource=API` |
+| **Poe** | `https://api.poe.com/` | `https://creator.poe.com/docs/external-applications/openai-compatible-api` | `gpt-5.4-nano` | `defaultModelSource=API` |
+| **Poolside** | `https://inference.poolside.ai/` | `https://docs.poolside.ai/openai-api/chat/create-chat-completion` | `poolside/laguna-xs.2` | `defaultModelSource=API` |
+| **PublicAI** | `https://api.publicai.co/` | `https://platform.publicai.co/docs` | `swiss-ai/apertus-8b-instruct` | `defaultModelSource=API` |
+| **QiniuAI** | `https://api.qnaigc.com/` | `https://developer.qiniu.com/aitokenapi` | `qwen-turbo` | `defaultModelSource=API` |
+| **RegoloAI** | `https://api.regolo.ai/` | `https://docs.regolo.ai/` | `qwen3.5-9b` | `defaultModelSource=API` |
+| **RoutingRun** | `https://api.routing.run/` | `https://docs.routing.run/` | `qwen3.5-9b` | `defaultModelSource=API` |
+| **Scaleway** | `https://api.scaleway.ai/` | `https://www.scaleway.com/en/docs/generative-apis/reference-content/openai-compatibility/` | `llama-3.1-8b-instruct` | `defaultModelSource=API` |
+| **Tencent** | `https://api.hunyuan.cloud.tencent.com/` | `https://cloud.tencent.com/document/product/1729/111007` | `hunyuan-lite` | `defaultModelSource=API` |
+| **TensorMesh** | `https://serverless.tensormesh.ai/` | `https://tensormesh.mintlify.app/ai-sdk/guides/provider-configuration` | `openai/gpt-oss-20b` | `defaultModelSource=API` |
+| **ThreeZeroTwoAI** | `https://api.302.ai/` | `https://doc-en.302.ai/api-207705104` | `gpt-4o-mini` | `defaultModelSource=API` |
+| **Tinfoil** | `https://inference.tinfoil.sh/` | `https://docs.tinfoil.sh/sdk/direct-api-access` | `gpt-oss-120b` | `defaultModelSource=API` |
+| **Venice** | `https://api.venice.ai/` | `https://docs.venice.ai/api-reference/api-spec` | `qwen3-4b` | `modelsPath=api/v1/models`, `typePaths.chat=api/v1/chat/completions`, `defaultModelSource=API` |
+| **Vivgrid** | `https://api.vivgrid.com/` | `https://vivgrid.com/docs/quick-start` | `gpt-5.4-mini` | `defaultModelSource=API` |
+| **VolcEngine** | `https://ark.cn-beijing.volces.com/` | `https://www.volcengine.com/docs/82379/1298459` | `doubao-seed-1-6-251015` | `modelsPath=api/v3/models`, `typePaths.chat=api/v3/chat/completions`, `defaultModelSource=API` |
+| **Vultr** | `https://api.vultrinference.com/` | `https://docs.vultr.com/how-to-use-vultr-serverless-inference-in-python` | `qwen2.5-32b-instruct` | `modelsPath=v1/chat/models`, `defaultModelSource=API` |
+| **Wafer** | `https://pass.wafer.ai/` | `https://docs.wafer.ai/serverless/setup` | `deepseek-v4-flash` | `defaultModelSource=API` |
+| **WandB** | `https://api.inference.wandb.ai/` | `https://docs.wandb.ai/inference/api-reference/chat-completions` | `meta-llama/Llama-3.1-8B-Instruct` | `defaultModelSource=API` |
+| **ZenMux** | `https://zenmux.ai/` | `https://zenmux.ai/docs/api/overview.html` | `deepseek/deepseek-chat` | `modelsPath=api/v1/models`, `typePaths.chat=api/v1/chat/completions`, `defaultModelSource=API` |
+| **iFlow** | `https://apis.iflow.cn/` | `https://platform.iflow.cn/en/docs` | `qwen3-32b` | `defaultModelSource=API` |
 
-**35 providers total** — 32 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
-(Anthropic), 1 `GOOGLE` (Google), 1 `REPLICATE` (Replicate). All 32
+**91 providers total** — 88 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
+(Anthropic), 1 `GOOGLE` (Google), 1 `REPLICATE` (Replicate). All 88
 OpenAI-compatible providers share the unified dispatch path; only
-Anthropic, Google and Replicate carry format-specific code. (The inline `// 28 providers` comment in
-`ApiFormat.kt` is stale — the real OpenAI-compatible count is 32.)
+Anthropic, Google and Replicate carry format-specific code.
 
 ## Field reference
 
@@ -177,7 +232,7 @@ A few non-default fields warrant explanation:
   `cached_tokens` while leaving `prompt_tokens` as the fresh bucket.
 - **`modelListFormat`**: `"object"` (default — wrapped in
   `{ "data": [...] }`) vs `"array"` (Together's bare top-level array;
-  Google also returns an array).
+  Google and GitHubModels also return an array).
 - **`modelFilter`**: regex applied to model ids during listing —
   trims internal/test/preview models out of a noisy catalog.
 - **`litellmPrefix`** / **`openRouterName`**: composite-key prefixes
@@ -254,7 +309,8 @@ A few non-default fields warrant explanation:
   defaults (60 calls/min, 5 concurrent, 3 retries, 1000 ms backoff);
   `null` inherits. Bundled overrides — OpenAI 120/10, OpenRouter 90/8,
   Google 60/min, Mistral 30/3, Cohere 19/min, Fireworks 12/2,
-  Anthropic 529-retries 5 × 5000 ms. See [throttle.md](throttle.md).
+  Cerebras 30/2, Anthropic 529-retries 5 × 5000 ms. See
+  [throttle.md](throttle.md).
 
 ## Activation gating
 

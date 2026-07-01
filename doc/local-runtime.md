@@ -59,7 +59,7 @@ entirely:
 |---|---|---|
 | Report / agent generation | `analyzeWithAgent`, [`AnalysisRepository.kt:261`](../ai/src/main/java/com/ai/data/AnalysisRepository.kt) | `LocalLlm.generate(context, agent.model, finalPrompt)` |
 | Chat | `sendLocalLlmStream`, [`ChatViewModel.kt:188`](../ai/src/main/java/com/ai/viewmodel/ChatViewModel.kt) | `LocalLlm.generate` (response emitted as a single chunk) |
-| Rerank | `runLocalRerank`, [`SecondaryRunManager.kt:142`](../ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt) | `LocalEmbedder.embed` + cosine-to-prompt |
+| Rerank | `runLocalRerank`, [`SecondaryRunManager.kt:169`](../ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt) | `LocalEmbedder.embed` + cosine-to-prompt |
 
 On the report fork, success returns an `AnalysisResponse` with
 `httpStatusCode = 200`; a `null` result becomes a 500 whose message
@@ -216,7 +216,7 @@ when idle).
 Both runtime screens hang off a small hub. AI Setup → **Models setup**
 (`ModelsSetupScreen`) shows a **Local Models** card *only when*
 **Experimental features** is on — that `if (experimentalFeatures)`
-block ([`SetupScreens.kt:175`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt))
+block ([`SetupScreens.kt:193`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt))
 is the single gate for the whole subsystem's UI. The card opens
 `LocalModelsSetupScreen` (the **Local models** hub, also in
 `SetupScreens.kt`), whose two cards open the actual management screens
@@ -265,7 +265,7 @@ the same `LocalEmbedder` when a KB's `embedderProviderId == "LOCAL"`
 
 `local_llms/`, `local_models/`, `native/`, **and** `applog/` are the
 four entries in `FILES_DIR_BACKUP_EXCLUDES`
-([`data/BackupManager.kt:125`](../ai/src/main/java/com/ai/data/BackupManager.kt)):
+([`data/BackupManager.kt:137`](../ai/src/main/java/com/ai/data/BackupManager.kt)):
 
 ```kotlin
 internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models", "native", "applog")

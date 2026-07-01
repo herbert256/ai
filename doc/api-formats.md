@@ -1,49 +1,57 @@
 # API Formats
 
-Four dispatch paths cover all 51 bundled cloud providers. Identity is
+Four dispatch paths cover all 91 bundled cloud providers. Identity is
 **always** keyed off `service.apiFormat` — never off provider id —
 which is why adding an OpenAI-compatible provider is usually a single
 JSON file under `assets/providers/`.
 
 ```kotlin
-enum class ApiFormat { OPENAI_COMPATIBLE, ANTHROPIC, GOOGLE }
+enum class ApiFormat { OPENAI_COMPATIBLE, ANTHROPIC, GOOGLE, REPLICATE }
 ```
 
 The enum has exactly four values (`ApiFormat.kt`). Provider
-definitions are now one JSON file per provider under
+definitions are one JSON file per provider under
 `assets/providers/` (each file a bare `ProviderDefinition`, no
 `{ "providers": [...] }` wrapper), loaded via
-`ProviderRegistry.importFromAsset`. Across the 35 provider files,
-**48 are `OPENAI_COMPATIBLE`, 1 is `ANTHROPIC` (the `Anthropic`
-provider), 1 is `GOOGLE` (the `Google` provider), 1 is `REPLICATE` (the
-`Replicate` provider)**. The inline
-`// 28 providers…` comment in `ApiFormat.kt` is stale — the real
-OpenAI-compatible count is 48.
+`ProviderRegistry.importFromAsset`. Across the 91 provider files,
+**88 are `OPENAI_COMPATIBLE`, 1 is `ANTHROPIC`** (the `Anthropic`
+provider), **1 is `GOOGLE`** (the `Google` provider), **1 is
+`REPLICATE`** (the `Replicate` provider).
 
-Dispatch lives in `com.ai.data.ApiDispatch`; chat streaming in
-`com.ai.data.ApiStreaming`. Every public entry point switches on a
-single `when (service.apiFormat)` with the three branches:
+Dispatch lives in `com.ai.data.ApiDispatch`, split across a few
+files: the per-format `analyze` / `sendChatResponse` implementations
+and the `when (service.apiFormat)` branches are in `ApiDispatch.kt`
+itself; `fetchModelsWithKinds`'s per-format implementations are in
+`ApiDispatchModels.kt`; the per-format streaming-report
+implementations (`streamOpenAiReport` / `streamAnthropicReport` /
+`streamGeminiReport`) are in `ApiDispatchStreaming.kt`; shared
+request-building / reasoning / web-search helpers used by all of the
+above are in `ApiDispatchBuilders.kt`; and Replicate's branch bodies
+live in their own `ReplicateDispatch.kt`. Chat streaming (`sendChatStream`)
+is in `com.ai.data.ApiStreaming`. Every public entry point switches on
+a single `when (service.apiFormat)` with all four branches:
 
-| Entry point | OPENAI_COMPATIBLE | ANTHROPIC | GOOGLE |
-|---|---|---|---|
-| `analyze` | `analyzeOpenAi` | `analyzeAnthropic` | `analyzeGemini` |
-| `sendChatResponse` (`sendChat` wraps it) | `chatOpenAiResponse` | `chatAnthropicResponse` | `chatGeminiResponse` |
-| `fetchModelsWithKinds` | `fetchModelsOpenAi` | `fetchModelsAnthropic` | `fetchModelsGemini` |
-| `analyzeAgentStreaming` (report) | `streamOpenAiReport` | `streamAnthropicReport` | `streamGeminiReport` |
-| `sendChatStream` (chat, in `ApiStreaming.kt`) | `streamOpenAi` | `streamAnthropic` | `streamGemini` |
+| Entry point | OPENAI_COMPATIBLE | ANTHROPIC | GOOGLE | REPLICATE |
+|---|---|---|---|---|
+| `analyze` | `analyzeOpenAi` | `analyzeAnthropic` | `analyzeGemini` | `analyzeReplicate` |
+| `sendChatResponse` (`sendChat` wraps it) | `chatOpenAiResponse` | `chatAnthropicResponse` | `chatGeminiResponse` | `chatReplicateResponse` |
+| `fetchModelsWithKinds` | `fetchModelsOpenAi` | `fetchModelsAnthropic` | `fetchModelsGemini` | `fetchModelsReplicate` |
+| `analyzeAgentStreaming` (report) | `streamOpenAiReport` | `streamAnthropicReport` | `streamGeminiReport` | `streamReplicateReport` |
+| `sendChatStream` (chat, in `ApiStreaming.kt`) | `streamOpenAi` | `streamAnthropic` | `streamGemini` | *(no native stream — see REPLICATE below)* |
 
 `embedWithStatus` is the exception: it only supports
-`OPENAI_COMPATIBLE` and `GOOGLE`; `ANTHROPIC` (and anything else)
-returns `errorMessage = "Embed dispatch only supports OpenAI-compatible
-and Google providers"`.
+`OPENAI_COMPATIBLE` and `GOOGLE`; `ANTHROPIC`, `REPLICATE` (and
+anything else) return `errorMessage = "Embed dispatch only supports
+OpenAI-compatible and Google providers"`.
 
-Only `ANTHROPIC` and `GOOGLE` carry format-specific code. The 40
-`OPENAI_COMPATIBLE` providers all share one Retrofit interface
-(`OpenAiCompatibleApi`, dynamic `@Url` endpoints) and one set of
-dispatchers — per-provider behaviour is data, driven by `AppService`
-fields read from each provider's JSON file under `assets/providers/`.
+Only `ANTHROPIC`, `GOOGLE`, and `REPLICATE` carry format-specific
+code. The 88 `OPENAI_COMPATIBLE` providers all share one Retrofit
+interface (`OpenAiCompatibleApi`, dynamic `@Url` endpoints) and one
+set of dispatchers — per-provider behaviour is data, driven by
+`AppService` fields read from each provider's JSON file under
+`assets/providers/`.
 
-## OPENAI_COMPATIBLE (default — 32 of 35 providers)
+## OPENAI_COMPATIBLE (default — 88 of 91 providers)
 
 The familiar OpenAI Chat Completions wire format. Bearer-token auth.
 Request/response shapes are `OpenAiRequest` / `OpenAiResponse` in
@@ -57,15 +65,19 @@ Request/response shapes are `OpenAiRequest` / `OpenAiResponse` in
   already ending in the path, or a full endpoint ending in a different
   known path (stripped then re-appended).
 - **`max_tokens` default**: `defaultMaxTokens(service, model)` resolves
-  `service.maxTokensDefaults.resolveMaxTokens(model)` first; failing
-  that it reads the model's `models.dev` max-output cap (clamped to
-  `context − 4096` headroom, floor 1024, when a context length is
-  known), and only falls back to a flat `4096` when neither is
-  available. Although 4096 is "Anthropic's required default", the
-  dispatch layer applies a cap to OpenAI-compatible chat too — without
-  one, OpenRouter and others gate the whole output window against the
-  account balance and 402 on expensive models that would answer a
-  normal request fine.
+  in order — (1) `service.maxTokensDefaults.resolveMaxTokens(model)`
+  (explicit per-provider/model rules); (2) the provider's own `/models`
+  self-report (`ModelCapabilities.maxOutputTokens`, when the account's
+  live catalog has been fetched); (3) a same-provider `models.dev`
+  max-output cap; (4) a loose cross-provider `models.dev` match as a
+  last resort. Steps 2–4 are each clamped to `context − 4096` headroom
+  (floor 1024) when a context length is known, and step 4 is
+  additionally capped at a 16384-token ceiling. Only when none of
+  those resolve does it fall back to a flat `4096`. Although 4096 is
+  "Anthropic's required default", the dispatch layer applies this same
+  chain to OpenAI-compatible chat too — without a cap, OpenRouter and
+  others gate the whole output window against the account balance and
+  402 on expensive models that would answer a normal request fine.
 - **Streaming**: SSE — `data: {...}\n\ndata: {...}\n\n…\ndata: [DONE]`.
   Parsed by `parseSseStream` (the shared reader) via the
   `streamOpenAi` / `streamOpenAiReport` implementations. Data lines are
@@ -118,11 +130,19 @@ Routing is `usesResponsesApi(service, model)` (in `AnalysisRepository`):
    authoritative source, declared in the OpenAI provider's JSON file
    (`assets/providers/OpenAI.json` carries prefix patterns `gpt-5`,
    `o1`, `o3`, `o4`, `gpt-4.1`) and editable in Service Settings.
-2. Else **`ModelType.infer(model) == ModelType.RESPONSES`** — a naming
-   heuristic catching `gpt-5` / `o3` / `o4` prefixes on custom
-   OpenAI-compatible endpoints with no pattern config. (`infer` does
-   **not** catch `o1` / `gpt-4.1` by name — those route to Responses
-   only via the provider's `responsesApiPatterns`.)
+2. Else, **only when `service.responsesApiPatterns` is non-empty**,
+   **`ModelType.infer(model) == ModelType.RESPONSES`** — a naming
+   heuristic catching `gpt-5` / `o3` / `o4` prefixes, used as a
+   backstop for models that don't literally match the declared
+   patterns on a provider that already exposes some Responses-API
+   surface (in practice, just OpenAI). The `isNotEmpty()` guard is
+   deliberate: chat-only OpenAI-compatible gateways (Poe, Vivgrid, and
+   most aggregators) also serve `gpt-5` / `o3` / `o4` model ids but
+   have no `/v1/responses` endpoint at all, so inferring RESPONSES for
+   a provider with zero configured patterns would send every call to a
+   non-existent path → 404. (`infer` does **not** catch `o1` /
+   `gpt-4.1` by name — those route to Responses only via the
+   provider's `responsesApiPatterns`.)
 
 There is no `endpointRules` field anywhere in the current code; the
 `gpt-5` / `o3` / `o4` prefixes that "used to live in OpenAI's
@@ -167,12 +187,13 @@ Responses-API specifics (`OpenAiResponsesRequest`, `ApiModels.kt`):
 - **xAI** sets `costTicksDivisor=1e10` — its returned costs are in
   ticks (`usage.cost_in_usd_ticks`), not dollars. Provider-config edit
   refuses non-positive divisors.
-- **Together** and **Google** set `modelListFormat=array` because their
-  `/models` endpoints return a bare array instead of `{ "data": [...] }`.
-  (A custom provider can still set the flag for the same reason — the
-  bundled Cloudflare Workers AI provider, which also used a
-  `YOUR_ACCOUNT_ID` base-URL placeholder, was dropped in the
-  keyless-provider sweep.)
+- **Together**, **Google**, and **GitHub Models** set
+  `modelListFormat=array` because their model-list endpoints
+  (`/v1/models`, or GitHub Models' `catalog/models`) return a bare
+  array instead of `{ "data": [...] }`. (A custom provider can still
+  set the flag for the same reason — the bundled Cloudflare Workers AI
+  provider, which also used a `YOUR_ACCOUNT_ID` base-URL placeholder,
+  was dropped in the keyless-provider sweep.)
 
 ## ANTHROPIC (Claude — 1 provider)
 
@@ -208,10 +229,14 @@ Claude's `/v1/messages` API has its own request/response shape.
   Claude 3.7 / 4.x, and the adaptive form `{type: adaptive}` +
   top-level `output_config.effort` for Claude Opus 4.7+, gated by
   `provider.adaptiveThinkingPatterns`.
-- **Native PDF input**: `ModelCapabilities.supportsPdfInput` (from
-  Anthropic `capabilities.pdf_input.supported`) lets a chat session
-  attach a PDF as a `document` content block instead of relying on
-  client-side OCR.
+- **PDF-input capability flag**: `ModelCapabilities.supportsPdfInput`
+  (from Anthropic `capabilities.pdf_input.supported`) records that a
+  model *can* accept a `document` content block with raw PDF bytes
+  instead of client-side OCR. It's currently surfaced as an info-only
+  field in the Model Info / catalog screens; nothing in the chat or
+  report dispatch path builds that `document` block yet — `ChatMessage`
+  only carries `imageBase64` / `imageMime`, and the chat attach picker
+  is restricted to `image/*`.
 
 Models list at `v1/models`. A hardcoded fallback list ships in the
 provider's `hardcodedModels` (the eight current Claude ids) but is
@@ -260,6 +285,45 @@ Path-encoded model ids mean the trace file shows the model in the URL,
 which `TracingInterceptor` extracts into `trace.model` for providers
 that don't encode it in the body.
 
+## REPLICATE (Replicate — 1 provider)
+
+Replicate runs models through its **asynchronous predictions API**,
+not an OpenAI-style chat endpoint. Format-specific code lives in
+`com.ai.data.ReplicateDispatch` (a separate file from `ApiDispatch.kt`).
+
+- **Auth**: `Authorization: Bearer <key>`, same header shape as
+  OPENAI_COMPATIBLE but a completely different body.
+- **Path**: `POST <baseUrl>/models/{owner}/{name}/predictions` with a
+  `Prefer: wait` header — the model id is `owner/name` and is part of
+  the URL path, not the body. `Prefer: wait` blocks the call until the
+  prediction completes and returns it inline, so the app's one-shot
+  dispatch works without a separate poll loop.
+- **Request shape**: `ReplicatePredictionRequest` wraps a single
+  `ReplicateInput` carrying `prompt`, `system_prompt`, `max_tokens`
+  (default 1024), `temperature`, `top_p`. No `messages` array — chat
+  turns are flattened into one prompt string (`chatReplicateResponse`
+  joins non-system turns as `"role: content"` lines and pulls the
+  system turn(s) into `system_prompt`).
+- **Response shape**: `ReplicatePredictionResponse` — `status`
+  (`succeeded` / `failed` / `processing`), `output` (a `JsonElement`:
+  usually an array of token strings to join, sometimes a single
+  string), `error`, and `metrics` (`input_token_count`,
+  `output_token_count`) for token usage. A `status="processing"` body
+  (the `Prefer: wait` window elapsed before the model finished) and a
+  `status="failed"` / non-null `error` body are both surfaced as
+  explicit error messages rather than silently returning empty text.
+- **Scope**: text prompt only — no vision, no embeddings
+  (`imageBase64` / `imageMime` params are accepted for signature
+  parity with the other formats but ignored).
+- **Streaming**: no native SSE. `sendChatStream` runs the synchronous
+  `sendChat` call and emits the whole answer as one chunk; the
+  streaming-report path (`streamReplicateReport`) does the same via
+  `analyzeReplicate` then a single `onDelta` call.
+- **Models list**: Replicate has no chat-model listing endpoint —
+  `fetchModelsReplicate` just returns `service.hardcodedModels`
+  (`meta/meta-llama-3-8b-instruct`, `meta/meta-llama-3-70b-instruct` in
+  the bundled `Replicate.json`) with no live catalog fetch at all.
+
 ## Per-format auth & endpoint summary
 
 Request-header / auth setup is one `when (service.apiFormat)` block
@@ -270,13 +334,16 @@ Request-header / auth setup is one `when (service.apiFormat)` block
 | `OPENAI_COMPATIBLE` | host + `chatPath` (or `responsesPath` when routed to Responses) | `Authorization: Bearer <key>` |
 | `ANTHROPIC` | host + `/v1/messages` | `x-api-key: <key>`, `anthropic-version: 2023-06-01` |
 | `GOOGLE` | host + `/v1beta/models/<model>:generateContent` | `?key=<key>` query param |
+| `REPLICATE` | host + `/models/<model>/predictions` | `Authorization: Bearer <key>` + `Prefer: wait` |
 
 Per-format response usage is normalised into the unified `TokenUsage`
 (uncached `inputTokens`, `cachedInputTokens`, `cacheCreationTokens`,
 `outputTokens`, `reasoningTokens`) by the `toTokenUsage` helpers in
 `ApiModels.kt`, dispatched per format from
 `ReportStorage.extractTokenUsageFromTrace` — `ClaudeUsage` (Anthropic),
-`GeminiUsageMetadata` (Google), `OpenAiUsage` (OpenAI-compatible).
+`GeminiUsageMetadata` (Google), `OpenAiUsage` (OpenAI-compatible),
+`ReplicateMetrics` (Replicate, reading `input_token_count` /
+`output_token_count` off the response's `metrics` object).
 Cached-token accounting differs per format:
 
 - **OpenAI-compatible** — most providers report `prompt_tokens` as a
@@ -299,13 +366,18 @@ Cached-token accounting differs per format:
 
 ## Adding an `ApiFormat`
 
-If you ever need a fourth format:
+If you ever need a fifth format (REPLICATE was the fourth):
 
 1. Add the enum value to `ApiFormat`.
 2. In `ApiDispatch.kt`, add a `when (service.apiFormat)` branch in every
    dispatcher: `analyze`, `sendChat`, `fetchModelsWithKinds`,
    `embedWithStatus`, `analyzeAgentStreaming`, plus the endpoint-URL
-   builder (`dispatchUrl`) and the request-header / auth block.
+   builder (`dispatchUrl`) and the request-header / auth block. Add the
+   actual `fetchModelsWithKinds` implementation to `ApiDispatchModels.kt`
+   and the `analyzeAgentStreaming` implementation to
+   `ApiDispatchStreaming.kt` (or a dedicated file, as Replicate's
+   `ReplicateDispatch.kt` does, if the format is large enough to
+   warrant its own).
 3. In `ApiStreaming.kt`, add a chat-stream branch in `sendChatStream`
    and an SSE / chunked-JSON content+usage extractor for the shared
    `parseSseStream`.
@@ -316,7 +388,7 @@ If you ever need a fourth format:
 6. Set `apiFormat` in the new provider's JSON file under
    `assets/providers/`.
 
-The 40-of-42 ratio of `OPENAI_COMPATIBLE` providers means you almost
+The 88-of-91 ratio of `OPENAI_COMPATIBLE` providers means you almost
 never need to do this — it's worth pushing back on the third party to
 add an OpenAI-compatible endpoint before reaching for a new format.
 
@@ -345,13 +417,13 @@ Providers without these URLs fall through to chat-prompt rerank /
 moderation, with an explanatory error if the picked model isn't
 chat-capable.
 
-## A note on OpenAI's hardcoded-model union
+## A note on the hardcoded-model union
 
 OpenAI's `omni-moderation-*` / `text-moderation-*` (moderation),
 `tts-1` (TTS), `whisper-1` (STT), and `dall-e-3` / `gpt-image-1`
 (image) model ids do **not** show up in `/v1/models` — they're
 documented but unlisted. OpenAI's `assets/providers/OpenAI.json` entry
-sets `mergeHardcodedModels=true`, which gates the OpenAI-only fallback union
+sets `mergeHardcodedModels=true`, which drives the fallback-union
 in `Settings.withModels`: the fetcher path unions
 `service.hardcodedModels` into the live `/models` list (and
 `distinct()`s the overlap) so the Moderation / TTS / Image / STT
@@ -360,9 +432,19 @@ canonical — merging hardcoded ids in would resurrect retired model ids
 the API correctly omitted (e.g. Anthropic's `claude-3.x`) — so the
 union is gated to providers carrying the flag.
 
+`mergeHardcodedModels=true` is no longer OpenAI-exclusive: 12 more
+providers now carry it (Merge, Vercel AI Gateway, Requesty, DeepSeek,
+Baseten, Parasail, GMI Cloud, Glama, AtlasCloud, Alibaba, Amazon,
+AI/ML API) — but for a different reason. Those are aggregator/gateway
+providers using it to keep a small bundled catalog (e.g. a curated
+Claude/GPT/Gemini/DeepSeek list) visible in the model picker before
+the first live `/models` fetch completes, not to backfill undocumented
+endpoint types the way OpenAI does.
+
 Note the OpenAI entry no longer ships a `hardcodedModels` array in the
-bundle, so the union is currently a **no-op** unless the user supplies
-those ids. (Anthropic, Perplexity, SiliconFlow *do* carry
+bundle, so the OpenAI union is currently a **no-op** unless the user
+supplies those ids. (Anthropic, Perplexity, SiliconFlow, HuggingFace,
+MiniMax, Moonshot, Replicate, SambaNova, and Z.AI *do* carry
 `hardcodedModels`, but without `mergeHardcodedModels` those lists serve
 only as the manual fallback when no live list has been fetched.)
 

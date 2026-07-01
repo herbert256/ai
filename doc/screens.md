@@ -28,6 +28,7 @@ screens use the generic `TitleBar`.
 | Add Override | Set input/output $/M for one model |
 | Add override | Set one model's API type by hand |
 | Add Parameters | \<preset name\> |
+| Add provider - predefined | \<unkeyed count\> without an API key — tap to set one up |
 | Add Swarm | \<swarm name\> |
 | Add System Prompt | \<prompt name\> |
 | Add test-excluded model | Exclude one model from Test all |
@@ -35,8 +36,10 @@ screens use the generic `TitleBar`.
 | Agent | This agent's model, prompt & settings |
 | Agent | \<agent name\> |
 | Agents | Saved model + prompt + params combos |
+| AI Knowledge | Knowledge bases for grounding answers |
 | All reports | Browse every saved report, newest first |
 | Alternative icons | Live icon ideas from several models |
+| Alternative prompts | Prompts the app's own flows use |
 | Alternative titles | Live title ideas from several models |
 | Alternative translations | Live translations from several models |
 | Answer matrix | \<report title\> |
@@ -50,7 +53,10 @@ screens use the generic `TitleBar`.
 | assets/*.json | Restore providers/prompts from defaults |
 | Audit | Per-report audit trail |
 | Audit | \<report title\> |
+| Autostart | What runs automatically when a report finishes |
 | Backup & Restore | Back up or restore the whole app to a zip |
+| Base models | Versions and provider coverage per family |
+| Base models | \<drill-down label\> |
 | Blocked model | \<provider\> · \<model\> |
 | Blocked models | Models the app will never call |
 | Broken work | Batch work that needs attention |
@@ -65,6 +71,7 @@ screens use the generic `TitleBar`.
 | Configure API parameters | |
 | Configure API parameters | Current active: \<preset names\> |
 | Continue in chat | Send this answer into a new chat |
+| Compare prompts | Prompts the app's own flows use |
 | Compare with meta | Pick a meta result to score answers against |
 | Compare with meta | \<report title\> |
 | Compare with meta - model | \<report title\> |
@@ -80,6 +87,7 @@ screens use the generic `TitleBar`.
 | Default meta items | Meta prompts auto-run when a report finishes |
 | Define model system prompt | |
 | Define model system prompt | Current active: \<prompt name\> |
+| Dependencies | Active versions used by the app and the build |
 | Dual Chat | Set up two models to debate a topic |
 | Dual Chat | Two models taking turns automatically |
 | Edit Agent | \<agent name\> |
@@ -97,6 +105,7 @@ screens use the generic `TitleBar`.
 | Edit override | Set one model's API type by hand |
 | Edit Parameters | \<preset name\> |
 | Edit prompt | Saving needs a regenerate to apply |
+| Edit prompt | Sent to the models you pick next |
 | Edit report | \<report short title\> |
 | Edit report | Icon, titles, parameters, prompt |
 | Edit Request | Edit the raw JSON request body |
@@ -137,8 +146,10 @@ screens use the generic `TitleBar`.
 | Fan Out - run | Confirm the calls before fanning out |
 | Fan Out - scope | \<secondary kind\> |
 | Fan out/in prompts | Prompts for multi-model fan out/in |
+| Fan-in prompts | Prompts the app's own flows use |
 | Fan-out | \<report title\> |
 | Fan-out pair | \<report title\> |
+| Fan-out prompts | Prompts the app's own flows use |
 | Flock | \<flock name\> |
 | Flocks | Named groups of agents |
 | Find alternative translation | \<target language\> - \<type\> |
@@ -151,17 +162,21 @@ screens use the generic `TitleBar`.
 | HTML preview | \<report title\> |
 | HTML preview (short) | \<report title\> |
 | Icon lookup | \<icon target\> |
+| Icon prompts | Prompts the app's own flows use |
 | Icons | \<report title\> |
 | Import | Bring data in from a file |
 | Inaccessible model | \<provider\> · \<model\> |
 | Inaccessible models | Models that returned unreachable |
+| Info prompts | Prompts the app's own flows use |
 | Info provider | \<provider name\> |
-| Info Providers | Six pricing & capability catalogs |
+| Info Providers | Eleven pricing & capability catalogs |
+| Info providers | Pick which catalogs the app uses |
 | Internal prompts | Prompts the app's own flows use |
 | Internal-prompt icons | Per-(name, title) emoji for internal-prompt rows |
 | Interrupted models | \<report title\> · \<batch name\> |
 | Judge | \<report title\> |
 | Judge the judges | \<report title\> |
+| Knowledge base | \<kb name\> |
 | Match | \<report title\> |
 | Live Dashboard | What's happening right now |
 | Loading… | Loading settings… |
@@ -171,9 +186,9 @@ screens use the generic `TitleBar`.
 | Local semantic search | On-device meaning search, no cloud |
 | Log entry | \<filename\> |
 | Log file | \<filename\> |
-| Logging and tracing | Log level and API call tracing |
-| Manage a report | |
+| Log/trace/audit/statistics | Tracing, audit log, usage statistics and log level |
 | Manage chats | Bulk-delete old chats or export them |
+| Manage data | Update catalogs/workers, or clear data |
 | Manage reports | Delete old reports or export them all |
 | Manual cost override | \<provider\> · \<model\> |
 | Manual cost overrides | Prices you set by hand, beat the catalog |
@@ -184,6 +199,7 @@ screens use the generic `TitleBar`.
 | Meta | Run a prompt over the report's answers |
 | Meta (titles / lang-icon) | Cached report titles + language icons (7 d) |
 | Meta detail | \<secondary title\> |
+| Meta prompts | Prompts the app's own flows use |
 | Metadata & icons | Master switch and per-item options for optional report metadata |
 | Model cooldowns | Models paused after rate-limit errors |
 | Model Info | \<model name\> |
@@ -202,11 +218,16 @@ screens use the generic `TitleBar`.
 | Moderation result | \<agent label\> |
 | Monitor | Live and historical observability |
 | Network settings | Timeouts, throttling and retry rules |
+| New knowledge base | Name a base to add documents to |
 | New report | Blank, a past prompt, or an example |
 | New Report | Write your prompt, then pick models |
 | One page view | \<model label\> |
 | One-time prompt | Run a prompt without saving it |
+| Other internal prompts | Prompts the app's own flows use |
 | Other settings | Identity |
+| Parameter preset | \<preset name\> |
+| Parameters | Saved temperature / token presets |
+| Per provider | Per-provider throttle overrides |
 | Pick a flock | Add a whole group of agents at once |
 | Pick a swarm | Add a multi-agent team to the report |
 | Pick an agent | Add a saved agent to the report |
@@ -230,25 +251,27 @@ screens use the generic `TitleBar`.
 | Prompt translations | Generate and manage internal-prompt translations |
 | Prompts | Cached internal-prompt responses (48 h) |
 | Provider | \<provider id\> |
-| Providers | 42 built-in plus your own providers |
+| Providers | \<keyed count\> with an API key set |
 | Providers / Models | The whole model fleet |
 | Quick local search | Fast substring match, no scoring |
 | Rank the translators | \<report title\> |
 | Rank workers | \<report title\> |
 | Ranking weights | Weight each ranking 0–10 |
+| Reasoning Effort | \<model label\> |
 | Refine answer | \<answer label\> |
 | Refresh | Update model catalogs and workers |
 | Regenerate report | Re-run every model on this report |
 | Report - API | Raw API request and response |
-| Report - Get info | Status of icon, title & language jobs |
+| Report - manage | \<report title\> |
 | Report - second results | Status of every secondary result |
 | Report - select models | Add agents, flocks, swarms or models |
+| Report - setup | System prompt, parameters and workers |
+| Report - titles/icons/... | \<report title\> |
 | Report information | Everything we know about this report |
 | Report information | \<report title\> |
 | Reports | Create, browse and search your reports |
 | Reports | Reports and secondary results |
 | Rerank | \<report title\> |
-| Reset | Five ways to clear data, safe to drastic |
 | Reset application | Factory reset; only API keys are kept |
 | Restore | Restore the whole app from a backup zip |
 | Run a Meta prompt | Choose a prompt for this action |
@@ -274,8 +297,11 @@ screens use the generic `TitleBar`.
 | Supported params | OpenRouter per-model supported parameters |
 | Swarm | \<swarm name\> |
 | Swarms | Multi-step agent pipelines |
+| Switch model / agent | Re-run this result against another model |
+| Switch model / agent | \<selection label\> |
 | System prompt | \<prompt name\> |
 | System prompts | Reusable system instructions |
+| Temperature sweep | \<model label\> |
 | Test | Diagnostic test flows for models |
 | Test all models | Choose which providers to test |
 | Test all models | Per-provider pass rate, tap to drill in |
@@ -316,33 +342,34 @@ screens use the generic `TitleBar`.
 | View a report | \<report title\> |
 | View in one page | \<section title\> |
 | View Reports | Read each model's full answer |
+| Web search replay | \<model label\> |
+| Worker prompts | Prompts the app's own flows use |
 | Workers | Models, agents, flocks and swarms |
+| Workers | Report info, model info, batches |
 | \<catalog name\> | What the refresh updated |
+| \<pick title\> | Pick the workers for this run |
 | \<provider id\> | Usage detail |
 | \<refresh scope\> | Updating catalogs and workers… |
 
-## Notes on two subtitles that are stale in the app itself
+## Note on a subtitle that is stale in the app itself
 
 This table transcribes the strings exactly as they appear in the running app,
-including two that no longer describe what their screen does. They are recorded
-verbatim here for fidelity; the underlying source strings are the things that
-need fixing, not this doc:
+including one that no longer describes what its screen does. It is recorded
+verbatim here for fidelity; the underlying source string is the thing that
+needs fixing, not this doc:
 
-- **Info Providers — "Six pricing & capability catalogs"**
-  (`RefreshScreen.kt:460`). There are now **seven** external metadata
-  repositories and eight price sources (see `repositories.md` /
-  `costs.md`); the catalog count is no longer six. The help page lists the
-  same stale six.
 - **Swarms — "Multi-step agent pipelines"**
   (`cruds/workers/swarms/list.kt:42`). A swarm is a **flat group of
   (provider, model) pairs**, not a pipeline — the Models-setup NavCard
   already says the accurate "Groups of provider/model pairs"
-  (`SetupScreens.kt:219`). See `workers.md`.
+  (`SetupScreens.kt:245`). See `workers.md`.
 
-The **Providers** subtitle "42 built-in plus your own providers"
-(`SetupScreens.kt:561`) is accurate: the bundled catalog has 35 cloud
-providers (loaded at runtime from `assets/providers.json`, not hardcoded),
-plus any custom providers you add.
+The **Providers** subtitle ("`<keyed count>` with an API key set",
+`SetupScreens.kt:590`) is a live count of keyed providers, not a static
+catalog size. The bundled catalog itself ships as 91 per-provider JSON
+files under `assets/providers/` (one `ProviderDefinition` object per file,
+no wrapper; loaded by `ProviderRegistry`), not a single
+`assets/providers.json`; see `providers.md`.
 
 The **Answer matrix** screen (new, `ui/report/view/AnswerMatrix.kt`, reached
 from the **Matrix** tile on the View grid, between Reports and Costs) is a

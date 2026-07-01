@@ -7,11 +7,11 @@ listed here — see the file directly. Cost / token / trace bookkeeping
 fields on big classes (`Report`, `SecondaryResult`) are summarised
 rather than exhaustively transcribed; read the source for the full set.
 
-The codebase is ~153,000 LOC across 388 Kotlin files under
-`ai/src/main/java/com/ai` (`data` 88, `ui` 273, `viewmodel` 24, `model`
+The codebase is ~161,000 LOC across 406 Kotlin files under
+`ai/src/main/java/com/ai` (`data` 97, `ui` 279, `viewmodel` 27, `model`
 2, plus `MainActivity.kt`). Persistence is SharedPreferences + JSON
-files under `<filesDir>` — there is **no** Jetpack DataStore at runtime
-(the dependency is declared but unused). See
+files under `<filesDir>` — there is **no** Jetpack DataStore; the
+dependency isn't in the build at all. See
 **[persistent.md](persistent.md)** for every prefs key and file.
 
 ---
@@ -42,6 +42,7 @@ The top-level AI configuration object. Persisted in `eval_prefs`.
 | testExcludedModels | `List<TestExcludedModel>` | models skipped by the test sweep (costly probes etc.) |
 | inaccessibleModels | `List<InaccessibleModel>` | models gated behind paid tier / approval (🔒) |
 | defaultMetaItems | `List<DefaultMetaItem>` | Meta rows auto-created after primary generation |
+| disabledInfoProviders | `Set<String>` (default empty) | info providers (pricing/capability catalogs) the user switched OFF on AI Setup → Info providers; stored as the DISABLED set so a newly-added provider defaults on. Keyed by `InfoProvider.id` |
 
 The four model-state lists (`blockedModels`, `testExcludedModels`,
 `inaccessibleModels`, plus the cooldown store) are documented in
@@ -50,7 +51,7 @@ The four model-state lists (`blockedModels`, `testExcludedModels`,
 ### `ProviderConfig`
 Per-provider, user-curated configuration. The provider's `defaultModel`
 / `defaultModelSource` / `adminUrl` are NOT here — they live on the
-`AppService` itself (loaded from `assets/providers.json`, edited through
+`AppService` itself (loaded from `assets/providers/`, edited through
 `ProviderRegistry.update`).
 
 | Field | Type | Notes |
@@ -147,10 +148,11 @@ User-managed prompt template. Covers Meta-prompt launchers on the
 Report Result screen (`category="meta"`), Compare-with-meta prompts
 (`category="meta_compare"`), Fan-out / Fan-in templates
 (`category="fan_out"` / `"fan_in"`), worker fallback-chain prompts
-(`category="workers"`), alternative icon/title prompts
+(`category="workers"`: also covers the translate-text /
+translate-title / second-rerank / second-moderation worker chains,
+not just the fallback-chain concept), alternative icon/title prompts
 (`category="alt"`), and fixed internal templates
 (`category="internal"`: chat-title, model-info, model-intro,
-translate-text, translate-title, second-rerank, second-moderation,
 test-model).
 
 | Field | Type | Notes |
@@ -193,6 +195,20 @@ for the New Report screen.
 | supportsVision | `Boolean` | wins over per-provider visionModels for this id |
 | supportsWebSearch | `Boolean` | same idea for web-search |
 | supportsReasoning | `Boolean` | same idea for reasoning-capable |
+
+### `DefaultMetaItem`
+Pins a category-`meta` Internal Prompt (by `metaName`) to a target — an
+agent (`agentName`) or a direct provider+model (`providerName` +
+`modelName`, which win when both are set). When a report's agents all
+finish, one META secondary is auto-created per active item. Seeded
+from `assets/meta.json`.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | `String` | |
+| metaName | `String` | |
+| agentName, providerName, modelName | `String` (default empty) | |
+| active | `Boolean` (default true) | when false, the item is kept but skipped at report-completion autostart time |
 
 ### `ReportModel`
 Used during the report selection phase.
@@ -280,7 +296,7 @@ titleLong / language) are summarised below.
 | knowledgeBaseIds | `List<String>` | attached RAG knowledge bases ([knowledge.md](knowledge.md)) |
 | parameterPresetIds, advancedParameters, selectionParamsById, reportSystemPromptId | resolved generation config | captured at create time so Regenerate replays the SAME selections, not whatever the live UiState holds now |
 | pinned | `Boolean` | user-pinned; surfaces above Recent on the Reports hub |
-| workerConfig | `ReportWorkerConfig` | per-report worker routing picked on "Report - select workers" (report info `PROMPT`/`CUSTOM` + custom chain; model info `PROMPT`/`OWN_MODEL`; worker batches `PROMPT`/`REPORT_MODELS`/`SELECT_EACH`/`SELECT_ONCE` + persisted one-time group; `WHEN_AVAILABLE`/`ROUND_ROBIN` selection under REPORT_MODELS). Editable later via the Manage 👷 action. Replaces the old ♻️ flag; see [workers.md](workers.md) |
+| workerConfig | `ReportWorkerConfig` | per-report worker routing picked on "Report - select workers" (report info `PROMPT`/`CUSTOM` + custom chain; model info `PROMPT`/`OWN_MODEL`; worker batches `PROMPT`/`REPORT_MODELS`/`SELECT_EACH`/`SELECT_ONCE` + persisted one-time group; `WHEN_AVAILABLE`/`ROUND_ROBIN` selection under REPORT_MODELS; Meta + Fan-in batches have their own split-out `metaBatches`/`metaBatchWorkers`/`metaWorkerSelection` trio on the same option set; `secondResultSelectScope`/`secondResultRuntimeParams` gate whether launching a Meta/Fan-out secondary shows the scope screen / runtime prompt editor; `useReportModels` forces every card to the report's own answer models). Editable later via the Manage 👷 action. Replaces the old ♻️ flag; see [workers.md](workers.md) |
 | costsFromDeletedItems | `Double` | input+output cost of every deleted row (agent / secondary / fan-out / fan-in / translation). Uses `SecondaryResult.fullCost()` so a pair's icon+title spend isn't dropped. Surfaced as its own line above Total when non-zero |
 | icon, iconErrorMessage, iconModel | `String?` | per-report emoji from `kickOffIconGeneration` (worker engine `workers/report-icon`); error reason on failure; `iconModel` set when picked manually via Find-alternative ([report-icons.md](report-icons.md)) |
 | icon{Input,Output}{Tokens,Cost}, iconDurationMs, iconTraceFile | token / USD / time / trace bookkeeping for the icon call |
@@ -315,6 +331,7 @@ titleLong / language) are summarised below.
 | rawUsageJson | `String?` | |
 | icon, iconErrorMessage | `String?` | per-model emoji from the worker engine (`workers/model-icons`), derived from the model **title** not the response. Null until it runs / on failure |
 | icon{Input,Output}{Tokens,Cost} | token + USD bookkeeping |
+| iconTraceFile | `String?` | trace filename of the call that produced the current `icon` |
 | iconWinningTier | `Int?` | **legacy** from the removed response-based 3-tier chain; always null now (worker-engine, manual, and Find-alternative all leave it null) |
 | iconPromptUsed | `String?` | bundled prompt name for the current emoji (`report_title_icon`, or `report_alt` after a Find-alt pick) |
 | modelTitle, modelTitleErrorMessage, modelTitleModel, modelTitle*{Tokens,Cost}, modelTitleTraceFile, modelTitleDurationMs, modelTitlePromptUsed | per-model response title (worker engine `workers/model-titles`) + bookkeeping |
@@ -492,6 +509,32 @@ present on the report.
   English-name languages (plus the empty string for the original /
   untranslated source).
 
+### `FanOutRunState` / `PairState`
+Single source of truth for the Fan Out feature's runtime state,
+defined in `data/FanOutRunModel.kt` — the model the Tournament /
+Judges / Compare / TransRank `*RunState` types below were patterned
+after. One `FanOutRunState` per active or persisted (reportId,
+metaPromptId) pair; the runner publishes updates to a single
+StateFlow the UI subscribes to directly (replacing an earlier design
+of a 500 ms polling loop + a separate AppViewModel-level
+`runningFanOutPairs` StateFlow + a `recentlySettled` grace window).
+Hydrated from `SecondaryResult` rows (fan-out pair rows have
+`fanOutSourceAgentId != null`) and kept in sync by the runner's
+transition lambdas.
+
+| Type | Notes |
+|---|---|
+| `PairState` | one pair within a run: id, answererAgentId, sourceAgentId, providerId/model, status, content, errorMessage, cost/duration/tokenUsage, httpStatusCode, responseChangeSource/Value, plus the per-pair Fan-Meta icon + title fields (`icon`/`iconWinningTier`(legacy)/`iconErrorMessage`/`iconInput/OutputCost`/`iconPromptUsed`/`iconRunId`, `title`/`titleErrorMessage`/`titleInput/OutputCost`/`titleModel`/`titlePromptUsed`/`titleRunId`) and `runId`. `key` = `"$answererAgentId\|$sourceAgentId"`; `totalCost` rolls the primary + icon + title spend together |
+| `CombinedReportState` | a fan-in row attached to the run (`fanInOf != null && fanOutSourceAgentId == null`): id, fanInPromptId/Name, providerId/model, status, content, errorMessage, cost/duration/tokenUsage |
+| `FanOutRunState` | `key` (`"$reportId\|$metaPromptId"`), `reportId`, `metaPrompt`, `scope`, `responderIds` (answerer subset picked at launch; null on legacy runs = every successful agent), `pairs: Map<PairKey, PairState>`, `combinedReports`, `cancelled`, `sourceLanguage` (replay target for a translated re-run); derived `totalPairs`, `totalCost`, `answererKeys` |
+
+`PairState.iconStatus(runningIconsSet)` / `.titleStatus(runningTitlesSet)`
+derive the Fan-Meta chain's per-pair DONE/ERROR/RUNNING/PENDING status
+the same way the `BatchItemStatus`-based batch engines below derive
+theirs — including treating a "successful empty" underlying response
+(no content, no error, but a duration) as ERROR so a pair that can't
+feed the icon/title chain doesn't sit at 🕓 Queued forever.
+
 ### `TournamentRunState` / `MatchState`
 Runtime state for one Tournament on a report. Hydrated from
 `SecondaryResult(kind=TOURNAMENT)` rows.
@@ -501,9 +544,8 @@ Runtime state for one Tournament on a report. Hydrated from
 | `TournamentRunState` | `key`, `reportId`, `runId`, `tournamentPrompt`, `scope`, `matches`, `aggregateRowId`, `selectedMethod`, `cancelled`; derived counts for total/done/error/running/queued/cost/judge models |
 | `MatchState` | one ordered head-to-head: row id, response A/B ids, orientation, status, judge model, verdict, confidence, reason, raw content, error, tokens, cost, duration, timestamp |
 
-`TournamentMethod` has 11 ranking methods: `COPELAND`, `ELO`,
-`DAVIDSON`, `TIDEMAN`, `MARKOV`, `SCHULZE`, `MINIMAX`, `COLLEY`,
-`GLICKO2`, `POINTS`, `TRUESKILL2`. See
+`TournamentMethod` has 7 ranking methods: `COPELAND`, `ELO`,
+`DAVIDSON`, `MARKOV`, `SCHULZE`, `COLLEY`, `TRUESKILL2`. See
 [tournament-judges-compare.md](tournament-judges-compare.md).
 
 ### `JudgeEvalRunState` / `JudgeCellState`
@@ -583,11 +625,14 @@ Outcome of a single moderation endpoint call.
 > is surfaced via `UiState.activeSecondaryBatches: Int` (incremented on
 > entry, decremented in `finally` by every `SecondaryRunManager` runner)
 > plus the hot per-row `StateFlow<Set<String>>` sets on `AppViewModel`
-> (`runningFanOutPairs`, `runningFanMetaPairs`, `runningFanMetaRowIds`,
-> `runningSingleSecondaries`, `runningInfoJobs`). The Tournament /
-> Judges / Compare / TransRank engines instead hydrate their respective
-> `*RunState` from disk and track in-flight items via the per-item
-> `status` on each cell/match.
+> (`runningFanMetaPairs`, `runningSingleSecondaries`, `runningInfoJobs`).
+> The legacy AppViewModel-level `runningFanOutPairs` StateFlow was
+> removed — Fan-out's own `FanOutRunState` (see above) publishes each
+> pair's live `PairState.status` directly, so that engine's StateFlow is
+> now the single source of truth for "is this pair running". The
+> Tournament / Judges / Compare / TransRank engines likewise hydrate
+> their respective `*RunState` from disk and track in-flight items via
+> the per-item `status` on each cell/match.
 
 ### `TokenUsage`
 | Field | Type | Notes |
@@ -629,7 +674,7 @@ Lower-level twin of `Parameters` used in dispatch. Same fields as
 ## Provider routing (`com.ai.data`)
 
 ### `AppService`
-A registered provider (loaded from `assets/providers.json` + custom
+A registered provider (loaded from `assets/providers/` + custom
 additions). See [providers.md](providers.md) for the full
 per-provider table.
 
@@ -638,7 +683,7 @@ per-provider table.
 | id | `String` | identifier AND human-readable label. The id-unification refactor collapsed three name-like fields (`id` / `displayName` / `prefsKey`) into one. SharedPreferences key prefixes use `id` directly |
 | baseUrl, adminUrl, defaultModel | `String` | |
 | openRouterName | `String?` | composite-key prefix for the OpenRouter tier |
-| apiFormat | `ApiFormat` | (`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`) |
+| apiFormat | `ApiFormat` | (`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE`) |
 | typePaths | `Map<String, String>` | per-type API paths overriding the global default; `chatPath` and `responsesPath` are computed views |
 | modelsPath | `String?` | default `"v1/models"` |
 | seedFieldName | `String` | default `"seed"`, Mistral uses `"random_seed"` |
@@ -671,6 +716,7 @@ per-provider table.
 | retryBackoffMs429 | `Long?` | per-provider override for the wait between 429 retries. Null → inherit |
 | maxRetriesOn529 | `Int?` | per-provider override for the 529 retry cap (0 = disable in-line retries). Null → inherit |
 | retryBackoffMs529 | `Long?` | per-provider override for the wait between 529 retries. Null → inherit. Seeded to 5000 ms for Anthropic |
+| defaultInactive | `Boolean` | default false. When true, bootstrap seeds `providerStates[id]="inactive"` the FIRST time this provider is seen (visible in pickers but disabled by default until the user flips it on); an install that already touched the provider's state, or that has an API key configured, is left alone / gets flipped on respectively |
 
 #### `ModelPattern`
 Shared by every `*Patterns` field on `AppService` (defined in
@@ -694,17 +740,17 @@ balance-gating 402s.
 
 #### `Endpoint`
 Bundled alternate endpoint. See `Endpoint` under "Settings &
-Configuration" — same shape, just preloaded from `providers.json`
-instead of created by the user.
+Configuration" — same shape, just preloaded from the bundled provider
+definition instead of created by the user.
 
 ### `ApiFormat` (enum)
-`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. The cloud dispatch keys
-off this in `when (service.apiFormat)` blocks (analyze / chat /
-fetchModels / streaming / auth / endpoint URL). Of the 51 bundled
-providers, **40** are `OPENAI_COMPATIBLE` (sharing unified code), 1 is
-`ANTHROPIC`, 1 is `GOOGLE` — so only Anthropic and Google have
-format-specific branches. (The enum's source comment still says "28
-providers using OpenAI-compatible"; that count is stale.)
+`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE`. The cloud
+dispatch keys off this in `when (service.apiFormat)` blocks (analyze /
+chat / fetchModels / streaming / auth / endpoint URL). Of the 91
+bundled providers, **88** are `OPENAI_COMPATIBLE` (sharing unified
+code), 1 is `ANTHROPIC`, 1 is `GOOGLE`, 1 is `REPLICATE` (async
+predictions API, run via `Prefer: wait`) — so only Anthropic, Google,
+and Replicate have format-specific branches.
 
 The synthetic `AppService.LOCAL` is **not** routed by `apiFormat` — its
 format is the default `OPENAI_COMPATIBLE` and is never used for a
@@ -735,7 +781,7 @@ are split so the 🧠 badge can fire on always-on reasoning models
 |---|---|---|
 | modelId | `String` | |
 | promptPrice, completionPrice | `Double` | **per token** (not per million) |
-| source | `String` (default `"unknown"`) | which tier priced it — `LITELLM`, `MODELSDEV`, `OVERRIDE`, `OPENROUTER`, `HELICONE`, `LLMPRICES`, `ARTIFICIAL_ANALYSIS`, `TOGETHER`, `DEFAULT`, `API_REPORTED` |
+| source | `String` (default `"unknown"`) | which tier priced it — `LITELLM`, `MODELSDEV`, `OVERRIDE`, `OPENROUTER`, `HELICONE`, `LLMPRICES`, `ARTIFICIALANALYSIS`, `LLMSTATS`, `REQUESTY`, `GENAIPRICES`, `TRUEFOUNDRY`, `TOGETHER`, `DEFAULT`, `API_REPORTED` |
 | cachedReadPrice, cachedWritePrice | `Double?` | cache-aware input rates; null = charge full input |
 | promptPriceAbove200k, completionPriceAbove200k, cachedReadPriceAbove200k, cachedWritePriceAbove200k | `Double?` | >200k-context tier (Gemini 2.5/3 Pro, etc.) |
 | perQueryPrice | `Double` (default 0) | per-search-unit price for rerank models (Cohere bills per search, not per token) |
@@ -754,7 +800,7 @@ view, used by the layered Costs view and the 🐞 pricing trace.
 
 | Field | Type |
 |---|---|
-| litellm, modelsDev, helicone, llmPrices, artificialAnalysis, override, openrouter, together | `ModelPricing?` |
+| litellm, modelsDev, helicone, llmPrices, artificialAnalysis, llmStats, override, openrouter, requesty, genaiPrices, trueFoundry, together | `ModelPricing?` |
 | default | `ModelPricing` |
 
 ---
@@ -784,6 +830,18 @@ view, used by the layered Costs view and the 🐞 pricing trace.
 Computed:
 - `preview: String` — first user message, truncated to 50 chars (or
   `"Empty chat"`).
+
+### `ChatSessionHeader`
+Lightweight list-row mirror of `ChatSession` — same idea as
+`TraceFileInfo` for traces — so the AI Chat hub renders its session
+lists without deserializing every full session's `messages`.
+
+| Field | Type |
+|---|---|
+| id, title, preview | `String` |
+| pinned | `Boolean` |
+| updatedAt | `Long` |
+| lastVisibleRole | `String?` |
 
 ### `ChatParameters`
 Per-chat generation overrides. A **subset** of `Parameters` — it carries
@@ -868,6 +926,7 @@ threading a `Settings` reference through their constructors.
 |---|---|---|
 | streamingReadTimeoutSec | `Int` (default = BuildConfig 240s) | SSE chat / report streams |
 | nonStreamingReadTimeoutSec | `Int` (default = BuildConfig 120s) | analyze, meta, rerank, translate, model-list |
+| batchItemTimeoutSec | `Int` (default = BuildConfig 180s) | wall-clock ceiling for ONE batch item (fan-out pair, translation item, tournament match, judge/compare/transrank cell) — the whole per-item call including worker-chain fallbacks and retries, not a single HTTP attempt |
 | maxCallsPerProviderPerMinute | `Int` (default **60**) | per-host sliding-window rate cap |
 | maxConcurrentCallsPerProvider | `Int` (default **5**) | per-host concurrency cap |
 | maxRetriesOn429 | `Int` (default 3) | in-line 429 retries |
@@ -897,14 +956,19 @@ double-counted. Propagated across coroutine dispatcher hops via
 
 ### `ApiCallCaps` (declared in `ApiTracer.kt`)
 A **separate** flow-level coroutine-`Semaphore` layer, independent of the
-per-host `ProviderThrottle`. Six pools with defaults: `global` 100,
-`report` 50, `translation` 50, `fanOut` 50, `fanMeta` 50, `workers` 50
-(`workers` shares the `fanMeta` limit). Rebuilt at runtime via
-`resetForNewLimits(...)` from the `GeneralSettings.maxConcurrent*`
-knobs. The canonical batch acquisition order is **sub-cap → global →
-per-host gate**; while parked on a saturated host gate the helper
-releases both the sub-cap and `global` and re-takes them on the next
-poll, so a flow's cap counts only items holding a live provider slot.
+per-host `ProviderThrottle`. Six distinct pools, each its own semaphore:
+`global`, `report`, `translation`, `fanOut`, `fanMeta`, `workers`
+(defaults 100 / 50 / 50 / 50 / 50 / 50 respectively). There are no
+per-batch limits any more — every flow is bounded only by the single
+global "Concurrent API calls" cap: `resetForNewLimits(globalMax)`
+(called with `GeneralSettings.maxConcurrentApiCalls`) resizes ALL six
+sub-caps to `globalMax`, so the per-flow semaphores are kept (the
+throttle framework still acquires one alongside `global`) but sized to
+never bind before it. The canonical batch acquisition order is
+**sub-cap → global → per-host gate**; while parked on a saturated host
+gate the helper releases both the sub-cap and `global` and re-takes
+them on the next poll, so a flow's cap counts only items holding a
+live provider slot.
 
 See [throttle.md](throttle.md) for the full chain.
 
@@ -953,7 +1017,7 @@ UI. Asset-driven paths (`importFromAsset`, `upsertFromJson`,
 `syncFromAsset`) don't bump.
 
 The every-start sync uses these to decide which fields to
-refresh from `assets/providers.json`:
+refresh from `assets/providers/`:
 - `timestamp == null` → field was never user-touched, refresh
 - `timestamp != null` → user edited this field, leave alone
 
@@ -976,8 +1040,10 @@ Snapshot of an `ACTION_SEND` / `ACTION_SEND_MULTIPLE` payload.
 
 Computed:
 - `isEmpty: Boolean`
-- `isUrl: Boolean` — true when `text` is a single non-whitespace
-  http(s) URL.
+- `firstUrl: String?` — first http(s) URL embedded anywhere in `text`
+  (regex search, so a page title or markdown link alongside the URL
+  still matches; trailing `.,;:!?` trimmed).
+- `isUrl: Boolean` — true when `firstUrl` is non-null.
 
 ---
 
@@ -988,6 +1054,7 @@ Computed:
 |---|---|---|
 | userName | `String` (default `"user"`) | |
 | huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey | `String` | |
+| llmStatsApiKey | `String` | key for `api.llm-stats.com/stats/v1/models`; needs Stats-API onboarding (returns 403 until then). The Refresh screen disables the llm-stats button while blank |
 | defaultEmail | `String` | |
 | defaultTypePaths | `Map<String, String>` | global per-type API path defaults |
 | loggingMasterEnabled | `Boolean` (default true) | grand-master gate for the whole Log/trace/audit/statistics page. When false the four diagnostic settings below are forced off at runtime (via the `effective*` helpers) regardless of their stored values |
@@ -999,7 +1066,7 @@ Computed:
 | modelNameLayout | `ModelNameLayout` | `MODEL_ONLY` (default) or `PROVIDER_AND_MODEL` |
 | appHomeMode | `AppHomeMode` | `HOME_BAR` (default) shows the persistent top Home bar and makes Home open the latest report Manage screen or First launch; `HOME_SCREEN` keeps the classic large-card Home hub |
 | uiCardBackgroundArgb, uiButtonBackgroundArgb | `Int` | legacy single-color mirrors for card/button customization |
-| rankingWeights | `Map<String, Int>` (default empty) | 0–10 sliders from the "Ranking weights" screen. Key = `"rerank"` / `"judges"` / `"translations"` or a `TournamentMethod` name. Stored sparsely; a missing key resolves via `GeneralSettings.rankingWeight(key)` → `RANKING_WEIGHT_DEFAULTS` (`rerank`→3, `judges`→6, `translations`→6, `ELO`/`DAVIDSON`/`TIDEMAN`→4) else 0 |
+| rankingWeights | `Map<String, Int>` (default empty) | 0–10 sliders from the "Ranking weights" screen. Key = `"rerank"` / `"judges"` / `"translations"` / `"compare"` or a `TournamentMethod` name. Stored sparsely; a missing key resolves via `GeneralSettings.rankingWeight(key)` → `RANKING_WEIGHT_DEFAULTS` (`rerank`→3, `judges`→6, `translations`→6, `compare`→4, every `TournamentMethod`→2) else 0 |
 | uiColorOverrides, uiColorOverridesDay | `Map<String, Int>` | ARGB overrides for functional `AppColors` roles (Night + Day variants); see [ui-customization.md](ui-customization.md) |
 | uiColorMode | `UiColorMode` (default `NIGHT`) | which colour set is painted — `NIGHT` / `DAY` / `AUTO` (follow system day/night) |
 | metadataEnabled | `Boolean` (default true) | grand-master switch for optional metadata generation |
@@ -1018,6 +1085,7 @@ Computed:
 | recentReportModels | `List<String>` (default empty) | last 3 (provider, model) pairs picked from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings; surfaces in the Report Select Models picker as a "Recent" section (honors the active provider / type / search filters) |
 | streamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_READ_TIMEOUT_SEC`) | read timeout applied to streaming API calls (SSE chat / report streams). Mirrored to `NetworkSettings.streamingReadTimeoutSec` so the per-call OkHttp interceptor reads the live value |
 | nonStreamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC`) | read timeout applied to non-streaming calls (meta / rerank / translate / model-list / individual analyze). Much shorter than streaming by default so a hung provider can't gate a whole batch for 10 minutes |
+| batchItemTimeoutSec | `Int` (default `BuildConfig.BATCH_ITEM_TIMEOUT_SEC`) | wall-clock ceiling (seconds) for ONE batch item (fan-out pair / translation item / tournament match / judge / compare / transrank cell) — bounds the whole per-item call (worker-chain fallbacks, pool-cooling waits, in-line 429 retries), not a single HTTP attempt. On timeout the item is stamped ERROR (restartable) instead of pinning its batch permits and provider slot. Mirrored to `NetworkSettings.batchItemTimeoutSec` |
 | maxCallsPerProviderPerMinute | `Int` (default 60) | sliding-window rate cap per provider hostname. The OkHttp interceptor `ProviderThrottleInterceptor` reads this via `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
 | maxConcurrentCallsPerProvider | `Int` (default 5) | per-provider concurrency cap. Applies across every flow (report, meta, fan-out, chat, translate, model fetch) hitting the same provider host |
 | maxConcurrentApiCalls | `Int` (default 100) | global hard ceiling for in-flight API calls (`ApiCallCaps.global`) — the only concurrency cap; every per-flow sub-cap is sized to this value |
@@ -1072,7 +1140,7 @@ Notable subset:
   `genericReportsProgress/Total`, `pendingReportModels`, `editModeReportId`,
   `stagedReportModels`, `hasPendingPromptChange`, `hasPendingParametersChange`,
   `reportImageBase64`, `reportImageMime`, `reportWebSearchTool`,
-  `reportReasoningEffort`, `reportUseReportModelsAsWorkers`,
+  `reportReasoningEffort`,
   `reportAdvancedParameters`, `reportParametersIds`, `reportSystemPromptId`,
   `attachedKnowledgeBaseIds`
 - Share-target staging: `chatStarterText: String?`,
@@ -1090,10 +1158,12 @@ Notable subset:
 - Chat: `chatParameters: ChatParameters`,
   `dualChatConfig: DualChatConfig?`
 
-Hot per-pair state lives **outside UiState**:
-`AppViewModel.runningFanOutPairs: StateFlow<Set<String>>` carries
-the 5–15 Hz updates from a Fan-out batch so consumers that don't
-care don't recompose.
+Hot per-pair state lives **outside UiState**: a Fan-out batch's
+5–15 Hz per-pair updates are carried by `FanOutRunState`'s own
+StateFlow (see above), not a UiState field, so consumers that don't
+care don't recompose. `runningFanMetaPairs` /
+`runningSingleSecondaries` / `runningInfoJobs` (also outside UiState,
+directly on `AppViewModel`) cover the other in-flight sets.
 
 ### `ExternalIntent`
 Bundle of all 13 fields a launching intent (`com.ai.ACTION_NEW_REPORT`
@@ -1111,21 +1181,26 @@ or similar) can stuff into UiState.
 
 ## Provider definitions (`com.ai.data.ProviderDefinition`)
 
-Wire format used by `assets/providers.json` and import/export, declared
-in `ProviderRegistry.kt`. Mostly the same fields as `AppService`, except
-`apiFormat` is a `String?` (default `"OPENAI_COMPATIBLE"`) parsed via
-`ApiFormat.valueOf(...)` inside a try/catch that falls back to
-`OPENAI_COMPATIBLE` on any invalid value. Translated to a runtime
-`AppService` by `toAppService()`; the inverse is `fromAppService(s)`.
-Custom providers added by the user round-trip as `ProviderDefinition`
-JSON in the `provider_registry` prefs file.
+Wire format for one bundled provider file under `assets/providers/`
+(one JSON file per provider, a bare `ProviderDefinition` object — no
+`{ "providers": [...] }` wrapper) and for user import/export blobs
+(which DO use that wrapper), declared in `ProviderRegistry.kt`. Mostly
+the same fields as `AppService`, except `apiFormat` is a `String?`
+(default `"OPENAI_COMPATIBLE"`) parsed via `ApiFormat.valueOf(...)`
+inside a try/catch that falls back to `OPENAI_COMPATIBLE` on any
+invalid value. Translated to a runtime `AppService` by `toAppService()`;
+the inverse is `fromAppService(s)`. Custom providers added by the user
+round-trip as `ProviderDefinition` JSON in the `provider_registry`
+prefs file.
 
 `ProviderRegistry` is a mutable `object` that starts **empty** on a
-fresh install — the 51 bundled providers are loaded on demand from
-`assets/providers.json` via `importFromAsset` (append-only), not
-hardcoded in Kotlin. `parseProvidersJson` filters out entries with a
-null/blank id or baseUrl. A `hostIndex` (rebuilt on every `save()` from
-`baseUrl` + `auxHosts`) backs `findByHost(host)`, which `ProviderThrottle`
-uses to resolve a request hostname to its per-provider throttle
-overrides. See [providers.md](providers.md) and
+fresh install — the 91 bundled providers are loaded on demand from
+`assets/providers/` via `importFromAsset` (append-only; one
+`ProviderDefinition` per file, sorted by filename for a deterministic
+merge), not hardcoded in Kotlin. `parseProvidersJson` (used when
+reloading the persisted registry from prefs) filters out entries with
+a null/blank id or baseUrl. A `hostIndex` (rebuilt on every `save()`
+from `baseUrl` + `auxHosts`) backs `findByHost(host)`, which
+`ProviderThrottle` uses to resolve a request hostname to its
+per-provider throttle overrides. See [providers.md](providers.md) and
 [repositories.md](repositories.md).

@@ -52,7 +52,7 @@ attribution).
 
 In the bundled prompts every worker entry is a single **Swarm
 named `"workers"`** (see [The bundled worker swarm](#the-bundled-worker-swarm)
-below), which expands into five cheap-provider candidates. That
+below), which expands into twelve cheap-provider candidates. That
 swarm — not an inline model list baked into each prompt — is the
 shared default fallback chain.
 
@@ -109,7 +109,7 @@ The `workers`-category prompts and the `alt`-category
 Find-alternative prompts all point their worker list at one
 Swarm named **`workers`**, seeded from `assets/workers/swarms/`
 by `data/SwarmSeed.kt` (delta merge by case-insensitive name, so
-a user-edited swarm is left alone). On the bundled chain its five
+a user-edited swarm is left alone). On the bundled chain its twelve
 members are the cheap-provider fallback:
 
 | Provider | Model |
@@ -119,6 +119,13 @@ members are the cheap-provider fallback:
 | Groq | `llama-3.3-70b-versatile` |
 | Cerebras | `gpt-oss-120b` |
 | DeepSeek | `deepseek-v4-flash` |
+| Google | `gemini-3.5-flash` |
+| Anthropic | `claude-haiku-4-5-20251001` |
+| xAI | `grok-4.20-0309-non-reasoning` |
+| Cohere | `command-r-08-2024` |
+| DeepInfra | `google/gemma-3-12b-it` |
+| Together | `Qwen/Qwen3-235B-A22B-Instruct-2507-tput` |
+| SiliconFlow | `Qwen/Qwen3-14B` |
 
 The only other bundled swarms `SwarmSeed` seeds are the `Level 1`
 / `Level 2` / `Level 3` reasoning swarms (`level-1.json` …
@@ -167,9 +174,10 @@ Find-alternative variants under `alt`:
 
 The `workers` category holds more than the icon/title/language/meta
 prompts above — `fan-in`, `second-rerank`, `second-moderation`,
-`translate-text` / `translate-title` / `translate-rank`, and the
-`find-translation` model-resolver holder back the secondary and
-translation flows documented in
+`translate-text` / `translate-title` / `translate-rank`, the
+`find-translation` model-resolver holder, and the `meta` worker-swarm
+holder for chat-type Meta runs (Compare / Critique / Synthesize / …)
+back the secondary and translation flows documented in
 [secondary-results.md](secondary-results.md) /
 [translation.md](translation.md). They share the same `workers`
 swarm and worker engine.
@@ -480,7 +488,7 @@ data class IconCallRecord(
   `bumpReportAgentIconCost` / `appendIconCall`, plus `removeAgent`'s
   icon-cost rollover.
 - `data/SwarmSeed.kt` — seeds the bundled `workers` (and
-  `tournament` / `Level 1-3`) swarms from `assets/workers/swarms/`.
+  `Level 1-3`) swarms from `assets/workers/swarms/`.
 - `viewmodel/WorkerRunner.kt` — the random-pick / 429-fallback
   worker engine (`WorkerOutcome`, `run`, `runWorkerBatch`).
 - `viewmodel/IconGenerationManager.kt` — `kickOffIconGeneration`,

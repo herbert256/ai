@@ -9,7 +9,7 @@ the per-report **API-call cost ledger** that drives all three.
 ## How a call is costed
 
 `PricingCache.computeInOutCost(usage, pricing)`
-(`data/PricingCache.kt:285`) turns a `TokenUsage` + a resolved
+(`data/PricingCache.kt:347`) turns a `TokenUsage` + a resolved
 `ModelPricing` into `(inDollars, outDollars)`:
 
 - Base: `inputTokens × promptPrice + outputTokens × completionPrice`.
@@ -32,7 +32,7 @@ the per-report **API-call cost ledger** that drives all three.
   `0.002` per unit, read from LiteLLM's `input_cost_per_query`). The
   token columns are zero by design.
 
-`computeCost(usage, pricing)` (`data/PricingCache.kt:273`) is the
+`computeCost(usage, pricing)` (`data/PricingCache.kt:335`) is the
 single-number sibling: it returns `usage.apiCost` verbatim when the
 provider reported one, otherwise `inCost + outCost` from
 `computeInOutCost`.
@@ -43,7 +43,7 @@ required) plus `cachedInputTokens`, `cacheCreationTokens`,
 `reasoningTokens` (these three default 0) and the optional
 provider-reported `apiCost: Double?`. The fresh / cached / creation
 split is done at *extraction* time in each provider's `toTokenUsage`
-(`data/ApiModels.kt:856`): OpenAI-compatible `prompt_tokens` is usually
+(`data/ApiModels.kt:878`): OpenAI-compatible `prompt_tokens` is usually
 a cached-inclusive total, so the extractor subtracts the cached count
 to get the fresh bucket; providers that **flatten** the cached read
 into a separate field (xAI's `cached_tokens`, read after
@@ -54,7 +54,7 @@ through as fresh input rather than being double-subtracted. Anthropic's
 `cachedContentTokenCount` is a subset of `promptTokenCount`. The cost
 helpers above then bill each bucket at its own rate, so a flattened
 provider's cached reads still land on `cachedReadPrice`.
-`ModelPricing` (`data/PricingCache.kt:120`)
+`ModelPricing` (`data/PricingCache.kt:178`)
 carries every rate field (per-**token**, not per-million) plus the
 above-200k tier, the cache rates, `perQueryPrice`, and a `source`
 string naming the tier that answered.
@@ -62,8 +62,8 @@ string naming the tier that answered.
 ## Resolved pricing — layered lookup
 
 `PricingCache.getPricing(context, provider, model)`
-(`data/PricingCache.kt:379`) delegates to `findPricingMatch`
-(`data/PricingCache.kt:416`), which walks tiers top→bottom, first hit
+(`data/PricingCache.kt:446`) delegates to `findPricingMatch`
+(`data/PricingCache.kt:493`), which walks tiers top→bottom, first hit
 wins:
 
 | # | Tier | `source` | Note |
@@ -88,9 +88,9 @@ it never appears in this lookup; it feeds the capability chain only.)
 
 Two precedence facts are easy to get wrong (the class-level KDoc at
 `PricingCache.kt:17-26` now describes the full layered order correctly,
-but `getPricing`'s own KDoc at `PricingCache.kt:372-378` still calls it
+but `getPricing`'s own KDoc at `PricingCache.kt:439-445` still calls it
 a stale "five-tier lookup" — trust the `findPricingMatch` body at lines
-416-433, not that comment):
+493-522, not that comment):
 
 - The **manual override sits before every curated tier** (step 3,
   ahead of LiteLLM). A user adding an override specifically to
@@ -107,11 +107,11 @@ over-estimate rather than reading $0 (which would hide a real spend).
 
 Variants of the same lookup:
 
-- `getPricingWithoutOverride` (`data/PricingCache.kt:399`) mirrors the
+- `getPricingWithoutOverride` (`data/PricingCache.kt:466`) mirrors the
   precedence minus step 3 — it answers "what would the layered price
   be without your override?" for the override form's *Current:* line
   and for cleanup.
-- `lookupPricing(provider, model)` (`data/PricingCache.kt:410`) is the
+- `lookupPricing(provider, model)` (`data/PricingCache.kt:477`) is the
   context-free, never-blocking in-memory variant. It mirrors
   `getPricing` exactly (including OVERRIDE-before-LiteLLM) but never
   touches disk; returns `DEFAULT_PRICING` if the catalogs are not yet
@@ -119,7 +119,7 @@ Variants of the same lookup:
   below), so cost snapshots never block a token-usage event on a
   disk read.
 
-The seven external sources are documented in
+The ten external pricing sources are documented in
 [repositories.md](repositories.md).
 
 On the main thread before preload completes, `getPricing` returns
@@ -132,14 +132,14 @@ guard.
 
 Every token-usage event funnels through
 `SettingsPreferences.updateUsageStats(provider, model, usage, kind,
-searchUnits)` (`ui/settings/SettingsPreferences.kt:676`). It does four
+searchUnits)` (`data/preferences/SettingsPreferences.kt:660`). It does four
 things in one pass (and no-ops entirely when the master usage-statistics
 switch is off):
 
 1. **Live dashboard** — feeds `ApiUsageRates.record` for the rolling
    5-minute spend/token rate.
 2. **Cost snapshot** — `computeUsageCostSnapshot`
-   (`ui/settings/SettingsPreferences.kt:646`) prices the call via
+   (`data/preferences/SettingsPreferences.kt:630`) prices the call via
    `PricingCache.lookupPricing` + `computeInOutCost` +
    `searchUnits × perQueryPrice`. The `pricingSource` is forced to
    `"API_REPORTED"` when the provider sets `extractApiCost` or
@@ -154,12 +154,12 @@ switch is off):
    report (see the ledger section).
 
 The **`category`** in the `UsageStats` key is derived from the `kind`
-argument with a single branch (`SettingsPreferences.kt:686-691`):
+argument with a single branch (`data/preferences/SettingsPreferences.kt:670-675`):
 
 ```
 val normalizedKind = normalizeUsageKind(kind)
 val category = if (normalizedKind == "report")
-                   normalizeUsageKind(ApiTracer.currentCategory ?: "report")
+                   normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)
                else normalizedKind
 ```
 
@@ -179,11 +179,11 @@ they are the *structured* ledger types rebuilt by
 labels and defaults a `null` kind to `"report"`. The kinds passed
 explicitly are the eight `SecondaryKind` strings — `rerank`,
 `moderation`, `meta`, `translate`, `tournament`, `judges`, `compare`,
-`transrank` (mapped in `SecondaryRunManager.kt:1659`) — plus `icon`,
+`transrank` (mapped in `SecondaryRunManager.kt:1747`) — plus `icon`,
 `title`, `language`, `language-icon`, the chat kinds (`Chat`, `Dual
 chat`, `chat/rag`), `all`, and `settings/icons`.
 
-`UsageStats` (`model/SettingsModels.kt:1061`) holds `callCount`,
+`UsageStats` (`model/SettingsModels.kt:1070`) holds `callCount`,
 `inputTokens` / `outputTokens` (`Long`), `searchUnits`, `kind`, and
 the persisted `inputCost?` / `outputCost?` / `pricingSource?` frozen at
 call time (legacy rows written before cost-caching have null costs and
@@ -196,13 +196,13 @@ fall back to a live `PricingCache` lookup on read). Its `key` getter is
 
 Legacy rows written before `kind` existed deserialize via Gson's
 `Unsafe` path with a runtime-null `kind`; `ensureUsageStatsCache`
-(`SettingsPreferences.kt:496`) backfills them to `"report"` so the
+(`data/preferences/SettingsPreferences.kt:480`) backfills them to `"report"` so the
 non-null contract holds. Parse is per-row, so a single unresolvable
 provider id (a deleted custom provider) doesn't drop the whole file;
 if *every* row fails (ProviderRegistry not yet initialised) the cache
 is left null so the next read retries.
 
-`clearUsageStats` (`SettingsPreferences.kt:970`) clears all three
+`clearUsageStats` (`data/preferences/SettingsPreferences.kt:976`) clears all three
 caches, resets the flush timestamp, and deletes the three JSON files.
 
 ## Per-report API-call cost ledger
@@ -213,10 +213,10 @@ Each costed call also appends a `ReportApiCallCost`
 `timestamp`, `type` (the live usage `category` above), `provider`,
 `model`, `pricingTier`, in/out tokens, in/out cost, `searchUnits`,
 `durationMs`, `traceFile`. `API_CALL_COST_LEDGER_VERSION = 3`
-(`data/ReportStorage.kt:40`); a report whose `apiCallCostsComplete`
+(`data/ReportStorage.kt:124`); a report whose `apiCallCostsComplete`
 flag is set and whose `apiCallCostsVersion >= 3` is treated as a
 complete ledger (`isApiCallCostLedgerCurrent`,
-`data/ReportStorage.kt:1499`).
+`data/ReportStorage.kt:1640`).
 
 The **live** append uses the bare usage `category` as the row `type`,
 and never flips `apiCallCostsComplete`. The canonical
@@ -224,19 +224,19 @@ and never flips `apiCallCostsComplete`. The canonical
 `after/moderation`, `after/tournament`, `after/judges`,
 `meta/<prompt>`, `meta/compare`, `fan_out/...` / `fan_in/...`,
 `transrank/rank`, the `translate/...` family) are produced by
-`reconcileApiCallCostLedger` (`data/ReportStorage.kt:1502`), which
+`reconcileApiCallCostLedger` (`data/ReportStorage.kt:1643`), which
 **rebuilds** the whole ledger from the structured agent / secondary /
 icon rows via `buildStructuredApiCallCostRows`
-(`data/ReportStorage.kt:1592`), marks it complete + version 3, and
+(`data/ReportStorage.kt:1733`), marks it complete + version 3, and
 recomputes `totalCost`. That reconcile runs lazily — from the Spend &
 usage screen (`reconcileReportCostLedgers`,
-`SettingsPreferences.kt:591`) and from the per-report cost views — so a
+`data/preferences/SettingsPreferences.kt:575`) and from the per-report cost views — so a
 report's displayed types are always the structured ones once it has
 been reconciled.
 
 Two correctness guards live on the live-append path:
 
-- `appendApiCallCost` (`data/ReportStorage.kt:1468`) returns **null on
+- `appendApiCallCost` (`data/ReportStorage.kt:1598`) returns **null on
   a dedup hit** (`record.id` already present), otherwise a
   `ReportApiCallAppendResult`. The caller
   `recordReportApiCallCost` treats a non-null return as "a row was
@@ -253,20 +253,20 @@ Two correctness guards live on the live-append path:
 ## Per-report total
 
 `ReportStorage.computeReportTotalCost(report)`
-(`data/ReportStorage.kt:128`) has two paths:
+(`data/ReportStorage.kt:194`) has two paths:
 
 - **Ledger total** — when `isApiCallCostLedgerCurrent(report)`,
-  `ledgerTotalCost` (`data/ReportStorage.kt:1589`) just sums every
+  `ledgerTotalCost` (`data/ReportStorage.kt:1730`) just sums every
   `ReportApiCallCost` row's `inputCost + outputCost`. This is the
   source of truth for reconciled reports, so a new call category can
   never be silently omitted from a hard-coded allow-list.
 - **Legacy total** — `legacyReportTotalCost`
-  (`data/ReportStorage.kt:131`) sums agent primary cost + per-agent
+  (`data/ReportStorage.kt:197`) sums agent primary cost + per-agent
   icon + per-agent model-title + report-level
   icon/title/titleLong/language/languageIcon costs + the Find-alt
   title fan-out `iconCalls` of `TITLE_ALT_TYPES =
   {"alt/report_title","alt/report_title_long","alt/model_title"}`
-  (`data/ReportStorage.kt:47`) whose `attributedToSecondaryId == null`
+  (`data/ReportStorage.kt:131`) whose `attributedToSecondaryId == null`
   + the user-note AI-title `iconCalls` of type `"note/title"` — the two
   alt categories with no structured cost home.
 
@@ -285,7 +285,7 @@ Reached from the **Statistics** screen (`AiStatisticsScreen`,
 `ui/admin/AiDashboardScreen.kt`, help `ai_statistics`) as the 💰
 **Spend & usage** link-card.
 The screen is `AiSpendUsageScreen`
-(`ui/admin/AiDashboardScreen.kt:1177`, help `ai_spend_usage`). On open
+(`ui/admin/AiDashboardScreen.kt:1182`, help `ai_spend_usage`). On open
 it does a one-time OpenRouter pricing refresh (when stale) then
 computes its breakdown via `computeUsageGroups`
 (`data/DashboardStats.kt:156`) off the main thread — heavy because it
@@ -302,7 +302,7 @@ Reports**):
   descending). The 🐞 opens API Traces scoped to that provider and
   shows only when that provider has a captured trace. Tapping a row
   opens **`AiSpendUsageProviderScreen`**
-  (`AiDashboardScreen.kt:1664`, help `ai_usage_provider`) — the
+  (`AiDashboardScreen.kt:1670`, help `ai_usage_provider`) — the
   per-provider breakdown grouped by call kind, by pricing source
   (OVERRIDE / OPENROUTER / LITELLM / …), and by model; each model row
   links to that model's **Model Info** page.
@@ -319,7 +319,7 @@ Reports**):
 loaded, with entry counts) on its result for the dashboard hub.
 
 The 🧮 **Costs tiers** dashboard card opens `AiCostsTierScreen`
-(`AiDashboardScreen.kt:1990`, help `ai_costs_tier`) — which pricing
+(`AiDashboardScreen.kt:1996`, help `ai_costs_tier`) — which pricing
 tier `getPricing` would pick, counted per `source`, in two side-by-side
 columns: **Config** (every configured model, via `computeTierCounts`,
 `data/DashboardStats.kt:374`) and **Runtime** (only the models actually
@@ -335,7 +335,7 @@ maintenance** screen below, not here.
 `ui/report/view/Costs.kt` (`CostsViewScreen`, help `costs_view`)
 renders a report's spend. The data comes from
 `rememberReportCostData(report)`
-(`ui/report/manage/view/ContentDisplay.kt:598`), which has two paths:
+(`ui/report/manage/view/ContentDisplay.kt:599`), which has two paths:
 
 - **Ledger fast path** — when `isApiCallCostLedgerCurrent(report)` and
   `report.apiCallCosts` is non-empty, every `CostRow` is built
@@ -385,9 +385,9 @@ rows with none). Find-alternative-title cost is detailed in
 
 `ModelPricing` overrides are stored **outside** Settings — in
 `PricingCache` under the `manual_pricing` map in `pricing_cache.xml`
-(`KEY_MANUAL_PRICING`, `data/PricingCache.kt:52`), keyed
+(`KEY_MANUAL_PRICING`, `data/PricingCache.kt:80`), keyed
 `"provider:model"`, **not** a `filesDir` blob. Write via
-`setManualPricing` (`data/PricingCache.kt:186`), read via
+`setManualPricing` (`data/PricingCache.kt:244`), read via
 `getManualPricing` / `getAllManualPricing`, drop via
 `removeManualPricing`.
 
@@ -416,16 +416,18 @@ re-read after each write. Overrides round-trip through the backup zip
 `cost_config`) — the two occasional bulk operations:
 
 - **Cleanup** — `cleanupRedundantManualOverrides`
-  (`data/PricingCache.kt:211`) drops every override that is dormant or
+  (`data/PricingCache.kt:269`) drops every override that is dormant or
   redundant: covered by any catalog tier (LiteLLM / models.dev /
-  Helicone / llm-prices / AA / OpenRouter), equal to the built-in
+  Helicone / llm-prices / AA / llm-stats / OpenRouter / Requesty /
+  genai-prices / TrueFoundry), equal to the built-in
   `DEFAULT`, or equal to what `getPricingWithoutOverride` would return
   anyway. Reports the count removed.
 - **Layered costs CSV** — `buildLayeredCsv` emits one row per active
   `(provider, model)` (via `getTierBreakdown`,
-  `data/PricingCache.kt:698`) with every tier's `$/M` price (litellm,
-  models.dev, helicone, llm-prices, AA, override, openrouter,
-  default — computed independently; the `together` field of
+  `data/PricingCache.kt:841`) with every tier's `$/M` price (litellm,
+  models.dev, helicone, llm-prices, AA, llm-stats, override, openrouter,
+  requesty, genai-prices, truefoundry, default — computed independently;
+  the `together` field of
   `TierBreakdown` is not exported). *Export all* / *Export filtered*
   (filtered drops rows already covered by a catalog tier). Fill the
   two leading `new_input_per_million` / `new_output_per_million`
@@ -434,7 +436,7 @@ re-read after each write. Overrides round-trip through the backup zip
   other side at its current lookup value).
 
 `getTierBreakdown` also backs the per-model layered-cost view and the
-🐞 pricing trace; `pricesConflict` (`data/PricingCache.kt:719`) flags
+🐞 pricing trace; `pricesConflict` (`data/PricingCache.kt:869`) flags
 when ≥2 catalog tiers disagree by >1 % (override + default excluded),
 and `catalogStats` lists the info-provider catalog tiers (incl. the
 capabilities-only CloudPrice) in lookup order with entry counts +
@@ -444,7 +446,7 @@ catalog tiers but preserves manual + Together-native pricing;
 
 ## Related docs
 
-- [repositories.md](repositories.md) — the seven external pricing
+- [repositories.md](repositories.md) — the ten external pricing
   sources and their caches.
 - [regenerate.md](regenerate.md) — Find-alternative-title call and
   how its cost is recorded.

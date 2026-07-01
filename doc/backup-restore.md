@@ -30,12 +30,13 @@ Backup half of the screen is hidden and only Restore is offered.
 ```
 ai-backup-YYYYMMDD-HHMMSS.zip
 ├── manifest.json                       # version, timestamp, appVersion, packageName
-├── prefs/                              # one per PREFS_TO_BACKUP entry (7 files)
+├── prefs/                              # one per PREFS_TO_BACKUP entry (8 files)
 │   ├── eval_prefs.json
 │   ├── provider_registry.json
 │   ├── pricing_cache.json
 │   ├── dual_chat_prefs.json
 │   ├── huggingface_cache.json
+│   ├── cloudprice_model_cache.json
 │   ├── model_cooldowns.json
 │   └── view_screen_prefs.json
 ├── files/                              # all of filesDir except
@@ -109,15 +110,16 @@ Exceeding either throws `IllegalStateException` and leaves
 
 ### Prefs (`PREFS_TO_BACKUP`)
 
-Only **7 of the app's 10 SharedPreferences files** are backed up:
+Only **8 of the app's 11 SharedPreferences files** are backed up:
 
 | Pref file | What it carries |
 |---|---|
 | `eval_prefs` | The main store. All user-curated settings: API keys, per-provider model + endpoint config, agents / flocks / swarms / parameters / system prompts / internal prompts (stored under the legacy `ai_meta_prompts` key) / example prompts, blocked / test-excluded / inaccessible model lists, throttle limits, and per-screen recents (last report title/prompt, last selections, secondary-picker state). |
-| `provider_registry` | Custom provider definitions added or imported by the user, keyed by provider id. The 51 bundled providers come from `assets/providers/` (one JSON file per provider) at runtime, not from this file. |
+| `provider_registry` | Custom provider definitions added or imported by the user, keyed by provider id. The 91 bundled providers come from `assets/providers/` (one JSON file per provider) at runtime, not from this file. |
 | `pricing_cache` | Per-tier timestamps + the user's **manual** price overrides. The bulk pricing JSON itself lives in `files/pricing/` (below). |
 | `dual_chat_prefs` | Last-used Dual Chat configuration plus the recent-subjects / recent-prompts ring buffers. |
 | `huggingface_cache` | 7-day-TTL HuggingFace model-info lookups (positive **and** negative — a cached miss avoids a re-fetch storm on a model HF doesn't have). |
+| `cloudprice_model_cache` | 7-day-TTL per-model CloudPrice detail lookups (positive and negative), the direct sibling of the HuggingFace cache — backs the lazy CloudPrice call on Model Info. |
 | `model_cooldowns` | Models auto-benched after a 429 with a long retry-after, plus the per-model trace filename of the benching 429 (see [model-states.md](model-states.md)). |
 | `view_screen_prefs` | The reorderable View-grid tile order — single string key `tile_order` holding a comma-separated list of tile ids. The user explicitly arranged the grid (e.g. "Costs first"), so the order survives a round-trip. |
 
@@ -127,7 +129,7 @@ means "refresh this field from the asset on next boot"),
 `last_report_tracker`, and `update_from_cloud`.
 `WebViewChromiumPrefs` (Chromium cookies / web-process state) is
 also intentionally excluded, but it's created by the WebView
-system rather than app code, so it isn't counted among the 10.
+system rather than app code, so it isn't counted among the 11.
 New prefs files added to the app must be added to
 `PREFS_TO_BACKUP` explicitly to be archived.
 
@@ -157,8 +159,10 @@ Notable contents:
 - `embeddings/` — the per-document embedding cache that backs
   remote semantic search (distinct from KB chunks).
 - `pricing/` — the LiteLLM, models.dev, OpenRouter, Together,
-  Helicone, llm-prices and Artificial Analysis tier blobs, plus
-  the top-level `model_supported_parameters.json` catalog.
+  Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats,
+  genai-prices and TrueFoundry tier blobs, plus CloudPrice's
+  capabilities-only catalog blob and the top-level
+  `model_supported_parameters.json` catalog.
 - `model_lists/` — the most recent `/models` raw JSON per
   provider.
 - `prompt_cache/`, `regenerate/`, `audit/`, `crash/`,
@@ -267,6 +271,14 @@ memory first, destroy second**:
    `HousekeepingScreen` kills the process immediately afterward
    and SAF/close doesn't fsync — otherwise a restored file could
    surface partial/empty content on the next launch.
+
+Steps 6–8 are the destructive phase — the wipe has already begun,
+so any exception there is caught and rethrown as
+`RestoreAfterWipeException` instead of propagating raw. The UI
+uses that type to decide its message: a failure in steps 1–5 gets
+"existing data left unchanged", while `RestoreAfterWipeException`
+gets "your data may be incomplete — re-run restore from the same
+backup file", since the wipe already ran.
 
 `restore` returns `RestoreSummary(version, prefsFiles, dataFiles)`
 — the version restored plus the count of prefs files and data

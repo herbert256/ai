@@ -85,7 +85,7 @@ shared `executeSecondaryTask`. Moderation short-circuits to
 `com.ai.data.callModerationApi` before the chat path. Rerank only
 takes the dedicated rerank endpoint when
 `isRerankApiPath = kind == RERANK && getModelType(provider, model)
-== ModelType.RERANK` (`SecondaryRunManager.kt:1524`) — a *chat* model
+== ModelType.RERANK` (`SecondaryRunManager.kt:1611`) — a *chat* model
 picked for rerank goes through the normal analyse path and is
 expected to emit the rerank JSON itself. For provider `Local`,
 `runRerank` delegates to `runLocalRerank` (MediaPipe `TextEmbedder`,
@@ -245,7 +245,7 @@ for Fan-in.
 
 ## The @RESULTS@ block
 
-`buildResultsBlock(report, includeIds?)` (`SecondaryResult.kt:1239`)
+`buildResultsBlock(report, includeIds?)` (`SecondaryResult.kt:1402`)
 emits one block per **success** agent, prefixed only with the
 bracketed `[N]` id — no provider / model identifiers inline (those
 reach the user via the appended Reference legend, not the prompt):
@@ -294,7 +294,7 @@ reference legend to the persisted content:
 ```
 
 The legend is built once per batch via `buildReferenceLegend(report,
-includeIds)` (`SecondaryResult.kt:1261`), so it honours the same
+includeIds)` (`SecondaryResult.kt:1424`), so it honours the same
 Manual / TopRanked filter as the results block and uses the same
 1-based ids. It is written before save, so subsequent renders /
 exports include it without further work.
@@ -330,8 +330,9 @@ placeholders, and L1/L2/L3 drill-in:
   unknown until the chain returns. MATCH placeholders start at
   `providerId = "*workers"` / `model = "*pending"`; the AGGREGATE row
   uses `providerId = "*tournament"` / `model = "aggregate"`. Ranking
-  methods (Copeland / ELO / Davidson / Tideman / Markov) recompute
-  locally from the stored win-matrix sidecar with no API calls.
+  methods (Copeland / ELO / Davidson / Markov / Schulze / Colley /
+  TrueSkill2) recompute locally from the stored win-matrix sidecar
+  with no API calls.
 - **Judge the judges** (`JudgeEvalEngine`) — reuses the same
   `workers/tournament` prompt, but **every** concrete judge model in
   the swarm scores the **same** random set of `25` answer-pairs
@@ -370,11 +371,12 @@ row. Its full cell/aggregate/resume model lives in its own doc
 
 `SecondaryResultStorage` (an `object` in `data/SecondaryResult.kt`,
 **not** a separate `…Storage.kt` file) owns all of it. It uses a
-`ReentrantLock`, a shared Gson instance, and a per-file parse cache
-(`listCache`) keyed by `(name, mtime, length)` and invalidated
-per-filename on every save / delete, so an in-place edit to one file
-invalidates only that entry. Every mutating op calls
-`SecondaryDataVersion.bump()` so Compose observers reload.
+`ReentrantLock`, a shared Gson instance, and a per-report `ReportCache`
+(filenames indexed by name / id / kind) whose entries are keyed by
+`(mtime, length)` and invalidated per-filename on every save / delete,
+so an in-place edit to one file invalidates only that entry. Every
+mutating op calls `SecondaryDataVersion.bump(reportId, kind)` so
+Compose observers scoped to that report/kind reload.
 
 Path-traversal defence runs on **both** sides: writes go through
 `reportDir` (mkdirs + flat-id + canonical-containment checks), reads
@@ -413,7 +415,7 @@ wins).
 
 ## Display labels
 
-`legacyKindDisplayName(kind)` (`SecondaryResult.kt:1139`) is the
+`legacyKindDisplayName(kind)` (`SecondaryResult.kt:1302`) is the
 fallback label when a row has no `metaPromptName`:
 
 | Kind | Label |
@@ -450,7 +452,7 @@ edit / Select icon). See [report-icons.md](report-icons.md).
 Fan-out is owned by **`FanOutEngine`**
 (`viewmodel/FanOutEngine.kt`); Fan-in by
 `SecondaryRunManager.runFanInPrompt`. The legacy
-`ReportViewModel.runFanOutPrompt` is gone — fan-out now launches via
+`SecondaryRunManager.runFanOutPrompt` is gone — fan-out now launches via
 `reportViewModel.fanOutEngine.startRun(...)` from
 `ui/report/manage/Nav.kt`.
 
@@ -612,7 +614,7 @@ a bare kind. For a META-family row it is built from `metaPromptName`:
 | Moderation | `after/moderation` |
 | Plain Meta `<name>` | `meta/<name>` (e.g. `meta/Compare`) |
 | Fan-out pair | `fan_out/<name>` (default `fan_out/response`) |
-| Fan-in combined | `fan_in/<name>` (default `fan_in/meta`) |
+| Fan-in combined | `fan_in/<name>` (e.g. `fan_in/test`) |
 | Tournament | `after/tournament` |
 | Judge the judges | `after/judges` |
 | Compare cell | `meta/compare` |
@@ -643,8 +645,11 @@ delete / re-run cost accounting so it isn't silently dropped.
   translation 50, fanOut 50, fanMeta 50, workers 50). The canonical
   acquisition order is sub-cap → `ApiCallCaps.global` → per-host
   gate; permits parked on a busy host gate release the outer two
-  while waiting. Tune these under
-  Settings → Network → Maximal API calls.
+  while waiting. Settings → Network → Maximal API calls now exposes
+  a single "Concurrent API calls" field — `resetForNewLimits` resizes
+  every sub-cap to match that one value, so the sub-caps never bind
+  before the global cap; there are no independently-tunable per-flow
+  limits any more.
 - Fan-out / Fan Meta / report-primary flows pre-acquire the
   per-provider permit on the coroutine side so the UI can distinguish
   queued vs running rows; the inline OkHttp interceptor skips its own
@@ -662,13 +667,17 @@ delete / re-run cost accounting so it isn't silently dropped.
 > **Detect-only by default.** The orchestrator below is **no longer
 > run automatically.** A read-only 30 s background scan
 > (`SecondaryRunManager.startBackgroundBrokenScan`) only *detects*
-> interrupted work and publishes it to `AppViewModel.brokenReports`,
-> which surfaces as the top-bar ⚠️ + the Broken-work screen
+> interrupted work via `BrokenWorkPolicy.detectBatches` /
+> `detectBrokenBatchesForReport` and publishes it to
+> `AppViewModel.brokenBatches` (via `setBrokenBatches`), which
+> surfaces as the top-bar ⚠️ + the Broken-work screen
 > (`BrokenWorkScreen`). The full resume orchestrator is retained for
 > **explicit/manual** use (Regenerate / retry, regenerate
-> orchestration) — see `detectBrokenForReport` / `classifyBrokenRow`
-> for the read-only counterpart and each engine's `inFlightRowIds()` /
-> `detectBroken` for the in-flight-exclusion + regenerate predicates.
+> orchestration) — see `detectBrokenBatchesForReport` for the
+> read-only counterpart and each grid engine's `inFlightRowIds()`
+> (shared via the `SecondaryBatchEngine` base) /
+> `RegenerateBatchEngine.detectBroken` for the in-flight-exclusion +
+> regenerate predicates.
 
 `SecondaryRunManager.resumeStaleRunsForReport` is the cross-kind
 resume orchestrator (manual use only). In order it: reconciles

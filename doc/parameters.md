@@ -23,8 +23,9 @@ A "level" (agent, provider, app-wide, …) holds a **list of preset ids**
 `AgentParameters` by `Settings.mergeParameters(ids)`.
 
 > Moderation calls take **no** parameters (the `/moderations` endpoint ignores
-> them) and are omitted from the tables below. `runModeration` short-circuits
-> straight to the moderation endpoint.
+> them) and are omitted from the tables below. `executeSecondaryTask`
+> short-circuits straight to the moderation endpoint when `kind ==
+> SecondaryKind.MODERATION`.
 
 ---
 
@@ -79,9 +80,12 @@ then clamp, then (only if an override existed) drop-unsupported.**
 
 > **Reasoning-effort is gated again at the wire.** Even after a `reasoningEffort`
 > value is resolved, the dispatch only attaches `reasoning_effort` when
-> `isReasoningCapableForDispatch(service, model)` is true (LiteLLM / models.dev /
-> heuristic catalog chain). A model that doesn't accept the parameter silently
-> drops it — so a resolved effort can be a no-op. See `data/ApiDispatch.kt`.
+> `isReasoningCapableForDispatch(service, model)` is true — a thin delegate to
+> `ModelCapabilityResolver` (Settings reference when published, else a
+> LiteLLM / models.dev / heuristic catalog chain, with an xAI-style
+> always-on-reasoning gate). A model that doesn't accept the parameter
+> silently drops it — so a resolved effort can be a no-op. See
+> `data/ApiDispatchBuilders.kt` and `data/ModelCapabilityResolver.kt`.
 
 ---
 
@@ -166,9 +170,9 @@ wins per field over the task's `resolvedParams`).
 
 ## Secondary operations & metadata generation
 
-Rerank, Meta, Fan-out, Fan-in, Translate, and the **Find-alternative** metadata
-calls (alternative icons / titles, model titles) resolve through one helper:
-`viewmodel/ReportViewModelHelpers.kt` →
+Rerank, Meta, Fan-out, Fan-in, and the **Find-alternative** metadata calls
+(alternative icons / titles, model titles, alternative translations) resolve
+through one helper: `viewmodel/ReportViewModelHelpers.kt` →
 `resolveSecondaryParams(general, aiSettings, paramsIds, systemPromptId, prompt?, agent?)`.
 
 > The **automatic** metadata-gen calls (report icon / title / language, per-model
@@ -176,6 +180,14 @@ calls (alternative icons / titles, model titles) resolve through one helper:
 > run through the `WorkerRunner` chain (or a fixed-host judge call) and send empty
 > parameters. See "Worker-grid flows send no parameters" below. Only the
 > single-result, picker-driven secondaries listed above resolve params here.
+>
+> **The main Translate batch run is a worker-grid flow, not a
+> `resolveSecondaryParams` caller** — despite `TRANSLATE` being one of the eight
+> `SecondaryKind` values, `TranslationRunManager.runOneTranslation` dispatches
+> each item straight through `WorkerRunner.run` (the same pool shape as
+> Tournament / Compare) with no explicit parameter / system-prompt preset — see
+> [translation.md](translation.md). Only the **find-alternative-translation**
+> candidate preview (a fixed model per candidate) calls `resolveSecondaryParams`.
 
 Unlike the report chains, the parameter-id source here is picked by
 **first-non-empty** (`ifEmpty`), *not* a cross-level merge — once a level
@@ -201,11 +213,12 @@ The system prompt resolves independently (also first-non-empty):
 `agent.systemPromptId` → `appWideSystemPromptId`; if found it is copied onto the
 resolved bundle's `systemPrompt`. Callers include `SecondaryRunManager` (rerank /
 meta / fan-in, via `runSecondaryViaSwarm` → `executeSecondaryTask`),
-`FanOutEngine`, `MetaEditManager`, `TranslationRunManager`, and
-`IconGenerationManager` (alt icons, model titles). For the swarm-driven kinds
-(rerank / meta / fan-in) the **worker chain only picks the provider/model** (random
-pick + fallback); fan-out / translate / alt-metadata run against a fixed model.
-Either way the *parameters* come from `resolveSecondaryParams` above.
+`FanOutEngine`, `MetaEditManager`, `TranslationRunManager` (find-alternative-
+translation candidates only), and `IconGenerationManager` (alt icons, model
+titles). For the swarm-driven kinds (rerank / meta / fan-in) the **worker chain
+only picks the provider/model** (random pick + fallback); fan-out / find-
+alternative-translation / alt-metadata run against a fixed model. Either way
+the *parameters* come from `resolveSecondaryParams` above.
 
 (Moderation: no parameters.)
 
@@ -256,13 +269,20 @@ resolution — the single-result kinds still resolve params via
 The per-report worker config (picked on the "Report - select workers" screen,
 see [workers.md](workers.md)) swaps the worker pool per card: Worker batches =
 `REPORT_MODELS` puts the report's own answer models (`reportModelWorkers`) on
-every worker-driven kind — Tournament, Judges, Compare, TransRank, Fan-meta,
-Translation, Rerank, Moderation, Meta, Fan-in — **winning over a `*SELECT`
-pick** (`resolveBatchSwarm` precedence); a persisted `SELECT_ONCE` group sits
-between a runtime pick and the configured chain. The Report-info / Model-info
-cards swap the metadata prompts' chains likewise. Like `*SELECT`, all of it
-changes only the worker set; parameters resolve exactly as above (empty for
-worker-grid kinds, `resolveSecondaryParams` for single-result kinds).
+the batch pool for Tournament, Compare, Fan Meta and Translation — **winning
+over a `*SELECT` pick** (`resolveBatchSwarm` precedence); a persisted
+`SELECT_ONCE` group sits between a runtime pick and the configured chain.
+**Rerank and Moderation are exempt** — both pass `alwaysPromptWorkers = true`
+and always run on their own prompt's configured workers regardless of the
+`REPORT_MODELS` / `*SELECT` choice. **Judges and TransRank have no worker-pool
+selection at all** — each reuses the distinct judges / translator models
+recorded on the Tournament / Translation run it evaluates. **Meta and Fan-in**
+route on their own mirror set (`metaBatches` / `metaBatchWorkers`, same option
+set) so they can draw from a different pool than the batches above. The
+Report-info / Model-info cards swap the metadata prompts' chains likewise.
+Like `*SELECT`, all of it changes only the worker set; parameters resolve
+exactly as above (empty for worker-grid kinds, `resolveSecondaryParams` for
+single-result kinds).
 
 ---
 
@@ -310,5 +330,6 @@ reasoning value is also re-validated against the model's advertised
    drops anything the model can't accept. `reasoning_effort` is gated once more at
    the wire by `isReasoningCapableForDispatch`.
 5. **Worker-grid flows are the exception**: Tournament / Judges / Compare /
-   TransRank send **no** resolved parameters — provider defaults only. `*SELECT`
-   and `Report.workerConfig` change *which* workers run, never the params.
+   TransRank (and the main Translate batch run) send **no** resolved
+   parameters — provider defaults only. `*SELECT` and `Report.workerConfig`
+   change *which* workers run, never the params.

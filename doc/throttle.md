@@ -6,7 +6,7 @@ layers** plus two retry interceptors and a per-call read-timeout shim:
 1. **`ProviderThrottle`** — a per-**hostname** gate (concurrency
    semaphore + sliding-window rate cap). Everything here is
    configurable per provider (overrides in
-   `assets/providers.json` + Settings → Provider edit) and falls
+   `assets/providers/` + Settings → Provider edit) and falls
    through to a global default (`NetworkSettings.*`, exposed under
    Settings → Network settings).
 2. **`ApiCallCaps`** — a set of process-wide coroutine
@@ -88,12 +88,17 @@ are `@Volatile` and rebuilt at runtime via
 changes. `snapshot()` / `diagnosticLine()` / `isBusy()` expose
 in-flight-vs-max for the stall watchdog and the Live Dashboard.
 
-> Note: the `ApiCallCaps` object's own field initialisers are
-> 100/50, but `SettingsPreferences` reads a different fallback for
-> `maxConcurrentApiCalls` when the prefs key is absent on a fresh
-> install (**50** vs. the `GeneralSettings` data-class default of
-> **100**). The data-class default is what gets fed to
-> `resetForNewLimits` once settings load.
+> Note: the `ApiCallCaps` object's own field initialisers (100
+> global / 50 per-flow) are only the cold-start values used before
+> `AppViewModel` finishes loading settings; `resetForNewLimits` then
+> re-sizes every sub-cap to the loaded `maxConcurrentApiCalls`. A
+> fresh install and an in-app "Reset application" used to disagree
+> on that loaded value — `loadGeneralSettings`'s absent-key
+> fallbacks were hardcoded to 30/3/50 while the reset path used the
+> `GeneralSettings` data-class defaults of 60/5/100 — until commit
+> `7bdfb5f66` sourced every absent-key fallback from a
+> `GeneralSettings()` instance instead, so both paths now converge
+> on the same values (global cap **100**).
 
 ### `ProviderThrottle` (`data/ProviderThrottling.kt`)
 
@@ -251,9 +256,9 @@ than `LONG_RETRY_THRESHOLD_MS`. See [model-states.md](model-states.md).
 
 #### Short-bench-and-requeue (type-A fixed-model batches)
 
-When a **type-A** batch (Fan Out, Judge the judges — where a model
-can't be swapped for another) runs an item, `runThrottledBatch`
-installs a per-item `ProviderThrottle.benchSignal` (a fresh
+When a **type-A** batch (Fan Out, Judge the judges, Rank the
+translators — where a model can't be swapped for another) runs an
+item, `runThrottledBatch` installs a per-item `ProviderThrottle.benchSignal` (a fresh
 `AtomicBoolean` per attempt). On a transient 429/529 (the long-bench
 cases above didn't fire) and when `ModelCooldownStore.typeABenchEnabled`,
 the interceptor **short-benches** the model via
@@ -407,9 +412,14 @@ item acquires via `acquireThrottledPermits` and runs `body` with
 `permitPreAcquired = true` + `backoffPermitYielder` set. Two modes:
 
 - **Fixed-host** (default) — `host = hostOf(item)`, `permitPreAcquired`
-  set so each inner call skips the interceptor's own gate.
+  set so each inner call skips the interceptor's own gate. Used by
+  Fan-out, Judge-the-judges and Rank-the-translators — each item's
+  judge/answerer provider is resolved up front (a direct
+  `AnalysisRepository.analyzeWithAgent` / `runFixedJudgeCall`, not
+  the worker round-robin), so the batch throttles per-host like any
+  fixed-model call.
 - **Dynamic-host** (`dynamicHost = true`, used by the worker-pick
-  flows — Fan-Meta, Tournament, Judges, Compare) — the host is
+  flows — Fan-Meta, Tournament, Compare, Translation) — the host is
   unknown until the worker chain picks one inside `body`, so it
   acquires only `subCap` + `global` (blank host = no-op gate) and
   does **not** set `permitPreAcquired`; each inner worker call
@@ -431,23 +441,38 @@ The legacy single-host `acquireOrRequeue`
 - **Fan-out** (`FanOutEngine`) — the batched per-pair path uses
   `runThrottledBatch(subCap = ApiCallCaps.fanOut)`; the single-call
   path uses `ApiCallCaps.fanOut.withPermit { … permitPreAcquired … }`.
-  The `fanOut` sub-cap is also taken by `MetaEditManager`,
-  `SecondaryModelSwitchManager` and `SecondaryRunManager`.
+  The `fanOut` sub-cap is also taken by `MetaEditManager` and
+  `SecondaryModelSwitchManager`.
 - **Fan-Meta / icon generation** (`IconGenerationManager` — per-pair
   title+icon, per-report / per-model / per-language / per-agent icon
   fan-outs) — `runThrottledBatch` in dynamic-host mode,
   `subCap = ApiCallCaps.fanMeta`; each worker self-throttles its host.
-- **Worker swarms** — `runThrottledBatch` in dynamic-host mode,
-  `subCap = ApiCallCaps.workers`. This pool gates the `WorkerRunner`
-  chains behind Rerank / Moderation / Meta / Fan-in / Translate
-  (see [secondary-results.md](secondary-results.md)) **and** the
-  Tournament (`TournamentEngine`), Judge-the-judges
-  (`JudgeEvalEngine`), Compare (`CompareEngine`) and
-  Rank-the-translators (`TranslatorRankEngine`) engines; each worker
-  self-throttles its own provider host. See [report-icons.md](report-icons.md)
-  for the icon chains.
-- **Translation** — `ApiCallCaps.translation` (`TranslationRunManager`);
-  see [translation.md](translation.md).
+- **Worker swarms** — `subCap = ApiCallCaps.workers` via
+  `runThrottledBatch`, but the four engines split into two shapes:
+  - **Tournament** (`TournamentEngine`) and **Compare**
+    (`CompareEngine`) run **dynamic-host**: each match / cell
+    dispatches through the shared `WorkerRunner` round-robin chain
+    (`runPooledItemCall`), so the provider is unknown up front and
+    each worker self-throttles its own host.
+  - **Judge-the-judges** (`JudgeEvalEngine`) and **Rank-the-translators**
+    (`TranslatorRankEngine`) run **fixed-host** instead: each cell
+    names one specific judge model up front (`runFixedJudgeCall`,
+    not the worker chain) and is a type-A bench batch like Fan-out —
+    a 429/529 short-benches that judge and re-queues the cell rather
+    than falling back to another model.
+
+  See [report-icons.md](report-icons.md) for the icon chains. Rerank
+  / Moderation / chat-type Meta / Fan-in
+  (see [secondary-results.md](secondary-results.md)) do **not** go
+  through this pool at all: `SecondaryRunManager.runSecondaryViaSwarm`
+  runs their fallback-chain loop by hand (not `WorkerRunner`, not
+  `runThrottledBatch`) and gates each attempt on
+  `ApiCallCaps.global.withPermit` alone — no dedicated sub-cap.
+- **Translation** — `runThrottledBatch` in dynamic-host mode,
+  `subCap = ApiCallCaps.translation` (`TranslationRunManager`); each
+  item runs the same `WorkerRunner` chain as Tournament/Compare, just
+  under its own sub-cap instead of `workers`. See
+  [translation.md](translation.md).
 - **Chat** and single non-batched calls go through `withHostGate`
   + `withApiCallTimeout` and let `ProviderThrottleInterceptor`
   acquire the host gate inline (no pre-acquire).
@@ -479,11 +504,12 @@ Two of the columns are direct surfaces of the throttle layer:
 - **Bench** — items whose model is short-benched
   (`ModelCooldownStore.markShortBench`). Shown **only** for
   fixed-model batches (`BatchFamily.FIXED_MODEL` → `BenchMode.MODEL_PARKED`:
-  Fan Out, Judge the judges); a benched model carves **all** of its
-  non-done items out of Error/Run/Wait/Queue into Bench. Worker-swarm
-  batches (`BatchFamily.WORKER_POOL` → `BenchMode.NONE`: Tournament,
-  Compare, Translation, Fan Meta) omit the column — a cooldown there is
-  a worker-selection concern, not a terminal result.
+  Fan Out, Judge the judges, Rank the translators); a benched model
+  carves **all** of its non-done items out of Error/Run/Wait/Queue
+  into Bench. Worker-swarm batches (`BatchFamily.WORKER_POOL` →
+  `BenchMode.NONE`: Tournament, Compare, Translation, Fan Meta) omit
+  the column — a cooldown there is a worker-selection concern, not a
+  terminal result.
 
 ## Fan Out HTTP statistics
 
@@ -510,7 +536,7 @@ slowest-call list, for the Live Dashboard.
 ## Per-provider overrides
 
 Six nullable fields on `AppService` (declared in
-`assets/providers.json`, editable in the UI):
+`assets/providers/`, editable in the UI):
 
 ```kotlin
 val maxCallsPerProviderPerMinute: Int? = null,

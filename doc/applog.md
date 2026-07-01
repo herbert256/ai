@@ -70,7 +70,7 @@ without touching the user's chosen level.
 One line per call:
 
 ```
-2026-05-11 09:51:09.732 INFO  App: App started — AI v1.42 (built 2026-05-11T07:53:00Z, installed …) logLevel=WARN, tracing=true
+2026-05-11 09:51:09.732 INFO App: App started — AI v1.42 (built 2026-05-11 07:53:00 UTC, installed …) logLevel=WARN, tracing=true
 ```
 
 Format: `yyyy-MM-dd HH:mm:ss.SSS LEVEL TAG: message`. A stack
@@ -180,18 +180,20 @@ passed to `AppLog.d/i/w/e` (not class names); there are roughly
 
 - **Lifecycle / infra** — `App` (startup line), `App.start`
   (per-step bootstrap), `Crash`, `Housekeeping`, `CapsWatch`,
-  `Throttle`, `RateLimit`, `Overloaded`, `TagPropagation`,
-  `AtomicFileWrite`, `Settings`.
+  `Throttle`, `RateLimit`, `Overloaded`, `ModelCooldown`,
+  `TagPropagation`, `AtomicFileWrite`, `Settings`.
 - **API / dispatch** — `AiAnalysis`, `ApiClient`, `ApiDispatch`,
   `ApiTracer`, `SSE`.
 - **Reports / regenerate** — `Report`, `ReportStorage`,
   `RegenBatch`, `RegenerateBatchStorage`, `Resume`,
-  `SecondaryResume`, `BgResumeSweep`.
+  `SecondaryResume`, `BrokenScan` (the background broken-batch
+  detection sweep).
 - **Secondary results** — `Secondary`, `SecondaryResultStorage`,
   `Meta`, `Meta-xlate`, `MetaCache`, `FanOut`, `FanIn`, `FanMeta`,
-  `Rerank`, `Moderation`, `Tournament`, `JudgeEval`, `Compare`.
+  `Rerank`, `Moderation`, `Tournament`, `JudgeEval`, `Compare`,
+  `TransRank`.
 - **Translation** — `Translation`, `TranslationIcon`,
-  `TranslationIconAlt`, `Translate-missing`,
+  `TranslationIconAlt`, `Translate`, `Translate-missing`,
   `PromptTranslationStore`.
 - **Icons (alt / find-alternative)** — `AgentIconAlt`,
   `InternalPromptIcon`, `InternalPromptIconAlt`, `LanguageIconAlt`,
@@ -209,7 +211,8 @@ passed to `AppLog.d/i/w/e` (not class names); there are roughly
   `StressTest`, `Workers`.
 - **Seed loaders** (first-run asset seeding) — `DefaultMetaItemSeed`,
   `ExamplePromptSeed`, `FlockSeed`, `InaccessibleSeed`,
-  `SwarmSeed`, `SystemPromptSeed`, `TestExcludedSeed`.
+  `InternalPromptSeed`, `SwarmSeed`, `SystemPromptSeed`,
+  `TestExcludedSeed`.
 
 ## Viewer screens
 
@@ -299,12 +302,14 @@ user just looked at.
 
 ## Trimming
 
-`AppLog.deleteLogsOlderThan(cutoffMs)` is wired to the list
-screen's **Delete > 7 days** button (and is also available to the
-report / chat / trace age-trimmers). `clearLogs()` drops every
-file: it's the list screen's 🗑 clear-all action and is also called
-last in `AppViewModel`'s runtime-wipe / reset path (last, because
-that method's own prior log lines go with it).
+`AppLog.deleteLogsOlderThan(cutoffMs)` is wired only to the list
+screen's **Delete > 7 days** button — the **Trim by age** screen
+(`ui/admin/TrimByAgeScreen.kt`) prunes reports, chat sessions and
+API traces by age but does not touch application-log files.
+`clearLogs()` drops every file: it's the list screen's 🗑 clear-all
+action and is also called last in `AppViewModel`'s runtime-wipe /
+reset path (last, because that method's own prior log lines go
+with it).
 
 ## Files
 

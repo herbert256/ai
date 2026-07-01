@@ -7,12 +7,13 @@ most quality for the least money?* It is a **pure local derivation** —
 no API calls. Both inputs already live on disk: each agent's recorded
 cost, and a per-model **ranking** chosen with a chip switch (the
 report's Rerank, the Judge-the-judges consensus, any "Rank the
-translators" run, the Tournament Total, each individual Tournament
-method, or the weighted **Combined** blend). Switching the ranking
-re-ranks the chart, the 💎 best-value pick and the list instantly,
-recomputing locally from stored verdicts / win matrices.
+translators" run, a Compare-with-meta run, the Tournament Total, each
+individual Tournament method, or the weighted **Combined** blend).
+Switching the ranking re-ranks the chart, the 💎 best-value pick and
+the list instantly, recomputing locally from stored verdicts / win
+matrices.
 
-Everything lives in `ui/report/view/ValueView.kt` (~955 lines).
+Everything lives in `ui/report/view/ValueView.kt` (~1090 lines).
 
 ## What feeds it
 
@@ -23,6 +24,7 @@ Everything lives in `ui/report/view/ValueView.kt` (~955 lines).
 | Rerank | newest `RERANK` `SecondaryResult.content` → `parseRerankRows` | a ranking source |
 | Judge-the-judges | `JUDGES` cells → `judgesConsensusWinMatrix` → Copeland | a ranking source |
 | Rank the translators | `TRANSRANK` cells → `aggregateTranslatorRanks`, one per language | one source per language |
+| Compare with meta | latest `COMPARE` cell group (by `compareRunId`) → mean `percent` per agent | a ranking source |
 | Tournament | newest `TOURNAMENT` AGGREGATE row's `tournamentMatrix` → `decodeTournamentMatrix` | the Total + each method |
 | Ranking weights | `GeneralSettings.rankingWeights` (Settings → Ranking weights) | the Combined blend |
 
@@ -43,29 +45,30 @@ grid.
 
 The **💎 "Value view" tile** (`MetadataIconsHolder.current.gem`,
 `SuccessAccent`) is added only when the report has at least one ranking
-to draw on (`Main.kt:963`):
+to draw on (`Main.kt:967`):
 
 ```
-everyItems["rerank"].isNotEmpty() || tournamentRows.isNotEmpty()
-    || judgesRows.isNotEmpty() || transRankRows.isNotEmpty()
+everyItems["rerank"].orEmpty().isNotEmpty() || tournamentRows.isNotEmpty()
+    || judgesRows.isNotEmpty() || transRankRows.isNotEmpty() || compareRows.isNotEmpty()
 ```
 
-i.e. a Rerank, a Tournament, a Judge-the-judges run, **or** a Rank-the-
-translators run. Help topic is `value_view` (`ui/admin/ReportsHelp.kt`).
-The title bar shows "Value view" with a subject line that names the
-active source (e.g. `Combined · weighted 0–1000`, `ranked by <model>`,
-`Judge the judges · consensus`, `Rank the translators · <lang>`,
-`Tournament · total of all methods`, `Tournament · Elo`).
+i.e. a Rerank, a Tournament, a Judge-the-judges run, a Rank-the-
+translators run, **or** a Compare-with-meta run. Help topic is
+`value_view` (`ui/admin/ReportsHelp.kt`). The title bar shows "Value
+view" with a subject line that names the active source (e.g.
+`Combined · weighted 0–1000`, `ranked by <model>`, `Judge the judges ·
+consensus`, `Compare with meta · match %`, `Rank the translators ·
+<lang>`, `Tournament · total of all methods`, `Tournament · Elo`).
 
 If the report has rows but no ranking yields any points, the body shows
-*"No ranking to compare. Run a Rerank, Tournament, or Judge-the-judges
-on this report first."*
+*"No ranking yet. Run a Rerank, Tournament, Judge-the-judges,
+Rank-the-translators, or Compare-with-meta on this report first."*
 
 ## The ranking-source switch
 
 A horizontally-scrolling row of chips (`SourceChip`) picks which ranking
 feeds the quality axis. The sources are assembled in a fixed order
-(`ValueView.kt:425-439`):
+(`buildRankSources`, `ValueView.kt:328-343`):
 
 | # | Chip label | `RankSource` | Quality score | Shown when |
 |---|---|---|---|---|
@@ -73,18 +76,18 @@ feeds the quality axis. The sources are assembled in a fixed order
 | 2 | **Rerank** | `Rerank` | the rerank row's `score` (or `n−rank+1`) | a RERANK row exists |
 | 3… | *language name* | `TransRank(runId, language)` | the model's average translator score (0–100) | one chip per "Rank the translators" run, sorted by language |
 | · | **Judges** | `Judges` | Copeland win-rate over the panel **consensus** matrix | a Judge-the-judges run resolves ≥2 answers |
-| · | **Tournament** | `TournamentTotal` | inverse of the model's **average position across all 11 methods** | a Tournament aggregate exists |
-| · | **Copeland / Elo / Davidson / Tideman / Markov / Schulze / Minimax / Colley / Glicko2 / Points / Trueskill2** | `Tournament(method)` | that method's `rankFor` score | one chip per `TournamentMethod` value, same Tournament aggregate |
+| · | **Compare** | `Compare` | each answer's mean match % (0–100) against the chosen meta | a Compare-with-meta run has at least one scored cell |
+| · | **Tournament** | `TournamentTotal` | inverse of the model's **average position across all 7 methods** | a Tournament aggregate exists |
+| · | **Copeland / Elo / Davidson / Markov / Schulze / Colley / Trueskill2** | `Tournament(method)` | that method's `rankFor` score | one chip per `TournamentMethod` value, same Tournament aggregate |
 
-The 11 Tournament methods come straight from
+The 7 Tournament methods come straight from
 `TournamentMethod.values()` (`data/TournamentRanking.kt:19`:
-`COPELAND, ELO, DAVIDSON, TIDEMAN, MARKOV, SCHULZE, MINIMAX, COLLEY,
-GLICKO2, POINTS, TRUESKILL2`); each chip's label is the title-cased enum
-name. Tournament Total and each method are **recomputed locally** from
-the stored `WinMatrix` — no Tournament API calls (`rankFor`,
-`tournamentTotalRows`).
+`COPELAND, ELO, DAVIDSON, MARKOV, SCHULZE, COLLEY, TRUESKILL2`); each
+chip's label is the title-cased enum name. Tournament Total and each
+method are **recomputed locally** from the stored `WinMatrix` — no
+Tournament API calls (`rankFor`, `tournamentTotalRows`).
 
-**Selection** (`ValueView.kt:440-450`) is a `rememberSaveable`
+**Selection** (`ValueView.kt:534-544`) is a `rememberSaveable`
 `selectedKey` keyed by `reportId`. The effective pick is: the user's
 chip if still available → else **Rerank** → else the Tournament's
 stored default method → else the first source. Note the default lands on
@@ -99,6 +102,11 @@ stored default method → else the first source. Note the default lands on
   plurality verdict), then ranks with **Copeland** win-rate
   (`rankFor(COPELAND, …)`) — the robust default for a plurality
   ranking. Requires a matrix of ≥2 answers.
+- **Compare** — reduces the latest Compare-with-meta run's `COMPARE`
+  cells (grouped by `compareRunId`, picking the most recently-updated
+  group — there's no aggregate row) to each answer's mean match %
+  (0–100) against the chosen meta result, the same average the Compare
+  result screen's first column shows.
 - **TransRank** — each "Rank the translators" run (`TRANSRANK` cells,
   one group per source translation run / language) is reduced to a
   `providerId|model → avgScore` map via `aggregateTranslatorRanks`. The
@@ -109,7 +117,7 @@ stored default method → else the first source. Note the default lands on
   [rank-translators.md](rank-translators.md).
 - **Tournament method** — `rankFor(method, matrix).score`.
 - **Tournament Total** — `tournamentTotalRows(matrix)`: for each model,
-  average its rank across all 11 methods (`ranks.average()`), then
+  average its rank across all 7 methods (`ranks.average()`), then
   `quality = n − avg + 1` so a lower mean position sits higher. Matches
   the Tournament screen's Total grid ordering.
 
@@ -121,7 +129,7 @@ agent.
 ## Combined score + Ranking weights
 
 **Combined** is a single 0–1000 score blending every available, non-
-zero-weighted ranking (`buildCombinedRows`, `ValueView.kt:218-271`):
+zero-weighted ranking (`buildCombinedRows`, `ValueView.kt:231-294`):
 
 1. Gather each contributing ranking as `(weight, id→rawScore)`:
    - `rerank` weight → rerank scores;
@@ -129,6 +137,8 @@ zero-weighted ranking (`buildCombinedRows`, `ValueView.kt:218-271`):
    - `translations` weight → **average across all translator runs** of
      each model's translator score (averaging every language, unlike the
      per-language TransRank chips);
+   - `compare` weight → each answer's mean match % against the chosen
+     meta;
    - each `TournamentMethod.name` weight → that method's scores.
 2. **Min-max normalise** each ranking's scores to 0–1 independently (a
    flat ranking where `max == min` maps every model to 0.5).
@@ -140,28 +150,28 @@ absent) when nothing is weighted.
 
 **Weights** are integers 0–10, edited on **Settings → Ranking weights**
 (`SettingsSubScreen.SETTINGS_RANKING_WEIGHTS`, `RankingWeightsSubScreen`,
-`ui/settings/SettingsScreen.kt:1935`, help `settings_ranking_weights`).
-Two cards of 0–10 sliders: **"Rerank · Judges · Translations"** (keys
-`rerank`, `judges`, `translations`) and **"Tournament rankings"** (one
-slider per `TournamentMethod`, keyed by the uppercase enum name). The
-🧽 icon resets to factory defaults by clearing the map.
+`ui/settings/SettingsScreen.kt:2033`, help `settings_ranking_weights`).
+Two cards of 0–10 sliders: **"Rerank · Judges · Translations · Compare"**
+(keys `rerank`, `judges`, `translations`, `compare`) and **"Tournament
+rankings"** (one slider per `TournamentMethod`, keyed by the uppercase
+enum name). The 🧽 icon resets to factory defaults by clearing the map.
 
 Weights are stored **sparsely** in `GeneralSettings.rankingWeights`
-(`viewmodel/AppViewModelTypes.kt:206`); a missing key resolves through
+(`viewmodel/AppViewModelTypes.kt:222`); a missing key resolves through
 `GeneralSettings.rankingWeight(key)` to `RANKING_WEIGHT_DEFAULTS`
-(`AppViewModelTypes.kt:125`), else 0:
+(`AppViewModelTypes.kt:135`), else 0:
 
 | Key | Default |
 |---|---|
 | `rerank` | 3 |
 | `judges` | 6 |
 | `translations` | 6 |
-| `ELO` / `DAVIDSON` / `TIDEMAN` | 4 each |
-| `COPELAND`, `MARKOV`, `SCHULZE`, `MINIMAX`, `COLLEY`, `GLICKO2`, `POINTS`, `TRUESKILL2` | 0 |
+| `compare` | 4 |
+| `COPELAND` / `ELO` / `DAVIDSON` / `MARKOV` / `SCHULZE` / `COLLEY` / `TRUESKILL2` | 2 each |
 
-So out of the box Combined blends Rerank, Judges, Translations, Elo,
-Davidson and Tideman; Copeland and the remaining Tournament methods are
-off until the user raises their slider.
+So out of the box Combined blends every currently available ranking
+source — Rerank, Judges, Translations, Compare, and all seven Tournament
+methods — since none of them default to a 0 weight.
 
 The Value view reads the weights live via
 `LocalGeneralSettings.current.rankingWeight(key)` and recomputes
@@ -177,7 +187,7 @@ Combined re-blends without leaving the screen.
 
 ## Cost axis — base cost + fan-out fold-in
 
-Each point's cost (`buildValuePoints`, `ValueView.kt:160-198`) is the
+Each point's cost (`buildValuePoints`, `ValueView.kt:173-211`) is the
 agent's own spend plus an optional fan-out fold-in, expressed in cents
 (USD × 100):
 
@@ -185,11 +195,14 @@ agent's own spend plus an optional fan-out fold-in, expressed in cents
 - **`costKnown`** distinguishes a real **$0** (free / local model — still
   eligible for best value) from *no price at all*: `knownBase` is
   `cost ?: inputCost ?: outputCost`, null only when the agent reports no
-  price. A point with unknown cost still plots (at cost 0) but is
+  price. `costKnown` is true when `knownBase != null` **or** the
+  fan-out fold added any cost (`fanOut > 0`) — so a model with no
+  reported base price but positive folded-in fan-out spend still counts
+  as priced. A point with unknown cost still plots (at cost 0) but is
   excluded from the best-value contest (it would score `quality/ε ≈ ∞`
   and steal the badge).
 
-**Fan-out fold-in** (`ValueView.kt:358-389`) adds each model's fan-out
+**Fan-out fold-in** (`ValueView.kt:453-496`) adds each model's fan-out
 **response** spend on top of its main answer — but **only when the
 fan-out scope matches the report's models**, so the comparison stays
 fair. The map is built only when **all** hold:
@@ -216,7 +229,7 @@ responses (every model here also answered the fan-out)."* See
 
 ## Pareto frontier + best value
 
-For each point P (`ValueView.kt:189-197`):
+For each point P (`ValueView.kt:197-211`):
 
 - **dominated** = some other point is at least as good for the same or
   less money: `∃ o ≠ P : o.quality ≥ P.quality ∧ o.costCents ≤
@@ -231,7 +244,7 @@ A green summary line names the winner: *"💎 Best value: <provider> ·
 
 ## The scatter chart (inline)
 
-`ValueScatter` → `ValueScatterCanvas` (`ValueView.kt:608-835`) draws a
+`ValueScatter` → `ValueScatterCanvas` (`ValueView.kt:706-947`) draws a
 240 dp card:
 
 - **X = Cost** (cheap on the left), **Y = the active ranking** (high
@@ -260,7 +273,7 @@ every dot marker, not just each other. Inline thumbnails clip names to
 
 ## Full-screen graph
 
-Tapping the chart opens `ValueGraphFullScreen` (`ValueView.kt:845-918`)
+Tapping the chart opens `ValueGraphFullScreen` (`ValueView.kt:958-1052`)
 — a **chrome-less, edge-to-edge** graph rendered in its **own `Dialog`
 window** (`usePlatformDefaultWidth = false`, `decorFitsSystemWindows =
 false`) so it covers the app's title bar and bottom icon bar (a plain
@@ -277,13 +290,18 @@ via `WindowInsetsControllerCompat` in a `DisposableEffect`.
 - In **landscape** the labels show full model names at 1.35× size; the
   full-screen renderer also uses a larger label font (27 px vs 22 px)
   and the cluster-fan / leader-line layout.
+- Full-screen labels are also run through `shortModelName2` and drop
+  their `-preview` / `-exp` channel tag when that stays unique among the
+  plotted points — ~7 catalog pairs (e.g. `gemini-2.5-pro` vs
+  `…-pro-preview`) would otherwise collide onto one label, so a preview
+  and its GA twin each keep their tag when both are on the chart.
 - Back (or the system back press) dismisses the dialog.
 
 ## The list below the chart
 
 Below the chart and the best-value line, every point is listed
 (`ValueRow`) sorted **best-value first, then non-dominated, then quality
-descending** (`ValueView.kt:578-585`). Each card shows `provider ·
+descending** (`ValueView.kt:675-681`). Each card shows `provider ·
 model` and a monospace `<$cost> · score <q>` line, plus a badge:
 
 | Badge | Colour | Meaning |
@@ -292,7 +310,7 @@ model` and a monospace `<$cost> · score <q>` line, plus a badge:
 | Pareto | `InfoAccent` | on the frontier (not dominated) |
 | dominated | `TextDim` | another model is at least as good for less |
 
-`formatScore` (`ValueView.kt:953`) prints whole numbers without a
+`formatScore` (`ValueView.kt:1087`) prints whole numbers without a
 decimal (e.g. Elo `1500`) and fractional scores to one place
 (`Locale.US`, never a comma-decimal round-trip).
 
@@ -310,11 +328,11 @@ Value view is read-only and makes **no API calls**.
 ## Related files
 
 - `ui/report/view/ValueView.kt` — the whole screen: `ValueViewScreen`,
-  `buildValuePoints`, `buildCombinedRows`, `tournamentTotalRows`,
-  `ValueScatterCanvas`, `ValueGraphFullScreen`, `ValueRow`, the
-  `RankSource` sealed class.
+  `buildValuePoints`, `buildCombinedRows`, `buildRankSources`,
+  `rowsForSource`, `tournamentTotalRows`, `ValueScatterCanvas`,
+  `ValueGraphFullScreen`, `ValueRow`, the `RankSource` sealed class.
 - `ui/report/view/Main.kt` — the View hub; the conditional 💎 tile
-  (`Main.kt:959-965`) and the overlay mount (`Main.kt:197-209`).
+  (`Main.kt:963-969`) and the overlay mount (`Main.kt:197-209`).
 - `viewmodel/AppViewModelTypes.kt` — `GeneralSettings.rankingWeights`,
   `rankingWeight`, `RANKING_WEIGHT_DEFAULTS`.
 - `ui/settings/SettingsScreen.kt` — `RankingWeightsSubScreen` /
@@ -323,6 +341,7 @@ Value view is read-only and makes **no API calls**.
 - `data/TournamentRanking.kt` — `TournamentMethod`, `WinMatrix`,
   `rankFor`, `decodeTournamentMatrix`.
 - `data/JudgeAgreement.kt` — `judgesConsensusWinMatrix`.
+- `data/CompareRunModel.kt` — `CompareCellState`, `toCompareCellState`.
 - `ui/admin/ReportsHelp.kt` — the `value_view` help page.
 
 ## Related docs
@@ -330,8 +349,8 @@ Value view is read-only and makes **no API calls**.
 - [costs.md](costs.md) — how the per-agent and fan-out costs the X axis
   reads were computed and recorded.
 - [tournament-judges-compare.md](tournament-judges-compare.md) — the
-  Tournament `WinMatrix` / `rankFor` machinery and Judge-the-judges
-  consensus the quality sources reuse.
+  Tournament `WinMatrix` / `rankFor` machinery, Judge-the-judges
+  consensus, and Compare-with-meta scoring the quality sources reuse.
 - [rank-translators.md](rank-translators.md) — the TRANSRANK runs that
   become the per-language quality sources.
 - [secondary-results.md](secondary-results.md) — Rerank, fan-out and the

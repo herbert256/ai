@@ -255,10 +255,11 @@ embedding) drops only itself, not the rest of that source.
 `KnowledgeStore` is an `object` whose mutators serialise their manifest
 read-modify-write under a shared `ReentrantLock`. Both `kbId` and
 `sourceId` pass `isSafeKbId`/`isSafeSourceId` (reject blank, `.`, `..`,
-`/`, `\`; `kbId` also rejects spaces) **and** a canonical-containment
-check (the resolved dir's canonical path must start with the root's
-canonical path + separator) before any file op, so a malformed or
-restored manifest cannot write outside the `knowledge/` root.
+`/`, `\`; `kbId` also rejects the NUL character) **and** a
+canonical-containment check (the resolved dir's canonical path must
+start with the root's canonical path + separator) before any file op,
+so a malformed or restored manifest cannot write outside the
+`knowledge/` root.
 `resolveKbDir` is the public validated-root accessor used by
 `persistSourceLocally`.
 

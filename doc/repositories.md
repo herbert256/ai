@@ -55,8 +55,9 @@ Two things are easy to get wrong here, so spell them out:
   caller's own provider is the authoritative billing source, its
   own `/v1/models` price beats even a user override.
 - The **manual override sits ahead of every curated bulk source**
-  (LiteLLM, models.dev, llm-prices, AA, OpenRouter-cross-provider
-  fallback, Helicone). It used to sit *behind* LiteLLM, so an
+  (LiteLLM, models.dev, llm-prices, AA, llm-stats, OpenRouter-cross-provider
+  fallback, Requesty, genai-prices, TrueFoundry, Helicone). It used to sit
+  *behind* LiteLLM, so an
   override added specifically to correct a stale catalog entry was
   silently ignored — the opposite of what the Cost Config UI
   implies. The precedence is implemented top-to-bottom in
@@ -77,7 +78,7 @@ obviously-wrong cost rather than free.
 |---|---|
 | `getPricingWithoutOverride` | skips step 2 (the manual override). Used by `cleanupRedundantManualOverrides` to decide whether an override would still win the live lookup. |
 | `lookupPricing` | context-free, in-memory-only mirror (same precedence incl. override-before-LiteLLM). Never touches disk and never blocks; returns `DEFAULT_PRICING` if the catalogs aren't loaded. Used by `Settings.recomputeCapabilities`. |
-| `getTierBreakdown` | computes **every** tier independently (returns a `TierBreakdown` with `litellm/modelsDev/helicone/llmPrices/artificialAnalysis/llmStats/override/openrouter/requesty/together/default`). Drives the layered Costs view and the 🐞 pricing trace. |
+| `getTierBreakdown` | computes **every** tier independently (returns a `TierBreakdown` with `litellm/modelsDev/helicone/llmPrices/artificialAnalysis/llmStats/override/openrouter/requesty/genaiPrices/trueFoundry/together/default`). Drives the layered Costs view and the 🐞 pricing trace. |
 | `pricesConflict` | true when ≥ 2 catalog tiers disagree on prompt or completion price beyond a 1% tolerance (override + default excluded). Surfaces "catalog hasn't settled" rows in the AI Models filter. |
 
 ### Cold-window caveat
@@ -143,6 +144,9 @@ the next Refresh overwrites both file and timestamp. See
 | Artificial Analysis | `aa_pricing_v2.json` + `aa_meta_v2.json` | `aa_timestamp_v2` | yes |
 | llm-stats | `llmstats_pricing.json` + `llmstats_meta.json` | `llmstats_timestamp` | yes |
 | Requesty | `requesty_pricing.json` + `requesty_meta.json` | `requesty_timestamp` | yes |
+| genai-prices | `genaiprices_pricing.json` + `genaiprices_meta.json` | `genaiprices_timestamp` | yes |
+| TrueFoundry | `truefoundry_pricing.json` + `truefoundry_meta.json` | `truefoundry_timestamp` | yes |
+| CloudPrice | `cloudprice_meta.json` (no pricing blob) | `cloudprice_timestamp` | yes |
 | Together-native | `together_pricing.json` | `together_timestamp` | no (harvested at runtime) |
 
 In addition, the OpenRouter spec fetch writes one **top-level**
@@ -198,7 +202,7 @@ left behind on older installs (see
 OpenRouter ids are `<vendor>/<model>`. Two distinct mechanisms exploit
 that — keep them separate:
 
-**1. Cross-provider price fallback (step 7 of the precedence list).**
+**1. Cross-provider price fallback (step 8 of the precedence list).**
 `findOpenRouterPricing` resolves a *non-OpenRouter* `(provider, model)`
 lookup against the **`openrouter_pricing.json`** catalog by prefixing
 the model id with the caller's `AppService.openRouterName` (then a
@@ -217,7 +221,7 @@ local provider via `AppService.openRouterName`, and writes two
   dispatch layer can drop parameters a model can't accept.
 - `model_pricing.json` — legacy `ModelPricingEntry(provider, model,
   pricing)` rows. **No longer written** — nothing ever read it (the
-  step-7 fallback above goes through `openrouter_pricing.json`), so the
+  step-8 fallback above goes through `openrouter_pricing.json`), so the
   write was removed; the cache-clear path still deletes the file if an
   older install left one behind.
 
@@ -225,7 +229,7 @@ The OpenRouter provider itself is distinguished by
 `AppService.crossProviderModelList` (true only for OpenRouter in
 `providers.json`): when *it* is the caller, OpenRouter pricing is its
 own step-1 self-report; for every other caller the same catalog is the
-step-7 fallback. Together this is what makes OpenRouter's catalog
+step-8 fallback. Together this is what makes OpenRouter's catalog
 "free price tags for every provider".
 
 ## 3. models.dev
@@ -324,7 +328,7 @@ step-7 fallback. Together this is what makes OpenRouter's catalog
 - **Key format:** ids are `<vendor>/<modelId>` (OpenRouter-style), so
   the lookup mirrors `findOpenRouterPricing` (exact key →
   `openRouterName` prefix → bucketed normalized scan).
-- **Position:** step 8 in the precedence — a keyless cross-provider
+- **Position:** step 9 in the precedence — a keyless cross-provider
   fallback after the OpenRouter cross-provider fallback, before
   Helicone. Its vision / reasoning / web-search flags also feed the
   layered capability chain (`Settings.isVisionCapable` etc.) after
@@ -383,8 +387,10 @@ step-7 fallback. Together this is what makes OpenRouter's catalog
 Like HuggingFace, CloudPrice is **not** a pricing source — its bulk
 `/models` list carries no inline pricing (prices live behind per-model
 calculator endpoints). It contributes **capabilities + context only**,
-so it never joins the layered price lookup. Unlike HuggingFace it is a
-bulk, eagerly-cached, bundled catalog (not lazy/per-model).
+so it never joins the layered price lookup. CloudPrice actually has
+**two** lookups: a bulk, eagerly-cached, bundled catalog (below) that
+feeds the capability chain, plus a lazy per-model live lookup (like
+HuggingFace's) used on Model Info — see "Per-model live lookup" below.
 
 - **Endpoint:** `https://ai.cloudprice.net/api/v1/models?page_size=100`,
   paginated via `pagination.next_token` (capped at 40 pages).
@@ -400,6 +406,19 @@ bulk, eagerly-cached, bundled catalog (not lazy/per-model).
 - **Cache:** `<filesDir>/pricing/cloudprice_meta.json` (no pricing
   blob); `cloudprice_timestamp` in `pricing_cache`. Bundled snapshot in
   `assets/info-providers/`.
+
+**Per-model live lookup** (`data/CloudPriceModelCache.kt`, the direct
+sibling of the HuggingFace lookup in §12): independently of the bulk
+catalog above, the Model Info screen also hits
+`GET https://ai.cloudprice.net/api/v1/models/{id}` directly — richer /
+fresher than the bulk list and able to resolve aliases the bulk keying
+misses. The candidate id is probed in three forms (bare id, then its
+dash→dot and dot→dash variants); the first 2xx wins. Traced under the
+`info/cloudprice` category (distinct from the bulk fetch's
+`pricing/CloudPrice`). Results (including negative/404 misses) are
+cached for 7 days keyed `${providerId}::${modelId}` in the
+`cloudprice_model_cache` SharedPreferences file, which round-trips
+through the backup zip like `huggingface_cache`.
 
 ## 12. HuggingFace
 
@@ -470,7 +489,7 @@ model list → default agent), skipping every external catalog.
 
 ## Per-provider `/models` endpoints
 
-Independently of the seven repositories, every active provider's own
+Independently of the twelve repositories, every active provider's own
 `/models` (or equivalent) endpoint is consulted at fetch time to
 discover the model list. The response is parsed for the capabilities
 the provider self-reports — Mistral's `capabilities` object, Cohere's

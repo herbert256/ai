@@ -42,8 +42,9 @@ Each engine owns its own per-report run-state `StateFlow` (`runs`, on the
 `BatchEngine` base); per-item RUNNING status lives in that map (there is **no**
 separate "running ids" set on `AppViewModel`). The only hot id sets on
 `AppViewModel` (outside `UiState`) are the throttled/"waiting" sets below; the
-live in-process Job ids come from each engine's `inFlightRowIds()`
-(`matchJobs` / `cellJobs` keys), which the read-only broken-work scan excludes.
+live in-process Job ids come from each engine's `inFlightRowIds()` (the shared
+`itemJobs` map keys on the `BatchEngine` base), which the read-only
+broken-work scan excludes.
 
 | Flow | Runtime owner (in `ReportViewModel`) | Run-state StateFlow | Throttled (waiting) ids |
 |---|---|---|---|
@@ -51,12 +52,15 @@ live in-process Job ids come from each engine's `inFlightRowIds()`
 | Judge the judges | `rvm.judgeEvalEngine` (`JudgeEvalEngine`) | `runs` (per-cell `JudgeCellStatus`) | `throttledJudgeEvalCells` |
 | Compare with meta | `rvm.compareEngine` (`CompareEngine`) | `runs` (per-cell `CompareCellStatus`) | `throttledCompareCells` |
 
-All three use `ApiCallCaps.workers` as their per-flow sub-cap (which shares the
-`fanMeta` concurrency limit, default 50), layered over the global
-`ApiCallCaps.global` coroutine cap (default 100) and the per-provider
-`ProviderThrottle` host gate. The canonical acquisition order is
-sub-cap → global → host; the engines reuse the same park-friendly batch helpers
-as Fan-Meta and fan-out.
+All three use `ApiCallCaps.workers` as their per-flow sub-cap — its own
+semaphore, separate from `fanMeta`'s — layered over the global
+`ApiCallCaps.global` coroutine cap and the per-provider `ProviderThrottle`
+host gate. There is now a single configurable ceiling: `resetForNewLimits`
+sizes every sub-cap (including `workers` and `fanMeta`) to the global cap
+(`maxConcurrentApiCalls`, default 100), so only the global limit ever
+actually binds. The canonical acquisition order is sub-cap → global → host;
+the engines reuse the same park-friendly batch helpers as Fan-Meta and
+fan-out.
 
 The cross-kind resume orchestrator (`SecondaryRunManager.resumeStaleRunsForReport`,
 the app-start + 30 s background sweep) delegates to the fan-out, tournament,
@@ -142,9 +146,9 @@ recompute and persist a different ranking **locally with no API calls**
 
 ### Ranking methods
 
-`rankFor(method, matrix)` dispatches to one of the **eleven** `TournamentMethod`
-values (`COPELAND, ELO, DAVIDSON, TIDEMAN, MARKOV, SCHULZE, MINIMAX, COLLEY,
-GLICKO2, POINTS, TRUESKILL2`); every method emits the same rerank-compatible
+`rankFor(method, matrix)` dispatches to one of **seven** `TournamentMethod`
+values (`COPELAND, ELO, DAVIDSON, MARKOV, SCHULZE, COLLEY, TRUESKILL2`); every
+method emits the same rerank-compatible
 `[{id, rank, score, reason}]` JSON (`toRerankJson`, which coerces non-finite
 scores to 0 and rounds numerically — never `"%.2f".format(x).toDouble()`, which
 would crash on a comma-decimal locale).
@@ -154,13 +158,9 @@ would crash on a comma-decimal locale).
 | **Copeland** | Win-count. `score = 100 · wins / played`, where `wins` is the model's total fractional wins and `played` is the number of opponents it **actually contested** (`games[i][j] > 0`), coerced to ≥ 1. This is a true per-model win-rate; it equals `n-1` only for a complete round-robin. Reason: `"Won %.1f of %d head-to-heads"` (pinned to `Locale.US`). |
 | **Elo** | Replays each contested pair once in deterministic id order, K=32 from a 1500 base. Order-sensitive, so a weaker fit for a static round-robin. |
 | **Davidson** | Tie-aware paired-comparison MLE using the explicit tie counts, 700 gradient iterations; score = fitted strength rescaled so the strongest = 100. Davidson is the only method that **triggers a rebuild** of the matrix from the match rows when the sidecar lacks explicit ties (`hasTieData == false`); TrueSkill2 also reads tie counts but uses whatever the decoded matrix carries (synthesized from wins/games when absent). |
-| **Tideman** | Ranked Pairs — locks pairwise majorities strongest-first, skipping any edge that would close a cycle; scores by rank position in the resulting DAG. |
 | **Markov** | Random-walk stationary distribution over the pairwise results (damping 0.92, ~500 power-iterations), rescaled so the strongest = 100. |
 | **Schulze** | Beatpaths (Condorcet). Seeds each ordered pair with the winner's pairwise points, then Floyd–Warshall finds the strongest (widest) path between every pair; `i` outranks `j` when its strongest path beats `j`'s back. Ordering method — rank-based score, beatpath win count as the reason. |
-| **Minimax** | Simpson–Kramer. Each response's worst pairwise defeat margin; the smallest-worst-defeat ranks first (a Condorcet winner's is 0). Ordering method. |
 | **Colley** | Colley's bias-free rating (the sports/BCS method): solves `C·r = b` via Gauss–Jordan with partial pivoting; ratings centre near 0.5 and fold in schedule strength without margin bias, rescaled so the strongest = 100. Falls back to a plain win share if the solve degenerates. |
-| **Glicko-2** | One rating period folding all of a response's games against the others (held at start-of-period ratings); volatility solved by Glickman's Illinois iteration. Score = the updated rating from a 1500 base. |
-| **Points** | Plain head-to-head points tally (win = 1, draw = 0.5) summed over every contested pair. Unlike Copeland this is **not** a win-rate — playing (and winning) more matches counts for more. Score = the points total. |
 | **TrueSkill2** | The 1-v-1 core of Microsoft's TrueSkill: a Bayesian μ/σ skill belief per response updated through every contested pair (draw margin estimated from the observed tie rate). Score = the conservative estimate μ − 3σ. |
 
 > The Copeland denominator was previously a fixed `n-1` shared by all models,
@@ -184,10 +184,10 @@ View-side drill-in:
 - Tournament appears as its own View tab (`ui/report/view/Tournament.kt`, with
   the podium in `TournamentPodium.kt`).
 - The in-tab leaderboard's method toggle currently exposes only the first
-  **five** methods (Copeland / Elo / Davidson / Tideman / Markov); switching is a
+  **four** methods (Copeland / Elo / Davidson / Markov); switching is a
   pure local recompute via `applyTournamentMethod` (no API calls).
 - The **podium** (`TournamentPodium.kt`) is the full surface: its
-  `MethodSelector` lists **all eleven** methods (`TournamentMethod.entries`), and
+  `MethodSelector` lists **all seven** methods (`TournamentMethod.entries`), and
   a "total" table shows each model's position across every method side-by-side,
   each column recomputed locally from the stored win matrix.
 - Tapping a ranked model opens head-to-head cards, including A-vs-B/B-vs-A
@@ -348,16 +348,16 @@ lifetime total stays whole.
 - `data/TournamentRunModel.kt` — match/run types, `parseMatchVerdict`, pending
   sentinels
 - `data/TournamentRanking.kt` — `WinMatrix`, `computeWinMatrix`, `rankFor` and
-  the eleven ranking methods, `toRerankJson`, `applyTournamentMethod`,
+  the seven ranking methods, `toRerankJson`, `applyTournamentMethod`,
   encode/decode of the matrix sidecar
 - `data/JudgeEvalRunModel.kt` — judge cell/run types, `JUDGE_MATCH_COUNT`,
   role constants
 - `data/JudgeAgreement.kt` — per-judge agreement aggregation
 - `data/CompareRunModel.kt` — compare cell/run types, `parseSimilarityScore`,
-  `cellCountFor`, pending sentinels
+  pending sentinels
 - `viewmodel/TournamentEngine.kt`
 - `viewmodel/JudgeEvalEngine.kt`
-- `viewmodel/CompareEngine.kt`
+- `viewmodel/CompareEngine.kt` — `cellCountFor`
 - `viewmodel/SecondaryRunManager.kt` — owns the cross-kind resume orchestrator
 - `ui/report/manage/Tournament.kt`
 - `ui/report/manage/JudgeEval.kt`

@@ -9,10 +9,10 @@ atomic `writeTextAtomic` helper. The backup-eligible slots
 round-trip through `BackupManager` (Settings → Housekeeping → Backup
 & Restore) into a single `.zip` — see [backup-restore.md](backup-restore.md).
 
-## SharedPreferences (10 files)
+## SharedPreferences (11 files)
 
-All under `/data/data/com.ai/shared_prefs/<name>.xml`. **Seven** of
-the ten are captured in `BackupManager.PREFS_TO_BACKUP`:
+All under `/data/data/com.ai/shared_prefs/<name>.xml`. **Eight** of
+the eleven are captured in `BackupManager.PREFS_TO_BACKUP`:
 
 | Prefs file | Owner | In backup? |
 |---|---|---|
@@ -21,6 +21,7 @@ the ten are captured in `BackupManager.PREFS_TO_BACKUP`:
 | `pricing_cache` | `PricingCache` | ✅ |
 | `dual_chat_prefs` | `DualChatScreen` | ✅ |
 | `huggingface_cache` | `HuggingFaceCache` | ✅ |
+| `cloudprice_model_cache` | `CloudPriceModelCache` (per-model CloudPrice detail lookups) | ✅ |
 | `model_cooldowns` | `ModelCooldownStore` | ✅ |
 | `view_screen_prefs` | View-grid tile order (`tile_order`) | ✅ |
 | `provider_field_timestamps` | `ProviderFieldTimestamps` (recomputable) | ❌ |
@@ -35,11 +36,13 @@ modes are no longer persisted in their own prefs file.)
 
 ### `eval_prefs` — main settings
 By far the largest. Loaded by `SettingsPreferences`, which defines
-70 `KEY_*` constants. (Note: where a value below shows a default, it
+73 `KEY_*` constants. (Note: where a value below shows a default, it
 is the `prefs.getX(key, default)` *read-fallback* used when the key
-is absent on disk — for the throttle / concurrency keys this read
-fallback can differ from the `GeneralSettings` data-class field
-default; the value applied to a missing key is the one shown here.)
+is absent on disk. Most keys' read-fallback is wired to the matching
+`GeneralSettings` data-class field default — a handful (the
+streaming / non-streaming / batch-item timeouts) instead fall back to
+a `BuildConfig` constant; the value applied to a missing key is the
+one shown here.)
 
 #### General settings
 | Key | Type | Notes |
@@ -48,6 +51,7 @@ default; the value applied to a missing key is the one shown here.)
 | `huggingface_api_key` | String | for HF Model Info lookups |
 | `openrouter_api_key` | String | for the OpenRouter pricing tier |
 | `artificial_analysis_api_key` | String | for the AA pricing/scores tier |
+| `llmstats_api_key` | String | for the llm-stats pricing/benchmark tier (needs Stats-API onboarding) |
 | `default_email` | String | default email for the report email export |
 | `default_type_paths` | JSON Map<String,String> | global per-type API path defaults |
 | `logging_master_enabled` | Boolean (default true) | grand-master gate for the whole Log/trace/audit/statistics page. When false, tracing / audit log / usage stats / file logger are forced off at runtime regardless of their stored values (the per-item flags below are preserved so re-enabling restores prior choices) |
@@ -85,9 +89,9 @@ default; the value applied to a missing key is the one shown here.)
 | `streaming_read_timeout_sec` | Int | read timeout for streaming SSE calls. Read-fallback `BuildConfig.NETWORK_READ_TIMEOUT_SEC` (240) |
 | `nonstreaming_read_timeout_sec` | Int | read timeout for non-streaming calls. Read-fallback `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC` (120) |
 | `batch_item_timeout_sec` | Int | wall-clock ceiling for ONE batch item (fan-out pair, translation item, tournament match, judge / compare / transrank cell), worker fallbacks + retries included. Read-fallback `BuildConfig.BATCH_ITEM_TIMEOUT_SEC` (180) |
-| `max_calls_per_provider_per_minute` | Int | per-host sliding-window rate cap mirrored to `NetworkSettings.maxCallsPerProviderPerMinute` (read-fallback 30; `GeneralSettings` field default 60). See [throttle.md](throttle.md) |
-| `max_concurrent_calls_per_provider` | Int | per-host concurrency cap (read-fallback 3; field default 5) |
-| `max_concurrent_api_calls` | Int | global flow-level cap, `ApiCallCaps.global` (read-fallback 50; field default 100). The per-kind caps (report / translation / fan-out / fan-meta / workers) are **not** separately persisted — they derive from this global at runtime |
+| `max_calls_per_provider_per_minute` | Int (default 60) | per-host sliding-window rate cap mirrored to `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
+| `max_concurrent_calls_per_provider` | Int (default 5) | per-host concurrency cap |
+| `max_concurrent_api_calls` | Int (default 100) | global flow-level cap, `ApiCallCaps.global`. The per-kind caps (report / translation / fan-out / fan-meta / workers) are **not** separately persisted — they derive from this global at runtime |
 | `max_retries_on_429` | Int (default 3) | in-line 429 retries; 0 disables |
 | `retry_backoff_ms_429` | Long (default 1000) | base back-off between 429 retry attempts (ms) |
 | `max_retries_on_529` | Int (default 3) | in-line 529 (server overloaded) retries; 0 disables |
@@ -163,6 +167,7 @@ definition (`AppService.defaultModel` / `defaultModelSource`), so
 | `ai_test_excluded_models` | JSON List<String> | skipped by "Test all models"; auto-added when a probe would cost > 5 ¢; seeded from `assets/excluded.json` (sweep-only, no picker effect) |
 | `ai_inaccessible_models` | JSON List<String> | not reachable on this account; dimmed `🔒` in pickers; seeded from `assets/inaccessible.json` |
 | `ai_default_meta_items` | JSON List<DefaultMetaItem> | configurable default secondary/meta items |
+| `ai_disabled_info_providers` | JSON List<String> | info-provider ids (`litellm`, `openrouter`, `cloudprice`, …) the user switched off under AI Setup → Info providers; a disabled tier is skipped by refresh and by `PricingCache.getPricing` |
 
 #### Caches and bookkeeping
 | Key | Type | Notes |
@@ -178,8 +183,9 @@ definition (`AppService.defaultModel` / `defaultModelSource`), so
 
 ### `provider_registry`
 The full provider registry, serialised by `ProviderRegistry`. Note
-the registry starts **empty** on a fresh install; the 51 bundled
-providers are loaded on demand from `assets/providers.json` via
+the registry starts **empty** on a fresh install; the 91 bundled
+providers are loaded on demand from `assets/providers/` (one bare
+`ProviderDefinition` JSON file per provider, no wrapper) via
 `importFromAsset` and persisted here. Keys: `providers_json` (a JSON
 array of `ProviderDefinition`) and `initialized` (Boolean). On
 restore, the registry rebuilds straight from this file on the next
@@ -187,7 +193,7 @@ launch. See [providers.md](providers.md).
 
 ### `provider_field_timestamps`
 Per-provider, per-field "user-touched-at" timestamps that the
-every-start `assets/providers.json` sync consults to decide which
+every-start `assets/providers/` sync consults to decide which
 fields to refresh.
 
 | Key | Type | Notes |
@@ -217,6 +223,11 @@ consulted on demand.
 | `helicone_timestamp` | Long | last Helicone fetch ms |
 | `llmprices_timestamp` | Long | last llm-prices.com fetch ms |
 | `aa_timestamp_v2` | Long | last Artificial Analysis fetch ms |
+| `requesty_timestamp` | Long | last Requesty fetch ms |
+| `llmstats_timestamp` | Long | last llm-stats fetch ms |
+| `genaiprices_timestamp` | Long | last genai-prices fetch ms |
+| `truefoundry_timestamp` | Long | last TrueFoundry fetch ms |
+| `cloudprice_timestamp` | Long | last CloudPrice fetch ms |
 | `manual_pricing` | JSON Map<String, ModelPricing> | per-`<providerId>:<model>` user overrides (source `"OVERRIDE"`) |
 
 The `_v2` suffix on the AA timestamp exists to invalidate older
@@ -302,6 +313,15 @@ Tier blobs for `PricingCache`. One file per (tier, payload):
 | `llmprices_pricing.json` | llm-prices.com |
 | `aa_pricing_v2.json` | Artificial Analysis |
 | `aa_meta_v2.json` | Artificial Analysis intelligence/speed scores |
+| `requesty_pricing.json` | Requesty cross-provider router |
+| `requesty_meta.json` | Requesty capabilities sidecar |
+| `llmstats_pricing.json` | llm-stats |
+| `llmstats_meta.json` | llm-stats benchmark scores + modalities sidecar |
+| `genaiprices_pricing.json` | genai-prices (Pydantic) |
+| `genaiprices_meta.json` | genai-prices context-window sidecar |
+| `truefoundry_pricing.json` | TrueFoundry community model registry |
+| `truefoundry_meta.json` | TrueFoundry capabilities sidecar |
+| `cloudprice_meta.json` | CloudPrice capabilities + context catalog (no pricing — metadata only) |
 
 Reads go through `PricingCache.loadBlob`, which looks up the on-disk
 `filesDir/pricing/<key>.json` first and falls back to the bundled
@@ -396,14 +416,16 @@ as `log_level`. The `applog/` dir is in `FILES_DIR_BACKUP_EXCLUDES`,
 so logs are device-local and don't round-trip through
 backup/restore. See [applog.md](applog.md).
 
-### `trace/<hostname>_<timestamp>_<seq>.json`
+### `trace/<hostname>_<timestamp>_<seq>_<random>.json`
 One file per outbound API call (`ApiTracer`, written by
 `TracingInterceptor` when `ApiTracer.isTracingEnabled` is true — on by
 default; toggleable in Settings). Each holds the full request (URL,
 method, headers, body) and the response (status, headers, body).
 Hostnames are sanitised (`[^A-Za-z0-9.-]` → `_`) before being used as
 a filename component (no path-traversal injection from a malicious
-URL).
+URL). `<seq>` is a base-36 monotonic counter and `<random>` is an
+8-char slice of a random UUID, so two calls landing in the same
+millisecond never collide on a filename.
 
 Streaming responses **are** captured: a placeholder body
 `[partial: stream in progress]` is written first, then a teeing
@@ -436,14 +458,15 @@ Test all models). One JSON document — `ModelTestRunState` with a
 per-`(provider, model)` `ModelTestState` map (`ModelTestRunStore`,
 `FILE = "test_run.json"`). `ModelTestEngine` flushes it on each item
 completion (crash-safe partial results) and once on run end. A fresh
-run overwrites it; Housekeeping → Reset → Clear runtime data drops
-it. Not in `FILES_DIR_BACKUP_EXCLUDES`, so it round-trips through
-backup/restore.
+run overwrites it; Housekeeping → Manage data → Runtime data → Clear
+drops it. Not in `FILES_DIR_BACKUP_EXCLUDES`, so it round-trips
+through backup/restore.
 
 ### `prompt-history.json`
 Up to 100 most-recently-used report prompts
-(`SettingsPreferences.savePromptHistory`,
-`FILE_PROMPT_HISTORY`). The Hub's "Prompt history" card reads it.
+(`SettingsPreferences.savePromptToHistory`, delegating to
+`PromptHistoryStore`, `FILE = "prompt-history.json"`, `MAX = 100`).
+The Hub's "Prompt history" card reads it.
 
 ### `usage-stats.json`, `usage-category-stats.json`, `usage-report-stats.json`
 The three cost/usage stat stores (`SettingsPreferences`):
@@ -464,13 +487,16 @@ Cached `PromptCache` entries — per-prompt cached responses used to
 short-circuit repeat internal-prompt lookups (e.g. the Model Info
 "model info" prompt). Each entry is a `<key>.json` file holding
 `{ "timestamp": Long, "response": String }`, where `<key>` is a
-length-prefixed SHA-256 hash of `(prompt, agentId)` — the length
-prefix stops a `|` separator collision from conflating two distinct
-keys. The TTL is **48 h**: `get()` prunes a stale entry on read
-(`getRaw()` is the non-destructive variant for callers wanting a
-custom window). The Housekeeping → **Cached prompts** screen lists
-every entry (age / size / STALE marker) via `PromptCache.list()` and
-deletes one (`delete()`) or all (`clearAll()`).
+SHA-256 hash of `(agentId, variant, prompt)` with each part
+length-prefixed before hashing — the length prefix stops a `|`
+separator collision from conflating two distinct keys. `variant`
+(default `""`) lets a caller fold extra cache-busting context, such
+as the active parameter preset / system prompt, into the key. The TTL
+is **48 h**: `get()` prunes a stale entry on read (`getRaw()` is the
+non-destructive variant for callers wanting a custom window). The
+**Prompts** category on Housekeeping → **Caches** lists every entry
+(age / size / STALE marker) via `PromptCache.list()` and deletes one
+(`delete()`) or all (`clearAll()`).
 
 ### `model_lists/<providerId>.json`
 Most recent `/models` raw JSON per provider (`ModelListCache`). Used
@@ -513,11 +539,12 @@ deletes one left behind on an older install.)
 - The on-device LLM/embedder model bundles and the MediaPipe native
   runtime — `local_llms/`, `local_models/`, `native/` are kept on
   disk but excluded from backup (device-ABI-tied / multi-GB).
-- The `assets/providers.json` provider catalog — this ships in the
-  APK and is loaded on demand at first run; the result lives in
-  `provider_registry` prefs from then on. Restore re-reads the asset
-  and grafts in any provider id missing from the restored prefs
-  (handles "old backup, new app version, new provider").
+- The `assets/providers/` provider catalog (one JSON file per
+  provider) — this ships in the APK and is loaded on demand at first
+  run; the result lives in `provider_registry` prefs from then on.
+  Restore re-reads the asset and grafts in any provider id missing
+  from the restored prefs (handles "old backup, new app version, new
+  provider").
 
 ## What's NOT in the backup zip
 
@@ -549,23 +576,34 @@ restore, zip-bomb caps, path-traversal defence).
 - `AppLog.clearLogs()` — deletes every file under `applog/`
 - `PromptCache.clearAll()` — deletes every `<key>.json` under `prompt_cache/`
 
-**Housekeeping → Reset** offers five dedicated sub-screens:
+**Housekeeping → Manage data** (the merged hub that replaced the old
+Refresh/Reset screens) exposes five dedicated Clear/Reset leaf
+screens:
 
 - **Clear runtime data** — wipes logs, chats, traces, usage stats,
   AI reports, and prompt history. Narrower than the legacy single
   button: pricing / model-list caches stay put.
-- **Clear Info providers** — wipes the six external pricing-tier
-  caches (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices,
-  Artificial Analysis) and their per-tier timestamps in
-  `pricing_cache`, plus the OpenRouter model-specs files
-  (`model_pricing.json` / `model_supported_parameters.json`).
-  Preserves manual + Together-native pricing. The `huggingface_cache`
-  prefs file is *not* touched by this screen.
+- **Clear Info providers** — wipes every external pricing/capability
+  tier cache (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices,
+  Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry,
+  CloudPrice — 11 sources; see [repositories.md](repositories.md))
+  and their per-tier timestamps in `pricing_cache`, plus the
+  OpenRouter model-specs files (`model_pricing.json` /
+  `model_supported_parameters.json`). Preserves manual +
+  Together-native pricing. The `huggingface_cache` and
+  `cloudprice_model_cache` prefs files (per-model detail lookups) are
+  *not* touched by this screen.
 - **Clear all configuration** — wipes provider config, agents,
   prompts, parameters, and overrides. Asks before destructive actions.
-- **assets/\*.json** — re-merges `providers.json` /
-  `internal-prompts/` / `examples.json` / defaults from the APK. User
-  edits on existing rows are preserved.
+- **assets/\*.json** — six independent "restore to shipped" buttons,
+  one per bundled catalog (`providers/`, `internal-prompts/`,
+  `prompts/examples/`, `prompts/system/`, `meta.json`, `workers/`).
+  Each button **drops every row in that one list** and reloads fresh
+  from the asset — a destructive full replace, not a merge, so any
+  user edits/additions in that list are lost. (The separate
+  every-start delta-merge that runs automatically on every launch
+  only *appends* bundled entries whose name is new; it never touches
+  existing rows and is unrelated to this screen.)
 - **Reset application** — factory-style reset that preserves API keys
   (written to a temp file under `cacheDir/reset_keys_*`, restored
   after the wipe).

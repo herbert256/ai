@@ -54,27 +54,31 @@ Each kept row becomes a `ScorableItem` carrying the translator's
 
 ## The judge panel
 
-The panel is resolved from the bundled internal prompt
-**`workers/translate-rank`** (category `workers`, name `translate-rank`).
-Its asset references the shared **`workers`** swarm, `parameters` and
-`systemPrompt` are `*NONE`, and `title` is "Rank the translators".
-`resolveJudges` expands the prompt's worker list
-(`aiSettings.expandWorker`), de-dupes by `provider/model`, resolves each
-to its effective model, and yields a `Judge(worker, providerId, model)`
-list. Worker-source precedence at launch mirrors Tournament / Judges:
+There is no configurable judge panel. `translatorJudges` builds it
+directly from the scorable items recovered from the source run — every
+distinct translator `(providerId, model)` that produced a scored
+translation becomes a judge, so the translator models rank **each
+other** (a model never scores its own translation; enforced again in
+`cappedCandidates`). `startRun`'s own comment is explicit: *"There is no
+configurable judge panel; the prompt supplies only the scoring
+instructions."* The bundled internal prompt **`workers/translate-rank`**
+(category `workers`, name `translate-rank`, `title` "Rank the
+translators") still ships a `workers: [{swarm: "workers"}]` block and
+`parameters`/`systemPrompt` of `*NONE`, but `startRun` only ever reads
+its `text` — the four-placeholder scoring instructions used in each
+cell call — and never resolves the prompt's worker list to build the
+panel. (Restart *does* call the shared `resolveJudges` against the
+run's prompt, but only to recover each already-fixed judge's original
+Worker configuration for a faithful replay — see "Restart failed"
+below — not to pick a different panel.) `startRun` and
+`plannedCellCount` both still accept an `overrideWorkers` parameter for
+signature parity with the sibling cell-batch engines, but it is
+explicitly ignored — every call site passes `null`.
 
-1. **Worker batches = `REPORT_MODELS`** — the report's own answer
-   models become the panel (`reportModelWorkers(report)`), winning over
-   everything else.
-2. **Runtime pick** — when the report's Worker-batches mode (or the
-   `translate-rank` prompt's `*SELECT` under `PROMPT` mode) calls for a
-   picker (`workerPlanFor`), the `RuntimeWorkerPick` overlay ("Rank
-   translators — pick workers") runs **before** the confirm dialog, so
-   the dialog's call count matches the chosen judges (audit bug 6). The
-   pick is passed as `overrideWorkers`; a `SELECT_ONCE` first pick is
-   persisted onto `Report.workerConfig.batchWorkers` and reused.
-3. **Otherwise** the persisted `SELECT_ONCE` group, else the prompt's
-   configured swarm (`resolveBatchSwarm`).
+Because the panel is derived rather than picked, launching a run has no
+worker-source precedence and no `RuntimeWorkerPick` overlay — unlike
+Tournament / Judges, tapping 🏅 never shows a "pick workers" step (see
+"Launching a run" below).
 
 ## The cell grid and the ≤ 25-per-translator cap
 
@@ -83,13 +87,18 @@ the model that produced that item** (`judges.filter { it.key != tk }`),
 then caps it **per translator model** to
 `TRANSRANK_CELLS_PER_TRANSLATOR = 25`
 (`data/TranslatorRankModel.kt`): the candidates are grouped by the
-translator's `provider/model`, each group is `shuffled().take(25)`. So
-the whole batch is at most **#translators × 25** cells (10 translator
-models → ≤ 250). With few items per translator each item still draws
-several judges; with many items the budget spreads thinner — not every
-translation of a big run is judged by every model. `cappedCandidates`
-and `plannedCellCount` share this exact resolution so the confirm
-dialog's number can never contradict what the run actually launches.
+translator's `provider/model`, and each group is shuffled with a seed
+derived from `"$sourceTranslationRunId|$translatorKey"` and
+`.take(25)` — **deterministic**, so the confirm-dialog preview, the
+actual run, and any delete-and-re-run all draw the exact same 25-cell
+sample instead of re-rolling a fresh random sample every time
+`cappedCandidates` runs (audit report bug 5). So the whole batch is at
+most **#translators × 25** cells (10 translator models → ≤ 250). With
+few items per translator each item still draws several judges; with
+many items the budget spreads thinner — not every translation of a big
+run is judged by every model. `cappedCandidates` and `plannedCellCount`
+share this exact resolution so the confirm dialog's number can never
+contradict what the run actually launches.
 
 The cell prompt substitutes four placeholders into `prompt.text`:
 `@LANGUAGE_FROM@`, `@LANGUAGE_TO@`, `@ORIGINAL@`, `@TRANSLATION@`. The
@@ -176,16 +185,25 @@ langNative)`:
 
 The handler first checks whether a rank run already exists for that
 language (`engine.runByKey(key) != null`); if so it just **opens** it
-(`transRankOpenState.value = key`). Otherwise it resolves the worker
-source (`launchWithWorkerPlan` — Worker-batches mode / `*SELECT` /
-configured) and arms a `PendingRankRequest`,
+(`transRankOpenState.value = key`). Otherwise — the judge panel being
+fixed (see above) — there is **no worker picker** either way. From the
+Translations list, the handler also checks the report's "Runtime
+parameters" toggle (`withRuntimeParamsFlag`): when it's on, it arms a
+`RuntimePromptReq(kind = TRANSRANK, …)` that mounts
+`SecondaryRuntimePromptScreen` ("rank the translators") to edit the
+`translate-rank` prompt's **text** for this run only — no call-count
+preview, no worker step — and "Update prompt & run" both persists the
+edit and calls `engine.startRun(...)` directly with the edited text.
+Otherwise — Runtime parameters off, or the medal tapped from the
+Translation run screen, which doesn't wire the prompt-edit branch — it
+arms a `PendingRankRequest` (`overrideWorkers` is always `null`, a
+vestigial field kept for signature parity with the sibling engines),
 which the shared **`RankTranslatorsConfirmHost`** dialog renders. The
-dialog calls `engine.plannedCellCount(...)` against exactly the workers
-the run will use and shows "This is about N scoring call(s)." (or
-"(counting…)"). Cancel creates nothing. On **Rank**, the call site arms a
-build-stage popup ("Building translator ranking", keyed by `buildKey`)
-and calls `engine.startRun(context, reportId, translationRunId, langName,
-langNative, buildKey, overrideWorkers)`.
+dialog calls `engine.plannedCellCount(...)` and shows "This is about N
+scoring call(s)." (or "(counting…)"). Cancel creates nothing. On **Rank**,
+the call site arms a build-stage popup ("Building translator ranking",
+keyed by `buildKey`) and calls `engine.startRun(context, reportId,
+translationRunId, langName, langNative, buildKey, overrideWorkers)`.
 
 `startRun`:
 - de-dupes an already-active run for the same key,
@@ -201,8 +219,9 @@ langNative, buildKey, overrideWorkers)`.
   "Interrupted" error.
 
 `PendingRankRequest` survives a config change via
-`PendingRankRequestSaver` (run identity only — a mid-confirm runtime
-worker pick is dropped on restore, audit bug 21).
+`PendingRankRequestSaver` (run identity only — `overrideWorkers` is
+dropped on restore, which changes nothing in practice since every
+launch site already passes it as `null`).
 
 ## Run screen and drill-in
 
@@ -268,9 +287,10 @@ exclusive batch-overlay state so only one batch overlay shows at a time.
   `BatchResume.capForRetry` so a cell that can never complete is
   terminalized after `MAX_ATTEMPTS` instead of re-dispatched forever. A
   synthetic (prompt-deleted) run is skipped. The single-call Meta resume
-  path still skips TRANSRANK rows (each carries a non-null `translationRunId`
-  and a null `metaPromptId`), so the engine owns recovery — the user can
-  still force a retry of errored cells from L1's 🔄.
+  path still skips TRANSRANK rows — its filter requires
+  `translationRunId == null`, and every TRANSRANK row (cell or aggregate)
+  carries the source translation run's id — so the engine owns recovery;
+  the user can still force a retry of errored cells from L1's 🔄.
 - **Broken-work screen.** Errored or kill-stranded cells also surface on the
   ⚠️ Broken-work screen as a `BatchFamilyKind.TRANSRANK` card — one per
   language, keyed `"$reportId|$sourceTranslationRunId"` (the engine run key) so
@@ -300,13 +320,15 @@ exclusive batch-overlay state so only one batch overlay shows at a time.
   stored on the cell row; the report cost table groups them under the
   `transrank` group and L1/🐜 sum them live.
 - **Throttling.** Cells dispatch through `runThrottledBatch` with
-  `subCap = ApiCallCaps.workers` (the workers swarm sub-cap, which shares
-  the `fanMeta` concurrency limit), layered over the global
-  `ApiCallCaps.global` cap and the per-provider `ProviderThrottle` host
-  gate — acquisition order sub-cap → global → host, the same as the other
-  cell batches (see [throttle.md](throttle.md)). `hostOf` resolves the
-  judge provider's host. Type-A short-bench retry is honored
-  (`benchEnabled = ModelCooldownStore.typeABenchEnabled`,
+  `subCap = ApiCallCaps.workers` (its own semaphore, separate from
+  `fanMeta` — but no longer independently configurable: `resetForNewLimits`
+  sizes every per-flow sub-cap to the single global "Concurrent API
+  calls" cap, so only the global ceiling actually binds), layered over
+  the global `ApiCallCaps.global` cap and the per-provider
+  `ProviderThrottle` host gate — acquisition order sub-cap → global →
+  host, the same as the other cell batches (see [throttle.md](throttle.md)).
+  `hostOf` resolves the judge provider's host. Type-A short-bench retry
+  is honored (`benchEnabled = ModelCooldownStore.typeABenchEnabled`,
   `onBenchRetry → restoreBenchedCellForRequeue` clears the row and resets
   the cell to PENDING for requeue).
 

@@ -3,27 +3,29 @@
 A multi-provider AI app for Android. Run the same prompt against many
 models at once, compare what they say, fan one model's response into
 another's prompt, save the result, share it, and keep an audit trail
-of every API call you made. Forty-two cloud providers ship with the
+of every API call you made. Ninety-one cloud providers ship with the
 app, plus optional on-device LLMs and embedders.
 
 ## First run
 
 1. Install the APK and open it. On first launch the app imports a
-   default catalog of **35 cloud providers** from a bundled
-   `providers.json` (the registry starts empty and is seeded on
-   demand) and seeds Internal Prompts (Meta / Compare / Fan-out /
-   Fan-in / Workers / Alt / fixed templates) from `internal-prompts/`,
-   so you don't have to type any URLs or prompt templates yourself.
+   default catalog of **91 cloud providers** from the bundled
+   `assets/providers/` catalog (one JSON file per provider; the
+   registry starts empty and is seeded on demand) and seeds Internal
+   Prompts (Meta / Compare / Fan-out / Fan-in / Workers / Alt / fixed
+   templates) from `internal-prompts/`, so you don't have to type any
+   URLs or prompt templates yourself.
 2. Open **Settings → AI Setup → Providers**. Pick the providers you
    want to use, paste in their API keys (each card has a 🔗 link to
    that provider's console), and tap **Test API Key**. A successful
    model-list fetch + key test marks the provider as 🔑 and adds it
    to **Active**. Activation is gated on both passing — a stale
    model list never lets a misconfigured provider count as active.
-3. Optionally, paste a HuggingFace token, OpenRouter token, and/or
-   Artificial Analysis key under **AI Setup → External Services**.
-   None of these are required to use the app — they only enable model
-   metadata, pricing, and intelligence/speed scores.
+3. Optionally, paste a HuggingFace token, OpenRouter token,
+   Artificial Analysis key, and/or llm-stats key under **AI Setup →
+   External Services**. None of these are required to use the app —
+   they only enable model metadata, pricing, and intelligence/speed
+   scores.
 
 ## The home screen
 
@@ -74,8 +76,8 @@ yet).
 In **Home bar** mode the classic card screen is no longer the main
 navigation surface: a persistent top icon bar sits above every screen's
 title bar with shortcuts for **About** (the leading AI-logo glyph),
-**Reports**, **Chat**, **Monitor**, **Housekeeping**, **Application
-log**, **Traces**, **AI Setup**, **Settings**, and **Help** (the
+**Reports**, **Chat**, **Monitor**, **Application log**, **Traces**,
+**Housekeeping**, **AI Setup**, **Settings**, and **Help** (the
 trailing red ❓). The 📤 share and 📋 copy icons stay in each screen's
 bottom bar, exactly as in Home screen mode.
 
@@ -391,13 +393,12 @@ Meta rows:
   twice, A-vs-B and B-vs-A (to cancel position bias), using the
   `workers/tournament` prompt and the `tournament` swarm. It stores
   N(N−1) match rows plus one aggregate leaderboard. The View side can
-  switch between **eleven ranking methods** — Copeland, Elo, Davidson,
-  Tideman, Markov, Schulze, Minimax, Colley, Glicko-2, Points, and
-  TrueSkill2 — (a pure local recompute — no API calls) and drill into
-  model head-to-heads. The Copeland win-rate is computed per model as a
-  percentage of the head-to-heads that model actually contested
-  (not a fixed N−1), so a missing or errored match no longer scores
-  like a loss.
+  switch between **seven ranking methods** — Copeland, Elo, Davidson,
+  Markov, Schulze, Colley, and TrueSkill2 — (a pure local recompute —
+  no API calls) and drill into model head-to-heads. The Copeland
+  win-rate is computed per model as a percentage of the head-to-heads
+  that model actually contested (not a fixed N−1), so a missing or
+  errored match no longer scores like a loss.
 - **Judge the judges** gives every judge model in that same swarm the
   same random set of answer pairs, then reports agreement with
   consensus and per-judge cost/time. You can add/remove judges from
@@ -646,7 +647,8 @@ Cards stacked top-to-bottom:
    help page.
 4. **Sources** — buttons that open the model's page on each external
    repository (HuggingFace / OpenRouter / LiteLLM / models.dev /
-   Helicone / llm-prices / Artificial Analysis), each with an ℹ
+   Helicone / llm-prices / Artificial Analysis / Requesty / llm-stats
+   / genai-prices / TrueFoundry / CloudPrice), each with an ℹ
    button next to it that deep-links to that repository's help
    page. **Show all** opens a side-by-side raw-JSON dump of every
    source.
@@ -792,10 +794,12 @@ Subject "Timeouts, throttling and retry rules", grouped into cards:
   (default **1000**).
 - **529 error handling** — same shape for provider-overload
   responses, with an independent budget (default 3 retries, 1000 ms).
-- **Maximal API calls** (one tap deeper) — per-flow concurrency caps:
-  total API calls (default 100), primary reports (50), translation
-  (50), fan-out (50), Fan Meta (50, shared with workers), and Test
-  all models. These are the coroutine-level caps layered *above* the
+- **Maximal API calls** (one tap deeper) — a single global ceiling
+  ("Concurrent API calls at the same time", default **100**) on every
+  API call the app keeps in flight at once, across reports,
+  translations, fan-out, and workers. There are no separate per-flow
+  caps any more; calls beyond the global cap simply suspend until a
+  permit frees up. This is a coroutine-level cap layered *above* the
   per-host throttle.
 
 Each provider has its own override card on its edit screen that
@@ -820,13 +824,14 @@ doesn't lose typed changes.
 
 | Card | What it does |
 |---|---|
-| Providers | API keys, state, and default model per provider. The subtitle reads "42 built-in plus your own providers". The list sorts by state, and the **+ Add provider** entry is at the bottom. Each provider edit screen carries a Network card with per-provider rate-limit / concurrency / 429-retry overrides |
+| Providers | Lists only the providers that already have an API key set (subject reads "N with an API key set"), sorted alphabetically. **+ Add provider - new** creates an empty custom stub; **+ Add provider - predefined** opens a picker of every registered provider that doesn't have a key yet. Each provider edit screen carries a Network card with per-provider rate-limit / concurrency / 429-retry overrides |
 | Models (sub-hub) | Models / Model Types / Manual model-type overrides / Local Models / Model cooldowns / Blocked / Test-excluded / Inaccessible (see [model-states.md](model-states.md)) |
 | Workers (sub-hub) | Models / Agents / Flocks / Swarms (see [workers.md](workers.md)) |
 | Prompt management | System Prompts / **Internal prompts** (Meta / Compare / Fan out-in / Other internal / Worker / Alternative) / Example prompts |
 | Parameters | Reusable parameter presets (incl. reasoning effort) |
 | Costs | Manual price overrides + Cleanup + Layered costs |
-| External Services | HuggingFace / OpenRouter / Artificial Analysis keys (debounced keystroke saves; flush on dispose) |
+| External Services | HuggingFace / OpenRouter / Artificial Analysis / llm-stats keys (debounced keystroke saves; flush on dispose) |
+| Info providers | Checkbox list of every pricing/capability catalog the app may consult (see [repositories.md](repositories.md)); unchecked sources are skipped everywhere, including Refresh. **Enable all** / **Disable all** shortcuts, each row's ℹ deep-links to that catalog's help page |
 | App settings | App-wide & report-model default system prompt / parameters |
 
 > **Note:** Anything user-driven that runs on a report's outputs
@@ -847,15 +852,23 @@ doesn't lose typed changes.
 
 ### Refresh
 
-Refreshing the **seven external repositories** (LiteLLM, OpenRouter,
-models.dev, Helicone, llm-prices, Artificial Analysis, HuggingFace)
-is reached from **AI Monitor / Housekeeping → Refresh**. Each card
-has its own button; **Refresh all** runs a full-screen progress page
-that fetches catalogs in parallel, then re-tests every active
-provider in dependency order, and finally auto-restarts the app to
-pick up the freshly-persisted caches. Refresh all skips the
-default-agent re-test (it trusts the catalog-fetch results) and lists
-any failed providers with a one-tap nav-to-edit. See
+Refreshing the **eleven catalog sources** (OpenRouter, LiteLLM,
+models.dev, Helicone, llm-prices, Artificial Analysis, Requesty,
+llm-stats, genai-prices, TrueFoundry, CloudPrice — HuggingFace isn't
+bulk-refreshed, it's looked up per model on demand) is reached from
+**Housekeeping → Manage data**. The **Whole app** card's **Refresh
+all** button runs a full-screen progress page that fetches every
+enabled catalog in parallel with a per-provider worker pass (key
+test → model list fetch → default-agent rewrite) for every keyed
+provider, then offers a **Restart application** banner to pick up
+the freshly-persisted caches. The **Providers / models / agents**
+card's **Refresh** button runs just the worker pass, skipping the
+catalog fetches. The **Info providers** card's **Refresh** drills
+into a sub-page listing all eleven catalog sources individually,
+each with its own button and an ℹ deep-link to that source's help
+page (disabled when the source is switched off under AI Setup →
+Info providers, or its key is missing). Both Refresh-all variants
+list any failed providers with a one-tap nav-to-edit. See
 [repositories.md](repositories.md).
 
 ### Housekeeping
@@ -866,49 +879,71 @@ its own help topic.
 | Card | What it does |
 |---|---|
 | Backup & Restore | Export the entire app to a `.zip`; restore from one. The Restore screen carries a red warning that the zip contains your API keys |
-| Export & Import | Collapsible cards for Settings / Model lists / Parameters / System prompts / Workers / Costs CSV / Prompts JSON / Runtime data / API keys / All (the All bundle has its own card; API keys are a dedicated card so they can be exported and shared separately) |
+| Export & Import | Four collapsible cards: **API keys** (its own card so a shared bundle never carries credentials); **Reports** (per-report zip export/import — multi-select + folder picker on export); **Configuration** (one row per section — providers.json / prompts.json / examples.json / Agents / Flocks / Swarms / Settings / Model lists / Parameters / System prompts / Endpoints / Model overrides / Model cooldowns / Blocked models / Test-excluded models / Inaccessible models / Costs Overrides — plus an **All** row bundling every section except API keys); **Runtime data** (Reports / Chat / an **All** row; imports merge additively by id) |
+| Manage data | The merged refresh + reset hub — six cards (Whole app, Providers / models / agents, Info providers, Runtime data, Configuration, Bundled assets/*.json). The first three pair a refresh button with a clear/reset/restore button on the same subject; the last three are clear/restore-only (see below) |
 | Update from cloud | Install the APK from a previously selected cloud/storage file |
 | Costs | Maintain manual pricing overrides and layered cost data |
 | Test | Run diagnostics such as Test all models and Stress test |
 | Prompt translations | Generate and manage internal-prompt translations per language |
-| Cached prompts | View and clear the on-disk cache of internal-prompt responses (48 h TTL); per-row age / size / STALE marker; delete one or clear all |
-| Refresh | Hand-off to the per-tier Refresh screen |
+| Caches | Hub over every on-disk cache — Prompts (cached internal-prompt responses, 48 h TTL), Internal-prompt icons, Meta (titles / lang-icons, 7 d), Model lists, Pricing tiers, Supported params, and Embeddings — each with per-row 👁 view / 🔄 refresh (where regenerable) / 🗑 delete, swipe left/right to step to the next cache, and a 🗑 Clear-all on each cache's title bar |
 | Trim by age | Drop reports / chats / traces / log files older than a chosen cutoff. Hidden when there's nothing to trim |
-| Reset | Five dedicated sub-screens (see below) |
 
-**Reset** is split into five sub-screens (each is a collapsible
-card, all collapsed by default):
+**Manage data**'s reset side opens one of five dedicated screens
+(reached via each card's Reset / Restore button):
 
-- **Clear all runtime data** — wipes app log, traces, chats, reports,
-  prompt history, and usage stats. Pricing / model-list caches stay
-  put.
-- **Clear Info providers** — wipes the seven external-info
-  caches (LiteLLM, OpenRouter, models.dev, Helicone, llm-prices,
-  Artificial Analysis, HuggingFace) and their timestamps.
-- **Clear all configuration** — wipes provider config and prompts.
-  Asks before destructive actions.
-- **Restore bundled assets** — re-merges `providers.json` /
-  `internal-prompts/` / `examples.json` from the APK. User edits to
-  existing rows are preserved.
-- **Reset application** — factory-style reset that preserves API
-  keys (written to a temp file under `cacheDir/reset_keys_*`,
-  restored after the wipe). Does not run a trailing Refresh-all
-  chain — fire it from Refresh if you want it.
+- **Clear all runtime data** (the "Runtime data" card's Clear) —
+  wipes app log, traces, chats, reports, prompt history, and usage
+  stats. Configuration, knowledge bases, and every cache (Info
+  providers, model lists, embeddings) stay put.
+- **Clear Info providers** (the "Info providers" card's Clear) —
+  wipes the cached pricing/capability tiers and their timestamps.
+  Manual cost overrides and any provider's self-reported pricing
+  survive. Pricing lookups fall back to DEFAULT until you Refresh
+  again.
+- **Clear all configuration** (the "Configuration" card's Clear) —
+  wipes every provider's API key + models + endpoints,
+  agents/flocks/swarms, parameters, prompts, External Services keys,
+  identity, and installed Local LLM / LiteRT models. Reports, chats,
+  traces, and usage stats are kept. Asks before destructive actions.
+- **Bundled assets/*.json** (shared by the "Providers / models /
+  agents" card's Restore and this card's own Restore) — restores one
+  of six bundled catalogs (providers, internal prompts, example
+  prompts, system prompts, default meta items, or workers
+  swarms/flocks) to its as-shipped contents. Each button **drops
+  every entry in that list — including hand-edited fields — and
+  reloads it fresh from the asset**; other configuration is
+  untouched.
+- **Reset application** (the "Whole app" card's Reset) —
+  factory-style reset that preserves API keys (written to a temp
+  file under `cacheDir/reset_keys_*`, restored after the wipe) plus
+  the HuggingFace / OpenRouter / Artificial Analysis keys; everything
+  else is wiped and providers + internal prompts reload from assets.
+  On success a banner offers four follow-ups: Refresh all, Refresh
+  providers/models/default agents, Restart application, or Import
+  API keys.
 
-After any wholesale-state-replace op, a **Restart-app** dialog
-prompts you to relaunch so the in-memory state matches the
-fresh on-disk state (restore does not live-reload — see
-[backup-restore.md](backup-restore.md)).
+Only **Reset application** and **Refresh all** surface a
+"Restart application" banner afterward — the other four Manage-data
+actions just show a confirmation toast, since they don't replace
+state that the running process has already cached in memory. See
+[backup-restore.md](backup-restore.md) for the Backup/Restore and
+Import/Export live-reload story.
 
 ### Export / Import
 
-Granular sub-bundles plus an All bundle (split into "with API
-keys" and "without API keys" so you can share configs without
-leaking secrets). The Workers bundle round-trips agents + flocks
-+ swarms together; Settings / Model lists / Parameters / System
-prompts / Costs CSV / Prompts JSON each have their own button.
-CSVs use RFC-4180 quoting on export and a tolerant RFC-4180 parser
-on import.
+Granular per-section rows live inside the **Configuration** card —
+providers.json, prompts.json, examples.json, Agents, Flocks, Swarms,
+Settings, Model lists, Parameters, System prompts, Endpoints, Model
+overrides, Model cooldowns, Blocked models, Test-excluded models,
+Inaccessible models, Costs Overrides — plus an **All** row that
+bundles every one of those sections into a single file. Agents /
+Flocks / Swarms export as three separate single-key files, but all
+three (and any subset of the other sections) import through the same
+handler, so a hand-edited file combining several sections still
+round-trips. API keys always live in their own dedicated card — no
+bundle, including **All**, ever includes them — so a shared config
+export can't leak secrets. The Costs Overrides CSV uses RFC-4180
+quoting on export and a tolerant RFC-4180 parser on import.
 
 ## Help
 

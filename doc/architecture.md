@@ -36,7 +36,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  ViewModels (viewmodel/, 24 files)                                  │
+│  ViewModels (viewmodel/, 27 files)                                  │
 │  ├── AppViewModel       — the only AndroidViewModel; owns UiState,  │
 │  │                        Settings, prefs, model fetching, bootstrap│
 │  ├── ChatViewModel      — plain class wrapping AppViewModel; chat   │
@@ -44,7 +44,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 │  └── ReportViewModel    — plain class wrapping AppViewModel; report │
 │       │                   + secondary-result generation, language   │
 │       │                   fan-out, translation, Fan-out/Fan-in      │
-│       └── 22 extracted helpers — BatchEngine + SecondaryBatch-      │
+│       └── 24 extracted helpers — BatchEngine + SecondaryBatch-      │
 │            Engine bases + 8 engines:                                │
 │            Compare, FanOut, JudgeEval, ModelTest, RegenerateBatch,  │
 │            StressTest, Tournament, TranslatorRank; 5 managers:      │
@@ -54,7 +54,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Data layer (com.ai.data, 88 files)                                 │
+│  Data layer (com.ai.data, 97 files)                                 │
 │  ├── AnalysisRepository  — façade with withRetry / fallback        │
 │  ├── ApiDispatch         — selects ApiFormat-specific code path     │
 │  ├── ApiStreaming        — SSE parser + Flow emission               │
@@ -70,7 +70,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 │  ├── EmojiExtract        — grapheme-cluster emoji isolation         │
 │  ├── ProviderRegistry    — runtime registry of AppService instances │
 │  ├── ProviderFieldTimestamps — per-provider per-field user-edit ts  │
-│  ├── PricingCache        — ten-tier pricing + capability lookup     │
+│  ├── PricingCache        — 13-tier pricing + capability lookup      │
 │  │                         (tier blobs in filesDir/pricing/)        │
 │  ├── ReportStorage       — per-report JSON file persistence         │
 │  ├── SecondaryResultStorage — RERANK / META / MODERATION /          │
@@ -88,32 +88,35 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
                               │
                               ▼
             ┌──────────────────────────────────────────┐
-            │  External APIs (35 cloud providers)      │
-            │  + 7 metadata repositories               │
+            │  External APIs (91 cloud providers)      │
+            │  + 12 metadata repositories              │
             └──────────────────────────────────────────┘
 ```
 
 ## Codebase shape
 
-~153,180 LOC across 388 Kotlin files under `ai/src/main/java/com/ai`
+~161,212 LOC across 406 Kotlin files under `ai/src/main/java/com/ai`
 (`namespace = "com.ai"`, `applicationId = "com.ai"`, `compileSdk = 37`,
 `minSdk = 36`, `targetSdk = 36`; Kotlin 2.4.0 / AGP 9.2.1 / Compose BOM
 2026.05.01, Java 25 / JVM target 25):
 
-- **`data/` — 88 files.** 84 at the top level plus a nested
-  `data/local/` (4 files: `LocalLlm`, `LocalEmbedder`, `LlmRuntime`,
-  `LocalRuntime`). Covers HTTP/dispatch/streaming, the tracer +
-  interceptor stack, the provider registry, pricing, all on-disk
-  storage objects, the in-app file logger, atomic-write helpers,
-  bundled-asset seeds, the RAG / Knowledge layer, the on-device
-  runtime, and the regenerate-batch + Tournament / Judge / Compare /
-  TranslatorRank run models.
+- **`data/` — 97 files.** 91 at the top level plus two nested
+  packages: `data/local/` (4 files: `LocalLlm`, `LocalEmbedder`,
+  `LlmRuntime`, `LocalRuntime`) and `data/preferences/` (2 files:
+  `SettingsPreferences`, `PromptHistoryStore` — the latter is the
+  first slice of the settings-persistence split, carved out of what
+  used to be a single 1,100+ line `SettingsPreferences`). Covers
+  HTTP/dispatch/streaming, the tracer + interceptor stack, the
+  provider registry, pricing, all on-disk storage objects, the in-app
+  file logger, atomic-write helpers, bundled-asset seeds, the RAG /
+  Knowledge layer, the on-device runtime, and the regenerate-batch +
+  Tournament / Judge / Compare / TranslatorRank run models.
 - **`model/` — 2 files.** `SettingsModels.kt` (the settings data
   classes — `ProviderConfig`, `Agent`, `Flock`, `Swarm`,
   `SwarmMember`, `Parameters`, `SystemPrompt`, `BlockedModel`, …) and
   `SettingsHolder.kt` (`object SettingsHolder`).
-- **`viewmodel/` — 25 files.** Three top-level VMs — `AppViewModel`,
-  `ChatViewModel`, and `ReportViewModel` — plus 22 extracted helper /
+- **`viewmodel/` — 27 files.** Three top-level VMs — `AppViewModel`,
+  `ChatViewModel`, and `ReportViewModel` — plus 24 extracted helper /
   support files:
   - an abstract `BatchEngine` base (run/item job registries, deferred
     delete, resume-scan dedup) plus `SecondaryBatchEngine`, the
@@ -132,19 +135,28 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
     `SecondaryModelSwitchManager`, `SecondaryRunManager`,
     `TranslationRunManager`);
   - one runner (`WorkerRunner`);
-  - 6 type/support files: `AppViewModelTypes.kt` (the
+  - 8 type/support files: `AppViewModelTypes.kt` (the
     `GeneralSettings` data class + UI enums incl. `AppHomeMode`),
-    `ReportViewModelHelpers.kt`, `ThrottledBatch.kt`
-    (`acquireThrottledPermits` + `PermitHold` + `BatchResume`),
-    `TranslationTypes.kt`, `BrokenWorkPolicy.kt`, `BuildProgress.kt`.
-- **`ui/` — 273 files** across sub-domains (`report` × 98,
-  `cruds` × 48, `admin` × 35, `settings` × 22, `shared` × 17,
+    `ReportViewModelHelpers.kt` (pure helpers, incl.
+    `acquireThrottledPermits`), `ThrottledBatch.kt` (`runThrottledBatch`
+    + `PermitHold` + `BatchResume`), `TranslationTypes.kt`,
+    `BrokenWorkPolicy.kt`, `BuildProgress.kt`, `ReplayTrack.kt` (a
+    generic keyed replay-state + job track, factored out of the
+    temperature / reasoning-effort / web-search / prompt-edit replay
+    flows that used to hand-roll the same `StateFlow` + job-map
+    plumbing in `ReportViewModel`, `FanOutEngine`, and
+    `MetaEditManager`), and `SecondaryCellCalls.kt` (the two per-item
+    call shapes every batch engine reduces to — the worker-pool shape
+    used by Tournament / Compare / Fan Meta / Translation, and the
+    fixed-judge shape used by Judge-the-judges / Rank-the-translators).
+- **`ui/` — 279 files** across sub-domains (`report` × 101,
+  `cruds` × 48, `admin` × 36, `settings` × 22, `shared` × 17,
   `helpers` × 16, `navigation` × 7, `other` × 6, `chat` × 5,
-  `hub` × 5, `search` × 4, `history` × 3, `models` × 3, `share` × 2,
+  `hub` × 5, `search` × 4, `history` × 3, `models` × 4, `share` × 3,
   `knowledge` × 1, `theme` × 1). No files sit directly at the `ui/`
-  root. `report/` is fully nested: `report/manage` × 66,
-  `report/view` × 22, `report/start` × 7, `report/other` × 2,
-  `report/info` × 1.
+  root. `report/` is fully nested: `report/manage` × 67 (including a
+  further-nested `report/manage/view`), `report/view` × 23,
+  `report/start` × 8, `report/other` × 2, `report/info` × 1.
 - **`MainActivity.kt`** — the single entry file at the `com/ai` root.
 
 ## Entry point
@@ -168,7 +180,7 @@ Navigation is two independent systems.
 
 ### 1. Top-level routes — Jetpack Navigation Compose
 
-`NavRoutes` (`ui/navigation/NavRoutes.kt`) holds ~150 route constants as
+`NavRoutes` (`ui/navigation/NavRoutes.kt`) holds ~125 route constants as
 String templates plus builder helpers (`aiReportInfo()`,
 `traceDetail()`, `helpForTopic()`, …) that URL-encode their args.
 `AppNavHost.kt` declares the single `NavHost`, but it does **not**
@@ -238,7 +250,7 @@ state-driven overlays rather than separate routes (`ReportsScreenNav`):
 ### 2. Settings sub-screens — the `SettingsSubScreen` enum
 
 Inside `SettingsScreen.kt`, sub-screens are routed via the
-`enum class SettingsSubScreen` (48 values: `MAIN`, `AI_SETUP`,
+`enum class SettingsSubScreen` (53 values: `MAIN`, `AI_SETUP`,
 `AI_PROVIDERS`, `AI_PROVIDER_EDIT`, `AI_MODELS_SETUP`, `AI_AGENTS`,
 `AI_FLOCKS`, `AI_SWARMS`, `AI_PARAMETERS`, `AI_SYSTEM_PROMPTS`,
 `AI_INTERNAL_PROMPTS`, the `*_SETUP` hubs, the model-state lists,
@@ -263,15 +275,12 @@ back-navigation be a single state mutation.
 Every cloud provider is an `AppService` with an `apiFormat` field —
 one of `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`, `REPLICATE` (the enum
 has exactly these four values). Dispatch always keys off the format, never
-off provider identity, so **48 of the 51 bundled providers share unified
+off provider identity, so **88 of the 91 bundled providers share unified
 code paths**; only the single `Anthropic` (`ANTHROPIC`), `Google`
 (`GOOGLE`) and `Replicate` (`REPLICATE`) providers have format-specific
 branches.
 Adding an OpenAI-compatible provider is one new JSON file under
 `assets/providers/` (see [development.md](development.md)).
-
-> The inline comment in `ApiFormat.kt` that says "28 providers using
-> OpenAI-compatible" is stale — the real count is 48.
 
 `AppService` is a plain `class`, **not** a Kotlin `data class`: its
 `equals` / `hashCode` / `toString` are **id-only** (two `AppService`s
@@ -311,10 +320,10 @@ stable id **and** the UI label **and** the SharedPreferences key prefix
 `id` string and reads it back through `findById`, so a persisted "Local"
 chat session round-trips.
 
-### `ProviderRegistry` — the 35 providers are an asset, not Kotlin
+### `ProviderRegistry` — the 91 providers are an asset, not Kotlin
 
-The 35 cloud providers are **not** hardcoded in Kotlin. They are bundled
-as **one JSON file per provider under `assets/providers/`** (51 files,
+The 91 cloud providers are **not** hardcoded in Kotlin. They are bundled
+as **one JSON file per provider under `assets/providers/`** (91 files,
 each a bare `ProviderDefinition` object — no `{ "providers": [...] }`
 wrapper). `ProviderRegistry` is a mutable `object` that starts **empty**
 on a fresh install; the providers load on demand via
@@ -336,15 +345,28 @@ crashed. Notable registry API: `getAll`, `findById`, `add`, `update`
 rebuilt from `baseUrl` + `auxHosts` on every `save()`, used by
 `ProviderThrottle` for per-provider rate/concurrency overrides.
 
-The 35 bundled ids (each case-sensitive, doubling as the UI label):
-AI-ML-API, Anthropic, AtlasCloud, Baseten, Cerebras, Chutes, Cohere,
-DeepInfra, DeepSeek, Fireworks, GMI-Cloud, Glama, Google, Groq,
-HuggingFace, Hyperbolic, MergeGateway, MiniMax, Mistral, Moonshot,
-NVIDIA, NebiusAIStudio, Novita.ai, OpenAI, OpenRouter, Parasail,
-Perplexity, Replicate, Requesty, SambaNova, SiliconFlow, Together,
-VercelAIGateway, Z.AI, xAI. (The catalog was trimmed to only
-key-configured providers — the keyless-provider sweep dropped the 33
-that shipped without an API key.)
+The 91 bundled ids (each case-sensitive, doubling as the UI label):
+AI-ML-API, AI21, AIHubMix, AbacusAI, Alibaba, Amazon, Anthropic, AnyAPI,
+AtlasCloud, Auriko, Avian, Baseten, Cerebras, Chutes, Clarifai, Cohere,
+Cortecs, CrofAI, Crusoe, DeepInfra, DeepSeek, DigitalOcean, Doubleword,
+Evroc, FastRouter, Fireworks, FriendliAI, Frogbot, GMI-Cloud,
+GitHubModels, Glama, Google, Groq, HeliconeGateway, HuggingFace, IONet,
+Inceptron, Jiekou, KiloCode, LLMGateway, Lambda, LibertAI, LlamaGate,
+MegaNova, MergeGateway, MiniMax, Mistral, ModelScope, Moonshot, NVIDIA,
+NanoGPT, NearAI, NebiusAIStudio, NeuralWatt, Novita.ai, Nscale,
+OVHcloud, Ollama, OpenAI, OpenCodeZen, OpenRouter, OrcaRouter, Parasail,
+Perplexity, Poe, Poolside, PublicAI, QiniuAI, RegoloAI, Replicate,
+Requesty, RoutingRun, SambaNova, Scaleway, SiliconFlow, Tencent,
+TensorMesh, ThreeZeroTwoAI, Tinfoil, Together, Venice, VercelAIGateway,
+Vivgrid, VolcEngine, Vultr, Wafer, WandB, Z.AI, ZenMux, iFlow, xAI.
+
+The catalog itself keeps every provider — key-less ones included — but
+the **AI Setup → Providers** screen shows only providers that already
+have an API key set (its subtitle counts them); a separate
+**"Add provider - predefined"** screen (`AI_PROVIDERS_PREDEFINED`)
+lists every registered provider that has **no** key yet, so a user
+browses the full 91-provider catalog from there and drops in a key to
+promote one onto the main list.
 
 ### One real ViewModel, two wrappers
 
@@ -384,8 +406,8 @@ that shipped without an API key.)
   don't ripple equality checks across the rest of `UiState`, and
   delegates the heavy lifting to the extracted engines
   (`fanOutEngine`, `tournamentEngine`, `judgeEvalEngine`,
-  `compareEngine`, `translatorRankEngine`, `secondaryRunManager`,
-  `regenerateBatchEngine`, `translation`, …).
+  `compareEngine`, `translatorRankEngine`, `secondary`
+  (`SecondaryRunManager`), `regenerateBatchEngine`, `translation`, …).
   Long-running flows (initial generate, regenerate, secondary launches,
   the report-icon work) are launched on `appViewModel.viewModelScope`
   rather than the report VM's own scope, so navigating away from the
@@ -486,31 +508,32 @@ Two of the most important data flows are layered in fixed order.
   OpenRouter-self (when caller `provider.crossProviderModelList`) →
   Together-self (when caller `provider.pricingFromModelList`) →
   manual override → LiteLLM → models.dev → llm-prices →
-  Artificial Analysis → OpenRouter cross-provider fallback →
-  Helicone → `DEFAULT_PRICING`. The large tier blobs live as files
-  under `filesDir/pricing/` (one per tier); only timestamps and the
-  small manual-override map stay in the `pricing_cache`
-  SharedPreferences. **Manual overrides win over every curated source**
-  (but still sit *below* the two provider-self-report tiers) — putting
-  them behind LiteLLM would silently ignore corrections users add
-  specifically because LiteLLM is stale. `getPricing` short-circuits to
-  `DEFAULT_PRICING` on the main thread before the preload completes — UI
-  callers get the default during the cold window and pick up real values
-  on the next state-driven recompose, instead of blocking Compose on the
-  synchronized LiteLLM parse. `DEFAULT_PRICING` is
-  `$25 / M` input, `$75 / M` output (not zero).
-
-  > The `PricingCache` class-level KDoc still describes a stale
-  > five-tier "API > LITELLM > OVERRIDE > OPENROUTER > DEFAULT" model
-  > with LiteLLM ahead of OVERRIDE — the actual code does the opposite.
+  Artificial Analysis → llm-stats → OpenRouter cross-provider fallback →
+  Requesty → genai-prices → TrueFoundry → Helicone → `DEFAULT_PRICING`.
+  The large tier blobs live as files under `filesDir/pricing/` (one per
+  tier); only timestamps and the small manual-override map stay in the
+  `pricing_cache` SharedPreferences. **Manual overrides win over every
+  curated source** (but still sit *below* the two provider-self-report
+  tiers) — putting them behind LiteLLM would silently ignore
+  corrections users add specifically because LiteLLM is stale.
+  `getPricing` short-circuits to `DEFAULT_PRICING` on the main thread
+  before the preload completes — UI callers get the default during the
+  cold window and pick up real values on the next state-driven
+  recompose, instead of blocking Compose on the synchronized LiteLLM
+  parse. `DEFAULT_PRICING` is `$25 / M` input, `$75 / M` output (not
+  zero). CloudPrice and HuggingFace are capabilities-only (no pricing),
+  so they're absent from this chain — 10 of the 12 info-provider repos
+  participate in `getPricing`.
 
 - **Capabilities** (`isVisionCapable`, `isWebSearchCapable`,
   `isReasoningCapable`):
   per-provider user override (visionModels / webSearchModels /
-  reasoningModels) → manual `ModelTypeOverride` → provider's own
-  `/models` capabilities → LiteLLM → models.dev → naming heuristic
-  (`ModelType.infer`). An override flag can only **add** a capability,
-  never clear one.
+  reasoningModels) → manual `ModelTypeOverride` → precomputed snapshot
+  → provider's own `/models` capabilities → LiteLLM → models.dev →
+  other info-provider capability flags (Requesty / llm-stats /
+  TrueFoundry / CloudPrice — the exact order and participants vary
+  slightly per capability) → naming heuristic (`ModelType.infer`). An
+  override flag can only **add** a capability, never clear one.
 
 Both are precomputed into `ProviderConfig.visionCapableComputed`,
 `webSearchCapableComputed`, `reasoningCapableComputed`, and
@@ -562,10 +585,16 @@ shown when Experimental features is on). See
 
 ### Generic CRUD list
 
-`CrudListScreen<T>` backs every list-of-things screen (Agents, Flocks,
-Swarms, Parameters, System Prompts, Internal Prompts per category,
-Example Prompts). Each consumer plugs in `itemTitle`, `itemSubtitle`,
-`onAdd`, `onEdit`, `onDelete`; the rest is shared.
+`CrudListPage<T>` (`ui/cruds/framework/CrudListPage.kt`) backs every
+list-of-things screen (Agents, Flocks, Swarms, Parameters, System
+Prompts, Internal Prompts per category, Example Prompts, model-state
+lists, …). Each consumer plugs in `items`, `line` (the compact one-line
+row text), `itemKey`, and `onView`; the page itself owns paging (only as
+many rows as fit the screen, swipe left/down for the next page, right/up
+for the previous) and publishes the 🆕 add action (`onAdd`, nullable to
+hide it for fixed lists) into the bottom icon bar via `TitleBar`. Tapping
+a row navigates to its own view page, where per-entry edit / copy /
+delete live — the list page itself has no `onEdit` / `onDelete`.
 
 ### Full-screen overlay pattern
 
@@ -618,8 +647,12 @@ The drill-in is three levels deep:
 
 Concurrency is capped by `ApiCallCaps.fanOut` plus the shared
 per-provider throttle, so overlapping report / chat / meta / fan-out
-traffic all respect the same host budgets. The hot per-pair
-`runningFanOutPairs` flow is separate from `UiState`.
+traffic all respect the same host budgets. Per-pair running state lives
+in `FanOutEngine.runs` (`BatchEngine`'s own `Map<RunKey, RunState>`
+`StateFlow`, each pair a `PairState`), not a standalone `AppViewModel`
+flow — the legacy `runningFanOutPairs` `StateFlow` was removed once the
+engine's own state became the single source of truth — so pair-level
+progress stays separate from `UiState`.
 
 ## Concurrency
 
@@ -722,13 +755,18 @@ cumulative `usageMetadata`).
 OpenAI routes between two endpoints. `usesResponsesApi(service, model)`
 returns true when `service.responsesApiPatterns.anyMatches(model)`
 (authoritative, from the bundled provider JSON — for OpenAI the patterns
-are prefix `gpt-5`, `o1`, `o3`, `o4`, `gpt-4.1`) **or** when
-`ModelType.infer(model) == RESPONSES` (the naming heuristic, which
-catches `gpt-5` / `o3` / `o4` by prefix). When true the dispatch uses the
-Responses API (system prompt → `instructions`, single text turn passed as
-a bare string); otherwise Chat Completions. There is no `endpointRules`
-field — those prefixes now live in `ModelType.infer`. See
-[api-formats.md](api-formats.md).
+are prefix `gpt-5`, `o1`, `o3`, `o4`, `gpt-4.1`) **or**, only when the
+provider declares a non-empty `responsesApiPatterns` list in the first
+place (currently just OpenAI), when `ModelType.infer(model) ==
+RESPONSES` (the naming heuristic, which catches `gpt-5` / `o3` / `o4` by
+prefix). That gate matters: chat-only OpenAI-compatible gateways (Poe,
+Vivgrid, most aggregators) also serve `gpt-5` / `o3` / `o4` ids, but
+only over `/v1/chat/completions` — inferring RESPONSES for them would
+send every call to a non-existent `/v1/responses` path. When true the
+dispatch uses the Responses API (system prompt → `instructions`, single
+text turn passed as a bare string); otherwise Chat Completions. There is
+no `endpointRules` field — those prefixes now live in `ModelType.infer`.
+See [api-formats.md](api-formats.md).
 
 ## State recovery
 
@@ -773,16 +811,17 @@ See [regenerate.md](regenerate.md) and
 
 `com.ai.data.AppLog` is a log4j-style file appender that mirrors
 `android.util.Log` and writes every call at or above `threshold` to
-`<filesDir>/applog/applog_<yyyyMMdd>.log`. Levels: `TRACE` (2),
-`DEBUG` (3), `INFO` (4), `WARN` (5), `ERROR` (6), `OFF` (99); default
-threshold **INFO**. Files rotate daily; a single `BufferedWriter` is
-held open and flushed per line so a process kill never loses the last
-few lines. Sensitive headers (`Bearer …`, raw `sk-` / `xai-` / `gsk_`
-keys, Google `?key=` params) are redacted inline before write. The
-viewer (`AppLogScreen`) lives under Hub → AI App log and supports search
-/ level / time-range / tag filters with a Copy/Share dialog. Threshold
-is set from Settings → Logging. The `applog/` directory is **excluded**
-from backups (see below). See [applog.md](applog.md).
+`<filesDir>/applog/applog_<yyyyMMdd>.log`. Levels: `DEBUG` (3) — also
+the home of former `TRACE` calls, which were folded into `DEBUG` —
+`INFO` (4), `WARN` (5), `ERROR` (6), `OFF` (99); default threshold
+**WARN**. Files rotate daily; a single `BufferedWriter` is held open
+and flushed per line so a process kill never loses the last few lines.
+Sensitive headers (`Bearer …`, raw `sk-` / `xai-` / `gsk_` keys, Google
+`?key=` params) are redacted inline before write. The viewer
+(`AppLogScreen`) lives under Monitor → Application log and supports
+search / level / time-range / tag filters with a Copy/Share dialog.
+Threshold is set from Settings → Logging. The `applog/` directory is
+**excluded** from backups (see below). See [applog.md](applog.md).
 
 ## Auto-restart
 
@@ -804,14 +843,14 @@ state) and after the "Reset application" full reset.
 ## Persistence map
 
 Persistence is **`SharedPreferences` + JSON/text files** only (no
-DataStore). There are 10 distinct SharedPreferences files; the main one
-is `eval_prefs` (`SettingsPreferences.PREFS_NAME`), holding ~68 `KEY_*`
+DataStore). There are 11 distinct SharedPreferences files; the main one
+is `eval_prefs` (`SettingsPreferences.PREFS_NAME`), holding ~73 `KEY_*`
 keys (agents, flocks, swarms, parameters, system prompts, internal
 prompts, provider states, the model-state lists, throttle settings, API
 keys, …). The others: `provider_registry`, `pricing_cache`,
-`dual_chat_prefs`, `huggingface_cache`, `model_cooldowns`,
-`view_screen_prefs`, `last_report_tracker`, `provider_field_timestamps`,
-`update_from_cloud`.
+`dual_chat_prefs`, `huggingface_cache`, `cloudprice_model_cache`,
+`model_cooldowns`, `view_screen_prefs`, `last_report_tracker`,
+`provider_field_timestamps`, `update_from_cloud`.
 
 `filesDir` holds one subdirectory per storage object — `reports`,
 `secondary`, `trace`, `chat-history`, `embeddings`, `knowledge`,
@@ -827,7 +866,7 @@ keys, …). The others: `provider_registry`, `pricing_cache`,
 
 `BackupManager` streams a single `.zip` to a SAF Uri:
 `manifest.json` (version = `MANIFEST_VERSION` = 1), `prefs/<name>.json`
-(7 of the 10 prefs files, type-tagged so `Int` doesn't collapse to
+(8 of the 11 prefs files, type-tagged so `Int` doesn't collapse to
 `Double`), `files/<mirror of filesDir>/…`, and `cache/<mirror of
 cacheDir>/…`. The `filesDir` mirror excludes
 `FILES_DIR_BACKUP_EXCLUDES = {"local_llms", "local_models", "native",
@@ -850,8 +889,8 @@ that always lands as a brand-new report with fresh ids. See
 
 ## First-run seeding + every-start delta merge
 
-`AppViewModel.bootstrap` runs through a sequence of structured DEBUG /
-TRACE log lines (under the `App.bootstrap` tag) so the AppLog viewer can
+`AppViewModel.bootstrap` runs through a sequence of structured `DEBUG`
+log lines (under the `App.bootstrap` tag) so the AppLog viewer can
 render the entire start-up sequence for a support session.
 
 Several seed sources are **delta-merged on every app start**, not just
@@ -866,27 +905,41 @@ for providers) and never overwrites an existing row:
   edited (timestamp non-null) is left alone; an un-edited field tracks
   the asset.
 - `assets/internal-prompts/<Language>/` — Internal Prompts, organised
-  by language folder (`English`, `Dutch`, …) then category sub-dir:
+  by language folder then category sub-dir. `English` is the **only**
+  bundled language now (the shipped Dutch translation was dropped in
+  favor of an English-only baseline); other languages are generated
+  on-device via Settings → Prompt translations and stored the same
+  per-language-folder way, with English kept as the fallback:
   - `workers/` — the generation prompts: `report-icon`, `model-icons`,
     `report-title-short` / `report-title-long`, `report-language-name` /
-    `report-language-icon`, `model-titles`, `fan-meta`, `tournament`,
-    `translation-icon`, `second-meta`, `user-note`;
+    `report-language-icon`, `model-titles`, `fan-in` / `fan-meta`,
+    `find-translation`, `meta`, `tournament`, `translate-rank` /
+    `translate-text` / `translate-title`, `translation-icon`,
+    `second-meta` / `second-moderation` / `second-rerank`, `user-note`;
   - `meta/` and `meta_compare/` — the Meta and Compare-with-meta seeds;
   - `fan_out/` and `fan_in/` — the Fan-out / Fan-in templates;
   - `alt/` — the Find-alternative variants (`main`, `report`,
     `fan_out`, `language`, `meta`, `model_title`, `report_title`,
     `report_title_long`, `translation`);
   - `internal/` — fixed templates: `chat-title`, `model-info`,
-    `model-intro`, `translate-text`, `translate-title`, `test-model`,
-    `second-rerank`, `second-moderation`.
-- `assets/examples.json` — Example Prompts, merged by title
-  (case-insensitive).
-- `assets/system-prompts.json` — bundled System Prompts.
+    `model-intro`, `test-model`.
+- `assets/prompts/examples/` — Example Prompts, one `{title, text}`
+  JSON file per example, merged by title (case-insensitive).
+- `assets/prompts/system/` — bundled System Prompts, one `{title,
+  text}` JSON file per prompt, merged by name (case-insensitive).
+- `assets/workers/swarms/` / `assets/workers/flocks/` — bundled Swarm /
+  Flock pools (one file each, e.g. the "workers" pool the worker
+  prompts point at), merged by name; a Flock's member agents resolve by
+  name against the current agent set.
 - `assets/excluded.json` / `assets/inaccessible.json` — appended
   test-excluded / inaccessible `(provider, model)` entries.
 - `assets/meta.json` — default Meta items.
 
-The Housekeeping → Reset → "Restore bundled assets" path force-merges any
-missing rows back without resetting user-edited ones. None of the asset
-files overwrite existing rows on the delta path, so a re-seed never
-destroys user edits.
+None of the above overwrite an existing row on this automatic path, so
+a re-seed never destroys user edits. Housekeeping → Manage data →
+"Bundled assets/*.json" → Restore (`ResetAssetsScreen`) is a separate,
+**destructive** per-catalog action: each button (providers, internal
+prompts, examples, system prompts, default Meta items, workers) drops
+every row in that one list and reloads it wholesale from the asset, so
+any user edits or additions in that list are lost; other configuration
+is untouched.

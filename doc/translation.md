@@ -29,7 +29,7 @@ screen"):
 1. **Language picker** (`ui/report/other/LanguageSelection.kt`,
    `LanguageSelectionScreen`, title "Pick target language", help
    `translation_language`) — a **single-select** picker over the
-   curated `TARGET_LANGUAGES` list (~56 entries; English name as the
+   curated `TARGET_LANGUAGES` list (~55 entries; English name as the
    `@LANGUAGE@` key, native rendering on a second line). It has a
    search box and a **Recent** block (`RecentTargetLanguages`, an MRU
    of the last 3 picks persisted in `eval_prefs`). Tapping a row
@@ -105,13 +105,15 @@ by every row of one click). The Result screen renders one aggregate
 "run" row per batch under the Translations block, expandable into
 the individual per-(source, language) rows.
 
-`TranslationRunManager` tracks active batches in a
-`MutableStateFlow<Map<String, TranslationRunState>>` (`_translationRuns`)
-keyed by `runId`, with a sibling
-`ConcurrentHashMap<String, Job>` (`translationJobs`). Firing off a
-second Translate batch while the first is still in flight doesn't
-overwrite the first's progress state, and `cancelTranslation(runId)`
-can target one specific run.
+`TranslationRunManager` extends the shared `BatchEngine` base
+(`viewmodel/BatchEngine.kt`) — the same collaborator the fan-out /
+fan-meta / tournament engines share. The base owns the run-state map
+(`MutableStateFlow<Map<String, TranslationRunState>>`, exposed here as
+`translationRuns`, an alias of the base `runs` flow) keyed by `runId`,
+plus the per-run / per-item `Job` registries (`runJobs` / `itemJobs`)
+and the deleting-run set. Firing off a second Translate batch while
+the first is still in flight doesn't overwrite the first's progress
+state, and `cancelTranslation(runId)` can target one specific run.
 
 ## What gets translated
 
@@ -162,10 +164,14 @@ substitution (both seeded from `assets/internal-prompts/<Language>/workers/`
 and delta-merged into existing installs on launch, editable via
 Settings → AI Setup → Prompt management → Internal prompts →
 **Worker prompts**). Each references the shared **`workers`** swarm
-(`assets/workers/swarms/workers.json`) — at time of writing its
-members are Mistral `mistral-medium-latest`, OpenAI `gpt-4o-mini`,
-Groq `llama-3.3-70b-versatile`, Cerebras `gpt-oss-120b`, and DeepSeek
-`deepseek-v4-flash`. Re-curate that swarm to change which models
+(`assets/workers/swarms/workers.json`) — at time of writing it has 12
+members: Mistral `mistral-medium-latest`, OpenAI `gpt-4o-mini`, Groq
+`llama-3.3-70b-versatile`, Cerebras `gpt-oss-120b`, DeepSeek
+`deepseek-v4-flash`, Google `gemini-3.5-flash`, Anthropic
+`claude-haiku-4-5-20251001`, xAI `grok-4.20-0309-non-reasoning`,
+Cohere `command-r-08-2024`, DeepInfra `google/gemma-3-12b-it`,
+Together `Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, and SiliconFlow
+`Qwen/Qwen3-14B`. Re-curate that swarm to change which models
 translate:
 
 | Prompt | Used for | Placeholders |
@@ -203,22 +209,24 @@ screen carries a `SecondaryLanguageScope`
 The implementation is **not** an N×M fan-out of independent META
 rows. To save spend, `runMetaPrompt` runs the meta **once in a
 single "seed" language** (preferring Original when it's in the
-selection, else the first non-original language), producing **M**
-META rows — one per model pick — in that seed language. It then
-**cross-translates** each completed seed META row into every other
-selected language by *appending* cross-translation items onto those
-languages' existing translation runs
-(`translation.addCrossTranslationItems`). The seed run pulls its
-`@QUESTION@`, `@RESULTS@`, and `@TITLE@` from the matching
+selection, else the first non-original language) via the Meta
+worker swarm, producing **one** META row in that seed language —
+Meta has no user-picked model anymore (it went through the same
+Mode-B worker-swarm conversion as Translate: a fallback chain, not a
+per-model pick). It then **cross-translates** that completed seed
+META row into every other selected language by *appending*
+cross-translation items onto those languages' existing translation
+runs (`translation.addCrossTranslationItems`). The seed run pulls
+its `@QUESTION@`, `@RESULTS@`, and `@TITLE@` from the matching
 per-language TRANSLATE rows (falling back to the original text
 per-item if a translation is missing).
 
-So asking for a "Compare" in three languages from two models gives
-you **two** seed-language META rows plus their cross-translations in
-the two other languages — not six independent Compare calls. Errored
-seed rows are skipped (nothing useful to cross-translate). Every row
-carries the same `metaPromptName`, so the UI and exports group them
-under the user-given name regardless of language.
+So asking for a "Compare" in three languages gives you **one**
+seed-language META row plus its cross-translations in the two other
+languages — not three independent Compare calls. An errored seed row
+is skipped (nothing useful to cross-translate). Every row carries the
+same `metaPromptName`, so the UI and exports group them under the
+user-given name regardless of language.
 
 ## UI screens
 
@@ -227,11 +235,23 @@ under the user-given name regardless of language.
   the Translate flow.
 - **`SecondaryResultsScreen`** (`ui/report/manage/view/Secondary.kt`,
   help `secondary_list`, title "Secondary results") — list of every
-  secondary row on the report, scoped to whichever Meta-prompt name
-  (or structured kind: Rerank / Moderation / Translate) the user
-  tapped on the View row. The Translations branch groups rows by
-  `translationRunId`; each group surfaces as a single "run" row with
-  the model name(s), the language list, and the count.
+  secondary row of one `kind` (Rerank / Moderation) or every row
+  sharing one multi-language chat-type Meta-prompt name. Translate
+  runs don't route through this screen — a Translate tile / row
+  always opens straight into `TranslationRunScreen` via
+  `onOpenTranslationRun(runId)`.
+- **`ReportTranslationsScreen`** (`ui/report/manage/Translations.kt`,
+  help `report_translations`, title "Translations") — reached from
+  the Manage hub's 🌐 bottom-bar icon. A plain, static list: the
+  **Original** language row first (returns to the report), then one
+  row per finished translation run (`TranslationRunSummary`, built by
+  `buildTranslationRunSummaries` — one per `translationRunId`,
+  carrying the target language, the run's (first-item) model, the
+  call count, and cost), with any still-running runs shown above them
+  with a green progress bar. Tapping a run row opens
+  `TranslationRunScreen`; the 🆕 action starts a new translation (the
+  same language-picker flow as [Triggering a Translate
+  run](#triggering-a-translate-run)).
 - **`TranslationL1Screen` / `TranslationRunScreen`**
   (`ui/report/manage/TranslationL1.kt` / `TranslationRun.kt`, help
   `translation_run_l1`, title "Translation") — drill into a run. L1
@@ -312,8 +332,9 @@ a copy. The Result screen (`ui/report/view/Main.kt`) surfaces:
   META) and calls `onTranslateMissingItems`, which translates just
   those items into the active language (reusing the same runner).
 - The Zipped HTML export creates one folder/view per language
-  (`HtmlLanguageView`) plus a `source/` folder with the originals;
-  cross-anchored links navigate between languages.
+  (`HtmlLanguageView`), with the original (untranslated) content in
+  its own `original/` folder; cross-anchored links navigate between
+  languages.
 
 ## Cost tracking & per-kind Type
 

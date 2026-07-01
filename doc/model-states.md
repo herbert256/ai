@@ -6,7 +6,7 @@ test sweep, marked unreachable, or has its API type forced by hand.
 Four are advisory/exclusion lists; the fifth (manual overrides) is a
 classification list. Each has a CRUD screen under **AI Setup → AI
 Models** (the `ModelsSetupScreen` cards,
-[ui/settings/SetupScreens.kt:139](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt)).
+[ui/settings/SetupScreens.kt:147](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt)).
 The four `Settings.*`-backed lists are stored on the settings object;
 cooldowns are a separate runtime store (`ModelCooldownStore`) with its
 own SharedPreferences.
@@ -26,7 +26,7 @@ The CRUD screens are reached through the two-tier `SettingsSubScreen`
 router: **AI Setup → AI Models** lands on `AI_MODELS_SETUP`, whose cards
 push `AI_BLOCKED_MODELS` / `AI_TEST_EXCLUDED_MODELS` /
 `AI_INACCESSIBLE_MODELS` / `AI_MANUAL_MODEL_TYPES` / `AI_MODEL_COOLDOWNS`
-([ui/settings/SettingsScreen.kt:445](../ai/src/main/java/com/ai/ui/settings/SettingsScreen.kt)).
+([ui/settings/SettingsScreen.kt:496](../ai/src/main/java/com/ai/ui/settings/SettingsScreen.kt)).
 Each sub-screen is a four-file CRUD (`add` / `edit` / `list` / `view`)
 under `ui/cruds/models/<name>/`.
 
@@ -94,7 +94,7 @@ Manually flagged pairs the app treats as failing. Identity is the
 
 - **Populated** by the "Test all models" sweep, **per item, live** as
   the run progresses — `AppViewModel.applyTestItemIncrement(item)`
-  ([viewmodel/AppViewModel.kt:1251](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
+  ([viewmodel/AppViewModel.kt:1345](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
   fires on each PASS/FAIL transition: PASS drops the key from Blocked;
   FAIL **not** on cooldown upserts it with the error (`take(300)`,
   default `"Test failed"`); FAIL **on** cooldown drops it (the cooldown
@@ -116,7 +116,7 @@ practice `ModelTestEngine.startRun` consults it per-model via
 
 - **Populated** automatically when a probe's cost exceeds the 5¢
   ceiling (`COSTLY_PROBE_USD_THRESHOLD = 0.05` in
-  [viewmodel/AppViewModel.kt:2036](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
+  [viewmodel/AppViewModel.kt:2208](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
   — the same per-item `applyTestItemIncrement` hook appends the model
   (no-clobber) when `item.totalCost > COSTLY_PROBE_USD_THRESHOLD`, in
   memory, flushed at end-of-run, so the next sweep won't pay for it
@@ -151,7 +151,7 @@ or OpenRouter non-serverless catalog entries). Carries a **required**
   (bundled)". Hand-curable via the `inaccessible/` CRUD.
 - **Picker effect**: dimmed with a tertiary `🔒 Inaccessible: …`
   caption (`inaccessibleReasonByKey`). Per
-  [ui/other/Selection.kt:204](../ai/src/main/java/com/ai/ui/other/Selection.kt)
+  [ui/other/Selection.kt:225](../ai/src/main/java/com/ai/ui/other/Selection.kt)
   inaccessible rows **dim and stay selectable** like the other two
   advisory states — they used to hide from this picker but no longer do.
 - **Stored** in `Settings.inaccessibleModels`, prefs key
@@ -172,19 +172,21 @@ optional capability flags: `supportsVision` 👁, `supportsWebSearch` 🌐,
 `supportsReasoning` 🧠.
 
 - **Type precedence** (`getModelType`,
-  [model/SettingsModels.kt:454](../ai/src/main/java/com/ai/model/SettingsModels.kt)):
+  [model/SettingsModels.kt:464](../ai/src/main/java/com/ai/model/SettingsModels.kt)):
   a matching override returns first and short-circuits everything —
   ahead of the LiteLLM type (`PricingCache.liteLLMModelType`, used only
   when it's not plain `CHAT`), the per-provider `modelTypes` map (native
   list-API metadata), and the `ModelType.infer` naming heuristic.
 - **Capability precedence**: each of `isVisionCapable` /
   `isWebSearchCapable` / `isReasoningCapable`
-  ([model/SettingsModels.kt:479/516/573](../ai/src/main/java/com/ai/model/SettingsModels.kt))
+  ([model/SettingsModels.kt:489/530/594](../ai/src/main/java/com/ai/model/SettingsModels.kt))
   checks, in order: the per-provider set (e.g. `ProviderConfig.visionModels`,
   populated by Model Info edits and fetch unions) → the matching override
   flag → the per-provider *precomputed* cache (`visionCapableComputed`
   etc., refreshed by `recomputeCapabilities`) → a slow layered lookup
-  (provider `/models` self-report → LiteLLM flag → models.dev →
+  (provider `/models` self-report → LiteLLM flag → models.dev → further
+  catalog flags where the capability has them — Requesty / llm-stats /
+  TrueFoundry / CloudPrice, coverage varies per capability →
   `ModelType.infer*` naming heuristic). An override flag can only **add**
   a capability — because each lookup returns `true` early on a positive
   match, it never clears one already implied by the per-provider set or
@@ -214,8 +216,8 @@ For [persistent.md](persistent.md) cross-reference:
 
 The four `ai_*` keys live in the main `eval_prefs` settings store
 (constants at
-[ui/settings/SettingsPreferences.kt:1134](../ai/src/main/java/com/ai/ui/settings/SettingsPreferences.kt),
-loaded at :296–299, written at :411–414). The three exclusion lists
+[data/preferences/SettingsPreferences.kt:1144](../ai/src/main/java/com/ai/data/preferences/SettingsPreferences.kt),
+loaded at :316–319, written at :432–435). The three exclusion lists
 (`ai_blocked_models` / `ai_test_excluded_models` /
 `ai_inaccessible_models`) are each written `null` when empty (so the key
 disappears); `ai_model_type_overrides` is written unconditionally as a
