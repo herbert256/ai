@@ -395,6 +395,7 @@ class IconGenerationManager(
             withTracerTags(reportId = reportId, category = "report/icon") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 appViewModel.updateRunningInfoJobs { it + "$reportId|icon" }
+                try {
                 // Feed the long title (fall back to short title, then the
                 // prompt). Read fresh from storage so a standalone icon
                 // regen still picks up the previously-stored long title.
@@ -409,7 +410,6 @@ class IconGenerationManager(
                 // the configured chain doesn't (and vice versa).
                 val effIconPrompt = iconPrompt.withReportInfoWorkers(report)
                 if (effIconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
-                    appViewModel.updateRunningInfoJobs { it - "$reportId|icon" }
                     return@withTracerTags
                 }
                 val started = System.currentTimeMillis()
@@ -455,9 +455,15 @@ class IconGenerationManager(
                         else "icon-gen: no worker produced an icon"
                     )
                 }
-                appViewModel.updateRunningInfoJobs { it - "$reportId|icon" }
                 appViewModel.updateUiState {
                     it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                }
+                } finally {
+                    // Always clear the spinner key — an exception between the
+                    // add and the success-path remove used to strand the
+                    // Get-info card's ⏳ until app restart (the language flow
+                    // already wraps this in try/finally).
+                    appViewModel.updateRunningInfoJobs { it - "$reportId|icon" }
                 }
             }
         }
@@ -611,6 +617,7 @@ class IconGenerationManager(
         if (basShortPrompt == null && basLongPrompt == null) return
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
+            try {
             // Report-info card: a CUSTOM per-report worker group swaps in for
             // both title prompts' configured chains. Usability pre-flights
             // run on the EFFECTIVE prompts.
@@ -620,7 +627,6 @@ class IconGenerationManager(
             val shortUsable = shortPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
             val longUsable = longPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
             if (!shortUsable && !longUsable) {
-                appViewModel.updateRunningInfoJobs { it - "$reportId|title" }
                 return@launch
             }
             // Run both calls concurrently.
@@ -667,9 +673,13 @@ class IconGenerationManager(
                     } else st
                 }
             }
-            appViewModel.updateRunningInfoJobs { it - "$reportId|title" }
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+            } finally {
+                // Always clear the spinner key so an exception can't strand
+                // the Get-info title ⏳ until app restart (see kickOffIconGeneration).
+                appViewModel.updateRunningInfoJobs { it - "$reportId|title" }
             }
             // Icon is derived from the title's long form — run it after
             // the title attempt so @TITLE_LONG@ reflects the new title.
