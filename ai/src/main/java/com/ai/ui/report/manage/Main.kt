@@ -1690,7 +1690,7 @@ fun ReportsScreen(
                     altPromptEditorPassed = false
                     showAltTranslatePicker = false
                 },
-                onBack = { altTranslateTarget = null; showAltTranslatePicker = false; altPromptEditorPassed = false; translationModels = emptyList() }
+                onBack = { altTranslateTarget = null; showAltTranslatePicker = false; altPromptEditorPassed = false; translationModels = emptyList(); pickerTarget = PickerTarget.NEW_REPORT }
             )
         }
         return
@@ -1856,12 +1856,17 @@ fun ReportsScreen(
             selectedParametersIds = selectedParametersIds,
             advancedParameters = advancedParameters,
             onDismiss = onDismiss,
-            onAddFlock = { showSelectFlock = true },
-            onAddAgent = { showSelectAgent = true },
-            onAddSwarm = { showSelectSwarm = true },
-            onAddModel = { showSelectProvider = true },
-            onAddAllModels = { showSelectAllModels = true },
-            onAddFromReport = { showSelectFromReport = true },
+            // Defensively re-target the shared model sub-pickers at the
+            // New-Report list before opening them. A find-alt flow abandoned
+            // mid-pick can leave pickerTarget stranded (e.g. TRANSLATION),
+            // which is rememberSaveable and would otherwise route these picks
+            // into that flow's invisible list — the +Add buttons look dead.
+            onAddFlock = { pickerTarget = PickerTarget.NEW_REPORT; showSelectFlock = true },
+            onAddAgent = { pickerTarget = PickerTarget.NEW_REPORT; showSelectAgent = true },
+            onAddSwarm = { pickerTarget = PickerTarget.NEW_REPORT; showSelectSwarm = true },
+            onAddModel = { pickerTarget = PickerTarget.NEW_REPORT; showSelectProvider = true },
+            onAddAllModels = { pickerTarget = PickerTarget.NEW_REPORT; showSelectAllModels = true },
+            onAddFromReport = { pickerTarget = PickerTarget.NEW_REPORT; showSelectFromReport = true },
             onRemoveModel = { i -> models = models.filterIndexed { idx, _ -> idx != i } },
             onClearAllModels = { models = emptyList() },
             onAdvancedParams = { showAdvancedParameters = true },
