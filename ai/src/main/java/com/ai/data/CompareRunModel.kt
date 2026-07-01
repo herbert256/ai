@@ -177,11 +177,11 @@ fun parseSimilarityScore(content: String?): CompareScore? {
     return null
 }
 
-/** Pull the first 0..100 integer out of [raw] (tolerating a `%` suffix and a
- *  decimal point). Returns null when no number is present. Clamped to 0..100. */
+/** Pull a 0..100 percentage out of [raw], normalising an "N/M" reply to
+ *  N/M·100 (8/10 → 80) rather than reading the bare numerator, so a fraction
+ *  and a plain percentage aren't compared on different scales. Tolerates a `%`
+ *  suffix and a decimal. Returns null when no number is present. */
 private fun parsePercentNumber(raw: String?): Int? {
     val s = raw?.trim() ?: return null
-    val match = Regex("""\d+(?:\.\d+)?""").find(s) ?: return null
-    val v = match.value.toDoubleOrNull() ?: return null
-    return v.toInt().coerceIn(0, 100)
+    return scoreOnScale(s)
 }

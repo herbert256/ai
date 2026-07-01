@@ -4,6 +4,22 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 
+private val scoreFractionRegex = Regex("""(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)""")
+private val scoreNumberRegex = Regex("""\d+(?:\.\d+)?""")
+
+/** Extract a 0–100 score from a text fragment, normalising an "N/M" reply to
+ *  N/M·100 (8/10 → 80, 85/100 → 85) so scores on different scales aren't
+ *  averaged at face value (8 vs 80). A bare number is taken as-is (the prompt
+ *  asks for 0–100); the fraction form is the only unambiguous scale signal. */
+fun scoreOnScale(fragment: String): Int? {
+    scoreFractionRegex.find(fragment)?.let { mr ->
+        val num = mr.groupValues[1].toDoubleOrNull()
+        val den = mr.groupValues[2].toDoubleOrNull()
+        if (num != null && den != null && den > 0.0) return (num / den * 100.0).toInt().coerceIn(0, 100)
+    }
+    return scoreNumberRegex.find(fragment)?.value?.toDoubleOrNull()?.toInt()?.coerceIn(0, 100)
+}
+
 /**
  * Value types for the "Rank the translators" batch (SecondaryKind.TRANSRANK).
  *
@@ -156,17 +172,17 @@ fun parseScoreAndReason(content: String?): Pair<Int?, String?>? {
     }
     val lines = cleaned.lines().map { it.trim() }.filter { it.isNotEmpty() }
     if (lines.isEmpty()) return null
-    val numRegex = Regex("""\d+(?:\.\d+)?""")
     val firstLine = lines[0].substringAfter(":", lines[0])
     // Take the score from the first line, or from an explicitly "score"-labelled
     // line — NEVER from an arbitrary number elsewhere in the reply. Scanning the
     // whole body would read a reason like "2 strong points" as the score. See
-    // audit bug 9.
-    val scoreText = numRegex.find(firstLine)?.value
+    // audit bug 9. scoreOnScale normalises an "N/M" reply (8/10 → 80, 85/100 →
+    // 85) instead of grabbing the bare numerator 8 and comparing it against
+    // another judge's 80 as-is.
+    val score = scoreOnScale(firstLine)
         ?: lines.firstOrNull { it.contains("score", ignoreCase = true) }
             ?.substringAfter(":", "")
-            ?.let { numRegex.find(it)?.value }
-    val score = scoreText?.toDoubleOrNull()?.toInt()?.coerceIn(0, 100)
+            ?.let { scoreOnScale(it) }
     val reason = lines.getOrNull(1)?.let { it.substringAfter(":", it) }?.trim()?.takeIf { it.isNotBlank() }
         ?: lines.drop(1).joinToString(" ").takeIf { it.isNotBlank() }
     if (score == null && reason == null) return null
