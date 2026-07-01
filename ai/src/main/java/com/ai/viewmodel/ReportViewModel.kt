@@ -2708,23 +2708,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
 
-            val task = if (agentId.startsWith("swarm:")) {
-                val runtimeAgent = Agent(agentId, ra.agentName, provider, ra.model, aiSettings.getApiKey(provider))
-                ReportTask(agentId, ra, runtimeAgent, AgentParameters())
-            } else {
-                val savedAgent = aiSettings.getAgentById(agentId)
-                if (savedAgent != null) {
-                    val ea = savedAgent.copy(
-                        apiKey = aiSettings.getEffectiveApiKeyForAgent(savedAgent),
-                        model = aiSettings.getEffectiveModelForAgent(savedAgent)
-                    )
-                    val params = aiSettings.resolveAgentParameters(savedAgent)
-                    ReportTask(agentId, ra, ea, params)
-                } else {
-                    val runtimeAgent = Agent(agentId, ra.agentName, provider, ra.model, aiSettings.getApiKey(provider))
-                    ReportTask(agentId, ra, runtimeAgent, AgentParameters())
-                }
-            }
+            // Rebuild the task through the same captured-config path the
+            // four sweep/replay flows use (report-level system prompt,
+            // per-model selection params, preset/advanced fallbacks) —
+            // NOT the live Settings defaults. The previous inline rebuild
+            // dispatched swarm/direct rows with bare AgentParameters()
+            // and saved agents without the report's system prompt, so
+            // "Call model API again" and Broken-work restarts silently
+            // answered under a different config than their siblings.
+            val task = buildTemperatureSweepTask(report, state, ra) ?: return@withTracerTags
 
             // Drop the old result so the report row reverts to ⏳ until
             // executeReportTask publishes the new one.
@@ -2760,7 +2752,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val canReason = aiSettings.acceptsReasoningEffortParam(provider, effectiveModel)
             val canWeb = aiSettings.isWebSearchCapable(provider, effectiveModel)
             val canVision = aiSettings.isVisionCapable(provider, effectiveModel)
-            val baseOverride = state.reportAdvancedParameters
+            // The report's CAPTURED preset/advanced params — reading the
+            // live state.reportAdvancedParameters here meant the override
+            // was null after reopening a report (dismiss clears it), or
+            // worse, another report's pre-gen tweak. Web/reasoning are
+            // folded in below through the capability gates.
+            val baseOverride = resolveReportOverrideParams(
+                aiSettings, report.parameterPresetIds, report.advancedParameters,
+                webSearchTool = false, reasoningEffort = null
+            )
             // The "off" branches must always materialise an override so
             // the dispatcher receives an explicit webSearchTool=false /
             // reasoningEffort=null and won't fall back to the agent's
