@@ -359,7 +359,7 @@ class FanOutEngine internal constructor(
     /** Per-pair language context for a single-language fan-out run.
      *  [bodies] maps a source agentId → its translated response; a
      *  missing entry falls back to the original body for that pair. */
-    private data class LangCtx(val native: String?, val prompt: String, val bodies: Map<String, String>)
+    private data class LangCtx(val native: String?, val prompt: String, val title: String, val bodies: Map<String, String>)
 
     /** Build the translation context for [lang] once per run, lifting
      *  the TRANSLATE rows so each pair doesn't re-scan disk. Null when
@@ -376,10 +376,17 @@ class FanOutEngine internal constructor(
         val translatedPrompt = translates.firstOrNull {
             it.translateSourceKind == "PROMPT" && it.translateSourceTargetId == "prompt"
         }?.content ?: report.prompt
+        // Translated title so @TITLE@ matches the translated @QUESTION@ —
+        // feeding an original-language title next to translated body text made
+        // the model mirror the wrong language (the meta/fan-in paths already
+        // use the translated title).
+        val translatedTitle = translates.firstOrNull {
+            it.translateSourceKind == "TITLE" && it.translateSourceTargetId == "title"
+        }?.content ?: report.title
         val bodies = translates
             .filter { it.translateSourceKind == "AGENT" && !it.translateSourceTargetId.isNullOrBlank() }
             .associate { it.translateSourceTargetId!! to (it.content ?: "") }
-        return LangCtx(native, translatedPrompt, bodies)
+        return LangCtx(native, translatedPrompt, translatedTitle, bodies)
     }
 
     private fun updateTemperatureSweepState(key: String, transform: (TemperatureSweepState) -> TemperatureSweepState) {
@@ -514,7 +521,7 @@ class FanOutEngine internal constructor(
             question = question,
             results = "",
             count = resolveFanOutSourceCount(context, report, row),
-            title = report.title
+            title = langCtx?.title ?: report.title
         )
         val resolvedPrompt = resolvedBase.replace("@RESPONSE@", sourceBody)
         val agent = Agent(
@@ -1209,7 +1216,7 @@ class FanOutEngine internal constructor(
                             item.answerer.provider, item.answerer.model,
                             metaPrompt, report, aiSettings,
                             sourceCount = sources.size,
-                            question = question, sourceBody = body,
+                            question = question, title = langCtx?.title ?: report.title, sourceBody = body,
                             targetLanguage = sourceLanguage,
                             targetLanguageNative = langCtx?.native,
                             paramsIds = paramsIds, systemPromptId = systemPromptId,
@@ -1376,6 +1383,7 @@ class FanOutEngine internal constructor(
         aiSettings: Settings,
         sourceCount: Int,
         question: String,
+        title: String,
         sourceBody: String,
         targetLanguage: String?,
         targetLanguageNative: String?,
@@ -1405,7 +1413,7 @@ class FanOutEngine internal constructor(
                             question = question,
                             results = "",
                             count = sourceCount,
-                            title = report.title
+                            title = title
                         )
                         val resolved = resolvedBase.replace("@RESPONSE@", sourceBody)
                         // Per-pair wall-clock ceiling (the user-tunable
@@ -1836,7 +1844,7 @@ class FanOutEngine internal constructor(
                     context, runKey, r.pair.id, r.pair.answererAgentId, r.pair.sourceAgentId,
                     r.pair.providerId, r.pair.model, run.metaPrompt, report, aiSettings,
                     sourceCount = sourceCount,
-                    question = question, sourceBody = r.body,
+                    question = question, title = langCtx?.title ?: report.title, sourceBody = r.body,
                     targetLanguage = run.sourceLanguage,
                     targetLanguageNative = langCtx?.native,
                     paramsIds = r.cleared.secondaryParameterPresetIds.orEmpty(),
