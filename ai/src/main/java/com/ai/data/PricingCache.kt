@@ -19,7 +19,8 @@ import kotlinx.coroutines.withContext
  * provider self-report (OpenRouter/Together for their own calls) > manual
  * OVERRIDE > curated bulk tiers (LiteLLM, models.dev, llm-prices,
  * Artificial Analysis, llm-stats) > OpenRouter cross-provider fallback >
- * Requesty cross-provider router > Helicone > DEFAULT.
+ * Requesty cross-provider router > genai-prices > TrueFoundry > Helicone >
+ * DEFAULT.
  *
  * Manual overrides intentionally beat curated tiers so a user can correct a
  * stale catalog price without waiting for the upstream source to refresh.
@@ -257,13 +258,13 @@ object PricingCache {
 
     /** Drop manual cost overrides that are dormant or redundant. An entry
      *  is removed when any of these holds:
-     *   1. LiteLLM has a price for the model — override sits behind LiteLLM
-     *      in the lookup, so the manual entry is never read.
-     *   2. OpenRouter has a price — for OpenRouter-the-provider OPENROUTER
-     *      is consulted first; for other providers the user is opting to
-     *      trust OpenRouter pricing over the manual entry.
-     *   3. The override prices equal the DEFAULT_PRICING fallback.
-     *   4. The override prices equal what getPricingWithoutOverride would
+     *   1. Any curated catalog tier has a price for the model — LiteLLM,
+     *      models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats,
+     *      OpenRouter, Requesty, genai-prices, or TrueFoundry. The override
+     *      sits behind every one of these in the lookup, so it's never read
+     *      while any of them covers the model.
+     *   2. The override prices equal the DEFAULT_PRICING fallback.
+     *   3. The override prices equal what getPricingWithoutOverride would
      *      have returned anyway.
      *  Returns the number of entries removed. */
     fun cleanupRedundantManualOverrides(context: Context): Int = synchronized(lock) {
@@ -437,7 +438,8 @@ object PricingCache {
     }
 
     /**
-     * Get pricing for a model using five-tier lookup.
+     * Get pricing for a model using the layered lookup documented on the
+     * class KDoc above.
      *
      * If preload hasn't finished (caches still null) and this was called from the main thread,
      * avoid the synchronous 1.2MB parse by returning DEFAULT_PRICING — the UI will refresh
@@ -2348,7 +2350,7 @@ object PricingCache {
 
     /** Drop ONE Info-provider pricing tier (by its [CatalogStat.name]) —
      *  blob file(s), timestamp, and in-memory state — leaving the other
-     *  five tiers intact. Per-source sibling of [clearInfoProviderTiers],
+     *  ten tiers intact. Per-source sibling of [clearInfoProviderTiers],
      *  wired to the Caches → Pricing tiers screen's 🗑. */
     fun deleteTier(context: Context, source: String) = synchronized(lock) {
         val blobKeys: List<String> = when (source) {
@@ -2399,8 +2401,9 @@ object PricingCache {
         }
     }
 
-    /** Wipe the six Info-provider catalog tiers (OpenRouter, LiteLLM,
-     *  models.dev, Helicone, llm-prices, Artificial Analysis) plus the
+    /** Wipe the eleven Info-provider catalog tiers (OpenRouter, LiteLLM,
+     *  models.dev, Helicone, llm-prices, Artificial Analysis, Requesty,
+     *  llm-stats, genai-prices, TrueFoundry, CloudPrice) plus the
      *  OpenRouter model-specs cache. Manual cost overrides and the
      *  Together-native pricing (harvested from Together's /v1/models
      *  response) are preserved — neither comes from an Info provider. */
@@ -2455,7 +2458,7 @@ object PricingCache {
         litellmPricingLookupCache.clear()
         supportedParametersCache = null
         // preloadCompleted intentionally kept true — manual + together
-        // tiers are still loaded; only the six Info-provider tiers were
+        // tiers are still loaded; only the eleven Info-provider tiers were
         // dropped, and they'll lazily repopulate on the next refresh.
     }
 
