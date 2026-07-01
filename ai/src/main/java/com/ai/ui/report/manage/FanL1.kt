@@ -390,7 +390,7 @@ internal fun FanOutL1Screen(
         ReloadConfirmationDialog(
             target = "",
             title = "Rerun the complete Fan out?",
-            message = "Delete every fan-out row and start a fresh run. Combined-report follow-ups for this prompt will also be dropped.",
+            message = "Delete every fan-out row and start a fresh run. Combined-report (fan-in) rows for this prompt are kept and re-attached.",
             confirmLabel = "Rerun",
             onConfirm = {
                 confirmRerunComplete = false
