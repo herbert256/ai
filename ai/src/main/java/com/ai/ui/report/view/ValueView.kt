@@ -196,17 +196,25 @@ internal fun buildValuePoints(
     }
     if (raw.isEmpty()) return emptyList()
     val eps = 1e-6
+    // Only PRICED points can dominate: an unknown-cost point plots at a
+    // PLACEHOLDER cost of 0, so letting it act as a dominator let it (falsely)
+    // beat every priced model of lower-or-equal quality — dimming genuinely
+    // non-dominated priced points and stealing / erasing the 💎. costKnown
+    // gates candidacy AND the dominator set (both here and the plot flag).
+    val dominators = raw.filter { it.costKnown }
+    fun isDominated(p: Raw) = dominators.any { o ->
+        o.agentId != p.agentId && o.quality >= p.quality && o.costCents <= p.costCents &&
+            (o.quality > p.quality || o.costCents < p.costCents)
+    }
     // Best value = quality-per-cost; an UNKNOWN-cost model would score
-    // quality/eps ≈ ∞ and steal the badge, so only priced models (costKnown)
-    // are eligible. Unknown-cost points still plot (at cost 0).
+    // quality/eps ≈ ∞ and steal the badge, so only priced models are eligible.
     val bestId = raw
         .filter { it.costKnown }
-        .filterNot { p -> raw.any { o -> o.agentId != p.agentId && o.quality >= p.quality && o.costCents <= p.costCents && (o.quality > p.quality || o.costCents < p.costCents) } }
+        .filterNot { isDominated(it) }
         .maxByOrNull { it.quality / maxOf(it.costCents, eps) }
         ?.agentId
     return raw.map { p ->
-        val dominated = raw.any { o -> o.agentId != p.agentId && o.quality >= p.quality && o.costCents <= p.costCents && (o.quality > p.quality || o.costCents < p.costCents) }
-        ValuePoint(p.provider, p.modelShort, p.costCents, p.quality, dominated, p.agentId == bestId)
+        ValuePoint(p.provider, p.modelShort, p.costCents, p.quality, isDominated(p), p.agentId == bestId)
     }
 }
 
