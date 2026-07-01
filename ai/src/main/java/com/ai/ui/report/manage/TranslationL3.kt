@@ -325,21 +325,28 @@ internal fun TranslationL3Screen(
     }
 
     if (confirmDelete) {
-        val isPersisted = item.persistedRowId != null
+        // Branch on whether the RUN is live, not on persistedRowId (every
+        // live item has one now). During a live run, onDeleteSecondaryRow
+        // deletes the disk row but never touches TranslationRunManager._runs,
+        // so the row stayed listed (a "dead delete") until the run finished.
+        // Route a live-run delete through onCancelItem, which cancels the
+        // call, deletes the row and drops it from _runs immediately.
+        val runLive = !run.isFinished && !run.cancelled
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text(if (isPersisted) "Delete this translation?" else "Remove this translation?") },
+            title = { Text(if (runLive) "Remove this translation?" else "Delete this translation?") },
             text = {
                 Text(
-                    if (isPersisted) "Drops this single translation row from the report. Can't be undone."
-                    else "Drops this single call from the run. The translated row won't be saved. Other calls in the run continue."
+                    if (runLive) "Drops this single call from the run. Other calls in the run continue."
+                    else "Drops this single translation row from the report. Can't be undone."
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
                     val rowId = item.persistedRowId
-                    if (rowId != null) actions.onDeleteSecondaryRow(reportId, rowId)
+                    if (runLive) actions.onCancelItem(runId, item.id)
+                    else if (rowId != null) actions.onDeleteSecondaryRow(reportId, rowId)
                     else actions.onCancelItem(runId, item.id)
                     onBack()
                 }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
