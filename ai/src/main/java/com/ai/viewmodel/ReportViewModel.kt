@@ -1826,7 +1826,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context, prompt: String, title: String, swarmId: String,
         onReportCreated: ((String) -> Unit)? = null,
     ) {
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val swarmMembers = aiSettings.getMembersForSwarms(setOf(swarmId))
@@ -1845,6 +1845,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 config = CreateReportConfig(reportType = ReportType.CLASSIC, runId = runId)
             )
             val reportId = report.id
+            // Register the job under the freshly-minted reportId so this live
+            // background run counts as generating: the Broken-work scan then
+            // stops flagging its in-flight agents as interrupted, and
+            // deleteReport cancels it instead of letting its billed calls run
+            // on against a deleted report. Registered here (not at launch)
+            // because the reportId doesn't exist until createReportAsync.
+            trackRegenerateJob(reportId, coroutineContext[Job]!!)
             onReportCreated?.invoke(reportId)
             val startMs = System.currentTimeMillis()
             withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
