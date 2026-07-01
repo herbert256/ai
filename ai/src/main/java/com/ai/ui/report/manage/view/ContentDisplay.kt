@@ -674,8 +674,14 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         .mapValues { (_, list) ->
             list.sumOf { it.inputCost } * 100 to list.sumOf { it.outputCost } * 100
         }
+    // Only alt records whose spend was bumped onto the SR's inputCost/
+    // outputCost (alt/meta, alt/translation via bumpResultInputOutputCost)
+    // belong in this response-row subtraction. Pair-title alts
+    // (alt/model_title) bump titleInputCost via bumpFanOutTitleCost, so
+    // subtracting them from the response row under-reported it while the
+    // fan/meta row kept the alt-inflated title cost — the alt showed twice.
     val altBySecondary: Map<String, Pair<Double, Double>> = report.iconCalls
-        .filter { !it.attributedToSecondaryId.isNullOrBlank() }
+        .filter { !it.attributedToSecondaryId.isNullOrBlank() && it.type != "alt/model_title" }
         .groupBy { it.attributedToSecondaryId!! }
         .mapValues { (_, list) ->
             list.sumOf { it.inputCost } * 100 to list.sumOf { it.outputCost } * 100
@@ -696,7 +702,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         .groupBy { it.type!! }
         .mapValues { (_, list) -> list.sumOf { it.inputTokens } to list.sumOf { it.outputTokens } }
     val altTokensBySecondary: Map<String, Pair<Int, Int>> = report.iconCalls
-        .filter { !it.attributedToSecondaryId.isNullOrBlank() }
+        .filter { !it.attributedToSecondaryId.isNullOrBlank() && it.type != "alt/model_title" }
         .groupBy { it.attributedToSecondaryId!! }
         .mapValues { (_, list) -> list.sumOf { it.inputTokens } to list.sumOf { it.outputTokens } }
     val mainAltInTokens = altTokensByType["alt/main"]?.first ?: 0
