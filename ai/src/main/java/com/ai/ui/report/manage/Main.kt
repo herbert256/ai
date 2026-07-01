@@ -934,6 +934,7 @@ fun ReportsScreen(
     // the picker block further down and Continue looks dead.
     if (scopeMetaPrompt != null && currentReportId != null
         && fanOutConfirmMetaPrompt == null
+        && fanOutDirectRunPrompt == null
         && metaRunScreenPrompt == null
         && secondaryPickerMetaPrompt == null
         && !showRerankPicker
