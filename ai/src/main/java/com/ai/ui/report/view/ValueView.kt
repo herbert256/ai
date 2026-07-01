@@ -297,7 +297,27 @@ internal fun buildCombinedRows(
         }
     }
     if (rankings.isEmpty()) return emptyList()
-    val normed = rankings.map { (w, scores) ->
+    // Drop no-information rankings (every model tied). They carry zero
+    // discriminating signal, so including them (mapped to 0.5 for every
+    // participant) only pulled everyone toward the midpoint and — because a
+    // participant got a diluting 0.5-weight contribution while an ABSENT model
+    // got none — created an asymmetry where absence scored above
+    // participation. Excluding them leaves relative order among full
+    // participants unchanged and removes that amplifier.
+    //
+    // NOTE: the remaining renormalisation (each model averaged over the
+    // rankings it appears in) is the deliberate, documented missing-data
+    // approach — a model that skipped a ranking (e.g. didn't translate) is
+    // NOT penalised as if it scored 0 there, which would wrongly tank it. The
+    // residual property that "absent from a discriminating ranking" isn't
+    // strictly worse than "last in it" is inherent to averaging-over-available
+    // and is kept on purpose; the alternatives (zero-impute / drop partial
+    // rankings) break the common partial-participation case worse.
+    val informative = rankings.filter { (_, scores) ->
+        (scores.values.maxOrNull() ?: 0.0) > (scores.values.minOrNull() ?: 0.0)
+    }
+    if (informative.isEmpty()) return emptyList()
+    val normed = informative.map { (w, scores) ->
         val mn = scores.values.minOrNull() ?: 0.0; val mx = scores.values.maxOrNull() ?: 0.0
         w to scores.mapValues { (_, v) -> if (mx > mn) (v - mn) / (mx - mn) else 0.5 }
     }
