@@ -844,7 +844,11 @@ object ReportStorage {
             if (idx < 0) return@withLock false
             val updated = report.agents[idx].copy(
                 modelTitle = title, modelTitleErrorMessage = null,
-                modelTitleModel = model, modelTitlePromptUsed = "model_title_alt"
+                modelTitleModel = model, modelTitlePromptUsed = "model_title_alt",
+                // Alt candidates carry no per-candidate trace — clear the
+                // prior one so 🐞 doesn't deep-link the superseded call
+                // (same fix as 78827af09 for the report-level titles).
+                modelTitleTraceFile = null
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
             saveReport(report.copy(agents = newAgents, timestamp = System.currentTimeMillis()))
@@ -1261,6 +1265,12 @@ object ReportStorage {
                 languageIconModel = iconModel,
                 languageIconErrorMessage = null,
                 languageIconPromptUsed = promptUsed ?: report.languageIconPromptUsed,
+                // Alt candidates carry no trace of their own — clear the prior
+                // trace + raw response so 🐞 doesn't deep-link the superseded
+                // call and the transcript doesn't mix old response with the
+                // alt prompt (same fix as 78827af09 for report icon/title).
+                languageIconTraceFile = null,
+                languageIconRawResponse = null,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -1430,7 +1440,11 @@ object ReportStorage {
                 // to a "manual pick" branch instead of mis-attributing
                 // to one of the 3 chain tiers.
                 iconWinningTier = null,
-                iconPromptUsed = promptUsed ?: prev.iconPromptUsed
+                iconPromptUsed = promptUsed ?: prev.iconPromptUsed,
+                // Alt candidates carry no per-candidate trace — clear the
+                // prior one so 🐞 doesn't deep-link the superseded call
+                // (same fix as 78827af09 for the report-level icon).
+                iconTraceFile = null
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
             saveReport(report.copy(
