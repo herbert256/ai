@@ -391,6 +391,13 @@ internal fun readReportZip(
         agents = remappedAgents,
         userNotes = remappedNotes,
         iconCalls = remappedIconCalls,
+        // The per-call cost ledger rows carry 🐞 traceFile pointers too —
+        // verbatim copies referenced filenames that were never created here
+        // (imported traces are re-minted under fresh names), or on a
+        // same-install re-import the ORIGINAL report's traces, which die
+        // with it. Remap like every other trace pointer; a blank 🐞 beats a
+        // dead link.
+        apiCallCosts = parsedReport.apiCallCosts.map { it.copy(traceFile = remapTrace(it.traceFile)) }.toMutableList(),
         iconTraceFile = remapTrace(parsedReport.iconTraceFile),
         titleTraceFile = remapTrace(parsedReport.titleTraceFile),
         titleLongTraceFile = remapTrace(parsedReport.titleLongTraceFile),
