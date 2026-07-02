@@ -1399,9 +1399,9 @@ class IconGenerationManager(
                                 resolved, response.analysis.orEmpty()
                             )
                             val callCost = inC + outC
-                            val emoji = if (response.error == null) {
-                                extractFirstEmoji(response.analysis) ?: MetadataIconsHolder.current.meta
-                            } else null
+                            // No parsed emoji → Error candidate, not a pickable
+                            // default glyph (same fix as the report-icon flow).
+                            val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
                             appViewModel.updateInternalPromptIconFanOut(key) { list ->
                                 list.map { c ->
                                     if (c.provider.id == item.provider.id && c.model == item.model) {
@@ -1618,8 +1618,11 @@ class IconGenerationManager(
                                         ))
                                     }
                                     val totalCost = inC + outC
-                                    if (response.error == null) {
-                                        val emoji = extractFirstEmoji(response.analysis) ?: MetadataIconsHolder.current.fanOutRow
+                                    // No parsed emoji → Error candidate, not a
+                                    // pickable default glyph (same fix as the
+                                    // report-icon flow).
+                                    val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
+                                    if (emoji != null) {
                                         appViewModel.updatePairIconFanOut(pairId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
@@ -1631,7 +1634,7 @@ class IconGenerationManager(
                                         appViewModel.updatePairIconFanOut(pairId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
-                                                    IconCandidate.Error(item.provider, item.model, response.error, totalCost)
+                                                    IconCandidate.Error(item.provider, item.model, response.error ?: "no emoji extracted", totalCost)
                                                 else c
                                             }
                                         }
@@ -2024,9 +2027,9 @@ class IconGenerationManager(
                                 resolved, response.analysis.orEmpty()
                             )
                             val callCost = inC + outC
-                            val emoji = if (response.error == null) {
-                                extractFirstEmoji(response.analysis) ?: MetadataIconsHolder.current.translationRow
-                            } else null
+                            // No parsed emoji → Error candidate, not a pickable
+                            // default glyph (same fix as the report-icon flow).
+                            val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
                             appViewModel.updateInternalPromptIconFanOut(key) { list ->
                                 list.map { c ->
                                     if (c.provider.id == item.provider.id && c.model == item.model) {
@@ -2659,8 +2662,11 @@ class IconGenerationManager(
                                         }
                                     }
                                     val totalCost = inC + outC
-                                    if (response.error == null) {
-                                        val emoji = extractFirstEmoji(response.analysis) ?: MetadataIconsHolder.current.reportModelIcon
+                                    // No parsed emoji → Error candidate, not a
+                                    // pickable default glyph (same fix as the
+                                    // report-icon flow).
+                                    val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
+                                    if (emoji != null) {
                                         appViewModel.updateAgentIconFanOut(agentId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
@@ -2672,7 +2678,7 @@ class IconGenerationManager(
                                         appViewModel.updateAgentIconFanOut(agentId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
-                                                    IconCandidate.Error(item.provider, item.model, response.error, totalCost)
+                                                    IconCandidate.Error(item.provider, item.model, response.error ?: "no emoji extracted", totalCost)
                                                 else c
                                             }
                                         }
