@@ -67,8 +67,15 @@ import kotlinx.coroutines.withContext
 private data class H2HSide(val winner: String?, val reason: String?, val error: String?, val trace: String?, val judge: String?)
 
 /** One head-to-head pair carrying BOTH orientations: [ab] = A-vs-B
- *  (orientation 0), [ba] = B-vs-A (orientation 1). */
-private data class MatchRow(val labelA: String, val labelB: String, val ab: H2HSide, val ba: H2HSide)
+ *  (orientation 0), [ba] = B-vs-A (orientation 1). [agentA]/[agentB] are
+ *  the pair's report-agent ids — the ONLY valid match/filter keys; the
+ *  labels are shortModelName2 display strings that collapse two snapshots
+ *  of one model (or one model via two providers) into the same text. */
+private data class MatchRow(
+    val agentA: String?, val agentB: String?,
+    val labelA: String, val labelB: String,
+    val ab: H2HSide, val ba: H2HSide
+)
 
 @Composable
 fun TournamentViewScreen(
@@ -83,6 +90,9 @@ fun TournamentViewScreen(
     data class Loaded(
         val row: SecondaryResult?,
         val agentLabels: Map<Int, String>,
+        /** Rank id → report-agent id, same numbering as [agentLabels] —
+         *  the drill-in key (labels are display-only). */
+        val rankAgentIds: Map<Int, String>,
         val matches: List<MatchRow>,
         val doneMatches: Int,
         val totalMatches: Int,
@@ -91,7 +101,7 @@ fun TournamentViewScreen(
 
     val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId, SecondaryKind.TOURNAMENT).collectAsState()
     val state = produceState(
-        initialValue = Loaded(null, emptyMap(), emptyList(), 0, 0, null),
+        initialValue = Loaded(null, emptyMap(), emptyMap(), emptyList(), 0, 0, null),
         reportId, resultId, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
@@ -111,9 +121,13 @@ fun TournamentViewScreen(
                 .flatMap { listOf(it.matchResponseAId, it.matchResponseBId) }
                 .filterNotNull()
                 .toHashSet()
-            val labels = (report?.agents ?: emptyList())
+            val participants = (report?.agents ?: emptyList())
                 .filter { it.agentId in participantIds }
+            val labels = participants
                 .mapIndexed { i, a -> (i + 1) to shortModelName2(a.model) }
+                .toMap()
+            val rankAgentIds = participants
+                .mapIndexed { i, a -> (i + 1) to a.agentId }
                 .toMap()
             // Labels for every agent (not just SUCCESS) so a participant that
             // dipped out of SUCCESS still names its model in the match cards.
@@ -146,6 +160,8 @@ fun TournamentViewScreen(
                     return H2HSide(winner, parsed?.reason, r?.errorMessage, r?.traceFile, judge)
                 }
                 MatchRow(
+                    agentA = agA,
+                    agentB = canonical.matchResponseBId,
                     labelA = agentIdToLabel[agA] ?: "?",
                     labelB = agentIdToLabel[canonical.matchResponseBId] ?: "?",
                     ab = sideFrom(rows.firstOrNull { (it.matchOrientation ?: 0) == 0 }),
@@ -153,7 +169,7 @@ fun TournamentViewScreen(
                 )
             }
             val done = matchRows.count { !it.content.isNullOrBlank() || it.durationMs != null }
-            Loaded(row, labels, display, done, matchRows.size, report?.barTitle)
+            Loaded(row, labels, rankAgentIds, display, done, matchRows.size, report?.barTitle)
         }
     }
     val loaded = state.value
@@ -161,13 +177,21 @@ fun TournamentViewScreen(
     val currentMethod = decodeTournamentMatrix(row?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
 
     // Drill-in: tap a ranking row → that model's head-to-heads (own screen).
-    var h2hModel by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    val h2hTarget = h2hModel
+    // Keyed by AGENT ID, not display label — shortModelName2 collapses two
+    // snapshots of one model (or one model on two providers) to the same
+    // string, which merged their match lists and mis-attributed the winner
+    // of matches the collapsed pair played against each other.
+    var h2hAgent by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<Pair<String, String>?>(null)  // (agentId, display label)
+    }
+    val h2hTarget = h2hAgent
     if (h2hTarget != null) {
+        val (h2hId, h2hLabel) = h2hTarget
         ModelHeadToHeadsScreen(
-            model = h2hTarget,
-            matches = loaded.matches.filter { it.labelA == h2hTarget || it.labelB == h2hTarget },
-            onBack = { h2hModel = null }
+            agentId = h2hId,
+            model = h2hLabel,
+            matches = loaded.matches.filter { it.agentA == h2hId || it.agentB == h2hId },
+            onBack = { h2hAgent = null }
         )
         return
     }
@@ -218,7 +242,11 @@ fun TournamentViewScreen(
                     currentMethod == TournamentMethod.MARKOV) 1 else null
                 RerankTable(
                     rankRows, loaded.agentLabels,
-                    onRowClick = { r -> h2hModel = loaded.agentLabels[r.id] },
+                    onRowClick = { r ->
+                        loaded.rankAgentIds[r.id]?.let { id ->
+                            h2hAgent = id to (loaded.agentLabels[r.id] ?: "?")
+                        }
+                    },
                     showReason = false,
                     scoreDecimals = scoreDecimals
                 )
@@ -248,22 +276,25 @@ private fun MethodChip(label: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** The active [model]'s result for one orientation [side]: won / lost /
- *  draw / error / pending — always from the active model's viewpoint
- *  (winner is normalised to labelA="A" / labelB="B"). */
-private fun resultFor(model: String, side: H2HSide, labelA: String, labelB: String): String = when {
+/** The active agent's result for one orientation [side]: won / lost /
+ *  draw / error / pending — always from the active agent's viewpoint
+ *  (winner is normalised to labelA="A" / labelB="B"). [activeIsA] keys
+ *  on the AGENT ID, never the label: a match between two agents whose
+ *  labels collapse to the same string used to report "won" for both. */
+private fun resultFor(activeIsA: Boolean, side: H2HSide): String = when {
     side.error != null -> "error"
     side.winner == null -> "pending"
     side.winner == "tie" -> "draw"
-    (side.winner == "A" && model == labelA) || (side.winner == "B" && model == labelB) -> "won"
+    (side.winner == "A") == activeIsA -> "won"
     else -> "lost"
 }
 
-/** Drill-in opened from a ranking row: every head-to-head [model] played.
- *  A top A<>B / B<>A switch picks which orientation each card shows (its
- *  reason + single 🐞 trace); won/drawn/lost stays from [model]'s viewpoint. */
+/** Drill-in opened from a ranking row: every head-to-head [agentId]
+ *  played ([model] is its display label). A top A<>B / B<>A switch picks
+ *  which orientation each card shows (its reason + single 🐞 trace);
+ *  won/drawn/lost stays from the active agent's viewpoint. */
 @Composable
-private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBack: () -> Unit) {
+private fun ModelHeadToHeadsScreen(agentId: String, model: String, matches: List<MatchRow>, onBack: () -> Unit) {
     BackHandler { onBack() }
     var showBA by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     Column(
@@ -282,9 +313,10 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
         }
         val orientationLabel = if (showBA) "BA" else "AB"
         fun sideOf(m: MatchRow) = if (showBA) m.ba else m.ab
-        val won = matches.count { resultFor(model, sideOf(it), it.labelA, it.labelB) == "won" }
-        val lost = matches.count { resultFor(model, sideOf(it), it.labelA, it.labelB) == "lost" }
-        val drew = matches.count { resultFor(model, sideOf(it), it.labelA, it.labelB) == "draw" }
+        fun activeIsA(m: MatchRow) = m.agentA == agentId
+        val won = matches.count { resultFor(activeIsA(it), sideOf(it)) == "won" }
+        val lost = matches.count { resultFor(activeIsA(it), sideOf(it)) == "lost" }
+        val drew = matches.count { resultFor(activeIsA(it), sideOf(it)) == "draw" }
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -306,9 +338,9 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
                 color = AppColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
             )
             matches.forEach { m ->
-                val opponent = if (m.labelA == model) m.labelB else m.labelA
+                val opponent = if (activeIsA(m)) m.labelB else m.labelA
                 val side = sideOf(m)
-                HeadToHeadRow(opponent, resultFor(model, side, m.labelA, m.labelB), side.reason, side.error, side.trace, side.judge, orientationLabel)
+                HeadToHeadRow(opponent, resultFor(activeIsA(m), side), side.reason, side.error, side.trace, side.judge, orientationLabel)
             }
             Spacer(Modifier.height(16.dp))
         }
