@@ -1598,7 +1598,13 @@ class TranslationRunManager(
             val merged = if (cur != null) {
                 val newIds = items.mapNotNull { it.persistedRowId }.toSet()
                 val keptOld = cur.items.filterValues { it.persistedRowId !in newIds }
-                cur.copy(items = keptOld + items.associateBy { it.id }, finished = false)
+                // cancelled = false: a restart of a cancelled run is new live
+                // work. Copying the flag through left the run permanently
+                // !finished && cancelled — invisible to the in-progress list
+                // and the reconcile sweep (both filter !cancelled), progress
+                // bars hidden, and the run screen serving the in-memory
+                // state as 'live' forever after the rerun completed.
+                cur.copy(items = keptOld + items.associateBy { it.id }, finished = false, cancelled = false)
             } else TranslationRunState(
                 runId = runId,
                 sourceReportId = sourceReportId,
