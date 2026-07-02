@@ -141,7 +141,12 @@ class CompareEngine internal constructor(
             // since it ran: fall back to a synthetic prompt from the row metadata
             // (blank text) so the cells hydrate read-only. Rerun/resume no-op on a
             // synthetic (blank-text) prompt. See audit bug 15.
-            val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
+            // Preserve a live run's effective prompt (run-only
+            // overridePromptText) across a mid-run hydrate — same fix as
+            // TranslatorRank; rebuilding from settings alone dropped the
+            // edit and re-queued cells were scored with a different rubric.
+            val prompt = _runs.value[reportId]?.takeIf { it.runId == runId }?.comparePrompt
+                ?: aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
                 ?: comparePromptById(aiSettings, null)
                 ?: InternalPrompt(
                     id = group.first().metaPromptId ?: "",

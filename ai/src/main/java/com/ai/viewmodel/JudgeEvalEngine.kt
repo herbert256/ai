@@ -168,7 +168,12 @@ class JudgeEvalEngine internal constructor(
             // it ran: fall back to a synthetic prompt from the row metadata (blank
             // text) so cells hydrate read-only. Add-judge / resume no-op on a
             // synthetic (blank-text) prompt. See audit bug 17.
-            val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
+            // Preserve a live run's effective prompt (run-only
+            // overridePromptText) across a mid-run hydrate — same fix as
+            // TranslatorRank; rebuilding from settings alone dropped the
+            // edit and re-queued cells were judged with a different rubric.
+            val prompt = _runs.value[reportId]?.takeIf { it.runId == runId }?.prompt
+                ?: aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
                 ?: judgePrompt(aiSettings)
                 ?: InternalPrompt(
                     id = group.first().metaPromptId ?: "",

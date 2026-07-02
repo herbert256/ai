@@ -138,7 +138,13 @@ class TournamentEngine internal constructor(
             // since it ran: fall back to a synthetic prompt from the row metadata
             // (blank text) so matches hydrate read-only. Rerun/resume no-op on a
             // synthetic (blank-text) prompt. See audit bug 16.
-            val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
+            // Preserve a live run's effective prompt (run-only
+            // overridePromptText / worker overrides) across a mid-run
+            // hydrate — disk only carries the prompt id, so rebuilding from
+            // settings alone dropped the edit and later match reruns mixed
+            // edited and unedited rubric text (same fix as TranslatorRank).
+            val prompt = _runs.value[reportId]?.takeIf { it.runId == runId }?.tournamentPrompt
+                ?: aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
                 ?: tournamentPrompt(aiSettings)
                 ?: InternalPrompt(
                     id = group.first().metaPromptId ?: "",
