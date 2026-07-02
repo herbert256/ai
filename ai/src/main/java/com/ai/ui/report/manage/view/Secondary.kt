@@ -560,7 +560,14 @@ internal fun SecondaryResultsScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        if (filteredResults.isEmpty()) {
+        // The fan-out drill-in renders from the ENGINE's run state, not from
+        // filteredResults — and a run on a translated language has every pair
+        // stamped with that language, so the default Original filter empties
+        // filteredResults. Early-returning here dead-ended such runs on a
+        // bare 'No … for this report' with no title bar and no way to reach
+        // FanOutScreen (pairs, stats and Fan-in unreachable).
+        val fanOutDrillInRenders = isFanOutDrillIn && fanOutEngine != null && fanOutPrompt != null
+        if (filteredResults.isEmpty() && !fanOutDrillInRenders) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 val msg = if (showLanguagePicker && selectedLanguageName != null)
                     "No ${baseTitle.lowercase()} for $selectedLanguageName yet"
