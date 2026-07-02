@@ -1087,7 +1087,22 @@ class FanOutEngine internal constructor(
         buildKey: String? = null
     ): Job? {
         val rk = runKey(reportId, metaPrompt.id)
-        runJobOf(rk)?.let { if (it.isActive) return it }
+        runJobOf(rk)?.let { existing ->
+            if (existing.isActive) {
+                // A run for this prompt is already in flight. The caller has
+                // already seeded the blocking build popup for [buildKey]; if
+                // we return without ever touching it, BuildProgress.done never
+                // flips and the modal is stuck — its only button, Cancel,
+                // would then deleteRun the LIVE run the user was waiting on.
+                if (buildKey != null) {
+                    appViewModel.clearBuild(buildKey)
+                    android.widget.Toast.makeText(context,
+                        "'${metaPrompt.name}' is already running on this report.",
+                        android.widget.Toast.LENGTH_SHORT).show()
+                }
+                return existing
+            }
+        }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
