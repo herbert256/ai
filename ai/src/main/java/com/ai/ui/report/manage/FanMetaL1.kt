@@ -167,12 +167,13 @@ internal fun FanMetaL1Screen(
             ) { Text("View errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         if (showIconErrorsDialog) {
-            val errored = remember(run, errorCount) {
+            // Same titleStatus lens as the Error stat above — filtering only
+            // on a fan-meta message missed pairs classified ERROR because
+            // their underlying fan-out response failed, so the stat said
+            // 'Error 3' while the dialog opened empty ('errors (0)').
+            val errored = remember(run, errorCount, runningSet) {
                 run.pairs.values
-                    .filter {
-                        val msg = it.titleErrorMessage ?: it.iconErrorMessage
-                        !msg.isNullOrBlank()
-                    }
+                    .filter { it.titleStatus(runningSet) == com.ai.data.BatchItemStatus.ERROR }
                     .sortedWith(compareBy({ it.providerId }, { it.model }))
             }
             AlertDialog(
@@ -188,7 +189,9 @@ internal fun FanMetaL1Screen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                (p.titleErrorMessage ?: p.iconErrorMessage).orEmpty(),
+                                p.titleErrorMessage ?: p.iconErrorMessage
+                                    ?: p.errorMessage?.let { "fan-out response failed: $it" }
+                                    ?: "fan-out response missing — the pair never produced content",
                                 fontSize = 12.sp, color = AppColors.TextTertiary,
                                 modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
                             )
