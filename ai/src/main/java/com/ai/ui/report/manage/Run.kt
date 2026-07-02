@@ -181,8 +181,9 @@ internal fun ReportRunScreen(
         st.showGetInfo.value -> 2
         else -> 1
     }
-    // View/Edit/Delete/Regenerate/Copy/Pin/Export + the kept extras live on
-    // Manage only; the six secondary launchers live on second-results only.
+    // Edit/Delete/Regenerate/Copy/Pin/Export + the kept extras live on
+    // Manage only (the 👁 View shows on all three layers); the six
+    // secondary launchers live on second-results only.
     val manageLayer = activeReportLayer == 1
     val secondLayer = activeReportLayer == 3
     // Direct jumps for the 1️⃣ 2️⃣ 3️⃣ switcher (cycleReportScreens only steps
@@ -596,8 +597,9 @@ internal fun ReportRunScreen(
             // ℹ️ → the standalone "Report information" screen (real route).
             // Read from a CompositionLocal rather than a threaded arg —
             // ReportsScreen is at the JVM 64 KB method ceiling.
-            // View / Edit / Delete / Regenerate / Copy / Pin / Export + the
-            // kept extras (Chat / Info / Trace / row-labels) are Manage-only.
+            // Edit / Delete / Regenerate / Copy / Pin / Export + the kept
+            // extras (Chat / Info / Trace / row-labels) are Manage-only;
+            // the 👁 View shows on all three report layers.
             onInfo = if (manageLayer) currentReportId?.let { rid -> { navigateToReportInfo(rid) } } else null,
             // 🆕 → the "New Report" start hub (New report / previous report /
             // example prompt) — Manage layer only.
@@ -614,7 +616,9 @@ internal fun ReportRunScreen(
             },
             onTrace = if (manageLayer && currentReportId != null) generationHandlers.onTrace else null,
             onDelete = if (manageLayer && currentReportId != null) generationHandlers.onDelete else null,
-            onOpenView = if (manageLayer && currentReportId != null) onOpenViewReport else null,
+            // 👁 → the View hub on ALL THREE report layers (Manage /
+            // Get-info / second results) — same target as the report icon.
+            onOpenView = if (currentReportId != null) onOpenViewReport else null,
             onChat = if (manageLayer && uiState.genericPromptText.isNotBlank()) {
                 { onChatWithReportPrompt(uiState.genericPromptText) }
             } else null,
