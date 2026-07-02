@@ -176,7 +176,23 @@ class RegenerateBatchEngine internal constructor(
                     job.status == RegenerateJobStatus.CANCELLED) {
                     job
                 } else {
-                    job.copy(status = RegenerateJobStatus.CANCELLED)
+                    // Stamp the non-terminal tasks too: awaitPhaseCompletion —
+                    // the only writer of task terminal states — died with the
+                    // orchestrator, and mutateJob's terminal guard blocks any
+                    // later write, so RUNNING tasks otherwise persist as
+                    // animated hourglasses under a 'Cancelled' banner forever
+                    // (across app restarts). Restart re-arms every task of the
+                    // current phase back to RUNNING, so this is lossless.
+                    job.copy(
+                        status = RegenerateJobStatus.CANCELLED,
+                        tasks = job.tasks.map { t ->
+                            if (t.state == RegenerateTaskState.WAITING ||
+                                t.state == RegenerateTaskState.RUNNING)
+                                t.copy(state = RegenerateTaskState.CANCELLED,
+                                    endedAt = System.currentTimeMillis())
+                            else t
+                        }
+                    )
                 }
             }
         }
