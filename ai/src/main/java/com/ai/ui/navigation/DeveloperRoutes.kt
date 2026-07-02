@@ -894,32 +894,6 @@ internal fun NavGraphBuilder.developerRoutes(
                         navController.navigate(NavRoutes.aiReportManage())
                     }
                 },
-                // Card-level Continue for the 6 batch-screen families: restore
-                // the report, stash a one-shot "open + re-queue this batch"
-                // request, and land on Manage — where ConsumePendingBatchOpen
-                // shows the build popup, re-queues, and opens the batch screen.
-                // popUpTo(inclusive) drops Broken-work so back from Manage lands
-                // on the hub, not an emptied Broken-work screen.
-                onContinue = { batch ->
-                    com.ai.data.LastReportTracker.record(batch.reportId, view = false)
-                    brokenWorkScope.launch {
-                        val fanOutName = if (batch.kind == BatchFamilyKind.FAN_OUT ||
-                            batch.kind == BatchFamilyKind.FAN_META) {
-                            withContext(Dispatchers.IO) {
-                                (matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.ERRORS) +
-                                    matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.UNFINISHED))
-                                    .firstNotNullOfOrNull { it.metaPromptName?.takeIf { n -> n.isNotBlank() } }
-                            }
-                        } else null
-                        reportViewModel.restoreCompletedReport(brokenWorkContext, batch.reportId)
-                        appViewModel.requestBatchOpen(
-                            PendingBatchOpen(batch.reportId, batch.kind, batch.key, fanOutName)
-                        )
-                        navController.navigate(NavRoutes.aiReportManage()) {
-                            popUpTo(NavRoutes.AI_BROKEN_WORK) { inclusive = true }
-                        }
-                    }
-                },
                 // Card tap → the item's own screen (view-only PendingBatchOpen,
                 // no re-queue). OTHER carries the errored secondary's result id so
                 // its detail opens; FAN_OUT/FAN_META carry the metaPromptName the

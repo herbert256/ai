@@ -43,17 +43,6 @@ fun brokenWorkActionKey(batch: BrokenBatch, mode: BrokenItemMode, itemIds: Set<S
     if (itemIds.isEmpty()) brokenWorkActionPrefix(batch, mode)
     else "${brokenWorkActionPrefix(batch, mode)}|items:${itemIds.sorted().joinToString(",")}"
 
-/** The 7 batch families whose Broken-work card shows a single card-level
- *  "Continue" — re-queue the whole batch (both unfinished + errored), then
- *  open that batch's own screen — instead of the per-line ↻ restart icons.
- *  The other families (Regenerate / Responses / Info / Other) keep per-line
- *  restart. */
-val CONTINUE_FAMILIES = setOf(
-    BatchFamilyKind.FAN_OUT, BatchFamilyKind.FAN_META, BatchFamilyKind.TOURNAMENT,
-    BatchFamilyKind.JUDGES, BatchFamilyKind.COMPARE, BatchFamilyKind.TRANSLATION,
-    BatchFamilyKind.TRANSRANK,
-)
-
 /** Full-screen list of batches that carry work needing attention —
  *  unfinished (stranded by an app-kill) and/or errored items — that the
  *  read-only background scan detected but did NOT fix. Reached from the
@@ -71,11 +60,6 @@ fun BrokenWorkScreen(
      *  report overview): restores the report then opens the item's screen via a
      *  view-only PendingBatchOpen. */
     onOpenItem: (BrokenBatch) -> Unit = {},
-    /** Card-level "Continue" for the 6 batch-screen families (Fan Out / Fan
-     *  Meta / Tournament / Judges / Compare / Translation): stop the batch,
-     *  re-queue every broken item, restart it, and open that batch's own
-     *  screen. The other families keep the per-line [onRestart]. */
-    onContinue: (BrokenBatch) -> Unit = {},
     onRestart: (BrokenBatch, BrokenItemMode) -> Unit,
     onDelete: (BrokenBatch, BrokenItemMode) -> Unit,
     onRestartItems: (BrokenBatch, BrokenItemMode, Set<String>) -> Unit,
@@ -195,7 +179,6 @@ fun BrokenWorkScreen(
                         },
                         onView = { mode -> viewing = batch to mode },
                         onRestart = { mode -> onRestart(batch, mode) },
-                        onContinue = { onContinue(batch) },
                         onDelete = { mode -> confirmDelete = batch to mode },
                     )
                 }
@@ -233,7 +216,6 @@ private fun BrokenWorkItem(
     onOpen: () -> Unit,
     onView: (BrokenItemMode) -> Unit,
     onRestart: (BrokenItemMode) -> Unit,
-    onContinue: () -> Unit,
     onDelete: (BrokenItemMode) -> Unit,
 ) {
     val background = if (index % 2 == 0) AppColors.CardBackground else AppColors.CardBackgroundAlt
