@@ -430,7 +430,14 @@ internal fun readReportZip(
             iconRunId = remapRunId(parsed.iconRunId),
             titleRunId = remapRunId(parsed.titleRunId),
             tournamentJudgeRunId = remapRunId(parsed.tournamentJudgeRunId),
-            compareRunId = remapRunId(parsed.compareRunId)
+            compareRunId = remapRunId(parsed.compareRunId),
+            // compareToResultId is a secondary id too: the meta row a
+            // COMPARE cell was scored against / the TRANSLATE row a
+            // TRANSRANK cell ranks. Verbatim copies pointed every imported
+            // cell at the OLD ids, so per-meta averages computed over an
+            // empty set and drill-ins couldn't resolve their scored-against
+            // text. Null (not a dead id) when the target wasn't bundled.
+            compareToResultId = parsed.compareToResultId?.let { secIdMap[it] }
         )
         SecondaryResultStorage.save(context, rekeyed)
         secondaryCount++
