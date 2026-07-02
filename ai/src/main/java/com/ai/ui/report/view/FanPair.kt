@@ -127,21 +127,30 @@ fun FanOutPairViewScreen(
     val pairs = loaded.pairs
 
     val pagerState = rememberWrapPager(pairs.size, 0)
-    // Once the pair list has loaded, jump the pager to the tapped pair.
-    // Keyed on (pairs, sourceAgentId, answererProviderId, answererModel)
-    // so a different deep-link recomputes the target. Always scroll to the
-    // CENTRED page (no "already there" guard): the pager was created while
-    // pairs was empty, so it sits on the uncentred page 0 — and when the
-    // tapped pair IS index 0 the guard treated it as already-there and left
-    // it uncentred, so a backward swipe hit the span edge ("No more pairs").
-    LaunchedEffect(pairs, sourceAgentId, answererProviderId, answererModel) {
-        if (pairs.isNotEmpty()) {
+    // Once the pair list has loaded, jump the pager to the tapped pair —
+    // always to the CENTRED page (the pager was created while pairs was
+    // empty, so it sits on the uncentred page 0; an "already there" guard
+    // would leave index-0 pairs uncentred and a backward swipe would hit
+    // the span edge, "No more pairs").
+    // Centre ONCE per (report, deep-link), not on every pairs reload:
+    // produceState re-reads on every Report/SecondaryDataVersion bump —
+    // each pair completion, fan-meta title/icon write and translation save
+    // — and an unguarded scroll yanked the pager back to the tapped pair
+    // every few seconds while a batch was landing (Fan.kt's initCenteredFor
+    // is the same guard for its initiator pager). The loaded-report check
+    // keeps the latch from firing against the PREVIOUS report's stale list
+    // right after a title-bar report swipe.
+    var centeredFor by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(pairs, currentReportId, sourceAgentId, answererProviderId, answererModel) {
+        val centerKey = "$currentReportId|$sourceAgentId|$answererProviderId|$answererModel"
+        if (centeredFor != centerKey && pairs.isNotEmpty() && report?.id == currentReportId) {
             val idx = pairs.indexOfFirst {
                 it.fanOutSourceAgentId == sourceAgentId &&
                     it.providerId == answererProviderId &&
                     it.model == answererModel
             }.coerceAtLeast(0)
             pagerState.scrollToPage(wrapCenterPage(pairs.size, idx))
+            centeredFor = centerKey
         }
     }
 
