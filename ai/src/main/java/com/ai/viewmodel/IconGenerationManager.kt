@@ -3140,6 +3140,9 @@ class IconGenerationManager(
 
     fun clearFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            // join — load-bearing, see relaunchFanMetaBatch: an active batch
+            // would re-stamp the just-cleared rows from its leftover scan.
+            cancelFanMetaBatch(reportId, metaPromptId)?.join()
             withContext(Dispatchers.IO) {
                 val errored = erroredFanMetaPairs(context, reportId, metaPromptId)
                 clearFanMetaTitleIconState(context, reportId, errored)
@@ -3149,9 +3152,15 @@ class IconGenerationManager(
 
     fun clearFanMetaRows(context: Context, reportId: String, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withContext(Dispatchers.IO) {
-                val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            val rows = withContext(Dispatchers.IO) {
+                SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                     .filter { it.id in rowIds && it.fanOutSourceAgentId != null && it.fanInOf == null }
+            }
+            // join — load-bearing, see relaunchFanMetaBatch.
+            rows.mapNotNull { it.metaPromptId }.toSet().forEach {
+                cancelFanMetaBatch(reportId, it)?.join()
+            }
+            withContext(Dispatchers.IO) {
                 clearFanMetaTitleIconState(context, reportId, rows)
             }
             appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
@@ -3159,6 +3168,12 @@ class IconGenerationManager(
 
     fun restartFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            // join — load-bearing, see relaunchFanMetaBatch: runFanMetaBatch
+            // below dedupes onto a live job whose pending set was snapshotted
+            // at ITS start, so without stopping that batch first the
+            // just-cleared rows were never re-queued and the restart was a
+            // silent no-op that ended in "Interrupted" stamps.
+            cancelFanMetaBatch(reportId, metaPromptId)?.join()
             withContext(Dispatchers.IO) {
                 val errored = erroredFanMetaPairs(context, reportId, metaPromptId)
                 clearFanMetaTitleIconState(context, reportId, errored)
@@ -3206,6 +3221,8 @@ class IconGenerationManager(
 
     fun restartFanMetaRows(context: Context, reportId: String, metaPromptId: String, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            // join — load-bearing, see restartFanMetaErrors.
+            cancelFanMetaBatch(reportId, metaPromptId)?.join()
             withContext(Dispatchers.IO) {
                 val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                     .filter { it.id in rowIds && it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null }
