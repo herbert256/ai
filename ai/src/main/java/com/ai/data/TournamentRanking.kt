@@ -202,7 +202,7 @@ fun davidson(m: WinMatrix): List<RankRow> {
         RankScored(
             id = m.ids[i],
             score = Math.round(raw * 10.0) / 10.0,
-            reason = "Davidson strength %.3f · tie %.2f".format(strengths[i], tieTendency),
+            reason = String.format(java.util.Locale.US, "Davidson strength %.3f · tie %.2f", strengths[i], tieTendency),
             sortKey = raw
         )
     }
@@ -260,7 +260,7 @@ fun markov(m: WinMatrix): List<RankRow> {
         RankScored(
             id = m.ids[i],
             score = Math.round(raw * 10.0) / 10.0,
-            reason = "Stationary share %.1f%%".format(dist[i] * 100.0),
+            reason = String.format(java.util.Locale.US, "Stationary share %.1f%%", dist[i] * 100.0),
             sortKey = raw
         )
     }
@@ -359,7 +359,7 @@ fun colley(m: WinMatrix): List<RankRow> {
         // to a plain win share if the solve degenerates.
         (0 until n).map { i ->
             val share = if (totalGames[i] > 0.0) 100.0 * wins[i] / totalGames[i] else 0.0
-            RankScored(m.ids[i], Math.round(share * 10.0) / 10.0, "Win share %.0f%%".format(share), sortKey = share)
+            RankScored(m.ids[i], Math.round(share * 10.0) / 10.0, String.format(java.util.Locale.US, "Win share %.0f%%", share), sortKey = share)
         }
     } else {
         val maxR = r.maxOrNull() ?: 1.0
