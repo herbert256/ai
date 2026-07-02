@@ -13,15 +13,24 @@ import com.ai.data.SecondaryResultStorage
  *
  * Walks the newest-first report id list from the current report
  * outward in the chosen direction and stops at the first candidate
- * that satisfies the filter. Drill-deeper screens (FanOutPair,
- * IconsView) opt out by simply not passing swipe
- * lambdas to the title bar.
+ * that satisfies the filter. Every View screen participates —
+ * drill-deeper screens (FanOutPair, IconsView) included.
  */
 sealed class ViewSwipeFilter {
     /** Main / Costs / Prompt / Reports — every report matches. */
     object Any : ViewSwipeFilter()
     /** Rerank / Moderation — match by SecondaryResult.kind. */
     data class HasKind(val kind: SecondaryKind) : ViewSwipeFilter()
+    /** Answer matrix — the report has at least one successful
+     *  non-blank agent response (the matrix's own empty-state
+     *  condition). */
+    object HasAnswers : ViewSwipeFilter()
+    /** Value view — the report carries at least one ranking source
+     *  the chart can plot: a content-bearing Rerank, a Tournament /
+     *  Judge-the-judges aggregate, a Rank-the-translators aggregate,
+     *  or a scored Compare run. Mirrors the View hub's Value-tile
+     *  predicate. */
+    object HasValueSource : ViewSwipeFilter()
     /** Meta / Fan-in / Fan-out — match by metaPromptName, with an
      *  optional fan-in / fan-out discriminator. */
     data class HasMeta(
@@ -97,6 +106,24 @@ private fun matchOn(
     filter: ViewSwipeFilter,
 ): SwipeMatch? = when (filter) {
     is ViewSwipeFilter.Any -> SwipeMatch(reportId = reportId)
+    is ViewSwipeFilter.HasAnswers -> {
+        val report = com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId)
+        val has = report?.agents?.any {
+            it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+        } == true
+        if (has) SwipeMatch(reportId = reportId) else null
+    }
+    is ViewSwipeFilter.HasValueSource -> {
+        val rows = SecondaryResultStorage.listForReport(context, reportId)
+        val has = rows.any {
+            (it.kind == SecondaryKind.RERANK && !it.content.isNullOrBlank()) ||
+                (it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE") ||
+                (it.kind == SecondaryKind.JUDGES && it.tournamentRole == "AGGREGATE") ||
+                (it.kind == SecondaryKind.TRANSRANK && it.tournamentRole == com.ai.data.TRANSRANK_ROLE_AGGREGATE) ||
+                (it.kind == SecondaryKind.COMPARE && !it.compareRunId.isNullOrBlank())
+        }
+        if (has) SwipeMatch(reportId = reportId) else null
+    }
     is ViewSwipeFilter.HasKind -> {
         // listForReport returns rows oldest-first; land on the newest row of
         // this kind so a report with several (regenerated rerank, multiple

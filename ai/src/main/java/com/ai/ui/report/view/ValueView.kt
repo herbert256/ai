@@ -77,9 +77,13 @@ import com.ai.data.toJudgeCellState
 import com.ai.viewmodel.rankingWeight
 import com.ai.data.toTransRankCellState
 import com.ai.ui.helpers.RerankRow
+import com.ai.ui.helpers.SwipeDirection
+import com.ai.ui.helpers.ViewSwipeFilter
+import com.ai.ui.helpers.findSwipeMatch
 import com.ai.ui.helpers.parseRerankRows
 import com.ai.ui.report.view.helpers.ViewReportCache
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.shortModelName
@@ -443,16 +447,32 @@ internal fun rowsForSource(
 fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
+    // Title-bar / body swipe targets — `currentReportId` shadows the
+    // prop so a successful swipe can hot-swap the displayed report
+    // without unmounting the screen. Skips reports with no ranking
+    // source (nothing to plot). `rememberSaveable(reportId)` re-seeds
+    // on any parent-driven prop change.
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
+    val onSwipePrevAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.HasValueSource)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    }
+    val onSwipeNextAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.HasValueSource)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    }
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId).collectAsState()
 
     val loadedState = produceState(
         ValueViewData(null, emptyList(), null, null, null, null, emptyList(), null, emptyMap(), false, emptyMap()),
-        reportId, reportDataVersion, secondaryDataVersion
+        currentReportId, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
-            val report = ViewReportCache.get(context, reportId)
-            val rows = SecondaryResultStorage.listForReport(context, reportId)
+            val report = ViewReportCache.get(context, currentReportId)
+            val rows = SecondaryResultStorage.listForReport(context, currentReportId)
             val rerank = rows
                 .filter { it.kind == SecondaryKind.RERANK && !it.content.isNullOrBlank() }
                 .maxByOrNull { it.timestamp }
@@ -613,7 +633,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     // then Rerank, the translator runs, Judges, the Tournament Total, and every
     // individual Tournament method.
     val sources = remember(loaded, combinedRows) { buildRankSources(loaded, combinedRows) }
-    var selectedKey by rememberSaveable(reportId) { mutableStateOf<String?>(null) }
+    var selectedKey by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
     // Effective selection: the user's pick if still available, else Rerank,
     // else the tournament's stored method, else the first source.
     val selected = remember(sources, selectedKey, loaded.tournamentDefaultMethod) {
@@ -660,7 +680,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     // rendered in its OWN Dialog window so it covers the app's title and
     // bottom icon bars (an early-return overlay would still sit inside
     // them). Left/right half taps cycle the ranking. See [ValueGraphFullScreen].
-    var showFullGraph by rememberSaveable(reportId) { mutableStateOf(false) }
+    var showFullGraph by rememberSaveable(currentReportId) { mutableStateOf(false) }
     if (showFullGraph && points.isNotEmpty()) {
         ValueGraphFullScreen(
             points = points,
@@ -676,6 +696,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
         modifier = Modifier.fillMaxSize()
             .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
         // 📤 export — the whole screen as one self-contained HTML page (every
         // ranking source as a tab, click-to-full-screen graphs), via the
@@ -708,7 +729,9 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             subject = subject,
             helpTopic = "value_view",
             onBack = onBack,
-            onExport = onExport
+            onExport = onExport,
+            onSwipePrev = onSwipePrevAction,
+            onSwipeNext = onSwipeNextAction
         )
 
         // Ranking-source switch — Rerank + every available Tournament method.

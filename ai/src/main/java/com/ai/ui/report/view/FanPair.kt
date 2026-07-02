@@ -49,8 +49,10 @@ import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.report.view.helpers.wrapTo
 import com.ai.ui.report.view.helpers.wrapCenterPage
 import com.ai.ui.shared.shortModelName
@@ -80,21 +82,39 @@ fun FanOutPairViewScreen(
 ) {
     androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
+    // Title-bar / body swipe to the prev/next report that carries a
+    // fan-out of the SAME meta prompt. `currentReportId` shadows the
+    // prop so the hop swaps the pair list in place; the deep-link
+    // LaunchedEffect below then lands the pager on the same pair when
+    // the new report has it, else on the first pair (indexOfFirst
+    // misses → coerceAtLeast(0)).
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
+    val pairFilter = ViewSwipeFilter.HasMeta(metaPromptName, requireFanOut = true)
+    val onSwipePrevAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, pairFilter)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    }
+    val onSwipeNextAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, pairFilter)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    }
 
     data class Loaded(
         val report: Report?,
         val pairs: List<SecondaryResult>
     )
 
-    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId, SecondaryKind.META).collectAsState()
+    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.META).collectAsState()
     val loadedState = produceState(
         initialValue = Loaded(null, emptyList()),
-        reportId, metaPromptName, reportDataVersion, secondaryDataVersion
+        currentReportId, metaPromptName, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId)
-            val pairs = SecondaryResultStorage.listForReport(context, reportId).filter {
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
+            val pairs = SecondaryResultStorage.listForReport(context, currentReportId).filter {
                 it.fanOutSourceAgentId != null &&
                     it.metaPromptName == metaPromptName &&
                     !it.content.isNullOrBlank()
@@ -129,16 +149,19 @@ fun FanOutPairViewScreen(
         modifier = Modifier.fillMaxSize()
             .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
         ViewTitleBar(
             reportTitle = report?.barTitle,
             screenTitle = "Fan-out pair",
             subject = metaPromptName.takeIf { it.isNotBlank() },
             helpTopic = "fan_out_pair_view",
-            onBack = onBack
+            onBack = onBack,
+            onSwipePrev = onSwipePrevAction,
+            onSwipeNext = onSwipeNextAction
         )
         pairs.getOrNull(pagerState.currentPage.wrapTo(pairs.size))?.let {
-            com.ai.ui.report.manage.ViewUserNotes(reportId, "SECONDARY", it.id)
+            com.ai.ui.report.manage.ViewUserNotes(currentReportId, "SECONDARY", it.id)
         }
 
         if (pairs.isEmpty()) {

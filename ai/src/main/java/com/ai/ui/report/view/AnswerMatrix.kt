@@ -45,6 +45,9 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.barTitle
 import com.ai.ui.helpers.RerankRow
+import com.ai.ui.helpers.SwipeDirection
+import com.ai.ui.helpers.ViewSwipeFilter
+import com.ai.ui.helpers.findSwipeMatch
 import com.ai.ui.helpers.formatRerankScore
 import com.ai.ui.helpers.parseRerankRows
 import com.ai.ui.report.manage.ViewUserNotes
@@ -52,6 +55,7 @@ import com.ai.ui.report.manage.view.LangTab
 import com.ai.ui.report.manage.view.LanguagePickerRow
 import com.ai.ui.report.manage.view.extractTagContent
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.formatCompactNumber
 import com.ai.ui.shared.formatCentsValue
@@ -98,6 +102,22 @@ internal fun AnswerMatrixViewScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val reportId = report?.id
+    // Title-bar / body swipe to the prev/next report that has at least
+    // one successful answer to chart. Unlike the sibling sub-Views this
+    // screen is fully prop-driven (the hub passes [report] + the
+    // language tabs), so there is no local report shadow: the handler
+    // only flips the app's current report via [LocalReportSwitchHandler]
+    // and the hub re-feeds every prop on recomposition.
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
+    val onSwipePrevAction: () -> Boolean = {
+        val m = reportId?.let { findSwipeMatch(context, reportIdsList, it, SwipeDirection.Prev, ViewSwipeFilter.HasAnswers) }
+        if (m != null) { switchReport?.invoke(m.reportId); true } else false
+    }
+    val onSwipeNextAction: () -> Boolean = {
+        val m = reportId?.let { findSwipeMatch(context, reportIdsList, it, SwipeDirection.Next, ViewSwipeFilter.HasAnswers) }
+        if (m != null) { switchReport?.invoke(m.reportId); true } else false
+    }
     val activeLanguage = if (selectedLangKey == LangTab.ORIGINAL_KEY) ""
         else langTabs.firstOrNull { it.key == selectedLangKey }?.displayName ?: ""
     val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
@@ -128,6 +148,7 @@ internal fun AnswerMatrixViewScreen(
         modifier = Modifier.fillMaxSize()
             .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            .viewBodySwipe(reportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
         ViewTitleBar(
             reportTitle = report?.barTitle,
@@ -136,7 +157,9 @@ internal fun AnswerMatrixViewScreen(
             screenTitle = "Answer matrix",
             subject = rerankState.value.modelShort?.let { "ranked by $it" },
             helpTopic = "view_ai_report",
-            onBack = onBack
+            onBack = onBack,
+            onSwipePrev = onSwipePrevAction,
+            onSwipeNext = onSwipeNextAction
         )
         report?.let { ViewUserNotes(it.id, "REPORT", it.id) }
 

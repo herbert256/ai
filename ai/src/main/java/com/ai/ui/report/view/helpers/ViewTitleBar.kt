@@ -91,7 +91,9 @@ fun ViewTitleBar(
      *  back to [LocalNavigateToCurrentReport] then [onBack]. */
     onTitleClick: (() -> Unit)? = null,
     /** Horizontal swipe handlers; return true if a matching prev/next
-     *  report was found. Null disables the swipe (drill-deeper screens). */
+     *  report was found. Every View screen wires these (drill-deeper
+     *  screens included); null only when a screen's filter can't be
+     *  built (e.g. a Meta view with no resolvable meta filter). */
     onSwipePrev: (() -> Boolean)? = null,
     onSwipeNext: (() -> Boolean)? = null,
     /** Optional left-aligned ☝️/✋ "one vs all" bottom-bar toggle.
