@@ -102,19 +102,45 @@ fun ModerationViewScreen(
             val successful = report?.agents
                 ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 .orEmpty()
-            // Provider name dropped per the user's spec — just the
-            // short model name for the per-card header.
-            val labels = successful.mapIndexed { idx, agent ->
-                (idx + 1) to shortModelName(agent.model)
-            }.toMap()
-            // The model's response body — the same text that was
-            // moderated. Rendered in a response card below the per-
-            // model moderation card so the user can read what the
-            // chips refer to without leaving the screen.
-            val responses = successful.mapIndexed { idx, agent ->
-                (idx + 1) to (agent.responseBody ?: "")
-            }.toMap()
-            Loaded(r, labels, responses, successful.size, report?.barTitle)
+            // Resolve labels AND response bodies through the row's run-time
+            // sourceAgentIds snapshot, like Manage's ModerationDetailScreen —
+            // positional (idx+1) maps silently paired model B's name and
+            // response text with model A's fired categories once a deletion
+            // plus a failed→success regenerate shifted the current success
+            // set (equal counts, so even the banner stayed silent). Legacy
+            // rows without a snapshot keep the positional fallback.
+            // Provider name dropped per the user's spec — just the short
+            // model name for the per-card header.
+            val snapshot = r?.sourceAgentIds
+            val labels: Map<Int, String>
+            val responses: Map<Int, String>
+            if (!snapshot.isNullOrEmpty()) {
+                val byId = report?.agents.orEmpty().associateBy { it.agentId }
+                labels = snapshot.mapIndexed { idx, aid ->
+                    (idx + 1) to (byId[aid]?.model?.let { shortModelName(it) } ?: "(removed model)")
+                }.toMap()
+                responses = snapshot.mapIndexed { idx, aid ->
+                    (idx + 1) to (byId[aid]?.responseBody ?: "")
+                }.toMap()
+            } else {
+                labels = successful.mapIndexed { idx, agent ->
+                    (idx + 1) to shortModelName(agent.model)
+                }.toMap()
+                // The model's response body — the same text that was
+                // moderated. Rendered in a response card below the per-
+                // model moderation card so the user can read what the
+                // chips refer to without leaving the screen.
+                responses = successful.mapIndexed { idx, agent ->
+                    (idx + 1) to (agent.responseBody ?: "")
+                }.toMap()
+            }
+            // With a snapshot the maps are correct regardless of later agent
+            // changes, so the "agent set changed" banner only applies to the
+            // legacy positional fallback — report the snapshot size so the
+            // count comparison stays meaningful there too.
+            Loaded(r, labels, responses,
+                if (!snapshot.isNullOrEmpty()) snapshot.size else successful.size,
+                report?.barTitle)
         }
     }
     val loaded = loadedState.value
