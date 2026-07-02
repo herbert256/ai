@@ -1917,8 +1917,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
         val ai = appViewModel.uiState.value.aiSettings
         // Prefer an already-staged list (so the user comes back to whatever they were
-        // editing), fall back to the report's persisted agent set.
-        val rebuilt = appViewModel.uiState.value.stagedReportModels
+        // editing) — but only this report's own staged list — fall back to
+        // the report's persisted agent set.
+        val rebuilt = appViewModel.uiState.value
+            .takeIf { it.stagedChangesReportId == reportId }?.stagedReportModels.orEmpty()
             .ifEmpty { reportToModels(report, ai) }
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
@@ -1939,12 +1941,34 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * Result screen. Called from the selection screen's "Update model list" button.
      */
     suspend fun stageModelListForRegenerate(context: Context, reportId: String, models: List<ReportModel>) {
-        appViewModel.updateUiState { it.copy(
+        appViewModel.updateUiState { it.withStagedOwner(reportId).copy(
             stagedReportModels = models,
             pendingReportModels = emptyList(),
             editModeReportId = null
         ) }
         restoreCompletedReport(context, reportId)
+    }
+
+    /** Stamp [reportId] as the owner of the staged/pending regenerate
+     *  state, dropping another report's leftovers first — staged changes
+     *  must never travel to a different report via swipe navigation. */
+    private fun UiState.withStagedOwner(reportId: String): UiState =
+        if (stagedChangesReportId == null || stagedChangesReportId == reportId)
+            copy(stagedChangesReportId = reportId)
+        else copy(
+            stagedChangesReportId = reportId,
+            stagedReportModels = emptyList(),
+            hasPendingPromptChange = false,
+            hasPendingParametersChange = false
+        )
+
+    /** Edit / Parameters saved new values for the open report — raise the
+     *  pending-changes banner on it (and only it). */
+    fun markParametersChanged() {
+        appViewModel.updateUiState { s ->
+            val rid = s.currentReportId ?: return@updateUiState s
+            s.withStagedOwner(rid).copy(hasPendingParametersChange = true)
+        }
     }
 
     /**
@@ -1959,10 +1983,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun regenerateReportBatch(context: Context, reportId: String) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             applyStagedModelList(context, reportId)
-            appViewModel.updateUiState { it.copy(
-                stagedReportModels = emptyList(), pendingReportModels = emptyList(),
-                hasPendingPromptChange = false, hasPendingParametersChange = false
-            ) }
+            appViewModel.updateUiState {
+                // Staged state belonging to a different report survives a
+                // plain regenerate here — it stays banner-visible on its
+                // own report and must not be silently discarded.
+                if (it.stagedChangesReportId != null && it.stagedChangesReportId != reportId) it
+                else it.copy(
+                    stagedReportModels = emptyList(), pendingReportModels = emptyList(),
+                    hasPendingPromptChange = false, hasPendingParametersChange = false,
+                    stagedChangesReportId = null
+                )
+            }
             regenerateBatchEngine.enqueueAndStart(context, reportId)
         }
     }
@@ -1973,7 +2004,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private suspend fun applyStagedModelList(context: Context, reportId: String) {
         val state = appViewModel.uiState.value
         val staged = state.stagedReportModels
-        if (staged.isEmpty()) return
+        // Owner gate: the staged list belongs to exactly one report. Applying
+        // report X's list to report Y would delete every Y agent not in X's
+        // set — the swipe-navigation data-loss bug.
+        if (staged.isEmpty() || state.stagedChangesReportId != reportId) return
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
         val ai = state.aiSettings
         val agentIds = staged.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
@@ -2053,7 +2087,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ReportStorage.updateReportPromptText(context, reportId, newPrompt)
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
-        appViewModel.updateUiState { it.copy(
+        appViewModel.updateUiState { it.withStagedOwner(reportId).copy(
             genericPromptText = newPrompt,
             hasPendingPromptChange = true
         ) }
@@ -2644,7 +2678,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             reportSystemPromptId = null,
             stagedReportModels = emptyList(), editModeReportId = null,
             pendingReportModels = emptyList(),
-            hasPendingPromptChange = false, hasPendingParametersChange = false
+            hasPendingPromptChange = false, hasPendingParametersChange = false,
+            stagedChangesReportId = null
         ) }
     }
 

@@ -515,7 +515,12 @@ internal fun ColumnScope.GenerationPhase(
     // are derived from the staged list (not the on-disk agent set) so added rows appear
     // and removed rows disappear immediately. The progress bar is hidden in that mode
     // because the X/Y count is meaningless until they re-run.
-    val staged = uiState.stagedReportModels
+    // Owner-gated: another report's staged list must not leak in here via
+    // swipe navigation (it would render foreign rows and invite a
+    // destructive Regenerate on the wrong report).
+    val stagedOwnedHere = uiState.stagedChangesReportId != null &&
+        uiState.stagedChangesReportId == currentReportId
+    val staged = if (stagedOwnedHere) uiState.stagedReportModels else emptyList()
     val isStagedMode = isComplete && staged.isNotEmpty()
 
     // Per-agent token + cost rollup. Cost is recomputed every
@@ -627,9 +632,9 @@ internal fun ColumnScope.GenerationPhase(
 
     // Pending-changes banner: surfaces edits the user made (prompt / models / parameters)
     // since the report ran, so they know a Regenerate is needed to see the new outputs.
-    val pendingPrompt = uiState.hasPendingPromptChange
-    val pendingModels = uiState.stagedReportModels.isNotEmpty()
-    val pendingParams = uiState.hasPendingParametersChange
+    val pendingPrompt = stagedOwnedHere && uiState.hasPendingPromptChange
+    val pendingModels = staged.isNotEmpty()
+    val pendingParams = stagedOwnedHere && uiState.hasPendingParametersChange
     if (isComplete && (pendingPrompt || pendingModels || pendingParams)) {
         val parts = listOfNotNull(
             "prompt".takeIf { pendingPrompt },

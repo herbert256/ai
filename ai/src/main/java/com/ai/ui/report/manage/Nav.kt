@@ -773,7 +773,7 @@ fun ReportsScreenNav(
             scope.launch { reportViewModel.stageModelListForRegenerate(context, rid, edited) }
         },
         onMarkParametersChanged = {
-            viewModel.updateUiState { it.copy(hasPendingParametersChange = true) }
+            reportViewModel.markParametersChanged()
         },
         // Title-bar 🔁 → confirm dialog → apply any staged Edit-Models
         // list, then enqueue a Regenerate batch job (app-restart-

@@ -601,6 +601,14 @@ data class UiState(
     // kicks off the new run, or when the report is dismissed.
     val hasPendingPromptChange: Boolean = false,
     val hasPendingParametersChange: Boolean = false,
+    /** Report id that owns [stagedReportModels] / [hasPendingPromptChange] /
+     *  [hasPendingParametersChange]. The pending-changes banner, the
+     *  staged-row result view and Regenerate's staged-list apply are all
+     *  gated on this matching the open report — swipe navigation restores
+     *  other reports without clearing the staged state, but without the
+     *  gate report X's staged model list would be applied to report Y,
+     *  deleting Y's agents. Null when nothing is staged. */
+    val stagedChangesReportId: String? = null,
     /** Incremented every time the icon-gen helper writes a new emoji
      *  (or error) onto a Report. Screens that render Report.icon key
      *  their disk-reload effect on this so a mid-flight resolution
