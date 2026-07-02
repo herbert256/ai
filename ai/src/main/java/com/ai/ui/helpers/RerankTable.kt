@@ -63,8 +63,13 @@ internal fun parseRerankRows(content: String): List<RerankRow>? {
     val rows = arr.mapNotNull { el ->
         if (!el.isJsonObject) return@mapNotNull null
         val obj = el.asJsonObject
-        val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
-        val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt
+        // asInt throws NumberFormatException on non-numeric primitives
+        // (e.g. {"id": "gpt-4o"}) — deviant rows must fall back, not crash.
+        val id = obj.get("id")?.takeIf { it.isJsonPrimitive }
+            ?.let { try { it.asInt } catch (_: Exception) { null } }
+            ?: return@mapNotNull null
+        val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }
+            ?.let { try { it.asInt } catch (_: Exception) { null } }
         // Keep the score as a Double — some models return a fractional
         // score (0.87); the old toInt() truncated those to 0.
         val score = obj.get("score")?.takeIf { it.isJsonPrimitive }?.let {
