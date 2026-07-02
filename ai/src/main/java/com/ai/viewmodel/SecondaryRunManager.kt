@@ -929,12 +929,22 @@ class SecondaryRunManager(
                 // completion. Mirrors FanOutEngine.rerunPairsBlocking, which
                 // clears before re-issuing; executeSecondaryTask then overwrites
                 // this row with the fresh content (or a fresh error).
+                // mergeCosts = false: the prior spend was just banked into
+                // costsFromDeletedItems above; the default additive merge
+                // would re-read it from disk and keep it on the "cleared"
+                // row too, counting it twice (and growing on every Reload).
+                // The icon/title cost fields are part of the banked
+                // fullCost(), so they must clear with the rest.
                 SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
                     content = null, errorMessage = null, durationMs = null,
                     httpStatusCode = null, inputCost = null, outputCost = null,
                     tokenUsage = null, responseChangeSource = null,
-                    responseChangeValue = null, timestamp = System.currentTimeMillis()
-                ))
+                    responseChangeValue = null, timestamp = System.currentTimeMillis(),
+                    iconInputCost = 0.0, iconOutputCost = 0.0,
+                    iconInputTokens = 0, iconOutputTokens = 0,
+                    titleInputCost = 0.0, titleOutputCost = 0.0,
+                    titleInputTokens = 0, titleOutputTokens = 0
+                ), mergeCosts = false)
                 withTracerTags(reportId = reportId, category = cat) {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     // Rerank / Moderation: a resolvable member of the
@@ -970,11 +980,19 @@ class SecondaryRunManager(
                         // The row was already wiped to a pending placeholder
                         // above — stamp a terminal error so it can't sit as a
                         // silent forever-hourglass for the rest of the session.
+                        // Costs nulled: the prior spend is in the deleted-items
+                        // bank; carrying the placeholder's original cost fields
+                        // here would put it on the error row a second time.
                         SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
                             content = null,
                             errorMessage = "No resolvable worker for ${kind.name.lowercase()} — check the worker chain under Prompt management.",
-                            durationMs = 0
-                        ))
+                            durationMs = 0,
+                            inputCost = null, outputCost = null, tokenUsage = null,
+                            iconInputCost = 0.0, iconOutputCost = 0.0,
+                            iconInputTokens = 0, iconOutputTokens = 0,
+                            titleInputCost = 0.0, titleOutputCost = 0.0,
+                            titleInputTokens = 0, titleOutputTokens = 0
+                        ), mergeCosts = false)
                         return@withTracerTags
                     }
                     val model = freshWorker?.second ?: placeholder.model

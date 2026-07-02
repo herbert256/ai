@@ -502,7 +502,12 @@ object SecondaryResultStorage {
      *  a fan-out / meta HTTP call was in flight). The exists-check and
      *  the write share the same lock so a concurrent
      *  [delete] / [deleteAllForReport] can't race in between. */
-    fun saveIfStillPresent(context: Context, result: SecondaryResult): Boolean {
+    /** [mergeCosts] = false writes the row's cost fields as-is instead of
+     *  adding the on-disk row's prior spend. Callers that bank the prior
+     *  spend into [ReportStorage.bumpCostsFromDeletedItems] before wiping
+     *  a row MUST pass false — the merge would silently keep the banked
+     *  spend on the row and count it twice. */
+    fun saveIfStillPresent(context: Context, result: SecondaryResult, mergeCosts: Boolean = true): Boolean {
         init(context)
         if (!ReportStorage.reportFileExists(context, result.reportId)) return false
         if (result.id.isBlank() || result.id.contains('/') || result.id.contains('\\')
@@ -534,7 +539,7 @@ object SecondaryResultStorage {
             // expenditure, so the saved row reflects (prior + new).
             // Caller-controlled overwrites that don't want
             // accumulation should write via [save] instead.
-            val toWrite = mergeCostFromCurrent(readCachedOrDisk(result.reportId, target), result)
+            val toWrite = if (mergeCosts) mergeCostFromCurrent(readCachedOrDisk(result.reportId, target), result) else result
             if (!target.writeTextAtomic(gson.toJson(toWrite))) {
                 AppLog.e("SecondaryResultStorage", "Failed to save result ${result.id}")
                 return false
