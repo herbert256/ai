@@ -142,7 +142,6 @@ verified against the current source. The complete set (see
 | [doc/help.md](doc/help.md) | The in-app Help system: live icon overlay vs help page, per-screen topics, per-provider pages |
 | [doc/applog.md](doc/applog.md) | In-app file logger: levels, rotation, redaction, viewer |
 | [doc/log-details.md](doc/log-details.md) | Reference: every `AppLog` call site, grouped by severity |
-| [doc/TODO.md](doc/TODO.md) | Future-work backlog discussed but not scheduled |
 
 ## Privacy & Security
 

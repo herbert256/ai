@@ -151,12 +151,6 @@ and a manual override layer into one resolved view per
   `<filesDir>` including the `embeddings/`, `secondary/`, `pricing/`
   and `trace/` trees.
 
-### Analysis & backlog
-- **[TODO.md](TODO.md)** — Future work discussed but not scheduled.
-  Currently: a foreground-Service plan so AI Report API calls can
-  truly survive process kill (today's `viewModelScope` setup
-  survives navigation but not Recents-swipe / OS memory pressure).
-
 ## Reading order
 
 If you're new to the codebase, the recommended path is:
@@ -168,19 +162,6 @@ If you're new to the codebase, the recommended path is:
 
 Pull up a subsystem doc (translation, share-target,
 secondary-results, help) when a specific question lands in your lap.
-
-## Internal QA notes
-
-The repo also carries an `audit/` directory at the root, holding
-date-stamped review snapshots (e.g. `audit/2026-05-08/`,
-`audit/2026-05-24/`). Full-app snapshots ship the same six markdown
-files: `00_summary.md`, `bugs_chat.md`, `bugs_data.md`,
-`bugs_reports.md`, `bugs_settings.md`, plus a `README.md`;
-scope-narrowed snapshots (e.g. `audit/2026-06-10/`, Reports section
-only) ship a subset — just the `bugs_*.md` file(s) covering the
-narrowed scope, plus `00_summary.md` and `README.md`. These are
-running lists of internal findings — not part of the user-facing
-documentation, but useful when picking up where someone left off.
 
 ## Authoritative sources
 

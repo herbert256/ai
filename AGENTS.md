@@ -60,7 +60,6 @@ Anything operational beyond this file is in `doc/`:
 - `doc/repositories.md` — the twelve external metadata repos
 - `doc/help.md` — in-app Help system (per-screen topics, per-provider pages)
 - `doc/applog.md` + `doc/log-details.md` — the in-app file logger + every call site
-- `doc/TODO.md` — future-work backlog
 - `doc/README.md` — index with reading order
 
 ## Session start
