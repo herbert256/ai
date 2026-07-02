@@ -114,15 +114,18 @@ internal fun SecondaryResultsListMount(
             it.category == "fan_out" && it.name == listFilterByName
         }
     } else null
-    // Parent fan-out's source language (null = Original). Read from
-    // the engine's hydrated state so the language survives report
-    // re-open. Forwarded to the parent at every fan-in trigger so
-    // runFanInPrompt fires in the same language as the fan-out
-    // being combined.
-    val parentSourceLanguage: String? = remember(reportId, fanOutPrompt?.id, fanOutEngine) {
-        val mp = fanOutPrompt ?: return@remember null
-        val eng = fanOutEngine ?: return@remember null
-        eng.runByKey(com.ai.data.runKey(reportId, mp.id))?.sourceLanguage
+    // Parent fan-out's source language (null = Original). Observed from
+    // the engine's runs flow — NOT remembered from a one-shot read: on a
+    // cold session the engine hydrates only after this mount composes
+    // (SecondaryResultsScreen's LaunchedEffect), and a remember keyed on
+    // ids cached the pre-hydration null for the mount's lifetime, so the
+    // first Fan-in after an app restart ran with sourceLanguage = null
+    // (Original) instead of the fan-out's language. Forwarded to the
+    // parent at every fan-in trigger so runFanInPrompt fires in the same
+    // language as the fan-out being combined.
+    val engineRuns = fanOutEngine?.runs?.collectAsState()
+    val parentSourceLanguage: String? = fanOutPrompt?.let { mp ->
+        engineRuns?.value?.get(com.ai.data.runKey(reportId, mp.id))?.sourceLanguage
     }
     if (showFanInPromptPicker && fanInList.isNotEmpty()) {
         CompositionLocalProvider(
