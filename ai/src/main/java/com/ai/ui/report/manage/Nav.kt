@@ -927,8 +927,16 @@ fun ReportsScreenNav(
 @Composable
 internal fun SeedInitialViewReportScreen(onSeed: () -> Unit) {
     val bundle = com.ai.ui.shared.LocalReportListIconBundle.current
+    // Consumed flag survives recreation: the route arg lives in the nav
+    // back-stack entry, so after a rotation LaunchedEffect(Unit) re-runs —
+    // an unguarded seed overwrote the rememberSaveable-restored overlay
+    // flags and yanked the user back into the entry overlay.
+    var seeded by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        if (bundle.initialView) onSeed()
+        if (bundle.initialView && !seeded) {
+            seeded = true
+            onSeed()
+        }
     }
 }
 
@@ -944,7 +952,11 @@ internal fun SeedInitialViewReportScreen(onSeed: () -> Unit) {
 @Composable
 internal fun SeedInitialManageOverlay(st: ReportsScreenState) {
     val bundle = com.ai.ui.shared.LocalReportListIconBundle.current
+    // Consumed flag — same rotation guard as SeedInitialViewReportScreen.
+    var seeded by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
+        if (seeded) return@LaunchedEffect
+        seeded = true
         when (com.ai.ui.navigation.ManagePickKind.fromArg(bundle.initialManageOverlay)) {
             com.ai.ui.navigation.ManagePickKind.META -> st.showMetaScreen.value = true
             com.ai.ui.navigation.ManagePickKind.EDIT_PROMPT -> st.showEditPrompt.value = true
