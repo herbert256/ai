@@ -228,7 +228,13 @@ internal fun UserNoteEditorOverlay(
         titleBarTitle = if (edit is NoteEdit.Edit) "Edit note" else "Add note",
         initialText = (edit as? NoteEdit.Edit)?.text ?: "",
         onSave = { txt ->
-            scope.launch(Dispatchers.IO) {
+            // NonCancellable detaches the persist from this overlay's scope:
+            // onClose() below unmounts the overlay on the next frame, which
+            // cancels rememberCoroutineScope — a launch that hadn't been
+            // dispatched onto IO yet was cancelled before its body ran, and
+            // the note was silently discarded while the editor closed as if
+            // saved.
+            scope.launch(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
                 if (edit is NoteEdit.Edit) {
                     ReportStorage.updateUserNote(context, reportId, edit.noteId, txt)
                     generateTitle(reportId, edit.noteId, txt)
