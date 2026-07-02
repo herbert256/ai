@@ -1928,7 +1928,31 @@ class FanOutEngine internal constructor(
      *  completes when the background disk work is done. */
     fun deleteRun(context: Context, runKey: FanOutRunKey): Job {
         val run = _runs.value[runKey]
-            ?: return appViewModel.viewModelScope.launch { }
+            ?: return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+                // Build-phase Cancel: the run publishes into _runs only AFTER
+                // the whole build finishes, but its Job is registered (and
+                // placeholder rows are being persisted) from the first moment.
+                // Returning early here made the popup's Cancel a silent no-op:
+                // the popup closed while the entire matrix still dispatched
+                // and billed in the background. Cancel the job, wait out its
+                // NonCancellable finalizer, then sweep this prompt's pair
+                // rows off disk (rolling any spend that already landed into
+                // the Deleted-items tally).
+                val reportId = runKey.substringBefore('|')
+                val metaPromptId = runKey.substringAfter('|')
+                runJobOf(runKey)?.let { j -> j.cancel(); j.join() }
+                val rows = SecondaryResultStorage.listForReport(context, reportId).filter {
+                    it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null
+                }
+                val costDelta = rows.sumOf { it.fullCost() }
+                rows.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+                if (rows.isNotEmpty()) {
+                    ReportStorage.removeFanOutIconCalls(context, reportId, rows.mapTo(HashSet()) { it.id })
+                    if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+                    ReportStorage.bumpReportTimestamp(context, reportId)
+                }
+                dropRun(runKey)
+            }
         // Capture the live coroutines before the deferred delete drops the run.
         val runJob = runJobOf(runKey)
         val pairJobs = run.pairs.values.mapNotNull { itemJobOf(it.id) }
