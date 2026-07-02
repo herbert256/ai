@@ -842,6 +842,7 @@ class SecondaryRunManager(
         val g = appViewModel.uiState.value.generalSettings
         val (infoErrorCount, infoSingleMsg) = BrokenWorkPolicy.infoProblems(
             report,
+            settings = appViewModel.uiState.value.aiSettings,
             iconGenEnabled = g.reportIconOn(),
             reportLanguageOn = g.reportLanguageOn(),
             titleModeAi = g.reportTitleAiOn(),

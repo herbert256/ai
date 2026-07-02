@@ -164,13 +164,9 @@ fun buildInfoJobs(
         )
     }
 
-    val titlePrompts = settings.internalPrompts.filter {
-        it.category == "workers" &&
-            (it.name == "report-title-short" || it.name == "report-title-long")
-    }
-    val titleConfigured = titlePrompts.any { prompt ->
-        prompt.workers.any { settings.resolveWorker(it) != null }
-    }
+    // Shared with BrokenWorkPolicy.infoProblems so the ⚠️ badge and this
+    // screen's rows can never disagree on worker resolvability.
+    val titleConfigured = com.ai.viewmodel.BrokenWorkPolicy.titleWorkersConfigured(settings)
     // "Never ran" terminal guard, mirroring the language rows: a finished
     // report that recorded no AI-title attempt (no promptUsed, no error, no
     // cost / duration) never ran the report-title job — e.g. legacy reports
@@ -221,9 +217,7 @@ fun buildInfoJobs(
 
     // Report icons are produced by the worker engine (report/icon).
     // The row is eligible when that prompt has at least one resolvable worker.
-    val iconPrompt = settings.internalPrompts.firstOrNull { it.category == "workers" && it.name == "report-icon" }
-    val iconRowOn = iconGenEnabled && iconPrompt != null &&
-        iconPrompt.workers.any { settings.resolveWorker(it) != null }
+    val iconRowOn = iconGenEnabled && com.ai.viewmodel.BrokenWorkPolicy.iconWorkerConfigured(settings)
 
     // A finished report (completedAt set) with no icon, no error, and no
     // recorded icon attempt (cost/duration/promptUsed all empty) is one where

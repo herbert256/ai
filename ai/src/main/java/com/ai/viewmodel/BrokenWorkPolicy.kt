@@ -4,6 +4,7 @@ import com.ai.data.Report
 import com.ai.data.ReportStatus
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
+import com.ai.model.Settings
 
 data class BrokenWorkLiveState(
     val nowMs: Long = System.currentTimeMillis(),
@@ -79,13 +80,32 @@ object BrokenWorkPolicy {
         return interrupted to errored
     }
 
+    /** True when either report-title worker prompt has a resolvable worker —
+     *  the gate GetInfo's title rows use ("titleConfigured"). Shared so the
+     *  ⚠️ badge and the screen can never disagree on it. */
+    fun titleWorkersConfigured(settings: Settings): Boolean =
+        settings.internalPrompts.any {
+            it.category == "workers" &&
+                (it.name == "report-title-short" || it.name == "report-title-long") &&
+                it.workers.any { w -> settings.resolveWorker(w) != null }
+        }
+
+    /** True when the report-icon worker prompt has a resolvable worker —
+     *  the worker half of GetInfo's "iconRowOn" gate. */
+    fun iconWorkerConfigured(settings: Settings): Boolean =
+        settings.internalPrompts.firstOrNull { it.category == "workers" && it.name == "report-icon" }
+            ?.workers?.any { settings.resolveWorker(it) != null } == true
+
     /** (count, singleErrorMessage) of FAILED Report-info metadata jobs — the
      *  ❌ rows on Report - titles/icons/... . Mirrors buildInfoJobs' FAILED
      *  conditions (an error message stamped by a job that concluded without a
-     *  result), gated by the same feature toggles so a row the Get-info
-     *  screen hides never raises the ⚠️ badge. */
+     *  result), gated by the same feature toggles AND worker-resolvability
+     *  gates as the screen's rows, so a row the Get-info screen hides never
+     *  raises the ⚠️ badge (a lit badge whose card opens a screen with
+     *  nothing red is unresolvable for the user). */
     fun infoProblems(
         report: Report,
+        settings: Settings,
         iconGenEnabled: Boolean,
         reportLanguageOn: Boolean,
         titleModeAi: Boolean,
@@ -94,8 +114,8 @@ object BrokenWorkPolicy {
     ): Pair<Int, String?> {
         val messages = mutableListOf<String>()
         if (reportLanguageOn) report.languageIconErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
-        if (titleModeAi) report.titleErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
-        if (iconGenEnabled) report.iconErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
+        if (titleModeAi && titleWorkersConfigured(settings)) report.titleErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
+        if (iconGenEnabled && iconWorkerConfigured(settings)) report.iconErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
         report.agents.filter { it.reportStatus == ReportStatus.SUCCESS }.forEach { a ->
             if (perModelTitle) a.modelTitleErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
             if (perModelIcon) a.iconErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
