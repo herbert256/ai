@@ -44,6 +44,10 @@ enum class BatchFamilyKind(val label: String) {
      *  PENDING/RUNNING by a process kill — not a secondary batch. One entry
      *  per report; the agent analogue of the secondary batch families. */
     RESPONSES("Report models"),
+    /** Failed Report-info metadata jobs (report title / icon / language,
+     *  per-model titles + icons) — the red crosses on the
+     *  Report - titles/icons/... screen. Restart-only; one entry per report. */
+    INFO("Titles / icons"),
     /** Single Meta / Rerank / Moderation secondary calls (not a fan-out batch). */
     OTHER("Meta / Rerank / Moderation"),
 }

@@ -79,6 +79,30 @@ object BrokenWorkPolicy {
         return interrupted to errored
     }
 
+    /** (count, singleErrorMessage) of FAILED Report-info metadata jobs — the
+     *  ❌ rows on Report - titles/icons/... . Mirrors buildInfoJobs' FAILED
+     *  conditions (an error message stamped by a job that concluded without a
+     *  result), gated by the same feature toggles so a row the Get-info
+     *  screen hides never raises the ⚠️ badge. */
+    fun infoProblems(
+        report: Report,
+        iconGenEnabled: Boolean,
+        reportLanguageOn: Boolean,
+        titleModeAi: Boolean,
+        perModelIcon: Boolean,
+        perModelTitle: Boolean,
+    ): Pair<Int, String?> {
+        val messages = mutableListOf<String>()
+        if (reportLanguageOn) report.languageIconErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
+        if (titleModeAi) report.titleErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
+        if (iconGenEnabled) report.iconErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
+        report.agents.filter { it.reportStatus == ReportStatus.SUCCESS }.forEach { a ->
+            if (perModelTitle) a.modelTitleErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
+            if (perModelIcon) a.iconErrorMessage?.takeIf { it.isNotBlank() }?.let { messages += it }
+        }
+        return messages.size to messages.singleOrNull()
+    }
+
     private class Acc(val kind: BatchFamilyKind, val key: String, val name: String) {
         var unfinished = 0
         var errors = 0
@@ -272,9 +296,11 @@ object BrokenWorkPolicy {
                             row.kind == SecondaryKind.RERANK ||
                             row.kind == SecondaryKind.MODERATION)
                 // Agents aren't SecondaryResult rows; the RESPONSES detail uses
-                // its own agent loader, so no row ever matches here.
+                // its own agent loader, so no row ever matches here. INFO
+                // (report-metadata jobs) lives on the Report, not in rows.
                 BatchFamilyKind.REGENERATE,
-                BatchFamilyKind.RESPONSES -> false
+                BatchFamilyKind.RESPONSES,
+                BatchFamilyKind.INFO -> false
             }
             if (!inBatch) return@filter false
             val activeRun = when (batch.kind) {
@@ -287,7 +313,8 @@ object BrokenWorkPolicy {
                 BatchFamilyKind.FAN_META -> batch.key in live.activeFanMetaRunKeys
                 BatchFamilyKind.OTHER,
                 BatchFamilyKind.REGENERATE,
-                BatchFamilyKind.RESPONSES -> false
+                BatchFamilyKind.RESPONSES,
+                BatchFamilyKind.INFO -> false
             }
             when (batch.kind) {
                 BatchFamilyKind.FAN_META -> {

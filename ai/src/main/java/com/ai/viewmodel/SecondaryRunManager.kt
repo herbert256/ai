@@ -681,8 +681,12 @@ class SecondaryRunManager(
      *  minus all dispatch. Sorted newest-first for the list. */
     private suspend fun scanBrokenRunsForRecentReports(context: Context): List<BrokenBatch> {
         val cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
+        // The currently-open report is always scanned, whatever its age —
+        // its Manage screens show red crosses for exactly the problems this
+        // scan flags, and the ⚠️ badge must agree with what's on screen.
+        val currentId = appViewModel.uiState.value.currentReportId
         val recent = withContext(Dispatchers.IO) {
-            ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff }
+            ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff || it.id == currentId }
         }
         if (recent.isEmpty()) return emptyList()
         val batches = recent.flatMap { report -> detectBrokenBatchesForReport(context, report) }
@@ -823,6 +827,30 @@ class SecondaryRunManager(
                 errorCount = erroredAgents.size,
                 timestamp = report.timestamp,
                 errorMessage = singleError))
+        }
+
+        // Failed Report-info metadata jobs (report title / icon / language +
+        // per-model titles/icons) — the red crosses on the Report -
+        // titles/icons/... screen. Gated on the same toggles as that
+        // screen's rows so a hidden row never raises the badge. Restart
+        // re-runs every errored job (restartReportInfoErrors); no delete.
+        val g = appViewModel.uiState.value.generalSettings
+        val (infoErrorCount, infoSingleMsg) = BrokenWorkPolicy.infoProblems(
+            report,
+            iconGenEnabled = g.reportIconOn(),
+            reportLanguageOn = g.reportLanguageOn(),
+            titleModeAi = g.reportTitleAiOn(),
+            perModelIcon = g.perModelIconOn(),
+            perModelTitle = g.perModelTitleOn(),
+        )
+        if (infoErrorCount > 0) {
+            batches.add(BrokenBatch(reportId, report.title, BatchFamilyKind.INFO,
+                key = reportId,
+                batchName = "Titles / icons / ...",
+                unfinishedCount = 0,
+                errorCount = infoErrorCount,
+                timestamp = report.timestamp,
+                errorMessage = if (infoErrorCount == 1) infoSingleMsg else null))
         }
         return batches
     }

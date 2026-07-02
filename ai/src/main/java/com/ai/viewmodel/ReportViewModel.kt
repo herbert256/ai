@@ -2137,7 +2137,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     /** "Restart errors" on Report - Get info: re-fire ONLY the info jobs that
      *  ended in an error (red ❌), clearing each one's error first so its row
      *  flips from ❌ back to pending/running. Successful jobs are left alone. */
-    fun restartReportInfoErrors(context: Context, reportId: String) {
+    fun restartReportInfoErrors(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val ai = appViewModel.uiState.value.aiSettings
@@ -2178,7 +2178,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             }
         }
-    }
 
     fun regenerateReportInfo(context: Context, reportId: String) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {

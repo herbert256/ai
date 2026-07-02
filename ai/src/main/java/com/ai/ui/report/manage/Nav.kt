@@ -1006,6 +1006,9 @@ internal fun ConsumePendingBatchOpen(
             // View-only (Broken-work card tap): a single Meta/Rerank/Moderation
             // → open its secondary detail (key carries the result id).
             com.ai.viewmodel.BatchFamilyKind.OTHER -> ({ st.openMetaResultId.value = p.key })
+            // Failed report-info metadata jobs → the Report - titles/icons/...
+            // layer, where the ❌ rows live.
+            com.ai.viewmodel.BatchFamilyKind.INFO -> ({ st.showGetInfo.value = true })
             else -> return@LaunchedEffect
         }
         // View-only just opens the item's screen — no re-queue / build popup.

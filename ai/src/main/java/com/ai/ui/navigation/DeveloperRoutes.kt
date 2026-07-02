@@ -172,6 +172,11 @@ private suspend fun recoverBrokenBatch(
                 else rvm.removeAgentFromReport(context, rid, agentId)
             }.forEach { it.join() }
         }
+        BatchFamilyKind.INFO -> {
+            // Failed Report-info metadata jobs — restart-only (the card shows
+            // no 🗑 / view): clears each errored job's stamp and re-fires it.
+            if (restart) rvm.restartReportInfoErrors(context, rid).join()
+        }
     }
 }
 

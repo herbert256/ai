@@ -171,6 +171,14 @@ internal fun ReportRunScreen(
             else -> st.showGetInfo.value = true                                 // Manage → Get-info
         }
     }
+    // Red crosses on any of the three report layers must surface the ⚠️
+    // Broken-work badge right away — the background scan only ticks every
+    // 30 s (and covers old reports only while they're the current one), so
+    // force one scan whenever the hub lands on a report.
+    val refreshBrokenWork = com.ai.ui.shared.LocalRefreshBrokenWork.current
+    androidx.compose.runtime.LaunchedEffect(currentReportId) {
+        if (currentReportId != null) refreshBrokenWork?.invoke()
+    }
     // Which of the three report screens is on top right now. The hub is the
     // sole bottom-bar publisher (the Get-info / second-results overlays keep
     // publishBottomBar=false and draw only their top chrome), so it publishes
