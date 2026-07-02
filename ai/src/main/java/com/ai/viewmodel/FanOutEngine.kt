@@ -1116,6 +1116,27 @@ class FanOutEngine internal constructor(
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     if (successful.size < 2) return@withTracerTags
+                    // One run per (report, prompt) — the invariant the whole
+                    // run model is keyed on (FanOutRunKey) but nothing
+                    // enforced: a second launch of an already-run prompt
+                    // (e.g. on another language) merged into the same run key
+                    // on the next hydrate, where the new batch's rows
+                    // silently shadowed the old batch's per-pair — the
+                    // shadowed rows became engine-invisible orphans that
+                    // survive every delete and re-form a ghost run forever.
+                    val hasExistingRun = withContext(Dispatchers.IO) {
+                        SecondaryResultStorage.listForReport(context, reportId).any {
+                            it.metaPromptId == metaPrompt.id && it.fanOutSourceAgentId != null && it.fanInOf == null
+                        }
+                    }
+                    if (hasExistingRun) {
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(context,
+                                "'${metaPrompt.name}' already has a fan-out run on this report — delete it (or use Rerun) first.",
+                                android.widget.Toast.LENGTH_LONG).show()
+                        }
+                        return@withTracerTags
+                    }
                     AuditLog.append(reportId, "Start Fan Out '${metaPrompt.name}' — ${successful.size} source model(s)")
                     val sources = when (scopeChoice) {
                         SecondaryScope.AllReports -> successful
