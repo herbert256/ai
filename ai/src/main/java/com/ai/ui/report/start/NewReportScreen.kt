@@ -499,6 +499,13 @@ fun NewReportScreen(
                         webSearchTool = useWebSearch,
                         reasoningEffort = reasoningEffort.ifBlank { null }
                     )
+                    // Same staging drain as proceed(): without it the
+                    // shared-KB banner (and a never-generated image)
+                    // resurrected on the next fresh New Report visit,
+                    // offering files that belonged to this report.
+                    viewModel.updateUiState { it.copy(
+                        pendingReportKnowledgeUris = emptyList()
+                    ) }
                 }) { Text("Proceed anyway", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
