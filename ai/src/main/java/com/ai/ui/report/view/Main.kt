@@ -637,8 +637,21 @@ internal fun ViewAiReportScreen(
             fanOutViewLanguage = null
             fanOutViewInitiatorAgentId = null
         }
+        // Title tap ("go to the View hub") must land on the tile
+        // grid, not just peel one layer back to the still-open
+        // Reports view like [backToReports] (the back press) does —
+        // close the Reports sub-overlay too.
+        val backToGrid: () -> Unit = {
+            fanOutViewName = null
+            fanOutViewLanguage = null
+            fanOutViewInitiatorAgentId = null
+            reportsViewOpen = false
+            reportsViewLanguage = null
+            reportsViewInitialAgentId = null
+            reportsViewSeededFromOutside = false
+        }
         androidx.compose.runtime.CompositionLocalProvider(
-            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToReports
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToGrid
         ) {
             FanOutViewScreen(
                 reportId = reportId,

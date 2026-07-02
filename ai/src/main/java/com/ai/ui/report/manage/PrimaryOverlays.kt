@@ -230,33 +230,35 @@ internal fun ReportPrimaryOverlays(
             }
         }
     }
+    // [gotoMainView] is wired into LocalNavigateToCurrentReport on
+    // EVERY overlay branch below, i.e. the Report-title tap on every
+    // View screen. The rule is "title-tap always lands on the Main
+    // View tile grid". From a View screen layered on top of a Manage
+    // overlay (pendingViewOverManage, the generation phase's Icons,
+    // a Manage-opened fan-out), just clearing the branch's own flag
+    // falls through to the underlying Manage overlay — wrong. We
+    // clear every Manage sub-overlay flag AND every View overlay
+    // branch flag here AND bump the reset tick so
+    // ViewAiReportScreen's inner sub-View state resets, dropping the
+    // user on the fresh tile grid.
+    val gotoMainView: () -> Unit = {
+        pendingHolder?.value = null
+        onOpenMetaResultIdChange(null)
+        onOpenTranslationRunIdChange(null)
+        onShowViewerChange(false)
+        onShowIconsViewChange(false)
+        onCloseFanOutView()
+        onHtmlPreviewDetailChange(null)
+        onListTargetChange(null, null)
+        onSingleResultAgentIdChange(null)
+        resetTickHolder?.let { it.value = it.value + 1 }
+        onShowViewReportScreenChange(true)
+    }
     if (jump != null && currentReportId != null) {
         val rid = currentReportId
         // [close] pops one layer back to the underlying Manage
         // overlay — keeps the back-stack peeling natural.
         val close: () -> Unit = { pendingHolder.value = null }
-        // [gotoMainView] is wired into LocalNavigateToCurrentReport,
-        // i.e. the Report-title tap on every View screen. The rule
-        // is "title-tap always lands on the Main View tile grid".
-        // From a LAYERED View screen (mounted on top of a Manage
-        // overlay via pendingViewOverManage), just clearing the
-        // pending flag falls through to the underlying Manage
-        // overlay — wrong. We clear every Manage sub-overlay flag
-        // here AND bump the reset tick so ViewAiReportScreen's
-        // inner sub-View state resets, dropping the user on the
-        // fresh tile grid.
-        val gotoMainView: () -> Unit = {
-            pendingHolder.value = null
-            onOpenMetaResultIdChange(null)
-            onOpenTranslationRunIdChange(null)
-            onShowViewerChange(false)
-            onShowIconsViewChange(false)
-            onHtmlPreviewDetailChange(null)
-            onListTargetChange(null, null)
-            onSingleResultAgentIdChange(null)
-            resetTickHolder?.let { it.value = it.value + 1 }
-            onShowViewReportScreenChange(true)
-        }
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
@@ -369,7 +371,7 @@ internal fun ReportPrimaryOverlays(
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { onCloseFanOutView() },
+            LocalNavigateToCurrentReport provides gotoMainView,
             com.ai.ui.shared.LocalOpenManage provides fanOutOpenManageJump
         ) {
             FanOutViewScreen(
@@ -386,7 +388,7 @@ internal fun ReportPrimaryOverlays(
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { onShowIconsViewChange(false) }
+            LocalNavigateToCurrentReport provides gotoMainView
         ) {
             IconsViewScreen(
                 reportId = currentReportId,
