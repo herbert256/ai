@@ -259,10 +259,52 @@ internal fun ReportPrimaryOverlays(
         // [close] pops one layer back to the underlying Manage
         // overlay — keeps the back-stack peeling natural.
         val close: () -> Unit = { pendingHolder.value = null }
+        // LocalOpenManage for jump-mounted View screens — without it the
+        // hub's wrench + centre-title tap (whose contract is 'always land
+        // on the main Manage screen') fell back to gotoMainView, which
+        // only reset the same tile grid; a second tap on the re-mounted
+        // standard hub was needed to actually reach Manage. Pops the jump
+        // overlay first (it renders above every Manage overlay), then arms
+        // the target Manage state — mirroring the standard hub's handler.
+        val openManageFromJump: (com.ai.ui.shared.ManageJump) -> Unit = { mj ->
+            pendingHolder.value = null
+            when (mj) {
+                is com.ai.ui.shared.ManageJump.Main -> {
+                    // Land on Report - manage MAIN: sweep the Manage
+                    // sub-overlays the jump was layered over (same set as
+                    // gotoMainView, minus re-opening the View grid).
+                    onOpenMetaResultIdChange(null)
+                    onOpenTranslationRunIdChange(null)
+                    onShowViewerChange(false)
+                    onShowIconsViewChange(false)
+                    onCloseFanOutView()
+                    onHtmlPreviewDetailChange(null)
+                    onListTargetChange(null, null)
+                    onSingleResultAgentIdChange(null)
+                    onShowViewReportScreenChange(false)
+                }
+                is com.ai.ui.shared.ManageJump.Tournament -> {
+                    tournamentOpenHolder?.value = mj.reportId
+                    onShowViewReportScreenChange(false)
+                }
+                is com.ai.ui.shared.ManageJump.MetaResult -> onOpenMetaResultIdChange(mj.id)
+                is com.ai.ui.shared.ManageJump.TranslationRun -> onOpenTranslationRunIdChange(mj.id)
+                is com.ai.ui.shared.ManageJump.ReportsViewer -> {
+                    if (mj.section == null && mj.initialAgentId != null) {
+                        onSingleResultAgentIdChange(mj.initialAgentId)
+                    } else {
+                        onSelectedAgentForViewerChange(mj.initialAgentId)
+                        onViewerSectionChange(mj.section)
+                        onShowViewerChange(true)
+                    }
+                }
+            }
+        }
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides gotoMainView
+            LocalNavigateToCurrentReport provides gotoMainView,
+            com.ai.ui.shared.LocalOpenManage provides openManageFromJump
         ) {
             when (jump) {
                 is com.ai.ui.shared.ViewJump.Main -> ViewAiReportScreen(
