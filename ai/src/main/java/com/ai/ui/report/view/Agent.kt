@@ -207,9 +207,16 @@ fun ReportsViewScreen(
     // re-seek when `languages` changes later (translations finish loading,
     // or a report swap swaps in a different language set) — so re-centre
     // once per report once the language set is current.
+    // Latch only once the LOADED data is for the current report: on a
+    // title-bar report swipe (and at mount, where the parent-supplied
+    // availableLanguages can be larger than the AGENT-only loaded set)
+    // produceState still holds the previous value when this effect first
+    // fires — centring against the stale list and latching left the pager
+    // wrap-aligned to the wrong modulus (arbitrary landing, or a dead-end
+    // backward swipe at the span edge).
     var langCenteredFor by remember { mutableStateOf<String?>(null) }
     androidx.compose.runtime.LaunchedEffect(currentReportId, languages, initialLanguage) {
-        if (langCenteredFor != currentReportId) {
+        if (langCenteredFor != currentReportId && loaded.report?.id == currentReportId) {
             val target = languages.indexOf(initialLanguage ?: "").coerceAtLeast(0)
             langPagerState.scrollToPage(wrapCenterPage(languages.size, target))
             langCenteredFor = currentReportId
@@ -250,7 +257,13 @@ fun ReportsViewScreen(
     // report swap) — same pattern as the language pager above.
     var modelsCenteredFor by remember { mutableStateOf<String?>(null) }
     androidx.compose.runtime.LaunchedEffect(currentReportId, agents, initialAgentId) {
-        if (modelsCenteredFor != currentReportId && agents.isNotEmpty()) {
+        // loaded-report check: same stale-latch guard as the language pager
+        // above — after a title-bar swipe this effect fires while `agents`
+        // is still the PREVIOUS report's list, and latching then blocked
+        // the re-centre when the real list arrived (landing on the last
+        // model, or dead-ending backward swipes from a 1-agent origin).
+        if (modelsCenteredFor != currentReportId && agents.isNotEmpty() &&
+            report?.id == currentReportId) {
             val idx = initialAgentId
                 ?.let { id -> agents.indexOfFirst { it.agentId == id } }
                 ?.takeIf { it >= 0 } ?: 0
