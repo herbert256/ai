@@ -2757,10 +2757,22 @@ object ReportStorage {
                 workerConfig = src.workerConfig,
                 // Carry the prompt-edit history + user notes too — they're
                 // part of the report's authored state, not a fresh-choice
-                // reset like pinned/costsFromDeletedItems. Copy the mutable
-                // notes list so the copy and source don't share it.
+                // reset like pinned/costsFromDeletedItems. Notes are
+                // remapped like the import path does (ReportBundle):
+                // REPORT notes target the report id (verbatim copies
+                // pointed at the SOURCE id, so the copy's note strip was
+                // empty); AGENT notes keep working (agents keep their
+                // ids); SECONDARY / FANOUT_RUN notes are dropped — the
+                // copy carries no secondary rows, so they could only ever
+                // render as "Deleted item".
                 promptHistory = src.promptHistory,
-                userNotes = src.userNotes.toMutableList()
+                userNotes = src.userNotes.mapNotNull { note ->
+                    when (note.targetKind) {
+                        "REPORT" -> note.copy(targetId = newId)
+                        "AGENT" -> note.copy()
+                        else -> null
+                    }
+                }.toMutableList()
             )
             // Mirror the icon + its error from the source. The copy
             // makes no new API call, so without this the copy sits
