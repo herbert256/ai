@@ -931,8 +931,16 @@ internal fun NavGraphBuilder.developerRoutes(
                         val fanOutName: String?
                         when (batch.kind) {
                             BatchFamilyKind.OTHER -> {
+                                // Errors first, then unfinished — a card whose
+                                // single broken item is an interrupted
+                                // placeholder (no error stamped) otherwise fell
+                                // back to batch.key = the reportId, which never
+                                // matches a secondary row id, so the detail
+                                // silently never opened.
                                 key = withContext(Dispatchers.IO) {
-                                    matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.ERRORS).firstOrNull()?.id
+                                    (matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.ERRORS) +
+                                        matchingBrokenRows(brokenWorkContext, batch, BrokenItemMode.UNFINISHED))
+                                        .firstOrNull()?.id
                                 } ?: batch.key
                                 fanOutName = null
                             }

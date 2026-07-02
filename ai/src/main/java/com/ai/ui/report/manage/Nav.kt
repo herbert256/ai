@@ -1004,8 +1004,14 @@ internal fun ConsumePendingBatchOpen(
             })
             com.ai.viewmodel.BatchFamilyKind.TRANSLATION -> ({ st.openTranslationRunId.value = p.key })
             // View-only (Broken-work card tap): a single Meta/Rerank/Moderation
-            // → open its secondary detail (key carries the result id).
-            com.ai.viewmodel.BatchFamilyKind.OTHER -> ({ st.openMetaResultId.value = p.key })
+            // → open its secondary detail (key carries the result id). The
+            // sender falls back to the reportId when the broken row settled
+            // between scan and tap — that never matches a secondary row, so
+            // don't latch it into openMetaResultId (a stale non-matching id
+            // also blocks the View-hub mount); just land on the report.
+            com.ai.viewmodel.BatchFamilyKind.OTHER -> ({
+                if (p.key != p.reportId) st.openMetaResultId.value = p.key
+            })
             // Failed report-info metadata jobs → the Report - titles/icons/...
             // layer, where the ❌ rows live.
             com.ai.viewmodel.BatchFamilyKind.INFO -> ({ st.showGetInfo.value = true })
