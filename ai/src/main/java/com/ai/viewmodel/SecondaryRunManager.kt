@@ -1004,7 +1004,31 @@ class SecondaryRunManager(
                     // meta over the report answers (wrong content).
                     if (placeholder.fanInOf != null) {
                         val resolution = buildFanInResolution(context, reportId, metaPrompt, report, lang)
-                            ?: return@withTracerTags
+                        if (resolution == null) {
+                            // The fan-out matrix is gone (run deleted, or every
+                            // pair errored) — nothing can re-run. The row was
+                            // already wiped above; put the original content back
+                            // rather than leave a blank forever-⏳ placeholder: a
+                            // Reload on a finished fan-in must never destroy its
+                            // combined report. A row with no content to preserve
+                            // gets a terminal error instead, mirroring the
+                            // no-resolvable-worker path. Costs stay off the row —
+                            // the prior spend was banked into
+                            // costsFromDeletedItems above.
+                            AppLog.w("Resume", "fan-in re-issue aborted — no fan-out rows to combine; row=${placeholder.id}")
+                            SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                                inputCost = null, outputCost = null, tokenUsage = null,
+                                iconInputCost = 0.0, iconOutputCost = 0.0,
+                                iconInputTokens = 0, iconOutputTokens = 0,
+                                titleInputCost = 0.0, titleOutputCost = 0.0,
+                                titleInputTokens = 0, titleOutputTokens = 0,
+                                errorMessage = if (placeholder.content.isNullOrBlank())
+                                    "No fan-out responses to combine — the fan-out run this fan-in was built from is gone or fully errored."
+                                else placeholder.errorMessage,
+                                durationMs = if (placeholder.content.isNullOrBlank()) 0 else placeholder.durationMs
+                            ), mergeCosts = false)
+                            return@withTracerTags
+                        }
                         executeSecondaryTask(
                             context, reportId, kind, metaPrompt,
                             provider, model, resolution.resolvedPrompt, aiSettings, report,
