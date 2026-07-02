@@ -248,7 +248,11 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
             TournamentWorkersL1(run, agents, reportTitle, reportIcon, throttled,
                 openGroup = { gk -> groupKey = gk; level = 2 },
                 onRedo = { confirmRedo = true },
-                onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
+                // Call deleteRun DIRECTLY (not suspend — it self-schedules on
+                // viewModelScope). Wrapping it in scope.launch raced with
+                // onBack() cancelling this screen's scope, so the delete
+                // sometimes never fired (same shipped bug as TranslatorRank).
+                onDeleteRun = { engine.deleteRun(context, reportId); onBack() },
                 onOpenView = onOpenTournamentView,
                 onBack = { groupMode = TournamentGroupMode.REPORT_MODELS })
         } else {
@@ -258,7 +262,8 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
                 onRedo = { confirmRedo = true },
                 onRestartFailed = { scope.launch { engine.restartFailedMatches(context, reportId) } },
                 onRemoveFailed = { scope.launch { engine.removeFailedMatches(context, reportId) } },
-                onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
+                // Direct call — see the workers-grouping delete above.
+                onDeleteRun = { engine.deleteRun(context, reportId); onBack() },
                 onOpenView = onOpenTournamentView,
                 onJudgeJudges = onJudgeJudges,
                 onBack = onBack)
