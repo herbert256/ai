@@ -131,7 +131,30 @@ internal fun ReportIconFlowOverlays(
                         onStashAltEdit(payload)
                         st.altPromptEditorPassed.value = true
                     },
-                    onBack = { cancelFindAltFlow(st, onStashAltEdit) }
+                    onBack = {
+                        // Pop exactly the editor. The Icon-lookup detail
+                        // layered beneath keeps its mount flags
+                        // (pairIconDetailFor / promptIconDetailForId /
+                        // translationIconLanguageFor / targetLanguageIcon
+                        // under showIconDetail) — mirroring the model
+                        // picker's onBack below. Routing this through
+                        // cancelFindAltFlow cleared them and REPLACED the
+                        // detail instead of layering: back over a language
+                        // detail landed on the report-icon lookup, and over
+                        // a pair/meta/translation detail skipped it
+                        // entirely.
+                        st.pickerTarget.value = PickerTarget.NEW_REPORT
+                        st.showFindIconsPicker.value = false
+                        st.altPromptEditorPassed.value = false
+                        st.findTitlesFor.value = null
+                        st.findTitlesLong.value = false
+                        st.pairTitleDetailFor.value = null
+                        if (!st.showIconDetail.value) {
+                            st.targetLanguageIcon.value = false
+                            st.targetLanguageDetect.value = false
+                        }
+                        onStashAltEdit(null)
+                    }
                 )
             }
             return true
@@ -532,10 +555,17 @@ private fun altFlowFor(st: ReportsScreenState, uiState: UiState, reportId: Strin
 
 /** Cancel the whole Find-alternative flow from the pre-pick editor —
  *  drop the picker + every target flag and clear any stashed edit. */
+/** FULL teardown of the Find-alternative flow — the home affordance
+ *  ("navigate to the report"), NOT a back-pop: it also unmounts the
+ *  Icon-lookup details layered beneath the editor. A plain back must
+ *  instead pop one level and preserve the detail flags (see the
+ *  editor's onBack). */
 private fun cancelFindAltFlow(st: ReportsScreenState, onStashAltEdit: (AltEditPayload?) -> Unit) {
     st.showFindIconsPicker.value = false
     st.altPromptEditorPassed.value = false
     st.pickerTarget.value = PickerTarget.NEW_REPORT
+    st.showIconDetail.value = false
+    st.agentIconDetailFor.value = null
     st.findTitlesFor.value = null
     st.findTitlesLong.value = false
     st.pairTitleDetailFor.value = null
