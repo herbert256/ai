@@ -251,7 +251,32 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  background (see [deleteRunDeferred]). Open — TransRank overrides
      *  with a disk sweep keyed by its source translation run. */
     open fun deleteRun(context: Context, runKey: RunKey): Job {
-        val run = _runs.value[runKey] ?: return appViewModel.viewModelScope.launch { }
+        val run = _runs.value[runKey]
+        if (run == null) {
+            // Mid-build Cancel: launchRun registers the run Job synchronously,
+            // but the engines publish into _runs only AFTER the whole build
+            // persists — exactly the window the blocking "Building …" popup
+            // (whose Cancel calls this) is on screen. The old empty-Job
+            // early-return made that Cancel a silent no-op: the build kept
+            // running, dispatched every item and billed all the calls.
+            // Cancel + join the job, then sweep every row of this kind for
+            // the report — the run was never published, so they are all
+            // engine-invisible placeholders of the aborted build (plus any
+            // legacy leftover groups hydrate ignores anyway). Mirrors the
+            // TranslatorRank override, which handles this case by source-run
+            // sweep.
+            val orphanReportId = reportIdOf(runKey)
+            return deleteRunDeferred(appViewModel.viewModelScope, runKey, runJobOf(runKey), emptyList()) {
+                withRemoveLock(runKey) {
+                    val rows = SecondaryResultStorage.listForReport(context, orphanReportId, secondaryKind)
+                    if (rows.isEmpty()) return@withRemoveLock
+                    val costDelta = rows.sumOf { it.fullCost() }
+                    rows.forEach { SecondaryResultStorage.delete(context, orphanReportId, it.id) }
+                    if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, orphanReportId, costDelta)
+                    ReportStorage.bumpReportTimestamp(context, orphanReportId)
+                }
+            }
+        }
         val reportId = reportIdOf(runKey)
         // Capture the live coroutines before the deferred delete drops the run.
         val runJob = runJobOf(runKey)
