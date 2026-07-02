@@ -156,7 +156,12 @@ fun MetaViewScreen(
     // the previous row's page; manual swipes within a row stand.
     var centeredFor by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(languages, currentResultId) {
-        if (languages.size > 1 && centeredFor != currentResultId) {
+        // row check: on a swipe to another meta result this effect fires
+        // while `languages` still holds the PREVIOUS row's set — centring
+        // against it and latching blocked the re-centre when the real set
+        // arrived, wrap-misaligning the pager (same stale-latch bug as the
+        // Agent/Prompt pagers).
+        if (languages.size > 1 && centeredFor != currentResultId && row?.id == currentResultId) {
             val target = languages.indexOf(language ?: "").coerceAtLeast(0)
             pagerState.scrollToPage(wrapCenterPage(languages.size, target))
             centeredFor = currentResultId

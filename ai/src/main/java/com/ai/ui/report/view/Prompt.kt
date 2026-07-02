@@ -133,10 +133,16 @@ fun PromptViewScreen(
     // Wrapping language pager — swipe past the first / last wraps around
     // (the user wants every View swipe to cycle forever, both ways).
     val pagerState = rememberWrapPager(languages.size, initialIndex)
+    // Latch only once the LOADED data is for the current report: on a
+    // title-bar swipe this effect fires while produceState still holds the
+    // previous report's translations — centring against the stale list and
+    // latching left the pager wrap-aligned to the wrong modulus (opening on
+    // the last translation instead of Original, or dead-ending backward
+    // swipes at the span edge — the exact symptom this effect fixes).
     var centeredFor by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(currentReportId, languages, initialLanguage) {
         val key = "$currentReportId|${initialLanguage.orEmpty()}"
-        if (centeredFor != key) {
+        if (centeredFor != key && loaded.report?.id == currentReportId) {
             val target = languages.indexOf(initialLanguage ?: "").coerceAtLeast(0)
             pagerState.scrollToPage(wrapCenterPage(languages.size, target))
             centeredFor = key

@@ -251,6 +251,20 @@ fun ModerationViewScreen(
         // so the user reads top-to-bottom:
         //   title → verdict → X / Y → moderation card → response card.
         val pagerState = rememberWrapPager(rows.size, 0)
+        // Re-centre once per moderation row: on a title-bar report swipe
+        // the already-created pager keeps its absolute page, which wraps
+        // arbitrarily against the new report's model count — the same
+        // stale-pager bug the Agent/Prompt/Meta screens guard against
+        // (this pager had no re-centre at all). Latch only once the
+        // loaded row matches the current one.
+        var pagerCenteredFor by remember { mutableStateOf<String?>(null) }
+        androidx.compose.runtime.LaunchedEffect(currentResultId, rows) {
+            if (pagerCenteredFor != currentResultId && rows.isNotEmpty() &&
+                result.id == currentResultId) {
+                pagerState.scrollToPage(com.ai.ui.report.view.helpers.wrapCenterPage(rows.size, 0))
+                pagerCenteredFor = currentResultId
+            }
+        }
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "${pagerState.currentPage.wrapTo(rows.size) + 1} / ${rows.size}",
