@@ -1926,11 +1926,22 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             runJobOf(runKey)?.cancelAndJoin()
             run.pairs.values.forEach { pair -> itemJobOf(pair.id)?.cancelAndJoin() }
+            // One disk read per pair, BEFORE the deletes: the cost tally plus
+            // the original launch settings, which only live on the rows
+            // (FanOutRunState doesn't carry them) — parameter presets, system
+            // prompt, and whether self-pairs were included. Omitting them
+            // re-ran the batch with default generation settings and silently
+            // dropped every self-pair.
+            val diskRows = run.pairs.values.mapNotNull { SecondaryResultStorage.get(context, run.reportId, it.id) }
+            val diskById = diskRows.associateBy { it.id }
+            val paramsIds = diskRows.firstNotNullOfOrNull { r -> r.secondaryParameterPresetIds?.takeIf { it.isNotEmpty() } }.orEmpty()
+            val systemPromptId = diskRows.firstNotNullOfOrNull { it.secondarySystemPromptId }
+            val includeSelf = run.pairs.values.any { it.answererAgentId == it.sourceAgentId }
             // Disk-truth fullCost (in/out + Fan-Meta icon + title) so a pair
             // that settled while we were cancelling still rolls its spend in;
             // the in-memory totalCost is the fallback for a missing row.
             val costDelta = run.pairs.values.sumOf {
-                SecondaryResultStorage.get(context, run.reportId, it.id)?.fullCost() ?: it.totalCost
+                diskById[it.id]?.fullCost() ?: it.totalCost
             }
             val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
@@ -1948,8 +1959,10 @@ class FanOutEngine internal constructor(
                 ?: run.pairs.values.map { it.answererAgentId }.toSet().takeIf { it.isNotEmpty() }
             dropRun(runKey)
             // Re-fire through the engine's own launch path, reproducing the
-            // original run's scope + responder set.
-            startRun(context, run.reportId, run.metaPrompt, run.scope, responderIds, run.sourceLanguage)
+            // original run's scope + responder set + generation settings.
+            startRun(context, run.reportId, run.metaPrompt, run.scope, responderIds, run.sourceLanguage,
+                paramsIds = paramsIds, systemPromptId = systemPromptId,
+                includeSelfResponses = includeSelf)
         }
 
     /** Drop every pair row in the run + the run itself. Combined-
