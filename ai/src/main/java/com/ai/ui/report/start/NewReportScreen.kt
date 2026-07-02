@@ -347,10 +347,15 @@ fun NewReportScreen(
                             webSearchTool = useWebSearch,
                             reasoningEffort = reasoningEffort.ifBlank { null }
                         )
-                        // Staging consumed by the selection flow — drain it so
-                        // a later fresh visit doesn't re-stage the same image.
+                        // Staging consumed by the selection flow — drain the
+                        // shared-KB staging so a later fresh visit doesn't
+                        // re-offer the same files. The image fields must NOT
+                        // be drained here: showGenericAgentSelection just
+                        // wrote them into UiState and generateGenericReports
+                        // reads (then drains) them at dispatch — nulling them
+                        // here sent every image-attached report out
+                        // text-only, at full cost.
                         viewModel.updateUiState { it.copy(
-                            reportImageBase64 = null, reportImageMime = null,
                             pendingReportKnowledgeUris = emptyList()
                         ) }
                     }
