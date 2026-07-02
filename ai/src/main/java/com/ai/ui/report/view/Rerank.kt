@@ -107,12 +107,30 @@ fun RerankViewScreen(
         value = withContext(Dispatchers.IO) {
             val r = SecondaryResultStorage.get(context, currentReportId, currentResultId)
             val report = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            val labels = report?.agents
-                ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                ?.mapIndexed { idx, agent ->
-                    (idx + 1) to AgentLabel(shortModelName(agent.model), agent.agentId)
-                }?.toMap()
-                ?: emptyMap()
+            // Resolve the [N] ids through the row's run-time sourceAgentIds
+            // snapshot, like Manage's RerankDetailScreen — mapping positions
+            // into the CURRENT success set attributed every medal to the
+            // wrong model (and podium taps opened the wrong agent) once a
+            // deletion or a failed→success regenerate shifted the numbering.
+            // Legacy rows without a snapshot keep the positional fallback.
+            val snapshot = r?.sourceAgentIds
+            val agents = report?.agents.orEmpty()
+            val labels: Map<Int, AgentLabel> = if (!snapshot.isNullOrEmpty()) {
+                val byId = agents.associateBy { it.agentId }
+                snapshot.mapIndexed { idx, aid ->
+                    val agent = byId[aid]
+                    (idx + 1) to AgentLabel(
+                        agent?.model?.let { shortModelName(it) } ?: "(removed model)",
+                        agent?.agentId
+                    )
+                }.toMap()
+            } else {
+                agents
+                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    .mapIndexed { idx, agent ->
+                        (idx + 1) to AgentLabel(shortModelName(agent.model), agent.agentId)
+                    }.toMap()
+            }
             Loaded(r, labels, report?.barTitle)
         }
     }
@@ -220,7 +238,10 @@ fun RerankViewScreen(
  *  name is intentionally not surfaced on the View variant (kept off
  *  per the user's spec). agentId backs the card-tap → Reports
  *  navigation. */
-private data class AgentLabel(val shortModel: String, val agentId: String)
+/** [agentId] is null for a snapshot entry whose agent was removed from
+ *  the report — the label still names the rank, but there is no card
+ *  tap-through. */
+private data class AgentLabel(val shortModel: String, val agentId: String?)
 
 /** Medal styling for the top-3 podium cards. */
 private data class MedalSpec(val emoji: String, val accent: Color, val name: String)
