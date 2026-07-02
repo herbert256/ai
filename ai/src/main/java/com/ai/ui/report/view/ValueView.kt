@@ -667,11 +667,25 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
 
     // Cycle the ranking source by [dir] (-1 prev / +1 next), wrapping with
     // no edge — drives the full-screen graph's left/right taps and keeps the
-    // underlying chip selection in step.
+    // underlying chip selection in step. Sources whose value points resolve
+    // empty are skipped: a TransRank chip exists whenever the run has any
+    // translator scores, but its rows keep only translators that are also
+    // SUCCESS models of THIS report — cycling onto a zero-overlap source
+    // made the full-screen Dialog vanish (its mount requires non-empty
+    // points) with showFullGraph still true, so the next chip tap dropped
+    // the user straight back into the full-screen graph.
     val cycleSource: (Int) -> Unit = { dir ->
         if (sources.isNotEmpty()) {
             val cur = sources.indexOfFirst { it.key() == selected?.key() }.coerceAtLeast(0)
-            val next = ((cur + dir) % sources.size + sources.size) % sources.size
+            var next = cur
+            for (step in 1..sources.size) {
+                next = ((cur + dir * step) % sources.size + sources.size) % sources.size
+                val candidate = sources[next]
+                val rows = rowsForSource(candidate, loaded, combinedRows, tournamentTotalRowList)
+                val hasPoints = loaded.report != null &&
+                    buildValuePoints(loaded.report, rows, loaded.fanOutCostByAgentId).isNotEmpty()
+                if (hasPoints) break
+            }
             selectedKey = sources[next].key()
         }
     }
@@ -681,6 +695,13 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
     // bottom icon bars (an early-return overlay would still sit inside
     // them). Left/right half taps cycle the ranking. See [ValueGraphFullScreen].
     var showFullGraph by rememberSaveable(currentReportId) { mutableStateOf(false) }
+    // Safety net for any other path that empties the points while the
+    // full-screen graph is up (report swipe, data change): reset the flag
+    // instead of leaving a phantom 'true' that re-opens the graph on the
+    // next chip tap.
+    androidx.compose.runtime.LaunchedEffect(points, showFullGraph) {
+        if (showFullGraph && points.isEmpty()) showFullGraph = false
+    }
     if (showFullGraph && points.isNotEmpty()) {
         ValueGraphFullScreen(
             points = points,
