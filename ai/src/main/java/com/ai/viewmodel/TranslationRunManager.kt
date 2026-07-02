@@ -792,6 +792,9 @@ class TranslationRunManager(
                 }
             }
             // Update the live run (if any) so an in-flight L3 reflects it.
+            // traceFile + durationMs must swap too: L3's 🐞 reads
+            // item.traceFile, so keeping the replaced translation's values
+            // opened the OLD model's trace under the new model's text.
             transitionItem(runId, itemId) {
                 it.copy(
                     status = TranslationStatus.DONE,
@@ -800,7 +803,9 @@ class TranslationRunManager(
                     model = candidate.model,
                     costDollars = candidate.cost,
                     tokenUsage = tu,
-                    errorMessage = null
+                    errorMessage = null,
+                    traceFile = candidate.traceFile,
+                    durationMs = candidate.durationMs
                 )
             }
             appViewModel.clearAltTranslationFanOut(itemId)
