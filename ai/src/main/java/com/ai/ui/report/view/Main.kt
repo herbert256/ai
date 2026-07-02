@@ -528,6 +528,15 @@ internal fun ViewAiReportScreen(
     // re-fire.
     androidx.compose.runtime.LaunchedEffect(pendingLangFromSubView, viewLangTabs) {
         val pending = pendingLangFromSubView ?: return@LaunchedEffect
+        // Same cold-window guard as the reset effect above: on the way
+        // back from a sub-View, translatesState restarts empty and
+        // viewLangTabs is [Original] for the first composition. This
+        // effect has no suspension points, so it ran before the IO
+        // reload landed — a non-blank bubbled language found no tab,
+        // fell back, and was CLEARED, so the adoption never re-fired
+        // and the round-trip silently dropped the language every time.
+        // Wait for the real tabs before consuming a non-blank pending.
+        if (pending.isNotBlank() && viewLangTabs.size <= 1) return@LaunchedEffect
         val newKey = if (pending.isBlank()) LangTab.ORIGINAL_KEY
             else viewLangTabs.firstOrNull { it.displayName == pending }?.key
                 ?: selectedViewLangKey
