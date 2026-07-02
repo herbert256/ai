@@ -216,7 +216,13 @@ class TournamentEngine internal constructor(
                 metaPromptId = prompt.id,
                 metaPromptName = prompt.name,
                 runId = runId,
-                secondaryScope = scopeEncoded
+                secondaryScope = scopeEncoded,
+                // Freeze the participant set (launch-time success order — the
+                // same order recomputeAggregate numbers the [N] ids by) so a
+                // Top-ranked scope on this aggregate resolves through the
+                // snapshot like RERANK rows do, instead of positions into the
+                // CURRENT success list, which drifts as agents regenerate.
+                sourceAgentIds = successful.map { it.agentId }
             )
 
             val pending = mutableListOf<PendingMatch>()
@@ -402,7 +408,15 @@ class TournamentEngine internal constructor(
             SecondaryResultStorage.save(context, row.copy(
                 content = ranks.toRerankJson(),
                 tournamentMatrix = matrix.encode(run.selectedMethod),
-                durationMs = row.durationMs ?: 0
+                durationMs = row.durationMs ?: 0,
+                // Keep the snapshot in lockstep with idByAgent's numbering —
+                // participants in report-agent order — so Top-ranked scopes
+                // resolve the [N] ids to the agents actually ranked (this
+                // also retro-stamps aggregates written before the snapshot
+                // existed on their next recompute).
+                sourceAgentIds = report.agents
+                    .filter { it.agentId in participantIds }
+                    .map { it.agentId }
             ))
         } catch (e: Exception) {
             AppLog.w("Tournament", "recompute aggregate failed report=$reportId method=${run.selectedMethod}: ${e.javaClass.simpleName}: ${e.message}")
