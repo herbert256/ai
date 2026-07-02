@@ -2396,6 +2396,29 @@ object ReportStorage {
      *  Their spend is already carried by the deleted SecondaryResult's
      *  aggregate cost and gets moved into costsFromDeletedItems by the
      *  caller; keeping the audit rows would double-count the same calls. */
+    /** Drop the per-call cost ledger rows attributable to just-deleted
+     *  secondary rows (their spend was banked into costsFromDeletedItems
+     *  by the caller). Structured reconcile rows embed the secondary id;
+     *  live rows are matched by the deleted rows' trace files. Without
+     *  this the Costs view's ledger fast path kept listing the deleted
+     *  rows' calls as current items. */
+    fun removeLedgerRowsForSecondaryIds(
+        context: Context, reportId: String,
+        secondaryIds: Set<String>, traceFiles: Set<String> = emptySet()
+    ) {
+        if (secondaryIds.isEmpty() && traceFiles.isEmpty()) return
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            val before = report.apiCallCosts.size
+            report.apiCallCosts = report.apiCallCosts.filterNot { row ->
+                secondaryIds.any { sid -> row.id.startsWith("structured:secondary:$sid:") } ||
+                    (row.traceFile != null && row.traceFile in traceFiles)
+            }.toMutableList()
+            if (report.apiCallCosts.size != before) saveReport(report)
+        }
+    }
+
     fun removeIconCallsForSecondaryIds(context: Context, reportId: String, secondaryIds: Set<String>): Boolean {
         init(context)
         if (secondaryIds.isEmpty()) return false
@@ -2541,6 +2564,24 @@ object ReportStorage {
                 .filterNot { it.targetKind == "AGENT" && it.targetId == agentId }
                 .toMutableList()
             rollNoteTitleCostsToDeleted(report, prunedNoteIds)
+            // Prune the agent's per-call ledger rows too. The Costs view's
+            // ledger fast path builds its 'Current items total' (and the
+            // Models roll-up / drill-ins) from EVERY row, so leaving them
+            // in kept the deleted model listed as a current item with its
+            // spend inside a figure explicitly labelled current-only — the
+            // spend lives in costsFromDeletedItems now (banked above).
+            // Structured ids embed the agent id; live rows are matched by
+            // the agent's own call identity (answer calls by provider+model,
+            // metadata calls by the agent's trace files).
+            val agentTraces = setOfNotNull(
+                removed.traceFile, removed.iconTraceFile, removed.modelTitleTraceFile
+            ).filter { it.isNotBlank() }.toSet()
+            report.apiCallCosts = report.apiCallCosts.filterNot { row ->
+                row.id.startsWith("structured:agent:$agentId:") ||
+                    (row.id.startsWith("structured:icon-call:") && row.id.endsWith(":$agentId")) ||
+                    (row.type == "report/prompt" && row.provider == removed.provider && row.model == removed.model) ||
+                    (row.traceFile != null && row.traceFile in agentTraces)
+            }.toMutableList()
             report.totalCost = computeReportTotalCost(report)
             saveReport(report)
             AuditLog.append(reportId, "Deleted report model ${removed.provider}/${removed.model} from the report")

@@ -1913,6 +1913,8 @@ class SecondaryRunManager(
         val deleted = SecondaryResultStorage.get(context, reportId, resultId)
         var costDelta = deleted?.fullCost() ?: 0.0
         val deletedSecondaryIds = mutableSetOf(resultId)
+        val deletedTraceFiles = mutableSetOf<String>()
+        deleted?.traceFile?.takeIf { it.isNotBlank() }?.let { deletedTraceFiles += it }
         SecondaryResultStorage.delete(context, reportId, resultId)
         // Cascade: when a META row is deleted, its cross-translate
         // TRANSLATE rows (translateSourceKind = "META",
@@ -1927,10 +1929,12 @@ class SecondaryRunManager(
             orphans.forEach { tr ->
                 costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
                 deletedSecondaryIds += tr.id
+                tr.traceFile?.takeIf { it.isNotBlank() }?.let { deletedTraceFiles += it }
                 SecondaryResultStorage.delete(context, reportId, tr.id)
             }
         }
         ReportStorage.removeIconCallsForSecondaryIds(context, reportId, deletedSecondaryIds)
+        ReportStorage.removeLedgerRowsForSecondaryIds(context, reportId, deletedSecondaryIds, deletedTraceFiles)
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
         AuditLog.append(reportId, "Deleted a ${deleted?.kind?.name?.lowercase() ?: "secondary"} result from the report")
         // Bump the parent report's timestamp — removing a meta /
@@ -1956,11 +1960,13 @@ class SecondaryRunManager(
             var costDelta = 0.0
             val deletedMetaIds = mutableSetOf<String>()
             val deletedSecondaryIds = mutableSetOf<String>()
+            val deletedTraceFiles = mutableSetOf<String>()
             resultIds.forEach { id ->
                 runCatching {
                     SecondaryResultStorage.get(context, reportId, id)?.let { r ->
                         costDelta += r.fullCost()
                         if (r.kind == SecondaryKind.META) deletedMetaIds.add(id)
+                        r.traceFile?.takeIf { it.isNotBlank() }?.let { deletedTraceFiles += it }
                     }
                     deletedSecondaryIds += id
                     SecondaryResultStorage.delete(context, reportId, id)
@@ -1975,10 +1981,12 @@ class SecondaryRunManager(
                 orphans.forEach { tr ->
                     costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
                     deletedSecondaryIds += tr.id
+                    tr.traceFile?.takeIf { it.isNotBlank() }?.let { deletedTraceFiles += it }
                     SecondaryResultStorage.delete(context, reportId, tr.id)
                 }
             }
             ReportStorage.removeIconCallsForSecondaryIds(context, reportId, deletedSecondaryIds)
+            ReportStorage.removeLedgerRowsForSecondaryIds(context, reportId, deletedSecondaryIds, deletedTraceFiles)
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
             // Dropping broken rows is also a fix — re-scan now so the ⚠️ badge +
