@@ -2943,7 +2943,19 @@ class IconGenerationManager(
                         .filter {
                             it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
                                 it.fanInOf == null && !it.content.isNullOrBlank() &&
-                                it.title.isNullOrBlank() && it.icon.isNullOrBlank() && it.id !in running
+                                it.title.isNullOrBlank() && it.icon.isNullOrBlank() && it.id !in running &&
+                                // Only rows THIS run queued: a rowIds-restricted
+                                // restart must not stamp every other blank pair of
+                                // the prompt (e.g. rows deliberately blanked via
+                                // clearFanMetaRows) as "Interrupted".
+                                (rowIds == null || it.id in rowIds) &&
+                                // And only rows with no real diagnostic:
+                                // recordFanMetaResult's failure path stores blank
+                                // title/icon WITH the error message — overwriting
+                                // it here destroyed the real reason (mirrors
+                                // FanOutEngine.finalizeLeftoverPairs' errorMessage
+                                // filter).
+                                it.titleErrorMessage.isNullOrBlank() && it.iconErrorMessage.isNullOrBlank()
                     }
                     BatchResume.finalizeLeftover(leftover) {
                         SecondaryResultStorage.setFanOutTitleError(
