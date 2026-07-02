@@ -1826,8 +1826,11 @@ object ReportStorage {
                     timestamp = report.createdAt.takeIf { it > 0L } ?: report.timestamp,
                     providerId = agent.provider,
                     model = agent.model,
-                    inputTokens = usage.inputTokens,
-                    outputTokens = usage.outputTokens,
+                    // Billed totals (uncached + cached + cache-creation in;
+                    // output + reasoning out) — the LG18 rule the live
+                    // append uses; raw counts understated the token columns.
+                    inputTokens = usage.billedInputTokens,
+                    outputTokens = usage.billedOutputTokens,
                     inputCost = agent.inputCost ?: 0.0,
                     outputCost = agent.outputCost ?: ((agent.cost ?: 0.0) - (agent.inputCost ?: 0.0)).coerceAtLeast(0.0),
                     durationMs = agent.durationMs,
@@ -1980,8 +1983,9 @@ object ReportStorage {
                     timestamp = secondary.timestamp,
                     providerId = secondary.providerId,
                     model = secondary.model,
-                    inputTokens = (usage.inputTokens - altTokens.first).coerceAtLeast(0),
-                    outputTokens = (usage.outputTokens - altTokens.second).coerceAtLeast(0),
+                    // Billed totals (LG18) — see the agent rows above.
+                    inputTokens = (usage.billedInputTokens - altTokens.first).coerceAtLeast(0),
+                    outputTokens = (usage.billedOutputTokens - altTokens.second).coerceAtLeast(0),
                     inputCost = ((secondary.inputCost ?: 0.0) - altCost.first).coerceAtLeast(0.0),
                     outputCost = ((secondary.outputCost ?: 0.0) - altCost.second).coerceAtLeast(0.0),
                     durationMs = secondary.durationMs,
@@ -2144,8 +2148,9 @@ object ReportStorage {
                 type = "report/prompt",
                 providerId = agent.provider,
                 model = agent.model,
-                inputTokens = usage.inputTokens,
-                outputTokens = usage.outputTokens,
+                // Billed totals (LG18) — see buildStructuredApiCallCostRows.
+                inputTokens = usage.billedInputTokens,
+                outputTokens = usage.billedOutputTokens,
                 inputCost = inputCost,
                 outputCost = outputCost,
                 durationMs = agent.durationMs
@@ -2252,8 +2257,9 @@ object ReportStorage {
                 type = type,
                 providerId = s.providerId,
                 model = s.model,
-                inputTokens = usage.inputTokens,
-                outputTokens = usage.outputTokens,
+                // Billed totals (LG18) — see buildStructuredApiCallCostRows.
+                inputTokens = usage.billedInputTokens,
+                outputTokens = usage.billedOutputTokens,
                 inputCost = s.inputCost ?: 0.0,
                 outputCost = s.outputCost ?: 0.0,
                 durationMs = s.durationMs
