@@ -1049,6 +1049,7 @@ fun ReportsScreen(
                 context = context,
                 aiSettings = aiSettings,
                 letSelfRespond = fanOutSelfRespond,
+                scopeChoice = pendingSecondaryScope,
                 // Back from Run → unwind to Scope (state still set);
                 // back from there → Picker; back from there → main.
                 onCancel = { fanOutConfirmMetaPrompt = null },

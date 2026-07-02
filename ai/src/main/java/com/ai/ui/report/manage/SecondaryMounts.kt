@@ -368,6 +368,11 @@ internal fun FanOutConfirmScreen(
     context: android.content.Context,
     aiSettings: com.ai.model.Settings,
     letSelfRespond: Boolean,
+    /** The Scope screen's choice — seeds the initiator card. Defaulting the
+     *  initiators to ALL successful agents silently discarded a Top-ranked /
+     *  Manual subset the user had just authorised (the runtime-params-OFF
+     *  path honours the same scope directly). */
+    scopeChoice: com.ai.data.SecondaryScope = com.ai.data.SecondaryScope.AllReports,
     onCancel: () -> Unit,
     onRun: (InternalPrompt, Set<String>, Set<String>, List<String>, String?) -> Unit
 ) {
@@ -391,19 +396,36 @@ internal fun FanOutConfirmScreen(
         )
         return
     }
-    val successfulState = produceState<List<com.ai.data.ReportAgent>?>(initialValue = null, reportId) {
+    val successfulState = produceState<Pair<List<com.ai.data.ReportAgent>, Set<String>>?>(initialValue = null, reportId, scopeChoice) {
         value = withContext(Dispatchers.IO) {
-            com.ai.data.ReportStorage.getReport(context, reportId)?.agents?.filter {
+            val agents = com.ai.data.ReportStorage.getReport(context, reportId)?.agents?.filter {
                 it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+            }.orEmpty()
+            // Resolve the Scope screen's choice into the initiator seed —
+            // same resolution startRun applies (Top-ranked via the rerank
+            // row's frozen snapshot).
+            val scoped = when (scopeChoice) {
+                com.ai.data.SecondaryScope.AllReports -> agents.map { it.agentId }.toSet()
+                is com.ai.data.SecondaryScope.Manual ->
+                    agents.map { it.agentId }.filter { it in scopeChoice.agentIds }.toSet()
+                        .ifEmpty { agents.map { it.agentId }.toSet() }
+                is com.ai.data.SecondaryScope.TopRanked -> {
+                    val rerank = com.ai.data.SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
+                    com.ai.data.resolveTopRankedAgents(rerank, scopeChoice.count, agents)
+                        .map { it.agentId }.toSet()
+                        .ifEmpty { agents.map { it.agentId }.toSet() }
+                }
             }
+            agents to scoped
         }
     }
-    val successful = successfulState.value
-    // Initiator / responder sets — both default to every successful
-    // agent so the natural "everything-against-everything" run is one
-    // tap away. Self-pairs are skipped at run time.
+    val successful = successfulState.value?.first
+    // Responders default to every successful agent so the natural
+    // "everything-against-everything" run is one tap away; the initiators
+    // seed from the chosen scope. Self-pairs are skipped at run time.
     val allIds = remember(successful) { successful?.map { it.agentId }?.toSet() ?: emptySet() }
-    var selectedInitiators by remember(allIds) { mutableStateOf(allIds) }
+    val scopedIds = successfulState.value?.second ?: emptySet()
+    var selectedInitiators by remember(scopedIds) { mutableStateOf(scopedIds) }
     var selectedResponders by remember(allIds) { mutableStateOf(allIds) }
     // Per-run prompt edit — never written back to the InternalPrompt
     // store. Keyed on fanOutMp.id so switching prompts reseeds the
