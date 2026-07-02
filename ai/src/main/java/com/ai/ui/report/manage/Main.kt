@@ -1519,6 +1519,41 @@ fun ReportsScreen(
     // whose loadPersisted re-reads the (possibly overwritten) rows.
     if (openRunId != null && currentReportId != null && altTranslateTarget == null) {
         val rid = currentReportId
+        // Runtime prompt-edit for the run-screen 🏅 medal (TRANSRANK).
+        // Mounted HERE because this block returns before ReportRunScreen —
+        // which hosts the general TRANSRANK mount — can compose: without
+        // this the armed request rendered nothing (dead-looking tap) and
+        // then popped up over the Manage hub once the user backed out of
+        // the run screen. Layered: cancel/run pops just this screen and
+        // returns to the translation run.
+        val rtReqRun = st.runtimePromptReq.value
+        if (rtReqRun != null && rtReqRun.kind == RuntimePromptKind.TRANSRANK) {
+            CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+                com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+                LocalNavigateToCurrentReport provides { st.runtimePromptReq.value = null }
+            ) {
+                SecondaryRuntimePromptScreen(
+                    titleName = "rank the translators",
+                    specs = rtReqRun.prompts.map { EditablePromptSpec("Prompt", it) },
+                    onCancel = { st.runtimePromptReq.value = null },
+                    onRun = { edited, persist ->
+                        st.runtimePromptReq.value = null
+                        if (persist) edited.forEach { onUpdateInternalPrompt(it) }
+                        val text = edited.firstOrNull()?.text
+                        val key = java.util.UUID.randomUUID().toString()
+                        val rk = com.ai.data.transRankRunKey(rid, rtReqRun.ctxId!!)
+                        armBuildStage(
+                            key, "Building translator ranking",
+                            { transRankOpenState?.value = rk },
+                            { transRankEngine?.deleteRun(context, rk) }
+                        )
+                        transRankEngine?.startRun(context, rid, rtReqRun.ctxId!!, rtReqRun.lang!!, rtReqRun.langNative!!, key, null, text)
+                    }
+                )
+            }
+            return
+        }
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { openTranslationRunId = null }) {
             // Hydrate the rank engine so the 🏅 medal can OPEN an existing run
             // (the Manage hub's ManageRow that normally hydrates isn't composed here).
