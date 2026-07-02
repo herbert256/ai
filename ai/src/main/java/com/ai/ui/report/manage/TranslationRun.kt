@@ -15,6 +15,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -216,9 +217,16 @@ internal fun TranslationRunScreen(
         }
     }
 
+    // Keyed on the TRANSLATE data version too: the L3 trash on a finished
+    // run deletes the row straight from disk (bumping the version) with no
+    // path to the local refreshTick — a version-less load kept listing the
+    // deleted item with its text on L2/L3 and counting it in the L1 stats
+    // until the run screen was fully re-entered.
+    val translateDataVersion by com.ai.data.SecondaryDataVersion
+        .versionFor(reportId, com.ai.data.SecondaryKind.TRANSLATE).collectAsState()
     val persisted by produceState<PersistedTranslationRunLoad>(
         initialValue = PersistedTranslationRunLoad(loaded = false, run = null),
-        reportId, runId, refreshTick, externalRefresh, liveRun == null
+        reportId, runId, refreshTick, externalRefresh, liveRun == null, translateDataVersion
     ) {
         value = if (liveRun != null) {
             PersistedTranslationRunLoad(loaded = false, run = null)
