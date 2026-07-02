@@ -510,8 +510,15 @@ class TranslationRunManager(
                 noResultMessage = "translate: no worker produced a translation",
                 traceCategory = item.traceType,
                 onThrottleWait = { waiting ->
-                    if (waiting) appViewModel.updateThrottledTranslationItems { it + item.id }
-                    else appViewModel.updateThrottledTranslationItems { it - item.id }
+                    // Keyed "runId|itemId": item ids ("prompt"/"title"/
+                    // "agent:X"/"meta:Y") repeat across runs and the set is
+                    // app-global — bare ids made concurrent runs' Wait
+                    // counts cross-contaminate (one run's admit removed the
+                    // shared key while the other run's item was still
+                    // parked). TranslationRunScreen strips the prefix.
+                    val key = "$runId|${item.id}"
+                    if (waiting) appViewModel.updateThrottledTranslationItems { it + key }
+                    else appViewModel.updateThrottledTranslationItems { it - key }
                 },
                 schedule = schedule
             ) { resp -> !resp.analysis.isNullOrBlank() }

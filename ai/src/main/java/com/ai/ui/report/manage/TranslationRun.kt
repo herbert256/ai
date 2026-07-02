@@ -202,6 +202,14 @@ internal fun TranslationRunScreen(
     var nav by rememberSaveable(runId, stateSaver = translationNavSaver) {
         mutableStateOf<TranslationNav>(TranslationNav.L1)
     }
+    // The global throttled set is keyed "runId|itemId" (item ids repeat
+    // across runs) — narrow to THIS run and strip the prefix before the
+    // screens match items against it.
+    val throttledForRun = remember(throttledItems, runId) {
+        throttledItems.mapNotNullTo(mutableSetOf()) { key ->
+            if (key.startsWith("$runId|")) key.substringAfter("|") else null
+        }.toSet()
+    }
     // Bumped by restart / remove-failed so a *finished* run reloads its
     // persisted state. A run that restart turns live again is picked up
     // automatically via the liveRun param.
@@ -285,7 +293,7 @@ internal fun TranslationRunScreen(
     when (val n = nav) {
         TranslationNav.L1 -> TranslationL1Screen(
             run = run,
-            throttledSet = throttledItems,
+            throttledSet = throttledForRun,
             onOpenGroup = { groupKey -> nav = TranslationNav.L2(TranslationGroupMode.TYPES, groupKey) },
             onOpenWorkers = { nav = TranslationNav.Workers },
             onRankTranslators = onRankTranslators,
@@ -297,7 +305,7 @@ internal fun TranslationRunScreen(
         )
         TranslationNav.Workers -> TranslationWorkersScreen(
             run = run,
-            throttledSet = throttledItems,
+            throttledSet = throttledForRun,
             onOpenGroup = { modelKey -> nav = TranslationNav.L2(TranslationGroupMode.MODELS, modelKey) },
             onRankTranslators = onRankTranslators,
             onReload = onReloadRun,
