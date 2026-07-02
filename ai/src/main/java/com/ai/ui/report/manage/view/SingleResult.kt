@@ -308,7 +308,14 @@ fun ReportModelScreen(
     // Load this report's TRANSLATE secondaries — drives the language
     // icon picker below (same UX as View → Prompt / Model response).
     // The picker is suppressed when there are no translations.
-    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), reportId) {
+    // Keyed on secDataVersion too, not just reportId: the
+    // TranslationCompareScreen overlay below deletes the active
+    // language's TRANSLATE row in place and returns here — a
+    // version-less list kept the deleted tab selected and its text
+    // rendering, with copy/share/trace still acting on the deleted row
+    // (SecondaryResultDetailScreen keys the identical load this way).
+    val secDataVersion by com.ai.data.SecondaryDataVersion.versionFor(reportId).collectAsState()
+    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), reportId, secDataVersion) {
         value = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSLATE)
                 .filter { !it.content.isNullOrBlank() }
