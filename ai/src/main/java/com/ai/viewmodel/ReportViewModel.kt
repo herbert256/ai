@@ -876,19 +876,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} is rate-limited (benched) — skipped"
                 )
             }
-            if (!isRegeneration && !headless && uiOwned()) {
+            if (!headless && uiOwned()) {
                 // Publish the error into _agentResults too, mirroring the
                 // normal failure path — GenerationPhase renders result==null
                 // as an infinite hourglass, and the only re-hydration trigger
                 // (Nav) fires solely when agentResults is empty, so without
                 // this the benched row spun forever (even after the run
                 // completed) until the user left and reopened the report.
+                // Regeneration paths NEED this publish: they remove the
+                // agent's entry before dispatching, so gating it on
+                // !isRegeneration (as the progress bump below rightly is,
+                // matching the normal completion path's split) left every
+                // benched row of a regenerate spinning forever.
                 _agentResults.update { it + (task.resultId to AnalysisResponse(
                     service = task.runtimeAgent.provider, analysis = null,
                     error = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} is rate-limited (benched) — skipped"
                 )) }
-                appViewModel.updateUiState { state ->
-                    state.copy(genericReportsProgress = state.genericReportsProgress + 1)
+                if (!isRegeneration) {
+                    appViewModel.updateUiState { state ->
+                        state.copy(genericReportsProgress = state.genericReportsProgress + 1)
+                    }
                 }
             }
             return
