@@ -2188,8 +2188,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // the title errored we re-run title→icon together (chaining the
                 // icon only if it also errored); an icon-only error regenerates
                 // just the icon from the stored long title.
-                val titleErr = !report.titleErrorMessage.isNullOrBlank()
-                val iconErr = !report.iconErrorMessage.isNullOrBlank()
+                // Every row is gated on the same feature toggle the Broken-work
+                // INFO badge (BrokenWorkPolicy.infoProblems) and the Get-info
+                // rows use — a stamped error for a since-disabled feature must
+                // not re-fire billed calls the UI no longer shows.
+                val titleErr = g.reportTitleAiOn() && !report.titleErrorMessage.isNullOrBlank()
+                val iconErr = g.reportIconOn() && !report.iconErrorMessage.isNullOrBlank()
                 if (titleErr) {
                     ReportStorage.clearReportTitleError(context, reportId)
                     if (iconErr) ReportStorage.clearReportIcon(context, reportId)
@@ -2198,15 +2202,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     ReportStorage.clearReportIcon(context, reportId)
                     iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
                 }
-                if (!report.languageIconErrorMessage.isNullOrBlank()) {
+                if (g.reportLanguageOn() && !report.languageIconErrorMessage.isNullOrBlank()) {
                     ReportStorage.clearReportLanguage(context, reportId)
                     iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
                 }
                 // Per-model rows: re-run just the agents whose icon or model-title
-                // errored (and only the side that failed).
+                // errored (and only the side that failed), each side gated on its
+                // feature toggle.
                 report.agents.forEach { ra ->
-                    val iconErr = !ra.iconErrorMessage.isNullOrBlank()
-                    val titleErr = !ra.modelTitleErrorMessage.isNullOrBlank()
+                    val iconErr = g.perModelIconOn() && !ra.iconErrorMessage.isNullOrBlank()
+                    val titleErr = g.perModelTitleOn() && !ra.modelTitleErrorMessage.isNullOrBlank()
                     if (!iconErr && !titleErr) return@forEach
                     if (ra.reportStatus != ReportStatus.SUCCESS || ra.responseBody.isNullOrBlank()) return@forEach
                     if (iconErr) ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId)
