@@ -274,7 +274,11 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
             onRedo = { confirmRedo = true },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
             onRemoveFailed = { scope.launch { engine.removeFailedCells(context, reportId) } },
-            onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
+            // Call deleteRun DIRECTLY (not suspend — it self-schedules on
+            // viewModelScope). Wrapping it in scope.launch raced with
+            // onBack() cancelling this screen's scope, so the delete
+            // sometimes never fired (same shipped bug as TranslatorRank).
+            onDeleteRun = { engine.deleteRun(context, reportId); onBack() },
             onBack = onBack)
     }
 
