@@ -128,13 +128,23 @@ private fun matchOn(
         // listForReport returns rows oldest-first; land on the newest row of
         // this kind so a report with several (regenerated rerank, multiple
         // COMPARE) opens on its current result, not its first.
+        // Content check: placeholder rows are persisted with content=null
+        // up-front (and stay blank forever for failed/broken runs) —
+        // counting them as carriers hopped the swipe onto a screen that
+        // renders a permanent dead end, the exact state the filter exists
+        // to skip (HasValueSource already checks content).
         val rows = SecondaryResultStorage.listForReport(context, reportId, filter.kind)
-        rows.lastOrNull()?.let { SwipeMatch(reportId = reportId, resultId = it.id) }
+        rows.lastOrNull { !it.content.isNullOrBlank() }
+            ?.let { SwipeMatch(reportId = reportId, resultId = it.id) }
     }
     is ViewSwipeFilter.HasMeta -> {
         val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+        // Content check: MetaViewScreen nulls blank-content rows, so a
+        // placeholder matching on name/flags alone landed the hop on a
+        // permanent 'Loading…' with both swipe handlers dead.
         val pick: SecondaryResult? = rows.firstOrNull { r ->
             r.metaPromptName == filter.metaPromptName &&
+                !r.content.isNullOrBlank() &&
                 (!filter.requireFanIn || r.fanInOf != null) &&
                 (!filter.requireFanOut || r.fanOutSourceAgentId != null) &&
                 (!filter.excludeFanIn || r.fanInOf == null) &&
