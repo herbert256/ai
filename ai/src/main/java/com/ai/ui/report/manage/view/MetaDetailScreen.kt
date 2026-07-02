@@ -78,14 +78,22 @@ internal fun MetaDetailScreen(
     val aiSettings = com.ai.ui.shared.LocalAiSettings.current
 
     // TRANSLATE secondaries → the language icon picker for this META row.
-    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), result.reportId) {
+    // Keyed on secDataVersion too, not just reportId: the
+    // TranslationCompareScreen overlay below deletes TRANSLATE rows in
+    // place and returns here — a version-less list kept serving the
+    // deleted row's tab and content, and newly finished translations
+    // never appeared while mounted (SecondaryResultDetailScreen keys the
+    // identical load this way).
+    val secDataVersion by com.ai.data.SecondaryDataVersion.versionFor(result.reportId).collectAsState()
+    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), result.reportId, secDataVersion) {
         value = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, result.reportId, SecondaryKind.TRANSLATE)
                 .filter { !it.content.isNullOrBlank() }
         }
     }
     val translates = translatesState.value
-    val parentReportState = produceState<com.ai.data.Report?>(initialValue = null, result.reportId) {
+    val reportDataVersion by com.ai.data.ReportDataVersion.versionFor(result.reportId).collectAsState()
+    val parentReportState = produceState<com.ai.data.Report?>(initialValue = null, result.reportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, result.reportId) }
     }
     val parentReport = parentReportState.value
@@ -93,7 +101,6 @@ internal fun MetaDetailScreen(
     // Fresh on-disk row, re-read on every secondary save, so a refine /
     // edit Apply (which rewrites content) reflects here even though
     // `result` arrives stale from the list mount.
-    val secDataVersion by com.ai.data.SecondaryDataVersion.versionFor(result.reportId).collectAsState()
     val resultFresh by produceState<SecondaryResult?>(null, result.id, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, result.reportId, result.id) }
     }
