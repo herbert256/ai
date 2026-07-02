@@ -110,13 +110,31 @@ internal fun AnswerMatrixViewScreen(
     // and the hub re-feeds every prop on recomposition.
     val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
     val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
+    // Precompute the answer-carrier list off the UI thread. The swipe
+    // handlers fire in the drag-end callback on main, and the HasAnswers
+    // filter walked up to n-1 candidate reports per gesture, full-Gson-
+    // parsing every cache miss (report files can carry base64 images) —
+    // seconds of main-thread IO per swipe on large libraries. The gesture
+    // now walks this in-memory list only; swipes no-op for the moment the
+    // filter is still computing. The self-hop guard keeps the wrap-to-self
+    // of the unfiltered walk from reload-flashing a lone carrier.
+    val answerCarrierIds by produceState(initialValue = emptyList<String>(), reportIdsList) {
+        value = withContext(Dispatchers.IO) {
+            reportIdsList.filter { id ->
+                val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, id)
+                rep?.agents?.any {
+                    it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                } == true
+            }
+        }
+    }
     val onSwipePrevAction: () -> Boolean = {
-        val m = reportId?.let { findSwipeMatch(context, reportIdsList, it, SwipeDirection.Prev, ViewSwipeFilter.HasAnswers) }
-        if (m != null) { switchReport?.invoke(m.reportId); true } else false
+        val m = reportId?.let { findSwipeMatch(context, answerCarrierIds, it, SwipeDirection.Prev, ViewSwipeFilter.Any) }
+        if (m != null && m.reportId != reportId) { switchReport?.invoke(m.reportId); true } else false
     }
     val onSwipeNextAction: () -> Boolean = {
-        val m = reportId?.let { findSwipeMatch(context, reportIdsList, it, SwipeDirection.Next, ViewSwipeFilter.HasAnswers) }
-        if (m != null) { switchReport?.invoke(m.reportId); true } else false
+        val m = reportId?.let { findSwipeMatch(context, answerCarrierIds, it, SwipeDirection.Next, ViewSwipeFilter.Any) }
+        if (m != null && m.reportId != reportId) { switchReport?.invoke(m.reportId); true } else false
     }
     val activeLanguage = if (selectedLangKey == LangTab.ORIGINAL_KEY) ""
         else langTabs.firstOrNull { it.key == selectedLangKey }?.displayName ?: ""
