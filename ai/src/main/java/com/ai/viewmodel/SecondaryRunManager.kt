@@ -566,8 +566,13 @@ class SecondaryRunManager(
                 it.translationRunId == null &&
                 it.id !in running &&
                 it.metaPromptId != null &&
-                aiSettings.internalPrompts.any { p -> p.id == it.metaPromptId } &&
-                AppService.findById(it.providerId) != null
+                aiSettings.internalPrompts.any { p -> p.id == it.metaPromptId }
+                // No provider filter: a row interrupted before its first
+                // result has providerId="" on disk, and a deleted provider
+                // is equally recoverable — resumeStaleMetaPlaceholder
+                // re-resolves a fresh worker from the prompt's pool for
+                // both. Excluding them stamped '❌ No data yet' rows whose
+                // Restart was then a silent no-op.
         }
         BatchResume.capForRetry(staleSingleMeta) {
             markRowAsInterrupted(context, reportId, it.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
@@ -905,12 +910,15 @@ class SecondaryRunManager(
         // user may have changed the chain — or the report's Worker-batches
         // mode — since the row was first created); the report-aware pool is
         // resolved inside the coroutine, after the report loads off the UI
-        // thread. Every other kind keeps the provider/model recorded on the
-        // row, so an unresolvable recorded provider aborts here as before.
+        // thread. Every other kind prefers the provider/model recorded on
+        // the row but re-resolves from the prompt's pool when that doesn't
+        // resolve: a row interrupted before its first result persisted still
+        // has providerId="" on disk (the swarm stamps the worker on the
+        // in-memory copy only), and the old abort-on-unresolvable left such
+        // rows with no working restart path anywhere — Broken-work Restart
+        // was a silent no-op. An empty pool now stamps a terminal error
+        // inside the coroutine instead of silently doing nothing.
         val fallbackProvider = AppService.findById(placeholder.providerId)
-        if (fallbackProvider == null && kind != SecondaryKind.RERANK && kind != SecondaryKind.MODERATION) {
-            rvm.resumingMetaIds.remove(placeholder.id); return null
-        }
         val scope = com.ai.data.SecondaryScope.decodeOrAllReports(placeholder.secondaryScope)
         val lang = placeholder.targetLanguage
         val langNative = placeholder.targetLanguageNative
@@ -952,7 +960,13 @@ class SecondaryRunManager(
                     // SELECT_ONCE pick / configured chain). Under Round
                     // robin the pick advances the shared per-report cursor
                     // so resumed rows honour the rotation share too.
-                    val freshWorker = if (kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION) {
+                    // META-family rows only re-resolve when the recorded
+                    // provider is gone (providerId="" interrupted rows,
+                    // deleted providers) — and they honour the report's
+                    // Worker-batches choice, unlike Rerank/Moderation.
+                    val needsFreshWorker = kind == SecondaryKind.RERANK ||
+                        kind == SecondaryKind.MODERATION || fallbackProvider == null
+                    val freshWorker = if (needsFreshWorker) {
                         // alwaysPromptWorkers, like the runRerank/runModeration
                         // launch sites: these kinds opt out of the report's
                         // Worker-batches choice. Without it, REPORT_MODELS mode
@@ -960,16 +974,15 @@ class SecondaryRunManager(
                         // model — a chat model receiving a /v1/moderations
                         // call → guaranteed provider error, pausing the
                         // regenerate batch; Rerank lost its dedicated chain.
-                        val candidates = resolveBatchSwarm(report, metaPrompt.workers, null, alwaysPromptWorkers = true)
+                        val alwaysPrompt = kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION
+                        val candidates = resolveBatchSwarm(report, metaPrompt.workers, null, alwaysPromptWorkers = alwaysPrompt)
                             .flatMap { aiSettings.expandWorker(it) }
                             .mapNotNull { w ->
                                 aiSettings.resolveWorker(w)?.let { a -> a.provider to aiSettings.getEffectiveModelForAgent(a) }
                             }
                         when {
                             candidates.isEmpty() -> null
-                            // This branch is RERANK/MODERATION (alwaysPromptWorkers),
-                            // so no round-robin — they opt out of the pool schedule.
-                            else -> when (val sch = workerScheduleFor(report, alwaysPromptWorkers = true)) {
+                            else -> when (val sch = workerScheduleFor(report, alwaysPromptWorkers = alwaysPrompt)) {
                                 is WorkerSchedule.RoundRobin -> candidates[WorkerRotation.next(sch.key) % candidates.size]
                                 else -> candidates.first()
                             }
