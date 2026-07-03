@@ -186,6 +186,8 @@ fun ReportsScreen(
     /** Persist the per-report system prompt picked in SelectionPhase
      *  onto UiState so the dispatch sees it at generation time. */
     onSystemPromptChange: (String?) -> Unit = {},
+    /** Persist the picked models as a named swarm (F53). */
+    onSaveSelectionAsSwarm: (String, List<ReportModel>) -> Unit = { _, _ -> },
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
     onNavigateToAppLog: (filename: String, search: String) -> Unit = { _, _ -> },
@@ -1955,7 +1957,8 @@ fun ReportsScreen(
             },
             onUpdateModelList = { uiState.editModeReportId?.let { onUpdateModelList(it, models) } },
             onAttachKnowledgeBases = onAttachKnowledgeBases,
-            onSystemPromptChange = onSystemPromptChange
+            onSystemPromptChange = onSystemPromptChange,
+            onSaveSelectionAsSwarm = { name -> onSaveSelectionAsSwarm(name, models) }
         )
         }
     } else {

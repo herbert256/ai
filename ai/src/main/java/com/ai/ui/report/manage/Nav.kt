@@ -780,6 +780,22 @@ fun ReportsScreenNav(
         // list, then enqueue a Regenerate batch job (app-restart-
         // survivable, phased through every category) instead of the
         // legacy one-shot regenerateReport.
+        onSaveSelectionAsSwarm = { name, models ->
+            // Distinct (provider, model) members; persisted through the same
+            // Settings save the Swarms CRUD uses.
+            val members = models
+                .map { com.ai.model.SwarmMember(it.provider, it.model) }
+                .distinctBy { "${it.provider.id}:${it.model}" }
+            if (members.isNotEmpty()) {
+                val ai = viewModel.uiState.value.aiSettings
+                viewModel.updateSettings(ai.copy(swarms = ai.swarms + com.ai.model.Swarm(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = name,
+                    members = members
+                )))
+                android.widget.Toast.makeText(context, "Saved swarm \"$name\" (${members.size} models).", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        },
         onRegenerate = { rid -> reportViewModel.regenerateReportBatch(context, rid) },
         onRegenerateErroredOnly = { rid -> reportViewModel.regenerateReportBatch(context, rid, erroredOnly = true) },
         onStopGeneration = { rid -> reportViewModel.stopGeneration(context, rid) },

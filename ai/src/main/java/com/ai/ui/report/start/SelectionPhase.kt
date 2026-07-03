@@ -50,6 +50,9 @@ internal fun ColumnScope.SelectionPhase(
     onAdvancedParams: () -> Unit,
     onParametersChange: (List<String>) -> Unit,
     onGenerate: (ReportType) -> Unit,
+    /** Persist the current picked models as a named swarm (F53) — null
+     *  hides the affordance. */
+    onSaveSelectionAsSwarm: ((String) -> Unit)? = null,
     onUpdateModelList: () -> Unit,
     attachedKnowledgeBaseIds: List<String> = emptyList(),
     onAttachKnowledgeBases: (List<String>) -> Unit = {},
@@ -157,6 +160,50 @@ internal fun ColumnScope.SelectionPhase(
         fontSize = 11.sp, color = AppColors.TextTertiary,
         modifier = Modifier.padding(bottom = 4.dp)
     )
+
+    // Save the hand-assembled panel as a reusable swarm — it used to be
+    // recoverable only via the report it came from or by rebuilding it
+    // in Settings.
+    if (onSaveSelectionAsSwarm != null && models.size >= 2) {
+        var showSaveSwarm by remember { mutableStateOf(false) }
+        var swarmName by remember { mutableStateOf("") }
+        Text(
+            "💾 Save selection as swarm",
+            fontSize = 11.sp, color = AppColors.InfoAccent,
+            modifier = Modifier
+                .clickable { swarmName = ""; showSaveSwarm = true }
+                .padding(bottom = 6.dp)
+        )
+        if (showSaveSwarm) {
+            AlertDialog(
+                onDismissRequest = { showSaveSwarm = false },
+                title = { Text("Save as swarm") },
+                text = {
+                    Column {
+                        Text("Saves the ${models.size} picked models as a reusable swarm (Setup → Swarms).", fontSize = 12.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = swarmName, onValueChange = { swarmName = it },
+                            label = { Text("Swarm name") },
+                            singleLine = true, colors = AppColors.outlinedFieldColors()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = swarmName.isNotBlank(),
+                        onClick = {
+                            showSaveSwarm = false
+                            onSaveSelectionAsSwarm(swarmName.trim())
+                        }
+                    ) { Text("Save", maxLines = 1, softWrap = false) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSaveSwarm = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+                }
+            )
+        }
+    }
 
     // Selected models list — sorted by model name (case-insensitive),
     // with sortedIndices so the per-row delete callback still removes
