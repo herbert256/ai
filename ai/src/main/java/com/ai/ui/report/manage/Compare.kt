@@ -501,12 +501,20 @@ private fun CompareL2(
             Spacer(Modifier.height(12.dp))
             // Card 2 — the API interaction (resolved compare prompt + worker
             // reply), like the Icon-lookup page.
-            val apiInteraction = remember(c.id, c.content, c.agentId, c.metaResultId) {
+            // The async-loaded inputs (report prompt/title, the agent's
+            // response body, the meta row's content) must be remember keys
+            // too: on a recreation with L2 saved open (any rotation), the
+            // engine run is already populated while report/metaRowsById are
+            // still at their initial values — the old keys baked in blank
+            // @RESPONSE@/@META_RESPONSE@ substitutions for the whole visit.
+            val cellAnswerBody = agents[c.agentId]?.responseBody.orEmpty()
+            val cellMetaBody = metaRowsById[c.metaResultId]?.content.orEmpty()
+            val apiInteraction = remember(c.id, c.content, c.agentId, c.metaResultId, question, reportTitle, cellAnswerBody, cellMetaBody) {
                 val resolved = com.ai.data.resolveSecondaryPrompt(
                     run.comparePrompt.text, question = question, results = "", count = 1, title = reportTitle
                 )
-                    .replace("@RESPONSE@", agents[c.agentId]?.responseBody.orEmpty())
-                    .replace("@META_RESPONSE@", metaRowsById[c.metaResultId]?.content?.let { com.ai.data.stripMetaReferenceLegend(it) }.orEmpty())
+                    .replace("@RESPONSE@", cellAnswerBody)
+                    .replace("@META_RESPONSE@", cellMetaBody.let { com.ai.data.stripMetaReferenceLegend(it) })
                 buildOneShotApiInteraction(resolved, c.content)
             }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
