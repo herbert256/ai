@@ -1527,6 +1527,16 @@ class TranslationRunManager(
             }
         }.map { it.copy(traceType = traceTypeFor(it, secondariesById)) }
         if (items.isEmpty()) return
+        // Targets that gained no row in the original run (agents / metas
+        // added to the report afterwards) have no existing id to reuse —
+        // mint one so the placeholder persist below covers them too
+        // (startTranslation's build phase does the same). Dropping them
+        // made "Redo every entry" silently translate only the original
+        // run's target set while its dialog promised the full set.
+        items = items.map {
+            if (it.persistedRowId != null) it
+            else it.copy(persistedRowId = java.util.UUID.randomUUID().toString())
+        }
 
         // Delete the rows we're replacing so the rerun doesn't double
         // up under the same (target, kind) pair.
