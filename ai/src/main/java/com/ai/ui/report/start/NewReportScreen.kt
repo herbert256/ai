@@ -111,6 +111,20 @@ fun NewReportScreen(
     val rawPrompt = remember { initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" } }
     var userTagBlock by rememberSaveable { mutableStateOf(userTagRegex.find(rawPrompt)?.value ?: "") }
     var prompt by rememberSaveable { mutableStateOf(rawPrompt.replace(userTagRegex, "").trim()) }
+    // Draft autosave — the fields used to persist only inside the Next
+    // handler, so backing out (or process death) lost a long draft and a
+    // return showed the PREVIOUS submitted prompt. Debounced writes to the
+    // same prefs keys the seed above reads make the draft round-trip.
+    LaunchedEffect(title, prompt, userTagBlock) {
+        kotlinx.coroutines.delay(800)
+        prefs.edit()
+            .putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
+            .putString(
+                SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT,
+                (prompt + if (userTagBlock.isNotBlank()) "\n$userTagBlock" else "").trim()
+            )
+            .apply()
+    }
     // (mime, base64) of an optional image attached to the prompt — passed
     // through to every agent in the report. Seeded from UiState when the
     // share-target chooser staged an image into reportImageBase64/Mime.
