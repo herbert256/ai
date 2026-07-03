@@ -135,7 +135,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_create_overview" to HelpContent(
-        title = "Help - Meta",
+        title = "Help - Create analysis",
         cards = listOf(
             HelpCard("What you see", "A full-screen launcher (the 🔗 icon on Manage report) for adding a Meta-style secondary result: Meta and Compare with meta — each a big icon with a one-line explanation."),
             HelpCard("The options", "Meta runs a Compare / Critique / Synthesize prompt over the answers. Compare with meta scores each answer's similarity to a meta result. Tapping Meta opens its prompt picker; tapping Compare with meta opens a meta-item picker (then runs the meta-compare prompt of the same name)."),

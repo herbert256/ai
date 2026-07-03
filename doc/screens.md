@@ -80,6 +80,7 @@ screens use the generic `TitleBar`.
 | Costs | Where the money went, per call |
 | Costs | \<report title\> |
 | Costs tiers | Pricing tier per model + catalog freshness |
+| Create analysis | Run a meta prompt over the answers |
 | Crash report | \<crash file\> |
 | Crash reports | Captured errors — tap to view & share |
 | Default icons | Fallback + bottom-bar action emoji |
@@ -109,11 +110,11 @@ screens use the generic `TitleBar`.
 | Edit report | \<report short title\> |
 | Edit report | Icon, titles, parameters, prompt |
 | Edit Request | Edit the raw JSON request body |
+| Edit response title | Rename one fan-out response title |
 | Edit Swarm | \<swarm name\> |
 | Edit System Prompt | \<prompt name\> |
 | Edit test-excluded model | Exclude one model from Test all |
 | Edit title | Metadata only — no regenerate needed |
-| Edit title | Rename one fan-out response title |
 | Edit titles | Every dynamic title in this report |
 | Edit \<prompt type\> | \<name\> |
 | Embeddings | Cached RAG / semantic-search vectors |
@@ -195,7 +196,6 @@ screens use the generic `TitleBar`.
 | Manual model types | Model types you set by hand |
 | Manual override | \<provider\> / \<model\> |
 | Maximal API calls | How many calls run at once |
-| Meta | Run a meta prompt over the answers |
 | Meta | Run a prompt over the report's answers |
 | Meta (titles / lang-icon) | Cached report titles + language icons (7 d) |
 | Meta detail | \<secondary title\> |

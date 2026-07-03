@@ -547,7 +547,7 @@ fun ReportEditPairTitleScreen(
     val canUpdate = title.trim().isNotBlank()
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "report_edit_pair_title", title = "Edit title", subject = "Rename one fan-out response title", onBackClick = onBack
+            helpTopic = "report_edit_pair_title", title = "Edit response title", subject = "Rename one fan-out response title", onBackClick = onBack
         )
 
         OutlinedButton(

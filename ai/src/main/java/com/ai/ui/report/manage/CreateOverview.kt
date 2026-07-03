@@ -57,7 +57,10 @@ internal fun ReportCreateOverviewScreen(
     ) {
         TitleBar(
             helpTopic = "report_create_overview",
-            title = "Meta",
+            // "Create analysis", not "Meta" — the launcher offers Meta AND
+            // Compare-with-meta, and its old title collided with the Meta
+            // screen it leads to (breadcrumbs couldn't tell them apart).
+            title = "Create analysis",
             subject = "Run a meta prompt over the answers",
             onBackClick = onBack,
             publishBottomBar = false
