@@ -2841,6 +2841,15 @@ object ReportStorage {
             copy.languageName = src.languageName
             copy.languageIcon = src.languageIcon
             copy.languageIconErrorMessage = src.languageIconErrorMessage
+            // Seed totalCost to the copy's OWN recomputable value, not
+            // src.totalCost: the copy deliberately zeroes the report-level
+            // icon/title/language/alt spend (the source already billed it),
+            // so src.totalCost included costs the copy no longer carries.
+            // The History row showed src.totalCost until the first recompute
+            // (AI-Usage reconcile sweep, removeAgent, any cost mutation),
+            // then silently dropped to the agents-only figure. Computing it
+            // here makes the displayed total self-consistent from the start.
+            copy.totalCost = computeReportTotalCost(copy)
             saveReport(copy)
             AuditLog.start(newId)
             AuditLog.append(newId, "Duplicated from report $reportId")
