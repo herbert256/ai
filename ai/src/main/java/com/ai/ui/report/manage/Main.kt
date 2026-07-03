@@ -198,6 +198,10 @@ fun ReportsScreen(
     onRegenerate: (String) -> Unit = {},
     /** "Retry failed" on the Regenerate dialog — errored rows only. */
     onRegenerateErroredOnly: (String) -> Unit = {},
+    /** Stop-and-keep for the in-flight primary generation. */
+    onStopGeneration: (String) -> Unit = {},
+    /** True while the given report is the live primary generation. */
+    isGenerationActive: (String) -> Boolean = { false },
     /** Regenerate only the metadata jobs (icon / title / language /
      *  per-model) — wired to the 🔄 while the Get-info layer is open. */
     onRegenerateInfo: (String) -> Unit = {},
@@ -1877,7 +1881,9 @@ fun ReportsScreen(
         onCopyReport = onCopyReport,
         onTogglePinReport = onTogglePinReport,
         onPrevReport = onPrevReport,
-        onNextReport = onNextReport
+        onNextReport = onNextReport,
+        onStopGeneration = onStopGeneration,
+        isGenerationActive = isGenerationActive
     )
     if (!isGenerating) {
         if (st.showSelectWorkers.value) {

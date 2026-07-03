@@ -271,6 +271,12 @@ internal data class GenerationPhaseHandlers(
     val onRequestRegenerate: () -> Unit = {},
     val onRequestDelete: () -> Unit = {},
     val onRequestExport: () -> Unit = {},
+    /** Stop the in-flight primary generation for this report, keeping
+     *  every already-completed answer (remaining rows settle STOPPED). */
+    val onStopGeneration: (String) -> Unit = { _ -> },
+    /** True while this report is the live primary generation in this
+     *  process — gates the Stop button next to the progress bar. */
+    val isGenerationActive: (String) -> Boolean = { false },
     val onCancelTranslation: (String) -> Unit = { _ -> },
     val onViewSecondaryName: (String, SecondaryKind) -> Unit = { _, _ -> },
     /** Open the Fan Meta drill-in for a fan-out's metaPrompt name.
@@ -660,7 +666,35 @@ internal fun ColumnScope.GenerationPhase(
     // staged-edit mode where the X/Y count is meaningless until the
     // user re-runs).
     if (!isStagedMode && !isComplete) {
-        Text("$reportsProgress / $reportsTotal complete", color = AppColors.TextSecondary, fontSize = 14.sp)
+        var confirmStop by remember { mutableStateOf(false) }
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("$reportsProgress / $reportsTotal complete", color = AppColors.TextSecondary, fontSize = 14.sp)
+            Spacer(Modifier.weight(1f))
+            // Stop-and-keep: only offered while THIS report is the live
+            // generation in this process (a stale screen can't kill a
+            // different report's run — the view-model guards too).
+            if (currentReportId != null && handlers.isGenerationActive(currentReportId)) {
+                TextButton(onClick = { confirmStop = true }) {
+                    Text("⏹ Stop", color = AppColors.DangerAccent, fontSize = 14.sp, maxLines = 1)
+                }
+            }
+        }
+        if (confirmStop && currentReportId != null) {
+            AlertDialog(
+                onDismissRequest = { confirmStop = false },
+                title = { Text("Stop generating?") },
+                text = { Text("Remaining API calls are cancelled; every answer that already completed is kept. Stopped models settle as \"Stopped by user\" — the Regenerate dialog's Retry failed re-runs just those later.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmStop = false
+                        handlers.onStopGeneration(currentReportId)
+                    }) { Text("Stop", color = AppColors.DangerAccent, maxLines = 1) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmStop = false }) { Text("Keep running", maxLines = 1) }
+                }
+            )
+        }
         LinearProgressIndicator(
             progress = { if (reportsTotal > 0) reportsProgress.toFloat() / reportsTotal else 0f },
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),

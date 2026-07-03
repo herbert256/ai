@@ -116,11 +116,20 @@ class RegenerateBatchEngine internal constructor(
                     it.phase == RegeneratePhase.AGENTS && it.rowId in onlyAgentIds
                 }
                 erroredOnly -> withContext(Dispatchers.IO) {
+                    // STOPPED agents (a user Stop mid-generation) count as
+                    // retryable too — "Stop, then Retry failed" is the
+                    // documented resume pair.
+                    val stoppedAgentIds = ReportStorage.getReport(context, reportId)
+                        ?.agents?.filter { it.reportStatus == ReportStatus.STOPPED }
+                        ?.map { it.agentId }?.toSet() ?: emptySet()
                     allTasks.groupBy { it.phase }.flatMap { (phase, phaseTasks) ->
                         val statuses = readRowStatuses(
                             context, reportId, phase, phaseTasks.map { it.rowId }.toSet()
                         )
-                        phaseTasks.filter { statuses[it.rowId] is RowStatus.Error }
+                        phaseTasks.filter {
+                            statuses[it.rowId] is RowStatus.Error ||
+                                (phase == RegeneratePhase.AGENTS && it.rowId in stoppedAgentIds)
+                        }
                     }
                 }
                 else -> allTasks

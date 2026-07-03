@@ -20,7 +20,9 @@ internal fun buildGenerationPhaseHandlers(
     onCopyReport: (String) -> Unit,
     onTogglePinReport: (String) -> Unit,
     onPrevReport: () -> Unit,
-    onNextReport: () -> Unit
+    onNextReport: () -> Unit,
+    onStopGeneration: (String) -> Unit,
+    isGenerationActive: (String) -> Boolean
 ): GenerationPhaseHandlers {
     return GenerationPhaseHandlers(
         // The 'report' row tap is handled inside GenerationPhase (it opens
@@ -80,6 +82,8 @@ internal fun buildGenerationPhaseHandlers(
         onRequestRegenerate = { st.showRegenerateConfirm.value = true },
         onRequestDelete = { st.showDeleteConfirm.value = true },
         onRequestExport = { st.showExport.value = true },
+        onStopGeneration = onStopGeneration,
+        isGenerationActive = isGenerationActive,
         onCancelTranslation = translationLifecycle.onCancelRun,
         onViewSecondaryName = { name, kind ->
             st.listLockedLanguage.value = null

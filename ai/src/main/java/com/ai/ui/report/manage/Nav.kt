@@ -781,6 +781,8 @@ fun ReportsScreenNav(
         // legacy one-shot regenerateReport.
         onRegenerate = { rid -> reportViewModel.regenerateReportBatch(context, rid) },
         onRegenerateErroredOnly = { rid -> reportViewModel.regenerateReportBatch(context, rid, erroredOnly = true) },
+        onStopGeneration = { rid -> reportViewModel.stopGeneration(context, rid) },
+        isGenerationActive = { rid -> reportViewModel.isGenerationActive(rid) },
         onRegenerateInfo = { rid -> reportViewModel.regenerateReportInfo(context, rid) },
         onRestartInfoErrors = { rid -> reportViewModel.restartReportInfoErrors(context, rid) },
         runningInfoJobs = runningInfoJobs,

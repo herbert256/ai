@@ -2740,12 +2740,31 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateUiState { it.copy(showGenericReportsDialog = false) }
     }
 
-    fun cancel() {
-        reportGenerationJob?.cancel()
+    /** True while [reportId] is the primary generation this process is
+     *  actively running — gates the Stop button on the progress bar. */
+    fun isGenerationActive(reportId: String): Boolean =
+        activeGenerationReportId == reportId && reportGenerationJob?.isActive == true
+
+    /** Stop-and-keep for the in-flight primary generation: cancels the
+     *  shared generation job (its finally terminalizes still-PENDING/
+     *  RUNNING rows as STOPPED on disk, NonCancellable), then re-hydrates
+     *  the screen from disk so the report settles as complete with every
+     *  already-answered model kept. Guarded to the actively generating
+     *  report so a Stop tapped on a stale screen can never kill a
+     *  different report's run. Stopped rows read as failed afterwards, so
+     *  the Regenerate dialog's "Retry failed" resumes exactly what the
+     *  Stop cut off. */
+    fun stopGeneration(context: Context, reportId: String) {
+        if (activeGenerationReportId != reportId) return
+        val job = reportGenerationJob ?: return
         reportGenerationJob = null
-        // Cancellation triggers the report job's finally inside
-        // withTracerTags, which restores the previous (reportId,
-        // category) — no manual clear here.
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            // Join so the finally's NonCancellable STOPPED writes land
+            // before the re-hydration below reads the rows back.
+            job.cancelAndJoin()
+            restoreCompletedReport(context, reportId)
+            AuditLog.append(reportId, "Generation stopped by user — completed answers kept")
+        }
     }
 
 
