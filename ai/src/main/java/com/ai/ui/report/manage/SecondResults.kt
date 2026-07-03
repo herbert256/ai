@@ -134,6 +134,23 @@ internal fun ReportSecondResultsScreen(
     fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
     BackHandler { if (selectionMode) exitSelection() else onBack() }
     val context = LocalContext.current
+    // Status filter + sort for the standalone rows (batch rows keep their
+    // own screens). "running" mirrors the row renderer's own predicate.
+    var statusFilter by remember { mutableStateOf("all") }
+    var costSort by remember { mutableStateOf(false) }
+    val filteredRuns = remember(secondaryRuns, statusFilter, costSort) {
+        val f = when (statusFilter) {
+            "error" -> secondaryRuns.filter { it.errorMessage != null }
+            "running" -> secondaryRuns.filter {
+                it.errorMessage == null && it.content.isNullOrBlank() && it.durationMs == null
+            }
+            "done" -> secondaryRuns.filter {
+                it.errorMessage == null && !(it.content.isNullOrBlank() && it.durationMs == null)
+            }
+            else -> secondaryRuns
+        }
+        if (costSort) f.sortedByDescending { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } else f
+    }
     val activeTranslationRuns = remember(translationRuns) {
         translationRuns.filter { !it.isFinished && !it.cancelled }
     }
@@ -167,6 +184,26 @@ internal fun ReportSecondResultsScreen(
             refreshKey = costDollars,
             onClick = onViewCosts
         )
+        // Status filter chips + cost sort for the standalone rows.
+        if (secondaryRuns.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("all" to "All", "done" to "Done", "error" to "Error", "running" to "Run").forEach { (v, label) ->
+                    androidx.compose.material3.FilterChip(
+                        selected = statusFilter == v,
+                        onClick = { statusFilter = if (statusFilter == v) "all" else v },
+                        label = { Text(label, fontSize = 11.sp) },
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { costSort = !costSort }) {
+                    Text(if (costSort) "Cost ↓" else "Newest", fontSize = 11.sp, maxLines = 1, softWrap = false)
+                }
+            }
+        }
         // Multi-select header — visible while selection mode is on
         // (entered by long-pressing a standalone secondary row).
         if (selectionMode) {
@@ -228,7 +265,7 @@ internal fun ReportSecondResultsScreen(
             item(key = "compare-batch-row") { CompareManageRow() }
             item(key = "translator-rank-batch-row") { TranslatorRankManageRow() }
             secondaryResultRows(
-                secondaryRuns = secondaryRuns,
+                secondaryRuns = filteredRuns,
                 fanOutSummaries = fanOutSummaries,
                 activeTranslationRuns = activeTranslationRuns,
                 visibleTranslationSummaries = visibleTranslationSummaries,
