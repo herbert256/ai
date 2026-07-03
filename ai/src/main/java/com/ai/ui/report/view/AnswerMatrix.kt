@@ -177,7 +177,22 @@ internal fun AnswerMatrixViewScreen(
             helpTopic = "view_ai_report",
             onBack = onBack,
             onSwipePrev = onSwipePrevAction,
-            onSwipeNext = onSwipeNextAction
+            onSwipeNext = onSwipeNextAction,
+            // 📋 — the whole matrix as CSV, ready for a spreadsheet.
+            onCopy = if (matrixRows.isNotEmpty()) ({
+                val csv = buildString {
+                    appendLine("rank,model,stance,confidence,recommendation,risks,cost_cents,latency,tokens")
+                    matrixRows.forEach { r ->
+                        appendLine(listOf(
+                            r.rank?.toString().orEmpty(), r.modelLabel, r.stance, r.confidence,
+                            r.recommendation, r.risks,
+                            String.format(Locale.US, "%.4f", r.costCents),
+                            r.latency, r.tokens
+                        ).joinToString(",") { f -> "\"${f.replace("\"", "\"\"")}\"" })
+                    }
+                }
+                com.ai.ui.shared.copyToClipboard(context, csv, "answer matrix CSV")
+            }) else null
         )
         report?.let { ViewUserNotes(it.id, "REPORT", it.id) }
 

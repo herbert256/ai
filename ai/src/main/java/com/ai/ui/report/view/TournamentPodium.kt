@@ -169,7 +169,23 @@ fun TournamentPodiumViewScreen(
             onOpenManage = onOpenTournamentManage,
             onBack = onBack,
             onSwipePrev = onSwipePrevAction,
-            onSwipeNext = onSwipeNextAction
+            onSwipeNext = onSwipeNextAction,
+            // 📋 — the active method's standings as CSV.
+            onCopy = if (loaded.rankings.isNotEmpty()) ({
+                val csv = buildString {
+                    appendLine("rank,model,score,wins,draws,losses,method")
+                    loaded.rankings.forEach { r ->
+                        appendLine(listOf(
+                            r.rank?.toString().orEmpty(),
+                            r.agent?.label.orEmpty(),
+                            r.score?.let { String.format(java.util.Locale.US, "%.4f", it) }.orEmpty(),
+                            r.record.wins.toString(), r.record.draws.toString(), r.record.losses.toString(),
+                            methodLabel(currentMethod)
+                        ).joinToString(",") { f -> "\"${f.replace("\"", "\"\"")}\"" })
+                    }
+                }
+                com.ai.ui.shared.copyToClipboard(context, csv, "tournament standings CSV")
+            }) else null
         )
 
         if (loaded.row == null) {

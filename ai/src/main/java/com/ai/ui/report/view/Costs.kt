@@ -130,6 +130,9 @@ fun CostsViewScreen(
             return
         }
     }
+    // Hoisted above the bar so the 📋 CSV copy and the body share one
+    // load (rememberReportCostData memoizes per report).
+    val costData = report?.let { rememberReportCostData(it) }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(AppColors.AppBackground)
@@ -145,6 +148,22 @@ fun CostsViewScreen(
             helpTopic = "costs_view",
             onOpenManage = onOpenManageJump,
             onBack = onBack,
+            // 📋 — every recorded call as CSV, ready for a spreadsheet.
+            onCopy = if (costData != null && costData.rows.isNotEmpty()) ({
+                val csv = buildString {
+                    appendLine("type,provider,model,tier,duration_ms,input_tokens,output_tokens,input_cents,output_cents")
+                    costData.rows.forEach { r ->
+                        appendLine(listOf(
+                            r.type, r.providerDisplay, r.model, r.tier,
+                            r.durationMs?.toString().orEmpty(),
+                            r.inputTokens.toString(), r.outputTokens.toString(),
+                            String.format(java.util.Locale.US, "%.6f", r.inputCents),
+                            String.format(java.util.Locale.US, "%.6f", r.outputCents)
+                        ).joinToString(",") { f -> "\"${f.replace("\"", "\"\"")}\"" })
+                    }
+                }
+                com.ai.ui.shared.copyToClipboard(context, csv, "cost table CSV")
+            }) else null,
             onSwipePrev = {
                 val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Any)
                 if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
@@ -174,11 +193,8 @@ fun CostsViewScreen(
             }
             return@Column
         }
-        // rememberReportCostData is composable but does its own IO via
-        // produceState; we delegate the heavy lifting to it so a future
-        // change to the cost-aggregation logic flows through both
-        // screens with no drift.
-        val data = rememberReportCostData(report)
+        // Shared with the title bar's CSV copy — hoisted above the Column.
+        val data = costData
         if (data == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),
