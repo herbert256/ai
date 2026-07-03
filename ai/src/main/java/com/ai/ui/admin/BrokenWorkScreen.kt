@@ -92,8 +92,8 @@ fun BrokenWorkScreen(
                 busy = busy,
                 onBack = { viewing = null },
                 onOpenModel = { agentId -> onOpenModel(v.first.reportId, agentId) },
-                onRestartItem = { id -> if (!busy) onRestartItems(v.first, v.second, setOf(id)) },
-                onDeleteItem = { id -> if (!busy) onDeleteItems(v.first, v.second, setOf(id)) },
+                onRestartItems = { ids -> if (!busy) onRestartItems(v.first, v.second, ids) },
+                onDeleteItems = { ids -> if (!busy) onDeleteItems(v.first, v.second, ids) },
             )
             return
         }
@@ -492,7 +492,8 @@ fun BrokenItemsScreen(
 /** Detail for a RESPONSES batch with more than one broken agent: each model
  *  is a tappable row — tapping opens that model's Model response screen —
  *  with per-row 🗑 (drop the agent from the report, confirmed) and ↻
- *  (regenerate just that agent) icons. */
+ *  (regenerate just that agent) icons, plus checkbox multi-select with
+ *  title-bar bulk reload/delete (same idiom as [BrokenItemsScreen]). */
 @Composable
 fun BrokenAgentsScreen(
     batch: BrokenBatch,
@@ -501,22 +502,25 @@ fun BrokenAgentsScreen(
     busy: Boolean,
     onBack: () -> Unit,
     onOpenModel: (String) -> Unit,
-    onRestartItem: (String) -> Unit,
-    onDeleteItem: (String) -> Unit,
+    onRestartItems: (Set<String>) -> Unit,
+    onDeleteItems: (Set<String>) -> Unit,
 ) {
     BackHandler { onBack() }
     var rows by remember(batch, mode) { mutableStateOf<List<BrokenItemRow>?>(null) }
-    var confirmDelete by remember(batch, mode) { mutableStateOf<BrokenItemRow?>(null) }
+    var selectedIds by remember(batch, mode) { mutableStateOf<Set<String>>(emptySet()) }
+    var confirmDelete by remember(batch, mode) { mutableStateOf<Set<String>?>(null) }
     // Re-keyed on [busy] so the list reloads after a per-row action lands —
     // and pops back once the last broken agent is recovered/removed.
     LaunchedEffect(batch, mode, busy) {
         if (busy) return@LaunchedEffect
         val loaded = withContext(Dispatchers.IO) { loadItems(batch, mode) }
         rows = loaded
+        selectedIds = selectedIds.intersect(loaded.map { it.id }.toSet())
         if (loaded.isEmpty()) onBack()
     }
     val title = if (mode == BrokenItemMode.ERRORS) "Errored models" else "Interrupted models"
     val icons = LocalMetadataIcons.current
+    val hasSelection = selectedIds.isNotEmpty()
 
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -524,15 +528,45 @@ fun BrokenAgentsScreen(
             title = title,
             subject = "${batch.reportTitle} · ${batch.batchName}",
             onBackClick = onBack,
+            // Bulk actions on the selection; with nothing selected they act
+            // on every listed model (mirrors BrokenItemsScreen).
+            onReload = if (busy) null else ({
+                val target = if (hasSelection) selectedIds else rows.orEmpty().map { it.id }.toSet()
+                if (target.isNotEmpty()) onRestartItems(target)
+            }),
+            onDelete = if (busy) null else ({
+                val target = if (hasSelection) selectedIds else rows.orEmpty().map { it.id }.toSet()
+                if (target.isNotEmpty()) confirmDelete = target
+            }),
         )
         Text(
-            "Tap a model to open its Model response screen; 🗑 drops it from the report, ↻ regenerates it.",
+            "Tap a model to open its Model response screen; 🗑 drops it from the report, ↻ regenerates it. Tick models to reload/delete a subset via the title-bar icons.",
             fontSize = 11.sp, color = AppColors.TextTertiary
         )
         Spacer(Modifier.height(8.dp))
         if (busy) {
             Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
             Spacer(Modifier.height(6.dp))
+        }
+        val currentRows = rows
+        if (currentRows != null && currentRows.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    if (hasSelection) "${selectedIds.size} selected" else "No selection",
+                    fontSize = 11.sp,
+                    color = AppColors.TextTertiary,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        selectedIds = if (selectedIds.size == currentRows.size) emptySet()
+                        else currentRows.map { it.id }.toSet()
+                    }
+                ) {
+                    Text(if (selectedIds.size == currentRows.size) "Clear" else "Select all", fontSize = 11.sp)
+                }
+            }
         }
         when (val list = rows) {
             null -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
@@ -545,6 +579,7 @@ fun BrokenAgentsScreen(
             } else {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     items(list, key = { it.id }) { row ->
+                        val selected = row.id in selectedIds
                         Card(
                             colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                             modifier = Modifier.fillMaxWidth().clickable { onOpenModel(row.id) }
@@ -553,6 +588,13 @@ fun BrokenAgentsScreen(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Checkbox(
+                                    checked = selected,
+                                    onCheckedChange = { checked ->
+                                        selectedIds = if (checked) selectedIds + row.id else selectedIds - row.id
+                                    },
+                                    enabled = !busy
+                                )
                                 Column(Modifier.weight(1f)) {
                                     Text(
                                         row.label, fontSize = 13.sp, color = AppColors.TextPrimary,
@@ -567,8 +609,8 @@ fun BrokenAgentsScreen(
                                     }
                                 }
                                 if (!busy) {
-                                    IconGlyph(icons.delete) { confirmDelete = row }
-                                    IconGlyph(icons.reload) { onRestartItem(row.id) }
+                                    IconGlyph(icons.delete) { confirmDelete = setOf(row.id) }
+                                    IconGlyph(icons.reload) { onRestartItems(setOf(row.id)) }
                                 }
                             }
                         }
@@ -578,15 +620,17 @@ fun BrokenAgentsScreen(
         }
     }
 
-    confirmDelete?.let { row ->
+    confirmDelete?.let { ids ->
+        val single = ids.size == 1
+        val label = if (single) rows.orEmpty().firstOrNull { it.id == ids.first() }?.label ?: "this model" else "${ids.size} models"
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("Remove model from report?") },
-            text = { Text("Drops ${row.label} from the report. No API calls are made; the other models are kept.") },
+            title = { Text(if (single) "Remove model from report?" else "Remove ${ids.size} models from report?") },
+            text = { Text("Drops $label from the report. No API calls are made; the other models are kept.") },
             confirmButton = {
                 TextButton(
                     enabled = !busy,
-                    onClick = { onDeleteItem(row.id); confirmDelete = null }
+                    onClick = { onDeleteItems(ids); confirmDelete = null }
                 ) {
                     Text("Delete", color = AppColors.DangerAccent)
                 }
