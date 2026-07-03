@@ -29,7 +29,7 @@ import com.ai.ui.shared.TitleBar
 /**
  * Inserted between a Meta-prompt button (or Summarize / Compare button
  * — same flow either way) and the model picker. The user picks the
- * input set (all model reports / top-N from a rerank / a manual
+ * input set (all model responses / top-N from a rerank / a manual
  * subset) and, when the report has translation rows, which target
  * languages to include.
  */
@@ -194,7 +194,7 @@ internal fun SecondaryScopeScreen(
 
                 ScopeOption(
                     selected = scopeMode == ScopeMode.ALL,
-                    label = "All model reports",
+                    label = "All model responses",
                     sublabel = "Use every successful result from this report ($totalReports)",
                     onSelect = { scopeMode = ScopeMode.ALL }
                 )
@@ -237,7 +237,7 @@ internal fun SecondaryScopeScreen(
                             onValueChange = { newValue ->
                                 countText = newValue.filter { it.isDigit() }.take(3)
                             },
-                            label = { Text("Number of reports") },
+                            label = { Text("Number of responses") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),

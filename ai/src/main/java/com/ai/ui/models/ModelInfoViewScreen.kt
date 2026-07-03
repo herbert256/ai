@@ -114,7 +114,7 @@ fun ModelInfoViewScreen(
     repository: AnalysisRepository,
     settingsPrefs: SettingsPreferences,
     onOpenReport: (String) -> Unit,
-    /** Per-row Last-Usage tap → that report's View Reports screen,
+    /** Per-row Last-Usage tap → that report's View responses screen,
      *  pre-scrolled to the agent matching this provider/model. Wired
      *  from AppNavHost via the AI_REPORTS route's new
      *  `initialReportsAgentId` query-param. Default delegates to
@@ -573,7 +573,7 @@ fun ModelInfoViewScreen(
             }
 
             // 10) Last usage — recent reports using this model as a
-            //     main report agent. Per-row tap → View Reports for
+            //     main report agent. Per-row tap → View responses for
             //     that report, pre-scrolled to the matching agent.
             if (recentUsages.isNotEmpty()) {
                 item { LastUsageCard(entries = recentUsages) }
@@ -1139,7 +1139,7 @@ private fun computeUsages(
     // chats and secondaries (rerank / meta / moderation / translate
     // calls live under their own model paths anyway and would
     // double-count here). One row per matching report; the tap
-    // opens View Reports for that report, pre-scrolled to the
+    // opens View responses for that report, pre-scrolled to the
     // agent that actually used this provider/model.
     val out = mutableListOf<ViewUsageEntry>()
     val reports = ReportStorage.getAllReports(context).sortedByDescending { it.timestamp }

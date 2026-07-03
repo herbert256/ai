@@ -438,7 +438,7 @@ the [Value view](#value-view) as a ranking source. Full detail in
 For chat-type Meta prompts and Translate, a **scope** screen shows
 up to let you narrow what gets fed in:
 
-- **All model reports** (default) — feed every successful response.
+- **All model responses** (default) — feed every successful response.
 - **Only top ranked reports** — narrow to the top-N entries of a
   chosen rerank (when the report has at least one rerank).
 - **Manual selection** — explicitly pick which agents to feed in.

@@ -303,7 +303,7 @@ fun ReportsViewScreen(
             reportTitle = report?.barTitle,
             reportId = currentReportId,
             activeLanguage = activeLanguage,
-            screenTitle = "Model reports",
+            screenTitle = "Model responses",
             subject = null,
             helpTopic = "reports_view",
             onOpenManage = onOpenManageJump,

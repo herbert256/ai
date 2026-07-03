@@ -81,14 +81,14 @@ fun ReportsViewerScreen(
     when (val s = reportState.value) {
         ReportLoadState.Loading -> {
             Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
-                TitleBar(helpTopic = "content_model_response", title = "View Reports", subject = "Read each model's full answer", onBackClick = onDismiss,
+                TitleBar(helpTopic = "content_model_response", title = "View responses", subject = "Read each model's full answer", onBackClick = onDismiss,
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             }
             return
         }
         ReportLoadState.NotFound -> {
             Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
-                TitleBar(helpTopic = "content_model_response", title = "View Reports", subject = "Read each model's full answer", onBackClick = onDismiss,
+                TitleBar(helpTopic = "content_model_response", title = "View responses", subject = "Read each model's full answer", onBackClick = onDismiss,
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Report not found", color = AppColors.TextSecondary, fontSize = 16.sp)

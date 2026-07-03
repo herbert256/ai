@@ -165,7 +165,7 @@ fun ReportInfoScreen(
             InfoRow("Tokens", "$inTokens in · $outTokens out")
 
             Section("Composition")
-            InfoRow("Model reports", r.agents.size.toString())
+            InfoRow("Model responses", r.agents.size.toString())
             InfoRow("Secondary results", secKinds)
             InfoRow("Pinned", if (r.pinned) "Yes" else "No")
 

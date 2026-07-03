@@ -833,7 +833,7 @@ internal fun ViewAiReportScreen(
         val sourceLangs = reportsAvailableLangs.filter { it != effectiveTarget && (target.isNotEmpty() || it.isNotEmpty()) }
         val rep = loadedReport ?: return
         missingPopup = MissingPopupCtx(
-            tileLabel = "Reports",
+            tileLabel = "Responses",
             targetLanguageName = effectiveTarget,
             targetLanguageNative = effectiveTargetNative,
             sources = sourceLangs.map { sourceOption(it) },
@@ -955,7 +955,7 @@ internal fun ViewAiReportScreen(
                 promptViewOpen = true
             }))
             add(IdentifiedTile("doc:Reports", ViewTile(
-                "Reports", com.ai.data.MetadataIconsHolder.current.chart, AppColors.InfoAccent,
+                "Responses", com.ai.data.MetadataIconsHolder.current.chart, AppColors.InfoAccent,
                 enabled = reportsEnabled,
                 onMissingClick = if (!reportsEnabled) ({ openReportsMissing() }) else null
             ) {

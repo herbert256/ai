@@ -99,7 +99,7 @@ fun ReportModelScreen(
      *  below taps through here so the title doubles as an edit shortcut,
      *  mirroring the big icon → Icon lookup tap. */
     onEditModelTitle: (String) -> Unit = {},
-    /** Real-route 👁 target: open the View "Model reports" screen for this
+    /** Real-route 👁 target: open the View "Model responses" screen for this
      *  report seeded at the given agent. Used when there's no overlay
      *  [LocalPendingViewOverManage] holder (the standalone route). */
     onNavigateToViewReports: (String) -> Unit = {},
@@ -611,7 +611,7 @@ fun ReportModelScreen(
     }
     val agentIdx = orderedAgents.indexOfFirst { it.agentId == currentAgentId }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
-        // 👁 → the View "Model reports" screen at this agent. Overlay
+        // 👁 → the View "Model responses" screen at this agent. Overlay
         // path uses the pending-jump holder; the standalone route (holder
         // null) navigates via onNavigateToViewReports.
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current

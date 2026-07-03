@@ -172,7 +172,7 @@ launch the CRUD is the source of truth.
         ├── chat-type Meta / Translate / Fan-out:
         │   ▼
         │  [ SecondaryScopeScreen ]
-        │     • All model reports
+        │     • All model responses
         │     • Only top ranked reports → Number + Rerank-row dropdown
         │     • Manual selection → checklist of agents
         │     • chat-type Meta and Translate also: language scope

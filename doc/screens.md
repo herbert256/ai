@@ -205,10 +205,10 @@ screens use the generic `TitleBar`.
 | Model Info | \<model name\> |
 | Model Info | \<report title\> |
 | Model lists | Cached /models response per provider |
-| Model reports | \<report title\> |
 | Model response | Conclusion, motivation and full reply |
 | Model response | Read each model's full answer |
 | Model response | \<agent label\> |
+| Model responses | \<report title\> |
 | Model Types | Default API path per model type |
 | Models | Fetch, test and edit a provider's models |
 | Models | The whole catalog |
@@ -341,7 +341,7 @@ screens use the generic `TitleBar`.
 | Value view | \<report title\> |
 | View a report | \<report title\> |
 | View in one page | \<section title\> |
-| View Reports | Read each model's full answer |
+| View responses | Read each model's full answer |
 | Web search replay | \<model label\> |
 | Worker prompts | Prompts the app's own flows use |
 | Workers | Models, agents, flocks and swarms |

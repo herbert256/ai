@@ -438,7 +438,7 @@ private val RegeneratePhase.label: String
         RegeneratePhase.TITLE -> "Report title"
         RegeneratePhase.ICON -> "Report icon"
         RegeneratePhase.LANGUAGE -> "Language"
-        RegeneratePhase.AGENTS -> "Model reports"
+        RegeneratePhase.AGENTS -> "Model responses"
         RegeneratePhase.META -> "Meta (incl. rerank + moderation)"
         RegeneratePhase.FAN_OUT -> "Fan-out"
         RegeneratePhase.FAN_IN -> "Fan-in"

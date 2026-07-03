@@ -72,7 +72,7 @@ import kotlinx.coroutines.withContext
  * the existing management-heavy [FanOutScreen]. Reached from the
  * "Report - view" tile for a fan-out run.
  *
- * Layout copied from [ReportsViewScreen] (Model reports): two
+ * Layout copied from [ReportsViewScreen] (Model responses): two
  * vertically-stacked pagers, each preceded by an X/Y counter and a
  * green model-name subject line.
  *
@@ -86,7 +86,7 @@ import kotlinx.coroutines.withContext
  *    to page 0.
  *
  * No language flag on the top card (the user asked for that to be
- * absent here — different from Model reports). Translations on the
+ * absent here — different from Model responses). Translations on the
  * responder body are still picked up when [language] is non-blank.
  */
 @Composable
@@ -95,7 +95,7 @@ fun FanOutViewScreen(
     metaPromptName: String,
     language: String?,
     /** When set, the initiator pager opens on the page for this agent
-     *  (the model the user was reading on "Model reports"). Falls back
+     *  (the model the user was reading on "Model responses"). Falls back
      *  to page 0 when that agent isn't an initiator of this run. */
     initialInitiatorAgentId: String? = null,
     onBack: () -> Unit
@@ -551,7 +551,7 @@ fun FanOutViewScreen(
                     }
                 } else {
                     // ✋ — every responder to the active initiator as a
-                    // default-collapsed card (mirrors Model reports' ✋).
+                    // default-collapsed card (mirrors Model responses' ✋).
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth()
                             .heightIn(max = respCap),
@@ -725,7 +725,7 @@ private fun FanOutBodyCard(
  *  collapsed. Collapsed shows the responder's fan-out icon + its
  *  generated title (or model name) on one line; tapping expands to add
  *  the model name and the full reply. Mirrors `ModelReportCard` on the
- *  Model reports screen but for a fan-out pair ([SecondaryResult]). */
+ *  Model responses screen but for a fan-out pair ([SecondaryResult]). */
 @Composable
 private fun FanOutResponderCard(pair: SecondaryResult, body: String, overrideTitle: String? = null) {
     var expanded by rememberSaveable(pair.id) { mutableStateOf(false) }
