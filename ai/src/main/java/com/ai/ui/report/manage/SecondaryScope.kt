@@ -460,6 +460,15 @@ internal fun SecondaryScopeScreen(
 private enum class ScopeMode { ALL, TOP_RANKED, MANUAL }
 
 private fun rerankLabel(r: SecondaryResult): String {
+    // Tournament AGGREGATE rows fold into this list with sentinel ids
+    // ("*tournament"/"aggregate") — label them as what they are (with the
+    // active ranking method when the matrix decodes) instead of the raw
+    // sentinels, which were indistinguishable from reranks.
+    if (r.providerId == "*tournament") {
+        val method = com.ai.data.decodeTournamentMatrix(r.tournamentMatrix)?.second
+        val methodName = method?.name?.lowercase()?.replaceFirstChar { it.uppercase() }
+        return if (methodName != null) "Tournament ($methodName ranking)" else "Tournament ranking"
+    }
     val provider = AppService.findById(r.providerId)?.id ?: r.providerId
     return "$provider · ${r.model}"
 }
