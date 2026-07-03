@@ -434,6 +434,7 @@ internal fun PairIconDetailOverlay(
     onApplyIcon: (String) -> Unit,
     onClose: () -> Unit
 ): Boolean {
+    val pairRegenerate = com.ai.ui.shared.LocalRegenerateMetaItem.current
     val context = LocalContext.current
     // Re-read the SR on each iconRefreshTick so a Fan Meta
     // run / Find-alt pick reflects immediately. Returns null on
@@ -538,6 +539,10 @@ internal fun PairIconDetailOverlay(
             onContinueChat = null,
             onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
+            // 🔄 — the cheap automatic fan-meta reload the other icon scopes
+            // have carried all along (Find-alternative stays the pay-per-pick
+            // route).
+            onReload = { pairRegenerate(reportId, com.ai.viewmodel.MetaRegenKind.PAIR_FAN_META, pairId) },
             onBack = onClose
         ))
     }

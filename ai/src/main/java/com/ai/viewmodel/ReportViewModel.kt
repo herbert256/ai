@@ -172,7 +172,10 @@ private fun webSearchReplayPrompt(prompt: String): String =
  *  maps each to its generator (+ cache eviction where needed). */
 enum class MetaRegenKind {
     REPORT_TITLE_SHORT, REPORT_TITLE_LONG, REPORT_ICON,
-    LANGUAGE_NAME, LANGUAGE_ICON, MODEL_TITLE, MODEL_ICON
+    LANGUAGE_NAME, LANGUAGE_ICON, MODEL_TITLE, MODEL_ICON,
+    /** Fan-out pair title+icon (one worker call fills both); the id slot
+     *  carries the PAIR row id. */
+    PAIR_FAN_META
 }
 
 /**
@@ -2342,6 +2345,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     MetaRegenKind.MODEL_ICON -> {
                         val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@withTracerTags
                         iconGen.runPerModelEnrichment(context, reportId, ra, report.prompt, ai, iconOn = true, titleOn = false)
+                    }
+                    MetaRegenKind.PAIR_FAN_META -> {
+                        // Cheap automatic reload for a fan-out pair's icon +
+                        // title: clear this pair's fan-meta state (keeping
+                        // cost) and let runFanMetaBatch re-dispatch the now-
+                        // empty pair additively.
+                        val pairId = agentId ?: return@withTracerTags
+                        val row = withContext(Dispatchers.IO) {
+                            SecondaryResultStorage.get(context, reportId, pairId)
+                        } ?: return@withTracerTags
+                        val promptId = row.metaPromptId ?: return@withTracerTags
+                        withContext(Dispatchers.IO) {
+                            SecondaryResultStorage.clearFanOutTitleStateKeepingCost(context, reportId, pairId)
+                            SecondaryResultStorage.clearFanOutIconStateKeepingCost(context, reportId, pairId)
+                        }
+                        iconGen.runFanMetaBatch(context, reportId, promptId)
                     }
                 }
                 appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
