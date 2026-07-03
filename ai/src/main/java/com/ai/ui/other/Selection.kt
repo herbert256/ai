@@ -189,7 +189,12 @@ internal fun ReportSelectModelsScreen(
     /** TitleBar subject line + help topic — overridable so the browse
      *  ("Search models") reuse can carry its own subtitle and help page. */
     subject: String = "Add one model, with live pricing",
-    helpTopic: String = "report_pick_model"
+    helpTopic: String = "report_pick_model",
+    /** Multi-add mode (the report "Pick Models" flow, which stays open per
+     *  pick): renders an "Add all N shown" button under the count line that
+     *  adds every visible not-yet-added row — the provider/type/search
+     *  filters double as a per-provider add-all. Confirm-gated above 15. */
+    allowAddAllShown: Boolean = false
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -330,6 +335,34 @@ internal fun ReportSelectModelsScreen(
             placeholder = { Text("Search models...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
             trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AppColors.TextTertiary, fontSize = 12.sp) } })
         Text("${sorted.size} of ${all.size} models", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
+
+        if (allowAddAllShown && onBrowse == null) {
+            val addable = remember(sorted, alreadyAdded) { sorted.filter { it !in alreadyAdded } }
+            var confirmAddAll by remember { mutableStateOf(false) }
+            if (addable.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = { if (addable.size > 15) confirmAddAll = true else addable.forEach(confirmPick) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("Add all ${addable.size} shown", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+            }
+            if (confirmAddAll) {
+                AlertDialog(
+                    onDismissRequest = { confirmAddAll = false },
+                    title = { Text("Add ${addable.size} models?") },
+                    text = { Text("Adds every model currently shown (the provider / type / search filters apply). You can still remove models before generating.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirmAddAll = false
+                            addable.forEach(confirmPick)
+                        }) { Text("Add all", maxLines = 1, softWrap = false) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmAddAll = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+                    }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
         // Common row renderer for both the Recent section and the main

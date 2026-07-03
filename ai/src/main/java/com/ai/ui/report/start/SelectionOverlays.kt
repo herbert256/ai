@@ -223,7 +223,8 @@ internal fun SelectionOverlayDialogs(
                 addToActiveTarget(listOf(toReportModel(prov, m)))
             },
             onBack = { showSelectAllModels = false },
-            onNavigateHome = onNavigateHome
+            onNavigateHome = onNavigateHome,
+            allowAddAllShown = true
         )
         return true
     }
