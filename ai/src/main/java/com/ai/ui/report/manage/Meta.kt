@@ -297,7 +297,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
         // styling as the per-agent cost on the report screen.
         val totalCost = (r.inputCost ?: 0.0) + (r.outputCost ?: 0.0)
         if (totalCost > 0.0) {
-            Text("${formatCents(totalCost)} ¢", fontSize = 10.sp,
+            Text("${formatCents(totalCost)}", fontSize = 10.sp,
                 color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(end = 4.dp))
         }

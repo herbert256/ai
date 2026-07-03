@@ -333,7 +333,7 @@ private fun TranslatorRankL1(
                 if (summary.showBenchColumn) add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
                 add(Triple("Wait", throttledCount.toString(), AppColors.CautionAccent))
                 add(Triple("Queue", queued.toString(), AppColors.QueueAccent))
-                add(Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent))
+                add(Triple("Costs", "${formatCents(run.totalCost, 2)}", AppColors.InfoAccent))
             })
             if (!allTerminal && total > 0 && !run.cancelled) {
                 LinearProgressIndicator(

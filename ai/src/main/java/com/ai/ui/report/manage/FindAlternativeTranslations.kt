@@ -87,7 +87,7 @@ private fun TranslationCandidateRow(candidate: TranslationCandidate, onPick: (Tr
                 }
             }
             if (cost > 0.0) {
-                Text("${com.ai.ui.shared.formatCents(cost)} ¢", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = AppColors.TextTertiary, modifier = Modifier.padding(start = 8.dp))
+                Text("${com.ai.ui.shared.formatCents(cost)}", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = AppColors.TextTertiary, modifier = Modifier.padding(start = 8.dp))
             }
         }
     }

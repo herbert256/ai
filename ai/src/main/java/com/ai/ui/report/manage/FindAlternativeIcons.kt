@@ -187,7 +187,7 @@ private fun CandidateRow(
             }
             if (cost > 0.0) {
                 androidx.compose.material3.Text(
-                    "${com.ai.ui.shared.formatCents(cost)} ¢",
+                    "${com.ai.ui.shared.formatCents(cost)}",
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                     color = AppColors.TextTertiary

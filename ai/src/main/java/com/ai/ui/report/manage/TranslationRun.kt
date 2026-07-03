@@ -55,7 +55,7 @@ internal fun translationModelKey(item: TranslationItem): String? {
 enum class TranslationGroupMode { MODELS, TYPES }
 
 internal fun formatTranslationCost(valueDollars: Double): String =
-    "${formatCents(valueDollars)} ¢"
+    "${formatCents(valueDollars)}"
 
 private data class PersistedTranslationRunLoad(
     val loaded: Boolean,

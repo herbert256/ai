@@ -418,7 +418,7 @@ private fun JudgeEvalL1(
                 }
                 add(Triple("Wait", throttledCount.toString(), AppColors.CautionAccent))
                 add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
-                add(Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent))
+                add(Triple("Costs", "${formatCents(run.totalCost, 2)}", AppColors.InfoAccent))
             })
             // Run-level progress bar while work is still outstanding (parity
             // with Fan Out / Fan Meta / Translation).

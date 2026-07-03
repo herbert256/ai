@@ -184,7 +184,7 @@ internal fun FanOutL1Screen(
             }
             add(Triple("Wait", throttledHere.toString(), AppColors.CautionAccent))
             add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
-            add(Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)} ¢", AppColors.InfoAccent))
+            add(Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)}", AppColors.InfoAccent))
         })
 
         val hasFanMeta = remember(run) {

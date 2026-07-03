@@ -24,8 +24,12 @@ internal fun formatUsd(value: Double, decimals: Int = 8): String {
     return String.format(Locale.US, "$%.${decimals}f", value)
 }
 
+/** Dollars → a ¢-suffixed cent string. The unit is part of the format on
+ *  purpose: the same figure used to render as "0.1234" on one screen and
+ *  "0.1234 ¢" on its sibling, reading as dollars-vs-cents ambiguity. Every
+ *  display site shows the unit now; none parse the output back. */
 internal fun formatCents(value: Double, decimals: Int = 4): String {
-    return String.format(Locale.US, "%.${decimals}f", value * 100)
+    return String.format(Locale.US, "%.${decimals}f ¢", value * 100)
 }
 
 internal fun formatCentsValue(cents: Double, decimals: Int = 4): String {

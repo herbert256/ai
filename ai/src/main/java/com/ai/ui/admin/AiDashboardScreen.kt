@@ -2973,7 +2973,7 @@ private data class ModelUsageRow(
     val totalCost: Double,
 )
 
-private fun cents(v: Double, decimals: Int = 2): String = "${formatCents(v, decimals)} ¢"
+private fun cents(v: Double, decimals: Int = 2): String = "${formatCents(v, decimals)}"
 
 /** "1:05", "12m", "3h 20m" — compact remaining/elapsed. */
 private fun fmtDuration(ms: Long): String {

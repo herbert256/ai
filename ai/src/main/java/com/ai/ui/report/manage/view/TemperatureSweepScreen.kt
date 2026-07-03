@@ -224,7 +224,7 @@ private fun TemperatureCandidatePanel(
                 Text(candidateStatus(candidate), fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(modifier = Modifier.weight(1f))
                 (candidate as? TemperatureSweepCandidate.Success)?.cost?.let { cost ->
-                    Text("${formatCents(cost)} ¢", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${formatCents(cost)}", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 val traceFile = when (candidate) {
                     is TemperatureSweepCandidate.Success -> candidate.traceFile

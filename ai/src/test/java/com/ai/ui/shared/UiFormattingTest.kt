@@ -19,6 +19,7 @@ class UiFormattingTest {
 
     @Test fun money_helpers_use_requested_precision() {
         assertThat(formatUsd(0.123456, decimals = 3)).isEqualTo("$0.123")
-        assertThat(formatCents(0.012345, decimals = 2)).isEqualTo("1.23")
+        // The ¢ unit is part of the format — see the formatCents doc note.
+        assertThat(formatCents(0.012345, decimals = 2)).isEqualTo("1.23 ¢")
     }
 }

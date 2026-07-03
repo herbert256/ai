@@ -81,7 +81,7 @@ private fun TitleCandidateRow(candidate: TitleCandidate, onPickTitle: (TitleCand
                 }
             }
             if (cost > 0.0) {
-                Text("${com.ai.ui.shared.formatCents(cost)} ¢", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = AppColors.TextTertiary)
+                Text("${com.ai.ui.shared.formatCents(cost)}", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = AppColors.TextTertiary)
             }
         }
     }

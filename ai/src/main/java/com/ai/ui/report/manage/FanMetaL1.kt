@@ -146,7 +146,7 @@ internal fun FanMetaL1Screen(
             Triple("Run", runningCount.toString(), AppColors.WarningAccent),
             Triple("Wait", throttledHere.toString(), AppColors.CautionAccent),
             Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)} ¢", AppColors.InfoAccent)
+            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)}", AppColors.InfoAccent)
         ))
 
         // L1 lists the report (answerer) models. The meta-worker
@@ -387,7 +387,7 @@ internal fun FanMetaWorkersScreen(
             Triple("Run", counts.running.toString(), AppColors.WarningAccent),
             Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
             Triple("Queue", counts.queued.toString(), AppColors.QueueAccent),
-            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)} ¢", AppColors.InfoAccent)
+            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)}", AppColors.InfoAccent)
         ))
         Spacer(modifier = Modifier.height(8.dp))
 

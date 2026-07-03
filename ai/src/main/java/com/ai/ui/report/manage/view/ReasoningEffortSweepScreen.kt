@@ -214,7 +214,7 @@ private fun ReasoningEffortCandidatePanel(
                 Text(reasoningCandidateStatus(candidate), fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(modifier = Modifier.weight(1f))
                 (candidate as? ReasoningEffortCandidate.Success)?.cost?.let { cost ->
-                    Text("${formatCents(cost)} ¢", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${formatCents(cost)}", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 val traceFile = when (candidate) {
                     is ReasoningEffortCandidate.Success -> candidate.traceFile

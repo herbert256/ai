@@ -127,12 +127,12 @@ fun cacheRegistry(
                 CacheEntryVM(
                     id = le.key,
                     title = "${en.emoji}  ${le.name}${if (le.title.isNotBlank()) " — ${le.title}" else ""}",
-                    subtitle = "${en.providerId}/${en.model} · ${age(en.timestamp)} · ${formatCents(en.inputCost + en.outputCost)} ¢",
+                    subtitle = "${en.providerId}/${en.model} · ${age(en.timestamp)} · ${formatCents(en.inputCost + en.outputCost)}",
                     viewContent = buildString {
                         appendLine("Emoji: ${en.emoji}")
                         appendLine("Model: ${en.providerId}/${en.model}")
                         appendLine("Prompt name: ${en.promptName ?: "—"}")
-                        appendLine("Cost: ${formatCents(en.inputCost + en.outputCost)} ¢ (in ${en.inputTokens} / out ${en.outputTokens} tok)")
+                        appendLine("Cost: ${formatCents(en.inputCost + en.outputCost)} (in ${en.inputTokens} / out ${en.outputTokens} tok)")
                         appendLine()
                         appendLine("— Resolved prompt —")
                         appendLine(en.promptText)

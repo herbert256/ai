@@ -399,7 +399,7 @@ private fun TournamentL1(
                 Triple("Run", counts.running.toString(), AppColors.WarningAccent),
                 Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
                 Triple("Queue", counts.queued.toString(), AppColors.QueueAccent),
-                Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
+                Triple("Costs", "${formatCents(run.totalCost, 2)}", AppColors.InfoAccent)
             ))
             // Run-level progress bar while work is still outstanding (parity
             // with Fan Out / Fan Meta / Translation).
@@ -489,7 +489,7 @@ private fun TournamentWorkersL1(
                 Triple("Run", counts.running.toString(), AppColors.WarningAccent),
                 Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
                 Triple("Queue", counts.queued.toString(), AppColors.QueueAccent),
-                Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
+                Triple("Costs", "${formatCents(run.totalCost, 2)}", AppColors.InfoAccent)
             ))
             if (summary.activeOutstanding && counts.total > 0 && !run.cancelled) {
                 val finished = (counts.done + summary.displayError).toFloat() / counts.total
@@ -559,7 +559,7 @@ private fun TournamentJudgeModelRow(
             overflow = TextOverflow.Ellipsis
         )
         if (group.cost > 0) {
-            Text("${formatCents(group.cost)} ¢", color = AppColors.TextTertiary, fontSize = 11.sp)
+            Text("${formatCents(group.cost)}", color = AppColors.TextTertiary, fontSize = 11.sp)
         }
     }
     HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
@@ -610,7 +610,7 @@ private fun TournamentReportModelRow(group: GroupRow, allDone: Boolean, onClick:
             overflow = TextOverflow.Ellipsis
         )
         if (group.cost > 0) {
-            Text("${formatCents(group.cost)} ¢", color = AppColors.TextTertiary, fontSize = 11.sp)
+            Text("${formatCents(group.cost)}", color = AppColors.TextTertiary, fontSize = 11.sp)
         }
     }
     HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)

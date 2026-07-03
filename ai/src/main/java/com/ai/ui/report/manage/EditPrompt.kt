@@ -264,7 +264,7 @@ private fun ColumnScope.TitleApiCards(card: TitleApiCard?) {
                             )
                         }
                     }
-                    Text("Cost: ${formatCents(c.cost)} ¢",
+                    Text("Cost: ${formatCents(c.cost)}",
                         fontSize = 14.sp, color = AppColors.TextPrimary)
                 }
             }

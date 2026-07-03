@@ -170,7 +170,7 @@ private fun WebSearchResultPane(
                 Text(webSearchStatus(result), color = AppColors.TextTertiary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(modifier = Modifier.weight(1f))
                 (result as? WebSearchReplayResult.Success)?.cost?.let { cost ->
-                    Text("${formatCents(cost)} ¢", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${formatCents(cost)}", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 durationMs(result)?.let { ms ->
                     Spacer(modifier = Modifier.width(8.dp))

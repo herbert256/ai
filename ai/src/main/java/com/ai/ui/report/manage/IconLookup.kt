@@ -124,7 +124,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                                 }
                             }
                         }
-                        Text("Cost: ${formatCents(ctx.cost)} ¢",
+                        Text("Cost: ${formatCents(ctx.cost)}",
                             fontSize = 14.sp, color = AppColors.TextPrimary)
                     }
                 }

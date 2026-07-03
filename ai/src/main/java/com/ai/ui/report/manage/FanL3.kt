@@ -600,7 +600,7 @@ internal fun FanOutL3Screen(
                     }
                     if (pair.responseCost > 0.0) {
                         Text(
-                            "${formatCents(pair.responseCost)} ¢", fontSize = 11.sp,
+                            "${formatCents(pair.responseCost)}", fontSize = 11.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                             modifier = Modifier.padding(start = 6.dp)
                         )

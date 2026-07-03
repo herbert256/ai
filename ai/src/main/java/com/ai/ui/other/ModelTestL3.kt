@@ -141,7 +141,7 @@ internal fun ModelTestL3Screen(
             }
             if (item.totalCost > 0.0) {
                 Text(
-                    "Cost: ${formatCents(item.totalCost, decimals = 4)} ¢",
+                    "Cost: ${formatCents(item.totalCost, decimals = 4)}",
                     color = AppColors.TextSecondary, fontSize = 13.sp, fontFamily = FontFamily.Monospace
                 )
             }
