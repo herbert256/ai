@@ -354,6 +354,28 @@ internal fun SecondaryResultDetailScreen(
     val isMeta = result.kind == SecondaryKind.META
     val hasContent = !originalContent.isNullOrBlank()
     val continueMetaInChat = com.ai.ui.shared.LocalContinueMetaInChat.current
+    // Three-mode continue-in-chat picker — same choice a primary answer has.
+    val continueTextInChat = com.ai.ui.shared.LocalContinueTextInChat.current
+    var showContinuePicker by remember { mutableStateOf(false) }
+    if (showContinuePicker) {
+        ContinueInChatPickerScreen(
+            onPickCurrent = {
+                showContinuePicker = false
+                continueMetaInChat(result.reportId, result.id, activeLangName)
+            },
+            onPickAgentPicker = {
+                showContinuePicker = false
+                displayContent?.takeIf { it.isNotBlank() }?.let { continueTextInChat?.invoke(it, "agent") }
+            },
+            onPickOnTheFly = {
+                showContinuePicker = false
+                displayContent?.takeIf { it.isNotBlank() }?.let { continueTextInChat?.invoke(it, "fly") }
+            },
+            onBack = { showContinuePicker = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
     val aiSettings = com.ai.ui.shared.LocalAiSettings.current
     var showAgentChat by remember { mutableStateOf(false) }
     if (showAgentChat && providerService != null) {
@@ -418,7 +440,12 @@ internal fun SecondaryResultDetailScreen(
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
             // 💬 continue this analysis in the Chat section; 🗣️ refine it in
             // place. META rows only (plain meta + fan-in).
-            onChat = if (isMeta && hasContent) { { continueMetaInChat(result.reportId, result.id, activeLangName) } } else null,
+            onChat = if (isMeta && hasContent) {
+                {
+                    if (continueTextInChat != null) showContinuePicker = true
+                    else continueMetaInChat(result.reportId, result.id, activeLangName)
+                }
+            } else null,
             onAgentChat = if (isMeta && hasContent && providerService != null) { { showAgentChat = true } } else null,
             onTranslationCompare = if (liveTranslateActive != null && !result.content.isNullOrBlank() && !liveTranslateActive.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }

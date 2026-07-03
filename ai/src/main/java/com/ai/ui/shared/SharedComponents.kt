@@ -543,6 +543,12 @@ val LocalGenerateNoteTitle = compositionLocalOf<(String, String, String) -> Unit
  *  it. Provided around the report area, wired to `continueMetaInChat` +
  *  navigate. Default no-op. */
 val LocalContinueMetaInChat = compositionLocalOf<(String, String, String?) -> Unit> { { _, _, _ -> } }
+/** Continue arbitrary TEXT in a new chat via the picker routes: stashes the
+ *  text as the next chat's input-box starter and navigates to the agent
+ *  picker (mode "agent") or the configure-on-the-fly chain (mode "fly").
+ *  Gives the meta / fan-in 💬 the same three-mode choice a primary answer
+ *  has. Null default = the affordance hides. */
+val LocalContinueTextInChat = compositionLocalOf<((String, String) -> Unit)?> { null }
 
 /** Bridge that lets the in-report "refine this answer" chat screen
  *  (🗣️ on Model-response / Fan-out-response) reach the chat engine

@@ -436,6 +436,18 @@ internal fun NavGraphBuilder.reportRoutes(
                         navController.navigate(NavRoutes.aiChatContinue(sid))
                     }
                 },
+                com.ai.ui.shared.LocalContinueTextInChat provides { text, mode ->
+                    appViewModel.updateUiState {
+                        it.copy(
+                            chatStarterText = text,
+                            chatStarterImageBase64 = null,
+                            chatStarterImageMime = null
+                        )
+                    }
+                    navController.navigate(
+                        if (mode == "agent") NavRoutes.AI_CHAT_AGENT_SELECT else NavRoutes.AI_CHAT_PROVIDER
+                    )
+                },
                 com.ai.ui.shared.LocalActiveTranslationReportIds provides activeTranslationReportIds,
                 com.ai.ui.shared.LocalNavigateToReportInfo provides { rid ->
                     navController.navigate(NavRoutes.aiReportInfo(rid))

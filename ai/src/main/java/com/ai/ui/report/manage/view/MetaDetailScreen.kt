@@ -245,6 +245,31 @@ internal fun MetaDetailScreen(
 
     val hasContent = !originalContent.isNullOrBlank()
     val continueMetaInChat = com.ai.ui.shared.LocalContinueMetaInChat.current
+    // 💬 offers the same three continue-in-chat modes a primary answer has:
+    // the meta's own model (chat replay), pick an agent, or configure on
+    // the fly — the latter two stash the displayed content as the next
+    // chat's starter text.
+    val continueTextInChat = com.ai.ui.shared.LocalContinueTextInChat.current
+    var showContinuePicker by remember { mutableStateOf(false) }
+    if (showContinuePicker) {
+        ContinueInChatPickerScreen(
+            onPickCurrent = {
+                showContinuePicker = false
+                continueMetaInChat(result.reportId, result.id, activeLangName)
+            },
+            onPickAgentPicker = {
+                showContinuePicker = false
+                displayContent?.takeIf { it.isNotBlank() }?.let { continueTextInChat?.invoke(it, "agent") }
+            },
+            onPickOnTheFly = {
+                showContinuePicker = false
+                displayContent?.takeIf { it.isNotBlank() }?.let { continueTextInChat?.invoke(it, "fly") }
+            },
+            onBack = { showContinuePicker = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
 
     // ----- edit overlays (mirror FanOutL3's Change-response set) -----
     // Fallback empty flows keep the collectAsState calls unconditional when
@@ -530,7 +555,12 @@ internal fun MetaDetailScreen(
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, eff.model) } } else null,
             // 🗣️ refine-in-place lives under ✏️ → Chat now; the title bar
             // keeps only 💬 continue-in-chat (separate Chat-section flow).
-            onChat = if (hasContent) { { continueMetaInChat(result.reportId, result.id, activeLangName) } } else null,
+            onChat = if (hasContent) {
+                {
+                    if (continueTextInChat != null) showContinuePicker = true
+                    else continueMetaInChat(result.reportId, result.id, activeLangName)
+                }
+            } else null,
             onTranslationCompare = if (liveTranslateActive != null && !result.content.isNullOrBlank() && !liveTranslateActive.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,
