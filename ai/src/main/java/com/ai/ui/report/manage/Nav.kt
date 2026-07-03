@@ -992,6 +992,7 @@ internal fun ConsumePendingBatchOpen(
     val judgeOpen = com.ai.ui.shared.LocalJudgeEvalOpenState.current
     val compareOpen = com.ai.ui.shared.LocalCompareOpenState.current
     val transRankOpen = com.ai.ui.shared.LocalTransRankOpenState.current
+    val regenOpen = com.ai.ui.shared.LocalRegenerateBatchOpenState.current
     val pending = controller.pending
     LaunchedEffect(pending, currentReportId) {
         val p = pending ?: return@LaunchedEffect
@@ -1027,6 +1028,11 @@ internal fun ConsumePendingBatchOpen(
             // Failed report-info metadata jobs → the Report - titles/icons/...
             // layer, where the ❌ rows live.
             com.ai.viewmodel.BatchFamilyKind.INFO -> ({ st.showGetInfo.value = true })
+            // Stalled/paused regenerate job → its progress/resume overlay.
+            // Without this branch the one-shot was consumed and the tap on a
+            // Regenerate broken-work card landed on the plain Manage hub
+            // with nothing opened.
+            com.ai.viewmodel.BatchFamilyKind.REGENERATE -> ({ regenOpen?.value = p.reportId })
             else -> return@LaunchedEffect
         }
         // View-only just opens the item's screen — no re-queue / build popup.
