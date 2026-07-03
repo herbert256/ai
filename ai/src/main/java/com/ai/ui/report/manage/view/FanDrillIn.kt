@@ -1060,8 +1060,14 @@ internal fun ColumnScope.FanOutDrillInView(
     // this report. Computed up here so the LazyColumn footer item
     // below can render it; the previous standalone banner above the
     // list moved into the list itself per user request.
-    val totalAnswerersCost = remember(latestByPair, combinedRows) {
-        latestByPair.values.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } +
+    // Summed from rowStatsByKey — the SAME undeduped per-row set the
+    // visible cost column shows. Summing latestByPair here deduped to
+    // the newest row per (provider|model|source), so with duplicate
+    // same-model answerer agents (each owning its own placeholder,
+    // deliberately all counted toward the row) the column added up to
+    // MORE than its own Total footer.
+    val totalAnswerersCost = remember(rowStatsByKey, combinedRows) {
+        rowStatsByKey.values.sumOf { it.cost } +
             combinedRows.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
     }
 
