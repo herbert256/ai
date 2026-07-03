@@ -23,6 +23,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -91,7 +94,11 @@ private data class AnswerMatrixRow(
     val latency: String,
     val tokens: String,
     /** Report agent behind this row — lets a row tap open the answer. */
-    val agentId: String = ""
+    val agentId: String = "",
+    /** Numeric twins of the display strings — the tap-to-sort headers
+     *  order by these, not by re-parsing the formatted text. */
+    val latencyMs: Long = 0L,
+    val tokensCount: Long = 0L
 )
 
 @Composable
@@ -160,9 +167,23 @@ internal fun AnswerMatrixViewScreen(
         }
     }
 
-    val matrixRows = remember(report, translationByTarget, rerankState.value) {
-        report?.let { buildAnswerMatrixRows(it, translationByTarget, rerankState.value.rowsByResultId) }
+    // Tap-to-sort — null column = the build order (rank then ordinal).
+    var sortColumn by rememberSaveable { mutableStateOf<String?>(null) }
+    var sortDescending by rememberSaveable { mutableStateOf(false) }
+    val matrixRows = remember(report, translationByTarget, rerankState.value, sortColumn, sortDescending) {
+        val base = report?.let { buildAnswerMatrixRows(it, translationByTarget, rerankState.value.rowsByResultId) }
             ?: emptyList()
+        val sorted = when (sortColumn) {
+            "model" -> base.sortedBy { it.modelLabel.lowercase() }
+            "rank" -> base.sortedBy { it.rank ?: Int.MAX_VALUE }
+            "stance" -> base.sortedBy { it.stance.lowercase() }
+            "confidence" -> base.sortedBy { it.confidence.lowercase() }
+            "cost" -> base.sortedBy { it.costCents }
+            "latency" -> base.sortedBy { it.latencyMs }
+            "tokens" -> base.sortedBy { it.tokensCount }
+            else -> base
+        }
+        if (sortDescending) sorted.reversed() else sorted
     }
     val totalCost = remember(matrixRows) {
         // Sum the precise numeric cents, NOT a re-parse of the rounded/locale-
@@ -263,7 +284,16 @@ internal fun AnswerMatrixViewScreen(
                         rankedCount = matrixRows.count { it.rank != null },
                         totalCostCents = totalCost
                     )
-                    AnswerMatrixTable(matrixRows, onOpenAgent)
+                    AnswerMatrixTable(
+                        matrixRows, onOpenAgent,
+                        sortColumn = sortColumn, sortDescending = sortDescending,
+                        onSortBy = { col ->
+                            if (sortColumn == col) {
+                                if (!sortDescending) sortDescending = true
+                                else { sortColumn = null; sortDescending = false }
+                            } else { sortColumn = col; sortDescending = false }
+                        }
+                    )
                     Spacer(modifier = Modifier.height(20.dp))
                 }
             }
@@ -303,7 +333,14 @@ private fun StatText(label: String, value: String, color: Color) {
 }
 
 @Composable
-private fun AnswerMatrixTable(rows: List<AnswerMatrixRow>, onOpenAgent: ((String) -> Unit)? = null) {
+private fun AnswerMatrixTable(
+    rows: List<AnswerMatrixRow>,
+    onOpenAgent: ((String) -> Unit)? = null,
+    sortColumn: String? = null,
+    sortDescending: Boolean = false,
+    /** Header tap: asc → desc → back to the default order. */
+    onSortBy: ((String) -> Unit)? = null
+) {
     val hScroll = rememberScrollState()
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -313,16 +350,17 @@ private fun AnswerMatrixTable(rows: List<AnswerMatrixRow>, onOpenAgent: ((String
             .horizontalScroll(hScroll)
     ) {
         Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            fun mark(col: String) = if (sortColumn == col) (if (sortDescending) " ↓" else " ↑") else ""
             HeaderCell("#", 46.dp, end = true)
-            HeaderCell("Model", 180.dp)
-            HeaderCell("Rank", 64.dp, end = true)
-            HeaderCell("Stance", 96.dp)
-            HeaderCell("Confidence", 96.dp)
+            HeaderCell("Model" + mark("model"), 180.dp, onClick = onSortBy?.let { { it("model") } })
+            HeaderCell("Rank" + mark("rank"), 64.dp, end = true, onClick = onSortBy?.let { { it("rank") } })
+            HeaderCell("Stance" + mark("stance"), 96.dp, onClick = onSortBy?.let { { it("stance") } })
+            HeaderCell("Confidence" + mark("confidence"), 96.dp, onClick = onSortBy?.let { { it("confidence") } })
             HeaderCell("Recommendation", 280.dp)
             HeaderCell("Risks", 260.dp)
-            HeaderCell("Cost", 88.dp, end = true)
-            HeaderCell("Latency", 88.dp, end = true)
-            HeaderCell("Tokens", 84.dp, end = true)
+            HeaderCell("Cost" + mark("cost"), 88.dp, end = true, onClick = onSortBy?.let { { it("cost") } })
+            HeaderCell("Latency" + mark("latency"), 88.dp, end = true, onClick = onSortBy?.let { { it("latency") } })
+            HeaderCell("Tokens" + mark("tokens"), 84.dp, end = true, onClick = onSortBy?.let { { it("tokens") } })
         }
         HorizontalDivider(color = AppColors.DividerDark)
         rows.forEachIndexed { idx, row ->
@@ -365,13 +403,15 @@ private fun AnswerMatrixTable(rows: List<AnswerMatrixRow>, onOpenAgent: ((String
 }
 
 @Composable
-private fun HeaderCell(text: String, width: Dp, end: Boolean = false) {
+private fun HeaderCell(text: String, width: Dp, end: Boolean = false, onClick: (() -> Unit)? = null) {
     Text(
         text = text,
         color = AppColors.InfoAccent,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.width(width).padding(horizontal = 4.dp),
+        modifier = Modifier.width(width)
+            .let { m -> if (onClick != null) m.clickable { onClick() } else m }
+            .padding(horizontal = 4.dp),
         textAlign = if (end) androidx.compose.ui.text.style.TextAlign.End else androidx.compose.ui.text.style.TextAlign.Start,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
@@ -440,7 +480,9 @@ private fun buildAnswerMatrixRows(
             tokens = agent.tokenUsage?.totalTokens?.takeIf { it > 0 }
                 ?.let { formatCompactNumber(it.toLong()) }
                 ?: "-",
-            agentId = agent.agentId
+            agentId = agent.agentId,
+            latencyMs = agent.durationMs ?: 0L,
+            tokensCount = (agent.tokenUsage?.totalTokens ?: 0).toLong()
         )
     }.sortedWith(
         compareBy<AnswerMatrixRow> { it.rank ?: Int.MAX_VALUE }
