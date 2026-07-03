@@ -1089,6 +1089,14 @@ private fun ValueGraphFullScreen(
     onNext: () -> Unit,
     onBack: () -> Unit
 ) {
+    // The tap detector is a long-lived pointerInput; wrap the callbacks so
+    // it always invokes the CURRENT cycleSource closure. Re-keying the
+    // pointerInput on yAxisTitle to "recapture" them silently failed when
+    // two ranking sources share a label (two 'Nederlands' TransRank runs):
+    // the label didn't change, the detector kept the stale closure, and
+    // every tap re-selected the same source forever.
+    val onPrevState = androidx.compose.runtime.rememberUpdatedState(onPrev)
+    val onNextState = androidx.compose.runtime.rememberUpdatedState(onNext)
     Dialog(
         onDismissRequest = onBack,
         properties = DialogProperties(
@@ -1131,9 +1139,10 @@ private fun ValueGraphFullScreen(
                 // zoom, since scale/offset are keyed on yAxisTitle). A gesture
                 // that crosses touch-slop is a transform; otherwise it's a tap:
                 // left half → previous ranking, right half → next (wraps).
-                // Keyed on yAxisTitle so it recaptures onPrev/onNext each cycle.
-                // See audit report bug 14.
-                .pointerInput(yAxisTitle) {
+                // Keyed on Unit — the callbacks come from rememberUpdatedState
+                // so it need not (and must not) recapture per label; see the
+                // duplicate-label note above.
+                .pointerInput(Unit) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         var pastSlop = false
@@ -1158,7 +1167,7 @@ private fun ValueGraphFullScreen(
                         } while (!canceled && event.changes.any { it.pressed })
                         // Never crossed slop and wasn't consumed → a real tap.
                         if (!pastSlop && !canceled) {
-                            if (down.position.x < size.width / 2f) onPrev() else onNext()
+                            if (down.position.x < size.width / 2f) onPrevState.value() else onNextState.value()
                         }
                     }
                 }
