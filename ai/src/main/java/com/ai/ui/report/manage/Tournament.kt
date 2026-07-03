@@ -393,6 +393,15 @@ private fun TournamentL1(
             }
             Spacer(Modifier.height(12.dp))
 
+            // Failed-row recovery: restart just the errored matches (or drop
+            // them) instead of the destructive whole-run Redo.
+            BatchFailedControls(
+                erroredCount = summary.displayError,
+                singular = "match", plural = "matches",
+                onRestartFailed = onRestartFailed,
+                onRemoveFailed = onRemoveFailed
+            )
+
             // L1 lists the report (answerer) models. The judge-model
             // ("workers") grouping lives on the 🐜 Tournament workers screen.
             val groups = buildGroups(run, agents, TournamentGroupMode.REPORT_MODELS)
@@ -408,9 +417,6 @@ private fun TournamentL1(
                 TournamentReportModelRow(g, allDone = allSuccessful) { openGroup(g.key) }
             }
 
-            Spacer(Modifier.height(16.dp))
-            // Per-failure controls (Remove/Restart) removed — a new
-            // failure-handling UX is coming.
             Spacer(Modifier.height(24.dp))
         }
     }

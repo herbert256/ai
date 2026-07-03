@@ -418,6 +418,15 @@ private fun JudgeEvalL1(
             )
             Spacer(Modifier.height(12.dp))
 
+            // Failed-cell recovery: restart just the errored judge cells (or
+            // drop them) instead of the destructive whole-run Redo.
+            BatchFailedControls(
+                erroredCount = errorCount,
+                singular = "judge cell", plural = "judge cells",
+                onRestartFailed = onRestartFailed,
+                onRemoveFailed = onRemoveFailed
+            )
+
             // Mode toggle — Judges (default) vs Matches, like Fan Meta.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
@@ -487,9 +496,6 @@ private fun JudgeEvalL1(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-            // Per-failure controls (Remove/Restart) removed — a new
-            // failure-handling UX is coming.
             Spacer(Modifier.height(24.dp))
         }
     }

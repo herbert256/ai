@@ -404,6 +404,15 @@ private fun CompareL1(
             }
             Spacer(Modifier.height(12.dp))
 
+            // Failed-cell recovery: restart just the errored compare cells
+            // (or drop them) instead of the destructive whole-run Redo.
+            BatchFailedControls(
+                erroredCount = summary.displayError,
+                singular = "compare cell", plural = "compare cells",
+                onRestartFailed = onRestartFailed,
+                onRemoveFailed = onRemoveFailed
+            )
+
             val groups = buildGroups(run, agents)
             if (groups.isEmpty()) {
                 Text("One moment, collecting information…", color = AppColors.TextSecondary, fontSize = 13.sp,
@@ -411,9 +420,6 @@ private fun CompareL1(
             }
             groups.forEach { g -> CompareGroupRowItem(g) { openGroup(g.key) } }
 
-            Spacer(Modifier.height(16.dp))
-            // Per-failure controls (Remove/Restart) removed — a new
-            // failure-handling UX is coming.
             Spacer(Modifier.height(24.dp))
         }
     }
