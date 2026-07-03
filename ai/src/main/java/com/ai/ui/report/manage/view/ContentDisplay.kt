@@ -65,9 +65,17 @@ fun ReportsViewerScreen(
     // initial Loading sentinel distinguishes "still reading from disk"
     // from "read finished, file genuinely missing" so the empty-state
     // text only appears after the load completes.
+    // Collects ReportDataVersion inside the producer (instead of keying on
+    // it) so every report save re-reads WITHOUT flashing back through
+    // Loading: a version-less one-shot load froze the snapshot — a
+    // regenerate completing while this viewer was mounted never showed its
+    // new response text or updated cost rows until remount (the M9/M10
+    // sibling screens already observe their versions).
     val reportState = produceState<ReportLoadState>(initialValue = ReportLoadState.Loading, reportId) {
-        val r = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
-        value = if (r != null) ReportLoadState.Loaded(r) else ReportLoadState.NotFound
+        com.ai.data.ReportDataVersion.versionFor(reportId).collect {
+            val r = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+            value = if (r != null) ReportLoadState.Loaded(r) else ReportLoadState.NotFound
+        }
     }
 
     when (val s = reportState.value) {
