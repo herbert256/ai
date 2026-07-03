@@ -219,11 +219,21 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val t = manualText.trim()
-                    showManualEdit = false
-                    if (t.isNotEmpty()) apply(t)
-                }) { Text("Save") }
+                androidx.compose.foundation.layout.Row {
+                    // Clear → blanks the stored glyph; every renderer falls
+                    // back to the neutral default (a wrong icon used to be
+                    // fixable only by picking another emoji or paying for a
+                    // fresh generation).
+                    TextButton(onClick = {
+                        showManualEdit = false
+                        apply("")
+                    }) { Text("Clear", color = AppColors.DangerAccent) }
+                    TextButton(onClick = {
+                        val t = manualText.trim()
+                        showManualEdit = false
+                        if (t.isNotEmpty()) apply(t)
+                    }) { Text("Save") }
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showManualEdit = false }) { Text("Cancel") }
