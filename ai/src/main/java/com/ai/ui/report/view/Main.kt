@@ -953,6 +953,12 @@ internal fun ViewAiReportScreen(
         val key = "${prompt.id}|${prompt.name}|${prompt.title}"
         if (missingPromptIconKickoffs.add(key)) onMissingPromptIcon(prompt)
     }
+    // Hoisted .current reads — the tile list below is built inside a
+    // remember block (non-composable scope).
+    val judgeOpen = com.ai.ui.shared.LocalJudgeEvalOpenState.current
+    val compareOpen = com.ai.ui.shared.LocalCompareOpenState.current
+    val transRankOpen = com.ai.ui.shared.LocalTransRankOpenState.current
+    val hubMi = com.ai.ui.shared.LocalMetadataIcons.current
     val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, iconRefreshTick, onOpenHtmlPreview, onViewIcons, everyItems, tournamentRows, judgesRows, transRankRows, compareRows) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
@@ -1010,6 +1016,36 @@ internal fun ViewAiReportScreen(
             // Value view's top switch picks which one feeds the chart).
             if (everyItems["rerank"].orEmpty().isNotEmpty() || tournamentRows.isNotEmpty() || judgesRows.isNotEmpty() || transRankRows.isNotEmpty() || compareRows.isNotEmpty()) {
                 add(IdentifiedTile("doc:Value", ViewTile("Value view", com.ai.data.MetadataIconsHolder.current.gem, AppColors.SuccessAccent) { showValueView = true }))
+            }
+            // Judge-the-judges / Compare-with-meta / Rank-the-translators —
+            // expensive runs whose result screens were reachable only from
+            // the Manage second-results layer. Their tiles open the same
+            // batch overlays the Manage rows do (setting the open-state
+            // LAYERS the overlay above this hub; back returns here).
+            if (judgesRows.isNotEmpty() && judgeOpen != null) {
+                add(IdentifiedTile("doc:Judges", ViewTile(
+                    "Judges",
+                    hubMi.judges.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.JUDGES,
+                    AppColors.PrimaryAccent
+                ) { judgeOpen.value = reportId }))
+            }
+            if (compareRows.isNotEmpty() && compareOpen != null) {
+                add(IdentifiedTile("doc:Compare", ViewTile(
+                    "Compare",
+                    hubMi.compare.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.COMPARE,
+                    AppColors.InfoAccent
+                ) { compareOpen.value = reportId }))
+            }
+            // Run key = "reportId|sourceTranslationRunId" (one ranking per
+            // language) — open the first ranked language's run.
+            val firstTransRankKey = transRankRows.firstOrNull { !it.translationRunId.isNullOrBlank() }
+                ?.translationRunId?.let { "$reportId|$it" }
+            if (firstTransRankKey != null && transRankOpen != null) {
+                add(IdentifiedTile("doc:TransRank", ViewTile(
+                    "Translators",
+                    hubMi.translatorRank.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.TRANSLATOR_RANK,
+                    AppColors.CautionAccent
+                ) { transRankOpen.value = firstTransRankKey }))
             }
         }
     }
