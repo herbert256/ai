@@ -2737,8 +2737,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             trackRegenerateJob(reportId, coroutineContext[Job]!!)
             // Also register per-agent so removeAgentInternal can cancel THIS
             // call specifically when its agent is removed mid-flight.
+            // put()?.cancel() (not a plain put): a second regenerate of the
+            // same agent while the first is still in flight otherwise
+            // replaced the map entry without cancelling the first job —
+            // two billed calls on one row, additive cost, and remove could
+            // then cancel only the second, leaving the first as an
+            // uncancellable billed orphan.
             val agentJobKey = regenerateAgentKey(reportId, agentId)
-            regenerateAgentJobs[agentJobKey] = coroutineContext[Job]!!
+            regenerateAgentJobs.put(agentJobKey, coroutineContext[Job]!!)?.cancel()
             coroutineContext[Job]!!.invokeOnCompletion {
                 regenerateAgentJobs.remove(agentJobKey, coroutineContext[Job])
             }
