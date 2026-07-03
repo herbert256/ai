@@ -219,14 +219,14 @@ internal fun ReportSelectWorkersScreen(
 
         // ── Card: Second result options ────────────────────────────────
         // Gates the intermediate screens shown when a Meta / Fan-out
-        // secondary is launched from the second-results hub. Both default
-        // off → the launch runs with the default scope and the prompt as
-        // configured, skipping those screens.
+        // secondary is launched from the second-results hub. Scope defaults
+        // off; the prompt-edit step defaults ON (F49) — turning it off
+        // runs with the prompt exactly as configured.
         CollapsibleCard(
             icon = mi.settings,
             title = "Second result options",
             summary = "Scope " + (if (config.secondResultSelectScope) "on" else "off") +
-                " · Params " + (if (config.secondResultRuntimeParams) "on" else "off"),
+                " · Prompt edit " + (if (config.secondResultRuntimeParams) "on" else "off"),
             expanded = secondResultsOpen,
             onToggle = { secondResultsOpen = !secondResultsOpen }
         ) {
@@ -241,8 +241,11 @@ internal fun ReportSelectWorkersScreen(
                 onCheckedChange = { onConfigChange(config.copy(secondResultSelectScope = it)) }
             )
             ToggleRow(
-                label = "Runtime parameters",
-                sublabel = "Edit the prompt (and Fan-out's models) before running (else: run as configured).",
+                // Named for what it actually does — the old "Runtime
+                // parameters" label suggested temperature/params while the
+                // step edits the prompt TEXT (and Fan-out's models).
+                label = "Edit prompt at launch",
+                sublabel = "Show the prompt (and Fan-out's models) for a per-run tweak before running (else: run as configured).",
                 checked = config.secondResultRuntimeParams,
                 onCheckedChange = { onConfigChange(config.copy(secondResultRuntimeParams = it)) }
             )

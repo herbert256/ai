@@ -272,7 +272,10 @@ data class ReportWorkerConfig(
      *  Meta / Fan-out secondary first shows the run-time prompt editor
      *  (MetaRunScreen / FanOutConfirmScreen); when false (default) the launch
      *  runs with the prompt + engine defaults and skips it. */
-    val secondResultRuntimeParams: Boolean = false,
+    // Default ON since the functional audit (F49): per-run prompt editing
+    // was undiscoverable behind an off-by-default switch whose name said
+    // "parameters" while it edits prompt TEXT.
+    val secondResultRuntimeParams: Boolean = true,
     /** "Use report models" switch on the Workers screen. When true the
      *  Model info / Batches / Meta cards are hidden and forced to this
      *  report's own answer models: [modelInfo] = OWN_MODEL, [batches] =
@@ -295,7 +298,7 @@ data class ReportWorkerConfig(
         metaBatchWorkers = (metaBatchWorkers as List<com.ai.model.Worker>?) ?: emptyList(),
         metaWorkerSelection = (metaWorkerSelection as WorkerSelectionMode?) ?: WorkerSelectionMode.WHEN_AVAILABLE,
         secondResultSelectScope = (secondResultSelectScope as Boolean?) ?: false,
-        secondResultRuntimeParams = (secondResultRuntimeParams as Boolean?) ?: false,
+        secondResultRuntimeParams = (secondResultRuntimeParams as Boolean?) ?: true,
         useReportModels = (useReportModels as Boolean?) ?: false,
     )
 }
