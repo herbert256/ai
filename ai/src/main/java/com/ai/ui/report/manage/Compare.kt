@@ -76,17 +76,19 @@ import kotlin.math.roundToInt
 // and the L1 overlay opens.
 // ===================================================================
 
-/** Page 1 — pick ONE plain-meta result to score answers against. Tapping a
- *  row goes straight to the prompt page (1×1: one meta, one prompt). */
+/** Page 1 — pick ONE OR MORE plain-meta results to score answers against
+ *  (the engine grids answers × metas). Tapping a row toggles it; Run
+ *  launches the batch over the picked set. */
 @Composable
 fun CompareSelectMetaScreen(
     metaItems: List<SecondaryResult>,
     aiSettings: Settings,
-    onPick: (String) -> Unit,
+    onPick: (List<String>) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "compare_select_meta",
@@ -104,12 +106,21 @@ fun CompareSelectMetaScreen(
                 items(metaItems, key = { it.id }) { row ->
                     val name = secondaryPromptDisplayName(row.metaPromptName ?: "meta")
                     val preview = row.content?.trim()?.take(90)?.replace("\n", " ").orEmpty()
+                    val checked = row.id in selectedIds
                     Row(
                         modifier = Modifier.fillMaxWidth()
-                            .clickable { onPick(row.id) }
-                            .padding(vertical = 12.dp),
+                            .clickable {
+                                selectedIds = if (checked) selectedIds - row.id else selectedIds + row.id
+                            }
+                            .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        androidx.compose.material3.Checkbox(
+                            checked = checked,
+                            onCheckedChange = {
+                                selectedIds = if (checked) selectedIds - row.id else selectedIds + row.id
+                            }
+                        )
                         Text(com.ai.data.MetadataIconsHolder.current.compare, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(name, color = AppColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
@@ -126,6 +137,17 @@ fun CompareSelectMetaScreen(
                 color = AppColors.TextTertiary, fontSize = 11.sp,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
+            OutlinedButton(
+                onClick = { onPick(metaItems.filter { it.id in selectedIds }.map { it.id }) },
+                enabled = selectedIds.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                colors = AppColors.outlinedButtonColors()
+            ) {
+                Text(
+                    if (selectedIds.size <= 1) "Run compare" else "Run compare against ${selectedIds.size} metas",
+                    fontSize = 13.sp, maxLines = 1, softWrap = false
+                )
+            }
         }
     }
 }

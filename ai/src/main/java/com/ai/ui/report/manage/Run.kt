@@ -353,23 +353,26 @@ internal fun ReportRunScreen(
         CompareSelectMetaScreen(
             metaItems = compareMetaItems,
             aiSettings = aiSettings,
-            onPick = { id ->
+            onPick = { ids ->
                 val rid = currentReportId
                 // No prompt picker — Compare always uses the meta-compare prompt
-                // with the SAME NAME as the picked meta item. compareMetaItems
-                // only lists items that have one, so this resolves.
-                val comparePrompt = compareMetaItems.firstOrNull { it.id == id }?.metaPromptName?.let { name ->
+                // with the SAME NAME as the (first) picked meta item.
+                // compareMetaItems only lists items that have one, so this
+                // resolves. The engine grids answers × ALL picked metas.
+                val comparePrompt = compareMetaItems.firstOrNull { it.id == ids.firstOrNull() }?.metaPromptName?.let { name ->
                     aiSettings.internalPrompts.firstOrNull { it.category == "meta_compare" && it.name.equals(name, ignoreCase = true) }
                 }
                 compareStep = 0
-                if (comparePrompt != null && rid != null) {
+                if (comparePrompt != null && rid != null && ids.isNotEmpty()) {
                     // Runtime parameters on → edit the compare prompt first
                     // (the mount runs it); else launch straight.
                     withRuntimeParamsFlag(context, st.screenScope, rid) { rt ->
                         if (rt) {
                             st.runtimePromptReq.value = RuntimePromptReq(
                                 kind = RuntimePromptKind.COMPARE,
-                                prompts = listOf(comparePrompt), ctxId = id
+                                // Multi-select rides comma-joined through the
+                                // single-id slot; the consumer splits.
+                                prompts = listOf(comparePrompt), ctxId = ids.joinToString(",")
                             )
                         } else {
                             // Build stage: block behind "Preparing…" while the
@@ -377,7 +380,7 @@ internal fun ReportRunScreen(
                             val key = java.util.UUID.randomUUID().toString()
                             val arm = { ws: List<com.ai.model.Worker>? ->
                                 onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
-                                compareEngine?.startRun(context, rid, listOf(id), comparePrompt.id, key, ws)
+                                compareEngine?.startRun(context, rid, ids, comparePrompt.id, key, ws)
                             }
                             launchWithWorkerPlan(
                                 st.runtimeWorkerPick, context, st.screenScope, rid,
@@ -429,7 +432,7 @@ internal fun ReportRunScreen(
                         val key = java.util.UUID.randomUUID().toString()
                         val arm = { ws: List<com.ai.model.Worker>? ->
                             onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
-                            compareEngine?.startRun(context, rid, listOf(rtReq.ctxId!!), rtReq.prompts[0].id, key, ws, text)
+                            compareEngine?.startRun(context, rid, rtReq.ctxId!!.split(","), rtReq.prompts[0].id, key, ws, text)
                         }
                         launchWithWorkerPlan(st.runtimeWorkerPick, context, st.screenScope, rid, rtReq.prompts[0], "Compare — pick workers") { picked -> arm(picked) }
                     }
