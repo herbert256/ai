@@ -263,7 +263,7 @@ internal fun AlternativeIconsRouter(
     }
     val promptKey = targetPrompt?.let { it.name + "" + it.title }
     val translationKey = targetLanguage?.let { "translation_icon" + "" + it }
-    val candidates = when {
+    val liveCandidates = when {
         targetLanguageIcon -> languageIconCallbacks.fanOutByReport[reportId].orEmpty()
         translationKey != null -> internalPromptIconFanOutByPrompt[translationKey].orEmpty()
         promptKey != null -> internalPromptIconFanOutByPrompt[promptKey].orEmpty()
@@ -271,6 +271,38 @@ internal fun AlternativeIconsRouter(
         targetAgentId != null -> agentIconFanOutByAgent[targetAgentId].orEmpty()
         else -> iconFanOutByReport[reportId].orEmpty()
     }
+    // F68 — persist the generated candidates per target and serve them back
+    // for a FREE re-pick when the live fan-out state is gone (back-out,
+    // process death, or a later visit after committing a different glyph).
+    val persistKey = when {
+        targetLanguageIcon -> "langicon:$reportId"
+        translationKey != null -> "prompt:$translationKey"
+        promptKey != null -> "prompt:$promptKey"
+        targetPairId != null -> "pair:$reportId:$targetPairId"
+        targetAgentId != null -> "agent:$reportId:$targetAgentId"
+        else -> "report:$reportId"
+    }
+    val overlayContext = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(liveCandidates, persistKey) {
+        val done = liveCandidates.filterIsInstance<IconCandidate.Done>()
+        if (done.isNotEmpty()) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.ai.data.IconCandidateStore.save(overlayContext, persistKey, done.map {
+                    com.ai.data.IconCandidateStore.Entry(it.provider.id, it.model, it.emoji)
+                })
+            }
+        }
+    }
+    val persistedCandidates by androidx.compose.runtime.produceState(emptyList<IconCandidate>(), persistKey) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.ai.data.IconCandidateStore.load(overlayContext, persistKey).mapNotNull { e ->
+                com.ai.data.AppService.findById(e.providerId)?.let { prov ->
+                    IconCandidate.Done(prov, e.model, e.emoji, 0.0)
+                }
+            }
+        }
+    }
+    val candidates = liveCandidates.ifEmpty { persistedCandidates }
     AlternativeIconsScreen(
         reportId = reportId,
         candidates = candidates,
