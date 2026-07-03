@@ -295,7 +295,20 @@ internal fun SecondaryScopeScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Tick the model rows to include", fontSize = 11.sp, color = AppColors.TextTertiary)
+                        // All / None / Invert — picking 3 of 20 used to mean
+                        // un-ticking 17 by hand.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Tick the model rows to include", fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { agents.forEach { manualPicked[it.agentId] = true } }) {
+                                Text("All", fontSize = 11.sp, maxLines = 1, softWrap = false)
+                            }
+                            TextButton(onClick = { agents.forEach { manualPicked[it.agentId] = false } }) {
+                                Text("None", fontSize = 11.sp, maxLines = 1, softWrap = false)
+                            }
+                            TextButton(onClick = { agents.forEach { manualPicked[it.agentId] = !(manualPicked[it.agentId] ?: false) } }) {
+                                Text("Invert", fontSize = 11.sp, maxLines = 1, softWrap = false)
+                            }
+                        }
                         agents.forEach { a ->
                             val checked = manualPicked[a.agentId] ?: false
                             Row(
