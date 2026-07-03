@@ -245,6 +245,7 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
     var level by rememberSaveable { mutableStateOf(1) }   // 1 = L1, 2 = L2 (cell detail)
     var groupKey by rememberSaveable { mutableStateOf("") }
     var confirmRedo by rememberSaveable { mutableStateOf(false) }
+    var confirmDeleteRun by rememberSaveable { mutableStateOf(false) }
 
     BackHandler {
         when {
@@ -272,14 +273,32 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
             onRedo = { confirmRedo = true },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
             onRemoveFailed = { scope.launch { engine.removeFailedCells(context, reportId) } },
-            // Call deleteRun DIRECTLY (not suspend — it self-schedules on
-            // viewModelScope). Wrapping it in scope.launch raced with
-            // onBack() cancelling this screen's scope, so the delete
-            // sometimes never fired (same shipped bug as TranslatorRank;
-            // the redo path below already calls the engine directly for
-            // exactly this reason).
-            onDeleteRun = { engine.deleteRun(context, reportId); onBack() },
+            onDeleteRun = { confirmDeleteRun = true },
             onBack = onBack)
+    }
+
+    if (confirmDeleteRun) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDeleteRun = false },
+            title = { Text("Delete this comparison?") },
+            text = { Text("Drops every compare cell and its aggregate scores for this run. Can't be undone.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmDeleteRun = false
+                    // Call deleteRun DIRECTLY (not suspend — it self-schedules
+                    // on viewModelScope). Wrapping it in scope.launch raced
+                    // with onBack() cancelling this screen's scope, so the
+                    // delete sometimes never fired (same shipped bug as
+                    // TranslatorRank; the redo path below already calls the
+                    // engine directly for exactly this reason).
+                    engine.deleteRun(context, reportId)
+                    onBack()
+                }) { Text("Delete", color = AppColors.DangerAccent) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDeleteRun = false }) { Text("Cancel") }
+            }
+        )
     }
 
     if (confirmRedo) {

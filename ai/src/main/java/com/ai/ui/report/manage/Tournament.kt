@@ -180,6 +180,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     var groupKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
     var confirmRedo by rememberSaveable { mutableStateOf(false) }
+    var confirmDeleteRun by rememberSaveable { mutableStateOf(false) }
     // The 👁 view icon opens the real View Tournament podium. We can't set
     // LocalPendingViewOverManage and have it observed while this overlay is up
     // (it early-returns above ReportsScreen), so we stage the jump AND close
@@ -248,11 +249,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
             TournamentWorkersL1(run, agents, reportTitle, reportIcon, throttled,
                 openGroup = { gk -> groupKey = gk; level = 2 },
                 onRedo = { confirmRedo = true },
-                // Call deleteRun DIRECTLY (not suspend — it self-schedules on
-                // viewModelScope). Wrapping it in scope.launch raced with
-                // onBack() cancelling this screen's scope, so the delete
-                // sometimes never fired (same shipped bug as TranslatorRank).
-                onDeleteRun = { engine.deleteRun(context, reportId); onBack() },
+                onDeleteRun = { confirmDeleteRun = true },
                 onOpenView = onOpenTournamentView,
                 onBack = { groupMode = TournamentGroupMode.REPORT_MODELS })
         } else {
@@ -262,12 +259,36 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
                 onRedo = { confirmRedo = true },
                 onRestartFailed = { scope.launch { engine.restartFailedMatches(context, reportId) } },
                 onRemoveFailed = { scope.launch { engine.removeFailedMatches(context, reportId) } },
-                // Direct call — see the workers-grouping delete above.
-                onDeleteRun = { engine.deleteRun(context, reportId); onBack() },
+                onDeleteRun = { confirmDeleteRun = true },
                 onOpenView = onOpenTournamentView,
                 onJudgeJudges = onJudgeJudges,
                 onBack = onBack)
         }
+    }
+
+    if (confirmDeleteRun) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDeleteRun = false },
+            title = { androidx.compose.material3.Text("Delete this tournament?") },
+            text = {
+                androidx.compose.material3.Text("Drops every head-to-head match and the computed rankings for this run. Can't be undone.")
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmDeleteRun = false
+                    // Call deleteRun DIRECTLY (not suspend — it self-schedules
+                    // on viewModelScope). Wrapping it in scope.launch raced
+                    // with onBack() cancelling this screen's scope, so the
+                    // delete sometimes never fired (same shipped bug as
+                    // TranslatorRank).
+                    engine.deleteRun(context, reportId)
+                    onBack()
+                }) { androidx.compose.material3.Text("Delete", color = AppColors.DangerAccent) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDeleteRun = false }) { androidx.compose.material3.Text("Cancel") }
+            }
+        )
     }
 
     if (confirmRedo) {

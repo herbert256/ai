@@ -233,18 +233,38 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
         return
     }
 
+    var confirmDeleteRun by rememberSaveable { mutableStateOf(false) }
     TranslatorRankL1(
         run = run, throttled = throttled, reportTitle = reportTitle, reportIcon = reportIcon,
         openTranslator = { openTranslatorKey = it },
         onOpenWorkers = { showWorkers = true },
         onRestartFailed = { scope.launch { engine.restartFailedCells(context, runKey) } },
-        // Call deleteRun DIRECTLY (it's not suspend — it drops the run
-        // synchronously and sweeps disk on viewModelScope). Wrapping it in
-        // scope.launch raced with onBack() cancelling this screen's scope, so
-        // the delete sometimes never fired and the rows stayed on disk.
-        onDeleteRun = { engine.deleteRun(context, runKey); onBack() },
+        onDeleteRun = { confirmDeleteRun = true },
         onBack = onBack
     )
+
+    if (confirmDeleteRun) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDeleteRun = false },
+            title = { Text("Delete Rank-the-translators?") },
+            text = { Text("Drops every score cell and the translator ranking for this run. Can't be undone.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmDeleteRun = false
+                    // Call deleteRun DIRECTLY (it's not suspend — it drops the
+                    // run synchronously and sweeps disk on viewModelScope).
+                    // Wrapping it in scope.launch raced with onBack()
+                    // cancelling this screen's scope, so the delete sometimes
+                    // never fired and the rows stayed on disk.
+                    engine.deleteRun(context, runKey)
+                    onBack()
+                }) { Text("Delete", color = AppColors.DangerAccent) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDeleteRun = false }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 @Composable

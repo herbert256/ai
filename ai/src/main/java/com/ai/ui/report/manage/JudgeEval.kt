@@ -178,6 +178,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     // Set when the user taps ✏️ to edit the swarm; checked on the way back
     // (the overlay is disposed on nav-out and recomposed on nav-in) to offer a
     var confirmRedo by rememberSaveable { mutableStateOf(false) }
+    var confirmDeleteRun by rememberSaveable { mutableStateOf(false) }
     var l1Mode by rememberSaveable { mutableStateOf(JudgeEvalL1Mode.JUDGES) }
     // NOTE: no "swarm changed → rerun?" offer. Judge-the-judges derives its
     // judge panel from the Tournament's actual MATCH rows, not the
@@ -274,12 +275,33 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
             onRedo = { confirmRedo = true },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
             onRemoveFailed = { scope.launch { engine.removeFailedCells(context, reportId) } },
-            // Call deleteRun DIRECTLY (not suspend — it self-schedules on
-            // viewModelScope). Wrapping it in scope.launch raced with
-            // onBack() cancelling this screen's scope, so the delete
-            // sometimes never fired (same shipped bug as TranslatorRank).
-            onDeleteRun = { engine.deleteRun(context, reportId); onBack() },
+            onDeleteRun = { confirmDeleteRun = true },
             onBack = onBack)
+    }
+
+    if (confirmDeleteRun) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDeleteRun = false },
+            title = { Text("Delete Judge-the-judges?") },
+            text = {
+                Text("Drops every judge cell and the consensus analysis for this run. Can't be undone.")
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmDeleteRun = false
+                    // Call deleteRun DIRECTLY (not suspend — it self-schedules
+                    // on viewModelScope). Wrapping it in scope.launch raced
+                    // with onBack() cancelling this screen's scope, so the
+                    // delete sometimes never fired (same shipped bug as
+                    // TranslatorRank).
+                    engine.deleteRun(context, reportId)
+                    onBack()
+                }) { Text("Delete", color = AppColors.DangerAccent) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDeleteRun = false }) { Text("Cancel") }
+            }
+        )
     }
 
     confirmDeleteJudge?.let { jk ->
