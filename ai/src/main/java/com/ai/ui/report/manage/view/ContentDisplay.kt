@@ -15,6 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
@@ -182,8 +185,20 @@ internal fun LanguagePickerRow(
                     maxLines = 1, softWrap = false,
                     modifier = Modifier
                         .alpha(if (isSelected) 1f else 0.4f)
+                        // Non-opacity active cue (a pill wash low-vision users
+                        // can actually perceive) + real Tab semantics so
+                        // TalkBack announces the language AND its selected
+                        // state instead of just the flag glyph.
+                        .background(
+                            if (isSelected) AppColors.PrimaryAccent.copy(alpha = 0.22f) else Color.Transparent,
+                            androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                        )
                         .minimumInteractiveComponentSize()
-                        .clickable { onSelect(lang.key) }
+                        .clickable(role = androidx.compose.ui.semantics.Role.Tab) { onSelect(lang.key) }
+                        .semantics {
+                            selected = isSelected
+                            contentDescription = if (lang.key == LangTab.ORIGINAL_KEY) "Original language" else lang.displayName
+                        }
                         .padding(horizontal = 6.dp, vertical = 4.dp)
                 )
             } else {
