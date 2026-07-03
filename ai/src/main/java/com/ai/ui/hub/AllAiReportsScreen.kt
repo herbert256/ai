@@ -95,11 +95,19 @@ fun AllAiReportsScreen(
             onBackClick = onNavigateBack
         )
         if (reports.isEmpty()) {
+            // Dead-end no more: a fresh/reset user gets a straight path to
+            // their first report instead of an icon and a shrug.
+            val navigateToNewReport = com.ai.ui.shared.LocalNavigateToNewReport.current
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(com.ai.data.MetadataIconsHolder.current.library, fontSize = 48.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("No reports yet", color = AppColors.TextTertiary, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = navigateToNewReport,
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("${com.ai.data.MetadataIconsHolder.current.add} New report", fontSize = 13.sp, maxLines = 1) }
                 }
             }
             return@Column

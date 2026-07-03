@@ -207,6 +207,19 @@ fun ReportPickerScreen(
                 } else null,
                 modifier = Modifier.fillMaxWidth()
             )
+            if (ordered.isEmpty()) {
+                // Explicit empty state — a filtered picker used to render
+                // just blank space, reading as broken/loading.
+                Text(
+                    when {
+                        search.isNotBlank() -> "No reports match \"$search\"."
+                        filter != null -> "No reports carry this kind of result yet."
+                        else -> "No reports yet."
+                    },
+                    color = AppColors.TextSecondary, fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 24.dp)
+                )
+            }
             ordered.forEach { PickerCard(it) }
             Spacer(Modifier.height(16.dp))
         }
