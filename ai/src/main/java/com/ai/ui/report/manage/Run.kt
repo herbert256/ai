@@ -249,7 +249,13 @@ internal fun ReportRunScreen(
     // immediately (orange when pinned). Keyed on currentReportId so
     // switching reports also reseeds the read.
     var pinTick by remember(currentReportId) { mutableStateOf(0) }
-    val isPinned by produceState(initialValue = false, currentReportId, pinTick) {
+    // Also keyed on ReportDataVersion: the tap bumps pinTick immediately
+    // while the toggle write is still running on IO — on a large report the
+    // tick-triggered read could win the race and latch the PRE-toggle value
+    // (stale 📌; a second tap then silently un-pinned). setReportPinned's
+    // save bumps the version, so the post-write re-read always lands.
+    val pinDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
+    val isPinned by produceState(initialValue = false, currentReportId, pinTick, pinDataVersion) {
         value = currentReportId?.let { rid ->
             withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
         } ?: false
