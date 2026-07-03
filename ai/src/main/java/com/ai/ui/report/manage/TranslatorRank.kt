@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -309,12 +310,15 @@ private fun TranslatorRankL1(
     val ranking = aggregateTranslatorRanks(cells)
 
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        // No title-bar 🔄 here: on the sibling batch screens that glyph
+        // means the destructive "redo everything", while this screen only
+        // has restart-failed — same glyph, opposite meaning. The failed-
+        // cell restart is an explicit labeled button below instead.
         TitleBar(
             helpTopic = "translator_rank", title = "Rank the translators",
             subject = reportTitle, reportIcon = reportIcon,
             onBackClick = onBack,
             onBatchWorkers = onOpenWorkers,
-            onReload = if (error > 0) onRestartFailed else null,
             onDelete = onDeleteRun
         )
         Text(
@@ -342,6 +346,31 @@ private fun TranslatorRankL1(
                     color = AppColors.WarningAccent, trackColor = AppColors.DividerDark
                 )
                 Spacer(Modifier.height(8.dp))
+            }
+            // Failed-cell recovery — explicit label + confirm, replacing the
+            // ambiguous title-bar 🔄 (which means "redo everything" on the
+            // sibling batch screens).
+            if (error > 0) {
+                var confirmRestartFailed by remember { androidx.compose.runtime.mutableStateOf(false) }
+                androidx.compose.material3.Button(
+                    onClick = { confirmRestartFailed = true },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp)
+                ) { Text("Restart failed ($error)", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                Spacer(Modifier.height(8.dp))
+                if (confirmRestartFailed) {
+                    com.ai.ui.shared.ReloadConfirmationDialog(
+                        target = "",
+                        title = "Restart failed score cells?",
+                        message = "Re-fires the $error failed cell${if (error == 1) "" else "s"}. Completed scores are kept and not re-billed.",
+                        confirmLabel = "Restart",
+                        onConfirm = {
+                            confirmRestartFailed = false
+                            onRestartFailed()
+                        },
+                        onDismiss = { confirmRestartFailed = false }
+                    )
+                }
             }
             Spacer(Modifier.height(12.dp))
 
