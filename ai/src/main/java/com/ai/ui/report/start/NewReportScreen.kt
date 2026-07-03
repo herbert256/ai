@@ -260,9 +260,34 @@ fun NewReportScreen(
         return
     }
 
+    // 🧽 confirm — one stray tap used to destroy a multi-paragraph prompt
+    // (plus any attached image) with no recovery. Trivial content (short
+    // prompt, nothing attached) still clears instantly.
+    var confirmClear by remember { mutableStateOf(false) }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Clear this report draft?") },
+            text = { Text("Wipes the title, the prompt${if (attachedImage != null) ", the attached image" else ""} and any tags. There is no undo.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClear = false
+                    title = ""; prompt = ""; userTagBlock = ""; attachedImage = null
+                }) { Text("Clear", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_new", title = "New Report", subject = "Write your prompt, then pick models", onBackClick = drainStagingAndBack,
-            onClear = { title = ""; prompt = ""; userTagBlock = ""; attachedImage = null },
+            onClear = {
+                // Confirm only when there is something worth losing.
+                if (prompt.length > 80 || attachedImage != null) confirmClear = true
+                else { title = ""; prompt = ""; userTagBlock = ""; attachedImage = null }
+            },
             onAttach = { showAttachChooser = true },
             onValidatePrompt = { if (moderationModel == null) showModerationPicker = true else moderationModel = null },
             validatePromptActive = moderationModel != null)

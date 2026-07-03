@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ai.data.AgentParameters
@@ -48,6 +50,25 @@ internal fun ReportSelectModelsScreen(
     onSystemPromptChange: (String?) -> Unit
 ) {
     val aiSettings = uiState.aiSettings
+    // 🧽 confirm above a handful of picks — clearing a hand-assembled
+    // panel of many models was one unguarded tap.
+    var confirmClearModels by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (confirmClearModels) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmClearModels = false },
+            title = { androidx.compose.material3.Text("Clear the selection?") },
+            text = { androidx.compose.material3.Text("Removes all ${models.size} picked models. There is no undo.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmClearModels = false
+                    onClearAllModels()
+                }) { androidx.compose.material3.Text("Clear", color = AppColors.DangerAccent) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmClearModels = false }) { androidx.compose.material3.Text("Cancel") }
+            }
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -58,7 +79,9 @@ internal fun ReportSelectModelsScreen(
             helpTopic = "report_select_models",
             title = "Report - select models", subject = "Add agents, flocks, swarms or models",
             onBackClick = onDismiss,
-            onClear = if (models.isNotEmpty()) onClearAllModels else null
+            onClear = if (models.isNotEmpty()) ({
+                if (models.size > 3) confirmClearModels = true else onClearAllModels()
+            }) else null
         )
         SelectionPhase(
             models = models,
