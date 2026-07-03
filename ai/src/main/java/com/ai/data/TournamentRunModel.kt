@@ -86,7 +86,11 @@ data class TournamentRunState(
     /** SecondaryResult.id of the rolled-up AGGREGATE ranking row. */
     val aggregateRowId: String? = null,
     val selectedMethod: TournamentMethod = TournamentMethod.COPELAND,
-    val cancelled: Boolean = false
+    val cancelled: Boolean = false,
+    /** Run-only parameter override from the launch screen (F48) — lives in
+     *  memory like the run's effective prompt; a resume after process death
+     *  reverts to each worker's own settings. */
+    val runParams: com.ai.data.AgentParameters? = null
 ) : BatchRun<MatchKey, MatchState> {
     override val items: Map<MatchKey, MatchState> get() = matches
     val totalMatches: Int get() = matches.size

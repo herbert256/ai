@@ -140,6 +140,11 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
         aiSettings: Settings,
         context: Context,
         schedule: WorkerSchedule = WorkerSchedule.Random,
+        /** Run-only parameter override (F48) — e.g. a per-run temperature
+         *  from the launch screen; applied on top of the worker's own
+         *  resolution for every candidate in the chain. Declared BEFORE
+         *  [accept] so trailing-lambda call sites keep binding to accept. */
+        overrideParams: com.ai.data.AgentParameters? = null,
         accept: (AnalysisResponse) -> Boolean = { true },
     ): WorkerOutcome {
         // Expand each worker into the per-member plain workers we actually
@@ -209,7 +214,8 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
                 )
                 val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val resp = appViewModel.repository.analyzeWithAgent(
-                    agent, "", resolvedText, context = context, baseUrl = baseUrl, retry = false
+                    agent, "", resolvedText, overrideParams = overrideParams,
+                    context = context, baseUrl = baseUrl, retry = false
                 )
                 when {
                     resp.isSuccess && accept(resp) -> {

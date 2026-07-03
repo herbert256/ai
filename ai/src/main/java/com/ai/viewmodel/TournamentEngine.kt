@@ -185,7 +185,7 @@ class TournamentEngine internal constructor(
      *  placeholders (sentinel provider/model) + one AGGREGATE placeholder,
      *  publishes the run with all matches PENDING, runs each match through
      *  the worker batch, then folds the verdicts into the aggregate ranking. */
-    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null, overridePromptText: String? = null): Job? =
+    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null, overridePromptText: String? = null, overrideTemperature: Float? = null): Job? =
         launchRun(context, tournamentRunKey(reportId), buildKey, "after/tournament") { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
@@ -273,15 +273,19 @@ class TournamentEngine internal constructor(
             pending.forEach { item -> item.placeholder.toMatchState()?.let { newMatches[it.key] = it } }
             if (buildKey != null) appViewModel.finishBuild(buildKey)
 
+            // Run-only worker params (F48) — a per-run temperature from the
+            // launch screen; null keeps each worker's own settings.
+            val runParams = overrideTemperature?.let { com.ai.data.AgentParameters(temperature = it) }
             _runs.update { runs ->
                 runs + (reportId to TournamentRunState(
                     key = reportId, reportId = reportId, runId = runId, tournamentPrompt = prompt,
                     matches = newMatches, aggregateRowId = aggregate.id,
-                    selectedMethod = TournamentMethod.COPELAND
+                    selectedMethod = TournamentMethod.COPELAND,
+                    runParams = runParams
                 ))
             }
 
-            dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending, workerScheduleFor(report))
+            dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending, workerScheduleFor(report), runParams)
             recomputeAggregate(context, reportId)
             AuditLog.append(reportId, "End Tournament")
         }
@@ -293,7 +297,11 @@ class TournamentEngine internal constructor(
     private suspend fun dispatchMatches(
         context: Context, reportId: String, prompt: InternalPrompt,
         question: String, title: String, items: List<PendingMatch>,
-        schedule: WorkerSchedule = WorkerSchedule.Random
+        schedule: WorkerSchedule = WorkerSchedule.Random,
+        /** Run-only worker params (F48) — resume paths pass the live run's
+         *  [TournamentRunState.runParams] (null after process death: each
+         *  worker reverts to its own settings). */
+        overrideParams: com.ai.data.AgentParameters? = null
     ) {
         if (items.isEmpty()) return
         runThrottledBatch(
@@ -309,7 +317,7 @@ class TournamentEngine internal constructor(
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
             try {
-                runOneMatch(context, reportId, prompt, question, title, item, schedule)
+                runOneMatch(context, reportId, prompt, question, title, item, schedule, overrideParams)
             } finally {
                 appViewModel.updateThrottledTournamentMatches { it - item.placeholder.id }
             }
@@ -323,7 +331,8 @@ class TournamentEngine internal constructor(
     private suspend fun runOneMatch(
         context: Context, reportId: String, prompt: InternalPrompt,
         question: String, title: String, item: PendingMatch,
-        schedule: WorkerSchedule = WorkerSchedule.Random
+        schedule: WorkerSchedule = WorkerSchedule.Random,
+        overrideParams: com.ai.data.AgentParameters? = null
     ) {
         val mKey = matchKey(item.aAgent.agentId, item.bAgent.agentId, item.orientation)
         val rowId = item.placeholder.id
@@ -348,7 +357,8 @@ class TournamentEngine internal constructor(
                     if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
                     else appViewModel.updateThrottledTournamentMatches { it - rowId }
                 },
-                schedule = schedule
+                schedule = schedule,
+                overrideParams = overrideParams
             ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }) {
                 is PooledItemOutcome.Success -> SecondaryResultStorage.recordTournamentMatch(
                     context, reportId, rowId,
@@ -538,7 +548,7 @@ class TournamentEngine internal constructor(
         }
         if (pending.isEmpty()) return
         withTracerTags(reportId = runKey, category = "after/tournament") {
-            dispatchMatches(context, runKey, prompt, report.prompt, report.title, pending, workerScheduleFor(report))
+            dispatchMatches(context, runKey, prompt, report.prompt, report.title, pending, workerScheduleFor(report), _runs.value[runKey]?.runParams)
         }
     }
 }

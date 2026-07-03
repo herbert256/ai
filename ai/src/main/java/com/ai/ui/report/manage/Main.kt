@@ -235,7 +235,7 @@ fun ReportsScreen(
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onRunRerank: (String, com.ai.data.SecondaryLanguageScope, List<String>, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _, _, _ -> },
     onRunModeration: (String, com.ai.data.SecondaryLanguageScope, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
-    onRunTournament: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
+    onRunTournament: (String, String?, List<com.ai.model.Worker>?, String?, Float?) -> Unit = { _, _, _, _, _ -> },
     onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?, Int) -> Unit = { _, _, _, _, _ -> },
     /** Persist a run-only prompt edit ("Update prompt" on the runtime
      *  prompt-edit screen): writes the edited text back to the saved
@@ -1249,7 +1249,7 @@ fun ReportsScreen(
                 titleName = if (rtReqMain.kind == RuntimePromptKind.FAN_IN) "fan-in" else "translate to ${rtReqMain.lang}",
                 specs = specs,
                 onCancel = { st.runtimePromptReq.value = null },
-                onRun = { edited, persist ->
+                onRun = { edited, persist, _ ->
                     st.runtimePromptReq.value = null
                     if (persist) edited.forEach { onUpdateInternalPrompt(it) }
                     when (rtReqMain.kind) {
@@ -1562,7 +1562,7 @@ fun ReportsScreen(
                     titleName = "rank the translators",
                     specs = rtReqRun.prompts.map { EditablePromptSpec("Prompt", it) },
                     onCancel = { st.runtimePromptReq.value = null },
-                    onRun = { edited, persist ->
+                    onRun = { edited, persist, _ ->
                         st.runtimePromptReq.value = null
                         if (persist) edited.forEach { onUpdateInternalPrompt(it) }
                         val text = edited.firstOrNull()?.text

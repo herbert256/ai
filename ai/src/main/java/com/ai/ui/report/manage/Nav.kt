@@ -672,8 +672,8 @@ fun ReportsScreenNav(
         onRunModeration = { reportId, languageScope, overrideWorkers ->
             reportViewModel.secondary.runModeration(context, reportId, languageScope, overrideWorkers)
         },
-        onRunTournament = { reportId, buildKey, overrideWorkers, overridePromptText ->
-            reportViewModel.tournamentEngine.startRun(context, reportId, buildKey, overrideWorkers, overridePromptText)
+        onRunTournament = { reportId, buildKey, overrideWorkers, overridePromptText, overrideTemperature ->
+            reportViewModel.tournamentEngine.startRun(context, reportId, buildKey, overrideWorkers, overridePromptText, overrideTemperature)
         },
         onRunJudgeJudges = { reportId, buildKey, overrideWorkers, overridePromptText, sampleSize ->
             reportViewModel.judgeEvalEngine.startRun(context, reportId, buildKey, overrideWorkers, overridePromptText, sampleSize)

@@ -129,7 +129,7 @@ internal fun ReportRunScreen(
     onChatWithReportPrompt: (String) -> Unit,
     /** Launch a worker-judged pairwise tournament on the report (reportId,
      *  build-stage key, override workers, run-only prompt-text override). */
-    onRunTournament: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
+    onRunTournament: (String, String?, List<com.ai.model.Worker>?, String?, Float?) -> Unit = { _, _, _, _, _ -> },
     /** Launch the "Judge the judges" batch on the report. */
     onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?, Int) -> Unit = { _, _, _, _, _ -> },
     /** Persist a run-only prompt edit ("Update prompt" on the runtime
@@ -423,7 +423,7 @@ internal fun ReportRunScreen(
             specs = rtReq.prompts.map { EditablePromptSpec("Prompt", it) },
             infoLine = infoLine,
             onCancel = { st.runtimePromptReq.value = null },
-            onRun = { edited, persist ->
+            onRun = { edited, persist, runTemperature ->
                 st.runtimePromptReq.value = null
                 if (persist) edited.forEach { onUpdateInternalPrompt(it) }
                 val text = edited.firstOrNull()?.text
@@ -440,7 +440,7 @@ internal fun ReportRunScreen(
                         val key = java.util.UUID.randomUUID().toString()
                         val arm = { ws: List<com.ai.model.Worker>? ->
                             onArmBuildStage(key, "Building tournament", { tournamentOpenState?.value = rid }, { onDeleteTournamentRun(rid) })
-                            onRunTournament(rid, key, ws, text)
+                            onRunTournament(rid, key, ws, text, runTemperature)
                         }
                         launchWithWorkerPlan(st.runtimeWorkerPick, context, st.screenScope, rid, aiSettings.workerPromptByName("tournament"), "Tournament — pick workers") { picked -> arm(picked) }
                     }
@@ -1188,7 +1188,7 @@ internal fun ReportRunScreen(
                             val key = java.util.UUID.randomUUID().toString()
                             val arm = { ws: List<com.ai.model.Worker>? ->
                                 onArmBuildStage(key, "Building tournament", { tournamentOpenState?.value = rid }, { onDeleteTournamentRun(rid) })
-                                onRunTournament(rid, key, ws, null)
+                                onRunTournament(rid, key, ws, null, null)
                             }
                             launchWithWorkerPlan(
                                 st.runtimeWorkerPick, context, st.screenScope, rid,

@@ -303,13 +303,20 @@ internal fun SecondaryRuntimePromptScreen(
     specs: List<EditablePromptSpec>,
     infoLine: String? = null,
     onCancel: () -> Unit,
-    onRun: (edited: List<InternalPrompt>, persist: Boolean) -> Unit
+    /** [temperature] — optional run-only worker temperature (F48); null
+     *  when the field is blank (each worker keeps its own settings). */
+    onRun: (edited: List<InternalPrompt>, persist: Boolean, temperature: Float?) -> Unit
 ) {
     BackHandler { onCancel() }
     // One editable buffer per spec, reseeded when the launch target changes.
     val editKey = specs.joinToString(",") { it.prompt.id }
     val fields = remember(editKey) { specs.map { mutableStateOf(it.prompt.text) } }
-    val canRun = fields.all { it.value.isNotBlank() }
+    // Run-only temperature (F48) — grid cells used to run only under each
+    // worker's own preset; a per-run override needed a settings edit.
+    var tempText by remember(editKey) { mutableStateOf("") }
+    val tempValue = tempText.replace(',', '.').toFloatOrNull()?.takeIf { it in 0f..2f }
+    val tempInvalid = tempText.isNotBlank() && tempValue == null
+    val canRun = fields.all { it.value.isNotBlank() } && !tempInvalid
     fun edited() = specs.mapIndexed { i, s -> s.prompt.copy(text = fields[i].value) }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -320,14 +327,14 @@ internal fun SecondaryRuntimePromptScreen(
         // Both CTAs hoisted to the top — one tap to advance regardless of how
         // far the editable prompt(s) have scrolled. Android back = onCancel.
         OutlinedButton(
-            onClick = { onRun(edited(), false) },
+            onClick = { onRun(edited(), false, tempValue) },
             enabled = canRun,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
         ) { Text("Run", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
-            onClick = { onRun(edited(), true) },
+            onClick = { onRun(edited(), true, tempValue) },
             enabled = canRun,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
@@ -345,6 +352,15 @@ internal fun SecondaryRuntimePromptScreen(
             if (infoLine != null) {
                 Text(infoLine, fontSize = 12.sp, color = AppColors.TextTertiary)
             }
+            OutlinedTextField(
+                value = tempText,
+                onValueChange = { tempText = it },
+                label = { Text("Temperature for this run (blank = each worker's own)") },
+                isError = tempInvalid,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedFieldColors()
+            )
             specs.forEachIndexed { i, s ->
                 Text("${s.label} (edit for this run)", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
