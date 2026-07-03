@@ -560,7 +560,9 @@ internal fun FanOutL3Screen(
                     if (body.isNullOrBlank()) {
                         Text("(source content not found)", color = AppColors.TextTertiary, fontSize = 13.sp)
                     } else {
-                        Text(body, fontSize = 13.sp, color = AppColors.TextPrimary)
+                        // Markdown + <think> handling like the sibling prose
+                        // viewers — raw Text showed literal ** and tags.
+                        ContentWithThinkSections(analysis = body)
                     }
                 }
             }
@@ -646,7 +648,7 @@ internal fun FanOutL3Screen(
                             if (body.isNullOrBlank()) {
                                 Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
                             } else {
-                                Text(body, fontSize = 13.sp, color = AppColors.TextPrimary)
+                                ContentWithThinkSections(analysis = body)
                             }
                         }
                     }
