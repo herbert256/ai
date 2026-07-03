@@ -29,6 +29,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -326,11 +328,19 @@ private fun AnswerMatrixTable(rows: List<AnswerMatrixRow>, onOpenAgent: ((String
         rows.forEachIndexed { idx, row ->
             // Row tap opens the model's answer (users kept tapping and
             // getting nothing) — sibling Rerank rows drill in the same way.
+            // mergeDescendants + a summary description: TalkBack reads the
+            // row as one sentence with header context instead of ten
+            // disconnected cells.
+            val rowDescription = "Row ${row.ordinal}: ${row.modelLabel}, " +
+                (row.rank?.let { "rank $it, " } ?: "") +
+                "stance ${row.stance}, confidence ${row.confidence}, cost ${row.cost}, " +
+                "latency ${row.latency}, ${row.tokens} tokens. Recommendation: ${row.recommendation}"
             Row(modifier = Modifier
                 .let { m ->
                     if (onOpenAgent != null && row.agentId.isNotBlank())
                         m.clickable { onOpenAgent(row.agentId) } else m
                 }
+                .semantics(mergeDescendants = true) { contentDescription = rowDescription }
                 .padding(horizontal = 10.dp, vertical = 9.dp)) {
                 BodyCell(row.ordinal.toString(), 46.dp, end = true, mono = true, color = AppColors.TextSecondary)
                 BodyCell(row.modelLabel, 180.dp, color = AppColors.TextPrimary, weight = FontWeight.SemiBold)

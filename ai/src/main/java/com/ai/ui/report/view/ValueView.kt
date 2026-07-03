@@ -38,6 +38,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
@@ -872,6 +874,20 @@ private fun ValueScatterCanvas(
     fullScreen: Boolean = false
 ) {
     if (points.isEmpty()) return
+    // Screen-reader summary — the Canvas is otherwise invisible to
+    // TalkBack. Names the frontier and the best-value pick.
+    val chartDescription = remember(points) {
+        buildString {
+            append("Cost versus quality chart with ${points.size} models. ")
+            points.firstOrNull { it.bestValue }?.let {
+                append("Best value: ${it.provider} ${it.modelShort}. ")
+            }
+            val frontier = points.filter { !it.dominated && !it.bestValue }
+            if (frontier.isNotEmpty()) {
+                append("Also on the value frontier: ${frontier.joinToString { f -> f.modelShort }}.")
+            }
+        }
+    }
     val axis = AppColors.TextTertiary
     val bestC = AppColors.SuccessAccent
     val domC = AppColors.TextDim
@@ -880,7 +896,7 @@ private fun ValueScatterCanvas(
     val labelArgb = AppColors.TextSecondary.toArgb()
     val tickArgb = axis.toArgb()
     val titleArgb = AppColors.TextSecondary.toArgb()
-    Canvas(modifier = modifier) {
+    Canvas(modifier = modifier.semantics { contentDescription = chartDescription }) {
         // Left/bottom padding leave room for the tick values + axis names.
         val padL = 100f; val padR = 48f; val padT = 16f; val padB = 52f
         val plotW = (size.width - padL - padR).coerceAtLeast(1f)
@@ -925,7 +941,14 @@ private fun ValueScatterCanvas(
                     drawCircle(bestC.copy(alpha = 0.35f), radius = 20f, center = o)
                 }
                 p.dominated -> drawCircle(domC, radius = 7f, center = o)
-                else -> drawCircle(regC, radius = 9f, center = o)
+                else -> {
+                    // Frontier points get an outline ring on top of the hue
+                    // so colour-blind users can still tell them from the
+                    // dominated dots (which stay plain + smaller).
+                    drawCircle(regC, radius = 9f, center = o)
+                    drawCircle(regC, radius = 13f, center = o,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f))
+                }
             }
         }
         // Model-name labels. Dots that sit almost on top of one another are
