@@ -91,8 +91,8 @@ fun JudgeEvalManageRow() {
     val runs by engine.runs.collectAsState()
     val run = runs[reportId] ?: return // no judge-eval on this report → no row
 
-    // Static label — the title of the prompt this batch ran, NOT a live
-    // size / done count (the row no longer ticks as cells complete).
+    // Label = the title of the prompt this batch ran; while cells are
+    // still settling a live done/total counter ticks next to the cost.
     val rowText = run.prompt.title.takeIf { it.isNotBlank() } ?: run.prompt.name
     val judgesIcon = com.ai.ui.shared.LocalMetadataIcons.current.judges
         .takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.JUDGES
@@ -115,6 +115,11 @@ fun JudgeEvalManageRow() {
                 text = rowText, color = AppColors.TextPrimary, fontSize = 13.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
             )
+            if (!run.allTerminal && run.totalCells > 0) {
+                Text("${run.doneCount}/${run.totalCells}", fontSize = 10.sp,
+                    color = AppColors.WarningAccent, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(end = 6.dp))
+            }
             if (run.totalCost > 0.0) {
                 Text(formatCents(run.totalCost), fontSize = 10.sp,
                     color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
