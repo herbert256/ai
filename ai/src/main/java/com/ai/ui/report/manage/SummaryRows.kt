@@ -112,6 +112,14 @@ internal fun SecondSummaryRow(state: InfoJobState, cost: Double, onClick: () -> 
                 fontSize = 13.sp, color = AppColors.TextPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
+            // Explicit launcher hint — this row used to render exactly like
+            // the read-only info rows, so the app's headline analyses hid
+            // behind a status-looking row and the bare 1/2/3 switcher.
+            Text(
+                "Run analyses: Meta · Fan out · Tournament · Rerank · …",
+                fontSize = 10.sp, color = AppColors.TextTertiary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
         }
         // Always shown — 0 when there are no secondary results yet.
         Text(
