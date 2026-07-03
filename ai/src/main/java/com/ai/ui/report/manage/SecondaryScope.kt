@@ -83,7 +83,7 @@ internal fun SecondaryScopeScreen(
     }
 
     val countInt = countText.toIntOrNull()?.coerceIn(1, totalReports.coerceAtLeast(1)) ?: 0
-    val canContinue = when (scopeMode) {
+    val scopeModeOk = when (scopeMode) {
         ScopeMode.ALL -> true
         ScopeMode.TOP_RANKED -> countInt > 0 && selectedRerank.isNotBlank()
         ScopeMode.MANUAL -> manualPicked.values.any { it }
@@ -118,6 +118,15 @@ internal fun SecondaryScopeScreen(
     // Initiator / responder model pickers used to live on this
     // screen for fan_out; they're back on the Run page (above the
     // prompt) so the Scope step stays focused on scope + language.
+
+    // Continue also requires a non-empty language selection in
+    // "Select languages" mode: Selected(emptySet()) flowed all the way
+    // to runMetaPrompt, whose empty-languages guard returns before any
+    // row is created — the run was a perfect silent no-op (no row, no
+    // error) that read as "meta prompts are broken".
+    val languagesOk = languages.isEmpty() || isSingleLanguage || allLanguages ||
+        pickedOriginal || pickedLanguages.values.any { it }
+    val canContinue = scopeModeOk && languagesOk
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
