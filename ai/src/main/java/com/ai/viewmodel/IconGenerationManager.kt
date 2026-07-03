@@ -2413,6 +2413,30 @@ class IconGenerationManager(
         }
     }
 
+    /** Report-delete teardown for the title fan-outs that share
+     *  [rvm.iconFanOutJobs] under prefixed keys — "rt:$reportId" (report
+     *  title), "mt:$agentId" (per-model title), "pt:$pairId" (fan-out
+     *  pair title). None matched the plain-reportId remove in
+     *  cancelReportOwnedWorkBeforeDelete, so an in-flight Find-alt-titles
+     *  fan-out kept dispatching billed calls against the gone report and
+     *  its candidate maps leaked. Also drops the alt-translation fan-out
+     *  jobs ("alttr:$itemId"), which have no other delete-time sweep. */
+    fun cancelTitleFanOutsForReport(context: Context, reportId: String) {
+        rvm.iconFanOutJobs.remove("rt:$reportId")?.cancel()
+        appViewModel.clearReportTitleFanOut(reportId)
+        val report = ReportStorage.getReport(context, reportId)
+        report?.agents?.forEach { a ->
+            rvm.iconFanOutJobs.remove("mt:${a.agentId}")?.cancel()
+            appViewModel.clearAgentTitleFanOut(a.agentId)
+        }
+        val secondaryIds = SecondaryResultStorage.listForReport(context, reportId).map { it.id }
+        secondaryIds.forEach { sid ->
+            rvm.iconFanOutJobs.remove("pt:$sid")?.cancel()
+            appViewModel.clearPairTitleFanOut(sid)
+            rvm.iconFanOutJobs.remove("alttr:$sid")?.cancel()
+        }
+    }
+
     fun restartReportTitleFanOut(reportId: String) {
         rvm.iconFanOutJobs.remove("rt:$reportId")?.cancel()
         appViewModel.clearReportTitleFanOut(reportId)

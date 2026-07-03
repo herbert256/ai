@@ -2422,8 +2422,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    private fun cancelReportOwnedWorkBeforeDelete(reportId: String): Boolean {
+    private fun cancelReportOwnedWorkBeforeDelete(reportId: String, context: Context? = null): Boolean {
         val cleared = appViewModel.uiState.value.currentReportId == reportId
+        // Title fan-outs (report/model/pair) + alt-translation jobs share
+        // iconFanOutJobs under prefixed keys the plain-reportId remove below
+        // never matched — needs the report loaded to map agent/pair ids, so
+        // it's gated on a context (delete paths pass one).
+        context?.let { iconGen.cancelTitleFanOutsForReport(it, reportId) }
         // Cancel every in-flight coroutine attached to this report
         // BEFORE deleting it from disk. Otherwise:
         //   - Fan-out pair coroutines (up to N×(N-1) of them) keep
@@ -2511,7 +2516,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     /** Delete a report file and, if it's the one currently shown, dismiss the screen state. */
     fun deleteReport(context: Context, reportId: String) {
-        cancelReportOwnedWorkBeforeDelete(reportId)
+        cancelReportOwnedWorkBeforeDelete(reportId, context)
         // The disk delete (report file + per-report secondary dir) off the
         // main thread; the cancellations above are non-blocking and must
         // run synchronously first so nothing is still writing as we delete.
@@ -2527,7 +2532,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         onComplete: (() -> Unit)? = null
     ): Job {
         val ids = reportIds.distinct().filter { it.isNotBlank() }
-        ids.forEach { cancelReportOwnedWorkBeforeDelete(it) }
+        ids.forEach { cancelReportOwnedWorkBeforeDelete(it, context) }
         return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             ids.forEachIndexed { index, reportId ->
                 ReportStorage.deleteReport(context, reportId)
