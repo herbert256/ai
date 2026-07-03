@@ -778,6 +778,48 @@ fun ReportModelScreen(
                             }
                             Spacer(modifier = Modifier.height(10.dp))
                         }
+                        // Find-in-response: while a query is set the body
+                        // renders as plain text with every match highlighted
+                        // (markdown temporarily off — the highlight spans need
+                        // the raw string), plus a live match count.
+                        var findOpen by remember(currentAgentId) { mutableStateOf(false) }
+                        var findQuery by remember(currentAgentId) { mutableStateOf("") }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (!findOpen) {
+                                Spacer(modifier = Modifier.weight(1f))
+                                Text(
+                                    "🔍 Find",
+                                    fontSize = 12.sp, color = AppColors.TextTertiary,
+                                    modifier = Modifier
+                                        .clickable(role = Role.Button, onClickLabel = "find text in this response") { findOpen = true }
+                                        .padding(6.dp)
+                                )
+                            } else {
+                                OutlinedTextField(
+                                    value = findQuery, onValueChange = { findQuery = it },
+                                    placeholder = { Text("Find in response…", fontSize = 12.sp) },
+                                    singleLine = true, colors = AppColors.outlinedFieldColors(),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (findQuery.isNotBlank()) {
+                                    val count = countMatches(rawBody, findQuery)
+                                    Text(
+                                        "$count", fontSize = 12.sp,
+                                        color = if (count > 0) AppColors.SuccessAccent else AppColors.DangerAccent,
+                                        modifier = Modifier.padding(horizontal = 6.dp)
+                                    )
+                                }
+                                Text(
+                                    "✕", fontSize = 14.sp, color = AppColors.TextTertiary,
+                                    modifier = Modifier
+                                        .clickable(role = Role.Button, onClickLabel = "close find") { findOpen = false; findQuery = "" }
+                                        .padding(6.dp)
+                                )
+                            }
+                        }
                         // The response in a card; corner 🐞 → response trace.
                         Box(modifier = Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
@@ -791,6 +833,9 @@ fun ReportModelScreen(
                                     rawBody.replace(singleConclusionTagRegex, "").replace(singleMotivationTagRegex, "").trim()
                                 else rawBody
 
+                                if (findOpen && findQuery.isNotBlank()) {
+                                    HighlightedBodyText(rawBody, findQuery)
+                                } else {
                                 if (conclusion != null) {
                                     Text("Conclusion", fontSize = 18.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(6.dp))
@@ -809,6 +854,7 @@ fun ReportModelScreen(
                                         Spacer(modifier = Modifier.height(12.dp))
                                     }
                                     ContentWithThinkSections(analysis = strippedBody)
+                                }
                                 }
                             }
                             traceFilename?.let { fn ->
@@ -992,5 +1038,48 @@ private fun ContinueRow(icon: String, title: String, enabled: Boolean, onClick: 
             text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
             color = if (enabled) AppColors.TextPrimary else AppColors.TextDim
         )
+    }
+}
+
+/** Case-insensitive occurrence count for the find-in-response bar. */
+private fun countMatches(text: String, query: String): Int {
+    if (query.isBlank()) return 0
+    var idx = 0
+    var count = 0
+    while (true) {
+        idx = text.indexOf(query, idx, ignoreCase = true)
+        if (idx < 0) return count
+        count++
+        idx += query.length
+    }
+}
+
+/** Plain-text body with every [query] match highlighted — the find bar's
+ *  render mode (markdown is off while finding so the highlight spans can
+ *  address the raw string). */
+@Composable
+private fun HighlightedBodyText(text: String, query: String) {
+    val highlighted = remember(text, query) {
+        androidx.compose.ui.text.buildAnnotatedString {
+            var pos = 0
+            while (pos < text.length) {
+                val hit = text.indexOf(query, pos, ignoreCase = true)
+                if (hit < 0) {
+                    append(text.substring(pos))
+                    break
+                }
+                append(text.substring(pos, hit))
+                pushStyle(androidx.compose.ui.text.SpanStyle(
+                    background = AppColors.WarningAccent.copy(alpha = 0.45f),
+                    color = AppColors.TextPrimary
+                ))
+                append(text.substring(hit, hit + query.length))
+                pop()
+                pos = hit + query.length
+            }
+        }
+    }
+    androidx.compose.foundation.text.selection.SelectionContainer {
+        Text(highlighted, fontSize = 14.sp, color = AppColors.TextPrimary)
     }
 }
