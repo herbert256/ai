@@ -784,11 +784,20 @@ internal fun ReportRunScreen(
                 // staging list, empty on a normal open → "all 0 models").
                 val agentCount = uiState.genericReportsSelectedAgents.size
                 val erroredCount = reportsAgentResults.values.count { it.error != null }
+                // Model-list-only staged edit → the regenerate is additive
+                // (only the new models run); say so instead of threatening
+                // a full re-bill.
+                val modelListOnly = uiState.stagedChangesReportId == currentReportId &&
+                    uiState.stagedReportModels.isNotEmpty() &&
+                    !uiState.hasPendingPromptChange && !uiState.hasPendingParametersChange
                 com.ai.ui.shared.ReloadConfirmationDialog(
                     target = "",
                     title = "Regenerate report?",
-                    message = "Re-fire all $agentCount model${if (agentCount == 1) "" else "s"} on this report, then rerun existing Meta, Fan out, Fan in, Moderation, Rerank, and Translate rows. New API cost is added to the report's existing lifetime cost." +
-                        if (erroredCount > 0)
+                    message = (if (modelListOnly)
+                        "Only the model list changed, so this regenerate is additive: just the newly added models run and merge into the report — existing answers and secondary rows are kept as they are, removed models are dropped."
+                    else
+                        "Re-fire all $agentCount model${if (agentCount == 1) "" else "s"} on this report, then rerun existing Meta, Fan out, Fan in, Moderation, Rerank, and Translate rows. New API cost is added to the report's existing lifetime cost.") +
+                        if (erroredCount > 0 && !modelListOnly)
                             "\n\nRetry failed re-runs only the $erroredCount errored model${if (erroredCount == 1) "" else "s"} (plus any errored secondary rows) — completed answers are kept and not re-billed."
                         else "",
                     confirmLabel = "Regenerate",
@@ -796,8 +805,8 @@ internal fun ReportRunScreen(
                         onDismissRegenerateConfirm()
                         onRegenerate(rid)
                     },
-                    extraLabel = if (erroredCount > 0) "Retry failed" else null,
-                    onExtra = if (erroredCount > 0) {
+                    extraLabel = if (erroredCount > 0 && !modelListOnly) "Retry failed" else null,
+                    onExtra = if (erroredCount > 0 && !modelListOnly) {
                         {
                             onDismissRegenerateConfirm()
                             onRegenerateErroredOnly(rid)

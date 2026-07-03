@@ -96,23 +96,40 @@ class RegenerateBatchEngine internal constructor(
      *  list is filtered to just the rows currently in an error
      *  state — same per-phase notion of "errored" the orchestrator's
      *  poll uses ([readRowStatuses]) — so completed answers and
-     *  healthy secondaries are neither reset nor re-billed. */
-    fun enqueueAndStart(context: Context, reportId: String, erroredOnly: Boolean = false) {
+     *  healthy secondaries are neither reset nor re-billed.
+     *
+     *  [onlyAgentIds] is the additive model-list-only path
+     *  ([ReportViewModel.regenerateReportBatch]): the task list is
+     *  restricted to the AGENTS phase for exactly these (newly
+     *  appended) agents, so existing answers and every secondary row
+     *  stay untouched — the documented "runs just the new models and
+     *  merges them in" contract. */
+    fun enqueueAndStart(
+        context: Context, reportId: String,
+        erroredOnly: Boolean = false, onlyAgentIds: Set<String>? = null
+    ) {
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
             orchestratorJobs.remove(reportId)?.cancelAndJoin()
             val allTasks = buildTaskList(context, reportId)
-            val tasks = if (!erroredOnly) allTasks else withContext(Dispatchers.IO) {
-                allTasks.groupBy { it.phase }.flatMap { (phase, phaseTasks) ->
-                    val statuses = readRowStatuses(
-                        context, reportId, phase, phaseTasks.map { it.rowId }.toSet()
-                    )
-                    phaseTasks.filter { statuses[it.rowId] is RowStatus.Error }
+            val tasks = when {
+                onlyAgentIds != null -> allTasks.filter {
+                    it.phase == RegeneratePhase.AGENTS && it.rowId in onlyAgentIds
                 }
+                erroredOnly -> withContext(Dispatchers.IO) {
+                    allTasks.groupBy { it.phase }.flatMap { (phase, phaseTasks) ->
+                        val statuses = readRowStatuses(
+                            context, reportId, phase, phaseTasks.map { it.rowId }.toSet()
+                        )
+                        phaseTasks.filter { statuses[it.rowId] is RowStatus.Error }
+                    }
+                }
+                else -> allTasks
             }
-            if (erroredOnly && tasks.isEmpty()) {
+            if ((erroredOnly || onlyAgentIds != null) && tasks.isEmpty()) {
                 android.widget.Toast.makeText(
                     context,
-                    "Nothing to retry — no errored rows on this report.",
+                    if (erroredOnly) "Nothing to retry — no errored rows on this report."
+                    else "Model list updated — nothing new to run.",
                     android.widget.Toast.LENGTH_LONG
                 ).show()
                 return@launch

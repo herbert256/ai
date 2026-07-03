@@ -1993,7 +1993,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // "Retry failed" must NOT consume staged Edit-Models changes —
                 // it re-runs only what already errored; the staged list stays
                 // banner-visible for a later full Regenerate.
-                applyStagedModelList(context, reportId)
+                //
+                // Cascade by impact (doc/manual.md "Edit / regenerate"): a
+                // MODEL-LIST-ONLY edit makes Regenerate additive — only the
+                // newly appended agents run; existing answers and every
+                // secondary row are kept untouched. A prompt or parameters
+                // change still re-runs everything.
+                val pre = appViewModel.uiState.value
+                val modelListOnly = pre.stagedChangesReportId == reportId &&
+                    pre.stagedReportModels.isNotEmpty() &&
+                    !pre.hasPendingPromptChange && !pre.hasPendingParametersChange
+                val appliedNewIds = applyStagedModelList(context, reportId)
                 appViewModel.updateUiState {
                     // Staged state belonging to a different report survives a
                     // plain regenerate here — it stays banner-visible on its
@@ -2005,6 +2015,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         stagedChangesReportId = null
                     )
                 }
+                if (modelListOnly) {
+                    // Nothing runnable staged (already toasted) — don't fall
+                    // through to a full re-run of every existing answer.
+                    if (appliedNewIds == null) return@launch
+                    regenerateBatchEngine.enqueueAndStart(
+                        context, reportId, onlyAgentIds = appliedNewIds
+                    )
+                    return@launch
+                }
             }
             regenerateBatchEngine.enqueueAndStart(context, reportId, erroredOnly)
         }
@@ -2012,15 +2031,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     /** Merge the staged Edit-Models list into the report's on-disk agent
      *  set: append new rows as PENDING (replaying the report's captured
-     *  config), remove dropped rows through the full orphan cascade. */
-    private suspend fun applyStagedModelList(context: Context, reportId: String) {
+     *  config), remove dropped rows through the full orphan cascade.
+     *  Returns the ids of the newly appended agents (empty set when the
+     *  edit was removals-only), or null when no staged list was applied
+     *  at all — caller uses this for the additive model-list-only
+     *  regenerate. */
+    private suspend fun applyStagedModelList(context: Context, reportId: String): Set<String>? {
         val state = appViewModel.uiState.value
         val staged = state.stagedReportModels
         // Owner gate: the staged list belongs to exactly one report. Applying
         // report X's list to report Y would delete every Y agent not in X's
         // set — the swipe-navigation data-loss bug.
-        if (staged.isEmpty() || state.stagedChangesReportId != reportId) return
-        val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
+        if (staged.isEmpty() || state.stagedChangesReportId != reportId) return null
+        val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return null
         val ai = state.aiSettings
         val agentIds = staged.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
         // Kept swarm members from their explicit (provider, model) — never
@@ -2054,7 +2077,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     "Edited model list had nothing to run — none of the picked agents or providers are configured on this device.",
                     android.widget.Toast.LENGTH_LONG).show()
             }
-            return
+            return null
         }
         val existingIds = report.agents.map { it.agentId }.toSet()
         val newAgents = tasks.filter { it.resultId !in existingIds }.map { it.reportAgent }
@@ -2086,6 +2109,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
         }
         AuditLog.append(reportId, "Applied edited model list (+${newAgents.size} / -${removedIds.size} models)")
+        return newAgents.map { it.agentId }.toSet()
     }
 
     /**
