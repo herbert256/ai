@@ -800,6 +800,9 @@ internal fun ReportRunScreen(
                         "Only the model list changed, so this regenerate is additive: just the newly added models run and merge into the report — existing answers and secondary rows are kept as they are, removed models are dropped."
                     else
                         "Re-fire all $agentCount model${if (agentCount == 1) "" else "s"} on this report, then rerun existing Meta, Fan out, Fan in, Moderation, Rerank, and Translate rows. New API cost is added to the report's existing lifetime cost.") +
+                        (if (totalCostForBar > 0.0)
+                            "\n\nLifetime spend on this report so far: ${com.ai.ui.shared.formatCents(totalCostForBar)}."
+                        else "") +
                         if (erroredCount > 0 && !modelListOnly)
                             "\n\nRetry failed re-runs only the $erroredCount errored model${if (erroredCount == 1) "" else "s"} (plus any errored secondary rows) — completed answers are kept and not re-billed."
                         else "",

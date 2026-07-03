@@ -130,12 +130,30 @@ internal fun ColumnScope.SelectionPhase(
     // report will run against. Sort the list by model name so the
     // order is stable as items are added; the model id is the user-
     // facing identifier and is what they expect to scan alphabetically.
+    // Summed price context — the same roll-up the flock/swarm pickers
+    // show, so committing a large panel carries a sense of magnitude
+    // (catalog $/M rates; actual spend depends on token counts).
+    val summedPerMillion = remember(models) {
+        var inP = 0.0; var outP = 0.0
+        models.forEach { e ->
+            val p = aiSettings.getModelPricing(e.provider, e.model)
+                ?: com.ai.data.PricingCache.getPricing(context, e.provider, e.model)
+            inP += p.promptPrice; outP += p.completionPrice
+        }
+        inP * 1_000_000 to outP * 1_000_000
+    }
     Text(
         when (val n = models.size) {
             0 -> "No models selected"
             1 -> "1 model"
             else -> "$n models"
-        },
+        } + if (models.isNotEmpty())
+            String.format(
+                java.util.Locale.US,
+                " · combined \$%.2f in / \$%.2f out per 1M tokens",
+                summedPerMillion.first, summedPerMillion.second
+            )
+        else "",
         fontSize = 11.sp, color = AppColors.TextTertiary,
         modifier = Modifier.padding(bottom = 4.dp)
     )
