@@ -217,17 +217,17 @@ fun TournamentViewScreen(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                MethodChip("Copeland", TournamentMethod.COPELAND == currentMethod) {
-                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.COPELAND) }
-                }
-                MethodChip("Elo", TournamentMethod.ELO == currentMethod) {
-                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.ELO) }
-                }
-                MethodChip("Davidson", TournamentMethod.DAVIDSON == currentMethod) {
-                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.DAVIDSON) }
-                }
-                MethodChip("Markov", TournamentMethod.MARKOV == currentMethod) {
-                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.MARKOV) }
+                // ALL seven methods — this tab used to hardcode four while
+                // the podium's selector offered the full set, so ranking by
+                // Schulze / Colley / TrueSkill2 here was impossible and the
+                // two screens silently disagreed. Switching is a free local
+                // recompute.
+                TournamentMethod.entries.forEach { method ->
+                    val label = method.name.lowercase().replaceFirstChar { it.uppercase() }
+                        .replace("Trueskill2", "TrueSkill2")
+                    MethodChip(label, method == currentMethod) {
+                        if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, method) }
+                    }
                 }
             }
 
