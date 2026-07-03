@@ -63,7 +63,7 @@ internal fun FanMetaL2Screen(
     onOpenPair: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val (activePid, activeMdl) = answererKey.split("|").let {
+    val (activePid, activeMdl) = answererKey.split("|", limit = 2).let {
         if (it.size == 2) it[0] to it[1] else "" to ""
     }
     val canonPid = AppService.findById(activePid)?.id ?: activePid

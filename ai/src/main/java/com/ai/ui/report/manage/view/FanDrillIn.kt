@@ -375,7 +375,7 @@ internal fun ColumnScope.FanOutDrillInView(
             val pn = AppService.findById(it.provider)?.id ?: it.provider
             com.ai.ui.shared.modelLabel(pn, it.model, separator = " / ")
         } ?: srcAgentIdL3
-        val answererLabel = answererKeyL3.split("|").let { parts ->
+        val answererLabel = answererKeyL3.split("|", limit = 2).let { parts ->
             val pid = parts.getOrNull(0).orEmpty()
             val mdl = parts.getOrNull(1).orEmpty()
             val pn = AppService.findById(pid)?.id ?: pid
@@ -1140,7 +1140,7 @@ internal fun ColumnScope.FanOutDrillInView(
         }
         val orphanSetForRender = orphanKeys.toHashSet()
         items(modelKeys, key = { it }) { ak ->
-            val parts = ak.split("|")
+            val parts = ak.split("|", limit = 2)
             val pid = parts.getOrNull(0).orEmpty()
             val mdl = parts.getOrNull(1).orEmpty()
             val provName = AppService.findById(pid)?.id ?: pid

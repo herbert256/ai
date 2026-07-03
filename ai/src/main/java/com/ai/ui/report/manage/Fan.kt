@@ -272,7 +272,7 @@ fun FanOutScreen(
  *  the L1 / L2 / L3 rows display — uses the canonical-cased
  *  provider id from [AppService.findById] when registered. */
 internal fun resolveModelLabel(answererKey: String): String {
-    val parts = answererKey.split("|")
+    val parts = answererKey.split("|", limit = 2)
     if (parts.size != 2) return answererKey
     val (pid, model) = parts
     val canon = AppService.findById(pid)?.id ?: pid
