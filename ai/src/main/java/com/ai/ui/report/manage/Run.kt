@@ -131,7 +131,7 @@ internal fun ReportRunScreen(
      *  build-stage key, override workers, run-only prompt-text override). */
     onRunTournament: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
     /** Launch the "Judge the judges" batch on the report. */
-    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
+    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?, Int) -> Unit = { _, _, _, _, _ -> },
     /** Persist a run-only prompt edit ("Update prompt" on the runtime
      *  prompt-edit screen) back to the saved Internal Prompt. */
     onUpdateInternalPrompt: (com.ai.model.InternalPrompt) -> Unit = { },
@@ -447,7 +447,7 @@ internal fun ReportRunScreen(
                     RuntimePromptKind.JUDGES -> {
                         val key = java.util.UUID.randomUUID().toString()
                         onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
-                        onRunJudgeJudges(rid, key, null, text)
+                        onRunJudgeJudges(rid, key, null, text, com.ai.data.JUDGE_MATCH_COUNT)
                     }
                     RuntimePromptKind.TRANSRANK -> {
                         val key = java.util.UUID.randomUUID().toString()
@@ -1211,15 +1211,31 @@ internal fun ReportRunScreen(
         // random head-to-heads, then we score their agreement.
         if (confirmJudgeJudges && currentReportId != null) {
             val pairCount = tournamentResponseCount * (tournamentResponseCount - 1) / 2
-            val matches = pairCount.coerceAtMost(25)
+            // User-tunable sample size (F61) — 25 was a hardcoded const, so
+            // cost couldn't be traded for coverage.
+            var sampleText by remember { mutableStateOf("25") }
+            val requested = sampleText.toIntOrNull()?.coerceIn(1, 500) ?: 25
+            val matches = pairCount.coerceAtMost(requested)
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { confirmJudgeJudges = false },
                 title = { androidx.compose.material3.Text("Judge the judges?") },
                 text = {
-                    androidx.compose.material3.Text(
-                        "This gives the same $matches random head-to-head${if (matches == 1) "" else "s"} to " +
-                            "every judge model (the worker models), then scores how the judges agree with one another."
-                    )
+                    Column {
+                        androidx.compose.material3.Text(
+                            "This gives the same $matches random head-to-head${if (matches == 1) "" else "s"} to " +
+                                "every judge model (the worker models), then scores how the judges agree with one another."
+                        )
+                        androidx.compose.material3.OutlinedTextField(
+                            value = sampleText, onValueChange = { sampleText = it },
+                            modifier = Modifier.padding(top = 8.dp),
+                            label = { androidx.compose.material3.Text("Sample size (max $pairCount)") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            colors = AppColors.outlinedFieldColors()
+                        )
+                    }
                 },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
@@ -1228,7 +1244,7 @@ internal fun ReportRunScreen(
                             // No worker picker — the judges are fixed: the
                             // actual judges that ran the report's Tournament.
                             onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
-                            onRunJudgeJudges(rid, key, null, null)
+                            onRunJudgeJudges(rid, key, null, null, requested)
                         }
                         confirmJudgeJudges = false
                     }) { androidx.compose.material3.Text("Run") }

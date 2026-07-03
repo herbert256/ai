@@ -144,7 +144,7 @@ class JudgeEvalEngine internal constructor(
      *  initial match set) and [addJudgeToRun] (to re-establish a match set when
      *  the run has been emptied by deleting every judge — without this, adding
      *  the first judge back to an empty run would have nothing to judge). */
-    private fun pickJudgeMatches(report: Report): List<Triple<String, String, Int>> {
+    private fun pickJudgeMatches(report: Report, sampleSize: Int = JUDGE_MATCH_COUNT): List<Triple<String, String, Int>> {
         val successful = report.agents.filter {
             it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
         }
@@ -152,7 +152,7 @@ class JudgeEvalEngine internal constructor(
         val ids = successful.map { it.agentId }
         val allPairs = ArrayList<Pair<String, String>>()
         for (i in ids.indices) for (j in i + 1 until ids.size) allPairs.add(ids[i] to ids[j])
-        return allPairs.shuffled().take(JUDGE_MATCH_COUNT).map { (x, y) ->
+        return allPairs.shuffled().take(sampleSize.coerceAtLeast(1)).map { (x, y) ->
             if (kotlin.random.Random.nextBoolean()) Triple(x, y, 0) else Triple(y, x, 0)
         }
     }
@@ -208,7 +208,7 @@ class JudgeEvalEngine internal constructor(
      *  answer-pairs, pre-create judges×matches CELL placeholders + one
      *  AGGREGATE placeholder, judge every cell with its fixed judge, then fold
      *  the verdicts into the per-judge agreement analysis. */
-    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null, overridePromptText: String? = null): Job? =
+    fun startRun(context: Context, reportId: String, buildKey: String? = null, overrideWorkers: List<com.ai.model.Worker>? = null, overridePromptText: String? = null, sampleSize: Int = JUDGE_MATCH_COUNT): Job? =
         launchRun(context, reportId, buildKey, "after/judges") { runId ->
             val aiSettings = appViewModel.uiState.value.aiSettings
             val report = ReportStorage.getReport(context, reportId) ?: return@launchRun
@@ -238,7 +238,7 @@ class JudgeEvalEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, reportId)
 
             // Distinct random answer-pairs, randomising which side is A.
-            val chosen = pickJudgeMatches(report)
+            val chosen = pickJudgeMatches(report, sampleSize)
             if (chosen.isEmpty()) return@launchRun
             AuditLog.append(reportId, "Start Judge-the-judges — ${judges.size} judges × ${chosen.size} matches")
             val scopeEncoded = SecondaryScope.AllReports.encode()

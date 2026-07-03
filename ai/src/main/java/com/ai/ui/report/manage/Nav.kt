@@ -675,8 +675,8 @@ fun ReportsScreenNav(
         onRunTournament = { reportId, buildKey, overrideWorkers, overridePromptText ->
             reportViewModel.tournamentEngine.startRun(context, reportId, buildKey, overrideWorkers, overridePromptText)
         },
-        onRunJudgeJudges = { reportId, buildKey, overrideWorkers, overridePromptText ->
-            reportViewModel.judgeEvalEngine.startRun(context, reportId, buildKey, overrideWorkers, overridePromptText)
+        onRunJudgeJudges = { reportId, buildKey, overrideWorkers, overridePromptText, sampleSize ->
+            reportViewModel.judgeEvalEngine.startRun(context, reportId, buildKey, overrideWorkers, overridePromptText, sampleSize)
         },
         onUpdateInternalPrompt = { edited ->
             // Persist only the edited text onto the live prompt (preserving its
@@ -1075,7 +1075,7 @@ internal fun ConsumePendingBatchOpen(
 @Composable
 internal fun ConsumePendingJudgeJudges(
     armBuildStage: (String, String, () -> Unit, () -> Unit) -> Unit,
-    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit,
+    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?, Int) -> Unit,
     onDeleteJudgeRun: (String) -> Unit,
 ) {
     val pending = com.ai.ui.shared.LocalPendingJudgeJudges.current
@@ -1090,7 +1090,7 @@ internal fun ConsumePendingJudgeJudges(
             { judgeOpen?.value = rid },
             { onDeleteJudgeRun(rid) }
         )
-        onRunJudgeJudges(rid, key, null, null)
+        onRunJudgeJudges(rid, key, null, null, com.ai.data.JUDGE_MATCH_COUNT)
     }
 }
 

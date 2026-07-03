@@ -236,7 +236,7 @@ fun ReportsScreen(
     onRunRerank: (String, com.ai.data.SecondaryLanguageScope, List<String>, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _, _, _ -> },
     onRunModeration: (String, com.ai.data.SecondaryLanguageScope, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
     onRunTournament: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
-    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _ -> },
+    onRunJudgeJudges: (String, String?, List<com.ai.model.Worker>?, String?, Int) -> Unit = { _, _, _, _, _ -> },
     /** Persist a run-only prompt edit ("Update prompt" on the runtime
      *  prompt-edit screen): writes the edited text back to the saved
      *  Internal Prompt. */
