@@ -143,8 +143,14 @@ class SecondaryRunManager(
         }
         val msg = if (sawRateLimit) "All '${contentPrompt.name}' workers rate-limited — try again shortly."
                   else (lastErr ?: "No worker produced a result for '${contentPrompt.name}'.")
+        // mergeCosts = false: the incoming copy IS the on-disk row (re-read
+        // just above), so the default additive merge added the row's own
+        // accumulated spend onto itself — an errored row whose attempts had
+        // billed (e.g. an empty-content 200 from one worker) showed exactly
+        // 2× the tokens and dollars actually spent.
         SecondaryResultStorage.saveIfStillPresent(context,
-            (SecondaryResultStorage.get(context, reportId, base.id) ?: base).copy(errorMessage = msg))
+            (SecondaryResultStorage.get(context, reportId, base.id) ?: base).copy(errorMessage = msg),
+            mergeCosts = false)
     }
 
     // ===== Meta prompt results =====
