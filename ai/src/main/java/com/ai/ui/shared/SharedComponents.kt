@@ -31,9 +31,11 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.roundToInt
@@ -70,7 +72,16 @@ fun Modifier.horizontalSwipeNavigation(
 ): Modifier = this.composed {
     val context = androidx.compose.ui.platform.LocalContext.current
     val thresholdPx = with(LocalDensity.current) { thresholdDp.toPx() }
-    pointerInput(key1, key2, atFirst, atLast) {
+    // TalkBack reserves horizontal swipes for itself, so a gesture-only
+    // stepper is unreachable with a screen reader. Publish the same
+    // prev/next as custom accessibility actions (TalkBack's actions
+    // menu / Switch Access), suppressed at the edges like the gesture.
+    semantics {
+        customActions = listOfNotNull(
+            if (!atLast) CustomAccessibilityAction("Next item") { onSwipeLeft(); true } else null,
+            if (!atFirst) CustomAccessibilityAction("Previous item") { onSwipeRight(); true } else null
+        )
+    }.pointerInput(key1, key2, atFirst, atLast) {
         var totalDrag = 0f
         detectHorizontalDragGestures(
             onDragStart = { totalDrag = 0f },
@@ -108,7 +119,14 @@ fun Modifier.verticalSwipeNavigation(
 ): Modifier = this.composed {
     val context = androidx.compose.ui.platform.LocalContext.current
     val thresholdPx = with(LocalDensity.current) { thresholdDp.toPx() }
-    pointerInput(key1, key2, atFirst, atLast) {
+    // Same accessibility mirror as horizontalSwipeNavigation — the
+    // gesture is unreachable under TalkBack, the custom actions aren't.
+    semantics {
+        customActions = listOfNotNull(
+            if (!atFirst) CustomAccessibilityAction("Previous item") { onSwipeUp(); true } else null,
+            if (!atLast) CustomAccessibilityAction("Next item") { onSwipeDown(); true } else null
+        )
+    }.pointerInput(key1, key2, atFirst, atLast) {
         var totalDrag = 0f
         detectVerticalDragGestures(
             onDragStart = { totalDrag = 0f },
@@ -1733,7 +1751,19 @@ internal fun AppTopBarChrome(
             modifier = Modifier.fillMaxWidth()
                 .then(
                     if (swipeEnabled) {
-                        Modifier.pointerInput(onSwipePrev, onSwipeNext) {
+                        // The drag gesture is unreachable under TalkBack /
+                        // Switch Access — mirror prev/next report as custom
+                        // accessibility actions on the title-bar node.
+                        Modifier.semantics {
+                            customActions = listOfNotNull(
+                                onSwipeNext?.let { next ->
+                                    CustomAccessibilityAction("Next report") { next(); true }
+                                },
+                                onSwipePrev?.let { prev ->
+                                    CustomAccessibilityAction("Previous report") { prev(); true }
+                                }
+                            )
+                        }.pointerInput(onSwipePrev, onSwipeNext) {
                             detectHorizontalDragGestures(
                                 onDragStart = { swipeDragX.floatValue = 0f },
                                 onDragEnd = {
