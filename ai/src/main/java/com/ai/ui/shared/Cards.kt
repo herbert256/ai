@@ -1,6 +1,7 @@
 package com.ai.ui.shared
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -302,13 +304,22 @@ fun ReportRowActionIcons(
 
 /** One full report-list row: per-report icon (when icon-gen is on), the
  *  title (single-line, ellipsised), and the trailing 🔧 / 👁 action pair.
- *  The outer row is clickable → [onOpenManage]. */
+ *  The outer row is clickable → [onOpenManage].
+ *
+ *  Multi-select support (the All-reports browser): long-press enters
+ *  selection via [onEnterSelection]; while [selectionMode] is on the row
+ *  shows a leading checkbox, the tap toggles [selected] instead of
+ *  opening Manage, and the trailing action icons hide. */
 @Composable
 fun ReportListRow(
     report: com.ai.data.Report,
     onOpenManage: (String) -> Unit,
     onOpenView: (String) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: ((String) -> Unit)? = null,
+    onEnterSelection: ((String) -> Unit)? = null
 ) {
     var showDelete by remember(report.id) { mutableStateOf(false) }
     if (showDelete) {
@@ -324,10 +335,23 @@ fun ReportListRow(
     val bundle = LocalReportListIconBundle.current
     Row(
         modifier = Modifier.fillMaxWidth()
-            .clickable { onOpenManage(report.id) }
+            .combinedClickable(
+                onClick = {
+                    if (selectionMode) onToggleSelect?.invoke(report.id)
+                    else onOpenManage(report.id)
+                },
+                onLongClick = if (onEnterSelection != null && !selectionMode)
+                    ({ onEnterSelection(report.id) }) else null
+            )
             .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (selectionMode) {
+            Checkbox(
+                checked = selected,
+                onCheckedChange = { onToggleSelect?.invoke(report.id) }
+            )
+        }
         // A running report shows the spinning hourglass; a report with broken
         // work shows the warning icon; otherwise its own (or default) icon.
         when {
@@ -346,11 +370,13 @@ fun ReportListRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        ReportRowActionIcons(
-            onOpenManage = { onOpenManage(report.id) },
-            onOpenView = { onOpenView(report.id) },
-            onDelete = { showDelete = true },
-            reportId = report.id
-        )
+        if (!selectionMode) {
+            ReportRowActionIcons(
+                onOpenManage = { onOpenManage(report.id) },
+                onOpenView = { onOpenView(report.id) },
+                onDelete = { showDelete = true },
+                reportId = report.id
+            )
+        }
     }
 }

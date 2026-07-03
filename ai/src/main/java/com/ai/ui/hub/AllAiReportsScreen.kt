@@ -36,6 +36,7 @@ import com.ai.ui.shared.ReportListRow
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Paginated browser of every saved report, no vertical scroll.
@@ -62,6 +63,12 @@ fun AllAiReportsScreen(
         value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
     }
     val bundle = com.ai.ui.shared.LocalReportListIconBundle.current
+    // Multi-select: long-press a row to enter; Back exits selection first.
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
+    androidx.activity.compose.BackHandler(enabled = selectionMode) { exitSelection() }
+    val exportScope = androidx.compose.runtime.rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -106,6 +113,69 @@ fun AllAiReportsScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
                 )
+                // Multi-select header — visible while selection mode is on
+                // (entered by long-pressing a row).
+                if (selectionMode) {
+                    var confirmDeleteSelected by remember { mutableStateOf(false) }
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("${selectedIds.size} selected", fontSize = 13.sp, color = AppColors.TextSecondary)
+                        Spacer(modifier = Modifier.weight(1f))
+                        androidx.compose.material3.TextButton(onClick = { selectedIds = reports.mapTo(HashSet()) { it.id } }) {
+                            Text("All", fontSize = 13.sp, maxLines = 1)
+                        }
+                        androidx.compose.material3.TextButton(
+                            enabled = selectedIds.isNotEmpty(),
+                            onClick = {
+                                val ids = selectedIds
+                                exportScope.launch {
+                                    val (file, count) = withContext(Dispatchers.IO) {
+                                        com.ai.ui.report.other.zipReports(context, ids)
+                                    }
+                                    if (file == null) {
+                                        android.widget.Toast.makeText(context, "Nothing to export.", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                                            context, "${context.packageName}.fileprovider", file
+                                        )
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "application/zip"
+                                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(intent, "Share $count report(s)"))
+                                    }
+                                }
+                            }
+                        ) { Text("Export", fontSize = 13.sp, maxLines = 1) }
+                        androidx.compose.material3.TextButton(
+                            enabled = selectedIds.isNotEmpty(),
+                            onClick = { confirmDeleteSelected = true }
+                        ) { Text("Delete", fontSize = 13.sp, color = AppColors.DangerAccent, maxLines = 1) }
+                        androidx.compose.material3.TextButton(onClick = { exitSelection() }) { Text("Done", fontSize = 13.sp, maxLines = 1) }
+                    }
+                    if (confirmDeleteSelected) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { confirmDeleteSelected = false },
+                            title = { Text("Delete ${selectedIds.size} report(s)?") },
+                            text = { Text("Permanently deletes the selected reports from disk, including every secondary result. This cannot be undone.") },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    confirmDeleteSelected = false
+                                    val ids = selectedIds.toList()
+                                    exitSelection()
+                                    ids.forEach { reportViewModel.deleteReport(context, it) }
+                                    deleteTick++
+                                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1) }
+                            },
+                            dismissButton = {
+                                androidx.compose.material3.TextButton(onClick = { confirmDeleteSelected = false }) { Text("Cancel", maxLines = 1) }
+                            }
+                        )
+                    }
+                }
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
@@ -125,6 +195,15 @@ fun AllAiReportsScreen(
                                 onDelete = { rid ->
                                     reportViewModel.deleteReport(context, rid)
                                     deleteTick++
+                                },
+                                selectionMode = selectionMode,
+                                selected = r.id in selectedIds,
+                                onToggleSelect = { rid ->
+                                    selectedIds = if (rid in selectedIds) selectedIds - rid else selectedIds + rid
+                                },
+                                onEnterSelection = { rid ->
+                                    selectionMode = true
+                                    selectedIds = setOf(rid)
                                 }
                             )
                         }

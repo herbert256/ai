@@ -183,9 +183,18 @@ fun ReportManageScreen(
     }
 }
 
-private fun zipAllReports(context: android.content.Context): Pair<File?, Int> {
+private fun zipAllReports(context: android.content.Context): Pair<File?, Int> =
+    zipReports(context, ids = null)
+
+/** Zip the given reports' JSON (plus their secondary-result dirs) into a
+ *  shareable archive. [ids] = null zips everything (the Manage "Export
+ *  all"); a set zips just that subset (the browsers' multi-select
+ *  Export). Returns the file and the number of reports included. */
+internal fun zipReports(context: android.content.Context, ids: Set<String>?): Pair<File?, Int> {
     val reports = ReportStorage.getAllReports(context)
+        .let { all -> if (ids == null) all else all.filter { it.id in ids } }
     if (reports.isEmpty()) return null to 0
+    val includedIds = reports.mapTo(HashSet()) { it.id }
     val ts = SimpleDateFormat("yyMMdd_HHmmss", Locale.US).format(Date())
     val outDir = File(context.cacheDir, "report_backup").also { it.mkdirs() }
     val outFile = File(outDir, "ai_reports_backup_$ts.zip")
@@ -197,15 +206,18 @@ private fun zipAllReports(context: android.content.Context): Pair<File?, Int> {
         // make a later restore choke on parse failures. The .tmp files
         // are eventually cleaned up on the next successful save anyway.
         reportsDir.listFiles { f -> f.extension == "json" }?.forEach { f ->
+            if (f.nameWithoutExtension !in includedIds) return@forEach
             zip.putNextEntry(ZipEntry("reports/${f.name}"))
             f.inputStream().use { it.copyTo(zip) }
             zip.closeEntry()
         }
         secondaryDir.listFiles()?.forEach { perReport ->
-            if (perReport.isDirectory) perReport.listFiles { f -> f.extension == "json" }?.forEach { f ->
-                zip.putNextEntry(ZipEntry("secondary/${perReport.name}/${f.name}"))
-                f.inputStream().use { it.copyTo(zip) }
-                zip.closeEntry()
+            if (perReport.isDirectory && perReport.name in includedIds) {
+                perReport.listFiles { f -> f.extension == "json" }?.forEach { f ->
+                    zip.putNextEntry(ZipEntry("secondary/${perReport.name}/${f.name}"))
+                    f.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
             }
         }
     }

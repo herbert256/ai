@@ -24,6 +24,7 @@ import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -40,8 +41,13 @@ fun HistoryScreenNav(
     onDeleteReports: (List<String>) -> Unit = { ids -> ids.forEach(onDeleteReport) },
     onHousekeeping: (() -> Unit)? = null
 ) {
-    BackHandler { onNavigateBack() }
+    // Multi-select: long-press a row to enter; Back exits selection first.
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
+    BackHandler { if (selectionMode) exitSelection() else onNavigateBack() }
     val context = LocalContext.current
+    val exportScope = rememberCoroutineScope()
     var allReports by remember { mutableStateOf(emptyList<Report>()) }
     var reportLoadFailures by remember { mutableStateOf(emptyList<ReportLoadFailure>()) }
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
@@ -159,10 +165,84 @@ fun HistoryScreenNav(
 
             Spacer(modifier = Modifier.height(4.dp))
 
+            // Multi-select header — visible while selection mode is on
+            // (entered by long-pressing a row).
+            if (selectionMode) {
+                var confirmDeleteSelected by remember { mutableStateOf(false) }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("${selectedIds.size} selected", fontSize = 13.sp, color = AppColors.TextSecondary)
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(onClick = { selectedIds = visibleReports.mapTo(HashSet()) { it.id } }) {
+                        Text("All", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                    }
+                    TextButton(
+                        enabled = selectedIds.isNotEmpty(),
+                        onClick = {
+                            val ids = selectedIds
+                            exportScope.launch {
+                                val (file, count) = withContext(Dispatchers.IO) {
+                                    com.ai.ui.report.other.zipReports(context, ids)
+                                }
+                                if (file == null) {
+                                    Toast.makeText(context, "Nothing to export.", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/zip"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "Share $count report(s)"))
+                                }
+                            }
+                        }
+                    ) { Text("Export", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+                    TextButton(
+                        enabled = selectedIds.isNotEmpty(),
+                        onClick = { confirmDeleteSelected = true }
+                    ) { Text("Delete", fontSize = 13.sp, color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
+                    TextButton(onClick = { exitSelection() }) { Text("Done", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+                }
+                if (confirmDeleteSelected) {
+                    AlertDialog(
+                        onDismissRequest = { confirmDeleteSelected = false },
+                        title = { Text("Delete ${selectedIds.size} report(s)?") },
+                        text = { Text("Permanently deletes the selected reports from disk, including every secondary result. This cannot be undone.") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                confirmDeleteSelected = false
+                                val ids = selectedIds.toList()
+                                val nextReports = allReports.filterNot { it.id in selectedIds }
+                                allReports = nextReports
+                                val remaining = if (isSearchActive) {
+                                    nextReports.count { historyMatchesSearch(it, searchTitle, searchPrompt, searchReport) }
+                                } else nextReports.size
+                                val newTotalPages = if (remaining <= 0) 1 else (remaining + pageSize - 1) / pageSize
+                                if (currentPage >= newTotalPages) currentPage = (newTotalPages - 1).coerceAtLeast(0)
+                                exitSelection()
+                                onDeleteReports(ids)
+                            }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { confirmDeleteSelected = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+                        }
+                    )
+                }
+            }
+
             // Report rows — tap a row to open the live Report Result screen.
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(pageItems, key = { it.id }) { report ->
                     HistoryReportRow(report = report,
+                        selectionMode = selectionMode,
+                        selected = report.id in selectedIds,
+                        onToggleSelect = {
+                            selectedIds = if (report.id in selectedIds) selectedIds - report.id else selectedIds + report.id
+                        },
+                        onEnterSelection = {
+                            selectionMode = true
+                            selectedIds = setOf(report.id)
+                        },
                         onOpen = { onOpenReportResult(report.id) },
                         onOpenView = { onOpenReportView(report.id) },
                         onDeleteReport = {
@@ -309,7 +389,16 @@ private fun trigrams(text: String): Set<String> {
 }
 
 @Composable
-private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () -> Unit, onDeleteReport: () -> Unit) {
+private fun HistoryReportRow(
+    report: Report,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onToggleSelect: () -> Unit,
+    onEnterSelection: () -> Unit,
+    onOpen: () -> Unit,
+    onOpenView: () -> Unit,
+    onDeleteReport: () -> Unit
+) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     if (showDeleteConfirm) {
@@ -321,8 +410,14 @@ private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () 
     // which carries the same trace icon (🐞 → trace list filtered by
     // report id) on its title bar.
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-        modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
+        modifier = Modifier.fillMaxWidth().combinedClickable(
+            onClick = { if (selectionMode) onToggleSelect() else onOpen() },
+            onLongClick = if (!selectionMode) ({ onEnterSelection() }) else null
+        )) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onToggleSelect() })
+            }
             // Always show a leading logo — the generated icon when metadata
             // is on and present, else the configurable default report logo.
             val historyIconOn = com.ai.ui.shared.LocalIconGenEnabled.current
@@ -330,9 +425,11 @@ private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () 
             Text((if (historyIconOn) report.icon?.takeIf { it.isNotBlank() } else null) ?: historyDefaultLogo, fontSize = 14.sp)
             Spacer(modifier = Modifier.width(8.dp))
             Text(report.title, fontSize = 14.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            com.ai.ui.shared.ReportRowActionIcons(onOpenManage = onOpen, onOpenView = onOpenView)
-            TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                Text(com.ai.data.MetadataIconsHolder.current.closeMark, fontSize = 14.sp, color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
+            if (!selectionMode) {
+                com.ai.ui.shared.ReportRowActionIcons(onOpenManage = onOpen, onOpenView = onOpenView)
+                TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                    Text(com.ai.data.MetadataIconsHolder.current.closeMark, fontSize = 14.sp, color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
+                }
             }
         }
     }

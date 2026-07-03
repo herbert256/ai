@@ -83,7 +83,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - All reports",
         cards = listOf(
             HelpCard("What you see", "Every saved report, newest first. The body doesn't scroll — rows are split into fixed pages that auto-fit the screen height. A small 'Page X of Y' header sits above the rows."),
-            HelpCard("How to use it", "Swipe left / right to flip between pages. Each row carries the same tap-to-manage behaviour and 🔧 / 👁 / 🗑 icons as the dashboard cards. The page math re-fits when you rotate the device, so portrait and landscape both fill the visible area.")
+            HelpCard("How to use it", "Swipe left / right to flip between pages. Each row carries the same tap-to-manage behaviour and 🔧 / 👁 / 🗑 icons as the dashboard cards. The page math re-fits when you rotate the device, so portrait and landscape both fill the visible area."),
+            HelpCard("Multi-select", "Long-press a row to enter selection mode: rows gain checkboxes and a header appears with All (select everything), Export (share the selected reports as one zip), Delete (confirm-gated bulk delete) and Done. Back also exits selection.")
         )
     ),
     "ai_examples_screen" to HelpContent(
@@ -1059,6 +1060,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pagination", "Auto-sized to the screen — pageSize derived from maxHeight and a 56dp row height. < Prev / Next > controls when totalPages > 1."),
             HelpCard("Per-row content", "Title (truncated) on the left, MM/dd HH:mm date on the right. Per-row 🐞 (when tracing is on AND ApiTracer has any entries for this reportId) opens the trace list filtered to that report."),
             HelpCard("Per-row delete", "Each row has a ✕ that opens a confirm dialog. Confirming removes the row locally and routes the disk delete through the report cleanup path."),
+            HelpCard("Multi-select", "Long-press a row to enter selection mode: rows gain checkboxes and a header appears with All (select every visible report — the active search filter applies), Export (share the selected reports as one zip), Delete (confirm-gated bulk delete) and Done. Back also exits selection."),
             HelpCard("Title bar — 🗑", "Wired when allReports is non-empty. Confirm dialog shows the count; confirming routes each report through the report cleanup path and clears the local list."),
             HelpCard("Title bar — others", "ℹ️ / 🔄 / 🐞 not wired at the list level (those are per-row)."),
             HelpCard("Pitfalls", "Deleting a report cascades — its secondaries (Translate / Meta / Rerank / Moderate) and any trace files for that reportId also go.")
