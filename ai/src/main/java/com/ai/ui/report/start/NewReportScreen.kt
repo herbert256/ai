@@ -435,6 +435,59 @@ fun NewReportScreen(
             }
         }
 
+        // Report-level Web-search + Reasoning-effort chips — the same pair
+        // chat offers per message, applied here to every model of the run.
+        // The values ride into the report's captured config
+        // (webSearchTool / reasoningEffort); at dispatch each agent drops
+        // whatever its model doesn't support, so no per-model gating here
+        // (the run fans out across many models).
+        Spacer(modifier = Modifier.height(8.dp))
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val mi = com.ai.ui.shared.LocalMetadataIcons.current
+            FilterChip(
+                selected = useWebSearch,
+                onClick = { useWebSearch = !useWebSearch },
+                label = { Text("${mi.web} Web search", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.InfoAccent.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.InfoAccent
+                )
+            )
+            Box {
+                val levelLabel = if (reasoningEffort.isBlank()) "none"
+                    else reasoningEffort.replaceFirstChar { it.uppercase() }
+                FilterChip(
+                    selected = reasoningEffort.isNotBlank(),
+                    onClick = { reasoningMenuExpanded = true },
+                    label = { Text("${mi.reportModelIcon} $levelLabel", fontSize = 12.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = AppColors.PrimaryAccent.copy(alpha = 0.2f),
+                        selectedLabelColor = AppColors.PrimaryAccent
+                    )
+                )
+                DropdownMenu(
+                    expanded = reasoningMenuExpanded,
+                    onDismissRequest = { reasoningMenuExpanded = false },
+                    modifier = Modifier.background(AppColors.SurfaceDark)
+                ) {
+                    val options = listOf("" to "None", "low" to "Low", "medium" to "Medium", "high" to "High")
+                    options.forEach { (value, label) ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(label, fontSize = 13.sp,
+                                    color = if (reasoningEffort == value) AppColors.InfoAccent else AppColors.TextPrimary)
+                            },
+                            onClick = { reasoningEffort = value; reasoningMenuExpanded = false }
+                        )
+                    }
+                }
+            }
+        }
+
         // Title input hidden in AI title-mode — the title is filled
         // post-creation by [ReportViewModel.kickOffReportTitleGeneration]
         // via the bundled `internal/report_title` prompt and surfaced
