@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.compositionLocalOf
@@ -93,6 +94,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                 color = AppColors.TextPrimary,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
+                    .minimumInteractiveComponentSize()
                     .clickable(
                         onClick = spec.onToggleOneOrAll,
                         role = Role.Button,
@@ -114,6 +116,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                 color = AppColors.TextPrimary,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
+                    .minimumInteractiveComponentSize()
                     .clickable(
                         onClick = spec.onViewList,
                         role = Role.Button,
@@ -129,6 +132,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                 fontSize = 30.sp,
                 color = AppColors.TextPrimary,
                 modifier = Modifier
+                    .minimumInteractiveComponentSize()
                     .clickable(
                         onClick = onManage,
                         role = Role.Button,
@@ -150,6 +154,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                     fontSize = 26.sp,
                     color = AppColors.TextPrimary,
                     modifier = Modifier
+                        .minimumInteractiveComponentSize()
                         .clickable(
                             onClick = spec.onCopy,
                             role = Role.Button,
@@ -165,6 +170,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                     fontSize = 27.sp,
                     color = AppColors.TextPrimary,
                     modifier = Modifier
+                        .minimumInteractiveComponentSize()
                         .clickable(
                             onClick = spec.onExport,
                             role = Role.Button,
@@ -183,6 +189,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                     fontSize = 28.sp,
                     color = AppColors.InfoAccent,
                     modifier = Modifier
+                        .minimumInteractiveComponentSize()
                         .clickable(
                             role = Role.Button,
                             onClickLabel = "open help for this screen"

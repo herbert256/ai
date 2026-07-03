@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
@@ -749,6 +750,7 @@ fun ReportModelScreen(
                                 iconTraceFilename?.let { fn ->
                                     Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 20.sp,
                                         modifier = Modifier.padding(start = 12.dp)
+                                            .minimumInteractiveComponentSize()
                                             .clickable(role = Role.Button, onClickLabel = "open the icon call's API trace") { onNavigateToTraceFile(fn) }
                                             .semantics { contentDescription = "Icon trace" })
                                 }
@@ -772,6 +774,7 @@ fun ReportModelScreen(
                                 titleTraceFilename?.let { fn ->
                                     Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                                         modifier = Modifier.padding(start = 10.dp)
+                                            .minimumInteractiveComponentSize()
                                             .clickable(role = Role.Button, onClickLabel = "open the title call's API trace") { onNavigateToTraceFile(fn) }
                                             .semantics { contentDescription = "Title trace" })
                                 }
@@ -878,6 +881,7 @@ fun ReportModelScreen(
                             traceFilename?.let { fn ->
                                 Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                                     modifier = Modifier.align(Alignment.TopEnd)
+                                        .minimumInteractiveComponentSize()
                                         .clickable(role = Role.Button, onClickLabel = "open this response's API trace") { onNavigateToTraceFile(fn) }
                                         .semantics { contentDescription = "Response trace" })
                             }

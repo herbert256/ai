@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -181,6 +182,7 @@ internal fun LanguagePickerRow(
                     maxLines = 1, softWrap = false,
                     modifier = Modifier
                         .alpha(if (isSelected) 1f else 0.4f)
+                        .minimumInteractiveComponentSize()
                         .clickable { onSelect(lang.key) }
                         .padding(horizontal = 6.dp, vertical = 4.dp)
                 )
