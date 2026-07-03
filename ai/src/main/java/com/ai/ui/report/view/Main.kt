@@ -197,13 +197,28 @@ internal fun ViewAiReportScreen(
     // Value view — cost × quality (Pareto) frontier, shown only when a
     // rerank exists (see the conditional tile below). Same overlay
     // pattern as Costs.
+    var reportsViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    var reportsViewOpen by rememberSaveable(resetTick) { mutableStateOf(false) }
+    var reportsViewInitialAgentId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    var reportsViewSeededFromOutside by rememberSaveable(resetTick) { mutableStateOf(false) }
     var showValueView by rememberSaveable(resetTick) { mutableStateOf(false) }
     if (showValueView) {
         val backToMain: () -> Unit = { showValueView = false }
         androidx.compose.runtime.CompositionLocalProvider(
             com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
         ) {
-            ValueViewScreen(reportId = reportId, onBack = backToMain)
+            ValueViewScreen(
+                reportId = reportId,
+                onBack = backToMain,
+                // Tapping a value row / frontier point opens that model's
+                // answer instead of doing nothing.
+                onOpenAgent = { agentId ->
+                    showValueView = false
+                    reportsViewInitialAgentId = agentId
+                    reportsViewSeededFromOutside = false
+                    reportsViewOpen = true
+                }
+            )
         }
         return
     }
@@ -250,10 +265,6 @@ internal fun ViewAiReportScreen(
     // closes Rerank and opens Reports scrolled to that agent's page.
     // The actual ReportsViewScreen mount lives further down (after
     // the language-picker setup) — these vars are shared.
-    var reportsViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
-    var reportsViewOpen by rememberSaveable(resetTick) { mutableStateOf(false) }
-    var reportsViewInitialAgentId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
-    var reportsViewSeededFromOutside by rememberSaveable(resetTick) { mutableStateOf(false) }
     // Fan-out "View" overlay, opened from inside the Reports view when
     // the user taps the fan-out icon on a model's response card. Keyed
     // on resetTick like the rest. [fanOutViewInitiatorAgentId] lands the
@@ -612,6 +623,12 @@ internal fun ViewAiReportScreen(
                 langTabs = viewLangTabs,
                 selectedLangKey = selectedViewLangKey,
                 onSelectLang = { selectedViewLangKey = it },
+                onOpenAgent = { agentId ->
+                    matrixViewOpen = false
+                    reportsViewInitialAgentId = agentId
+                    reportsViewSeededFromOutside = false
+                    reportsViewOpen = true
+                },
                 forcedLanguage = null,
                 onBack = backToMain
             )

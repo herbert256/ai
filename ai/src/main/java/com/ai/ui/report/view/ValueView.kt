@@ -161,7 +161,9 @@ internal data class ValuePoint(
     val costCents: Double,
     val quality: Double,
     val dominated: Boolean,
-    val bestValue: Boolean
+    val bestValue: Boolean,
+    /** Report agent behind this point — lets a row tap open the answer. */
+    val agentId: String = ""
 )
 
 /** Pair each SUCCESS agent with its ranking score + cost, then mark the
@@ -218,7 +220,7 @@ internal fun buildValuePoints(
         .maxByOrNull { it.quality / maxOf(it.costCents, eps) }
         ?.agentId
     return raw.map { p ->
-        ValuePoint(p.provider, p.modelShort, p.costCents, p.quality, isDominated(p), p.agentId == bestId)
+        ValuePoint(p.provider, p.modelShort, p.costCents, p.quality, isDominated(p), p.agentId == bestId, p.agentId)
     }
 }
 
@@ -444,7 +446,13 @@ internal fun rowsForSource(
 }
 
 @Composable
-fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
+fun ValueViewScreen(
+    reportId: String,
+    onBack: () -> Unit,
+    /** Open the tapped point's model answer (Model responses seeded at
+     *  the agent). Null → rows stay inert (standalone mounts). */
+    onOpenAgent: ((String) -> Unit)? = null
+) {
     BackHandler { onBack() }
     val context = LocalContext.current
     // Title-bar / body swipe targets — `currentReportId` shadows the
@@ -805,7 +813,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
                         .thenByDescending { it.quality }
                 )
             }
-            sorted.forEach { p -> ValueRow(p) }
+            sorted.forEach { p -> ValueRow(p, onOpenAgent) }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -1187,11 +1195,17 @@ private fun ValueGraphFullScreen(
 }
 
 @Composable
-private fun ValueRow(p: ValuePoint) {
+private fun ValueRow(p: ValuePoint, onOpenAgent: ((String) -> Unit)? = null) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+            .let { m ->
+                // Spotting the best-value pick and tapping it now opens the
+                // model's answer instead of doing nothing.
+                if (onOpenAgent != null && p.agentId.isNotBlank())
+                    m.clickable { onOpenAgent(p.agentId) } else m
+            }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),

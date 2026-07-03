@@ -2,6 +2,7 @@ package com.ai.ui.report.view
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -86,7 +87,9 @@ private data class AnswerMatrixRow(
      *  was rounded to 2-4 decimals and locale-fragile). */
     val costCents: Double,
     val latency: String,
-    val tokens: String
+    val tokens: String,
+    /** Report agent behind this row — lets a row tap open the answer. */
+    val agentId: String = ""
 )
 
 @Composable
@@ -97,7 +100,10 @@ internal fun AnswerMatrixViewScreen(
     selectedLangKey: String,
     onSelectLang: (String) -> Unit,
     forcedLanguage: String?,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** Open the tapped row's model answer (Model responses seeded at the
+     *  agent). Null → rows stay inert. */
+    onOpenAgent: ((String) -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -255,7 +261,7 @@ internal fun AnswerMatrixViewScreen(
                         rankedCount = matrixRows.count { it.rank != null },
                         totalCostCents = totalCost
                     )
-                    AnswerMatrixTable(matrixRows)
+                    AnswerMatrixTable(matrixRows, onOpenAgent)
                     Spacer(modifier = Modifier.height(20.dp))
                 }
             }
@@ -295,7 +301,7 @@ private fun StatText(label: String, value: String, color: Color) {
 }
 
 @Composable
-private fun AnswerMatrixTable(rows: List<AnswerMatrixRow>) {
+private fun AnswerMatrixTable(rows: List<AnswerMatrixRow>, onOpenAgent: ((String) -> Unit)? = null) {
     val hScroll = rememberScrollState()
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -318,7 +324,14 @@ private fun AnswerMatrixTable(rows: List<AnswerMatrixRow>) {
         }
         HorizontalDivider(color = AppColors.DividerDark)
         rows.forEachIndexed { idx, row ->
-            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp)) {
+            // Row tap opens the model's answer (users kept tapping and
+            // getting nothing) — sibling Rerank rows drill in the same way.
+            Row(modifier = Modifier
+                .let { m ->
+                    if (onOpenAgent != null && row.agentId.isNotBlank())
+                        m.clickable { onOpenAgent(row.agentId) } else m
+                }
+                .padding(horizontal = 10.dp, vertical = 9.dp)) {
                 BodyCell(row.ordinal.toString(), 46.dp, end = true, mono = true, color = AppColors.TextSecondary)
                 BodyCell(row.modelLabel, 180.dp, color = AppColors.TextPrimary, weight = FontWeight.SemiBold)
                 BodyCell(
@@ -412,7 +425,8 @@ private fun buildAnswerMatrixRows(
             latency = formatDuration(agent.durationMs),
             tokens = agent.tokenUsage?.totalTokens?.takeIf { it > 0 }
                 ?.let { formatCompactNumber(it.toLong()) }
-                ?: "-"
+                ?: "-",
+            agentId = agent.agentId
         )
     }.sortedWith(
         compareBy<AnswerMatrixRow> { it.rank ?: Int.MAX_VALUE }
