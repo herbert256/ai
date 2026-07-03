@@ -11,6 +11,9 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.ui.shared.AppColors
@@ -86,7 +89,14 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                 color = AppColors.TextPrimary,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .clickable(onClick = spec.onToggleOneOrAll)
+                    .clickable(
+                        onClick = spec.onToggleOneOrAll,
+                        role = Role.Button,
+                        onClickLabel = if (spec.showAll) "show one at a time" else "show all at once"
+                    )
+                    .semantics {
+                        contentDescription = if (spec.showAll) "Showing all items" else "Showing one item"
+                    }
                     .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
             )
         }
@@ -100,7 +110,12 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                 color = AppColors.TextPrimary,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .clickable(onClick = spec.onViewList)
+                    .clickable(
+                        onClick = spec.onViewList,
+                        role = Role.Button,
+                        onClickLabel = "pick a report to view"
+                    )
+                    .semantics { contentDescription = "Pick report" }
                     .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
             )
         }
@@ -110,7 +125,12 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                 fontSize = 30.sp,
                 color = AppColors.TextPrimary,
                 modifier = Modifier
-                    .clickable(onClick = onManage)
+                    .clickable(
+                        onClick = onManage,
+                        role = Role.Button,
+                        onClickLabel = "open the manage screen"
+                    )
+                    .semantics { contentDescription = "Manage report" }
                     .padding(8.dp)
             )
         }
@@ -126,7 +146,12 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                     fontSize = 27.sp,
                     color = AppColors.TextPrimary,
                     modifier = Modifier
-                        .clickable(onClick = spec.onExport)
+                        .clickable(
+                            onClick = spec.onExport,
+                            role = Role.Button,
+                            onClickLabel = "export this view"
+                        )
+                        .semantics { contentDescription = "Export" }
                         .padding(8.dp)
                 )
             }
@@ -139,7 +164,11 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                     fontSize = 28.sp,
                     color = AppColors.InfoAccent,
                     modifier = Modifier
-                        .clickable { navigateHelp(spec.helpTopic) }
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = "open help for this screen"
+                        ) { navigateHelp(spec.helpTopic) }
+                        .semantics { contentDescription = "Help" }
                         .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
                 )
             }

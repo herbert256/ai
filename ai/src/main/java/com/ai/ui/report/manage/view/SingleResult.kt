@@ -14,6 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -670,13 +673,16 @@ fun ReportModelScreen(
                                 // the agent grid uses); layers over this screen
                                 // so Back returns here.
                                 Text(glyph, fontSize = 80.sp, color = AppColors.TextPrimary,
-                                    modifier = Modifier.clickable { onOpenAgentIcon(currentAgentId) })
+                                    modifier = Modifier
+                                        .clickable(role = Role.Button, onClickLabel = "open icon lookup for this model") { onOpenAgentIcon(currentAgentId) }
+                                        .semantics { contentDescription = "Model icon" })
                                 // 🐞 → the trace of the call that produced THIS
                                 // icon (the per-model icon-chain trace).
                                 iconTraceFilename?.let { fn ->
                                     Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 20.sp,
                                         modifier = Modifier.padding(start = 12.dp)
-                                            .clickable { onNavigateToTraceFile(fn) })
+                                            .clickable(role = Role.Button, onClickLabel = "open the icon call's API trace") { onNavigateToTraceFile(fn) }
+                                            .semantics { contentDescription = "Icon trace" })
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -694,11 +700,12 @@ fun ReportModelScreen(
                                 Text(mt, fontSize = 18.sp, color = AppColors.SuccessAccent,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    modifier = Modifier.clickable { onEditModelTitle(currentAgentId) })
+                                    modifier = Modifier.clickable(role = Role.Button, onClickLabel = "edit this model's answer title") { onEditModelTitle(currentAgentId) })
                                 titleTraceFilename?.let { fn ->
                                     Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                                         modifier = Modifier.padding(start = 10.dp)
-                                            .clickable { onNavigateToTraceFile(fn) })
+                                            .clickable(role = Role.Button, onClickLabel = "open the title call's API trace") { onNavigateToTraceFile(fn) }
+                                            .semantics { contentDescription = "Title trace" })
                                 }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
@@ -756,7 +763,9 @@ fun ReportModelScreen(
                             }
                             traceFilename?.let { fn ->
                                 Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
-                                    modifier = Modifier.align(Alignment.TopEnd).clickable { onNavigateToTraceFile(fn) })
+                                    modifier = Modifier.align(Alignment.TopEnd)
+                                        .clickable(role = Role.Button, onClickLabel = "open this response's API trace") { onNavigateToTraceFile(fn) }
+                                        .semantics { contentDescription = "Response trace" })
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))
@@ -920,7 +929,7 @@ private fun ContinueRow(icon: String, title: String, enabled: Boolean, onClick: 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .then(if (enabled) Modifier.clickable(role = Role.Button) { onClick() } else Modifier)
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
