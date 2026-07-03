@@ -7,11 +7,15 @@ import com.ai.ui.helpers.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -268,6 +272,42 @@ fun PromptViewScreen(
                             body = body,
                             reportIcon = liveReportIcon ?: report.icon
                         )
+                        // Resolved report-level system prompt — until now it
+                        // survived only inside the HTTP trace, so reproducing
+                        // a run copied the question but silently omitted the
+                        // system instruction. Copyable via 📋 on the card.
+                        val aiSettingsForSys = com.ai.ui.shared.LocalAiSettings.current
+                        val systemPromptText = report.reportSystemPromptId
+                            ?.let { aiSettingsForSys.getSystemPromptById(it) }
+                            ?.prompt?.takeIf { it.isNotBlank() }
+                        if (systemPromptText != null) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(bottom = 24.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(AppColors.CardBackground)
+                                    .padding(14.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "System prompt", fontSize = 13.sp,
+                                        color = AppColors.TextSecondary,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        com.ai.ui.shared.LocalMetadataIcons.current.copy,
+                                        fontSize = 16.sp,
+                                        modifier = Modifier
+                                            .clickable {
+                                                com.ai.ui.shared.copyToClipboard(context, systemPromptText, "system prompt")
+                                            }
+                                            .padding(4.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(systemPromptText, fontSize = 13.sp, color = AppColors.TextPrimary)
+                            }
+                        }
                     }
                     if (!perPageIcon.isNullOrBlank()) {
                         Text(
