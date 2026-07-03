@@ -329,7 +329,25 @@ fun ReportsViewScreen(
                 if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
             },
             oneOrAll = showAll,
-            onToggleOneOrAll = { showAll = !showAll }
+            onToggleOneOrAll = { showAll = !showAll },
+            // 📋 / 📤 — ☝️ mode takes the active answer (translated variant
+            // when a language is active); ✋ mode takes every answer joined.
+            onCopy = if (agents.isNotEmpty()) ({
+                val body = if (showAll) {
+                    agents.joinToString("\n\n---\n\n") { a ->
+                        "## ${shortModelName2(a.model)}\n${translatedByAgentId[a.agentId] ?: a.responseBody.orEmpty()}"
+                    }
+                } else activeAgent?.let { translatedByAgentId[it.agentId] ?: it.responseBody }.orEmpty()
+                if (body.isNotBlank()) com.ai.ui.shared.copyToClipboard(context, body, "model response")
+            }) else null,
+            onExport = if (agents.isNotEmpty()) ({
+                val body = if (showAll) {
+                    agents.joinToString("\n\n---\n\n") { a ->
+                        "## ${shortModelName2(a.model)}\n${translatedByAgentId[a.agentId] ?: a.responseBody.orEmpty()}"
+                    }
+                } else activeAgent?.let { translatedByAgentId[it.agentId] ?: it.responseBody }.orEmpty()
+                if (body.isNotBlank()) com.ai.ui.shared.shareText(context, body, "Model responses — ${report?.barTitle.orEmpty()}")
+            }) else null
         )
         activeAgent?.let { com.ai.ui.report.manage.ViewUserNotes(currentReportId, "AGENT", it.agentId) }
         if (report == null) {

@@ -195,7 +195,25 @@ fun PromptViewScreen(
             onOpenManage = onOpenManageJump,
             onBack = { onBack(activeLangState.value.ifBlank { null }) },
             onSwipePrev = onSwipePrevAction,
-            onSwipeNext = onSwipeNextAction
+            onSwipeNext = onSwipeNextAction,
+            // 📋 / 📤 — the prompt in the ACTIVE language, matching what's
+            // on screen (Manage's Prompt screen has carried copy all along).
+            onCopy = report?.prompt?.takeIf { it.isNotBlank() }?.let {
+                {
+                    val lang = activeLangState.value
+                    val body = if (lang.isBlank()) report.prompt.orEmpty()
+                        else loaded.translatedByLang[lang].orEmpty().ifBlank { report.prompt.orEmpty() }
+                    com.ai.ui.shared.copyToClipboard(context, body, "prompt")
+                }
+            },
+            onExport = report?.prompt?.takeIf { it.isNotBlank() }?.let {
+                {
+                    val lang = activeLangState.value
+                    val body = if (lang.isBlank()) report.prompt.orEmpty()
+                        else loaded.translatedByLang[lang].orEmpty().ifBlank { report.prompt.orEmpty() }
+                    com.ai.ui.shared.shareText(context, body, "Prompt — ${report.barTitle}")
+                }
+            }
         )
         if (report == null) {
             Box(

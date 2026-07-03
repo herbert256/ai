@@ -43,8 +43,12 @@ data class ViewBottomBarSpec(
     val helpTopic: String? = null,
     /** When non-null, a right-aligned 📤 icon is shown left of the ❓ —
      *  exports the current screen as a shareable file (Value view's
-     *  single-page HTML export). */
+     *  single-page HTML export) or shares the prose screens' text. */
     val onExport: (() -> Unit)? = null,
+    /** When non-null, a right-aligned 📋 icon is shown left of the 📤 —
+     *  copies the current screen's text to the clipboard (the prose
+     *  View screens; their Manage twins have carried copy all along). */
+    val onCopy: (() -> Unit)? = null,
     /** Identity token of the title-bar instance that published this spec.
      *  A leaving screen clears the shared state only when it still owns it
      *  — without this, the leaving screen's onDispose can null the spec the
@@ -140,6 +144,21 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (spec.onCopy != null) {
+                Text(
+                    text = mi.copy,
+                    fontSize = 26.sp,
+                    color = AppColors.TextPrimary,
+                    modifier = Modifier
+                        .clickable(
+                            onClick = spec.onCopy,
+                            role = Role.Button,
+                            onClickLabel = "copy this screen's text"
+                        )
+                        .semantics { contentDescription = "Copy" }
+                        .padding(8.dp)
+                )
+            }
             if (spec.onExport != null) {
                 Text(
                     text = mi.share,
