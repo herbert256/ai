@@ -1138,10 +1138,31 @@ internal fun DeleteReportConfirmDialog(
     // mutation of currentReportId between Delete tap and lambda
     // execution can't end up deleting the wrong report.
     val ridAtOpen = reportId
+    // Live counts so the dialog spells out what is actually dropped —
+    // the old one-line copy undersold a delete that also destroys every
+    // secondary artifact and the tracked lifetime spend.
+    val dialogContext = androidx.compose.ui.platform.LocalContext.current
+    val deleteStats by androidx.compose.runtime.produceState<Pair<Int, Int>?>(null, ridAtOpen) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val rep = com.ai.data.ReportStorage.getReport(dialogContext, ridAtOpen)
+            val secondaries = com.ai.data.SecondaryResultStorage.listForReport(dialogContext, ridAtOpen)
+            (rep?.agents?.size ?: 0) to secondaries.size
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Delete report?") },
-        text = { Text("This permanently removes the saved report from disk.") },
+        text = {
+            val stats = deleteStats
+            Text(
+                if (stats == null)
+                    "This permanently removes the saved report from disk. This cannot be undone."
+                else
+                    "This permanently removes the saved report from disk — ${stats.first} model answer${if (stats.first == 1) "" else "s"}, " +
+                    "${stats.second} secondary result${if (stats.second == 1) "" else "s"} (meta / rankings / moderation / translations / fan-out), " +
+                    "its notes and the tracked lifetime cost. This cannot be undone."
+            )
+        },
         confirmButton = {
             TextButton(onClick = { onDelete(ridAtOpen) }) {
                 Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
