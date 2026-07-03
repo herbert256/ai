@@ -330,7 +330,11 @@ internal fun ViewAiReportScreen(
             TournamentPodiumViewScreen(
                 reportId = reportId,
                 resultId = activeTournamentViewRowId,
-                onBack = backToMain
+                onBack = backToMain,
+                onOpenValueView = {
+                    tournamentViewRowId = null
+                    showValueView = true
+                }
             )
         }
         return

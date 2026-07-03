@@ -80,7 +80,10 @@ import kotlinx.coroutines.withContext
 fun TournamentPodiumViewScreen(
     reportId: String,
     resultId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** 💎 cross-link: open the Value view (this ranking feeds it). Null →
+     *  the link hides (standalone mounts). */
+    onOpenValueView: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -187,6 +190,15 @@ fun TournamentPodiumViewScreen(
                 com.ai.ui.shared.copyToClipboard(context, csv, "tournament standings CSV")
             }) else null
         )
+        if (onOpenValueView != null) {
+            Text(
+                "${com.ai.data.MetadataIconsHolder.current.gem} Value view — cost × quality for this ranking",
+                color = AppColors.SuccessAccent, fontSize = 12.sp,
+                modifier = Modifier
+                    .clickable { onOpenValueView() }
+                    .padding(vertical = 4.dp)
+            )
+        }
 
         if (loaded.row == null) {
             Box(

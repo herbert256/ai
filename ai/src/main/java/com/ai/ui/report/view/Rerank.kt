@@ -79,7 +79,9 @@ fun RerankViewScreen(
      *  overlay and mounting the Reports overlay with the supplied
      *  agentId. Default no-op preserves the prior shape (cards are
      *  inert when the caller doesn't wire it). */
-    onOpenReportForAgent: (String) -> Unit = {}
+    onOpenReportForAgent: (String) -> Unit = {},
+    /** 💎 cross-link: open the Value view (this ranking feeds it). */
+    onOpenValueView: (() -> Unit)? = null
 ) {
     androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
@@ -177,6 +179,15 @@ fun RerankViewScreen(
             onSwipePrev = onSwipePrevAction,
             onSwipeNext = onSwipeNextAction
         )
+        if (onOpenValueView != null) {
+            Text(
+                "${com.ai.data.MetadataIconsHolder.current.gem} Value view — cost × quality for this ranking",
+                color = AppColors.SuccessAccent, fontSize = 12.sp,
+                modifier = Modifier
+                    .clickable { onOpenValueView() }
+                    .padding(vertical = 4.dp)
+            )
+        }
         com.ai.ui.report.manage.ViewUserNotes(currentReportId, "SECONDARY", currentResultId)
         if (result == null) {
             Box(
