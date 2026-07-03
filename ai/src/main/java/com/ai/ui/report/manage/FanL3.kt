@@ -486,7 +486,15 @@ internal fun FanOutL3Screen(
                 } else null,
                 onDelete = { confirmDelete = true },
                 onAddNote = { noteEdit = NoteEdit.Add },
-                onEdit = { showResponseChangeActions = true }
+                onEdit = { showResponseChangeActions = true },
+                // 📋/📤 — the pair's response body, mirroring the sibling
+                // detail screens (MetaDetail / SingleResult).
+                onCopy = (pairFresh?.content ?: pair.content)?.takeIf { it.isNotBlank() }?.let { body ->
+                    { com.ai.ui.shared.copyToClipboard(context, body, "fan-out response") }
+                },
+                onShare = (pairFresh?.content ?: pair.content)?.takeIf { it.isNotBlank() }?.let { body ->
+                    { com.ai.ui.shared.shareText(context, body, "Fan-out response — $answererLabel") }
+                }
             )
             UserNotesSection(
                 reportId = run.reportId,
