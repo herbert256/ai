@@ -33,6 +33,7 @@ screens use the generic `TitleBar`.
 | Add System Prompt | \<prompt name\> |
 | Add test-excluded model | Exclude one model from Test all |
 | Add \<prompt type\> | \<name\> |
+| A/B compare | Two answers side by side |
 | Agent | This agent's model, prompt & settings |
 | Agent | \<agent name\> |
 | Agents | Saved model + prompt + params combos |

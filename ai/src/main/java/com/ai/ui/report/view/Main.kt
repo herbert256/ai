@@ -202,6 +202,12 @@ internal fun ViewAiReportScreen(
     var reportsViewInitialAgentId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     var reportsViewSeededFromOutside by rememberSaveable(resetTick) { mutableStateOf(false) }
     var showValueView by rememberSaveable(resetTick) { mutableStateOf(false) }
+    // A/B side-by-side answer compare (F55) — same overlay pattern.
+    var showSideBySide by rememberSaveable(resetTick) { mutableStateOf(false) }
+    if (showSideBySide) {
+        SideBySideViewScreen(reportId = reportId, onBack = { showSideBySide = false })
+        return
+    }
     if (showValueView) {
         val backToMain: () -> Unit = { showValueView = false }
         androidx.compose.runtime.CompositionLocalProvider(
@@ -963,7 +969,13 @@ internal fun ViewAiReportScreen(
     val compareOpen = com.ai.ui.shared.LocalCompareOpenState.current
     val transRankOpen = com.ai.ui.shared.LocalTransRankOpenState.current
     val hubMi = com.ai.ui.shared.LocalMetadataIcons.current
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, iconRefreshTick, onOpenHtmlPreview, onViewIcons, everyItems, tournamentRows, judgesRows, transRankRows, compareRows) {
+    // 2+ successful answers gate the A/B side-by-side tile (F55).
+    val answeredCount = remember(loadedReport) {
+        loadedReport?.agents?.count {
+            it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+        } ?: 0
+    }
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, iconRefreshTick, onOpenHtmlPreview, onViewIcons, everyItems, tournamentRows, judgesRows, transRankRows, compareRows, answeredCount) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -1020,6 +1032,10 @@ internal fun ViewAiReportScreen(
             // Value view's top switch picks which one feeds the chart).
             if (everyItems["rerank"].orEmpty().isNotEmpty() || tournamentRows.isNotEmpty() || judgesRows.isNotEmpty() || transRankRows.isNotEmpty() || compareRows.isNotEmpty()) {
                 add(IdentifiedTile("doc:Value", ViewTile("Value view", com.ai.data.MetadataIconsHolder.current.gem, AppColors.SuccessAccent) { showValueView = true }))
+                // Two answers on screen at once — needs 2+ to compare.
+                if (answeredCount >= 2) {
+                    add(IdentifiedTile("doc:AB", ViewTile("A/B compare", "🆚", AppColors.InfoAccent) { showSideBySide = true }))
+                }
             }
             // Judge-the-judges / Compare-with-meta / Rank-the-translators —
             // expensive runs whose result screens were reachable only from

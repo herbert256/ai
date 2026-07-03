@@ -699,6 +699,14 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("How to read it", "Replies are grouped by answering model so you can see how a single model handled every initiator in one place. Long replies collapse to a preview line with a 'Read more' toggle — tap to expand, tap again to collapse. When you've picked a translated language on the parent View screen, the answerer's bubble shows the translated text with a small 🌍 badge; rows without a translation fall back to the original reply so the thread stays continuous.")
         )
     ),
+    "ab_compare_view" to HelpContent(
+        title = "Help - A/B compare",
+        cards = listOf(
+            HelpCard("What you see", "Two answers from this report side by side, each in its own independently scrolling column with a model picker above it. Reached from the \ud83c\udd9a A/B compare tile on Report - view (shown when the report has at least two successful answers)."),
+            HelpCard("Switching models", "Tap either column's model name to pick a different answer for that side. The model already shown on the other side is greyed in the list but stays selectable."),
+            HelpCard("What it is for", "Reading two long answers against each other without pager ping-pong. For machine judgment use the Tournament, Rerank or Compare-with-meta analyses instead.")
+        )
+    ),
     "costs_view" to HelpContent(
         title = "Help - Costs",
         cards = listOf(
