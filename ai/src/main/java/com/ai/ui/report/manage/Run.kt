@@ -112,6 +112,10 @@ internal fun ReportRunScreen(
     onRequestRegenerate: () -> Unit,
     onDismissRegenerateConfirm: () -> Unit,
     onRegenerate: (String) -> Unit,
+    /** "Retry failed" on the Regenerate dialog — re-runs only the rows
+     *  currently in an error state (agents + secondaries), keeping and
+     *  not re-billing everything that already completed. */
+    onRegenerateErroredOnly: (String) -> Unit = {},
     /** Metadata-only regenerate — used by the 🔄 while the Get-info
      *  layer is open (re-runs the page's icon/title/language jobs). */
     onRegenerateInfo: (String) -> Unit = {},
@@ -779,15 +783,26 @@ internal fun ReportRunScreen(
                 // The report's actual agent count — NOT models.size (the
                 // staging list, empty on a normal open → "all 0 models").
                 val agentCount = uiState.genericReportsSelectedAgents.size
+                val erroredCount = reportsAgentResults.values.count { it.error != null }
                 com.ai.ui.shared.ReloadConfirmationDialog(
                     target = "",
                     title = "Regenerate report?",
-                    message = "Re-fire all $agentCount model${if (agentCount == 1) "" else "s"} on this report, then rerun existing Meta, Fan out, Fan in, Moderation, Rerank, and Translate rows. New API cost is added to the report's existing lifetime cost.",
+                    message = "Re-fire all $agentCount model${if (agentCount == 1) "" else "s"} on this report, then rerun existing Meta, Fan out, Fan in, Moderation, Rerank, and Translate rows. New API cost is added to the report's existing lifetime cost." +
+                        if (erroredCount > 0)
+                            "\n\nRetry failed re-runs only the $erroredCount errored model${if (erroredCount == 1) "" else "s"} (plus any errored secondary rows) — completed answers are kept and not re-billed."
+                        else "",
                     confirmLabel = "Regenerate",
                     onConfirm = {
                         onDismissRegenerateConfirm()
                         onRegenerate(rid)
                     },
+                    extraLabel = if (erroredCount > 0) "Retry failed" else null,
+                    onExtra = if (erroredCount > 0) {
+                        {
+                            onDismissRegenerateConfirm()
+                            onRegenerateErroredOnly(rid)
+                        }
+                    } else null,
                     onDismiss = onDismissRegenerateConfirm
                 )
             }

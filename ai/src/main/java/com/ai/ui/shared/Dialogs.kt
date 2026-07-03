@@ -46,14 +46,23 @@ fun ReloadConfirmationDialog(
     onDismiss: () -> Unit,
     title: String = "Re-run API call?",
     message: String = "This will fire a new API call for $target and replace the current result.",
-    confirmLabel: String = "Re-run"
+    confirmLabel: String = "Re-run",
+    /** Optional second action rendered next to the confirm button —
+     *  e.g. the Regenerate dialog's cheaper "Retry failed" path. */
+    extraLabel: String? = null,
+    onExtra: (() -> Unit)? = null
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(message) },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(confirmLabel, color = AppColors.InfoAccent, maxLines = 1, softWrap = false) }
+            androidx.compose.foundation.layout.Row {
+                if (extraLabel != null && onExtra != null) {
+                    TextButton(onClick = onExtra) { Text(extraLabel, color = AppColors.InfoAccent, maxLines = 1, softWrap = false) }
+                }
+                TextButton(onClick = onConfirm) { Text(confirmLabel, color = AppColors.InfoAccent, maxLines = 1, softWrap = false) }
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }

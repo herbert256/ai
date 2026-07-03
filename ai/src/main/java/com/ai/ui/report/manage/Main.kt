@@ -196,6 +196,8 @@ fun ReportsScreen(
     onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
     onMarkParametersChanged: () -> Unit = {},
     onRegenerate: (String) -> Unit = {},
+    /** "Retry failed" on the Regenerate dialog — errored rows only. */
+    onRegenerateErroredOnly: (String) -> Unit = {},
     /** Regenerate only the metadata jobs (icon / title / language /
      *  per-model) — wired to the 🔄 while the Get-info layer is open. */
     onRegenerateInfo: (String) -> Unit = {},
@@ -1984,6 +1986,7 @@ fun ReportsScreen(
             runningInfoJobs = runningInfoJobs,
             onDismissRegenerateConfirm = { showRegenerateConfirm = false },
             onRegenerate = onRegenerate,
+            onRegenerateErroredOnly = onRegenerateErroredOnly,
             onChatWithReportPrompt = onChatWithReportPrompt,
             onRunTournament = onRunTournament,
             onRunJudgeJudges = onRunJudgeJudges,

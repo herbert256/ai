@@ -90,11 +90,33 @@ class RegenerateBatchEngine internal constructor(
      *  a fresh task list from the report's current contents,
      *  persists the job, and kicks off the orchestrator. If a
      *  job already exists for this report the existing
-     *  orchestrator is cancelled and replaced. */
-    fun enqueueAndStart(context: Context, reportId: String) {
+     *  orchestrator is cancelled and replaced.
+     *
+     *  [erroredOnly] is the dialog's "Retry failed" path: the task
+     *  list is filtered to just the rows currently in an error
+     *  state — same per-phase notion of "errored" the orchestrator's
+     *  poll uses ([readRowStatuses]) — so completed answers and
+     *  healthy secondaries are neither reset nor re-billed. */
+    fun enqueueAndStart(context: Context, reportId: String, erroredOnly: Boolean = false) {
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
             orchestratorJobs.remove(reportId)?.cancelAndJoin()
-            val tasks = buildTaskList(context, reportId)
+            val allTasks = buildTaskList(context, reportId)
+            val tasks = if (!erroredOnly) allTasks else withContext(Dispatchers.IO) {
+                allTasks.groupBy { it.phase }.flatMap { (phase, phaseTasks) ->
+                    val statuses = readRowStatuses(
+                        context, reportId, phase, phaseTasks.map { it.rowId }.toSet()
+                    )
+                    phaseTasks.filter { statuses[it.rowId] is RowStatus.Error }
+                }
+            }
+            if (erroredOnly && tasks.isEmpty()) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Nothing to retry — no errored rows on this report.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
             val now = System.currentTimeMillis()
             // Start at the FIRST phase the enum declares — not a
             // hardcoded one. Otherwise prepending a new phase
@@ -649,7 +671,14 @@ class RegenerateBatchEngine internal constructor(
                 reportViewModel.iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
             }
             RegeneratePhase.AGENTS -> {
-                reportViewModel.forceRegenerateAllAgents(context, reportId)
+                // Scope the dispatch to exactly this phase's task rows — on a
+                // full regenerate that is every resolvable agent anyway; on an
+                // errored-only retry it's just the failed ones (an unscoped
+                // forceRegenerateAllAgents would re-fire and re-bill every
+                // agent on the report).
+                reportViewModel.forceRegenerateAllAgents(
+                    context, reportId, phaseTasks.map { it.rowId }.toSet()
+                )
             }
             RegeneratePhase.META, RegeneratePhase.FAN_IN -> {
                 val rows = SecondaryResultStorage.listForReport(context, reportId)

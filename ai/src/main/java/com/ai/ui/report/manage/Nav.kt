@@ -780,6 +780,7 @@ fun ReportsScreenNav(
         // survivable, phased through every category) instead of the
         // legacy one-shot regenerateReport.
         onRegenerate = { rid -> reportViewModel.regenerateReportBatch(context, rid) },
+        onRegenerateErroredOnly = { rid -> reportViewModel.regenerateReportBatch(context, rid, erroredOnly = true) },
         onRegenerateInfo = { rid -> reportViewModel.regenerateReportInfo(context, rid) },
         onRestartInfoErrors = { rid -> reportViewModel.restartReportInfoErrors(context, rid) },
         runningInfoJobs = runningInfoJobs,

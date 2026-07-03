@@ -1987,21 +1987,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * staged-list contract of the deleted one-shot regenerateReport over to
      * the batch path ("Update model list" used to be silently ignored).
      */
-    fun regenerateReportBatch(context: Context, reportId: String) {
+    fun regenerateReportBatch(context: Context, reportId: String, erroredOnly: Boolean = false) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
-            applyStagedModelList(context, reportId)
-            appViewModel.updateUiState {
-                // Staged state belonging to a different report survives a
-                // plain regenerate here — it stays banner-visible on its
-                // own report and must not be silently discarded.
-                if (it.stagedChangesReportId != null && it.stagedChangesReportId != reportId) it
-                else it.copy(
-                    stagedReportModels = emptyList(), pendingReportModels = emptyList(),
-                    hasPendingPromptChange = false, hasPendingParametersChange = false,
-                    stagedChangesReportId = null
-                )
+            if (!erroredOnly) {
+                // "Retry failed" must NOT consume staged Edit-Models changes —
+                // it re-runs only what already errored; the staged list stays
+                // banner-visible for a later full Regenerate.
+                applyStagedModelList(context, reportId)
+                appViewModel.updateUiState {
+                    // Staged state belonging to a different report survives a
+                    // plain regenerate here — it stays banner-visible on its
+                    // own report and must not be silently discarded.
+                    if (it.stagedChangesReportId != null && it.stagedChangesReportId != reportId) it
+                    else it.copy(
+                        stagedReportModels = emptyList(), pendingReportModels = emptyList(),
+                        hasPendingPromptChange = false, hasPendingParametersChange = false,
+                        stagedChangesReportId = null
+                    )
+                }
             }
-            regenerateBatchEngine.enqueueAndStart(context, reportId)
+            regenerateBatchEngine.enqueueAndStart(context, reportId, erroredOnly)
         }
     }
 
@@ -2325,7 +2330,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  Skips the staged-edit-models merge and the secondary/translation
      *  cascade that the removed one-shot regenerateReport used to do
      *  inline — the engine handles cascading itself one phase at a time. */
-    fun forceRegenerateAllAgents(context: Context, reportId: String) {
+    /** [onlyAgentIds] scopes the re-dispatch to a subset of the report's
+     *  agents (the batch engine passes its phase task rows — the full set
+     *  on a normal Regenerate, just the errored ones on "Retry failed").
+     *  Null = every agent, the historical behavior. */
+    fun forceRegenerateAllAgents(context: Context, reportId: String, onlyAgentIds: Set<String>? = null) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             trackRegenerateJob(reportId, coroutineContext[Job]!!)
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
@@ -2357,11 +2366,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 ?.let { ai.getSystemPromptById(it)?.prompt }
             val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val preGenParamsActive = reportPreGenParamsActive(report)
-            val tasks = buildReportTasks(
+            val builtTasks = buildReportTasks(
                 ai, agents, swarmMembers + directModels, report.selectionParamsById,
                 state.externalSystemPrompt, reportLevelSystemPrompt,
                 state.generalSettings, directModelSids, preGenParamsActive
             )
+            val tasks = if (onlyAgentIds == null) builtTasks
+                else builtTasks.filter { it.resultId in onlyAgentIds }
             if (tasks.isEmpty()) return@launch
             // Reset every existing agent to PENDING so the row shows
             // ⏳ while the new dispatch is in flight. Use the
