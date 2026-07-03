@@ -185,11 +185,16 @@ internal fun UserNotesSection(
 internal fun UserNoteEditorScreen(
     titleBarTitle: String,
     initialText: String,
-    onSave: (String) -> Unit,
+    initialHeadline: String = "",
+    onSave: (text: String, headline: String) -> Unit,
     onCancel: () -> Unit
 ) {
     BackHandler { onCancel() }
     var text by rememberSaveable(initialText) { mutableStateOf(initialText) }
+    // Manual headline override — blank keeps the AI-generated one. The
+    // headline used to be AI-only, fire-and-forget: a blank/garbled result
+    // was recoverable only by delete-and-re-add.
+    var headline by rememberSaveable(initialHeadline) { mutableStateOf(initialHeadline) }
     val canSave = text.trim().isNotBlank()
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -197,11 +202,19 @@ internal fun UserNoteEditorScreen(
             subject = "Your own note — not sent to any model", onBackClick = onCancel
         )
         OutlinedButton(
-            onClick = { onSave(text.trim()) },
+            onClick = { onSave(text.trim(), headline.trim()) },
             enabled = canSave,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
         ) { Text("Save note", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = headline, onValueChange = { headline = it },
+            label = { Text("Headline (optional — blank lets the AI title it)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedFieldColors()
+        )
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             value = text, onValueChange = { text = it },
@@ -224,12 +237,21 @@ internal fun UserNoteEditorOverlay(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Fire AI title-generation after the note is persisted (add + edit).
+    // Fire AI title-generation after the note is persisted (add + edit) —
+    // unless the user typed a manual headline, which wins outright.
     val generateTitle = com.ai.ui.shared.LocalGenerateNoteTitle.current
+    // Seed the headline field with the note's current title on edit.
+    val currentHeadline by produceState("", edit) {
+        value = if (edit is NoteEdit.Edit) withContext(Dispatchers.IO) {
+            ReportStorage.getReport(context, reportId)?.userNotes
+                ?.firstOrNull { it.id == edit.noteId }?.title.orEmpty()
+        } else ""
+    }
     UserNoteEditorScreen(
         titleBarTitle = if (edit is NoteEdit.Edit) "Edit note" else "Add note",
         initialText = (edit as? NoteEdit.Edit)?.text ?: "",
-        onSave = { txt ->
+        initialHeadline = currentHeadline,
+        onSave = { txt, headline ->
             // NonCancellable detaches the persist from this overlay's scope:
             // onClose() below unmounts the overlay on the next frame, which
             // cancels rememberCoroutineScope — a launch that hadn't been
@@ -239,10 +261,14 @@ internal fun UserNoteEditorOverlay(
             scope.launch(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
                 if (edit is NoteEdit.Edit) {
                     ReportStorage.updateUserNote(context, reportId, edit.noteId, txt)
-                    generateTitle(reportId, edit.noteId, txt)
+                    if (headline.isNotBlank()) ReportStorage.setUserNoteTitle(context, reportId, edit.noteId, headline)
+                    else generateTitle(reportId, edit.noteId, txt)
                 } else {
                     val saved = ReportStorage.addUserNote(context, reportId, targetKind, targetId, txt)
-                    if (saved != null) generateTitle(reportId, saved.id, txt)
+                    if (saved != null) {
+                        if (headline.isNotBlank()) ReportStorage.setUserNoteTitle(context, reportId, saved.id, headline)
+                        else generateTitle(reportId, saved.id, txt)
+                    }
                 }
             }
             onClose()
