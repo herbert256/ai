@@ -17,6 +17,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -131,6 +132,36 @@ internal fun ReportEditIconsScreen(
             }
     }
 
+    // 🔄 Regenerate all — re-fires the report / language / per-model icon
+    // worker calls in one confirmed tap (the rows this list's Icon-lookup
+    // flows regenerate one at a time). Meta / ranking / moderation /
+    // translation / fan-out icons keep their own per-row flows.
+    val regenerateMetaItem = com.ai.ui.shared.LocalRegenerateMetaItem.current
+    var confirmRegenAll by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (confirmRegenAll) {
+        val agentCount = report?.agents?.size ?: 0
+        val hasLanguage = report?.languageName?.isNotBlank() == true
+        val callCount = 1 + (if (hasLanguage) 1 else 0) + agentCount
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmRegenAll = false },
+            title = { Text("Regenerate all icons?") },
+            text = { Text("Re-fires the report icon, ${if (hasLanguage) "the language icon, " else ""}and every per-model icon — $callCount worker call${if (callCount == 1) "" else "s"}. New cost adds to the report. Meta / ranking / translation / fan-out icons are regenerated from their own rows.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmRegenAll = false
+                    regenerateMetaItem(reportId, com.ai.viewmodel.MetaRegenKind.REPORT_ICON, null)
+                    if (hasLanguage) regenerateMetaItem(reportId, com.ai.viewmodel.MetaRegenKind.LANGUAGE_ICON, null)
+                    report?.agents?.forEach { a ->
+                        regenerateMetaItem(reportId, com.ai.viewmodel.MetaRegenKind.MODEL_ICON, a.agentId)
+                    }
+                }) { Text("Regenerate", color = AppColors.InfoAccent) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmRegenAll = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
@@ -140,6 +171,7 @@ internal fun ReportEditIconsScreen(
             title = "Edit icons",
             subject = "Every icon in this report",
             onBackClick = onBack,
+            onReload = if (report != null) ({ confirmRegenAll = true }) else null,
             publishBottomBar = false
         )
         LazyColumn(modifier = Modifier.fillMaxSize()) {

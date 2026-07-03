@@ -146,6 +146,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What you see", "One row for every editable icon in this report: the report icon, report-language icon, each model's report icon, Meta/Compare icons, Rerank and Moderation icons, Tournament and Judge-the-Judges icons, per-language Translation icons, and fan-out/fan-in response icons. The leading glyph is the current icon (⬜ when none yet)."),
             HelpCard("How it works", "Tap any row to open that icon's Icon lookup screen, where Find alternative icons fans the icon prompt out across the models you pick and lets you choose a replacement. Picks save straight to that icon and the row refreshes."),
+            HelpCard("Regenerate all — 🔄", "The title-bar 🔄 re-fires the report icon, language icon and every per-model icon worker call in one confirmed tap (call count shown in the dialog). Meta / ranking / moderation / translation / fan-out icons are regenerated from their own rows."),
             HelpCard("Reached from", "Edit report (✏️ on Manage report) → Edit icons.")
         )
     ),
@@ -154,6 +155,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What you see", "One row for every dynamic title in this report: the report title, the report long title, each model's title, and each fan-out response's title. Every row has a ✏️ pencil (manual edit) and a Find button (the multi-model alternative picker)."),
             HelpCard("Manual edit vs Find", "The pencil opens a text editor to type a title directly. Find opens the model picker, fans the title prompt out across the chosen models, and lets you pick an alternative — for report / per-model titles the pick lands in the editor for you to confirm; for fan-out titles it applies immediately."),
+            HelpCard("Refresh all — 🔄", "The title-bar 🔄 re-fires the report short + long titles and every per-model title worker call in one confirmed tap. Fan-out response titles are regenerated from Fan Meta."),
             HelpCard("Reached from", "Edit report (✏️ on Manage report) → Edit titles.")
         )
     ),

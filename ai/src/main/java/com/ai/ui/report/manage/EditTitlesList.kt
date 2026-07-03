@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -147,6 +148,34 @@ internal fun ReportEditTitlesScreen(
             }
     }
 
+    // 🔄 Refresh all — re-fires the report short/long title workers and
+    // every per-model title call in one confirmed tap. Fan-out response
+    // titles keep their own per-pair flows (Fan Meta).
+    val regenerateMetaItem = com.ai.ui.shared.LocalRegenerateMetaItem.current
+    var confirmRegenAll by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (confirmRegenAll) {
+        val agentCount = report?.agents?.size ?: 0
+        val callCount = 2 + agentCount
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmRegenAll = false },
+            title = { Text("Refresh all titles?") },
+            text = { Text("Re-fires the report short + long titles and every per-model title — $callCount worker calls. New cost adds to the report. Fan-out response titles are regenerated from Fan Meta.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmRegenAll = false
+                    regenerateMetaItem(reportId, com.ai.viewmodel.MetaRegenKind.REPORT_TITLE_SHORT, null)
+                    regenerateMetaItem(reportId, com.ai.viewmodel.MetaRegenKind.REPORT_TITLE_LONG, null)
+                    report?.agents?.forEach { a ->
+                        regenerateMetaItem(reportId, com.ai.viewmodel.MetaRegenKind.MODEL_TITLE, a.agentId)
+                    }
+                }) { Text("Refresh", color = AppColors.InfoAccent) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmRegenAll = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
@@ -156,6 +185,7 @@ internal fun ReportEditTitlesScreen(
             title = "Edit titles",
             subject = "Every dynamic title in this report",
             onBackClick = onBack,
+            onReload = if (report != null) ({ confirmRegenAll = true }) else null,
             publishBottomBar = false
         )
         LazyColumn(modifier = Modifier.fillMaxSize()) {
