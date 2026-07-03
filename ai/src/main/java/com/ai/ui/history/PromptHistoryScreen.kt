@@ -111,7 +111,21 @@ fun PromptHistoryScreen(
                 // Composite key — two entries saved in the same millisecond
                 // would collide on the bare timestamp and crash Compose.
                 items(pageItems, key = { "${it.timestamp}:${it.title.hashCode()}:${it.prompt.hashCode()}" }) { entry ->
-                    PromptHistoryRow(entry = entry, onClick = { onSelectEntry(entry) })
+                    PromptHistoryRow(
+                        entry = entry,
+                        onClick = { onSelectEntry(entry) },
+                        onDelete = {
+                            // Drop just this entry — a stale or sensitive
+                            // prompt no longer requires nuking the whole
+                            // history. In-memory first, persisted off-thread.
+                            val next = allEntries.filterNot {
+                                it.timestamp == entry.timestamp && it.prompt == entry.prompt && it.title == entry.title
+                            }
+                            loaded = next
+                            loadedForTick = refreshTick
+                            scope.launch(Dispatchers.IO) { settingsPrefs.savePromptHistoryList(next) }
+                        }
+                    )
                 }
             }
 
@@ -136,13 +150,42 @@ private val PromptHistoryEntriesSaver = Saver<List<PromptHistoryEntry>?, Any>(
 )
 
 @Composable
-private fun PromptHistoryRow(entry: PromptHistoryEntry, onClick: () -> Unit) {
+private fun PromptHistoryRow(entry: PromptHistoryEntry, onClick: () -> Unit, onDelete: () -> Unit) {
     val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.US) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete this prompt?") },
+            text = { Text("Removes just this entry from the prompt history.") },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; onDelete() }) {
+                    Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(entry.title, fontSize = 14.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.5f))
-            Text(dateFormat.format(Date(entry.timestamp)), fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+            Column(modifier = Modifier.weight(1.5f)) {
+                Text(entry.title.ifBlank { "(untitled)" }, fontSize = 14.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Body preview — two blank/same-title entries used to be
+                // indistinguishable, and search matched invisible text.
+                Text(
+                    entry.prompt.replace('\n', ' ').trim(), fontSize = 11.sp,
+                    color = AppColors.TextTertiary, maxLines = 2, overflow = TextOverflow.Ellipsis
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(dateFormat.format(Date(entry.timestamp)), fontSize = 12.sp, color = AppColors.TextTertiary)
+                Text(
+                    com.ai.data.MetadataIconsHolder.current.closeMark, fontSize = 13.sp,
+                    color = AppColors.DangerAccent,
+                    modifier = Modifier.clickable { confirmDelete = true }.padding(6.dp)
+                )
+            }
         }
     }
 }
