@@ -1440,6 +1440,14 @@ fun ReportsScreen(
     val openMetaResult = openMetaResultId?.let { id -> secondaryRuns.firstOrNull { it.id == id } }
     if (openMetaResult != null && currentReportId != null) {
         val rid = currentReportId
+        // Prev/next sibling stepping — swipe (or the accessibility actions)
+        // walks the standalone secondary rows in list order; the mount
+        // re-routes to the right detail flavour per row kind.
+        val siblingIdx = secondaryRuns.indexOfFirst { it.id == openMetaResult.id }
+        val onPrevSibling: (() -> Unit)? = secondaryRuns.getOrNull(siblingIdx - 1)?.id
+            ?.let { pid -> { openMetaResultId = pid } }
+        val onNextSibling: (() -> Unit)? = secondaryRuns.getOrNull(siblingIdx + 1)?.id
+            ?.let { nid -> { openMetaResultId = nid } }
         // Plain meta + fan-in (combine-reports) → dedicated MetaDetailScreen
         // (with ✏️ edit); fan-out pairs / rerank / moderation keep the
         // shared detail screen.
@@ -1459,6 +1467,8 @@ fun ReportsScreen(
                         secondaryLockedLanguage = null
                     },
                     onNavigateHome = onNavigateHome,
+                    onPrevSibling = onPrevSibling,
+                    onNextSibling = onNextSibling,
                     onNavigateToTraceFile = onNavigateToTraceFile,
                     onNavigateToModelInfo = onNavigateToModelInfo,
                     forcedLanguage = secondaryLockedLanguage,
@@ -1477,6 +1487,8 @@ fun ReportsScreen(
                         secondaryLockedLanguage = null
                     },
                     onNavigateHome = onNavigateHome,
+                    onPrevSibling = onPrevSibling,
+                    onNextSibling = onNextSibling,
                     onNavigateToTraceFile = onNavigateToTraceFile,
                     onNavigateToModelInfo = onNavigateToModelInfo
                 )
@@ -1493,6 +1505,8 @@ fun ReportsScreen(
                         secondaryLockedLanguage = null
                     },
                     onNavigateHome = onNavigateHome,
+                    onPrevSibling = onPrevSibling,
+                    onNextSibling = onNextSibling,
                     onNavigateToTraceFile = onNavigateToTraceFile,
                     onNavigateToModelInfo = onNavigateToModelInfo
                 )
@@ -1509,6 +1523,8 @@ fun ReportsScreen(
                         secondaryLockedLanguage = null
                     },
                     onNavigateHome = onNavigateHome,
+                    onPrevSibling = onPrevSibling,
+                    onNextSibling = onNextSibling,
                     onNavigateToTraceFile = onNavigateToTraceFile,
                     onNavigateToModelInfo = onNavigateToModelInfo,
                     forcedLanguage = secondaryLockedLanguage,

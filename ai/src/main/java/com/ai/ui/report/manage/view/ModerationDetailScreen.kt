@@ -26,6 +26,7 @@ import com.ai.data.UserNote
 import com.ai.data.barTitle
 import com.ai.data.notesFor
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ModelSwitchState
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +53,12 @@ internal fun ModerationDetailScreen(
     onDelete: () -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
+    /** Step to the previous / next sibling row in the list this detail
+     *  was opened from (null at the edges → edge toast). Wired by the
+     *  Manage mount; horizontal swipe + accessibility actions. */
+    onPrevSibling: (() -> Unit)? = null,
+    onNextSibling: (() -> Unit)? = null,
+
     onNavigateToTraceFile: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
@@ -199,7 +206,20 @@ internal fun ModerationDetailScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        // Swipe left/right (or the matching accessibility actions) steps
+        // through the sibling secondary rows without backing out.
+        .let { m ->
+            if (onPrevSibling == null && onNextSibling == null) m
+            else m.horizontalSwipeNavigation(
+                key1 = result.id,
+                atFirst = onPrevSibling == null,
+                atLast = onNextSibling == null,
+                onSwipeLeft = { onNextSibling?.invoke() },
+                onSwipeRight = { onPrevSibling?.invoke() }
+            )
+        }
+    ) {
         val traceEnabled = ApiTracer.ladybugLinksEnabled && traceFilename != null
         // 👁 → View Moderation sub-screen. State lives in ReportsScreenNav via
         // LocalPendingViewOverManage; ReportPrimaryOverlays consumes it.
