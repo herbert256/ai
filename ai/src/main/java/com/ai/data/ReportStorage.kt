@@ -2358,6 +2358,24 @@ object ReportStorage {
         }
     }
 
+    /** Drop every user note on the report in one locked write (the
+     *  all-notes screen's confirmed Delete all). Same cost bookkeeping
+     *  as the single-note delete. */
+    fun deleteAllUserNotes(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            if (report.userNotes.isEmpty()) return@withLock false
+            val ids = report.userNotes.mapTo(HashSet()) { it.id }
+            report.userNotes = mutableListOf()
+            rollNoteTitleCostsToDeleted(report, ids)
+            report.totalCost = computeReportTotalCost(report)
+            saveReport(report.copy(timestamp = System.currentTimeMillis()))
+            AuditLog.append(reportId, "Deleted all ${ids.size} user notes")
+            true
+        }
+    }
+
     /** Move the `note/title` iconCall spend for [noteIds] into
      *  [Report.costsFromDeletedItems] and drop those records, so deleting a
      *  note doesn't make the lifetime total shrink or leave an orphan cost

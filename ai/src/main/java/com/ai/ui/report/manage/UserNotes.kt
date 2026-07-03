@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
@@ -22,6 +23,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -269,13 +271,19 @@ internal fun ReportNotesListScreen(
         return
     }
 
+    // Search over note text + AI headline; oldest/newest sort; confirmed
+    // delete-all. All local — the disk read below stays unfiltered.
+    var search by rememberSaveable { mutableStateOf("") }
+    var oldestFirst by rememberSaveable { mutableStateOf(false) }
+    var confirmDeleteAll by remember { mutableStateOf(false) }
+
     data class Group(val label: String, val notes: List<UserNote>)
-    val groups by produceState<List<Group>>(emptyList(), reportId, dv) {
+    val allGroups by produceState<List<Group>>(emptyList(), reportId, dv, oldestFirst) {
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, reportId) ?: return@withContext emptyList()
             val secondaries = SecondaryResultStorage.listForReport(context, reportId)
             report.userNotes
-                .sortedByDescending { it.createdAt }
+                .let { if (oldestFirst) it.sortedBy { n -> n.createdAt } else it.sortedByDescending { n -> n.createdAt } }
                 .groupBy { it.targetKind to it.targetId }
                 .map { (_, notes) ->
                     Group(noteTargetLabel(notes.first(), report, secondaries, reportId), notes)
@@ -283,16 +291,65 @@ internal fun ReportNotesListScreen(
                 .sortedBy { it.label }
         }
     }
+    val groups = remember(allGroups, search) {
+        if (search.isBlank()) allGroups
+        else allGroups.mapNotNull { g ->
+            val matches = g.notes.filter {
+                it.text.contains(search, ignoreCase = true) ||
+                    it.title?.contains(search, ignoreCase = true) == true ||
+                    g.label.contains(search, ignoreCase = true)
+            }
+            if (matches.isEmpty()) null else Group(g.label, matches)
+        }
+    }
+    val totalNotes = allGroups.sumOf { it.notes.size }
+
+    if (confirmDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteAll = false },
+            title = { Text("Delete all notes?") },
+            text = { Text("Permanently removes all $totalNotes note${if (totalNotes == 1) "" else "s"} from this report. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteAll = false
+                    scope.launch(Dispatchers.IO) { ReportStorage.deleteAllUserNotes(context, reportId) }
+                }) { Text("Delete all", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            }
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_notes", title = "User notes",
             subject = "Every note in this report", onBackClick = onBack,
-            onAddNote = { noteEdit = NoteEdit.Add }
+            onAddNote = { noteEdit = NoteEdit.Add },
+            onDelete = if (totalNotes > 0) ({ confirmDeleteAll = true }) else null
         )
-        if (groups.isEmpty()) {
+        if (allGroups.isEmpty()) {
             Text(
                 "No notes yet. Use ${com.ai.data.MetadataIconsHolder.current.addNote} on a report, model response, fan-out or secondary screen to add one.",
+                color = AppColors.TextSecondary, fontSize = 13.sp,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+            return@Column
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = search, onValueChange = { search = it },
+                placeholder = { Text("Search notes…", fontSize = 13.sp) },
+                singleLine = true, colors = AppColors.outlinedFieldColors(),
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = { oldestFirst = !oldestFirst }) {
+                Text(if (oldestFirst) "Oldest ↑" else "Newest ↓", fontSize = 12.sp, maxLines = 1, softWrap = false)
+            }
+        }
+        if (groups.isEmpty()) {
+            Text(
+                "No notes match \"$search\".",
                 color = AppColors.TextSecondary, fontSize = 13.sp,
                 modifier = Modifier.padding(top = 16.dp)
             )
