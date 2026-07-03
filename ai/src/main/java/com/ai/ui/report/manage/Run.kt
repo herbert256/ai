@@ -121,6 +121,9 @@ internal fun ReportRunScreen(
     onRegenerateInfo: (String) -> Unit = {},
     /** "Restart errors" on Get-info — re-fire only the errored info jobs. */
     onRestartInfoErrors: (String) -> Unit = {},
+    /** Multi-select Delete on "Report - second results" — bulk-removes the
+     *  picked standalone secondary rows and refreshes the list. */
+    onBulkDeleteSecondaries: (List<String>) -> Unit = {},
     /** Report-level info jobs whose call is actively in flight. */
     runningInfoJobs: Set<String> = emptySet(),
     onChatWithReportPrompt: (String) -> Unit,
@@ -988,7 +991,8 @@ internal fun ReportRunScreen(
                     onOpenTranslationIconDetail = generationHandlers.onOpenTranslationIconDetail,
                     onBack = { showSecondResults.value = false },
                     onCycleNext = cycleReportScreens,
-                    onOpenViewHub = onOpenViewReport
+                    onOpenViewHub = onOpenViewReport,
+                    onBulkDelete = onBulkDeleteSecondaries
                 )
             }
         }

@@ -9,9 +9,11 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,11 +21,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -114,9 +121,18 @@ internal fun ReportSecondResultsScreen(
     /** Title tap → next of the three report screens (wraps to Manage). */
     onCycleNext: () -> Unit = {},
     /** Report-icon tap → the View hub. */
-    onOpenViewHub: () -> Unit = {}
+    onOpenViewHub: () -> Unit = {},
+    /** Bulk-delete the picked standalone secondary rows (the individual
+     *  Meta / Rerank / Moderation / Fan-in rows — batch cells have their
+     *  own run screens). Wired to the VM's bulkDeleteSecondaryResults. */
+    onBulkDelete: (List<String>) -> Unit = {}
 ) {
-    BackHandler { onBack() }
+    // Multi-select over the standalone secondary rows: long-press a row
+    // to enter; Back exits selection first.
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
+    BackHandler { if (selectionMode) exitSelection() else onBack() }
     val context = LocalContext.current
     val activeTranslationRuns = remember(translationRuns) {
         translationRuns.filter { !it.isFinished && !it.cancelled }
@@ -151,6 +167,41 @@ internal fun ReportSecondResultsScreen(
             refreshKey = costDollars,
             onClick = onViewCosts
         )
+        // Multi-select header — visible while selection mode is on
+        // (entered by long-pressing a standalone secondary row).
+        if (selectionMode) {
+            var confirmDeleteSelected by remember { mutableStateOf(false) }
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("${selectedIds.size} selected", fontSize = 13.sp, color = AppColors.TextSecondary)
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { selectedIds = secondaryRuns.mapTo(HashSet()) { it.id } }) {
+                    Text("All", fontSize = 13.sp, maxLines = 1)
+                }
+                TextButton(
+                    enabled = selectedIds.isNotEmpty(),
+                    onClick = { confirmDeleteSelected = true }
+                ) { Text("Delete", fontSize = 13.sp, color = AppColors.DangerAccent, maxLines = 1) }
+                TextButton(onClick = { exitSelection() }) { Text("Done", fontSize = 13.sp, maxLines = 1) }
+            }
+            if (confirmDeleteSelected) {
+                AlertDialog(
+                    onDismissRequest = { confirmDeleteSelected = false },
+                    title = { Text("Delete ${selectedIds.size} secondary result(s)?") },
+                    text = { Text("Permanently removes the selected Meta / Rerank / Moderation / Fan-in rows from this report. Their spend moves to the costs-from-deleted-items bank. This cannot be undone.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirmDeleteSelected = false
+                            val ids = selectedIds.toList()
+                            exitSelection()
+                            onBulkDelete(ids)
+                        }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmDeleteSelected = false }) { Text("Cancel", maxLines = 1) }
+                    }
+                )
+            }
+        }
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
             // Top-of-list divider — same 1 dp cap the Manage list paints.
             item(key = "top-divider") {
@@ -186,6 +237,15 @@ internal fun ReportSecondResultsScreen(
                 context = context,
                 languageName = languageName,
                 showModelNamesInReportRows = showModelNamesInReportRows,
+                selectionMode = selectionMode,
+                selectedIds = selectedIds,
+                onToggleSelect = { id ->
+                    selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                },
+                onEnterSelection = { id ->
+                    selectionMode = true
+                    selectedIds = setOf(id)
+                },
                 onOpenSecondaryRun = onOpenSecondaryRun,
                 onMissingPromptIcon = onMissingPromptIcon,
                 onOpenInternalPromptIconDetail = onOpenInternalPromptIconDetail,
@@ -216,6 +276,12 @@ internal fun LazyListScope.secondaryResultRows(
     context: Context,
     languageName: String?,
     showModelNamesInReportRows: Boolean,
+    /** Multi-select over the standalone secondary rows ("Report - second
+     *  results" only; the collapsed Manage list passes the defaults). */
+    selectionMode: Boolean = false,
+    selectedIds: Set<String> = emptySet(),
+    onToggleSelect: (String) -> Unit = {},
+    onEnterSelection: ((String) -> Unit)? = null,
     onOpenSecondaryRun: (String) -> Unit,
     onMissingPromptIcon: (InternalPrompt) -> Unit,
     onOpenInternalPromptIconDetail: (InternalPrompt) -> Unit,
@@ -239,9 +305,20 @@ internal fun LazyListScope.secondaryResultRows(
                 run.content.isNullOrBlank() &&
                 run.durationMs == null
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenSecondaryRun(run.id) },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    .combinedClickable(
+                        onClick = {
+                            if (selectionMode) onToggleSelect(run.id)
+                            else onOpenSecondaryRun(run.id)
+                        },
+                        onLongClick = if (onEnterSelection != null && !selectionMode)
+                            ({ onEnterSelection(run.id) }) else null
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (selectionMode) {
+                    Checkbox(checked = run.id in selectedIds, onCheckedChange = { onToggleSelect(run.id) })
+                }
                 val resolvedPrompt = remember(
                     run.fanInOf, run.metaPromptId,
                     aiSettings.internalPrompts.map { "${it.id}|${it.name}|${it.title}" }

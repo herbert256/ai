@@ -1993,6 +1993,11 @@ fun ReportsScreen(
             onDismissRegenerateConfirm = { showRegenerateConfirm = false },
             onRegenerate = onRegenerate,
             onRegenerateErroredOnly = onRegenerateErroredOnly,
+            onBulkDeleteSecondaries = { ids ->
+                currentReportId?.let { rid ->
+                    onBulkDeleteSecondaries(rid, ids) { onSecondaryRefresh() }
+                }
+            },
             onChatWithReportPrompt = onChatWithReportPrompt,
             onRunTournament = onRunTournament,
             onRunJudgeJudges = onRunJudgeJudges,
