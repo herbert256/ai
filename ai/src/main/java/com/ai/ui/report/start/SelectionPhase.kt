@@ -53,6 +53,10 @@ internal fun ColumnScope.SelectionPhase(
     /** Persist the current picked models as a named swarm (F53) — null
      *  hides the affordance. */
     onSaveSelectionAsSwarm: ((String) -> Unit)? = null,
+    /** Per-row parameter presets (F47) — keyed by agent id /
+     *  "swarm:provider:model"; 🌡️ on each row opens the preset picker. */
+    rowParams: Map<String, List<String>> = emptyMap(),
+    onPickRowParams: ((String) -> Unit)? = null,
     onUpdateModelList: () -> Unit,
     attachedKnowledgeBaseIds: List<String> = emptyList(),
     onAttachKnowledgeBases: (List<String>) -> Unit = {},
@@ -246,6 +250,22 @@ internal fun ColumnScope.SelectionPhase(
                         color = if (pricing.isDefault) AppColors.SurfaceDark else AppColors.DangerAccent,
                         modifier = (if (pricing.isDefault) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                             .alpha(state.rowAlpha))
+                    if (onPickRowParams != null) {
+                        // Per-model 🌡️ — comparing models under DIFFERENT
+                        // settings in one report (GPT @0.2 vs Claude @1.0)
+                        // used to be impossible; the picked presets ride
+                        // selectionParamsById into dispatch and regenerate.
+                        val rowKey = if (entry.type == "agent" && !entry.agentId.isNullOrBlank()) entry.agentId!!
+                            else "swarm:${entry.provider.id}:${entry.model}"
+                        val hasParams = rowParams[rowKey].orEmpty().isNotEmpty()
+                        Text(
+                            "🌡️", fontSize = 14.sp,
+                            modifier = Modifier
+                                .alpha(if (hasParams) 1f else 0.45f)
+                                .clickable { onPickRowParams(rowKey) }
+                                .padding(horizontal = 4.dp, vertical = 4.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     // ✕ stays clickable independently and at full
                     // opacity so the user can always remove a dimmed

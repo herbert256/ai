@@ -48,7 +48,9 @@ internal fun ReportSelectModelsScreen(
     onUpdateModelList: () -> Unit,
     onAttachKnowledgeBases: (List<String>) -> Unit,
     onSystemPromptChange: (String?) -> Unit,
-    onSaveSelectionAsSwarm: ((String) -> Unit)? = null
+    onSaveSelectionAsSwarm: ((String) -> Unit)? = null,
+    rowParams: Map<String, List<String>> = emptyMap(),
+    onPickRowParams: ((String) -> Unit)? = null
 ) {
     val aiSettings = uiState.aiSettings
     // 🧽 confirm above a handful of picks — clearing a hand-assembled
@@ -107,7 +109,9 @@ internal fun ReportSelectModelsScreen(
             experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled,
             selectedSystemPromptId = uiState.reportSystemPromptId,
             onSystemPromptChange = onSystemPromptChange,
-            onSaveSelectionAsSwarm = onSaveSelectionAsSwarm
+            onSaveSelectionAsSwarm = onSaveSelectionAsSwarm,
+            rowParams = rowParams,
+            onPickRowParams = onPickRowParams
         )
     }
 }

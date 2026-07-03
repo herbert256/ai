@@ -427,7 +427,7 @@ internal fun HandleExternalReportInstructions(
     models: List<ReportModel>,
     selectedParametersIds: List<String>,
     onModelsChange: (List<ReportModel>) -> Unit,
-    onGenerate: (List<ReportModel>, List<String>, ReportType, ReportWorkerConfig) -> Unit,
+    onGenerate: (List<ReportModel>, List<String>, ReportType, ReportWorkerConfig, Map<String, List<String>>) -> Unit,
     onOpenView: () -> Unit,
     onClearExternalInstructions: () -> Unit
 ) {
@@ -483,7 +483,7 @@ internal fun HandleExternalReportInstructions(
             val type = if (uiState.externalReportType.equals("table", ignoreCase = true)) ReportType.TABLE else ReportType.CLASSIC
             // External-intent reports auto-generate and skip the
             // select-workers step — they run with the default config.
-            onGenerate(updatedModels, selectedParametersIds, type, ReportWorkerConfig())
+            onGenerate(updatedModels, selectedParametersIds, type, ReportWorkerConfig(), emptyMap())
         }
     }
 

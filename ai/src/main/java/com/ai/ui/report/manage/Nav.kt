@@ -700,7 +700,7 @@ fun ReportsScreenNav(
         onBulkDeleteSecondaries = { reportId, ids, onDone ->
             reportViewModel.secondary.bulkDeleteSecondaryResults(context, reportId, ids, onDone)
         },
-        onGenerate = { models, paramsIds, reportType, workerConfig ->
+        onGenerate = { models, paramsIds, reportType, workerConfig, selectionParamsById ->
             val agentIds = models.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
             // Pass the swarm-sourced models as EXPLICIT (provider, model) ids of
             // exactly the members the user kept — never swarm ids, which were
@@ -715,6 +715,7 @@ fun ReportsScreenNav(
             reportViewModel.generateGenericReports(
                 context = context, selectedAgentIds = agentIds, swarmModelIds = swarmModelIds,
                 directModelIds = directIds, parametersIds = paramsIds, reportType = reportType,
+                selectionParamsById = selectionParamsById,
                 workerConfig = workerConfig
             )
         },

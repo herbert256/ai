@@ -177,7 +177,7 @@ fun ReportsScreen(
     hasPrevReport: Boolean = false,
     hasNextReport: Boolean = false,
     initialModels: List<ReportModel> = emptyList(),
-    onGenerate: (List<ReportModel>, List<String>, ReportType, ReportWorkerConfig) -> Unit,
+    onGenerate: (List<ReportModel>, List<String>, ReportType, ReportWorkerConfig, Map<String, List<String>>) -> Unit,
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit = onDismiss,
     advancedParameters: AgentParameters? = null,
@@ -1903,6 +1903,12 @@ fun ReportsScreen(
         onStopGeneration = onStopGeneration,
         isGenerationActive = isGenerationActive
     )
+    // Per-model parameter presets picked in the selection list (F47) —
+    // keyed by the same row ids buildReportTasks resolves
+    // (agent id / "swarm:provider:model"); threaded into
+    // generateGenericReports as selectionParamsById.
+    var selectionRowParams by remember { mutableStateOf(mapOf<String, List<String>>()) }
+    var rowParamsPickerFor by remember { mutableStateOf<String?>(null) }
     if (!isGenerating) {
         if (st.showSelectWorkers.value) {
             // Step between select-models and Generate: pick the workers for
@@ -1914,7 +1920,7 @@ fun ReportsScreen(
                 onConfigChange = { st.workerConfig.value = it },
                 onGenerate = {
                     st.showSelectWorkers.value = false
-                    onGenerate(models, selectedParametersIds, st.pendingReportType.value, st.workerConfig.value)
+                    onGenerate(models, selectedParametersIds, st.pendingReportType.value, st.workerConfig.value, selectionRowParams)
                 },
                 onSave = null,
                 onDismiss = { st.showSelectWorkers.value = false },
@@ -1927,6 +1933,20 @@ fun ReportsScreen(
                 onParametersChange = onParametersIdsChange
             )
         } else {
+        val pickerRowKey = rowParamsPickerFor
+        if (pickerRowKey != null) {
+            com.ai.ui.shared.ParametersSelectScreen(
+                aiSettings = uiState.aiSettings,
+                selectedIds = selectionRowParams[pickerRowKey].orEmpty(),
+                onConfirm = { picked ->
+                    selectionRowParams =
+                        if (picked.isEmpty()) selectionRowParams - pickerRowKey
+                        else selectionRowParams + (pickerRowKey to picked)
+                },
+                onBack = { rowParamsPickerFor = null },
+                onNavigateHome = onNavigateHome
+            )
+        } else
         com.ai.ui.report.start.ReportSelectModelsScreen(
             uiState = uiState,
             models = models,
@@ -1958,7 +1978,9 @@ fun ReportsScreen(
             onUpdateModelList = { uiState.editModeReportId?.let { onUpdateModelList(it, models) } },
             onAttachKnowledgeBases = onAttachKnowledgeBases,
             onSystemPromptChange = onSystemPromptChange,
-            onSaveSelectionAsSwarm = { name -> onSaveSelectionAsSwarm(name, models) }
+            onSaveSelectionAsSwarm = { name -> onSaveSelectionAsSwarm(name, models) },
+            rowParams = selectionRowParams,
+            onPickRowParams = { rowKey -> rowParamsPickerFor = rowKey }
         )
         }
     } else {
