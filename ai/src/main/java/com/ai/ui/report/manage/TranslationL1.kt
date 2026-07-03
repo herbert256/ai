@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +20,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,6 +84,9 @@ internal fun TranslationL1Screen(
     onDelete: () -> Unit,
     onTrace: (() -> Unit)?,
     onOpenView: (() -> Unit)?,
+    /** Re-fires only the errored rows (confirm-gated) — the cheap
+     *  alternative to the destructive title-bar Redo-all. */
+    onRestartFailed: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
     val subject = run.targetLanguageName
@@ -170,6 +176,32 @@ internal fun TranslationL1Screen(
                 trackColor = AppColors.DividerDark
             )
             Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Failed-row recovery — re-fires just the errored rows where the
+        // failures are shown, instead of the whole-run Redo (which
+        // re-bills everything).
+        if (errorCount > 0 && onRestartFailed != null) {
+            var confirmRestartFailed by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            androidx.compose.material3.Button(
+                onClick = { confirmRestartFailed = true },
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp)
+            ) { Text("Restart failed ($errorCount)", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (confirmRestartFailed) {
+                com.ai.ui.shared.ReloadConfirmationDialog(
+                    target = "",
+                    title = "Restart failed translations?",
+                    message = "Re-fires the $errorCount failed row${if (errorCount == 1) "" else "s"}. Completed translations are kept and not re-billed.",
+                    confirmLabel = "Restart",
+                    onConfirm = {
+                        confirmRestartFailed = false
+                        onRestartFailed()
+                    },
+                    onDismiss = { confirmRestartFailed = false }
+                )
+            }
         }
 
         // While the run is still pending, each row gets a green

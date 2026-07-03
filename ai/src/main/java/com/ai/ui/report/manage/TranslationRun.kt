@@ -301,6 +301,10 @@ internal fun TranslationRunScreen(
             onDelete = onDeleteRun,
             onTrace = onTraceRun,
             onOpenView = onOpenViewJump,
+            onRestartFailed = {
+                actions.onRestartFailed(reportId, runId)
+                refreshTick++
+            },
             onBack = onBack
         )
         TranslationNav.Workers -> TranslationWorkersScreen(
