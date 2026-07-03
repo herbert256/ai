@@ -630,32 +630,46 @@ private suspend fun ingestSharedKb(
     suspend fun emitProgress(message: String) {
         withContext(Dispatchers.Main) { onProgress(message) }
     }
-    uris.forEachIndexed { idx, raw ->
-        val trimmed = raw.trim()
-        if (trimmed.isBlank()) return@forEachIndexed
-        val isHttp = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
-        emitProgress("Ingesting ${idx + 1}/${uris.size}…")
-        val result = if (isHttp) {
-            KnowledgeService.indexUrl(context, repository, aiSettings, kb.id, trimmed) { msg, _, _ ->
-                emitProgress("(${idx + 1}/${uris.size}) $msg")
+    // try/finally so a cancellation (the user taps Help or Back mid-ingest,
+    // unmounting NewReportScreen and cancelling this screen-scoped
+    // coroutine) still drops a KB that never finished a source — otherwise
+    // the just-created 'Shared with …' KB with 0–n sources orphaned in the
+    // Knowledge list and a return re-offered Attach, duplicating it.
+    try {
+        uris.forEachIndexed { idx, raw ->
+            val trimmed = raw.trim()
+            if (trimmed.isBlank()) return@forEachIndexed
+            val isHttp = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
+            emitProgress("Ingesting ${idx + 1}/${uris.size}…")
+            val result = if (isHttp) {
+                KnowledgeService.indexUrl(context, repository, aiSettings, kb.id, trimmed) { msg, _, _ ->
+                    emitProgress("(${idx + 1}/${uris.size}) $msg")
+                }
+            } else {
+                val u = android.net.Uri.parse(trimmed)
+                val displayName = displayNameForUri(context, u) ?: "shared_${System.currentTimeMillis()}"
+                val type = pickTypeForUri(context, u) ?: run {
+                    emitProgress("Skipping unsupported source: $displayName")
+                    return@forEachIndexed
+                }
+                KnowledgeService.indexFile(context, repository, aiSettings, kb.id, type, u, displayName) { msg, _, _ ->
+                    emitProgress("(${idx + 1}/${uris.size}) $displayName: $msg")
+                }
             }
-        } else {
-            val u = android.net.Uri.parse(trimmed)
-            val displayName = displayNameForUri(context, u) ?: "shared_${System.currentTimeMillis()}"
-            val type = pickTypeForUri(context, u) ?: run {
-                emitProgress("Skipping unsupported source: $displayName")
-                return@forEachIndexed
-            }
-            KnowledgeService.indexFile(context, repository, aiSettings, kb.id, type, u, displayName) { msg, _, _ ->
-                emitProgress("(${idx + 1}/${uris.size}) $displayName: $msg")
+            result.onSuccess { src ->
+                totalChunks += src.chunkCount
+                sourcesIndexed++
             }
         }
-        result.onSuccess { src ->
-            totalChunks += src.chunkCount
-            sourcesIndexed++
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        // NonCancellable: the enclosing scope is already cancelling, so the
+        // delete must run outside cancellation to actually reach disk.
+        withContext(kotlinx.coroutines.NonCancellable) {
+            KnowledgeStore.deleteKnowledgeBase(context, kb.id)
         }
+        throw e
     }
-    if (sourcesIndexed == 0) {
+    return@withContext if (sourcesIndexed == 0) {
         // Drop the empty KB so it doesn't leak into the user's list.
         KnowledgeStore.deleteKnowledgeBase(context, kb.id)
         SharedKbBannerState.Failed("Nothing indexed.")
