@@ -238,6 +238,11 @@ internal fun ReportSelectModelsScreen(
     var providerFilter by rememberSaveable(stateSaver = ProviderFilterSaver) { mutableStateOf<AppService?>(null) }
     var providerDropdownExpanded by remember { mutableStateOf(false) }
     var typeOnly by rememberSaveable { mutableStateOf(modelTypeFilter != null) }
+    // Capability chips — assembling an all-vision / all-reasoning panel
+    // used to mean scrolling ~90 providers and eyeballing badges.
+    var capVision by rememberSaveable { mutableStateOf(false) }
+    var capWeb by rememberSaveable { mutableStateOf(false) }
+    var capReasoning by rememberSaveable { mutableStateOf(false) }
 
     // Local models surface alongside remote providers under the
     // synthetic AppService.LOCAL. Source depends on the picker's
@@ -283,7 +288,12 @@ internal fun ReportSelectModelsScreen(
             prov.id == AppService.LOCAL.id || aiSettings.getModelType(prov, model) == modelTypeFilter
         }
     } else providerFiltered
-    val searched = if (search.isBlank()) typeFiltered else typeFiltered.filter { (prov, model) ->
+    val capFiltered = typeFiltered.filter { (prov, model) ->
+        (!capVision || aiSettings.isVisionCapable(prov, model)) &&
+            (!capWeb || aiSettings.isWebSearchCapable(prov, model)) &&
+            (!capReasoning || aiSettings.isReasoningCapable(prov, model))
+    }
+    val searched = if (search.isBlank()) capFiltered else capFiltered.filter { (prov, model) ->
         prov.id.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
     }
     val sorted = remember(searched) {
@@ -330,6 +340,14 @@ internal fun ReportSelectModelsScreen(
             }
         }
 
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+            FilterChip(selected = capVision, onClick = { capVision = !capVision },
+                label = { Text("👁 Vision", fontSize = 11.sp) }, modifier = Modifier.padding(end = 6.dp))
+            FilterChip(selected = capWeb, onClick = { capWeb = !capWeb },
+                label = { Text("🌐 Web", fontSize = 11.sp) }, modifier = Modifier.padding(end = 6.dp))
+            FilterChip(selected = capReasoning, onClick = { capReasoning = !capReasoning },
+                label = { Text("🧠 Reasoning", fontSize = 11.sp) })
+        }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search models...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
