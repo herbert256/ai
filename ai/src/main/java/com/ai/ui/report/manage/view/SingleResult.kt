@@ -696,10 +696,28 @@ fun ReportModelScreen(
             val errorMessage = agent.errorMessage
             when {
                 !errorMessage.isNullOrBlank() -> {
+                    // The one state where inspecting the call and retrying
+                    // matter most — surface the 🐞 trace and an inline
+                    // Reload here instead of burying both behind ✏️.
                     Column {
-                        Text("Error", fontSize = 16.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Error", fontSize = 16.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            traceFilename?.takeIf { ApiTracer.ladybugLinksEnabled }?.let { fn ->
+                                Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 18.sp,
+                                    modifier = Modifier
+                                        .clickable(role = Role.Button, onClickLabel = "open the failed call's API trace") { onNavigateToTraceFile(fn) }
+                                        .semantics { contentDescription = "Error trace" }
+                                        .padding(6.dp))
+                            }
+                        }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = { confirmReload = true },
+                            colors = AppColors.outlinedButtonColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("${com.ai.data.MetadataIconsHolder.current.reload} Retry this model", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                     }
                 }
                 rawBody.isNullOrBlank() -> {
