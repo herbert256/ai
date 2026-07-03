@@ -239,9 +239,21 @@ fun ReportsViewScreen(
     val translatedByAgentId = loaded.translatedByLang[activeLanguage].orEmpty()
     val translatedTitleByAgentId = loaded.agentTitleByLang[activeLanguage].orEmpty()
 
-    val agents = report?.agents?.filter {
-        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-    }.orEmpty()
+    // Reading order — original report order, model name, or cost. The
+    // rank order lives on the Rerank / Tournament screens; here the cheap
+    // sorts cover "read the expensive one first" and "find model X".
+    var agentSort by rememberSaveable(reportId) { mutableStateOf("default") }
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    val agents = remember(report, agentSort) {
+        val base = report?.agents?.filter {
+            it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+        }.orEmpty()
+        when (agentSort) {
+            "name" -> base.sortedBy { shortModelName2(it.model).lowercase() }
+            "cost" -> base.sortedByDescending { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) + (it.cost ?: 0.0) }
+            else -> base
+        }
+    }
     val pagerState = rememberWrapPager(agents.size, 0)
     // Tapping the response card's icon (single mode) advances to the
     // next model, wrapping past the last back to the first.
@@ -448,11 +460,43 @@ fun ReportsViewScreen(
                                 .modelInfoViewClickable(activeProvider, activeModelId)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "${pagerState.currentPage.wrapTo(agents.size) + 1} / ${agents.size}",
-                            color = AppColors.TextTertiary, fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
+                        AgentSortButton(
+                            agentSort = agentSort,
+                            menuOpen = sortMenuOpen,
+                            onMenuOpenChange = { sortMenuOpen = it },
+                            onPick = { agentSort = it }
                         )
+                        // Counter doubles as a jump-to-model picker — tapping
+                        // it lists every model instead of eleven blind swipes.
+                        var jumpMenuOpen by remember { mutableStateOf(false) }
+                        Box {
+                            Text(
+                                text = "${pagerState.currentPage.wrapTo(agents.size) + 1} / ${agents.size} ▾",
+                                color = AppColors.TextTertiary, fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable { jumpMenuOpen = true }.padding(4.dp)
+                            )
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = jumpMenuOpen, onDismissRequest = { jumpMenuOpen = false },
+                                modifier = Modifier.background(AppColors.SurfaceDark)
+                            ) {
+                                agents.forEachIndexed { idx, a ->
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "${idx + 1}. ${shortModelName2(a.model)}",
+                                                fontSize = 13.sp,
+                                                color = if (a.agentId == activeAgent?.agentId) AppColors.InfoAccent else AppColors.TextPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            jumpMenuOpen = false
+                                            scope.launch { pagerState.scrollToPage(wrapCenterPage(agents.size, idx)) }
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                     // Fill the leftover height so the swipe region extends
                     // below the (wrap-content, top-aligned) card — swiping in
@@ -498,7 +542,32 @@ fun ReportsViewScreen(
                         }
                     }
                 } else {
-                    // ✋ — all models as collapsible cards.
+                    // ✋ — all models as collapsible cards, with a header
+                    // carrying the sort menu and an expand/collapse-all
+                    // toggle (each tap re-signals every card).
+                    var expandSignal by remember { mutableStateOf(0) }
+                    var expandTarget by remember { mutableStateOf(true) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AgentSortButton(
+                            agentSort = agentSort,
+                            menuOpen = sortMenuOpen,
+                            onMenuOpenChange = { sortMenuOpen = it },
+                            onPick = { agentSort = it }
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        androidx.compose.material3.TextButton(onClick = {
+                            expandSignal++
+                            expandTarget = !expandTarget
+                        }) {
+                            Text(
+                                if (expandTarget) "Expand all" else "Collapse all",
+                                fontSize = 12.sp, maxLines = 1, softWrap = false
+                            )
+                        }
+                    }
                     Column(
                         modifier = Modifier.fillMaxWidth().weight(1f)
                             .verticalScroll(rememberScrollState()),
@@ -508,7 +577,12 @@ fun ReportsViewScreen(
                             ModelReportCard(
                                 agent = agent,
                                 overrideBody = translatedByAgentId[agent.agentId],
-                                overrideTitle = translatedTitleByAgentId[agent.agentId]
+                                overrideTitle = translatedTitleByAgentId[agent.agentId],
+                                expandAllSignal = expandSignal,
+                                // expandTarget already flipped to the NEXT
+                                // action's label, so the applied state is
+                                // its inverse.
+                                expandAllTarget = !expandTarget
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -767,9 +841,16 @@ private fun AgentResponseCard(
 private fun ModelReportCard(
     agent: ReportAgent,
     overrideBody: String?,
-    overrideTitle: String? = null
+    overrideTitle: String? = null,
+    /** Bumped by the ✋ header's expand/collapse-all; each bump applies
+     *  [expandAllTarget] to this card (0 = untouched initial state). */
+    expandAllSignal: Int = 0,
+    expandAllTarget: Boolean = false
 ) {
     var expanded by rememberSaveable(agent.agentId) { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(expandAllSignal) {
+        if (expandAllSignal > 0) expanded = expandAllTarget
+    }
     val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon
     val title = overrideTitle?.takeIf { it.isNotBlank() }
         ?: agent.modelTitle?.takeIf { it.isNotBlank() }
@@ -807,6 +888,42 @@ private fun ModelReportCard(
                 Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
             } else {
                 ContentWithThinkSections(analysis = body)
+            }
+        }
+    }
+}
+
+/** Compact sort-menu button shared by the ☝️ counter row and the ✋
+ *  header: original report order / model name / cost (highest first). */
+@Composable
+private fun AgentSortButton(
+    agentSort: String,
+    menuOpen: Boolean,
+    onMenuOpenChange: (Boolean) -> Unit,
+    onPick: (String) -> Unit
+) {
+    Box {
+        Text(
+            text = when (agentSort) { "name" -> "Name ▾"; "cost" -> "Cost ▾"; else -> "Order ▾" },
+            color = AppColors.TextTertiary, fontSize = 12.sp,
+            modifier = Modifier.clickable { onMenuOpenChange(true) }.padding(4.dp)
+        )
+        androidx.compose.material3.DropdownMenu(
+            expanded = menuOpen, onDismissRequest = { onMenuOpenChange(false) },
+            modifier = Modifier.background(AppColors.SurfaceDark)
+        ) {
+            listOf(
+                "default" to "Report order",
+                "name" to "Model name A–Z",
+                "cost" to "Cost, highest first"
+            ).forEach { (v, label) ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = {
+                        Text(label, fontSize = 13.sp,
+                            color = if (agentSort == v) AppColors.InfoAccent else AppColors.TextPrimary)
+                    },
+                    onClick = { onPick(v); onMenuOpenChange(false) }
+                )
             }
         }
     }
