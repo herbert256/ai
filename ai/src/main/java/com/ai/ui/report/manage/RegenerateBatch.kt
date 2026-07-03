@@ -122,6 +122,7 @@ fun RegenerateBatchScreen(
         StatusBanner(job)
         Spacer(modifier = Modifier.height(8.dp))
         ActionRow(
+            onSkip = { engine.skipPausedRowAndContinue(context, reportId) },
             job = job,
             onCancel = { engine.cancel(context, reportId) },
             onRestart = { engine.restart(context, reportId) }
@@ -201,7 +202,9 @@ private fun StatusBanner(job: RegenerateJob) {
             val pausedLabel = job.tasks.firstOrNull { it.rowId == job.pausedOnRowId }?.label.orEmpty()
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                "Waiting on: $pausedLabel — fix the row, then tap Restart (or wait for the background sweep).",
+                // No auto-resume promise: the background sweep only DETECTS
+                // stalled batches (doc/regenerate.md) — it never restarts one.
+                "Waiting on: $pausedLabel — fix the row and tap Restart, or Skip row to continue without it.",
                 color = AppColors.TextTertiary, fontSize = 12.sp, lineHeight = 16.sp
             )
         }
@@ -212,11 +215,14 @@ private fun StatusBanner(job: RegenerateJob) {
 private fun ActionRow(
     job: RegenerateJob,
     onCancel: () -> Unit,
-    onRestart: () -> Unit
+    onRestart: () -> Unit,
+    onSkip: () -> Unit = {}
 ) {
     val canCancel = job.status == RegenerateJobStatus.RUNNING
     val canRestart = job.status == RegenerateJobStatus.PAUSED_ON_ERROR ||
         job.status == RegenerateJobStatus.CANCELLED
+    val canSkip = job.status == RegenerateJobStatus.PAUSED_ON_ERROR &&
+        !job.pausedOnRowId.isNullOrBlank()
     if (!canCancel && !canRestart) return
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         if (canCancel) {
@@ -225,6 +231,16 @@ private fun ActionRow(
                 colors = AppColors.outlinedButtonColors(),
                 modifier = Modifier.weight(1f)
             ) { Text("Cancel", fontSize = 13.sp) }
+        }
+        if (canSkip) {
+            // Drops the paused task from THIS batch and continues; the
+            // underlying row keeps its error and stays individually
+            // recoverable (per-row reload / Broken work).
+            OutlinedButton(
+                onClick = onSkip,
+                colors = AppColors.outlinedButtonColors(),
+                modifier = Modifier.weight(1f)
+            ) { Text("Skip row", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
         if (canRestart) {
             OutlinedButton(

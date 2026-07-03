@@ -200,6 +200,29 @@ class RegenerateBatchEngine internal constructor(
             if (shouldStart) startOrchestrator(context, reportId)
         }
 
+    /** "Skip row" on a PAUSED_ON_ERROR batch: drop the paused task from
+     *  the job (its row stays errored on disk, recoverable individually)
+     *  and re-enter the current phase over the remaining tasks — one
+     *  failing row no longer holds every downstream phase hostage. */
+    fun skipPausedRowAndContinue(context: Context, reportId: String): Job =
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+            var shouldStart = false
+            mutateJob(context, reportId, allowTerminalMutation = true) { job ->
+                val rowId = job.pausedOnRowId
+                if (job.status != RegenerateJobStatus.PAUSED_ON_ERROR || rowId == null) job
+                else {
+                    shouldStart = true
+                    AppLog.i("RegenBatch", "skipping paused row $rowId for $reportId")
+                    job.copy(
+                        status = RegenerateJobStatus.RUNNING,
+                        pausedOnRowId = null,
+                        tasks = job.tasks.filterNot { it.rowId == rowId && it.phase == job.currentPhase }
+                    )
+                }
+            }
+            if (shouldStart) startOrchestrator(context, reportId)
+        }
+
     /** Synchronously cancel the orchestrator coroutine for [reportId]
      *  (no status persist). Used by deleteReport, which must stop the
      *  batch BEFORE deleting the report — the async [cancel] returns
