@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -63,6 +64,19 @@ fun AllAiReportsScreen(
         value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
     }
     val bundle = com.ai.ui.shared.LocalReportListIconBundle.current
+    // Search + sort — the only order used to be newest-first.
+    var search by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var sortMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("newest") }
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    val visibleReports = remember(reports, search, sortMode) {
+        val filtered = if (search.isBlank()) reports
+            else reports.filter { it.title.contains(search, ignoreCase = true) }
+        when (sortMode) {
+            "title" -> filtered.sortedBy { it.title.lowercase() }
+            "cost" -> filtered.sortedByDescending { it.totalCost }
+            else -> filtered // getAllReports is already newest-first
+        }
+    }
     // Multi-select: long-press a row to enter; Back exits selection first.
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
@@ -90,13 +104,40 @@ fun AllAiReportsScreen(
             }
             return@Column
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.OutlinedTextField(
+                value = search, onValueChange = { search = it },
+                placeholder = { Text("Search by title…", fontSize = 13.sp) },
+                singleLine = true, colors = AppColors.outlinedFieldColors(),
+                modifier = Modifier.weight(1f)
+            )
+            Box {
+                androidx.compose.material3.TextButton(onClick = { sortMenuOpen = true }) {
+                    Text(
+                        when (sortMode) { "title" -> "Title"; "cost" -> "Cost"; else -> "Newest" } + " ▾",
+                        fontSize = 12.sp, maxLines = 1
+                    )
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false },
+                    modifier = Modifier.background(AppColors.SurfaceDark)
+                ) {
+                    listOf("newest" to "Newest first", "title" to "Title A–Z", "cost" to "Cost, highest first").forEach { (v, label) ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(label, fontSize = 13.sp, color = if (sortMode == v) AppColors.InfoAccent else AppColors.TextPrimary) },
+                            onClick = { sortMode = v; sortMenuOpen = false }
+                        )
+                    }
+                }
+            }
+        }
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             // Per-row height ≈ 56 dp (matches History row math).
             // Reserve a touch of vertical headroom for the page header.
             val rowHeightDp = 56
             val headerReserveDp = 36
             val rowsPerPage = (((maxHeight.value - headerReserveDp) / rowHeightDp).toInt()).coerceAtLeast(1)
-            val totalPages = ((reports.size + rowsPerPage - 1) / rowsPerPage).coerceAtLeast(1)
+            val totalPages = ((visibleReports.size + rowsPerPage - 1) / rowsPerPage).coerceAtLeast(1)
             val pagerState = rememberPagerState(initialPage = 0, pageCount = { totalPages })
             // Re-clamp the active page when the dataset shrinks (e.g.
             // after a 🗑 delete drops the last row of the last page).
@@ -123,7 +164,7 @@ fun AllAiReportsScreen(
                     ) {
                         Text("${selectedIds.size} selected", fontSize = 13.sp, color = AppColors.TextSecondary)
                         Spacer(modifier = Modifier.weight(1f))
-                        androidx.compose.material3.TextButton(onClick = { selectedIds = reports.mapTo(HashSet()) { it.id } }) {
+                        androidx.compose.material3.TextButton(onClick = { selectedIds = visibleReports.mapTo(HashSet()) { it.id } }) {
                             Text("All", fontSize = 13.sp, maxLines = 1)
                         }
                         androidx.compose.material3.TextButton(
@@ -182,8 +223,8 @@ fun AllAiReportsScreen(
                     contentPadding = PaddingValues(horizontal = 0.dp)
                 ) { pageIndex ->
                     val from = pageIndex * rowsPerPage
-                    val to = (from + rowsPerPage).coerceAtMost(reports.size)
-                    val slice = if (from < to) reports.subList(from, to) else emptyList()
+                    val to = (from + rowsPerPage).coerceAtMost(visibleReports.size)
+                    val slice = if (from < to) visibleReports.subList(from, to) else emptyList()
                     Column(modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Top
                     ) {

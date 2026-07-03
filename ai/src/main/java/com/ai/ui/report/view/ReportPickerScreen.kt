@@ -22,7 +22,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -124,10 +126,15 @@ fun ReportPickerScreen(
     // always open them in View.
     val openExample = rememberExampleOpener(onOpenReportView, onOpenReportView)
 
+    // Title search — narrows every bucket (examples included) without
+    // leaving for the History flow.
+    var search by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
+
     val ids = allowedIds
     fun reportEntries(reports: List<Report>) =
         (if (ids == null) reports else reports.filter { it.id in ids })
             .filter { it.id != currentReportId }
+            .filter { search.isBlank() || it.title.contains(search, ignoreCase = true) }
             .map { r ->
                 PickerEntry(r.title.ifBlank { "Untitled" }) { onOpenReportView(r.id) }
             }
@@ -141,7 +148,9 @@ fun ReportPickerScreen(
             // Examples can't be capability-filtered without importing, so
             // hide the bucket whenever a filter is active.
             if (filter != null) emptyList()
-            else examples.map { e -> PickerEntry(e.title) { openExample(e, true) } })
+            else examples
+                .filter { search.isBlank() || it.title.contains(search, ignoreCase = true) }
+                .map { e -> PickerEntry(e.title) { openExample(e, true) } })
     )
     // Only show buckets that actually have reports — empty cards (which
     // used to render a greyed "(none)") are dropped entirely.
@@ -188,6 +197,16 @@ fun ReportPickerScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(Modifier.height(8.dp))
+            androidx.compose.material3.OutlinedTextField(
+                value = search, onValueChange = { search = it },
+                placeholder = { Text("Search by title…", fontSize = 13.sp) },
+                singleLine = true, colors = AppColors.outlinedFieldColors(),
+                trailingIcon = if (search.isNotEmpty()) {
+                    { Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp,
+                        modifier = Modifier.clickable { search = "" }.padding(8.dp)) }
+                } else null,
+                modifier = Modifier.fillMaxWidth()
+            )
             ordered.forEach { PickerCard(it) }
             Spacer(Modifier.height(16.dp))
         }
