@@ -1779,6 +1779,10 @@ private fun TileCard(tile: ViewTile) {
 
 @Composable
 private fun StandardTileBody(tile: ViewTile) {
+    // At large system font scales the single-line clip turns labels into
+    // "anthropic / claude-3-…" — allow a second line instead.
+    val tileFontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+    val tileMaxLines = if (tileFontScale > 1.3f) 2 else 1
     Column(
         modifier = Modifier.fillMaxSize().padding(8.dp),
         verticalArrangement = Arrangement.Center,
@@ -1789,13 +1793,13 @@ private fun StandardTileBody(tile: ViewTile) {
         Text(
             tile.label, color = AppColors.TextPrimary, fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
-            maxLines = 1, overflow = TextOverflow.Ellipsis
+            maxLines = tileMaxLines, overflow = TextOverflow.Ellipsis
         )
         tile.sublabel?.takeIf { it.isNotBlank() }?.let { sub ->
             Text(
                 sub, color = AppColors.TextTertiary, fontSize = 11.sp,
                 fontWeight = FontWeight.Normal, textAlign = TextAlign.Center,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
+                maxLines = tileMaxLines, overflow = TextOverflow.Ellipsis
             )
         }
     }

@@ -388,6 +388,10 @@ private fun BodyCell(
     weight: FontWeight = FontWeight.Normal,
     maxLines: Int = 1
 ) {
+    // At large system font scales a fixed-width single-line cell clips the
+    // value the user came to compare — allow a second line instead.
+    val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+    val effectiveMaxLines = if (fontScale > 1.3f) maxOf(maxLines, 2) else maxLines
     Text(
         text = text,
         color = color,
@@ -397,7 +401,7 @@ private fun BodyCell(
         lineHeight = 16.sp,
         modifier = Modifier.width(width).padding(horizontal = 4.dp),
         textAlign = if (end) androidx.compose.ui.text.style.TextAlign.End else androidx.compose.ui.text.style.TextAlign.Start,
-        maxLines = maxLines,
+        maxLines = effectiveMaxLines,
         overflow = TextOverflow.Ellipsis
     )
 }

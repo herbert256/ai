@@ -417,7 +417,10 @@ private fun BucketBar(bucket: BucketTotal, totalCents: Double, onClick: (() -> U
                 color = AppColors.TextPrimary, fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
-                maxLines = 1, overflow = TextOverflow.Ellipsis
+                // Second line at large font scales — the model name is the
+                // value the user came to compare.
+                maxLines = if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f) 2 else 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = "${(pct * 100).toInt()}%",
