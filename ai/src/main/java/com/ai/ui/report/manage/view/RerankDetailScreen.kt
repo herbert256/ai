@@ -124,9 +124,15 @@ internal fun RerankDetailScreen(
         return
     }
 
-    // ✏️ → "Change result": Reload (re-run in place) or Switch model / agent.
+    // ✏️ → "Change result": Reload (re-run in place), Switch model / agent,
+    // or — for chat-type reranks — Edit prompt (per-run criterion tweak;
+    // native rerank models take no prompt, so the action hides there).
     var showChangeActions by remember { mutableStateOf(false) }
     var showModelSwitchPick by remember { mutableStateOf(false) }
+    var showPromptEditReplay by remember { mutableStateOf(false) }
+    val metaEditManager = com.ai.ui.shared.LocalMetaEditManager.current
+    val isNativeRerank = providerService != null &&
+        aiSettings.getModelType(providerService, eff.model) == com.ai.data.ModelType.RERANK
     val switchStates by (modelSwitch?.states ?: emptyModelSwitchStatesFlow).collectAsState()
     val switchState = switchStates[ModelSwitchState.key(result.reportId, result.id)]
     if (modelSwitch != null && showChangeActions) {
@@ -146,8 +152,45 @@ internal fun RerankDetailScreen(
                     description = "Re-run this result against another model or agent, then keep or discard it.",
                     onClick = { showChangeActions = false; showModelSwitchPick = true }
                 )
+            ) + listOfNotNull(
+                if (!isNativeRerank && metaEditManager != null) ResponseChangeAction(
+                    icon = com.ai.data.MetadataIconsHolder.current.edit,
+                    title = "Edit prompt",
+                    description = "Re-rank by a different criterion for THIS run only — the global rerank prompt is untouched.",
+                    onClick = { showChangeActions = false; showPromptEditReplay = true }
+                ) else null
             ),
             onBack = { showChangeActions = false }
+        )
+        return
+    }
+    val promptEditReplayStatesR by (metaEditManager?.promptEditReplayStates
+        ?: remember { kotlinx.coroutines.flow.MutableStateFlow(emptyMap<String, com.ai.viewmodel.PromptEditReplayState>()) }).collectAsState()
+    val resolvedRerankPrompt by produceState<String?>(initialValue = null, result.reportId, result.id, secDataVersion) {
+        value = metaEditManager?.resolveMetaPrompt(context, result.reportId, result.id)
+    }
+    if (showPromptEditReplay && metaEditManager != null) {
+        PromptEditReplayScreen(
+            reportId = result.reportId,
+            targetId = result.id,
+            title = "Edit prompt replay",
+            modelLabel = com.ai.ui.shared.modelLabel(provider, eff.model, separator = " / "),
+            initialPrompt = resolvedRerankPrompt ?: "",
+            state = promptEditReplayStatesR[com.ai.viewmodel.PromptEditReplayState.key(result.reportId, result.id)],
+            aiSettings = aiSettings,
+            onCallModel = { prompt, paramsIds, systemPromptId ->
+                metaEditManager.startPromptEditReplay(context, result.reportId, result.id, prompt, paramsIds, systemPromptId)
+            },
+            onUseResponse = {
+                metaEditManager.applyPromptEditReplay(context, result.reportId, result.id)
+                metaEditManager.clearPromptEditReplay(result.reportId, result.id)
+                showPromptEditReplay = false
+            },
+            onTrace = onNavigateToTraceFile,
+            onBack = {
+                metaEditManager.clearPromptEditReplay(result.reportId, result.id)
+                showPromptEditReplay = false
+            }
         )
         return
     }
