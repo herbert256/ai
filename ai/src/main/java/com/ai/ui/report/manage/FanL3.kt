@@ -89,8 +89,12 @@ internal fun FanOutL3Screen(
     answererKey: String,
     sourceAgentId: String,
     role: String,
+    /** Exact pair row to show. Null only on a restored pre-field nav
+     *  save — the agent-id resolution below then applies (ambiguous for
+     *  duplicate-model answerers, but better than nothing). */
+    pairId: String? = null,
     actions: FanOutActions,
-    onStepSource: (String) -> Unit,
+    onStepSource: (String, String?) -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -102,8 +106,12 @@ internal fun FanOutL3Screen(
     // answerer, sourceAgentId identifies the source. For Initiator
     // mode the L2 row's "other" agent is the answerer, and this
     // sourceAgentId is actually the answererAgentId in our model.
-    val pair = remember(run, answererKey, sourceAgentId, role) {
-        if (role == "Responder") {
+    val pair = remember(run, answererKey, sourceAgentId, role, pairId) {
+        // Exact id first — the agent-id fallbacks below are ambiguous in
+        // Initiator mode when the same model answers as two agents (both
+        // pairs share answererAgentId, so the second was unreachable).
+        pairId?.let { pid -> run.pairs.values.firstOrNull { it.id == pid } }
+            ?: if (role == "Responder") {
             run.pairs.values.firstOrNull {
                 "${it.providerId}|${it.model}" == answererKey && it.sourceAgentId == sourceAgentId
             }
@@ -650,8 +658,8 @@ internal fun FanOutL3Screen(
                 OutlinedButton(
                     onClick = {
                         prev?.let {
-                            if (role == "Responder") onStepSource(it.sourceAgentId)
-                            else onStepSource(it.answererAgentId)
+                            if (role == "Responder") onStepSource(it.sourceAgentId, it.id)
+                            else onStepSource(it.answererAgentId, it.id)
                         }
                     },
                     enabled = prev != null,
@@ -662,8 +670,8 @@ internal fun FanOutL3Screen(
                 OutlinedButton(
                     onClick = {
                         next?.let {
-                            if (role == "Responder") onStepSource(it.sourceAgentId)
-                            else onStepSource(it.answererAgentId)
+                            if (role == "Responder") onStepSource(it.sourceAgentId, it.id)
+                            else onStepSource(it.answererAgentId, it.id)
                         }
                     },
                     enabled = next != null,

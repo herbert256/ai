@@ -42,7 +42,11 @@ import kotlinx.coroutines.withContext
 sealed class FanOutNav {
     object L1 : FanOutNav()
     data class L2(val answererKey: String, val role: String) : FanOutNav()
-    data class L3(val answererKey: String, val sourceAgentId: String, val role: String) : FanOutNav()
+    /** [pairId] pins the exact pair row: resolving by agent id alone is
+     *  ambiguous in Initiator mode when the same model answers as two
+     *  agents (both pairs share answererAgentId) — the second pair was
+     *  unreachable. Null only on a restored pre-field save. */
+    data class L3(val answererKey: String, val sourceAgentId: String, val role: String, val pairId: String? = null) : FanOutNav()
     data class L2OnePage(val answererKey: String, val role: String) : FanOutNav()
     object Stats : FanOutNav()
 }
@@ -52,11 +56,11 @@ sealed class FanOutNav {
 private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
     save = { nav ->
         when (nav) {
-            is FanOutNav.L1 -> listOf("L1", "", "", "")
-            is FanOutNav.L2 -> listOf("L2", nav.answererKey, "", nav.role)
-            is FanOutNav.L3 -> listOf("L3", nav.answererKey, nav.sourceAgentId, nav.role)
-            is FanOutNav.L2OnePage -> listOf("L2OP", nav.answererKey, "", nav.role)
-            is FanOutNav.Stats -> listOf("STATS", "", "", "")
+            is FanOutNav.L1 -> listOf("L1", "", "", "", "")
+            is FanOutNav.L2 -> listOf("L2", nav.answererKey, "", nav.role, "")
+            is FanOutNav.L3 -> listOf("L3", nav.answererKey, nav.sourceAgentId, nav.role, nav.pairId.orEmpty())
+            is FanOutNav.L2OnePage -> listOf("L2OP", nav.answererKey, "", nav.role, "")
+            is FanOutNav.Stats -> listOf("STATS", "", "", "", "")
         }
     },
     restore = { list ->
@@ -65,7 +69,7 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
         when (l[0]) {
             "L1" -> FanOutNav.L1
             "L2" -> FanOutNav.L2(l[1], l[3].ifEmpty { "Responder" })
-            "L3" -> FanOutNav.L3(l[1], l[2], l[3].ifEmpty { "Responder" })
+            "L3" -> FanOutNav.L3(l[1], l[2], l[3].ifEmpty { "Responder" }, l.getOrNull(4)?.ifEmpty { null })
             "L2OP" -> FanOutNav.L2OnePage(l[1], l[3].ifEmpty { "Responder" })
             "STATS" -> FanOutNav.Stats
             else -> FanOutNav.L1
@@ -227,8 +231,8 @@ fun FanOutScreen(
             role = n.role,
             actions = actions,
             onSwitchRole = { newRole -> nav = FanOutNav.L2(n.answererKey, newRole) },
-            onOpenPair = { sourceAgentId ->
-                nav = FanOutNav.L3(n.answererKey, sourceAgentId, n.role)
+            onOpenPair = { sourceAgentId, pairId ->
+                nav = FanOutNav.L3(n.answererKey, sourceAgentId, n.role, pairId)
             },
             onOpenOnePage = { nav = FanOutNav.L2OnePage(n.answererKey, n.role) },
             // L2's "Fan Meta" button cross-links to the separate Fan
@@ -242,9 +246,10 @@ fun FanOutScreen(
             answererKey = n.answererKey,
             sourceAgentId = n.sourceAgentId,
             role = n.role,
+            pairId = n.pairId,
             actions = actions,
-            onStepSource = { newSourceAgentId ->
-                nav = FanOutNav.L3(n.answererKey, newSourceAgentId, n.role)
+            onStepSource = { newSourceAgentId, newPairId ->
+                nav = FanOutNav.L3(n.answererKey, newSourceAgentId, n.role, newPairId)
             },
             onBack = { nav = FanOutNav.L2(n.answererKey, n.role) }
         )

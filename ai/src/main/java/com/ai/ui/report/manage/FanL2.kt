@@ -74,7 +74,9 @@ internal fun FanOutL2Screen(
     role: String,
     actions: FanOutActions,
     onSwitchRole: (String) -> Unit,
-    onOpenPair: (String) -> Unit,
+    /** (agentId, pairId) — the pair id pins the exact row; the agent id
+     *  alone is ambiguous for duplicate-model answerers (see FanOutNav.L3). */
+    onOpenPair: (String, String) -> Unit,
     onOpenOnePage: () -> Unit,
     /** Cross-link to the separate Fan Meta screen (the "Fan Meta" button). */
     onOpenTitles: () -> Unit = {},
@@ -271,7 +273,7 @@ internal fun FanOutL2Screen(
                                 }
                             }
                             .padding(vertical = 6.dp)
-                            .clickable { onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId) },
+                            .clickable { onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId, p.id) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Leading cell:
