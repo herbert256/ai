@@ -77,6 +77,7 @@ data class CreateReportConfig(
     val imageMime: String? = null,
     val webSearchTool: Boolean = false,
     val reasoningEffort: String? = null,
+    val metadataDisabled: Boolean = false,
     val workerConfig: ReportWorkerConfig = ReportWorkerConfig(),
     // Explicit id — used by the translation flow so the new report's UUID can
     // be reserved up front and threaded into ApiTracer.currentReportId before
@@ -171,7 +172,7 @@ object ReportStorage {
         val report = Report(explicitId ?: UUID.randomUUID().toString(), now, createdAt = now, title = title, prompt = prompt,
             agents = agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
             imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool,
-            reasoningEffort = reasoningEffort, workerConfig = workerConfig,
+            reasoningEffort = reasoningEffort, metadataDisabled = metadataDisabled, workerConfig = workerConfig,
             sourceReportId = sourceReportId,
             knowledgeBaseIds = knowledgeBaseIds, runId = runId,
             parameterPresetIds = parameterPresetIds, advancedParameters = advancedParameters,

@@ -362,7 +362,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         title: String, prompt: String,
         imageBase64: String? = null, imageMime: String? = null,
         webSearchTool: Boolean = false,
-        reasoningEffort: String? = null
+        reasoningEffort: String? = null,
+        metadataDisabled: Boolean = false
     ) {
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
@@ -370,6 +371,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             reportImageBase64 = imageBase64, reportImageMime = imageMime,
             reportWebSearchTool = webSearchTool,
             reportReasoningEffort = reasoningEffort,
+            reportMetadataDisabled = metadataDisabled,
             showGenericAgentSelection = true, showGenericReportsDialog = false,
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
@@ -424,7 +426,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // bytes alive for the agents that need them.
             appViewModel.updateUiState { it.copy(
                 reportImageBase64 = null, reportImageMime = null,
-                reportWebSearchTool = false, reportReasoningEffort = null
+                reportWebSearchTool = false, reportReasoningEffort = null,
+                reportMetadataDisabled = false
             ) }
             // Layer the per-report advanced overlay on top of any preset
             // merge — "later non-null wins" (matches Settings.mergeParameters
@@ -502,6 +505,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     imageBase64 = imageBase64, imageMime = imageMime,
                     webSearchTool = state.reportWebSearchTool,
                     reasoningEffort = state.reportReasoningEffort,
+                    metadataDisabled = state.reportMetadataDisabled,
                     workerConfig = workerConfig,
                     knowledgeBaseIds = state.attachedKnowledgeBaseIds,
                     runId = runId,

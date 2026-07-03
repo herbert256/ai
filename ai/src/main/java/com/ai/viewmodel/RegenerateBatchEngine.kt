@@ -925,7 +925,7 @@ class RegenerateBatchEngine internal constructor(
         val titleRunnable = titlePrompts.any { prompt ->
             prompt.workers.any { aiSettings.resolveWorker(it) != null }
         }
-        if (generalSettings.reportTitleAiOn() && !report.prompt.isNullOrBlank() && titleRunnable) {
+        if (generalSettings.reportTitleAiOn() && !report.prompt.isNullOrBlank() && titleRunnable && !report.metadataDisabled) {
             tasks += RegenerateTask(
                 rowId = REPORT_TITLE_ROW_ID,
                 phase = RegeneratePhase.TITLE,
@@ -940,7 +940,7 @@ class RegenerateBatchEngine internal constructor(
             it.category == "workers" && it.name == "report-icon"
         }
         val iconRunnable = iconPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
-        if (generalSettings.reportIconOn() && !report.prompt.isNullOrBlank() && iconRunnable) {
+        if (generalSettings.reportIconOn() && !report.prompt.isNullOrBlank() && iconRunnable && !report.metadataDisabled) {
             tasks += RegenerateTask(
                 rowId = REPORT_ICON_ROW_ID,
                 phase = RegeneratePhase.ICON,
@@ -955,7 +955,7 @@ class RegenerateBatchEngine internal constructor(
             it.category == "workers" && it.name == "report-language-name"
         }
         val languageRunnable = languagePrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
-        if (generalSettings.reportLanguageOn() && !report.prompt.isNullOrBlank() && languageRunnable) {
+        if (generalSettings.reportLanguageOn() && !report.prompt.isNullOrBlank() && languageRunnable && !report.metadataDisabled) {
             tasks += RegenerateTask(
                 rowId = REPORT_LANGUAGE_ROW_ID,
                 phase = RegeneratePhase.LANGUAGE,
@@ -1043,7 +1043,7 @@ class RegenerateBatchEngine internal constructor(
             !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() ||
                 !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank()
         }
-        if (generalSettings.fanMetaOn()) {
+        if (generalSettings.fanMetaOn() && !report.metadataDisabled) {
             for (row in fanMetaRows) {
                 tasks += RegenerateTask(
                     rowId = row.id,

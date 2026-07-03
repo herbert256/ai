@@ -185,6 +185,12 @@ class IconGenerationManager(
     private val appViewModel: AppViewModel,
     private val rvm: ReportViewModel
 ) {
+    /** F67 — the per-report metadata kill-switch. True skips every
+     *  metadata kickoff for this report without touching the global
+     *  Metadata & icons settings. */
+    private fun metadataDisabledFor(context: Context, reportId: String): Boolean =
+        com.ai.data.ReportStorage.getReport(context, reportId)?.metadataDisabled == true
+
     private fun costSplit(
         usage: TokenUsage?,
         pricing: PricingCache.ModelPricing?
@@ -381,6 +387,7 @@ class IconGenerationManager(
         promptText: String,
         aiSettings: Settings
     ) {
+        if (metadataDisabledFor(context, reportId)) return
         // Master switch — when the user disabled per-report icon-gen
         // in Settings, skip the LLM call entirely. Existing on-disk
         // icon values stay intact.
@@ -602,6 +609,7 @@ class IconGenerationManager(
          *  this; a title-only restart leaves a good icon alone. */
         thenIcon: Boolean = false
     ) {
+        if (metadataDisabledFor(context, reportId)) return
         // Master switch — MANUAL mode = user typed a title themselves;
         // never run the LLM call.
         if (!appViewModel.uiState.value.generalSettings.reportTitleAiOn()) return
@@ -767,6 +775,7 @@ class IconGenerationManager(
         reportPrompt: String, aiSettings: Settings,
         iconOn: Boolean, titleOn: Boolean
     ) {
+        if (metadataDisabledFor(context, reportId)) return
         when {
             // Title row on → generate + store the model title; chain the icon
             // from it when the icon is on too.
@@ -970,6 +979,7 @@ class IconGenerationManager(
         promptText: String,
         aiSettings: Settings
     ) {
+        if (metadataDisabledFor(context, reportId)) return
         if (!appViewModel.uiState.value.generalSettings.reportLanguageOn()) return
         // Two chained worker calls now: report-language-name detects the
         // language NAME from the prompt, then report-language-icon picks a
@@ -2899,6 +2909,7 @@ class IconGenerationManager(
         rowIds: Set<String>? = null,
         buildKey: String? = null
     ): Job? {
+        if (metadataDisabledFor(context, reportId)) return null
         if (!appViewModel.uiState.value.generalSettings.fanMetaOn()) return null
         rvm.fanOutEngine.fanMetaJobOf(reportId, metaPromptId)?.let { existing ->
             if (existing.isActive) return existing

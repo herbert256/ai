@@ -158,6 +158,9 @@ fun NewReportScreen(
     val sharedKbUris = uiState.pendingReportKnowledgeUris
     var attachError by remember { mutableStateOf<String?>(null) }
     var useWebSearch by remember { mutableStateOf(false) }
+    // Per-report metadata kill-switch — skip title/icon/language/per-model
+    // calls for THIS report without flipping the global setting.
+    var skipMetadata by remember { mutableStateOf(false) }
     // Per-report reasoning level. "" = none; one of low/medium/high
     // gets OR'd onto every agent's params at dispatch (non-thinking
     // models drop the field).
@@ -384,7 +387,8 @@ fun NewReportScreen(
                             imageBase64 = attachedImage?.second,
                             imageMime = attachedImage?.first,
                             webSearchTool = useWebSearch,
-                            reasoningEffort = reasoningEffort.ifBlank { null }
+                            reasoningEffort = reasoningEffort.ifBlank { null },
+                            metadataDisabled = skipMetadata
                         )
                         // Staging consumed by the selection flow — drain the
                         // shared-KB staging so a later fresh visit doesn't
@@ -525,6 +529,15 @@ fun NewReportScreen(
                     }
                 }
             }
+            FilterChip(
+                selected = skipMetadata,
+                onClick = { skipMetadata = !skipMetadata },
+                label = { Text("${com.ai.ui.shared.LocalMetadataIcons.current.image} Skip metadata", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.CautionAccent.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.CautionAccent
+                )
+            )
         }
 
         // Title input hidden in AI title-mode — the title is filled
@@ -589,7 +602,8 @@ fun NewReportScreen(
                         imageBase64 = attachedImage?.second,
                         imageMime = attachedImage?.first,
                         webSearchTool = useWebSearch,
-                        reasoningEffort = reasoningEffort.ifBlank { null }
+                        reasoningEffort = reasoningEffort.ifBlank { null },
+                            metadataDisabled = skipMetadata
                     )
                     // Same staging drain as proceed(): without it the
                     // shared-KB banner (and a never-generated image)

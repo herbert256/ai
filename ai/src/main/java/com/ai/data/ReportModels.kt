@@ -329,6 +329,10 @@ data class Report(
      *  Re-seeded into UiState by regenerateReport so the rerun gets the
      *  same tool descriptor injected for every agent. */
     val webSearchTool: Boolean = false,
+    /** Per-report metadata kill-switch (F67): true skips title / icon /
+     *  language / per-model / fan-meta generation for THIS report without
+     *  touching the global Metadata & icons settings. */
+    val metadataDisabled: Boolean = false,
     /** Per-report 🧠 reasoning level (low / medium / high; null = unset).
      *  Persisted alongside webSearchTool so a regenerate uses the same
      *  reasoning hint without forcing the user to re-pick. Non-thinking
