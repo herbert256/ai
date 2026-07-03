@@ -2271,6 +2271,21 @@ class IconGenerationManager(
             .lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
             .take(325)
 
+    /** Extract the title from a fan-meta reply ("title: X\nicon: Y").
+     *  Prefers an explicit "title:" line; otherwise falls back to the
+     *  reply with recognised "icon:" lines removed — a reply of only
+     *  "icon: 🚀" must yield a BLANK title (which flags the missing-title
+     *  error), not store the icon line AS the title. */
+    private fun parseFanMetaTitle(analysis: String?): String? {
+        if (analysis == null) return null
+        val titleLine = analysis.lineSequence()
+            .firstOrNull { it.trim().startsWith("title", ignoreCase = true) }
+        if (titleLine != null) return titleLine.substringAfter(":")
+        return analysis.lineSequence()
+            .filterNot { it.trim().startsWith("icon", ignoreCase = true) }
+            .joinToString("\n")
+    }
+
     fun startReportTitleFanOut(
         context: Context, reportId: String, promptText: String,
         models: List<ReportModel>, aiSettings: Settings, long: Boolean = false,
@@ -3020,19 +3035,12 @@ class IconGenerationManager(
                 else appViewModel.updateThrottledFanMetaPairs { it - pairId }
             }
         ) { resp ->
-            val a = resp.analysis
-            val titleRaw = a?.lineSequence()
-                ?.firstOrNull { it.trim().startsWith("title", ignoreCase = true) }
-                ?.substringAfter(":") ?: a
-            extractFirstEmoji(a) != null || cleanTitle(titleRaw).isNotBlank()
+            extractFirstEmoji(resp.analysis) != null || cleanTitle(parseFanMetaTitle(resp.analysis)).isNotBlank()
         }
         when (val outcome = call.outcome) {
             is WorkerOutcome.Success -> {
                 val analysis = outcome.response.analysis
-                val titleRaw = analysis?.lineSequence()
-                    ?.firstOrNull { it.trim().startsWith("title", ignoreCase = true) }
-                    ?.substringAfter(":") ?: analysis
-                val title = cleanTitle(titleRaw)
+                val title = cleanTitle(parseFanMetaTitle(analysis))
                 val iconLine = analysis?.lineSequence()?.firstOrNull { it.trim().startsWith("icon", ignoreCase = true) }
                 val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: MetadataIconsHolder.current.fanOutRow
                 val win = resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind = "title", durationMs = System.currentTimeMillis() - started)
