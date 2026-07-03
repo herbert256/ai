@@ -151,6 +151,10 @@ fun ReportModelScreen(
     var showWebSearchReplay by remember { mutableStateOf(false) }
     var showPromptEditReplay by remember { mutableStateOf(false) }
     var showResponseChangeActions by remember { mutableStateOf(false) }
+    // "Switch model / agent" — answer the report's prompt with another
+    // model, preview, then keep (append new row / drop this one) or discard.
+    var showAgentModelSwitchPick by remember { mutableStateOf(false) }
+    val agentModelSwitch = com.ai.ui.shared.LocalAgentModelSwitch.current
     BackHandler { onBack() }
     val context = LocalContext.current
     val aiSettings = com.ai.ui.shared.LocalAiSettings.current
@@ -493,9 +497,55 @@ fun ReportModelScreen(
                         showWebSearchReplay = true
                     }
                 )
+            ) + listOfNotNull(
+                if (agentModelSwitch != null) ResponseChangeAction(
+                    icon = com.ai.data.MetadataIconsHolder.current.agent,
+                    title = "Switch model / agent",
+                    description = "Answer the report's prompt with another model or agent, preview it, then keep (replacing this row) or discard.",
+                    onClick = {
+                        showResponseChangeActions = false
+                        showAgentModelSwitchPick = true
+                    }
+                ) else null
             ),
             onBack = { showResponseChangeActions = false }
         )
+        return
+    }
+
+    // "Switch model / agent" pick + preview — same screens the secondary
+    // detail flows use; apply appends the new pair's row with the previewed
+    // response and removes this one through the standard cascade.
+    val agentSwitchStates by (agentModelSwitch?.states ?: emptyModelSwitchStatesFlow).collectAsState()
+    val agentSwitchState = agentSwitchStates[com.ai.viewmodel.ModelSwitchState.key(reportId, currentAgentId)]
+    if (agentModelSwitch != null && showAgentModelSwitchPick) {
+        SecondaryModelSwitchPickScreen(
+            aiSettings = aiSettings,
+            rowParamsIds = report?.parameterPresetIds.orEmpty(),
+            rowSystemPromptId = report?.reportSystemPromptId,
+            onPicked = { sel ->
+                showAgentModelSwitchPick = false
+                agentModelSwitch.startModelSwitch(context, reportId, currentAgentId, sel)
+            },
+            onBack = { showAgentModelSwitchPick = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (agentModelSwitch != null && agentSwitchState != null) {
+        SecondaryModelSwitchPreviewScreen(
+            state = agentSwitchState,
+            onUse = {
+                val sel = agentSwitchState.selection
+                agentModelSwitch.applyModelSwitch(context, reportId, currentAgentId)
+                // Follow the answer onto its new row (the preview state for
+                // the old key is dropped by the apply).
+                currentAgentId = "swarm:${sel.provider.id}:${sel.model}"
+            },
+            onDiscard = { agentModelSwitch.clear(reportId, currentAgentId) },
+            onTrace = onNavigateToTraceFile,
+            onBack = { agentModelSwitch.clear(reportId, currentAgentId) }
+        ) { content -> ContentWithThinkSections(analysis = content) }
         return
     }
 

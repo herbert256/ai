@@ -2622,6 +2622,18 @@ object ReportStorage {
         }
     }
 
+    /** Record the parameter-preset ids one row should replay on future
+     *  regenerates ([Report.selectionParamsById], read by the task
+     *  builder). Used by the agent model-switch apply so the switched-in
+     *  row keeps the picked agent's presets. */
+    fun setSelectionParamsForRow(context: Context, reportId: String, rowId: String, presetIds: List<String>) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            saveReport(report.copy(selectionParamsById = report.selectionParamsById + (rowId to presetIds)))
+        }
+    }
+
     /** Reset an existing agent row to PENDING and clear every result-
      *  related field so the next API call writes a fresh outcome rather
      *  than overwriting on top of stale data. Used by the in-place

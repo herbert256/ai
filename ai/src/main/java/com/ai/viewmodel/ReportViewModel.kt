@@ -321,6 +321,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  (Meta / Fan-in / Rerank / Moderation). See [SecondaryModelSwitchManager]. */
     val secondaryModelSwitch: SecondaryModelSwitchManager = SecondaryModelSwitchManager(appViewModel, this)
 
+    /** "Switch model / agent" for a PRIMARY answer — preview + append-new /
+     *  remove-old apply. See [AgentModelSwitchManager]. */
+    val agentModelSwitch: AgentModelSwitchManager = AgentModelSwitchManager(appViewModel, this)
+
     /** Per-report orchestrator for the "Regenerate report" batch
      *  job. Replaces the legacy one-shot regenerateReport call —
      *  the title-bar 🔁 icon's confirm dialog now calls
@@ -344,7 +348,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  Reusable engine; no batch is converted onto it yet. */
     val workerRunner = WorkerRunner(appViewModel)
 
-    private data class ReportTask(
+    internal data class ReportTask(
         val resultId: String,
         val reportAgent: ReportAgent,
         val runtimeAgent: Agent,
@@ -572,7 +576,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  returnCitations ANDs so an opt-out anywhere is honoured), then the
      *  per-report 🌐 web / 🧠 reasoning toggles. Shared by the fresh run and
      *  Regenerate so both apply the same selections. */
-    private fun resolveReportOverrideParams(
+    internal fun resolveReportOverrideParams(
         aiSettings: Settings,
         parameterPresetIds: List<String>,
         advanced: AgentParameters?,
@@ -711,7 +715,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private fun reportPreGenParamsActive(report: Report): Boolean =
         report.advancedParameters != null || report.webSearchTool || report.reasoningEffort != null
 
-    private fun buildTemperatureSweepTask(report: Report, state: UiState, reportAgent: ReportAgent): ReportTask? {
+    internal fun buildTemperatureSweepTask(report: Report, state: UiState, reportAgent: ReportAgent): ReportTask? {
         val ai = state.aiSettings
         val provider = AppService.findById(reportAgent.provider) ?: return null
         val reportLevelSystemPrompt = report.reportSystemPromptId
@@ -2501,6 +2505,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         metaEditManager.cancelAllForReport(reportId)
         // "Switch model / agent" preview candidates for any secondary kind.
         secondaryModelSwitch.cancelAllForReport(reportId)
+        agentModelSwitch.cancelAllForReport(reportId)
         // Translation runs + the regenerate-batch orchestrator are also
         // report-owned and were NOT cancelled here — a translation
         // completing after the delete writes via SecondaryResultStorage
@@ -2945,7 +2950,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     /** Remove ONE agent from a report (storage + in-memory results flow + the
      *  genericReportsSelectedAgents set). Does not touch batches — callers that
      *  need the batch cascade go through [removeReportModelEverywhereInternal].*/
-    private suspend fun removeAgentInternal(context: Context, reportId: String, agentId: String) {
+    internal suspend fun removeAgentInternal(context: Context, reportId: String, agentId: String) {
         // Cancel any in-flight per-agent work BEFORE the storage delete below,
         // so a zombie write can't land for an agent that's about to be gone
         // (and its later spend isn't silently dropped from cost accounting).
@@ -3028,7 +3033,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  score cells (translator). Idempotent. The GLOBAL judge swarm is left
      *  untouched: it's shared across reports and isn't consulted while
      *  REPORT_MODELS drives the batch pool from the report's own agents. */
-    private suspend fun removeReportModelEverywhereInternal(
+    internal suspend fun removeReportModelEverywhereInternal(
         context: Context, reportId: String, providerId: String, model: String
     ) {
         val report = ReportStorage.getReport(context, reportId) ?: return

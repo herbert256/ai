@@ -762,6 +762,9 @@ val LocalMetaEditManager = compositionLocalOf<com.ai.viewmodel.MetaEditManager?>
 /** Per-report "Switch model / agent" preview+apply for any secondary kind,
  *  surfaced from each detail screen's Change-result action. */
 val LocalSecondaryModelSwitch = compositionLocalOf<com.ai.viewmodel.SecondaryModelSwitchManager?> { null }
+/** Primary-answer counterpart of [LocalSecondaryModelSwitch] — the
+ *  Model-response screen's Change-response "Switch model / agent". */
+val LocalAgentModelSwitch = compositionLocalOf<com.ai.viewmodel.AgentModelSwitchManager?> { null }
 
 /** Shared "Judge-the-judges L1 is open for reportId X" state slot. */
 val LocalJudgeEvalOpenState =
