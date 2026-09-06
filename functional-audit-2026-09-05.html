@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Functional audit — 5 September 2026</title>
+<style>
+:root{--paper:#fff;--background:#f3f5f7;--ink:#172638;--muted:#526477;--line:#dce3eb;--accent:#195ba0;--wash:#edf4fb}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:28px}body{margin:0;background:var(--background);color:var(--ink);font:17px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:3px}a:hover{color:#103b68}a:focus-visible,button:focus-visible,summary:focus-visible,.table-scroll:focus-visible{outline:3px solid #378bdb;outline-offset:4px}.skip{position:fixed;left:16px;top:-100px;background:white;padding:12px;z-index:10}.skip:focus{top:12px}.topbar{max-width:1290px;margin:auto;padding:25px 32px;display:flex;justify-content:space-between;gap:20px;align-items:center}.kicker{font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}.actions{display:flex;align-items:center;gap:20px;font-size:14px}button{font:inherit;color:var(--ink);border:1px solid #bbc8d6;background:white;border-radius:6px;padding:7px 14px;cursor:pointer}.layout{max-width:1290px;margin:0 auto 64px;padding:0 32px;display:grid;grid-template-columns:250px minmax(0,1fr);gap:32px;align-items:start}aside{position:sticky;top:24px;max-height:calc(100vh - 48px);overflow:auto;padding:15px 8px 16px 0;font-size:13px;line-height:1.5}summary{font-size:12px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;margin-bottom:16px;color:var(--muted)}nav{display:grid;gap:3px}nav a{display:block;text-decoration:none;padding:7px 10px;border-left:2px solid transparent;color:var(--muted)}nav a:hover{border-left-color:var(--accent);background:var(--wash);color:var(--accent)}article{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:clamp(25px,4vw,60px);box-shadow:0 5px 30px #17263805}h1{font-size:clamp(2rem,3.8vw,3.2rem);line-height:1.14;letter-spacing:-.035em;margin:0 0 30px;font-weight:750}h2{font-size:1.45rem;line-height:1.4;letter-spacing:-.015em;margin:2.7em 0 1em;padding-top:1.5em;border-top:1px solid var(--line);text-wrap:pretty}.audit-date{display:block;margin-top:12px;font-size:.5em;font-weight:500;letter-spacing:0;color:var(--muted)}h1+p{font-size:1.08rem;padding:23px 25px;background:var(--wash);border-left:4px solid var(--accent);border-radius:0 7px 7px 0}h1+p strong{font-weight:600}p{margin:1.15em 0}strong{font-weight:680}li{padding-left:3px;margin:.65em 0}ul,ol{padding-left:1.45em}code{background:#eef1f5;border:1px solid #e0e6ee;border-radius:4px;font-size:.85em;padding:2px 5px;overflow-wrap:anywhere}article a{overflow-wrap:anywhere}.table-scroll{overflow-x:auto;margin:24px 0;border:1px solid var(--line);border-radius:7px}table{border-collapse:collapse;width:100%;font-size:.87rem;line-height:1.55;text-align:left}th,td{padding:13px 15px;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--wash);font-weight:700}tr:last-child td{border-bottom:0}tbody tr:nth-child(even){background:#fafbfd}th:first-child{min-width:92px}footer{max-width:1290px;margin:0 auto;padding:0 32px 36px;font-size:13px;color:var(--muted)}
+@media(max-width:850px){.topbar{padding:20px}.layout{grid-template-columns:1fr;padding:0 20px;gap:18px}aside{position:static;max-height:none;padding:0}details{background:white;border:1px solid var(--line);border-radius:7px;padding:15px}summary{margin:0}details[open] summary{margin-bottom:12px}nav{max-height:50vh;overflow:auto}article{padding:28px 23px}h1{font-size:2.3rem}h2{font-size:1.28rem}.actions{gap:12px;font-size:13px}.kicker{font-size:10px}body{font-size:16px}h1+p{padding:17px}footer{padding:0 20px 25px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{@page{margin:18mm}body{background:white;color:black;font-size:10.5pt;line-height:1.5}.topbar,aside,.skip,footer{display:none}.layout{display:block;padding:0;margin:0;max-width:none}article{border:0;border-radius:0;box-shadow:none;padding:0}h1{font-size:26pt}h2{font-size:15pt;break-after:avoid;margin-top:22pt;padding-top:15pt}h1+p{font-size:11pt;background:transparent}p,li{orphans:3;widows:3}a{color:inherit}th{background:#eee}tr{break-inside:avoid}.table-scroll{overflow:visible;border-radius:0}thead{display:table-header-group}table{font-size:9pt}th,td{padding:8pt}}
+</style>
+</head>
+<body>
+<a class="skip" href="#audit">Skip to audit</a>
+<header class="topbar"><div class="kicker">AI Workbench · Functional review</div><div class="actions"><a href="doc/functional-audit-2026-09-05.md">Markdown source</a><button type="button" id="print">Print / PDF</button></div></header>
+<div class="layout"><aside><details open id="contents"><summary>Contents</summary><nav aria-label="Audit contents"><a href="#what-already-works-conceptually">What already works conceptually</a>
+<a href="#priority-overview">Priority overview</a>
+<a href="#finding-1">1. “Ranking” currently covers several different questions.</a>
+<a href="#finding-2">2. “Best value” is not a defensible universal conclusion from score ÷ cost.</a>
+<a href="#finding-3">3. Combined score creates apparent precision from overlapping and incomplete evidence.</a>
+<a href="#finding-4">4. Rank the translators compares unequal assignments.</a>
+<a href="#finding-5">5. Answer matrix makes wording heuristics look like assessed properties.</a>
+<a href="#finding-6">6. An Agent is presented as a reusable role, but selection treats model identity as the unit.</a>
+<a href="#finding-7">7. Saved configuration does not have a consistent meaning across workflows.</a>
+<a href="#finding-8">8. A report is both an editable document and an experiment record, without enough separation.</a>
+<a href="#finding-9">9. Optional metadata has too much authority over task completion.</a>
+<a href="#finding-10">10. The launch flow does not present the whole work commitment.</a>
+<a href="#finding-11">11. Navigation makes users learn categories and symbols before choosing an outcome.</a>
+<a href="#finding-12">12. First-run setup is a directory of options, and the manual sometimes describes a different product.</a>
+<a href="#finding-13">13. Translation is designed around the whole report rather than the immediate reading need.</a>
+<a href="#finding-14">14. The app needs a clearer point at which analysis becomes the user&#39;s deliverable.</a>
+<a href="#a-coherent-default-journey">A coherent default journey</a>
+<a href="#recommended-sequence-of-work">Recommended sequence of work</a>
+<a href="#follow-up-validation">Follow-up validation</a></nav></details></aside><article id="audit"><h1 id="functional-audit-5-september-2026">Functional audit <span class="audit-date">— 5 September 2026</span></h1>
+<p><strong>Verdict: the application makes sense as a personal AI comparison workbench. Its strongest workflow is asking several models the same question, inspecting disagreement, refining an answer, and retaining the work. However, some evaluation features imply stronger conclusions than their inputs justify, and ordinary tasks require understanding too much of the application&#39;s internal organization.</strong></p>
+<p>The priority is to make the existing functionality predictable and its results interpretable. Adding more functionality is not the immediate need.</p>
+<p><strong>Scope and evidence.</strong> This is a product and workflow audit, not a technical defect review. I inspected the current source at commit <code>6f10aba69</code>, the manual and subsystem documentation, bundled prompts, and the installed emulator application (version <code>26.179.1275</code>). Live inspection covered an existing report&#39;s Manage screen, the Reports hub, and the New report chooser. I did not run new paid generations, modify application configuration, or exercise destructive operations. The installed version is not asserted to be an exact build of that commit. Behavioral findings below are grounded in source; observed screen details are identified explicitly. No real-user usability study or assessment of model answer accuracy was performed.</p>
+<p>The documentation contains outdated behavior descriptions. Where documentation and implementation disagree, the implementation takes precedence. Recommendations are product judgments; examples are illustrative unless marked as observed.</p>
+<h2 id="what-already-works-conceptually">What already works conceptually</h2>
+<ul>
+<li>A report groups one question and multiple answers. This is a strong organizing object for comparison, inspection, and reuse.</li>
+<li>Reports and Chat address distinct needs: independent answers versus an evolving conversation. Dual Chat is a reasonable advanced experiment with bounded rounds and a Stop control.</li>
+<li>Saved model configurations and reusable groups reduce repetitive setup. The distinction between configured agents and bare models has practical value, even though its presentation and behavior need work.</li>
+<li>Meta analysis, per-answer refinement, and Fan-out/Fan-in provide a useful progression from initial answers to deeper analysis.</li>
+<li>Prompt history, saved conversations, notes, report export, and backup make the app useful beyond the initial API call.</li>
+<li>Costs, call attribution, retry controls, and the preservation of spend from deleted items are valuable controls for a multi-provider tool.</li>
+<li>Existing safeguards deserve credit: draft autosave, additive generation when only models are added, confirmation text for regeneration, some batch call-count previews, inspectable judge reasoning, and experimental feature gating.</li>
+</ul>
+<p>Those strengths should survive any simplification. For an experienced owner, fast icon shortcuts and detailed diagnostics are valuable. The same controls need a more explanatory route for occasional use or unfamiliar features.</p>
+<h2 id="priority-overview">Priority overview</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Audit table"><table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Finding</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>First</td>
+<td>1–5: interpretation of evaluation results</td>
+<td>A user can make an unjustified decision even when every call succeeds.</td>
+</tr>
+<tr>
+<td>First</td>
+<td>6–8: identity, configuration, and revisions</td>
+<td>A user cannot reliably tell what was compared or which answer was evaluated.</td>
+</tr>
+<tr>
+<td>First</td>
+<td>9: optional metadata can block primary work</td>
+<td>A decoration failure can prevent the requested answer generation.</td>
+</tr>
+<tr>
+<td>Next</td>
+<td>10–12: launch transparency, navigation, onboarding</td>
+<td>The app makes users learn mechanisms before accomplishing a task.</td>
+</tr>
+<tr>
+<td>Next</td>
+<td>13–14: translation scope and useful completion</td>
+<td>Work can expand beyond the user&#39;s intention without a clear final deliverable.</td>
+</tr>
+</tbody></table></div>
+<h2 id="finding-1" class="finding-heading">1. “Ranking” currently covers several different questions. — High impact; confirmed</h2>
+<p>Dedicated reranking sends the question and answers to a relevance-ranking endpoint. Compare with meta explicitly measures semantic agreement and coverage of a reference generated from the answers. Judge the judges measures agreement with the panel&#39;s own consensus. Tournament asks for a preference based on accuracy, completeness, clarity, and usefulness. These are useful measurements, but they do not establish the same thing.</p>
+<p>For example, an answer can be highly relevant yet factually wrong. A correct minority answer can disagree with a mistaken synthesis. A judge can agree with other judges without being a better judge. The consensus calculation also includes the judge being scored, making it partly agreement with a consensus it helped create.</p>
+<p><strong>Recommendation:</strong> attach a plain-language measurement to every result: “Question relevance,” “Agreement with this synthesis,” “Panel agreement,” and “Preference under this rubric.” Use “answer quality” only where a defined quality rubric supports that description. Offer independent reference material or a user-approved reference as an optional evaluation input. For judge agreement, compare each judge against the other judges where feasible, and expose insufficient-panel cases.</p>
+<p><strong>Acceptance:</strong> someone opening a ranking can identify the criterion, evaluator, reference, coverage, and meaning of the score without reading Help. A relevance score is never presented as evidence of factual correctness.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt#L1745" title="ai/src/main/java/com/ai/viewmodel/SecondaryRunManager.kt, line 1745">dedicated rerank path</a>, <a href="ai/src/main/assets/internal-prompts/English/meta_compare/summarize.txt#L1" title="ai/src/main/assets/internal-prompts/English/meta_compare/summarize.txt, line 1">meta comparison instructions</a>, <a href="ai/src/main/java/com/ai/data/JudgeAgreement.kt#L57" title="ai/src/main/java/com/ai/data/JudgeAgreement.kt, line 57">judge agreement</a>, <a href="ai/src/main/assets/internal-prompts/English/workers/tournament.txt#L1" title="ai/src/main/assets/internal-prompts/English/workers/tournament.txt, line 1">tournament instructions</a>.</p>
+<h2 id="finding-2" class="finding-heading">2. “Best value” is not a defensible universal conclusion from score ÷ cost. — High impact; confirmed</h2>
+<p>Value view selects a winner by dividing the selected ranking score by cost. Some supported scores have arbitrary baselines or are derived from rank positions. Their ratios have no stable interpretation as units of quality purchased.</p>
+<p>Illustration: A has score 100 at cost 1; B has score 200 at cost 1.5. The ratio picks B. Adding 1,000 to both scores preserves their ordering and difference, yet the ratio now picks A. A harmless change of score origin changes the purchasing recommendation. Elo-like scores make this especially relevant.</p>
+<p>There is also a mismatch between current output and historical spend. Regeneration preserves accumulated cost while replacing the answer. Refinement can replace an answer while its trial costs live only in global usage. Translation rankings are plotted against the model&#39;s original report-answer cost. Those are different economic questions.</p>
+<p><strong>Recommendation:</strong> preserve the Pareto chart as an exploration tool, but replace the universal winner with explicit choices such as “Lowest cost above my quality threshold” or “Highest judged score within my budget.” Separate latest answer cost, total experiment spend, and translation cost. Show the pricing basis and whether it is estimated. Do not imply that one report establishes general model value.</p>
+<p><strong>Acceptance:</strong> repeating an experiment changes lifetime spend, but does not silently change the comparison&#39;s definition of answer cost. A translation comparison uses translation work and its cost.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L182" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 182">value point construction and winner selection</a>, <a href="ai/src/main/java/com/ai/data/ReportStorage.kt#L2662" title="ai/src/main/java/com/ai/data/ReportStorage.kt, line 2662">preserved regeneration costs</a>, <a href="ai/src/main/java/com/ai/data/ReportStorage.kt#L353" title="ai/src/main/java/com/ai/data/ReportStorage.kt, line 353">refinement cost contract</a>.</p>
+<h2 id="finding-3" class="finding-heading">3. Combined score creates apparent precision from overlapping and incomplete evidence. — High impact; confirmed</h2>
+<p>Combined normalizes available rankings separately, then averages their weighted values for each model. Seven tournament methods contribute independently despite being calculated from the same judgments. Their default weights total 14, compared with 3 for rerank, 6 for judges, 6 for translations, and 4 for comparison. This is a strong preference for one underlying evidence source, expressed through its alternative calculations.</p>
+<p>Translation skill, agreement with a synthesis, and answer preference also enter the same number. Models can receive that number from different subsets of the evidence. The implementation explicitly chooses averaging over available scores; this avoids treating absence as failure, but does not make the resulting comparisons equivalent. Min-max scaling can stretch a very small difference across the whole scale.</p>
+<p><strong>Recommendation:</strong> make Combined an explicitly named custom preference score. Group tournament methods under one evidence-family weight; use method choice to explore sensitivity. Show each model&#39;s contributing dimensions and coverage. Keep different task skills separate by default, and compare a common evidence subset when the user requests an overall ordering.</p>
+<p><strong>Acceptance:</strong> two models cannot appear to have directly comparable overall scores without revealing that one was judged on fewer or different criteria.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L247" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 247">Combined calculation</a>, <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L317" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 317">missing-data policy</a>, <a href="ai/src/main/java/com/ai/viewmodel/AppViewModelTypes.kt#L135" title="ai/src/main/java/com/ai/viewmodel/AppViewModelTypes.kt, line 135">default weights</a>.</p>
+<h2 id="finding-4" class="finding-heading">4. Rank the translators compares unequal assignments. — High impact; confirmed</h2>
+<p>A normal translation run distributes different source items across a worker pool. Translator ranking subsequently compares average received scores for the items each translator happened to produce. Translators need not have translated the same passages. They also judge one another, excluding self-judging, so their evaluator sets differ. A deterministic cap of 25 scoring cells per translator controls cost and repeatability; it does not equalize passage difficulty or judge strictness.</p>
+<p>A translator assigned short, straightforward answers can outrank one assigned difficult material for reasons unrelated to capability. With only one translator, there is no independent peer left to score its work.</p>
+<p><strong>Recommendation:</strong> distinguish “Quality review of these translations” from “Compare translator models.” Keep the existing process for review, with item counts and limitations visible. A comparison should translate the same representative passages with every candidate, then use a common independent panel and the same rubric.</p>
+<p><strong>Acceptance:</strong> the app can display “not enough comparable evidence” rather than forcing a translator leaderboard. A comparison identifies the shared passages and common judges.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/viewmodel/TranslationRunManager.kt#L138" title="ai/src/main/java/com/ai/viewmodel/TranslationRunManager.kt, line 138">translation scheduling</a>, <a href="ai/src/main/java/com/ai/viewmodel/TranslatorRankEngine.kt#L156" title="ai/src/main/java/com/ai/viewmodel/TranslatorRankEngine.kt, line 156">assignment recovery, peer panel, and sampling</a>, <a href="ai/src/main/java/com/ai/data/TranslatorRankModel.kt#L208" title="ai/src/main/java/com/ai/data/TranslatorRankModel.kt, line 208">score averaging</a>.</p>
+<h2 id="finding-5" class="finding-heading">5. Answer matrix makes wording heuristics look like assessed properties. — High impact; confirmed</h2>
+<p>The matrix labels answers with Stance and Confidence using English regular expressions. “Confidence” counts words such as “certain” and “possibly”; no matching words yields Medium. “Refuses” can be triggered by “I cannot,” and “Risks” can be triggered by ordinary mentions of cost or security. A response can discuss those concepts without refusing or expressing uncertainty. Translated content is processed with the same English patterns.</p>
+<p>This is a semantic limitation, even if the extraction runs exactly as written. A terse correct answer is not meaningfully “Medium confidence” merely because it lacks confidence vocabulary. An explanation containing “I cannot recommend…” is not necessarily a refusal to answer the question.</p>
+<p><strong>Recommendation:</strong> label these columns as detected wording, provide the matching excerpt, and use “Not assessed” when evidence is absent. Alternatively remove Confidence from the default matrix. If structured assessment is offered, name its source and rubric and retain uncertainty about what it establishes.</p>
+<p><strong>Acceptance:</strong> the table never implies calibrated confidence or independently checked risk analysis from keyword counts. Unsupported-language extraction is visibly unavailable.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt#L281" title="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt, line 281">matrix presentation</a>, <a href="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt#L502" title="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt, line 502">extraction and patterns</a>.</p>
+<h2 id="finding-6" class="finding-heading">6. An Agent is presented as a reusable role, but selection treats model identity as the unit. — High impact; confirmed</h2>
+<p>An Agent contains a model, instructions, and parameters. It is natural to create “Optimist” and “Skeptic” on the same provider/model and compare them. Report selection deduplicates by provider and model alone, leaving one entry. Distinct agent identities and configurations do not distinguish the two selections.</p>
+<p>This is a product contract conflict: the app offers reusable configured roles, but a central comparison workflow cannot preserve two roles on the same model. The same issue affects comparing different presets or endpoints on one model through those saved agents.</p>
+<p><strong>Recommendation:</strong> distinguish model comparison from configuration comparison. Preserve distinct named agents in configuration comparison; collapse only genuinely identical picks. Explain any merge immediately in the selection UI. Flocks and Swarms can remain as advanced shortcuts, but “Saved agents” and “Model groups” would make their purpose clearer. The Swarms list&#39;s current “Multi-step agent pipelines” subtitle is inaccurate for a flat group.</p>
+<p><strong>Acceptance:</strong> two agents with different instructions on the same model can appear as two labeled answer slots, or the interface clearly explains that the workflow only compares unique models before selection is lost.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/model/SettingsModels.kt#L1026" title="ai/src/main/java/com/ai/model/SettingsModels.kt, line 1026">model identity and deduplication</a>, <a href="ai/src/main/java/com/ai/ui/report/start/SelectionOverlays.kt#L142" title="ai/src/main/java/com/ai/ui/report/start/SelectionOverlays.kt, line 142">selection uses this rule</a>, <a href="ai/src/main/java/com/ai/ui/cruds/workers/swarms/list.kt#L42" title="ai/src/main/java/com/ai/ui/cruds/workers/swarms/list.kt, line 42">Swarm subtitle</a>.</p>
+<h2 id="finding-7" class="finding-heading">7. Saved configuration does not have a consistent meaning across workflows. — High impact; confirmed</h2>
+<p>Starting Chat with an Agent takes the system prompt from its parameter presets, but does not read that Agent&#39;s standalone system-prompt selection. Report generation does read that selection. A role configured once can therefore behave differently in Chat and Reports.</p>
+<p>Report generation also looks for the first containing Flock or Swarm with a system prompt. That lookup is based on membership across saved groups, not necessarily the group through which this particular selection was made. Merely organizing a model into another group can affect the instructions used when running it.</p>
+<p><strong>Recommendation:</strong> define a simple public contract: an Agent carries the same identity and default instructions wherever used; group overrides apply when selecting that group; explicit run overrides win. Add an “Effective instructions and settings” summary before execution, including the source of each override. Keep advanced inheritance, but make its result inspectable before spending money.</p>
+<p><strong>Acceptance:</strong> a user can predict an Agent&#39;s role without knowing which screen launched it. Adding it to an unused group cannot silently change a direct run.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt#L88" title="ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt, line 88">Chat seeding</a>, <a href="ai/src/main/java/com/ai/model/SettingsModels.kt#L722" title="ai/src/main/java/com/ai/model/SettingsModels.kt, line 722">preset-only resolver</a>, <a href="ai/src/main/java/com/ai/viewmodel/ReportViewModelHelpers.kt#L112" title="ai/src/main/java/com/ai/viewmodel/ReportViewModelHelpers.kt, line 112">group lookup</a>, <a href="ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt#L658" title="ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt, line 658">report resolution</a>.</p>
+<h2 id="finding-8" class="finding-heading">8. A report is both an editable document and an experiment record, without enough separation. — High impact; confirmed in the inspected paths</h2>
+<p>The prompt editor correctly warns that saving requires regeneration, and stores previous prompts. Refinement records the source of an applied replacement. These are useful foundations. But applying a refined answer replaces its current response body while leaving costs and tokens untouched; that operation does not update or mark dependent secondary evaluations obsolete. Model-list-only regeneration explicitly preserves existing secondary rows while adding new answers.</p>
+<p>A user can consequently read a current answer alongside judgments made before that answer or participant set changed. An audit trail helps investigate later, but it is not an immediate explanation of which material a judgment covers.</p>
+<p><strong>Recommendation:</strong> give answer revisions explicit identities and bind evaluations/translations to the source revision. Show “Based on previous answers” or “Covers 5 of 6 current answers” and offer a selective update. Preserve the original answer when applying a refinement. Provide separate “Edit draft,” “Retry failed,” “Run new version,” and “Update derived results” actions.</p>
+<p><strong>Acceptance:</strong> after refining one answer or adding one model, affected evaluations visibly identify their previous source coverage. Export communicates the same relationship.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/report/manage/EditPrompt.kt#L35" title="ai/src/main/java/com/ai/ui/report/manage/EditPrompt.kt, line 35">prompt editing contract</a>, <a href="ai/src/main/java/com/ai/data/ReportStorage.kt#L353" title="ai/src/main/java/com/ai/data/ReportStorage.kt, line 353">applying a replacement</a>, <a href="ai/src/main/java/com/ai/ui/report/manage/view/SingleResult.kt#L592" title="ai/src/main/java/com/ai/ui/report/manage/view/SingleResult.kt, line 592">refinement caller</a>, <a href="ai/src/main/java/com/ai/ui/report/manage/Run.kt#L803" title="ai/src/main/java/com/ai/ui/report/manage/Run.kt, line 803">additive regeneration message</a>.</p>
+<h2 id="finding-9" class="finding-heading">9. Optional metadata has too much authority over task completion. — High impact; confirmed</h2>
+<p>The regeneration sequence runs titles, icons, and language before primary answers. Its phase controller pauses at the first error. With the relevant metadata jobs enabled and configured, an icon or title failure can therefore stop progress before the requested answer regeneration starts.</p>
+<p>That ordering makes cosmetic enrichment a prerequisite for substantive work. Users reasonably distinguish “I have my answers” from “one generated decoration failed.”</p>
+<p><strong>Recommendation:</strong> run primary work independently of optional enrichment. Model status should distinguish answer completion, optional metadata issues, and incomplete analysis. Keep metadata retry available without making it a blocking condition.</p>
+<p><strong>Acceptance:</strong> deliberately failing an icon worker does not prevent successful models from producing their answers; the report remains readable with a static fallback.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/data/RegenerateBatch.kt#L18" title="ai/src/main/java/com/ai/data/RegenerateBatch.kt, line 18">phase order</a>, <a href="ai/src/main/java/com/ai/viewmodel/RegenerateBatchEngine.kt#L432" title="ai/src/main/java/com/ai/viewmodel/RegenerateBatchEngine.kt, line 432">pause-on-error behavior</a>.</p>
+<h2 id="finding-10" class="finding-heading">10. The launch flow does not present the whole work commitment. — Medium–high impact; confirmed in the inspected report flow</h2>
+<p>Selection shows model prices and a combined per-million-token rate. Some later batches show call counts. Those are helpful, but the final report setup page does not summarize the complete planned work: primary answers, metadata calls, worker provider pools, enabled follow-up work, and approximate total spend. Default metadata generation is enabled; the separate Autostart master is disabled by default, so automatic secondary batches should not be assumed to run on a fresh installation.</p>
+<p>Worker pools can include providers beyond those selected to answer. They may process titles, prompt text, or answer content depending on the job. Choosing an answer model alone does not describe every recipient. This matters for both cost expectations and control over where content goes.</p>
+<p><strong>Recommendation:</strong> put a compact execution summary beside Generate: answer count, auxiliary jobs, eligible providers, estimated spend range and assumptions. Offer “Answers only” and “Use only these providers.” Add a spending limit where useful, with a clear statement that in-flight requests may still complete. Reuse the summary for large secondary operations.</p>
+<p><strong>Acceptance:</strong> before launching, the user can explain the planned work and eligible recipients. Price per million tokens is visibly distinguished from estimated cost of this run.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/report/start/SelectionPhase.kt#L140" title="ai/src/main/java/com/ai/ui/report/start/SelectionPhase.kt, line 140">selection price summary</a>, <a href="ai/src/main/java/com/ai/ui/report/start/SelectWorkers.kt#L141" title="ai/src/main/java/com/ai/ui/report/start/SelectWorkers.kt, line 141">final setup</a>, <a href="ai/src/main/java/com/ai/viewmodel/AppViewModelTypes.kt#L249" title="ai/src/main/java/com/ai/viewmodel/AppViewModelTypes.kt, line 249">metadata and Autostart defaults</a>, <a href="ai/src/main/java/com/ai/viewmodel/WorkerRunner.kt#L185" title="ai/src/main/java/com/ai/viewmodel/WorkerRunner.kt, line 185">worker selection</a>.</p>
+<h2 id="finding-11" class="finding-heading">11. Navigation makes users learn categories and symbols before choosing an outcome. — Medium–high impact; observed and source-confirmed</h2>
+<p>The observed Manage screen gave prominent space to API calls, accumulated duration, cost, and rows labeled “info,” “second,” and “report.” Its visible answer rows emphasized generated titles, with a dense icon bar. The observed Reports hub put New, Search, and the full report list behind bottom icons. The current source confirms that these primary actions have moved out of the body.</p>
+<p>Further analysis is distributed between Create analysis, a separate Tournament launcher, direct action icons, second results, and View. “Compare,” “Compare with meta,” and A/B compare describe distinct activities but are close enough to require explanation. The icon legend is helpful, yet needing it for routine actions adds a navigation step.</p>
+<p><strong>Recommendation:</strong> retain the shortcut bars as an expert option, and add visible goal-based actions: “Read answers,” “Compare answers,” “Improve an answer,” “Create a synthesis,” “Translate,” and “Export.” Give the report one obvious reading home with named sections for Answers, Analysis, Translations, and Activity. Keep model identity readily available even when generated titles are enabled.</p>
+<p><strong>Acceptance:</strong> an unfamiliar user can start a report, read an answer, compare two answers, and export without opening the icon legend or learning the term “secondary.”</p>
+<p>Evidence: live emulator inspection; <a href="ai/src/main/java/com/ai/ui/hub/HubScreens.kt#L380" title="ai/src/main/java/com/ai/ui/hub/HubScreens.kt, line 380">Reports hub</a>, <a href="ai/src/main/java/com/ai/ui/report/manage/CreateOverview.kt#L37" title="ai/src/main/java/com/ai/ui/report/manage/CreateOverview.kt, line 37">separate analysis launchers</a>. The live screen reflected existing settings; other display configurations may expose model names differently.</p>
+<h2 id="finding-12" class="finding-heading">12. First-run setup is a directory of options, and the manual sometimes describes a different product. — Medium impact; confirmed</h2>
+<p>First launch presents Import API keys, AI Setup, Example reports, Housekeeping, Settings, Help, and About. It does not lead with one obvious path from adding one provider to completing one small report. “Import API keys” assumes the newcomer already has an exported configuration. Example reports are a valuable alternative, but compete with administrative choices.</p>
+<p>The manual&#39;s Reports hub describes prominent Start and Search cards; the current implementation places those actions in the bottom bar. The regeneration document describes a ten-phase sequence and missing dedicated later stages; current code has dedicated Judges, Compare, and Transrank stages too. These are concrete documentation mismatches, not application bugs discovered by this audit.</p>
+<p><strong>Recommendation:</strong> give first run two primary paths: “Try an example” and “Connect a provider.” Then suggest a small model selection, one prompt, and reading the result. Keep import and advanced setup accessible. Update help from actual current journeys, especially after navigation changes.</p>
+<p><strong>Acceptance:</strong> starting from no imported configuration, the user reaches the first useful result without understanding Flocks, Swarms, internal prompts, or housekeeping. The manual&#39;s named controls match the screen.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/hub/FirstLaunchScreen.kt#L16" title="ai/src/main/java/com/ai/ui/hub/FirstLaunchScreen.kt, line 16">First launch</a>, <a href="doc/manual.md" title="doc/manual.md">manual</a>, <a href="doc/regenerate.md" title="doc/regenerate.md">regeneration documentation</a>, <a href="ai/src/main/java/com/ai/data/RegenerateBatch.kt#L18" title="ai/src/main/java/com/ai/data/RegenerateBatch.kt, line 18">current phase enum</a>.</p>
+<h2 id="finding-13" class="finding-heading">13. Translation is designed around the whole report rather than the immediate reading need. — Medium impact; confirmed</h2>
+<p>The main translation run snapshots translatable report content: prompt, successful answers, Meta content, and several title types. It has no general subset selector. A user who wants to understand one answer in another language enters a broader operation. Distribution across translators is operationally useful, but can also make terminology and style vary across one translated report unless managed explicitly.</p>
+<p><strong>Recommendation:</strong> offer “This answer,” “Selected content,” and “Entire report.” Show estimated items before starting. Offer a consistent translator or shared terminology instructions for a finished report. Treat translator benchmarking as a separate optional workflow, as described in finding 4.</p>
+<p><strong>Acceptance:</strong> translating a single selected answer need not translate other answers, the prompt, and decorative titles.</p>
+<p>Evidence: <a href="doc/translation.md" title="doc/translation.md">translation scope and item types</a>, <a href="ai/src/main/java/com/ai/viewmodel/TranslationRunManager.kt#L138" title="ai/src/main/java/com/ai/viewmodel/TranslationRunManager.kt, line 138">run construction</a>.</p>
+<h2 id="finding-14" class="finding-heading">14. The app needs a clearer point at which analysis becomes the user&#39;s deliverable. — Medium impact; product judgment supported by the inspected flows</h2>
+<p>Many operations produce more material: compare, critique, synthesize, fan out, rank, translate, and judge again. Notes, refinement, and export already provide parts of a finishing workflow, but the central organization emphasizes producing and managing outputs. A “final answer selected by me” is a clearer endpoint than simply another Meta result.</p>
+<p>An observed report was headed “Magnus Carlsen: The Undisputed Chess GOAT” while visible answer titles favored both Carlsen and Kasparov. This does not establish how that particular title was created, but illustrates why a report title should describe the question rather than pre-empt its conclusion.</p>
+<p><strong>Recommendation:</strong> let users mark a selected answer or synthesis as their conclusion, retain important disagreements and sources, and export that concise result with an optional full audit appendix. Use neutral report titles by default and reserve claims of a winner for explicitly attributed evaluation results.</p>
+<p><strong>Acceptance:</strong> after comparing answers, the user can finish with an identifiable deliverable showing what they selected, why, what remains uncertain, and which source versions support it.</p>
+<p>Evidence: live report observation; <a href="ai/src/main/java/com/ai/ui/report/manage/CreateOverview.kt#L37" title="ai/src/main/java/com/ai/ui/report/manage/CreateOverview.kt, line 37">analysis launcher</a>, <a href="ai/src/main/java/com/ai/ui/report/manage/AgentChat.kt#L61" title="ai/src/main/java/com/ai/ui/report/manage/AgentChat.kt, line 61">refinement workflow</a>, <a href="ai/src/main/assets/internal-prompts/English/workers/report-title-long.txt#L1" title="ai/src/main/assets/internal-prompts/English/workers/report-title-long.txt, line 1">report-title instructions</a>.</p>
+<h2 id="a-coherent-default-journey">A coherent default journey</h2>
+<p>Question and attachments → choose models or saved roles → review instructions, recipients, and expected work → generate → read answers and disagreements → optionally evaluate or refine → select a conclusion → export.</p>
+<p>Secondary tools fit naturally into this journey when presented as optional steps with a stated purpose. Diagnostics remain one tap away, but are not the default explanation of a completed report. Advanced configuration stays available without becoming a prerequisite.</p>
+<h2 id="recommended-sequence-of-work">Recommended sequence of work</h2>
+<ol>
+<li><strong>Make conclusions trustworthy:</strong> clarify ranking meanings; reconsider Best value; expose Combined coverage; relabel matrix heuristics; separate translator review from benchmarking.</li>
+<li><strong>Make runs predictable:</strong> preserve agent identity, show effective configuration, expose all worker recipients and planned work, and keep metadata failures from blocking answers.</li>
+<li><strong>Make reports durable experiments:</strong> bind judgments to answer revisions, separate current-call cost from lifetime spend, and distinguish retry, new version, and derived-result updates.</li>
+<li><strong>Simplify the common journey:</strong> labeled primary actions, two-path onboarding, selected-content translation, and a user-selected final deliverable. Then bring the manual into alignment.</li>
+</ol>
+<p>Do not start with a wholesale visual redesign. Navigation simplification alone cannot resolve misleading score semantics or unstable configuration meaning. Conversely, preserving expert shortcuts does not require keeping those ambiguities.</p>
+<h2 id="follow-up-validation">Follow-up validation</h2>
+<p>The following are acceptance scenarios for future product work, not claims of tests already run:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Audit table"><table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Evidence of a sensible workflow</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>First use with one provider</td>
+<td>User gets one useful answer without configuring worker machinery.</td>
+</tr>
+<tr>
+<td>Optimist and Skeptic on the same model</td>
+<td>Both roles survive selection and show their effective instructions.</td>
+</tr>
+<tr>
+<td>Same Agent in Chat and Reports</td>
+<td>Its default role is consistent and any override is visible.</td>
+</tr>
+<tr>
+<td>One answer refined after a tournament</td>
+<td>Old judgments identify the old revision and offer selective refresh.</td>
+</tr>
+<tr>
+<td>Icon service unavailable</td>
+<td>Primary answers still complete; optional failure remains secondary.</td>
+</tr>
+<tr>
+<td>One answer translated</td>
+<td>Only intended content is included in the execution summary.</td>
+</tr>
+<tr>
+<td>Two translators compared</td>
+<td>Both translate the same passages under the same evaluation conditions.</td>
+</tr>
+<tr>
+<td>Partial rankings</td>
+<td>Coverage differences are visible; missing evidence is not disguised as a comparable score.</td>
+</tr>
+<tr>
+<td>Repeated generation</td>
+<td>Current result cost and accumulated experiment spend are distinguishable.</td>
+</tr>
+<tr>
+<td>Export after a decision</td>
+<td>Recipient can identify the chosen conclusion, dissent, and evaluation basis.</td>
+</tr>
+</tbody></table></div>
+<p>Knowledge ingestion, local models, file-type edge cases, long-lived interrupted work, and restore/import should receive separate hands-on journey validation. They were inspected through documentation and selected integration points here, not exhaustively exercised. Existing source already preserves access to attached knowledge in Chat when experimental creation controls are disabled, so the older documentation&#39;s broader claim that all such UI disappears is not treated as a current finding.</p>
+</article></div>
+<footer>HTML edition of <a href="doc/functional-audit-2026-09-05.md">functional-audit-2026-09-05.md</a> · Original audit text preserved.</footer>
+<script>document.getElementById('print').addEventListener('click',()=>window.print());if(window.matchMedia('(max-width:850px)').matches)document.getElementById('contents').open=false;</script>
+</body>
+</html>
