@@ -47,7 +47,9 @@ internal object ReportContentStore {
                 require(hash.matches(Regex("[0-9a-f]{64}"))) { "Invalid report content reference" }
                 val blob=File(directory(files,reportId),"$hash.txt")
                 if (!blob.exists()) throw IOException("Saved report content is missing: $key")
-                obj.addProperty(key,blob.readText()); obj.remove("_$key")
+                val value = blob.readText()
+                if (ReportEvidenceStore.digest(value) != hash) throw IOException("Saved report content failed integrity validation: $key")
+                obj.addProperty(key,value); obj.remove("_$key")
             }
         }
         return root.toString()

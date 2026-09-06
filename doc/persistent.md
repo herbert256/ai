@@ -357,7 +357,17 @@ The UI offers a network-free retry or copying the unsaved payload.
 Ordinary full backups include these directories. Single-report bundles and bulk
 Report archives materialize answer text so internal content references do not
 escape. Bundle version 2 adds evidence; version 1 remains readable. Import
-accepts at most 10,000 entries, 16 MiB per entry and 128 MiB inflated total.
+accepts at most 10,000 entries, 16 MiB per entry and 128 MiB inflated total. Versions and
+manifest counts must be exact whole numbers. Import validates core identities,
+agent status, nested notes/costs, execution settings and source evidence before
+writing final files; imports with the same active destination ID cannot overlap.
+
+Large content blobs are verified against their SHA-256 reference when loaded.
+An unreadable existing report is never treated as an available new-report ID.
+Malformed pending cost records remain on disk for repair while valid records
+continue flushing. Malformed work-limit files fail the request as an I/O error;
+a fresh work preview can replace the invalid limit. Deleting a report
+also removes its work limit and pending-cost directory under their owners’ locks.
 
 ### `secondary/<reportId>/<resultId>.json`
 One file per `SecondaryResult` row — RERANK, META (every chat-type

@@ -18,16 +18,16 @@ internal object ReportKnowledge {
             try {
                 val hits=KnowledgeService.retrieve(context,repository,settings,report.knowledgeBaseIds,report.prompt)
                 val text=KnowledgeService.formatContextBlock(hits)
-                ReportStorage.saveKnowledgeContext(context,reportId,text,
-                    if(hits.isEmpty()) "No relevant knowledge passages found" else "Saved ${hits.size} knowledge passages for this report")
+                val saved = ReportStorage.saveKnowledgeContext(context,reportId,text,
+                    if(hits.isEmpty()) "No relevant knowledge passages found" else "Saved ${hits.size} knowledge passages for this report",
+                    report.prompt, report.knowledgeBaseIds)
+                if (!saved) throw kotlinx.coroutines.CancellationException("Report inputs changed during knowledge retrieval; retry with the updated inputs")
                 ReportStorage.getReport(context,reportId)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (e: Exception) {
-                ReportStorage.saveKnowledgeContext(context,reportId,null,"Retrieval failed: ${e.message}")
-                report.agents.filter { it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING }.forEach {
-                    ReportStorage.updateAgentStatus(context,reportId,it.agentId,ReportStatus.ERROR,
-                        AgentStatusPatch(errorMessage="Knowledge retrieval failed: ${e.message}"))
-                }
+                val saved = ReportStorage.saveKnowledgeContext(context, reportId, null, "Retrieval failed: ${e.message}",
+                    report.prompt, report.knowledgeBaseIds, "Knowledge retrieval failed: ${e.message}")
+                if (!saved) throw kotlinx.coroutines.CancellationException("Report inputs changed during knowledge retrieval; retry with the updated inputs")
                 // Leave context null so an explicit retry can recover retrieval.
                 throw java.io.IOException("Knowledge retrieval failed; no ungrounded answer was requested: ${e.message}",e)
             }

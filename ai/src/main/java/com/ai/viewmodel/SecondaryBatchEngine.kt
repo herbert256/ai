@@ -386,7 +386,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  budget. The stale filter is sentinel-independent (content blank + no
      *  duration), so an interrupted-after-worker row is still found. */
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
             // hydrate runs before the scan guard, so it needs its own guard —
             // this launch is a direct child of viewModelScope and no global
             // coroutine exception handler exists, so an uncaught throw here

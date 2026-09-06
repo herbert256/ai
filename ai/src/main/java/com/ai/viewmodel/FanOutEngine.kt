@@ -2187,7 +2187,7 @@ class FanOutEngine internal constructor(
      *  locate (prompt deleted / answerer agent gone) so they stop
      *  spinning. */
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
           // Fire-and-forget on viewModelScope with no global exception
           // handler — an uncaught throw here crashes the app (the startup
           // resume sweep only join()s this Job, it can't catch it). Contain.

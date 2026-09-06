@@ -18,6 +18,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.shortModelName
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -362,14 +363,13 @@ class RegenerateBatchEngine internal constructor(
         appViewModel.updateUiState {
             it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1)
         }
-        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
-            com.ai.data.ReportWorkLimits.beginScope(reportId)
+        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId) +
+            com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reportId)) {
             try {
                 orchestrate(context, reportId)
             } catch (e: Exception) {
                 AppLog.w("RegenBatch", "orchestrator crashed for $reportId: ${e.message}")
             } finally {
-                com.ai.data.ReportWorkLimits.endScope(reportId)
                 appViewModel.updateUiState {
                     it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
                 }

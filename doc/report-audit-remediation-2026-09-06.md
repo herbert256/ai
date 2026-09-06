@@ -4,6 +4,9 @@ All 28 audit findings have implementation changes. The original HTML findings
 remain a historical record of the pre-fix source; this document describes the
 new behavior and the validation actually performed.
 
+A [second bug hunt](report-audit-followup-2026-09-06.md) tightened these paths further;
+its findings and verification are recorded separately.
+
 ## Changes by finding
 
 | Finding | Change | Main implementation |

@@ -769,10 +769,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
-    private fun flushPendingReportApiCallCostsLocked() {
-        ReportCostJournal.flush(filesDir)
-    }
-
     private fun mergeUsageStats(existing: UsageStats?, incoming: UsageStats): UsageStats =
         existing?.copy(
             callCount = existing.callCount + incoming.callCount,
@@ -949,21 +945,25 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun flushUsageStats() {
+        var journalFailure: Exception? = null
+        try { ReportCostJournal.flush(filesDir) }
+        catch (e: Exception) { journalFailure = e }
         synchronized(usageStatsLock) {
-            flushPendingReportApiCallCostsLocked()
-            val snapshot = usageStatsCache?.let { HashMap(it) } ?: return
-            lastUsageStatsFlush = System.currentTimeMillis()
-            saveUsageStats(snapshot)
-            usageCategoryStatsCache?.let { saveUsageCategoryStats(HashMap(it)) }
-            usageReportStatsCache?.let { saveUsageReportStats(HashMap(it)) }
+            usageStatsCache?.let { cache ->
+                lastUsageStatsFlush = System.currentTimeMillis()
+                saveUsageStats(HashMap(cache))
+                usageCategoryStatsCache?.let { saveUsageCategoryStats(HashMap(it)) }
+                usageReportStatsCache?.let { saveUsageReportStats(HashMap(it)) }
+            }
         }
+        journalFailure?.let { throw it }
     }
 
     suspend fun updateUsageStatsAsync(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report", searchUnits: Int = 0, durationMs: Long? = null) =
-        withContext(Dispatchers.IO) { updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens, kind, searchUnits, durationMs) }
+        withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens, kind, searchUnits, durationMs) }
 
     suspend fun updateUsageStatsAsync(provider: AppService, model: String, usage: TokenUsage, kind: String = "report", searchUnits: Int = 0, durationMs: Long? = null) =
-        withContext(Dispatchers.IO) { updateUsageStats(provider, model, usage, kind, searchUnits, durationMs) }
+        withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { updateUsageStats(provider, model, usage, kind, searchUnits, durationMs) }
 
     fun clearUsageStats() = synchronized(usageStatsLock) {
         usageStatsCache?.clear()

@@ -254,11 +254,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  `Dispatchers.IO` at report-section `viewModelScope.launch`
      *  sites; `return@launch` stays valid because the `launch` call
      *  itself is unchanged. The [logId] argument names the report the
-     *  launch belongs to (kept for call-site clarity); it is no longer
-     *  written into the application log. */
-    @Suppress("UNUSED_PARAMETER")
+     *  launch belongs to and scopes inherited work-preview approval to
+     *  this operation's child jobs. It is not written into the log. */
     internal fun reportLogContext(logId: String?) =
-        Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler
+        Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler + com.ai.data.ReportWorkLimits.inheritedApproval(logId)
 
     // Outer Jobs for "Find alternative icons" fan-outs, keyed by
     // reportId. Cancelling the entry cascades to every per-pair child
@@ -1024,14 +1023,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // A benched-on-this-call >1h 429 flows through the normal
         // error path — it stays as a visible red row, same as any
         // other failure, instead of being removed from the run.
-        if (response.tokenUsage != null) {
-            val usage = response.tokenUsage
-            appViewModel.settingsPrefs.updateUsageStatsAsync(
-                task.runtimeAgent.provider, task.runtimeAgent.model, usage, durationMs = durationMs
-            )
-        }
+        val persisted = persistReportCompletion(recordUsage = {
+            if (response.tokenUsage != null) {
+                val usage = response.tokenUsage
+                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                    task.runtimeAgent.provider, task.runtimeAgent.model, usage, durationMs = durationMs
+                )
+            }
 
-        val persisted = kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+        }, saveAnswer = {
             ReportStorage.updateAgentStatus(context, reportId, task.resultId,
                 if (response.isSuccess) ReportStatus.SUCCESS else ReportStatus.ERROR,
                 com.ai.data.AgentStatusPatch(httpStatus=response.httpStatusCode,
@@ -1040,7 +1040,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     inputCost=response.tokenUsage?.let { frozenInputCost }, outputCost=response.tokenUsage?.let { frozenOutputCost },
                     citations=response.citations, searchResults=response.searchResults, relatedQuestions=response.relatedQuestions,
                     rawUsageJson=response.rawUsageJson, durationMs=durationMs, traceFile=traceSink.get(), attemptId=attemptId))
-        }
+        })
 
         if (!persisted) {
             cost?.takeIf { it > 0.0 }?.let {

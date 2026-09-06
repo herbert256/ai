@@ -26,8 +26,9 @@ object ReportSaveRecovery {
 
     fun write(file: File, text: String, reportId: String, retryLocked: ((() -> Unit) -> Unit),
               stillValid: () -> Boolean = { true }, recoveryText: String = text, onSaved: () -> Unit) {
-        val base = file.takeIf { it.exists() }?.readText()
-        if (file.writeTextAtomic(text)) { onSaved(); return }
+        val baseRead = runCatching { file.takeIf { it.exists() }?.readText() }
+        val base = baseRead.getOrNull()
+        if (baseRead.isSuccess && file.writeTextAtomic(text)) { onSaved(); return }
         val id = ReportEvidenceStore.digest(file.absolutePath + text)
         if (retries.containsKey(id)) throw ReportSaveException(reportId, "This change is already awaiting a save retry.")
         val change = UnsavedReportChange(id, reportId,
@@ -36,6 +37,7 @@ object ReportSaveRecovery {
             retryLocked {
                 if (!stillValid()) throw IOException("This report was removed. Copy the unsaved text to keep it.")
                 val current = file.takeIf { it.exists() }?.readText()
+                if (baseRead.isFailure) throw IOException("The previous file could not be read when this save failed. Copy the unsaved changes and review the saved item before replacing it.")
                 val merged = merge(base?.let(JsonParser::parseString), JsonParser.parseString(text), current?.let(JsonParser::parseString))
                     ?: throw IOException("The saved item was removed. Copy the unsaved text to keep it.")
                 if (!file.writeTextAtomic(merged.toString())) throw IOException("Storage is still unavailable; the changes have not been saved.")

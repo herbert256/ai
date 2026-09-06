@@ -909,7 +909,11 @@ class SecondaryRunManager(
         }
         val state = appViewModel.uiState.value
         val aiSettings = state.aiSettings
-        val metaPrompt = aiSettings.internalPrompts.firstOrNull { it.id == promptId } ?: run {
+        val metaPrompt = ReportEvidenceStore.run(reportId, placeholder.runId)?.prompt
+            ?: aiSettings.internalPrompts.firstOrNull { it.id == promptId }
+            ?: placeholder.executionConfig?.let {
+                InternalPrompt(id = promptId, name = placeholder.metaPromptName ?: "Saved secondary prompt", text = it.prompt)
+            } ?: run {
             rvm.resumingMetaIds.remove(placeholder.id); return null
         }
         val kind = placeholder.kind
@@ -936,178 +940,180 @@ class SecondaryRunManager(
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
                 com.ai.data.ReportWorkLimits.review(reportId, "Retry secondary result", 1)
-                placeholder.fullCost().takeIf { it > 0.0 }?.let {
-                    ReportStorage.bumpCostsFromDeletedItems(context, reportId, it)
-                }
-                // Drop the stale ❌ + content NOW so the row immediately shows
-                // ⏳ while the fix re-runs and, on success, the item's real
-                // icon — instead of the old red cross lingering until (or past)
-                // completion. Mirrors FanOutEngine.rerunPairsBlocking, which
-                // clears before re-issuing; executeSecondaryTask then overwrites
-                // this row with the fresh content (or a fresh error).
-                // mergeCosts = false: the prior spend was just banked into
-                // costsFromDeletedItems above; the default additive merge
-                // would re-read it from disk and keep it on the "cleared"
-                // row too, counting it twice (and growing on every Reload).
-                // The icon/title cost fields are part of the banked
-                // fullCost(), so they must clear with the rest.
-                SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
-                    content = null, errorMessage = null, durationMs = null,
-                    httpStatusCode = null, inputCost = null, outputCost = null,
-                    tokenUsage = null, responseChangeSource = null,
-                    responseChangeValue = null, timestamp = System.currentTimeMillis(),
-                    iconInputCost = 0.0, iconOutputCost = 0.0,
-                    iconInputTokens = 0, iconOutputTokens = 0,
-                    titleInputCost = 0.0, titleOutputCost = 0.0,
-                    titleInputTokens = 0, titleOutputTokens = 0
-                ), mergeCosts = false)
-                withTracerTags(reportId = reportId, category = cat) {
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    // Rerank / Moderation: a resolvable member of the
-                    // report-aware batch pool (REPORT_MODELS / stored
-                    // SELECT_ONCE pick / configured chain). Under Round
-                    // robin the pick advances the shared per-report cursor
-                    // so resumed rows honour the rotation share too.
-                    // META-family rows only re-resolve when the recorded
-                    // provider is gone (providerId="" interrupted rows,
-                    // deleted providers) — and they honour the report's
-                    // Worker-batches choice, unlike Rerank/Moderation.
-                    val needsFreshWorker = fallbackProvider == null
-                    val freshWorker = if (needsFreshWorker) {
-                        // alwaysPromptWorkers, like the runRerank/runModeration
-                        // launch sites: these kinds opt out of the report's
-                        // Worker-batches choice. Without it, REPORT_MODELS mode
-                        // resolved a resumed Moderation onto a report answer
-                        // model — a chat model receiving a /v1/moderations
-                        // call → guaranteed provider error, pausing the
-                        // regenerate batch; Rerank lost its dedicated chain.
-                        val alwaysPrompt = kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION
-                        val candidates = resolveBatchSwarm(report, metaPrompt.workers, null, alwaysPromptWorkers = alwaysPrompt)
-                            .flatMap { aiSettings.expandWorker(it) }
-                            .mapNotNull { w ->
-                                aiSettings.resolveWorker(w)?.let { a -> a.provider to aiSettings.getEffectiveModelForAgent(a) }
-                            }
-                        when {
-                            candidates.isEmpty() -> null
-                            else -> when (val sch = workerScheduleFor(report, alwaysPromptWorkers = alwaysPrompt)) {
-                                is WorkerSchedule.RoundRobin -> candidates[WorkerRotation.next(sch.key) % candidates.size]
-                                else -> candidates.first()
-                            }
-                        }
-                    } else null
-                    val provider = freshWorker?.first ?: fallbackProvider ?: run {
-                        // Neither the pool nor the recorded provider resolves.
-                        // The row was already wiped to a pending placeholder
-                        // above — stamp a terminal error so it can't sit as a
-                        // silent forever-hourglass for the rest of the session.
-                        // Costs nulled: the prior spend is in the deleted-items
-                        // bank; carrying the placeholder's original cost fields
-                        // here would put it on the error row a second time.
-                        SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
-                            content = null,
-                            errorMessage = "No resolvable worker for ${kind.name.lowercase()} — check the worker chain under Prompt management.",
-                            durationMs = 0,
-                            inputCost = null, outputCost = null, tokenUsage = null,
-                            iconInputCost = 0.0, iconOutputCost = 0.0,
-                            iconInputTokens = 0, iconOutputTokens = 0,
-                            titleInputCost = 0.0, titleOutputCost = 0.0,
-                            titleInputTokens = 0, titleOutputTokens = 0
-                        ), mergeCosts = false)
-                        return@withTracerTags
+                withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reportId)) {
+                    placeholder.fullCost().takeIf { it > 0.0 }?.let {
+                        ReportStorage.bumpCostsFromDeletedItems(context, reportId, it)
                     }
-                    val model = freshWorker?.second ?: placeholder.model
-                    // Fan-in (combine-reports) rows rebuild from the fan-out
-                    // matrix, NOT from the report's answers — resolve via the
-                    // shared fan-in builder and re-issue against the same
-                    // placeholder (preserving the fanInOf linkage). Without
-                    // this branch the row would be regenerated as a plain
-                    // meta over the report answers (wrong content).
-                    if (placeholder.fanInOf != null) {
-                        val resolution = buildFanInResolution(context, reportId, metaPrompt, report, lang)
-                        if (resolution == null) {
-                            // The fan-out matrix is gone (run deleted, or every
-                            // pair errored) — nothing can re-run. The row was
-                            // already wiped above; put the original content back
-                            // rather than leave a blank forever-⏳ placeholder: a
-                            // Reload on a finished fan-in must never destroy its
-                            // combined report. A row with no content to preserve
-                            // gets a terminal error instead, mirroring the
-                            // no-resolvable-worker path. Costs stay off the row —
-                            // the prior spend was banked into
-                            // costsFromDeletedItems above.
-                            AppLog.w("Resume", "fan-in re-issue aborted — no fan-out rows to combine; row=${placeholder.id}")
+                    // Drop the stale ❌ + content NOW so the row immediately shows
+                    // ⏳ while the fix re-runs and, on success, the item's real
+                    // icon — instead of the old red cross lingering until (or past)
+                    // completion. Mirrors FanOutEngine.rerunPairsBlocking, which
+                    // clears before re-issuing; executeSecondaryTask then overwrites
+                    // this row with the fresh content (or a fresh error).
+                    // mergeCosts = false: the prior spend was just banked into
+                    // costsFromDeletedItems above; the default additive merge
+                    // would re-read it from disk and keep it on the "cleared"
+                    // row too, counting it twice (and growing on every Reload).
+                    // The icon/title cost fields are part of the banked
+                    // fullCost(), so they must clear with the rest.
+                    val clearedPlaceholder = placeholder.copy(
+                        content = null, errorMessage = null, durationMs = null,
+                        httpStatusCode = null, inputCost = null, outputCost = null,
+                        tokenUsage = null, responseChangeSource = null,
+                        responseChangeValue = null, timestamp = System.currentTimeMillis(),
+                        iconInputCost = 0.0, iconOutputCost = 0.0,
+                        iconInputTokens = 0, iconOutputTokens = 0,
+                        titleInputCost = 0.0, titleOutputCost = 0.0,
+                        titleInputTokens = 0, titleOutputTokens = 0
+                    )
+                    if (!SecondaryResultStorage.saveIfStillPresent(context, clearedPlaceholder, mergeCosts = false)) return@withContext
+                    withTracerTags(reportId = reportId, category = cat) {
+                        val currentReport = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                        val report = ReportEvidenceStore.historicalReport(currentReport, placeholder)
+                        // Rerank / Moderation: a resolvable member of the
+                        // report-aware batch pool (REPORT_MODELS / stored
+                        // SELECT_ONCE pick / configured chain). Under Round
+                        // robin the pick advances the shared per-report cursor
+                        // so resumed rows honour the rotation share too.
+                        // META-family rows only re-resolve when the recorded
+                        // provider is gone (providerId="" interrupted rows,
+                        // deleted providers) — and they honour the report's
+                        // Worker-batches choice, unlike Rerank/Moderation.
+                        val needsFreshWorker = fallbackProvider == null
+                        val freshWorker = if (needsFreshWorker) {
+                            // alwaysPromptWorkers, like the runRerank/runModeration
+                            // launch sites: these kinds opt out of the report's
+                            // Worker-batches choice. Without it, REPORT_MODELS mode
+                            // resolved a resumed Moderation onto a report answer
+                            // model — a chat model receiving a /v1/moderations
+                            // call → guaranteed provider error, pausing the
+                            // regenerate batch; Rerank lost its dedicated chain.
+                            val alwaysPrompt = kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION
+                            val candidates = resolveBatchSwarm(report, metaPrompt.workers, null, alwaysPromptWorkers = alwaysPrompt)
+                                .flatMap { aiSettings.expandWorker(it) }
+                                .mapNotNull { w ->
+                                    aiSettings.resolveWorker(w)?.let { a -> a.provider to aiSettings.getEffectiveModelForAgent(a) }
+                                }
+                            when {
+                                candidates.isEmpty() -> null
+                                else -> when (val sch = workerScheduleFor(report, alwaysPromptWorkers = alwaysPrompt)) {
+                                    is WorkerSchedule.RoundRobin -> candidates[WorkerRotation.next(sch.key) % candidates.size]
+                                    else -> candidates.first()
+                                }
+                            }
+                        } else null
+                        val provider = freshWorker?.first ?: fallbackProvider ?: run {
+                            // Neither the pool nor the recorded provider resolves.
+                            // The row was already wiped to a pending placeholder
+                            // above — stamp a terminal error so it can't sit as a
+                            // silent forever-hourglass for the rest of the session.
+                            // Costs nulled: the prior spend is in the deleted-items
+                            // bank; carrying the placeholder's original cost fields
+                            // here would put it on the error row a second time.
                             SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                                content = null,
+                                errorMessage = "No resolvable worker for ${kind.name.lowercase()} — check the worker chain under Prompt management.",
+                                durationMs = 0,
                                 inputCost = null, outputCost = null, tokenUsage = null,
                                 iconInputCost = 0.0, iconOutputCost = 0.0,
                                 iconInputTokens = 0, iconOutputTokens = 0,
                                 titleInputCost = 0.0, titleOutputCost = 0.0,
-                                titleInputTokens = 0, titleOutputTokens = 0,
-                                errorMessage = if (placeholder.content.isNullOrBlank())
-                                    "No fan-out responses to combine — the fan-out run this fan-in was built from is gone or fully errored."
-                                else placeholder.errorMessage,
-                                durationMs = if (placeholder.content.isNullOrBlank()) 0 else placeholder.durationMs
+                                titleInputTokens = 0, titleOutputTokens = 0
                             ), mergeCosts = false)
                             return@withTracerTags
                         }
+                        val model = freshWorker?.second ?: placeholder.model
+                        // Fan-in (combine-reports) rows rebuild from the fan-out
+                        // matrix, NOT from the report's answers — resolve via the
+                        // shared fan-in builder and re-issue against the same
+                        // placeholder (preserving the fanInOf linkage). Without
+                        // this branch the row would be regenerated as a plain
+                        // meta over the report answers (wrong content).
+                        if (placeholder.fanInOf != null) {
+                            val resolution = buildFanInResolution(context, reportId, metaPrompt, report, lang)
+                            if (resolution == null) {
+                                // The fan-out matrix is gone (run deleted, or every
+                                // pair errored) — nothing can re-run. The row was
+                                // already wiped above; put the original content back
+                                // rather than leave a blank forever-⏳ placeholder: a
+                                // Reload on a finished fan-in must never destroy its
+                                // combined report. A row with no content to preserve
+                                // gets a terminal error instead, mirroring the
+                                // no-resolvable-worker path. Costs stay off the row —
+                                // the prior spend was banked into
+                                // costsFromDeletedItems above.
+                                AppLog.w("Resume", "fan-in re-issue aborted — no fan-out rows to combine; row=${placeholder.id}")
+                                SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                                    inputCost = null, outputCost = null, tokenUsage = null,
+                                    iconInputCost = 0.0, iconOutputCost = 0.0,
+                                    iconInputTokens = 0, iconOutputTokens = 0,
+                                    titleInputCost = 0.0, titleOutputCost = 0.0,
+                                    titleInputTokens = 0, titleOutputTokens = 0,
+                                    errorMessage = if (placeholder.content.isNullOrBlank())
+                                        "No fan-out responses to combine — the fan-out run this fan-in was built from is gone or fully errored."
+                                    else placeholder.errorMessage,
+                                    durationMs = if (placeholder.content.isNullOrBlank()) 0 else placeholder.durationMs
+                                ), mergeCosts = false)
+                                return@withTracerTags
+                            }
+                            executeSecondaryTask(
+                                context, reportId, kind, metaPrompt,
+                                provider, model, resolution.resolvedPrompt, aiSettings, report,
+                                targetLanguage = lang,
+                                targetLanguageNative = langNative ?: resolution.languageNative,
+                                fanInOf = placeholder.fanInOf,
+                                existingPlaceholder = placeholder,
+                                scopeEncoded = placeholder.secondaryScope
+                            )
+                            return@withTracerTags
+                        }
+                        val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+                        // Same scope → includeIds resolution as runMetaPrompt.
+                        val includeIds: Set<Int>? = when (scope) {
+                            com.ai.data.SecondaryScope.AllReports -> null
+                            is com.ai.data.SecondaryScope.TopRanked -> {
+                                // Snapshot-mapped resolution — same as runMetaPrompt —
+                                // so a success-set change doesn't reselect different
+                                // models (see resolveTopRankedAgents).
+                                val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
+                                val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                                val topAgents = com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful)
+                                val positions = topAgents.map { a -> successful.indexOfFirst { it.agentId == a.agentId } + 1 }.filter { it >= 1 }.toSet()
+                                positions
+                            }
+                            is com.ai.data.SecondaryScope.Manual -> {
+                                val successful = report.agents.filter {
+                                    it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                                }
+                                val ids = successful.mapIndexedNotNull { idx, a ->
+                                    if (a.agentId in scope.agentIds) idx + 1 else null
+                                }
+                                ids.toSet()
+                            }
+                        }
+                        val successfulCount = if (includeIds != null) includeIds.size
+                            else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                        require(successfulCount > 0) { "The selected scope contains no available answers. Select answers before running." }
+                        val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
+                        val resolvedPrompt = resolveSecondaryPrompt(
+                            metaPrompt.text, question = translatedPrompt, results = resultsBlock,
+                            count = successfulCount, title = report.title
+                        )
+                        val referenceLegend = if (metaPrompt.reference) buildReferenceLegend(report, includeIds) else null
+                        // Match the numbering to the saved source snapshot used
+                        // for this retry, including dedicated rerank/moderation.
+                        val refreshedPlaceholder = if (kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION) {
+                            clearedPlaceholder.copy(sourceAgentIds = com.ai.data.successOrderedAgentIds(report))
+                                .also { if (!SecondaryResultStorage.saveIfStillPresent(context, it, mergeCosts = false)) return@withTracerTags }
+                        } else clearedPlaceholder
                         executeSecondaryTask(
                             context, reportId, kind, metaPrompt,
-                            provider, model, resolution.resolvedPrompt, aiSettings, report,
-                            targetLanguage = lang,
-                            targetLanguageNative = langNative ?: resolution.languageNative,
-                            fanInOf = placeholder.fanInOf,
-                            existingPlaceholder = placeholder,
+                            provider, model, resolvedPrompt, aiSettings, report,
+                            lang, langNative, referenceLegend,
+                            existingPlaceholder = refreshedPlaceholder,
                             scopeEncoded = placeholder.secondaryScope
                         )
-                        return@withTracerTags
                     }
-                    val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
-                    // Same scope → includeIds resolution as runMetaPrompt.
-                    val includeIds: Set<Int>? = when (scope) {
-                        com.ai.data.SecondaryScope.AllReports -> null
-                        is com.ai.data.SecondaryScope.TopRanked -> {
-                            // Snapshot-mapped resolution — same as runMetaPrompt —
-                            // so a success-set change doesn't reselect different
-                            // models (see resolveTopRankedAgents).
-                            val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
-                            val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                            val topAgents = com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful)
-                            val positions = topAgents.map { a -> successful.indexOfFirst { it.agentId == a.agentId } + 1 }.filter { it >= 1 }.toSet()
-                            positions
-                        }
-                        is com.ai.data.SecondaryScope.Manual -> {
-                            val successful = report.agents.filter {
-                                it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                            }
-                            val ids = successful.mapIndexedNotNull { idx, a ->
-                                if (a.agentId in scope.agentIds) idx + 1 else null
-                            }
-                            ids.toSet()
-                        }
-                    }
-                    val successfulCount = if (includeIds != null) includeIds.size
-                        else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    require(successfulCount > 0) { "The selected scope contains no available answers. Select answers before running." }
-                    val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
-                    val resolvedPrompt = resolveSecondaryPrompt(
-                        metaPrompt.text, question = translatedPrompt, results = resultsBlock,
-                        count = successfulCount, title = report.title
-                    )
-                    val referenceLegend = if (metaPrompt.reference) buildReferenceLegend(report, includeIds) else null
-                    // The rebuilt results block re-numbers [N] by the CURRENT
-                    // success order — re-freeze the snapshot so the detail
-                    // screens resolve the re-issued content, not the agent
-                    // set of the original run.
-                    val refreshedPlaceholder = if (kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION) {
-                        placeholder.copy(sourceAgentIds = com.ai.data.successOrderedAgentIds(report))
-                            .also { SecondaryResultStorage.save(context, it) }
-                    } else placeholder
-                    executeSecondaryTask(
-                        context, reportId, kind, metaPrompt,
-                        provider, model, resolvedPrompt, aiSettings, report,
-                        lang, langNative, referenceLegend,
-                        existingPlaceholder = refreshedPlaceholder,
-                        scopeEncoded = placeholder.secondaryScope
-                    )
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
@@ -1724,21 +1730,21 @@ class SecondaryRunManager(
             val pricing = PricingCache.getPricing(context, provider, model)
             val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, pricing) }
                 ?: (null to null)
-            if (tu != null) appViewModel.settingsPrefs.updateUsageStatsAsync(provider,model,tu,kind="moderation",durationMs=r.durationMs)
-            val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
-                content = r.content,
-                errorMessage = r.errorMessage,
-                tokenUsage = tu,
-                inputCost = inCost,
-                outputCost = outCost,
-                durationMs = r.durationMs,
-                httpStatusCode = r.httpStatusCode,
-                responseChangeSource = null,
-                responseChangeValue = null
-            ))
-            // Skip usage-stats too if the row was deleted while in
-            // flight — the user dropped this run, so we shouldn't bill
-            // the per-provider token counters for it either.
+            persistReportCompletion(recordUsage = {
+                if (tu != null) appViewModel.settingsPrefs.updateUsageStatsAsync(provider,model,tu,kind="moderation",durationMs=r.durationMs)
+            }, saveAnswer = {
+                SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                    content = r.content,
+                    errorMessage = r.errorMessage,
+                    tokenUsage = tu,
+                    inputCost = inCost,
+                    outputCost = outCost,
+                    durationMs = r.durationMs,
+                    httpStatusCode = r.httpStatusCode,
+                    responseChangeSource = null,
+                    responseChangeValue = null
+                ))
+            })
             return
         }
 
@@ -1792,19 +1798,22 @@ class SecondaryRunManager(
             }
             val rerankTokenUsage = if (estInputTokens > 0)
                 com.ai.data.TokenUsage(inputTokens = estInputTokens, outputTokens = 0, estimated = true) else null
-            if (r.errorMessage == null) {
-                appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, rerankTokenUsage ?: com.ai.data.TokenUsage(0, 0), kind = "rerank", searchUnits = units, durationMs = r.durationMs
-                )
-            }
-            SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
-                content = r.content,
-                errorMessage = r.errorMessage,
-                inputCost = rerankCost,
-                tokenUsage = rerankTokenUsage,
-                durationMs = r.durationMs,
-                httpStatusCode = r.httpStatusCode
-            ))
+            persistReportCompletion(recordUsage = {
+                if (r.errorMessage == null) {
+                    appViewModel.settingsPrefs.updateUsageStatsAsync(
+                        provider, model, rerankTokenUsage ?: com.ai.data.TokenUsage(0, 0), kind = "rerank", searchUnits = units, durationMs = r.durationMs
+                    )
+                }
+            }, saveAnswer = {
+                SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                    content = r.content,
+                    errorMessage = r.errorMessage,
+                    inputCost = rerankCost,
+                    tokenUsage = rerankTokenUsage,
+                    durationMs = r.durationMs,
+                    httpStatusCode = r.httpStatusCode
+                ))
+            })
             return
         }
 
@@ -1859,34 +1868,37 @@ class SecondaryRunManager(
         // it flows through the normal save path below so the row
         // stays as a visible red error carrying the real API error,
         // instead of silently disappearing.
-        if (tu != null) {
-            appViewModel.settingsPrefs.updateUsageStatsAsync(
-                provider, model, tu,
-                kind = when (kind) {
-                    SecondaryKind.RERANK -> "rerank"
-                    SecondaryKind.META -> "meta"
-                    SecondaryKind.MODERATION -> "moderation"
-                    SecondaryKind.TRANSLATE -> "translate"
-                    SecondaryKind.TOURNAMENT -> "tournament"
-                    SecondaryKind.JUDGES -> "judges"
-                    SecondaryKind.COMPARE -> "compare"
-                    SecondaryKind.TRANSRANK -> "transrank"
-                },
-                durationMs = duration
-            )
-        }
-        val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
-            content = finalContent,
-            errorMessage = response.error,
-            tokenUsage = tu,
-            inputCost = inCost,
-            outputCost = outCost,
-            durationMs = duration,
-            httpStatusCode = response.httpStatusCode,
-            responseChangeSource = null,
-            responseChangeValue = null
-        ))
+        val saved = persistReportCompletion(recordUsage = {
+            if (tu != null) {
+                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                    provider, model, tu,
+                    kind = when (kind) {
+                        SecondaryKind.RERANK -> "rerank"
+                        SecondaryKind.META -> "meta"
+                        SecondaryKind.MODERATION -> "moderation"
+                        SecondaryKind.TRANSLATE -> "translate"
+                        SecondaryKind.TOURNAMENT -> "tournament"
+                        SecondaryKind.JUDGES -> "judges"
+                        SecondaryKind.COMPARE -> "compare"
+                        SecondaryKind.TRANSRANK -> "transrank"
+                    },
+                    durationMs = duration
+                )
+            }
+        }, saveAnswer = {
+            SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                content = finalContent,
+                errorMessage = response.error,
+                tokenUsage = tu,
+                inputCost = inCost,
+                outputCost = outCost,
+                durationMs = duration,
+                httpStatusCode = response.httpStatusCode,
+                responseChangeSource = null,
+                responseChangeValue = null
+            ))
 
+        })
         if (saved && response.error == null) {
             val what = when (kind) {
                 SecondaryKind.RERANK -> "Rerank"

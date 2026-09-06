@@ -339,10 +339,21 @@ object ReportStorage {
             id
         }
     }
-    fun saveKnowledgeContext(context: Context, reportId: String, content: String?, status: String) {
-        init(context); lock.withLock {
-            val report=loadReport(reportId) ?: return@withLock
-            report.knowledgeContext=content; report.knowledgeStatus=status; saveReport(report)
+    fun saveKnowledgeContext(context: Context, reportId: String, content: String?, status: String,
+                             expectedPrompt: String, expectedKnowledgeBaseIds: List<String>,
+                             failureMessage: String? = null): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            if (report.prompt != expectedPrompt || report.knowledgeBaseIds != expectedKnowledgeBaseIds)
+                return@withLock false
+            report.knowledgeContext = content
+            report.knowledgeStatus = status
+            if (failureMessage != null) report.agents.filter {
+                it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING
+            }.forEach { it.reportStatus = ReportStatus.ERROR; it.errorMessage = failureMessage }
+            saveReport(report)
+            true
         }
     }
 
@@ -556,6 +567,8 @@ object ReportStorage {
         SecondaryResultStorage.deleteAllForReport(context, reportId)
         ReportEvidenceStore.delete(reportId)
         ReportContentStore.delete(context.filesDir, reportId)
+        ReportCostJournal.deleteForReport(context.filesDir, reportId)
+        ReportWorkLimits.deleteForReport(reportId)
         RegenerateBatchStorage.delete(context, reportId)
         ApiTracer.init(context)
         ApiTracer.deleteTracesForReport(reportId)
@@ -692,7 +705,7 @@ object ReportStorage {
      *  added after a report was persisted deserialize as null. Re-assert
      *  non-null defaults for those new fields so the rest of the app can
      *  treat them as the non-null types they're declared as. */
-    private fun normalizeReport(r: Report): Report? {
+    internal fun normalizeReport(r: Report): Report? {
         // A null core identity field means a corrupt / truncated read. An id-less
         // report can't be saved or looked up, so reject it outright rather than
         // letting a null core String escape and NPE far from the loader
@@ -2815,7 +2828,8 @@ object ReportStorage {
     fun persistNewReport(context: Context, report: Report, recoverOnFailure: Boolean = true): Boolean {
         init(context)
         return lock.withLock {
-            if (loadReport(report.id) != null) {
+            if (!isSafeFlatId(report.id)) return@withLock false
+            if (reportsDir?.let { File(it,"${report.id}.json").exists() } == true) {
                 AppLog.e("ReportStorage", "Refusing to overwrite existing report ${report.id} via persistNewReport")
                 return@withLock false
             }

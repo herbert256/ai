@@ -240,12 +240,22 @@ object SecondaryResultStorage {
             result.id.isNotBlank() && !result.id.contains('/') && !result.id.contains('\\') &&
                 result.id != "." && result.id != ".."
         }
-        val snapshots = safeResults.groupBy { it.reportId }.mapValues { (id, group) ->
-            ReportEvidenceStore.sourceId(group.first()) ?: ReportStorage.getReport(context, id)?.let { report ->
-                ReportEvidenceStore.capture(report, listForReport(context, id).filter { !it.content.isNullOrBlank() }.associate { it.id to it.content!! })
+        val currentSnapshots = mutableMapOf<String, String?>()
+        val capturedResults = safeResults.map { row ->
+            val existing = get(context,row.reportId,row.id)
+            val sourceId = ReportEvidenceStore.sourceId(row) ?: existing?.let(ReportEvidenceStore::sourceId)
+            when {
+                sourceId != null -> row.copy(sourceSnapshotId=sourceId)
+                // Updating a legacy result must not invent its original inputs.
+                existing != null && (!existing.content.isNullOrBlank() || existing.durationMs != null || existing.errorMessage != null) -> row
+                else -> row.copy(sourceSnapshotId=currentSnapshots.getOrPut(row.reportId) {
+                    ReportStorage.getReport(context,row.reportId)?.let { report ->
+                        ReportEvidenceStore.capture(report,listForReport(context,row.reportId)
+                            .filter { !it.content.isNullOrBlank() }.associate { it.id to it.content!! })
+                    }
+                })
             }
         }
-        val capturedResults = safeResults.map { row -> if (row.sourceSnapshotId != null) row else row.copy(sourceSnapshotId = snapshots[row.reportId]) }
         if (capturedResults.isEmpty()) return emptyList()
         val reportIds = safeResults.map { it.reportId }.distinct()
         val existingReports = reportIds.filter { ReportStorage.reportFileExists(context, it) }.toSet()

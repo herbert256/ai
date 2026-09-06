@@ -207,6 +207,8 @@ internal fun writeReportZip(context: Context, reportId: String, out: OutputStrea
     }
 }
 
+private val activeReportImports = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
 /** Read a per-report zip from [input], persist it as a NEW report
  *  on this install, and return a summary for the caller's toast.
  *  Always mints a fresh report UUID + fresh secondary UUIDs + fresh
@@ -224,11 +226,17 @@ internal fun readReportZip(
     val newReportId = importId ?: UUID.randomUUID().toString()
     require(newReportId.matches(Regex("[A-Za-z0-9_-]+"))) { "Invalid import identity" }
     require(!ReportStorage.reportFileExists(context, newReportId)) { "Import identity already exists" }
-    val stage = java.io.File(context.cacheDir, "report-import-$newReportId").apply { mkdirs() }
-    val journal = java.io.File(context.filesDir, "report_import_journal/$newReportId").apply { parentFile?.mkdirs() }
+    val stage = java.io.File(context.cacheDir, "report-import-$newReportId")
+    val journal = java.io.File(context.filesDir, "report_import_journal/$newReportId")
     val entries = mutableMapOf<String, java.io.File>()
     var committed = false
+    require(activeReportImports.add(newReportId)) { "This report import is already in progress" }
     try {
+    // Another import may have committed between the first existence check
+    // and acquiring this destination identity.
+    require(!ReportStorage.reportFileExists(context, newReportId)) { "Import identity already exists" }
+    require(stage.mkdirs() || stage.isDirectory) { "Cannot create import staging directory" }
+    require(journal.parentFile!!.mkdirs() || journal.parentFile!!.isDirectory) { "Cannot create import journal" }
     var totalBytes = 0L
     ZipInputStream(input).use { zip ->
         while (true) {
@@ -276,14 +284,16 @@ internal fun readReportZip(
         error("Malformed meta.json — not a valid AI Report bundle")
     }
     val meta = metaRoot.asJsonObject
-    val version = meta.get("exportVersion")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt ?: 0
+    val version = bundleInteger(meta, "exportVersion")
     if (version !in 1..EXPORT_VERSION) {
         error("Unsupported export version: $version (this install accepts 1..$EXPORT_VERSION)")
     }
 
     val reportBytes = entries["report.json"]
         ?: error("Missing report.json")
-    val parsedReport = gson.fromJson(reportBytes.readText(), Report::class.java)
+    val reportJson = bundleObject(JsonParser.parseString(reportBytes.readText()), "report.json")
+    validateBundleReport(reportJson)
+    val parsedReport = gson.fromJson(reportJson, Report::class.java)?.let(ReportStorage::normalizeReport)
         ?: error("report.json could not be parsed as a Report")
 
     require((parsedReport.id as String?) != null && (parsedReport.title as String?) != null && (parsedReport.prompt as String?) != null && (parsedReport.agents as List<*>?) != null) { "Malformed report fields" }
@@ -305,18 +315,42 @@ internal fun readReportZip(
     val parsedSecondaries = entries.entries
         .filter { it.key.startsWith("secondary/") && it.key.endsWith(".json") }
         .map { (key, bytes) ->
-            val row = gson.fromJson(bytes.readText(), SecondaryResult::class.java) ?: error("Malformed secondary: $key")
+            val json = bundleObject(JsonParser.parseString(bytes.readText()), key)
+            bundleStrings(json, key, "id", "reportId", "providerId", "model", "agentName")
+            bundleEnum(json, "kind", SecondaryKind.entries.map { it.name })
+            validateBundleExecution(json)
+            val row = gson.fromJson(json, SecondaryResult::class.java) ?: error("Malformed secondary: $key")
             require((row.id as String?) != null && row.id.isNotBlank() && (row.kind as SecondaryKind?) != null && row.reportId == parsedReport.id) { "Mismatched secondary identity: $key" }
             row
         }
     require(parsedSecondaries.map { it.id }.distinct().size == parsedSecondaries.size) { "Duplicate secondary IDs" }
     require(parsedReport.agents.map { it.agentId }.distinct().size == parsedReport.agents.size) { "Duplicate Agent IDs" }
-    require(parsedSecondaries.size == meta.get("secondaryCount")?.asInt) { "Secondary count does not match manifest" }
+    require(parsedSecondaries.size == bundleInteger(meta, "secondaryCount")) { "Secondary count does not match manifest" }
     val traceEntries = entries.filterKeys { it.startsWith("traces/") }
-    require(traceEntries.size == meta.get("traceCount")?.asInt) { "Trace count does not match manifest" }
+    require(traceEntries.size == bundleInteger(meta, "traceCount")) { "Trace count does not match manifest" }
     traceEntries.forEach { (key,file) ->
         val trace = gson.fromJson(ReportExportRedaction.json(file.readText()), ApiTrace::class.java) ?: error("Malformed trace: $key")
         require(trace.hostname.isNotBlank() && (trace.request as Any?) != null && (trace.response as Any?) != null) { "Malformed trace: $key" }
+    }
+    val evidenceEntries = entries.filterKeys { it.startsWith("evidence/") }
+    if (version >= 2) require(evidenceEntries.size == bundleInteger(meta, "evidenceCount")) { "Evidence count does not match manifest" }
+    evidenceEntries.forEach { (key, file) ->
+        val json = bundleObject(JsonParser.parseString(file.readText()), key)
+        if (key.substringAfter('/').startsWith("run_")) {
+            bundleStrings(json, key, "sourceSnapshotId")
+            require(evidenceEntries.containsKey("evidence/${json.get("sourceSnapshotId").asString}.json")) { "Missing run source snapshot" }
+            val prompt = bundleObject(json.get("prompt"), "$key prompt")
+            bundleStrings(prompt, key, "id", "name", "text")
+        } else {
+            bundleStrings(json, key, "prompt", "title")
+            bundleObjects(json, "answers", required = true).forEach {
+                bundleStrings(it, key, "id", "name", "provider", "model", "body")
+            }
+            json.get("secondaryBodies")?.let { value ->
+                val bodies = bundleObject(value, "$key secondaryBodies")
+                bodies.entrySet().forEach { (_, body) -> require(body.isJsonPrimitive && body.asJsonPrimitive.isString) { "Malformed secondary evidence body" } }
+            }
+        }
     }
     // Validate the core rows before staging final locations. A journal lets startup
     // remove interrupted imports; the final report JSON is the commit marker.
@@ -429,8 +463,6 @@ internal fun readReportZip(
     // Stage secondaries until every one has been serialized successfully.
     val stagedSecondary = java.io.File(stage, "secondary").apply { mkdirs() }
     val evidenceIdMap = mutableMapOf<String,String>()
-    val evidenceEntries = entries.filterKeys { it.startsWith("evidence/") }
-    if (version >= 2) require(evidenceEntries.size == meta.get("evidenceCount")?.asInt) { "Evidence count does not match manifest" }
     evidenceEntries.filterKeys { !it.substringAfter('/').startsWith("run_") }.forEach { (key, file) ->
         val snapshot = gson.fromJson(file.readText(), ReportSourceSnapshot::class.java) ?: error("Malformed evidence: $key")
         val rewritten = snapshot.copy(secondaryBodies = snapshot.secondaryBodies.mapKeys { (id,_) -> secIdMap[id] ?: id })
@@ -503,9 +535,72 @@ internal fun readReportZip(
         traceCount = traceCount
     )
     } finally {
-        stage.deleteRecursively()
-        if (!committed) rollbackReportImport(context, newReportId)
-        journal.delete()
+        try {
+            stage.deleteRecursively()
+            if (!committed) rollbackReportImport(context, newReportId)
+            journal.delete()
+        } finally { activeReportImports.remove(newReportId) }
+    }
+}
+
+/** Validate before Gson's permissive coercions can turn malformed input into
+ * null non-null fields or silently truncate a fractional version/count. */
+private fun bundleObject(value: com.google.gson.JsonElement?, label: String): JsonObject {
+    require(value != null && value.isJsonObject) { "Malformed $label: expected an object" }
+    return value.asJsonObject
+}
+private fun bundleInteger(json: JsonObject, key: String): Int {
+    val value = json.get(key)
+    require(value != null && value.isJsonPrimitive && value.asJsonPrimitive.isNumber) { "Invalid manifest $key" }
+    val number = try { value.asBigDecimal.intValueExact() }
+        catch (_: ArithmeticException) { error("Invalid manifest $key: expected a whole number") }
+    require(number >= 0) { "Invalid manifest $key: must not be negative" }
+    return number
+}
+private fun bundleStrings(json: JsonObject, label: String, vararg keys: String) {
+    keys.forEach { key ->
+        val value = json.get(key)
+        require(value != null && value.isJsonPrimitive && value.asJsonPrimitive.isString) { "Malformed $label: $key must be text" }
+    }
+}
+private fun bundleObjects(json: JsonObject, key: String, required: Boolean = false): List<JsonObject> {
+    val value = json.get(key) ?: run { require(!required) { "Missing $key" }; return emptyList() }
+    require(value.isJsonArray) { "Malformed $key: expected a list" }
+    return value.asJsonArray.map { bundleObject(it, "$key item") }
+}
+private fun bundleEnum(json: JsonObject, key: String, names: List<String>, default: String? = null) {
+    if (!json.has(key) && default != null) json.addProperty(key, default)
+    bundleStrings(json, key, key)
+    require(json.get(key).asString in names) { "Unknown $key: ${json.get(key)}" }
+}
+private fun validateBundleExecution(json: JsonObject) {
+    json.get("executionConfig")?.takeUnless { it.isJsonNull }?.let {
+        val config = bundleObject(it, "executionConfig")
+        bundleStrings(config, "executionConfig", "endpointUrl", "prompt")
+        bundleObject(config.get("parameters"), "execution parameters")
+    }
+}
+private fun validateBundleReport(json: JsonObject) {
+    bundleStrings(json, "report", "id", "title", "prompt")
+    require(json.get("id").asString.isNotBlank()) { "Missing report identity" }
+    bundleEnum(json, "reportType", ReportType.entries.map { it.name }, ReportType.CLASSIC.name)
+    require(!json.has("_imageBase64") && !json.has("_knowledgeContext")) { "Bundle contains unresolved local content references" }
+    bundleObjects(json, "agents", required = true).forEach { agent ->
+        bundleStrings(agent, "agent", "agentId", "agentName", "provider", "model")
+        require(listOf("agentId", "provider", "model").all { agent.get(it).asString.isNotBlank() }) { "Missing agent identity" }
+        bundleEnum(agent, "reportStatus", ReportStatus.entries.map { it.name }, ReportStatus.PENDING.name)
+        require(listOf("_responseBody", "_requestBody", "_rawUsageJson").none { agent.has(it) }) { "Bundle contains unresolved answer content" }
+        validateBundleExecution(agent)
+        bundleObjects(agent, "chatMessages").forEach { bundleStrings(it, "chat message", "role", "content") }
+    }
+    bundleObjects(json, "userNotes").forEach { bundleStrings(it, "note", "id", "targetKind", "targetId", "text") }
+    bundleObjects(json, "iconCalls").forEach { bundleStrings(it, "icon call", "agentId", "provider", "model", "pricingTier") }
+    bundleObjects(json, "apiCallCosts").forEach { bundleStrings(it, "cost record", "id", "type", "provider", "model", "pricingTier") }
+    bundleObjects(json, "promptHistory").forEach { bundleStrings(it, "prompt revision", "prompt") }
+    listOf("knowledgeBaseIds", "parameterPresetIds").forEach { key ->
+        json.get(key)?.let { value ->
+            require(value.isJsonArray && value.asJsonArray.all { it.isJsonPrimitive && it.asJsonPrimitive.isString }) { "Malformed $key" }
+        }
     }
 }
 
