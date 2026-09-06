@@ -1,5 +1,7 @@
 # Backup & Restore
 
+> September 2026 update: Full backups include report_content, report_evidence, report_cost_pending and report_work_limits. Report bundles use version 2 for evidence and remain compatible with version 1 imports. A report bundle publishes its parent JSON last; interrupted imports are rolled back from the import journal. See [remediation details](report-audit-remediation-2026-09-06.md).
+
 `BackupManager` (`data/BackupManager.kt`) round-trips the entire
 app — settings, chat history, reports, traces, pricing snapshots,
 and all the bookkeeping that makes a restored install pick up

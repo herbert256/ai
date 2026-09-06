@@ -475,7 +475,7 @@ private fun JudgeEvalL1(
                 if (run.allTerminal) {
                     val stats2 = analyzeJudges(run.cells.values.toList())
                     Text(
-                        "Consensus strength  ${pct(stats2.consensusStrength())}",
+                        "Independent agreement ${if (stats2.any { it.agreementCount > 0 }) pct(stats2.consensusStrength()) else "unavailable (need ≥3 judges)"}",
                         color = AppColors.SuccessAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
                     )
@@ -488,7 +488,7 @@ private fun JudgeEvalL1(
                             Text("Model", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                             Text("¢", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
                             Text("Time", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
-                            Text("Cons.", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+                            Text("Indep.", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
                             Spacer(Modifier.width(28.dp))   // aligns with the per-row ✗ remove column
                         }
                         HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.35f), thickness = 0.5.dp)
@@ -563,7 +563,7 @@ private fun JudgeLeaderRow(rank: Int, s: JudgeStats, onDelete: () -> Unit, onCli
             fontFamily = FontFamily.Monospace, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
         Text(fmtSecs(s.totalMs), color = AppColors.TextSecondary, fontSize = 12.sp,
             fontFamily = FontFamily.Monospace, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
-        Text(pct(s.agreement), color = agreementColor(s.agreement), fontSize = 14.sp, fontWeight = FontWeight.Bold,
+        Text(if (s.agreementCount > 0) "${pct(s.agreement)} (${s.agreementCount})" else "—", color = agreementColor(s.agreement), fontSize = 14.sp, fontWeight = FontWeight.Bold,
             textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
         // ✗ remove this judge — from the batch AND the swarm (confirm dialog).
         // A plain glyph (not emoji) so it honours the red tint.
@@ -610,7 +610,7 @@ private fun JudgeEvalL2(
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                     Text("Match", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Text("Verdict", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
-                    Text("Cons.", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                    Text("Indep.", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                     Spacer(Modifier.width(30.dp))
                 }
                 HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)
@@ -859,7 +859,7 @@ private fun JudgeEvalMatchScreen(
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                     Text("Judge", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Text("Verdict", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
-                    Text("Cons.", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                    Text("Indep.", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                     Spacer(Modifier.width(30.dp))
                 }
                 HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)

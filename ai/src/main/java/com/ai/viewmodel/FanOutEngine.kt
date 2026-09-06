@@ -492,7 +492,7 @@ class FanOutEngine internal constructor(
                 // Resolve via the rerank's frozen snapshot, not raw positions,
                 // so a success-set change doesn't reselect different models.
                 val rerank = SecondaryResultStorage.get(context, report.id, scope.rerankResultId)
-                com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful).ifEmpty { successful }
+                com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful)
             }
         }
         return scoped.size.takeIf { it > 0 } ?: successful.size.coerceAtLeast(1)
@@ -637,7 +637,7 @@ class FanOutEngine internal constructor(
                 isRunning = true
             ))
         }
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             try {
                 val task = buildFanOutPairReplayTask(context, runKey, pairId)
                 val supportedParams = PricingCache.getSupportedParameters(context, task.provider, task.model)
@@ -729,7 +729,7 @@ class FanOutEngine internal constructor(
         val key = TemperatureSweepState.key(run.reportId, pairId)
         val candidate = _temperatureSweepStates.value[key]?.candidates
             ?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             applyFanOutPairContent(
                 context = context,
                 runKey = runKey,
@@ -761,7 +761,7 @@ class FanOutEngine internal constructor(
                 isRunning = true
             ))
         }
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             try {
                 val task = buildFanOutPairReplayTask(context, runKey, pairId)
                 if (!task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)) {
@@ -846,7 +846,7 @@ class FanOutEngine internal constructor(
         val key = ReasoningEffortSweepState.key(run.reportId, pairId)
         val candidate = _reasoningEffortSweepStates.value[key]?.candidates
             ?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             applyFanOutPairContent(
                 context = context,
                 runKey = runKey,
@@ -872,7 +872,7 @@ class FanOutEngine internal constructor(
                 isRunning = true
             ))
         }
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             try {
                 val task = buildFanOutPairReplayTask(context, runKey, pairId)
                 if (!task.aiSettings.isWebSearchCapable(task.provider, task.model)) {
@@ -938,7 +938,7 @@ class FanOutEngine internal constructor(
         val run = _runs.value[runKey] ?: return
         val key = WebSearchReplayState.key(run.reportId, pairId)
         val result = _webSearchReplayStates.value[key]?.result as? WebSearchReplayResult.Success ?: return
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             applyFanOutPairContent(
                 context = context,
                 runKey = runKey,
@@ -971,7 +971,7 @@ class FanOutEngine internal constructor(
                 isRunning = true
             ))
         }
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             try {
                 if (editedPrompt.isBlank()) {
                     val msg = "Prompt is empty"
@@ -1046,7 +1046,7 @@ class FanOutEngine internal constructor(
         val run = _runs.value[runKey] ?: return
         val key = PromptEditReplayState.key(run.reportId, pairId)
         val result = _promptEditReplayStates.value[key]?.result as? PromptEditReplayResult.Success ?: return
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             applyFanOutPairContent(
                 context = context,
                 runKey = runKey,
@@ -1145,7 +1145,7 @@ class FanOutEngine internal constructor(
                             // positions, so a success-set change since the rerank
                             // doesn't fan out over different models than ranked.
                             val rerank = SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
-                            com.ai.data.resolveTopRankedAgents(rerank, scopeChoice.count, successful).ifEmpty { successful }
+                            com.ai.data.resolveTopRankedAgents(rerank, scopeChoice.count, successful)
                         }
                         is SecondaryScope.Manual -> successful.filter { it.agentId in scopeChoice.agentIds }
                     }
@@ -1323,6 +1323,8 @@ class FanOutEngine internal constructor(
      *  before the rows are deleted). Cooperative cancel, no join — the
      *  per-pair runner's `exists()` / saveIfStillPresent guards drop any
      *  write that lands after the row is gone. */
+    fun hasActiveCalls(reportId: String): Boolean = activeRunKeys().any { it.startsWith("$reportId|") }
+
     fun cancelAllForReport(reportId: String) {
         val prefix = "$reportId|"
         runJobKeys().filter { it.startsWith(prefix) }.forEach { runJobOf(it)?.cancel() }
@@ -1551,7 +1553,7 @@ class FanOutEngine internal constructor(
 
     /** Drop every errored pair row from this run without re-firing. */
     fun removeFailedPairs(context: Context, runKey: FanOutRunKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             // Benched pairs are kept — they're cleared by
             // removeBenchedPairs instead, so the two are complementary.
@@ -1578,7 +1580,7 @@ class FanOutEngine internal constructor(
      *  the Broken-work "delete unfinished" action. Mirror of
      *  [removeFailedPairs], narrowed to PENDING rows. */
     fun removeUnfinishedPairs(context: Context, runKey: FanOutRunKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             val stranded = run.pairs.values.filter { it.status == PairStatus.PENDING }
             if (stranded.isEmpty()) return@launch
@@ -1602,7 +1604,7 @@ class FanOutEngine internal constructor(
      *  benched subset so the user can clear the will-recover failures
      *  without touching the genuine ones. */
     fun removeBenchedPairs(context: Context, runKey: FanOutRunKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             val benched = run.pairs.values.filter {
                 it.status == PairStatus.ERROR &&
@@ -1630,7 +1632,7 @@ class FanOutEngine internal constructor(
         runKey: FanOutRunKey,
         providerId: String,
         model: String
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
         val run = _runs.value[runKey] ?: return@launch
         val failed = run.pairs.values.filter {
             it.status == PairStatus.ERROR &&
@@ -1654,7 +1656,7 @@ class FanOutEngine internal constructor(
 
     /** Re-fire every errored pair in this run, in one parallel batch. */
     fun restartFailedPairs(context: Context, runKey: FanOutRunKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             // Genuine errors only — benched (cooldown) pairs are left for
             // removeBenchedPairs / auto-recovery; re-firing them just bounces
@@ -1668,7 +1670,7 @@ class FanOutEngine internal constructor(
         }
 
     fun restartPairsByIds(context: Context, runKey: FanOutRunKey, pairIds: Set<String>): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             val keys = run.pairs.values.filter { it.id in pairIds }.map { it.key }
             rerunPairsBlocking(context, runKey, keys)
@@ -1681,7 +1683,7 @@ class FanOutEngine internal constructor(
      *  re-dispatch in one batch, driving the build-stage popup off [buildKey].
      *  Finished pairs are untouched. */
     fun continueBrokenBatch(context: Context, runKey: FanOutRunKey, buildKey: String?): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             try {
                 stopInFlightKeepingState(runKey)
                 hydrate(context, runKey.substringBefore('|'))
@@ -1718,7 +1720,7 @@ class FanOutEngine internal constructor(
     }
 
     fun removePairsByIds(context: Context, runKey: FanOutRunKey, pairIds: Set<String>): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             val victims = run.pairs.values.filter { it.id in pairIds }
             if (victims.isEmpty()) return@launch
@@ -1743,7 +1745,7 @@ class FanOutEngine internal constructor(
         runKey: FanOutRunKey,
         providerId: String,
         model: String
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
         val run = _runs.value[runKey] ?: return@launch
         val keys = run.pairs.values
             .filter {
@@ -1762,7 +1764,7 @@ class FanOutEngine internal constructor(
     /** Re-fire a single pair. Re-uses the same placeholder id so the
      *  L3 detail row keeps its identity. */
     fun rerunPair(context: Context, runKey: FanOutRunKey, pairKey: PairKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             rerunPairBlocking(context, runKey, pairKey)
         }
 
@@ -1770,7 +1772,7 @@ class FanOutEngine internal constructor(
      *  id (the [PairState.id]) — used by call sites that hold the row,
      *  not the [PairKey]. */
     fun rerunPairById(context: Context, runKey: FanOutRunKey, pairId: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             val pair = run.pairs.values.firstOrNull { it.id == pairId } ?: return@launch
             rerunPairBlocking(context, runKey, pair.key)
@@ -1894,7 +1896,7 @@ class FanOutEngine internal constructor(
     /** Cancel one pair's in-flight coroutine + delete its disk row +
      *  drop it from the state flow. */
     fun cancelPair(context: Context, runKey: FanOutRunKey, pairKey: PairKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             val pair = run.pairs[pairKey] ?: return@launch
             itemJobOf(pair.id)?.cancelAndJoin()
@@ -1922,7 +1924,7 @@ class FanOutEngine internal constructor(
      *  whole. Combined-report rows are left alone (no explicit
      *  fan-out↔fan-in link). */
     fun rerunComplete(context: Context, runKey: FanOutRunKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             runJobOf(runKey)?.cancelAndJoin()
             run.pairs.values.forEach { pair -> itemJobOf(pair.id)?.cancelAndJoin() }
@@ -1977,7 +1979,7 @@ class FanOutEngine internal constructor(
      *  completes when the background disk work is done. */
     fun deleteRun(context: Context, runKey: FanOutRunKey): Job {
         val run = _runs.value[runKey]
-            ?: return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ?: return appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
                 // Build-phase Cancel: the run publishes into _runs only AFTER
                 // the whole build finishes, but its Job is registered (and
                 // placeholder rows are being persisted) from the first moment.
@@ -2037,7 +2039,7 @@ class FanOutEngine internal constructor(
      *  fan-out pairs (and their main responses) intact. Backs the
      *  Fan-Meta 🗑 button. */
     fun clearFanMeta(context: Context, runKey: FanOutRunKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val run = _runs.value[runKey] ?: return@launch
             // Stop any in-flight fan-meta batch first so a call returning
             // mid-flight doesn't write back onto a row we're about to
@@ -2079,7 +2081,7 @@ class FanOutEngine internal constructor(
          *  per-pair removal UI) re-derives from the live report, which
          *  still has the agents at that point. */
         knownAgentIds: Set<String>? = null
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
         val run = _runs.value[runKey] ?: return@launch
         val matchingAgentIds = knownAgentIds ?: run {
             val report = ReportStorage.getReport(context, run.reportId) ?: return@launch
@@ -2185,7 +2187,7 @@ class FanOutEngine internal constructor(
      *  locate (prompt deleted / answerer agent gone) so they stop
      *  spinning. */
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
           // Fire-and-forget on viewModelScope with no global exception
           // handler — an uncaught throw here crashes the app (the startup
           // resume sweep only join()s this Job, it can't catch it). Contain.
@@ -2238,7 +2240,7 @@ class FanOutEngine internal constructor(
                 }
                 val retryKeys = retryRows.mapNotNull { row -> run.pairs.values.firstOrNull { it.id == row.id }?.key }
                 if (retryKeys.isEmpty()) { endResumeScan(rk); continue }
-                appViewModel.viewModelScope.launch(Dispatchers.IO) {
+                appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
                     try {
                         rerunPairsBlocking(context, rk, retryKeys)
                     } catch (e: kotlinx.coroutines.CancellationException) {
@@ -2280,7 +2282,7 @@ class FanOutEngine internal constructor(
         val job = reportViewModel.secondary.runFanInPrompt(context, run.reportId, fanInPrompt, run.sourceLanguage)
         // Re-hydrate after the call completes to surface the new combined-report row.
         job?.invokeOnCompletion {
-            appViewModel.viewModelScope.launch(Dispatchers.IO) { hydrate(context, run.reportId) }
+            appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) { hydrate(context, run.reportId) }
         }
         return job
     }

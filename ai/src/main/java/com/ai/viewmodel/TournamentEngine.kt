@@ -143,7 +143,8 @@ class TournamentEngine internal constructor(
             // hydrate — disk only carries the prompt id, so rebuilding from
             // settings alone dropped the edit and later match reruns mixed
             // edited and unedited rubric text (same fix as TranslatorRank).
-            val prompt = _runs.value[reportId]?.takeIf { it.runId == runId }?.tournamentPrompt
+            val prompt = com.ai.data.ReportEvidenceStore.run(reportId, runId)?.prompt
+                ?: _runs.value[reportId]?.takeIf { it.runId == runId }?.tournamentPrompt
                 ?: aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
                 ?: tournamentPrompt(aiSettings)
                 ?: InternalPrompt(
@@ -160,7 +161,8 @@ class TournamentEngine internal constructor(
                 tournamentPrompt = prompt,
                 matches = itemsFromGroup(reportId, group),
                 aggregateRowId = aggRow?.id,
-                selectedMethod = method
+                selectedMethod = method,
+                runParams = com.ai.data.ReportEvidenceStore.run(reportId, runId)?.parameters
             )
         }
     }
@@ -196,6 +198,7 @@ class TournamentEngine internal constructor(
             val prompt = tournamentPrompt(aiSettings)
                 ?.let { if (overridePromptText != null) it.copy(text = overridePromptText) else it }
                 ?.withBatchWorkers(report, overrideWorkers)
+                ?.freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings)
             if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                 AppLog.w("Tournament", "workers/tournament not configured — aborting")
                 return@launchRun
@@ -206,6 +209,8 @@ class TournamentEngine internal constructor(
             }
             if (successful.size < 2) return@launchRun
             AuditLog.append(reportId, "Start Tournament — ${successful.size} responses, ${matchCountFor(successful.size)} matches (worker-judged)")
+            com.ai.data.ReportEvidenceStore.saveRun(context, report, runId, prompt,
+                overrideTemperature?.let { com.ai.data.AgentParameters(temperature = it) })
             val scopeEncoded = SecondaryScope.AllReports.encode()
 
             val aggregate = SecondaryResult(
@@ -532,7 +537,8 @@ class TournamentEngine internal constructor(
 
     override suspend fun redispatchRows(context: Context, runKey: TournamentRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
-        val report = ReportStorage.getReport(context, runKey) ?: return
+        val current = ReportStorage.getReport(context, runKey) ?: return
+        val report = com.ai.data.ReportEvidenceStore.historicalReport(current, rows.first())
         // The report's Worker-batches mode must hold on resume / Broken-work
         // restart / regenerate too — the hydrated prompt carries the
         // CONFIGURED swarm, so re-judging without the swap would pull in

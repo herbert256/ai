@@ -49,25 +49,33 @@ data class JudgeStats(
     /** Total USD spend across this judge's cells. */
     val totalCost: Double,
     /** Total wall-clock API time (ms) across this judge's cells. */
-    val totalMs: Long
+    val totalMs: Long,
+    val agreementCount: Int = 0
 ) {
     val judgeKey: String get() = "$judgeProviderId/$judgeModel"
 }
 
-/** Score every judge from the full cell grid. The consensus per match is
- *  computed from ALL judges' verdicts; each judge's agreement is then its
- *  share of matches that matched that consensus. */
+/** Score each judge against an independent panel, excluding its own verdict.
+ * Missing or split panels are unavailable evidence, with an explicit denominator. */
 fun analyzeJudges(cells: List<JudgeCellState>): List<JudgeStats> {
-    val consensusByMatch: Map<String, String?> = cells.groupBy { it.matchKey }
-        .mapValues { (_, cs) -> consensusForMatch(cs.mapNotNull { it.verdict }) }
+    val cellsByMatch = cells.groupBy { it.matchKey }
     return cells.groupBy { it.judgeKey }.map { (_, cs) ->
         val first = cs.first()
         val withVerdict = cs.filter { it.verdict != null }
         val judged = withVerdict.size
-        val agree = withVerdict.count { c ->
-            val cons = consensusByMatch[c.matchKey]
-            cons != null && c.verdict == cons
+        // Require two OTHER independent judges and a unique plurality.
+        // A split panel is unavailable evidence, not an invented tie verdict.
+        val eligible = withVerdict.mapNotNull { c ->
+            val others = cellsByMatch[c.matchKey].orEmpty().filter { it.judgeKey != c.judgeKey }
+                .distinctBy { it.judgeKey }.mapNotNull { it.verdict }
+            if (others.size < 2) null else {
+                val counts = others.groupingBy { it }.eachCount()
+                val max = counts.values.maxOrNull()
+                val winner = counts.filterValues { it == max }.keys.singleOrNull()
+                winner?.let { c.verdict == it }
+            }
         }
+        val agree = eligible.count { it }
         val ties = withVerdict.count { it.verdict == "tie" }
         val decided = withVerdict.filter { it.verdict == "A" || it.verdict == "B" }
         val aCount = decided.count { it.verdict == "A" }
@@ -77,7 +85,8 @@ fun analyzeJudges(cells: List<JudgeCellState>): List<JudgeStats> {
             judgeModel = first.judgeModel,
             matchesJudged = judged,
             errors = cs.size - judged,
-            agreement = if (judged > 0) agree.toDouble() / judged else 0.0,
+            agreement = if (eligible.isNotEmpty()) agree.toDouble() / eligible.size else 0.0,
+            agreementCount = eligible.size,
             tieRate = if (judged > 0) ties.toDouble() / judged else 0.0,
             aLean = if (decided.isNotEmpty()) aCount.toDouble() / decided.size else 0.0,
             avgConfidence = if (confs.isNotEmpty()) confs.average() else null,
@@ -90,7 +99,7 @@ fun analyzeJudges(cells: List<JudgeCellState>): List<JudgeStats> {
 /** Overall "consensus strength" — the mean agreement across judges (0..1).
  *  High = the judges broadly see the same winners; low = they disagree. */
 fun List<JudgeStats>.consensusStrength(): Double =
-    if (isEmpty()) 0.0 else map { it.agreement }.average()
+    filter { it.agreementCount > 0 }.let { eligible -> if (eligible.isEmpty()) 0.0 else eligible.map { it.agreement }.average() }
 
 /** Rank the ANSWERS (not the judges) by what the panel of judges
  *  collectively decided: take each match's plurality [consensusForMatch]
@@ -130,7 +139,8 @@ fun List<JudgeStats>.toJudgesJson(): String {
             addProperty("model", s.judgeModel)
             addProperty("judged", s.matchesJudged)
             addProperty("errors", s.errors)
-            addProperty("agreement", s.agreement)
+            if (s.agreementCount > 0) addProperty("agreement", s.agreement)
+            addProperty("independentMatches", s.agreementCount)
             addProperty("tieRate", s.tieRate)
             addProperty("aLean", s.aLean)
             s.avgConfidence?.let { addProperty("avgConfidence", it) }

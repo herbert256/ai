@@ -36,6 +36,7 @@ and a manual override layer into one resolved view per
   title and its subtitle line.
 
 ### For developers
+- **[Report audit remediation](report-audit-remediation-2026-09-06.md)** — September 2026 fixes, compatibility changes, and validation.
 - **[architecture.md](architecture.md)** — Big-picture map of the app:
   navigation, view models, data layer, layered lookups, concurrency,
   state recovery, Fan-out / Fan-in.

@@ -1,5 +1,7 @@
 # On-device runtime — Local LLM + LiteRT embedder
 
+> September 2026 update: Local Report calls now include the resolved system prompt and apply supported temperature, top-p, top-k and seed controls. The engine retains its fixed 2048-token context; a different max-token override is rejected. Unsupported controls produce an explicit error instead of being silently accepted. See [remediation details](report-audit-remediation-2026-09-06.md).
+
 Two MediaPipe Tasks runtimes that run entirely on-device, with no API
 key and no HTTP: an **LLM** (`LocalLlm`, `.task` bundles) and a **text
 embedder** (`LocalEmbedder`, `.tflite` models). Both surface a single

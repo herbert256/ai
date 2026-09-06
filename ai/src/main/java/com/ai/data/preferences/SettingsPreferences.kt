@@ -2,6 +2,8 @@ package com.ai.data.preferences
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.ai.data.ReportCostJournal
+import com.ai.data.AppLog
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.PricingCache
@@ -32,6 +34,7 @@ import kotlinx.coroutines.withContext
 class SettingsPreferences(private val prefs: SharedPreferences, private val filesDir: File? = null) {
 
     private val gson = createAppGson()
+    init { if (filesDir != null) scheduleUsageStatsFlush() }
 
     // Per-domain persistence is being split out of this class (audit D01). The
     // prompt-history list now lives in its own store; the methods below delegate
@@ -658,10 +661,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun updateUsageStats(provider: AppService, model: String, usage: TokenUsage, kind: String = "report", searchUnits: Int = 0, durationMs: Long? = null) {
-        // Master usage-statistics switch (Settings → Log/trace/audit/statistics).
-        // Off → record nothing: no rolling-rate sample, no persisted token/cost
-        // rows. Guarding this single chokepoint covers every token call site.
-        if (!usageStatsEnabled) return
+        // Report accounting is durable even when optional aggregate statistics are off.
         // Feed the Live Dashboard's rolling spend/token rate (in-memory, 5-min
         // window) — this is the single chokepoint every token site funnels through.
         // Billed totals (uncached+cached+cache-creation / output+reasoning) so
@@ -669,7 +669,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         // storing only the uncached inputTokens understated them.
         val inputTokens = usage.billedInputTokens
         val outputTokens = usage.billedOutputTokens
-        com.ai.data.ApiUsageRates.record(provider, model, inputTokens, outputTokens)
         val normalizedKind = normalizeUsageKind(kind)
         val category = if (normalizedKind == "report") {
             normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)
@@ -677,6 +676,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             normalizedKind
         }
         val costs = computeUsageCostSnapshot(provider, model, usage, searchUnits)
+        try { recordReportApiCallCost(provider, model, inputTokens, outputTokens, category, searchUnits, costs, durationMs, usage.estimated) }
+        catch (e: com.ai.data.ReportSaveException) { AppLog.e("ReportCosts", "Cost awaiting save retry", e) }
+        scheduleUsageStatsFlush()
+        if (!usageStatsEnabled) return
+        com.ai.data.ApiUsageRates.record(provider, model, inputTokens, outputTokens)
         val stats = ensureUsageStatsCache()
         val key = "${provider.id}::$model::$category"
         stats.compute(key) { _, existing ->
@@ -692,7 +696,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             )
         }
         recordUsageCategoryStats(category, inputTokens, outputTokens, searchUnits, costs)
-        recordReportApiCallCost(provider, model, inputTokens, outputTokens, category, searchUnits, costs, durationMs)
         scheduleUsageStatsFlush()
     }
 
@@ -725,10 +728,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         category: String,
         searchUnits: Int,
         costs: UsageCostSnapshot,
-        durationMs: Long? = null
+        durationMs: Long? = null,
+        estimated: Boolean = false
     ) {
         val reportId = ApiTracer.currentReportId?.takeIf { it.isNotBlank() } ?: return
-        if (inputTokens <= 0 && outputTokens <= 0 && searchUnits <= 0) return
+        if (inputTokens <= 0 && outputTokens <= 0 && searchUnits <= 0 && costs.inputCost <= 0.0 && costs.outputCost <= 0.0) return
         val record = ReportApiCallCost(
             type = category,
             provider = provider.id,
@@ -739,10 +743,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             inputCost = costs.inputCost,
             outputCost = costs.outputCost,
             searchUnits = searchUnits,
-            durationMs = durationMs
+            durationMs = durationMs,
+            estimatedUsage = estimated
         )
+        ReportCostJournal.enqueue(filesDir, reportId, record)
         synchronized(usageStatsLock) {
-            pendingReportApiCallCosts.getOrPut(reportId) { mutableListOf() } += record
+            if (!usageStatsEnabled) return
             val reports = ensureUsageReportStatsCache()
             reports.compute(reportId) { _, existing ->
                 val base = existing ?: UsageReportStats(
@@ -764,23 +770,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     private fun flushPendingReportApiCallCostsLocked() {
-        if (pendingReportApiCallCosts.isEmpty()) return
-        val pending = pendingReportApiCallCosts.mapValues { it.value.toList() }
-        pendingReportApiCallCosts.clear()
-        pending.forEach { (reportId, rows) ->
-            val appended = ReportStorage.appendApiCallCosts(filesDir, reportId, rows) ?: return@forEach
-            usageReportStatsCache?.compute(appended.reportId) { _, existing ->
-                val base = existing ?: UsageReportStats(
-                    reportId = appended.reportId,
-                    title = appended.title,
-                    timestamp = appended.timestamp
-                )
-                base.copy(
-                    title = appended.title.takeIf { it.isNotBlank() } ?: base.title,
-                    timestamp = if (appended.timestamp > 0L) appended.timestamp else base.timestamp
-                )
-            }
-        }
+        ReportCostJournal.flush(filesDir)
     }
 
     private fun mergeUsageStats(existing: UsageStats?, incoming: UsageStats): UsageStats =
@@ -945,17 +935,16 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     private fun scheduleUsageStatsFlush() {
-        val now = System.currentTimeMillis()
-        val last = lastUsageStatsFlush
-        if (now - last < USAGE_STATS_FLUSH_MS) return
         synchronized(usageStatsLock) {
-            if (System.currentTimeMillis() - lastUsageStatsFlush < USAGE_STATS_FLUSH_MS) return
-            lastUsageStatsFlush = System.currentTimeMillis()
-            flushPendingReportApiCallCostsLocked()
-            val snapshot = usageStatsCache?.let { HashMap(it) } ?: return
-            saveUsageStats(snapshot)
-            usageCategoryStatsCache?.let { saveUsageCategoryStats(HashMap(it)) }
-            usageReportStatsCache?.let { saveUsageReportStats(HashMap(it)) }
+            if (scheduledUsageFlush?.isDone == false) return
+            scheduledUsageFlush = usageFlushExecutor.schedule({
+                synchronized(usageStatsLock) { scheduledUsageFlush = null }
+                try { flushUsageStats() }
+                catch (e: Exception) {
+                    AppLog.e("ReportCosts", "Cost flush failed; durable entries retained", e)
+                    scheduleUsageStatsFlush()
+                }
+            }, USAGE_STATS_FLUSH_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
         }
     }
 
@@ -980,7 +969,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         usageStatsCache?.clear()
         usageCategoryStatsCache?.clear()
         usageReportStatsCache?.clear()
-        pendingReportApiCallCosts.clear()
         // Reset the flush timestamp so the next updateUsageStats
         // doesn't skip the disk flush against a 2-second debounce
         // window inherited from a recent pre-clear write — that
@@ -1072,7 +1060,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         @Volatile private var usageStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageStats>? = null
         @Volatile private var usageCategoryStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats>? = null
         @Volatile private var usageReportStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>? = null
-        private val pendingReportApiCallCosts = HashMap<String, MutableList<ReportApiCallCost>>()
+        private val usageFlushExecutor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
+            Thread(r, "report-cost-flush").apply { isDaemon = true }
+        }
+        private var scheduledUsageFlush: java.util.concurrent.ScheduledFuture<*>? = null
         @Volatile private var lastUsageStatsFlush: Long = 0L
         private const val USAGE_STATS_FLUSH_MS = 2_000L
         const val PREFS_NAME = "eval_prefs"

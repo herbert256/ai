@@ -172,106 +172,26 @@ Public API: `hasJob`, `hydrate`, `enqueueAndStart`, `restart`,
 `cancel`, `cancelJobNow`, `reconcile`, `detectBroken`,
 `isActivelyRunning`, `deleteJob`.
 
-### Phase order (verified)
+### Phase order
 
-`RegeneratePhase` (`RegenerateBatch.kt:20`) is a **10-value** enum
-in fixed order; the orchestrator walks forward by `ordinal`.
-`enqueueAndStart` starts at `RegeneratePhase.values().firstOrNull()`
-(not a hardcoded phase, `RegenerateBatchEngine.kt:104`), so
-prepending a phase can't silently skip it.
-
-| # | Phase | Re-runs | Dispatcher (`dispatchPhase`) | Row-status source |
-|---|---|---|---|---|
-| 1 | `TITLE` | report title workers — short **+** long (synthetic row `__report_title__`); runs *before* icon so the icon can derive from the fresh long title | `iconGen.kickOffReportTitleGeneration(…, thenIcon = false)` | `Report.titlePromptUsed` / `titleErrorMessage` |
-| 2 | `ICON` | report 🎯 icon (synthetic `__report_icon__`) | `iconGen.kickOffIconGeneration` | `Report.icon` / `iconErrorMessage` |
-| 3 | `LANGUAGE` | language detect + language-icon (synthetic `__report_language__`) | `iconGen.kickOffLanguageGeneration` | `Report.languageName` / `languageIcon` / `languageIconErrorMessage` |
-| 4 | `AGENTS` | one task per `ReportAgent` (whose provider still resolves) | `forceRegenerateAllAgents` | `ReportAgent.reportStatus` + `responseBody` |
-| 5 | `META` | single-call meta + `RERANK` + `MODERATION` (`fanOutSourceAgentId == null && fanInOf == null`; `JUDGES` / `COMPARE` excluded) | `secondary.resumeStaleMetaPlaceholder` (per row) | `SecondaryResult.content` / `errorMessage` |
-| 6 | `FAN_OUT` | fan-out per-pair rows (`fanOutSourceAgentId != null`) | `fanOutEngine.resumeStaleRunsForReport(…, resetAttempts = true)` | `SecondaryResult.content` / `errorMessage` |
-| 7 | `FAN_IN` | fan-in combined rows (`fanInOf != null`) | `secondary.resumeStaleMetaPlaceholder` (per row) | `SecondaryResult.content` / `errorMessage` |
-| 8 | `TRANSLATIONS` | every `TRANSLATE` row | `translation.startMissingTranslations` (per distinct `translationRunId`) | `SecondaryResult.content` / `errorMessage` |
-| 9 | `FAN_META` | per-fan-out-pair title **+** icon — one worker call produces both (pairs that previously had a title/icon or an error) | `iconGen.runFanMetaBatch` (per `metaPromptId`) | `icon` present → Success; `iconErrorMessage`/`titleErrorMessage` with no icon → Error |
-| 10 | `TOURNAMENT` | tournament per-match rows (`kind == TOURNAMENT && tournamentRole == "MATCH"`) | `tournamentEngine.resumeStaleRunsForReport(…, resetAttempts = true)` | `SecondaryResult.content` / `errorMessage` |
-
-Notes on specific phases:
-
-- **`TITLE` runs first** (before `ICON`) so report-icon generation
-  can read the freshly-regenerated long title. The old separate
-  per-icon-tier phases are gone — `FAN_META` is one phase because
-  the `workers/fan-meta` prompt returns a `title:` / `icon:` reply,
-  so a single worker call covers both halves of a pair.
-- The **`TOURNAMENT` AGGREGATE** ranking row is *not* a task — it
-  makes no API call. The tournament engine recomputes it once the
-  match rows settle. `JUDGES` and `COMPARE` cells are owned by
-  their own engines (`JudgeEvalEngine` / `CompareEngine`) and are
-  deliberately excluded from the regenerate batch (`isMetaPhaseRow`,
-  `RegenerateBatchEngine.kt:957`, which excludes `TRANSLATE`,
-  `TOURNAMENT`, `JUDGES`, `COMPARE` plus fan-out / fan-in rows).
-- **`TRANSRANK`** ("Rank the translators", the 8th `SecondaryKind`)
-  has *no* dedicated regenerate phase and is **not** excluded by
-  `isMetaPhaseRow`. Its rows carry `tournamentRole`
-  (`TRANSRANK_ROLE_CELL` / `_AGGREGATE`) and a `translationRunId`
-  but no `fanOutSourceAgentId` / `fanInOf`, so a TRANSRANK row falls
-  through into the generic **META** phase and is resumed via the
-  single-call `resumeStaleMetaPlaceholder` path rather than re-judged
-  by `TranslatorRankEngine`. (Translator-rank batches are best
-  resumed from their own "Rank the translators" screen — see
-  [secondary-results.md](secondary-results.md).)
-- `FAN_OUT` and `TOURNAMENT` pass `resetAttempts = true` so a
-  user-initiated regenerate clears any per-session retry counts a
-  prior manual resume ran up — otherwise the pair/match would be
-  terminalized instantly and never re-fire.
-
-`buildTaskList` (`RegenerateBatchEngine.kt:793`) builds the task
-set from the report's *current* contents:
-
-- `TITLE` / `ICON` / `LANGUAGE` only when the matching gate is on
-  (`reportTitleAiOn()` / `reportIconOn()` / `reportLanguageOn()`),
-  the report has a non-blank `prompt`, **and** the matching worker
-  prompt (`report-title-short`/`-long`, `report-icon`,
-  `report-language-name`) has a resolvable worker — so the engine
-  doesn't park on a synthetic row that could never be dispatched.
-- `AGENTS` skips any agent whose provider no longer resolves
-  (`AppService.findById(agent.provider) == null`), matching the
-  same drop in `forceRegenerateAllAgents` — otherwise its row would
-  reset to PENDING but never re-fire and hang the phase to the
-  30-minute timeout.
-- `FAN_META` only for pairs that previously carried an icon / title
-  (or an error), so the engine doesn't spin on rows that can never
-  land.
+The 13 phases are **AGENTS → META → FAN_OUT → FAN_IN → TRANSLATIONS →
+FAN_META → TOURNAMENT → JUDGES → COMPARE → TRANSRANK → TITLE → ICON → LANGUAGE**.
+Primary answers run before optional metadata. Title remains before Icon so the
+icon can use the fresh title. Each batch kind uses its own engine for retries;
+aggregate rows are recomputed without another model call.
 
 ### Phase step machine
 
-Per phase, `orchestrate` (`RegenerateBatchEngine.kt:286`) loops:
+A shared work review occurs before existing answers are reset. Each phase arms
+only unfinished tasks; successful siblings are preserved on Retry unfinished.
+The phase waits until all submitted siblings settle, then pauses on substantive
+errors. Metadata errors are recorded without preventing other phases from
+finishing. The existing 30-minute phase timeout remains a safety net.
 
-1. Empty phase → `advanceToNextPhase`, continue.
-2. Flip **every** task in the phase to `RUNNING` (not just
-   `WAITING` — on a restart the prior `ERROR` task and its
-   already-`SUCCESS` siblings must be re-armed too, or
-   `awaitPhaseCompletion`, which only transitions `RUNNING` tasks,
-   would leave them stuck), set `startedAt`, clear `endedAt` /
-   `errorMessage`; then call `resetRowsForPhase` to reset the
-   underlying rows on disk (so Manage shows ⏳). All reset helpers
-   are the `*KeepingCost` variants
-   (`clearReportTitleKeepingCost`, `clearReportIconKeepingCost`,
-   `resetAgentToPendingKeepingCost`,
-   `clearFanOutTitle/IconStateKeepingCost`, …) — prior spend stays
-   and the dispatcher's additive cost write adds the new call's cost
-   on top.
-3. `dispatchPhase` fires the phase's dispatcher (table above).
-4. `awaitPhaseCompletion` (`RegenerateBatchEngine.kt:350`) polls
-   disk **every 1500 ms**, flipping each `RUNNING` task to
-   `SUCCESS` / `ERROR` / `CANCELLED` from the row's on-disk
-   content / errorMessage. A **30-minute** per-phase timeout is a
-   safety net (pauses the phase on timeout).
-5. Halt on the **first** ERROR row → `pauseOnError`; otherwise once
-   every task is terminal, `advanceToNextPhase`.
-
-`readRowStatuses` (`RegenerateBatchEngine.kt:422`) dispatches the
-status read per phase; the synthetic TITLE / ICON / LANGUAGE rows
-read `Report` fields directly (no persistent row to match), and the
-`FAN_META` read treats an icon present as a usable (partial)
-success.
+Stop scheduling cancels the orchestrator. Submitted calls may finish, persist
+results and incur cost. Retry waits for previously scheduled calls to settle,
+refreshes completed rows from disk, and requeues only unfinished work. Stale
+background scans remain read-only; they do not silently submit paid calls.
 
 ### Job + task states
 
@@ -282,53 +202,16 @@ success.
 
 ### Pause-on-error + background resume
 
-On the first ERROR in a phase the job persists
-`status = PAUSED_ON_ERROR` and stamps `pausedOnRowId` (the first
-errored row). No further phases fire until a `restart` succeeds.
+After submitted siblings settle, a failed substantive phase persists
+`PAUSED_ON_ERROR` and `pausedOnRowId`. **Retry unfinished** retries the errored
+rows directly and keeps completed siblings. It does not require the error to
+be manually cleared first. Optional Title/Icon/Language failures do not pause
+remaining work.
 
-Resume paths, all idempotent:
-
-- **`restart`** (`RegenerateBatchEngine.kt:124`) — Restart button
-  on the detail screen (the only *user-facing* resume trigger now).
-  For a paused job it only resumes when the paused row is **no
-  longer errored** on disk (`isRowStillErrored`); otherwise no-op
-  (re-running would just hit the same error). `CANCELLED` jobs always
-  restart at `currentPhase`. `DONE` and an already-live `RUNNING`
-  orchestrator are no-ops.
-- **`reconcile`** (`RegenerateBatchEngine.kt:192`) — retained for
-  the **manual** `resumeStaleRunsForReport` orchestrator (now
-  explicit/manual-use only — fired by user Regenerate / retry, not
-  on report open). DONE / CANCELLED → no-op; RUNNING with a dead
-  orchestrator (app kill) → revive; RUNNING with a live orchestrator
-  → no-op; PAUSED_ON_ERROR with the row now OK → resume; still
-  errored → no-op. **It is no longer called from the background
-  pass** — that pass (`startBackgroundBrokenScan`, every 30 s) is
-  now detect-only and a RUNNING-but-dead / PAUSED_ON_ERROR job is
-  surfaced on the ⚠️ Broken-work screen instead of being
-  auto-revived.
-- **`detectBroken`** (`RegenerateBatchEngine.kt:236`) — read-only
-  counterpart to `reconcile` used by that scan: true when the job
-  is PAUSED_ON_ERROR, or RUNNING with no live orchestrator in *this*
-  process (app-kill-interrupted); false for DONE / CANCELLED and a
-  genuinely-live orchestrator. `detectBrokenBatchesForReport`
-  (`SecondaryRunManager.kt:754`) turns a true into one synthetic
-  `BrokenBatch(kind = REGENERATE)` — `errorCount = 1` /
-  "Paused on an error" when PAUSED, `unfinishedCount = 1` /
-  "Interrupted mid-run" when RUNNING-but-dead.
-- **`isActivelyRunning`** (`RegenerateBatchEngine.kt:251`) — true
-  while a live orchestrator coroutine exists in this process; the
-  Broken-work agent scan (`BrokenWorkPolicy.agentProblems`,
-  `reportIsLive`) reads it so a mid-batch report's PENDING/RUNNING
-  agents aren't mistaken for app-kill-stranded ones.
-- **`cancel`** (`RegenerateBatchEngine.kt:167`) — stops the
-  orchestrator; in-flight HTTP calls finish themselves and persist.
-  Only the orchestrator's own `finally` decrements
-  `activeSecondaryBatches` (Bug 80 — cancelling decremented it too,
-  drifting the badge below the real count).
-- **`cancelJobNow`** (`RegenerateBatchEngine.kt:160`) — the
-  synchronous variant used by `deleteReport`, which must stop the
-  orchestrator *before* removing the report dir (the async `cancel`
-  returns before its `launch` body runs).
+`reconcile` supports explicit manual recovery; background `detectBroken` only
+reports interrupted or paused work. `cancel` stops scheduling and records
+non-terminal tasks as cancelled while in-flight workers can still finish.
+`cancelJobNow` is the synchronous deletion helper.
 
 `mutateJob` does an atomic get → mutate → save under
 `RegenerateBatchStorage.update`'s single lock (Bug 58), so a
@@ -345,8 +228,8 @@ regenerate batches.
 `RegenerateBatchScreen` (`RegenerateBatch.kt:70`), help topic
 `regenerate_batch`, title **"Regenerate report"** / subject
 *"Re-run every model on this report"* — a status banner (phase /
-counts / "paused on error"), an action row (Cancel when RUNNING,
-Restart when PAUSED / CANCELLED), and per-task cards grouped by
+counts / "paused on error"), an action row (Stop scheduling when RUNNING,
+Retry unfinished when PAUSED / CANCELLED), and per-task cards grouped by
 phase (phase chip via the `RegeneratePhase.label` map —
 `RegenerateBatch.kt:436` — timestamps, duration, error). It is
 mounted as a `RegenerateBatchOverlay` (`RegenerateBatch.kt:345`)

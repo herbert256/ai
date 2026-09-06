@@ -1,5 +1,7 @@
 # Cost tracking, AI Usage, manual overrides
 
+> September 2026 update: Report accounting is independent of optional AI Usage statistics. Completed attempts enter a durable UUID journal before a trailing flush to the Report ledger; rejected paid worker outputs are included. Estimated usage is flagged. Current-answer charts use currentAttemptCost and currentAttemptUsage, while the Costs screen retains lifetime spend. Historical missing attempts cannot be reconstructed without original evidence. See [remediation details](report-audit-remediation-2026-09-06.md).
+
 Every billable LLM / rerank call is costed from its token usage ×
 the resolved per-model price. The same machinery feeds four
 surfaces: the global **Spend & usage** dashboard, the per-report

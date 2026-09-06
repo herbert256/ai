@@ -218,24 +218,24 @@ object KnowledgeService {
     ): List<Hit> {
         if (kbIds.isEmpty() || query.isBlank()) return emptyList()
         if (topK <= 0) return emptyList()
-        val kbs = kbIds.mapNotNull { KnowledgeStore.loadKnowledgeBase(context, it) }
-        if (kbs.isEmpty()) return emptyList()
+        val kbs = kbIds.map { KnowledgeStore.loadKnowledgeBase(context, it)
+            ?: throw java.io.IOException("Attached knowledge base $it is unavailable") }
         val first = kbs.first()
         // Validate embedder agreement — silent mis-rank is the
         // worst failure mode here, fail loud instead.
         val mismatch = kbs.firstOrNull { it.embedderProviderId != first.embedderProviderId || it.embedderModel != first.embedderModel }
         if (mismatch != null) {
-            AppLog.w("Knowledge", "Embedder mismatch across attached KBs (${first.name} vs ${mismatch.name}); using ${first.name}'s")
+            throw java.io.IOException("Attached knowledge bases use different embedders: ${first.name} and ${mismatch.name}")
         }
 
         val queryVecRaw = if (first.embedderProviderId == "LOCAL") {
             LocalEmbedder.embed(context, first.embedderModel, listOf(query))?.firstOrNull()
         } else {
-            val service = AppService.findById(first.embedderProviderId) ?: return emptyList()
+            val service = AppService.findById(first.embedderProviderId) ?: throw java.io.IOException("Knowledge embedder provider is unavailable")
             val apiKey = aiSettings.getApiKey(service)
-            if (apiKey.isBlank()) return emptyList()
+            if (apiKey.isBlank()) throw java.io.IOException("Knowledge embedder API key is missing")
             repository.embed(service, apiKey, first.embedderModel, listOf(query))?.firstOrNull()
-        } ?: return emptyList()
+        } ?: throw java.io.IOException("Knowledge query embedding failed")
         // Convert once to match the chunk-side FloatArray representation; the
         // primitive-array cosine path is the hot loop now.
         val queryVec = FloatArray(queryVecRaw.size) { idx -> queryVecRaw[idx].toFloat() }
@@ -275,11 +275,7 @@ object KnowledgeService {
                 }
             }
             dimSurprise?.let {
-                AppLog.w(
-                    "KnowledgeService",
-                    "KB '${kb.name}' (${kb.id}) has chunks with dim=$it; query dim=${queryVec.size}. " +
-                        "Re-index the KB with the current embedder."
-                )
+                throw java.io.IOException("Knowledge base ${kb.name} has incompatible embeddings; re-index it")
             }
         }
         // Top-K + token budget. Heap iteration order is undefined, so

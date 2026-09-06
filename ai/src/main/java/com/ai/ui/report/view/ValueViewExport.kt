@@ -24,7 +24,7 @@ private data class ExportTab(val key: String, val label: String, val points: Lis
 
 /** Build the page. [defaultSourceKey] (the screen's current selection)
  *  becomes the initially active tab when it survived the empty-tab filter.
- *  [gemGlyph] is the user's 💎 best-value glyph. Returns null when no
+ *  [gemGlyph] is the user's 💎 frontier glyph. Returns null when no
  *  source yields any point (nothing to export). */
 internal fun buildValueViewHtml(
     data: ValueViewData,
@@ -95,9 +95,9 @@ internal fun buildValueViewHtml(
     sb.append("\n<h1>Value view</h1>\n")
     sb.append("<div class=\"subtitle\">").append(esc(title)).append("</div>\n")
     val fanOutNote = if (data.includesFanOut)
-        " Cost includes each model's fan-out responses (every model here also answered the fan-out)." else ""
-    sb.append("<div class=\"caption\">Cost × quality. Top-left = cheap &amp; good. ")
-        .append(gem).append(" = best value; dimmed = dominated (another model is at least as good for less).")
+        " Current answer attempt only; historical and unknown attempt costs are excluded." else ""
+    sb.append("<div class=\"caption\">Current-attempt cost × rubric score. Only recorded, unchanged sources are compared; Combined requires common coverage. ")
+        .append(gem).append(" = Pareto frontier; dimmed = dominated (another model is at least as good for less).")
         .append(esc(fanOutNote)).append(" Click a chart to view it full screen.</div>\n")
 
     // Tabs row — one button per ranking source.
@@ -109,14 +109,14 @@ internal fun buildValueViewHtml(
     }
     sb.append("</div>\n")
 
-    // One pane per tab: chart placeholder + best-value line + ranked list,
-    // sorted exactly like the screen (best value, then Pareto, then quality).
+    // One pane per tab: chart placeholder + frontier line + ranked list,
+    // sorted exactly like the screen (Pareto frontier, then Pareto, then quality).
     tabs.forEach { t ->
         sb.append("<section class=\"pane\" data-key=\"").append(esc(t.key)).append("\">\n")
         sb.append("<div class=\"chart\" data-key=\"").append(esc(t.key))
             .append("\" onclick=\"openFull('").append(jsEsc(t.key)).append("')\"></div>\n")
         t.points.firstOrNull { it.bestValue }?.let { b ->
-            sb.append("<div class=\"best-line\">").append(gem).append(" Best value: ")
+            sb.append("<div class=\"best-line\">").append(gem).append(" Pareto frontier: ")
                 .append(esc(b.provider)).append(" · ").append(esc(b.modelShort))
                 .append(" — score ").append(esc(formatScore(b.quality)))
                 .append(" at ").append(esc(fmtCentsValue(b.costCents))).append("</div>\n")
@@ -129,7 +129,7 @@ internal fun buildValueViewHtml(
         sb.append("<table class=\"vrows\">\n")
         sorted.forEach { p ->
             val (badge, cls) = when {
-                p.bestValue -> "$gem Best value" to "b-best"
+                p.bestValue -> "$gem Pareto frontier" to "b-best"
                 !p.dominated -> "Pareto" to "b-pareto"
                 else -> "dominated" to "b-dom"
             }

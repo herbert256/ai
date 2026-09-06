@@ -287,7 +287,10 @@ data class Worker(
     /** Flock NAME when this worker is a Flock, else the "*N/A" sentinel. */
     val flock: String = "*N/A",
     /** Swarm NAME when this worker is a Swarm, else the "*N/A" sentinel. */
-    val swarm: String = "*N/A"
+    val swarm: String = "*N/A",
+    val frozenParameters: AgentParameters? = null,
+    val frozenEndpointUrl: String? = null,
+    val credentialAgentId: String? = null
 )
 
 /** Stand-alone example prompt — pure (title, text) pair the user
@@ -753,7 +756,8 @@ data class Settings(
         if (w.provider != "*N/A" && w.provider.isNotBlank() &&
             w.model != "*N/A" && w.model.isNotBlank()) {
             val svc = AppService.findById(w.provider) ?: return null
-            return Agent(id = "", name = "${w.provider} / ${w.model}", provider = svc, model = w.model, apiKey = "")
+            val credential = w.credentialAgentId?.let(::getAgentById)?.takeIf { it.provider == svc }
+            return Agent(id = credential?.id.orEmpty(), name = "${w.provider} / ${w.model}", provider = svc, model = w.model, apiKey = credential?.apiKey.orEmpty())
         }
         if (w.agent != "*N/A" && w.agent.isNotBlank() && w.agent != "*select")
             return agents.firstOrNull { it.name.equals(w.agent, ignoreCase = true) }
@@ -1029,7 +1033,7 @@ data class ReportModel(
     val sourceName: String, val sourceId: String? = null, val agentId: String? = null, val endpointId: String? = null,
     val agentApiKey: String? = null, val paramsIds: List<String> = emptyList()
 ) {
-    val deduplicationKey: String get() = "${provider.id}:$model"
+    val deduplicationKey: String get() = agentId?.let { "agent:$it" } ?: "${provider.id}:$model"
 }
 
 fun expandFlockToModels(flock: Flock, s: Settings) = flock.agentIds.mapNotNull { id ->
@@ -1052,11 +1056,7 @@ fun expandSwarmToModels(swarm: Swarm, s: Settings) = swarm.members.filter { s.is
 fun toReportModel(provider: AppService, model: String) = ReportModel(provider, model, "model", "model", "")
 
 fun deduplicateModels(models: List<ReportModel>): List<ReportModel> {
-    // One ReportModel per provider+model. When duplicates collide,
-    // an agent-sourced entry (non-null agentId — direct agent or
-    // flock member) wins over a bare manual / swarm pick: it
-    // carries the agent id, api key and parameter ids. Order
-    // follows the first appearance of each key.
+    // Named Agents retain their own identity; bare models deduplicate by provider/model.
     val byKey = LinkedHashMap<String, ReportModel>()
     for (m in models) {
         val existing = byKey[m.deduplicationKey]

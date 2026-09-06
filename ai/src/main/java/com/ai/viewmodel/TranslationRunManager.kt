@@ -298,6 +298,7 @@ class TranslationRunManager(
                     timestamp = System.currentTimeMillis(),
                     content = null,
                     errorMessage = null,
+                    translationSourceText = item.sourceText,
                     translateSourceKind = srcKind,
                     translateSourceTargetId = srcTargetId,
                     targetLanguage = targetLanguageName,
@@ -382,12 +383,16 @@ class TranslationRunManager(
         overrideTitlePromptText: String? = null
     ): Boolean {
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val textPrompt = workerTranslatePrompt(aiSettings, title = false)
+        val textPrompt = com.ai.data.ReportEvidenceStore.run(sourceReportId, "${runId}_text")?.prompt ?: workerTranslatePrompt(aiSettings, title = false)
             ?.let { if (overrideTextPromptText != null) it.copy(text = overrideTextPromptText) else it }
             ?.withBatchWorkers(sourceReport, overrideWorkers)
-        val titlePrompt = workerTranslatePrompt(aiSettings, title = true)
+            ?.freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings)
+        val titlePrompt = com.ai.data.ReportEvidenceStore.run(sourceReportId, "${runId}_title")?.prompt ?: workerTranslatePrompt(aiSettings, title = true)
             ?.let { if (overrideTitlePromptText != null) it.copy(text = overrideTitlePromptText) else it }
             ?.withBatchWorkers(sourceReport, overrideWorkers)
+            ?.freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings)
+        textPrompt?.let { com.ai.data.ReportEvidenceStore.saveRun(context, sourceReport, "${runId}_text", it) }
+        titlePrompt?.let { com.ai.data.ReportEvidenceStore.saveRun(context, sourceReport, "${runId}_title", it) }
         // Worker-selection mode: round robin deals items across the
         // REPORT_MODELS pool so every report model translates ~the same
         // number of items; Random (the historical pick) everywhere else.
@@ -485,6 +490,12 @@ class TranslationRunManager(
         if (prompt.workers.isEmpty())
             return TranslationOutcome.Failed("translate prompt '${prompt.name}' has no workers configured")
 
+        val reportId = _runs.value[runId]?.sourceReportId ?: return TranslationOutcome.Failed("Translation run was removed")
+        val row = item.persistedRowId?.let { SecondaryResultStorage.get(context,reportId,it) }
+            ?: return TranslationOutcome.Failed("Translation item was removed")
+        if (row.translationSourceText == null) {
+            check(SecondaryResultStorage.saveIfStillPresent(context,row.copy(translationSourceText=item.sourceText),mergeCosts=false))
+        }
         // RUNNING; provider/model stay null until a worker wins it.
         transitionItem(runId, item.id) {
             it.copy(status = TranslationStatus.RUNNING, providerId = null, model = null)
@@ -766,7 +777,7 @@ class TranslationRunManager(
         context: Context, reportId: String, runId: String, itemId: String,
         persistedRowId: String?, candidate: TranslationCandidate.Done
     ) {
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val tu = candidate.tokenUsage
             if (persistedRowId != null) {
                 val existing = SecondaryResultStorage.get(context, reportId, persistedRowId)
@@ -1454,7 +1465,7 @@ class TranslationRunManager(
             // Honor caller-supplied source-text overrides ahead of
             // the default report/agent/meta derivation — used to
             // translate from a non-Original source language.
-            val sourceOverride = sourceTextOverrides?.get(kind to targetId)
+            val sourceOverride = sourceTextOverrides?.get(kind to targetId) ?: rowByKindTarget[kind to targetId]?.translationSourceText
             when (kind) {
                 "TITLE" -> TranslationItem(
                     id = "title", label = "Report title",
@@ -1829,6 +1840,7 @@ class TranslationRunManager(
                     timestamp = System.currentTimeMillis(),
                     content = null,
                     errorMessage = null,
+                    translationSourceText = item.sourceText,
                     translateSourceKind = item.sourceKind,
                     translateSourceTargetId = item.targetId,
                     targetLanguage = targetLanguageName,

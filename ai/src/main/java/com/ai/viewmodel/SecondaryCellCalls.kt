@@ -223,23 +223,29 @@ internal suspend fun runFixedJudgeCall(
     resolved: String,
     usageKind: String,
     noArtifactMessage: String,
+    prompt: InternalPrompt? = null,
     accepted: (AnalysisResponse) -> Boolean,
 ): FixedJudgeOutcome {
     val started = System.currentTimeMillis()
-    val raw = aiSettings.resolveWorker(judge.worker)
+    val savedPrompt = com.ai.data.ApiTracer.currentReportId?.let { com.ai.data.ReportEvidenceStore.run(it, com.ai.data.ApiTracer.currentRunId)?.prompt } ?: prompt
+    val frozenWorker = savedPrompt?.workers?.firstOrNull { it.provider == judge.providerId && it.model == judge.model && it.frozenParameters != null } ?: judge.worker
+    val raw = aiSettings.resolveWorker(frozenWorker)
         ?: return FixedJudgeOutcome.Rejected("judge ${judge.key} could not be resolved")
     val agent = raw.copy(
         apiKey = aiSettings.getEffectiveApiKeyForAgent(raw),
         model = aiSettings.getEffectiveModelForAgent(raw)
     )
-    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+    val baseUrl = frozenWorker.frozenEndpointUrl ?: aiSettings.getEffectiveEndpointUrlForAgent(agent)
+    val params = frozenWorker.frozenParameters ?: resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, savedPrompt, raw)
     val traceSink = AtomicReference<String?>(null)
     val resp = withTraceFilenameSink(traceSink) {
         appViewModel.repository.analyzeWithAgent(
-            agent, "", resolved, context = context, baseUrl = baseUrl, retry = false
+            agent, "", resolved, agentResolvedParams = params, context = context, baseUrl = baseUrl, retry = false
         )
     }
     if (!resp.isSuccess || !accepted(resp)) {
+        resp.tokenUsage?.let { appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, it,
+            kind = "$usageKind/rejected", durationMs = System.currentTimeMillis() - started) }
         return FixedJudgeOutcome.Rejected(
             resp.error?.takeIf { it.isNotBlank() } ?: noArtifactMessage,
             resp.httpStatusCode

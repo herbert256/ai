@@ -101,7 +101,8 @@ class JudgeEvalEngine internal constructor(
 
     override suspend fun redispatchRows(context: Context, runKey: JudgeEvalRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
-        val report = ReportStorage.getReport(context, runKey) ?: return
+        val current = ReportStorage.getReport(context, runKey) ?: return
+        val report = com.ai.data.ReportEvidenceStore.historicalReport(current, rows.first())
         val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
             val c = cellsById[row.id] ?: return@mapNotNull null
@@ -172,7 +173,8 @@ class JudgeEvalEngine internal constructor(
             // overridePromptText) across a mid-run hydrate — same fix as
             // TranslatorRank; rebuilding from settings alone dropped the
             // edit and re-queued cells were judged with a different rubric.
-            val prompt = _runs.value[reportId]?.takeIf { it.runId == runId }?.prompt
+            val prompt = com.ai.data.ReportEvidenceStore.run(reportId, runId)?.prompt
+                ?: _runs.value[reportId]?.takeIf { it.runId == runId }?.prompt
                 ?: aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
                 ?: judgePrompt(aiSettings)
                 ?: InternalPrompt(
@@ -241,6 +243,8 @@ class JudgeEvalEngine internal constructor(
             val chosen = pickJudgeMatches(report, sampleSize)
             if (chosen.isEmpty()) return@launchRun
             AuditLog.append(reportId, "Start Judge-the-judges — ${judges.size} judges × ${chosen.size} matches")
+            com.ai.data.ReportEvidenceStore.saveRun(context, report, runId,
+                prompt.copy(workers = judges.map { it.worker }).freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings))
             val scopeEncoded = SecondaryScope.AllReports.encode()
 
             val aggregate = SecondaryResult(
@@ -385,7 +389,7 @@ class JudgeEvalEngine internal constructor(
             val res = withTimeout(NetworkSettings.batchItemTimeoutMs) {
                 runFixedJudgeCall(
                     appViewModel, context, aiSettings, item.judge, resolved,
-                    usageKind = "judges", noArtifactMessage = "judge produced no verdict"
+                    usageKind = "judges", noArtifactMessage = "judge produced no verdict", prompt = prompt
                 ) { resp -> parseMatchVerdict(resp.analysis)?.verdict != null }
             }
             when (res) {

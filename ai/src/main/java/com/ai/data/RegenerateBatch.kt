@@ -6,33 +6,15 @@ package com.ai.data
  * call. See plan file:
  *   /Users/herbert/.claude/plans/meta-items-and-fa-in-flickering-piglet.md
  *
- * The batch walks the report's contents in fixed phase order
- * ([RegeneratePhase.values]) and restarts every row in the
- * current phase before moving to the next. It halts on the first
- * row that ends ERROR and stays paused until either the user
- * fixes the row + clicks Restart on the detail screen, or the
- * 30 s background sweep (see ReportViewModel.startBackgroundResumeSweep)
- * sees the error cleared and auto-resumes.
+ * The batch walks fixed phases, primary answers before optional metadata.
+ * It waits for in-flight siblings before pausing a failed phase. Retry skips
+ * completed tasks; Stop scheduling leaves submitted calls free to finish.
+ * The background scanner detects interrupted work but never starts paid work.
  *
  * Persisted as one JSON file per report under
  * <filesDir>/regenerate/<reportId>.json via [RegenerateBatchStorage].
  */
 enum class RegeneratePhase {
-    /** Re-runs the report title workers before icon generation so
-     *  report/icon can derive from the fresh long title. Single
-     *  synthetic task — rowId == [REPORT_TITLE_ROW_ID]. */
-    TITLE,
-
-    /** Re-runs the report's main 🎯 icon-gen call
-     *  ([com.ai.viewmodel.ReportViewModel.kickOffIconGeneration]).
-     *  Single synthetic task — rowId == [REPORT_ICON_ROW_ID]. */
-    ICON,
-
-    /** Re-runs the report's language-detection + language-icon
-     *  flow ([com.ai.viewmodel.ReportViewModel.kickOffLanguageGeneration]).
-     *  Single synthetic task — rowId == [REPORT_LANGUAGE_ROW_ID]. */
-    LANGUAGE,
-
     /** report.agents — one task per ReportAgent. */
     AGENTS,
 
@@ -80,7 +62,22 @@ enum class RegeneratePhase {
      *  MATCH). After TRANSLATIONS so the translations it ranks are fresh.
      *  Re-dispatched via the translator-rank engine's resume-stale pass; the
      *  AGGREGATE ranking row is recomputed once cells settle. */
-    TRANSRANK
+    TRANSRANK,
+
+    /** Re-runs the report title workers before icon generation so
+     *  report/icon can derive from the fresh long title. Single
+     *  synthetic task — rowId == [REPORT_TITLE_ROW_ID]. */
+    TITLE,
+
+    /** Re-runs the report's main 🎯 icon-gen call
+     *  ([com.ai.viewmodel.ReportViewModel.kickOffIconGeneration]).
+     *  Single synthetic task — rowId == [REPORT_ICON_ROW_ID]. */
+    ICON,
+
+    /** Re-runs the report's language-detection + language-icon
+     *  flow ([com.ai.viewmodel.ReportViewModel.kickOffLanguageGeneration]).
+     *  Single synthetic task — rowId == [REPORT_LANGUAGE_ROW_ID]. */
+    LANGUAGE
 }
 
 enum class RegenerateTaskState {

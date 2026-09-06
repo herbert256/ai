@@ -95,7 +95,7 @@ stored default method → else the first source. Note the default lands on
 
 ## Quality per source
 
-- **Rerank** — uses the parsed rerank rows directly; a row with no
+- **Rerank** — joins parsed rows through the saved source Agent IDs; a row with no
   `score` falls back to `n − rank + 1`.
 - **Judges** — folds the latest Judge-the-judges run's cells through
   `judgesConsensusWinMatrix` (each match decided by the panel's
@@ -121,126 +121,44 @@ stored default method → else the first source. Note the default lands on
   `quality = n − avg + 1` so a lower mean position sits higher. Matches
   the Tournament screen's Total grid ordering.
 
-All sources are reshaped to **rerank-shaped rows** whose `id` is the
-1-based SUCCESS position — the same numbering Rerank, Tournament and
-`buildValuePoints` all use, so a score always lines up with the right
-agent.
+After validating source revisions and joining stable identities, display rows use
+the current 1-based SUCCESS position. Unknown legacy revisions and results whose
+input answers changed are excluded from current-answer charts.
 
 ## Combined score + Ranking weights
 
-**Combined** is a single 0–1000 score blending every available, non-
-zero-weighted ranking (`buildCombinedRows`, `ValueView.kt:231-294`):
+Combined uses current, recorded answer revisions only. Rerank ordinal IDs are
+first joined through the result's saved `sourceAgentIds` and then projected into
+the current display order. Missing participants cannot shift another model's score.
 
-1. Gather each contributing ranking as `(weight, id→rawScore)`:
-   - `rerank` weight → rerank scores;
-   - `judges` weight → Copeland scores over the consensus matrix;
-   - `translations` weight → **average across all translator runs** of
-     each model's translator score (averaging every language, unlike the
-     per-language TransRank chips);
-   - `compare` weight → each answer's mean match % against the chosen
-     meta;
-   - each `TournamentMethod.name` weight → that method's scores.
-2. **Min-max normalise** each ranking's scores to 0–1 independently (a
-   flat ranking where `max == min` maps every model to 0.5).
-3. **Weight-average** per model: `Σ(w·norm) / Σ(w)`.
-4. Scale ×1000.
+Rerank, Judges, Score against meta, and Tournament are separate evidence families.
+Each informative source is min-max normalized. The seven Tournament methods
+are averaged *within* one family, whose weight is the largest selected method
+weight. Adding correlated methods therefore does not multiply Tournament's vote.
+Only models covered by every contributing informative family enter Combined.
+Translation review scores remain separate: they measure translated passages,
+not the quality of the original report answer.
 
-A ranking weighted **0** is dropped; Combined is empty (and the chip
-absent) when nothing is weighted.
+Settings → Ranking weights exposes Rerank (default 3), Judges (6), Score against
+meta (4), and the Tournament methods (2 each). Zero disables a contribution.
+The old `translations` key is ignored by Combined. Weights remain sparse in
+`GeneralSettings.rankingWeights` and reset by clearing the map.
 
-**Weights** are integers 0–10, edited on **Settings → Ranking weights**
-(`SettingsSubScreen.SETTINGS_RANKING_WEIGHTS`, `RankingWeightsSubScreen`,
-`ui/settings/SettingsScreen.kt:2033`, help `settings_ranking_weights`).
-Two cards of 0–10 sliders: **"Rerank · Judges · Translations · Compare"**
-(keys `rerank`, `judges`, `translations`, `compare`) and **"Tournament
-rankings"** (one slider per `TournamentMethod`, keyed by the uppercase
-enum name). The 🧽 icon resets to factory defaults by clearing the map.
+## Cost axis — current answer attempt
 
-Weights are stored **sparsely** in `GeneralSettings.rankingWeights`
-(`viewmodel/AppViewModelTypes.kt:222`); a missing key resolves through
-`GeneralSettings.rankingWeight(key)` to `RANKING_WEIGHT_DEFAULTS`
-(`AppViewModelTypes.kt:135`), else 0:
+The chart uses `ReportAgent.currentAttemptCost`, in cents. Lifetime ledger
+spend and fan-out spend are separate accounting measures and are not attached
+to the current answer's quality. Missing historical attempt cost stays unknown;
+a known zero remains valid. Estimated token usage is marked with ≈. Selecting
+an edited or chat replacement clears its old attempt cost and usage attribution.
 
-| Key | Default |
-|---|---|
-| `rerank` | 3 |
-| `judges` | 6 |
-| `translations` | 6 |
-| `compare` | 4 |
-| `COPELAND` / `ELO` / `DAVIDSON` / `MARKOV` / `SCHULZE` / `COLLEY` / `TRUESKILL2` | 2 each |
+## Pareto frontier
 
-So out of the box Combined blends every currently available ranking
-source — Rerank, Judges, Translations, Compare, and all seven Tournament
-methods — since none of them default to a 0 weight.
-
-The Value view reads the weights live via
-`LocalGeneralSettings.current.rankingWeight(key)` and recomputes
-`combinedRows` whenever `generalSettings` changes — change a slider and
-Combined re-blends without leaving the screen.
-
-> **Persistence.** `saveGeneralSettings` stores `rankingWeights` sparsely
-> as JSON under the `ranking_weights` key in `eval_prefs` (omitted when the
-> map is empty), and `loadGeneralSettings` reads it back, falling back to
-> `RANKING_WEIGHT_DEFAULTS` for any missing key. The weights survive a
-> process restart and ride along in the backup (`eval_prefs` is archived).
-> The 🧽 clear resets to factory defaults by emptying the map.
-
-## Cost axis — base cost + fan-out fold-in
-
-Each point's cost (`buildValuePoints`, `ValueView.kt:173-211`) is the
-agent's own spend plus an optional fan-out fold-in, expressed in cents
-(USD × 100):
-
-- **Base** = `agent.cost ?: (inputCost ?: 0 + outputCost ?: 0)`.
-- **`costKnown`** distinguishes a real **$0** (free / local model — still
-  eligible for best value) from *no price at all*: `knownBase` is
-  `cost ?: inputCost ?: outputCost`, null only when the agent reports no
-  price. `costKnown` is true when `knownBase != null` **or** the
-  fan-out fold added any cost (`fanOut > 0`) — so a model with no
-  reported base price but positive folded-in fan-out spend still counts
-  as priced. A point with unknown cost still plots (at cost 0) but is
-  excluded from the best-value contest (it would score `quality/ε ≈ ∞`
-  and steal the badge).
-
-**Fan-out fold-in** (`ValueView.kt:453-496`) adds each model's fan-out
-**response** spend on top of its main answer — but **only when the
-fan-out scope matches the report's models**, so the comparison stays
-fair. The map is built only when **all** hold:
-
-- there is at least one fan-out pair (`META` row with
-  `fanOutSourceAgentId != null`);
-- the success-model set is non-empty;
-- **no two success agents share a `provider|model` key**
-  (`noDuplicateModels`) — duplicates collapse to one key and the per-key
-  fan-out total would be double-assigned to both agents (audit bug 11);
-- the answerer key set **equals** the success-model key set
-  (`answererKeys == successKeys`) — i.e. exactly the report's own models
-  answered the fan-out.
-
-When all match, fan-out cost is summed per answerer key
-(`(inputCost ?: 0) + (outputCost ?: 0)`, alias-resolved, case-
-insensitive — the same `provider|model` key the FanOutEngine hydration
-uses) and assigned to each agent. Icon/title Fan-Meta spend is excluded
-(those aren't responses). When the fold is active, `includesFanOut` is
-true and the caption appends *"Cost includes each model's fan-out
-responses (every model here also answered the fan-out)."* See
-[secondary-results.md](secondary-results.md) for fan-out itself and
-[costs.md](costs.md) for how these costs were recorded.
-
-## Pareto frontier + best value
-
-For each point P (`ValueView.kt:197-211`):
-
-- **dominated** = some other point is at least as good for the same or
-  less money: `∃ o ≠ P : o.quality ≥ P.quality ∧ o.costCents ≤
-  P.costCents`, strict on at least one. Dominated points are dimmed; the
-  non-dimmed points form the **Pareto frontier**.
-- **best value** = among `costKnown`, Pareto-undominated points, the one
-  maximising `quality / max(costCents, ε)` (ε = 1e-6). Exactly one point
-  (or none, if every priced point is dominated) gets the 💎.
-
-A green summary line names the winner: *"💎 Best value: <provider> ·
-<model> — score <q> at <$cost>"*.
+A priced point is dominated when another priced point is at least as good for
+no greater cost, with one strict improvement. Every priced, non-dominated point
+is highlighted on the Pareto frontier. There is no unique quality/cost-ratio
+winner: arbitrary score origins cannot support that claim. Choose among frontier
+points using the relevant score and your budget.
 
 ## The scatter chart (inline)
 
@@ -253,7 +171,7 @@ A green summary line names the winner: *"💎 Best value: <provider> ·
   ever sits on an axis line or the edge; ticks still show the real
   min / mid / max values (cost via `formatCents`, quality via
   `formatScore`).
-- **Dots**: best value = filled 12 px + a 20 px translucent halo
+- **Dots**: Pareto frontier = filled 12 px + a 20 px translucent halo
   (`SuccessAccent`); dominated = 7 px dim (`TextDim`); regular = 9 px
   (`WarningAccent`).
 - **Axis names**: "Cost" centred under the X ticks; the ranking name
@@ -306,7 +224,7 @@ model` and a monospace `<$cost> · score <q>` line, plus a badge:
 
 | Badge | Colour | Meaning |
 |---|---|---|
-| 💎 Best value | `SuccessAccent` | the single best quality-per-cost pick |
+| 💎 Pareto frontier | `SuccessAccent` | a priced, non-dominated option |
 | Pareto | `InfoAccent` | on the frontier (not dominated) |
 | dominated | `TextDim` | another model is at least as good for less |
 

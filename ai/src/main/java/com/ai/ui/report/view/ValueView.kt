@@ -165,11 +165,12 @@ internal data class ValuePoint(
     val dominated: Boolean,
     val bestValue: Boolean,
     /** Report agent behind this point — lets a row tap open the answer. */
-    val agentId: String = ""
+    val agentId: String = "",
+    val estimated: Boolean = false
 )
 
 /** Pair each SUCCESS agent with its ranking score + cost, then mark the
- *  Pareto-dominated points and the single best-value one. [rows] is the
+ *  Pareto-dominated points and the single frontier one. [rows] is the
  *  rerank-shaped ranking (`id` = 1-based SUCCESS position, the same
  *  numbering the Rerank flow and the Tournament view both use). Quality is
  *  the ranking's own score as-is; only when a row carries no score do we
@@ -195,10 +196,10 @@ internal fun buildValuePoints(
         val quality = row.score ?: row.rank?.let { (n - it + 1).toDouble() } ?: return@mapIndexedNotNull null
         // `knownBase` is null ONLY when the agent reports no price at all —
         // distinct from a real $0 (free / local) model, which keeps a known
-        // cost of 0 and stays eligible for best value.
-        val knownBase = a.cost ?: a.inputCost ?: a.outputCost
-        val fanOut = fanOutCostByAgentId[a.agentId] ?: 0.0
-        val baseCostUsd = a.cost ?: ((a.inputCost ?: 0.0) + (a.outputCost ?: 0.0))
+        // cost of 0 and stays eligible for Pareto frontier.
+        val knownBase = a.currentAttemptCost
+        val fanOut = 0.0 // Fan-out is a separate task; its spend cannot price this answer.
+        val baseCostUsd = a.currentAttemptCost ?: return@mapIndexedNotNull null
         val costUsd = baseCostUsd + fanOut
         Raw(a.agentId, AppService.findById(a.provider)?.id ?: a.provider, shortModelName2(a.model), quality, costUsd * 100.0, knownBase != null || fanOut > 0.0)
     }
@@ -214,15 +215,10 @@ internal fun buildValuePoints(
         o.agentId != p.agentId && o.quality >= p.quality && o.costCents <= p.costCents &&
             (o.quality > p.quality || o.costCents < p.costCents)
     }
-    // Best value = quality-per-cost; an UNKNOWN-cost model would score
+    // Pareto frontier = quality-per-cost; an UNKNOWN-cost model would score
     // quality/eps ≈ ∞ and steal the badge, so only priced models are eligible.
-    val bestId = raw
-        .filter { it.costKnown }
-        .filterNot { isDominated(it) }
-        .maxByOrNull { it.quality / maxOf(it.costCents, eps) }
-        ?.agentId
     return raw.map { p ->
-        ValuePoint(p.provider, p.modelShort, p.costCents, p.quality, isDominated(p), p.agentId == bestId, p.agentId)
+        ValuePoint(p.provider, p.modelShort, p.costCents, p.quality, isDominated(p), p.costKnown && !isDominated(p), p.agentId, success.first { it.agentId == p.agentId }.currentAttemptUsage?.estimated == true)
     }
 }
 
@@ -269,17 +265,6 @@ internal fun buildCombinedRows(
                 .takeIf { it.isNotEmpty() }?.let { rankings.add(w to it) }
         }
     }
-    weightOf("translations").takeIf { it > 0 }?.let { w ->
-        if (transRankRuns.isNotEmpty()) {
-            val sc = HashMap<Int, Double>()
-            success.forEachIndexed { idx, a ->
-                val key = vvModelKey(a.provider, a.model)
-                val vs = transRankRuns.mapNotNull { it.scoreByModelKey[key] }
-                if (vs.isNotEmpty()) sc[idx + 1] = vs.average()
-            }
-            if (sc.isNotEmpty()) rankings.add(w to sc)
-        }
-    }
     weightOf("compare").takeIf { it > 0 }?.let { w ->
         if (compareScoreByAgentId.isNotEmpty()) {
             val sc = HashMap<Int, Double>()
@@ -290,18 +275,23 @@ internal fun buildCombinedRows(
         }
     }
     tournamentMatrix?.let { m ->
-        TournamentMethod.values().forEach { method ->
-            val w = weightOf(method.name)
-            if (w > 0) {
-                // Participant → SUCCESS renumbering, same as the Tournament
-                // chips — mixing participant-numbered ids into the success-
-                // numbered blend credited scores to the wrong models.
-                val sc = remapTournamentRows(
-                    rankFor(method, m).map { RerankRow(it.id, it.rank, it.score, it.reason) },
-                    tournamentIdToSuccessId
-                ).associate { it.id to (it.score ?: 0.0) }
-                if (sc.isNotEmpty()) rankings.add(w to sc)
+        val methods = TournamentMethod.values().mapNotNull { method ->
+            val weight = weightOf(method.name)
+            if (weight <= 0) null else {
+                val scores = remapTournamentRows(rankFor(method,m).map { RerankRow(it.id,it.rank,it.score,it.reason) }, tournamentIdToSuccessId)
+                val low = scores.minOfOrNull { it.score ?: 0.0 } ?: 0.0
+                val high = scores.maxOfOrNull { it.score ?: 0.0 } ?: 0.0
+                if (high <= low) null else weight to scores.associate { it.id to ((it.score!! - low)/(high-low)) }
             }
+        }
+        if (methods.isNotEmpty()) {
+            val scores = (1..n).mapNotNull { id ->
+                val values = methods.mapNotNull { (w, scores) -> scores[id]?.let { w to it } }
+                if (values.isEmpty()) null else id to values.sumOf { it.first * it.second } / values.sumOf { it.first }
+            }.toMap()
+            // Method sliders only choose the within-family blend. They cannot
+            // multiply the influence of the same underlying pairwise judgments.
+            rankings.add((methods.maxOf { it.first }) to scores)
         }
     }
     if (rankings.isEmpty()) return emptyList()
@@ -313,14 +303,7 @@ internal fun buildCombinedRows(
     // participation. Excluding them leaves relative order among full
     // participants unchanged and removes that amplifier.
     //
-    // NOTE: the remaining renormalisation (each model averaged over the
-    // rankings it appears in) is the deliberate, documented missing-data
-    // approach — a model that skipped a ranking (e.g. didn't translate) is
-    // NOT penalised as if it scored 0 there, which would wrongly tank it. The
-    // residual property that "absent from a discriminating ranking" isn't
-    // strictly worse than "last in it" is inherent to averaging-over-available
-    // and is kept on purpose; the alternatives (zero-impute / drop partial
-    // rankings) break the common partial-participation case worse.
+    // Require common coverage across informative families; missing evidence is not a score.
     val informative = rankings.filter { (_, scores) ->
         (scores.values.maxOrNull() ?: 0.0) > (scores.values.minOrNull() ?: 0.0)
     }
@@ -330,9 +313,11 @@ internal fun buildCombinedRows(
         w to scores.mapValues { (_, v) -> if (mx > mn) (v - mn) / (mx - mn) else 0.5 }
     }
     return (1..n).mapNotNull { id ->
+        // Compare only common coverage; a missing poor score must not raise rank.
+        if (normed.any { id !in it.second }) return@mapNotNull null
         var num = 0.0; var den = 0.0
         normed.forEach { (w, norm) -> norm[id]?.let { num += w * it; den += w } }
-        if (den > 0) RerankRow(id, null, (num / den) * 1000.0, null) else null
+        if (den > 0) RerankRow(id, null, (num / den) * 1000.0, "${normed.size}/${normed.size} evidence families; common participants only") else null
     }
 }
 
@@ -483,10 +468,11 @@ fun ValueViewScreen(
         value = withContext(Dispatchers.IO) {
             val report = ViewReportCache.get(context, currentReportId)
             val rows = SecondaryResultStorage.listForReport(context, currentReportId)
+                .filter { report != null && !com.ai.data.ReportEvidenceStore.isStale(report,it) }
             val rerank = rows
                 .filter { it.kind == SecondaryKind.RERANK && !it.content.isNullOrBlank() }
                 .maxByOrNull { it.timestamp }
-            val rerankRows = rerank?.content?.let { parseRerankRows(it) } ?: emptyList()
+            val rerankRows = com.ai.ui.helpers.currentRerankRows(report, rerank)
             val aggRow = rows
                 .filter { it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE" }
                 .maxByOrNull { it.timestamp }
@@ -781,7 +767,7 @@ fun ValueViewScreen(
 
         if (points.isEmpty()) {
             Text(
-                "No ranking yet. Run a Rerank, Tournament, Judge-the-judges, Rank-the-translators, or Compare-with-meta on this report first.",
+                "No current ranking with known source revisions and attempt costs. Run a Rerank, Tournament, Judge-the-judges, Rank-the-translators, or Compare-with-meta on this report first.",
                 color = AppColors.TextSecondary, fontSize = 13.sp,
                 modifier = Modifier.padding(top = 16.dp)
             )
@@ -790,9 +776,9 @@ fun ValueViewScreen(
 
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             val fanOutNote = if (loaded.includesFanOut)
-                " Cost includes each model's fan-out responses (every model here also answered the fan-out)." else ""
+                " Only the current answer attempt is priced; historical or unknown attempt costs are excluded." else ""
             Text(
-                "Cost × quality. Top-left = cheap & good. ${com.ai.data.MetadataIconsHolder.current.gem} = best value; dimmed = dominated (another model is at least as good for less).$fanOutNote Tap the chart to expand — pinch to zoom, drag to pan.",
+                "Only unchanged, recorded source revisions are compared. Combined requires common participant coverage; tournament methods share one evidence family. Costs may use estimated token usage (≈). Current-attempt cost × rubric score. Scores depend on the selected rubric; there is no universal frontier ratio. ${com.ai.data.MetadataIconsHolder.current.gem} = Pareto frontier; dimmed = dominated (another model is at least as good for less).$fanOutNote Tap the chart to expand — pinch to zoom, drag to pan.",
                 color = AppColors.TextTertiary, fontSize = 11.sp,
                 modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
             )
@@ -803,7 +789,7 @@ fun ValueViewScreen(
             )
             best?.let {
                 Text(
-                    "${com.ai.data.MetadataIconsHolder.current.gem} Best value: ${it.provider} · ${it.modelShort} — score ${formatScore(it.quality)} at ${formatCents(it.costCents / 100.0)}",
+                    "${com.ai.data.MetadataIconsHolder.current.gem} Frontier example: ${it.provider} · ${it.modelShort} — score ${formatScore(it.quality)} at ${formatCents(it.costCents / 100.0)}",
                     color = AppColors.SuccessAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
@@ -875,12 +861,12 @@ private fun ValueScatterCanvas(
 ) {
     if (points.isEmpty()) return
     // Screen-reader summary — the Canvas is otherwise invisible to
-    // TalkBack. Names the frontier and the best-value pick.
+    // TalkBack. Names the frontier and the frontier pick.
     val chartDescription = remember(points) {
         buildString {
             append("Cost versus quality chart with ${points.size} models. ")
             points.firstOrNull { it.bestValue }?.let {
-                append("Best value: ${it.provider} ${it.modelShort}. ")
+                append("Frontier example: ${it.provider} ${it.modelShort}. ")
             }
             val frontier = points.filter { !it.dominated && !it.bestValue }
             if (frontier.isNotEmpty()) {
@@ -1224,7 +1210,7 @@ private fun ValueRow(p: ValuePoint, onOpenAgent: ((String) -> Unit)? = null) {
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
             .let { m ->
-                // Spotting the best-value pick and tapping it now opens the
+                // Spotting the frontier pick and tapping it now opens the
                 // model's answer instead of doing nothing.
                 if (onOpenAgent != null && p.agentId.isNotBlank())
                     m.clickable { onOpenAgent(p.agentId) } else m
@@ -1238,14 +1224,14 @@ private fun ValueRow(p: ValuePoint, onOpenAgent: ((String) -> Unit)? = null) {
                 Text("${p.provider} · ${p.modelShort}", color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${formatCents(p.costCents / 100.0)}   ·   score ${formatScore(p.quality)}",
+                    "${(if (p.estimated) "≈" else "") + formatCents(p.costCents / 100.0)}   ·   score ${formatScore(p.quality)}",
                     color = AppColors.TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             Spacer(Modifier.width(8.dp))
             val (badge, color) = when {
-                p.bestValue -> "${com.ai.data.MetadataIconsHolder.current.gem} Best value" to AppColors.SuccessAccent
+                p.bestValue -> "${com.ai.data.MetadataIconsHolder.current.gem} Pareto frontier" to AppColors.SuccessAccent
                 !p.dominated -> "Pareto" to AppColors.InfoAccent
                 else -> "dominated" to AppColors.TextDim
             }

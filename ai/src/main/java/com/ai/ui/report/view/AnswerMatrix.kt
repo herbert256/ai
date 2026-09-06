@@ -154,14 +154,14 @@ internal fun AnswerMatrixViewScreen(
     val activeLanguage = if (selectedLangKey == LangTab.ORIGINAL_KEY) ""
         else langTabs.firstOrNull { it.key == selectedLangKey }?.displayName ?: ""
     val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
-    val rerankState = produceState(MatrixRerank(emptyMap(), null), reportId, secondaryDataVersion) {
+    val rerankState = produceState(MatrixRerank(emptyMap(), null), report, secondaryDataVersion) {
         value = if (reportId == null) MatrixRerank(emptyMap(), null)
         else withContext(Dispatchers.IO) {
             val latest = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.RERANK)
                 .filter { !it.content.isNullOrBlank() }
                 .maxByOrNull { it.timestamp }
             MatrixRerank(
-                rowsByResultId = latest?.content?.let { parseRerankRows(it) }?.associateBy { it.id } ?: emptyMap(),
+                rowsByResultId = com.ai.ui.helpers.currentRerankRows(report, latest).associateBy { it.id },
                 modelShort = latest?.model?.let { shortModelName(it) }
             )
         }
@@ -210,7 +210,7 @@ internal fun AnswerMatrixViewScreen(
             // 📋 — the whole matrix as CSV, ready for a spreadsheet.
             onCopy = if (matrixRows.isNotEmpty()) ({
                 val csv = buildString {
-                    appendLine("rank,model,stance,confidence,recommendation,risks,cost_cents,latency,tokens")
+                    appendLine("rank,model,stance,english_wording_cues,recommendation,risks,cost_cents,latency,tokens")
                     matrixRows.forEach { r ->
                         appendLine(listOf(
                             r.rank?.toString().orEmpty(), r.modelLabel, r.stance, r.confidence,
@@ -279,6 +279,7 @@ internal fun AnswerMatrixViewScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Text("Wording cues scan English phrases only; quotes, negation and other languages can mislead. They do not measure correctness or model confidence. ≈ marks estimated usage/cost. Costs refer to the current answer attempt.", color = AppColors.TextTertiary, fontSize = 11.sp)
                     MatrixSummaryCard(
                         modelCount = matrixRows.size,
                         rankedCount = matrixRows.count { it.rank != null },
@@ -355,7 +356,7 @@ private fun AnswerMatrixTable(
             HeaderCell("Model" + mark("model"), 180.dp, onClick = onSortBy?.let { { it("model") } })
             HeaderCell("Rank" + mark("rank"), 64.dp, end = true, onClick = onSortBy?.let { { it("rank") } })
             HeaderCell("Stance" + mark("stance"), 96.dp, onClick = onSortBy?.let { { it("stance") } })
-            HeaderCell("Confidence" + mark("confidence"), 96.dp, onClick = onSortBy?.let { { it("confidence") } })
+            HeaderCell("Wording cues" + mark("confidence"), 96.dp, onClick = onSortBy?.let { { it("confidence") } })
             HeaderCell("Recommendation", 280.dp)
             HeaderCell("Risks", 260.dp)
             HeaderCell("Cost" + mark("cost"), 88.dp, end = true, onClick = onSortBy?.let { { it("cost") } })
@@ -371,7 +372,7 @@ private fun AnswerMatrixTable(
             // disconnected cells.
             val rowDescription = "Row ${row.ordinal}: ${row.modelLabel}, " +
                 (row.rank?.let { "rank $it, " } ?: "") +
-                "stance ${row.stance}, confidence ${row.confidence}, cost ${row.cost}, " +
+                "stance ${row.stance}, English wording cues ${row.confidence}, cost ${row.cost}, " +
                 "latency ${row.latency}, ${row.tokens} tokens. Recommendation: ${row.recommendation}"
             Row(modifier = Modifier
                 .let { m ->
@@ -462,27 +463,27 @@ private fun buildAnswerMatrixRows(
             ?: agent.modelTitle?.takeIf { it.isNotBlank() }
         val extraction = extractMatrixSignals(agent.responseBody.orEmpty())
         val provider = AppService.findById(agent.provider)?.id ?: agent.provider
-        val costUsd = agent.cost ?: ((agent.inputCost ?: 0.0) + (agent.outputCost ?: 0.0))
+        val costUsd = agent.currentAttemptCost
         AnswerMatrixRow(
             ordinal = ordinal,
             rank = rank?.rank,
             score = rank?.score,
-            modelLabel = title?.let { "$provider / $it" } ?: "$provider / ${shortModelName(agent.model)}",
+            modelLabel = "$provider / ${shortModelName(agent.model)}" + (title?.let { " · $it" } ?: ""),
             stance = extraction.stance,
             stanceColor = extraction.stanceColor,
             confidence = extraction.confidence,
             confidenceColor = extraction.confidenceColor,
             recommendation = extraction.recommendation,
             risks = extraction.risks,
-            cost = if (costUsd > 0.0) formatCentsValue(costUsd * 100.0) else "-",
-            costCents = if (costUsd > 0.0) costUsd * 100.0 else 0.0,
+            cost = costUsd?.let { (if (agent.currentAttemptUsage?.estimated == true) "≈" else "") + formatCentsValue(it * 100.0) } ?: "Unknown",
+            costCents = (costUsd ?: 0.0) * 100.0,
             latency = formatDuration(agent.durationMs),
-            tokens = agent.tokenUsage?.totalTokens?.takeIf { it > 0 }
-                ?.let { formatCompactNumber(it.toLong()) }
+            tokens = agent.currentAttemptUsage?.totalTokens?.takeIf { it > 0 }
+                ?.let { (if (agent.currentAttemptUsage?.estimated == true) "≈" else "") + formatCompactNumber(it.toLong()) }
                 ?: "-",
             agentId = agent.agentId,
             latencyMs = agent.durationMs ?: 0L,
-            tokensCount = (agent.tokenUsage?.totalTokens ?: 0).toLong()
+            tokensCount = (agent.currentAttemptUsage?.totalTokens ?: 0).toLong()
         )
     }.sortedWith(
         compareBy<AnswerMatrixRow> { it.rank ?: Int.MAX_VALUE }
@@ -522,7 +523,7 @@ private fun extractMatrixSignals(body: String): MatrixExtraction {
     val hasRecommendation = recommendationRegex.containsMatchIn(lower)
     val hasRisk = riskRegex.containsMatchIn(lower)
     val stance = when {
-        refused -> "Refuses"
+        refused -> "Refusal wording"
         hasRecommendation && hasRisk -> "Mixed"
         hasRecommendation -> "Recommends"
         hasRisk -> "Cautious"
@@ -532,19 +533,19 @@ private fun extractMatrixSignals(body: String): MatrixExtraction {
         "Recommends" -> AppColors.SuccessAccent
         "Mixed" -> AppColors.WarningAccent
         "Cautious" -> AppColors.CautionAccent
-        "Refuses" -> AppColors.DangerAccent
+        "Refusal wording" -> AppColors.DangerAccent
         else -> AppColors.TextSecondary
     }
     val high = confidenceHighRegex.findAll(lower).count()
     val low = confidenceLowRegex.findAll(lower).count()
     val confidence = when {
-        low > high -> "Low"
-        high >= low + 2 -> "High"
-        else -> "Medium"
+        low > high -> "Cautious wording"
+        high >= low + 2 -> "Assertive wording"
+        else -> "Unknown"
     }
     val confidenceColor = when (confidence) {
-        "High" -> AppColors.SuccessAccent
-        "Low" -> AppColors.CautionAccent
+        "Assertive wording" -> AppColors.SuccessAccent
+        "Cautious wording" -> AppColors.CautionAccent
         else -> AppColors.InfoAccent
     }
     return MatrixExtraction(stance, stanceColor, confidence, confidenceColor, recommendation, risk)

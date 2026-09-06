@@ -339,8 +339,25 @@ plus `imageBase64/Mime` (vision), `webSearchTool` / `reasoningEffort`
 (regen state), `sourceReportId` (translated copies), `pinned`, the
 per-report `apiCallCosts` ledger (`API_CALL_COST_LEDGER_VERSION = 3`),
 and `costsFromDeletedItems`. Written atomically; protected by
-`ReportStorage`'s `ReentrantLock`. Save failures log a warning
-instead of being silently swallowed.
+`ReportStorage`'s `ReentrantLock`. A failed write throws a save error and
+retains recoverable JSON in `ReportSaveRecovery` while the process is alive.
+The UI offers a network-free retry or copying the unsaved payload.
+
+### Report supporting directories
+
+| Directory | Purpose |
+|---|---|
+| `report_content/<reportId>/<sha256>.txt` | Immutable large answer/request/image strings, referenced by compact parent JSON; retained until report deletion |
+| `report_evidence/<reportId>/<sha256>.json` | Original report inputs and secondary bodies for an analysis |
+| `report_evidence/<reportId>/run_<runId>.json` | Frozen worker/prompt/parameter configuration and source snapshot ID |
+| `report_cost_pending/<reportId>/<callId>.json` | Durable accounting journal; UUID-deduplicated flush into the Report ledger |
+| `report_work_limits/<reportId>.json` | Remaining HTTP-request allowance and optional recorded-cost stop |
+| `report_import_journal/<newReportId>` | Import transaction marker; startup rolls back uncommitted imports |
+
+Ordinary full backups include these directories. Single-report bundles and bulk
+Report archives materialize answer text so internal content references do not
+escape. Bundle version 2 adds evidence; version 1 remains readable. Import
+accepts at most 10,000 entries, 16 MiB per entry and 128 MiB inflated total.
 
 ### `secondary/<reportId>/<resultId>.json`
 One file per `SecondaryResult` row — RERANK, META (every chat-type

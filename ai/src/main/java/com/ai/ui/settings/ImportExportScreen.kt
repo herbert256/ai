@@ -188,6 +188,14 @@ private fun flocksToJsonTree(settings: Settings): JsonArray {
  *  [createAppGson] used by [ReportStorage.saveReport], so the bundle
  *  is just a top-level array of those JSON objects plus a sibling map
  *  keyed by reportId. */
+private fun reportEvidenceJson(reports: List<Report>): JsonObject = JsonObject().apply {
+    reports.forEach { report -> add(report.id, JsonObject().apply {
+        com.ai.data.ReportEvidenceStore.files(report.id).forEach { file ->
+            add(file.nameWithoutExtension, com.google.gson.JsonParser.parseString(file.readText()))
+        }
+    }) }
+}
+
 private fun buildReportsRuntimeBundle(context: Context): JsonObject {
     val gson = createAppGson()
     val reports = ReportStorage.getAllReports(context)
@@ -201,6 +209,7 @@ private fun buildReportsRuntimeBundle(context: Context): JsonObject {
     return JsonObject().apply {
         add("reports", reportsArr)
         add("secondaries", secondaries)
+        add("reportEvidence", reportEvidenceJson(reports))
     }
 }
 
@@ -231,6 +240,7 @@ private fun buildAllRuntimeBundle(context: Context): JsonObject {
     return JsonObject().apply {
         add("reports", gson.toJsonTree(reports))
         add("secondaries", secondaries)
+        add("reportEvidence", reportEvidenceJson(reports))
         add("chats", gson.toJsonTree(sessions))
     }
 }
@@ -258,10 +268,14 @@ private fun applyRuntimeReports(context: Context, root: JsonObject): ImportRepor
         if (report.id.isBlank()) { skipped++; return@forEach }
         val isNew = report.id !in existingIds
         if (isNew) {
-            ReportStorage.persistNewReport(context, report)
+            check(ReportStorage.persistNewReport(context, report)) { "Could not save imported report ${report.id}" }
             added++
         } else {
             skipped++
+        }
+        root.getAsJsonObject("reportEvidence")?.getAsJsonObject(report.id)?.entrySet()?.forEach { (id, evidence) ->
+            val existing = com.ai.data.ReportEvidenceStore.files(report.id).any { it.nameWithoutExtension == id }
+            if (!existing) com.ai.data.ReportEvidenceStore.importFile(context,report.id,id,evidence.toString())
         }
         // Per-report secondaries — additive. For a newly-added report any
         // secondary is new by construction; for a skipped (already-present)

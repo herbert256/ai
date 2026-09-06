@@ -143,6 +143,7 @@ class RegenerateBatchEngine internal constructor(
                 ).show()
                 return@launch
             }
+            com.ai.data.ReportWorkLimits.review(reportId, "Regenerate report", tasks.size)
             val now = System.currentTimeMillis()
             // Start at the FIRST phase the enum declares — not a
             // hardcoded one. Otherwise prepending a new phase
@@ -171,6 +172,21 @@ class RegenerateBatchEngine internal constructor(
      *  no-op. CANCELLED jobs always restart at `currentPhase`. */
     fun restart(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+            if (reportViewModel.hasActiveReportCalls(context, reportId)) {
+                withContext(Dispatchers.Main) { android.widget.Toast.makeText(context,
+                    "Previously scheduled calls are still finishing. Retry when they finish.", android.widget.Toast.LENGTH_LONG).show() }
+                return@launch
+            }
+            // Calls completed after Stop scheduling must remain completed on retry.
+            val stopped = RegenerateBatchStorage.get(context, reportId)
+            if (stopped?.status == RegenerateJobStatus.CANCELLED) {
+                val statuses = stopped.currentPhase?.let { readRowStatuses(context, reportId, it, stopped.tasks.filter { t -> t.phase == it }.map { t -> t.rowId }.toSet()) }.orEmpty()
+                mutateJob(context, reportId, allowTerminalMutation = true) { job -> job.copy(tasks = job.tasks.map { t ->
+                    if (t.phase == job.currentPhase && statuses[t.rowId] is RowStatus.Success) t.copy(state = RegenerateTaskState.SUCCESS) else t
+                }) }
+            }
+            val unfinishedCount = RegenerateBatchStorage.get(context,reportId)?.tasks?.count { it.state != RegenerateTaskState.SUCCESS } ?: 0
+            com.ai.data.ReportWorkLimits.review(reportId, "Retry unfinished report work", unfinishedCount)
             var shouldStart = false
             mutateJob(context, reportId, allowTerminalMutation = true) { job ->
                 when {
@@ -178,18 +194,8 @@ class RegenerateBatchEngine internal constructor(
                     job.status == RegenerateJobStatus.RUNNING &&
                         orchestratorJobs[reportId]?.isActive == true -> job
                     job.status == RegenerateJobStatus.PAUSED_ON_ERROR -> {
-                        // Only resume if the row that paused us is no longer
-                        // in an error state on disk. The user may have hit
-                        // Restart prematurely — in that case the orchestrator
-                        // would just hit the same error again, so bail.
-                        val pausedRowId = job.pausedOnRowId
-                        if (pausedRowId != null && isRowStillErrored(context, reportId, job, pausedRowId)) {
-                            AppLog.d("RegenBatch", "restart no-op: row $pausedRowId still errored")
-                            job
-                        } else {
-                            shouldStart = true
-                            job.copy(status = RegenerateJobStatus.RUNNING, pausedOnRowId = null)
-                        }
+                        shouldStart = true
+                        job.copy(status = RegenerateJobStatus.RUNNING, pausedOnRowId = null)
                     }
                     else -> {
                         shouldStart = true
@@ -357,11 +363,13 @@ class RegenerateBatchEngine internal constructor(
             it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1)
         }
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+            com.ai.data.ReportWorkLimits.beginScope(reportId)
             try {
                 orchestrate(context, reportId)
             } catch (e: Exception) {
                 AppLog.w("RegenBatch", "orchestrator crashed for $reportId: ${e.message}")
             } finally {
+                com.ai.data.ReportWorkLimits.endScope(reportId)
                 appViewModel.updateUiState {
                     it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
                 }
@@ -381,7 +389,7 @@ class RegenerateBatchEngine internal constructor(
                 markDone(context, reportId)
                 return
             }
-            val phaseTasks = current.tasks.filter { it.phase == phase }
+            val phaseTasks = current.tasks.filter { it.phase == phase && it.state != RegenerateTaskState.SUCCESS }
             if (phaseTasks.isEmpty()) {
                 advanceToNextPhase(context, reportId, phase, phases)
                 continue
@@ -397,7 +405,7 @@ class RegenerateBatchEngine internal constructor(
             mutateJob(context, reportId) { j ->
                 j.copy(
                     tasks = j.tasks.map { t ->
-                        if (t.phase == phase) {
+                        if (t.phase == phase && t.rowId in phaseTasks.map { it.rowId }) {
                             t.copy(
                                 state = RegenerateTaskState.RUNNING,
                                 startedAt = System.currentTimeMillis(),
@@ -472,16 +480,17 @@ class RegenerateBatchEngine internal constructor(
                 )
             }
             val erroredRowId = statuses.entries.firstOrNull { it.value is RowStatus.Error }?.key
-            if (erroredRowId != null) {
-                pauseOnError(context, reportId, erroredRowId,
-                    (statuses[erroredRowId] as? RowStatus.Error)?.message)
-                return PhaseOutcome.ERROR
-            }
             val allTerminal = rowIds.all { id ->
                 val s = statuses[id]
                 s is RowStatus.Success || s is RowStatus.Error || s is RowStatus.Cancelled
             }
-            if (allTerminal) return PhaseOutcome.SUCCESS
+            if (allTerminal) {
+                if (erroredRowId != null && phase !in setOf(RegeneratePhase.TITLE, RegeneratePhase.ICON, RegeneratePhase.LANGUAGE)) {
+                    pauseOnError(context, reportId, erroredRowId, (statuses[erroredRowId] as? RowStatus.Error)?.message)
+                    return PhaseOutcome.ERROR
+                }
+                return PhaseOutcome.SUCCESS
+            }
             delay(1500)
         }
     }

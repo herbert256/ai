@@ -133,6 +133,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _batchBuildProgress = MutableStateFlow<Map<String, BuildProgress>>(emptyMap())
     val batchBuildProgress: StateFlow<Map<String, BuildProgress>> = _batchBuildProgress.asStateFlow()
     fun beginBuild(key: String, total: Int, label: String) {
+        com.ai.data.ReportWorkLimits.checkSize(total)
         _batchBuildProgress.update { it + (key to BuildProgress(built = 0, total = total, done = false, label = label)) }
     }
     fun updateBuild(key: String, built: Int) {

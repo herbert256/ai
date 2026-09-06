@@ -175,79 +175,29 @@ Rerank, Meta, Fan-out, Fan-in, and the **Find-alternative** metadata calls
 through one helper: `viewmodel/ReportViewModelHelpers.kt` →
 `resolveSecondaryParams(general, aiSettings, paramsIds, systemPromptId, prompt?, agent?)`.
 
-> The **automatic** metadata-gen calls (report icon / title / language, per-model
-> icon / title) and the **worker-grid** flows do **not** use this helper — they
-> run through the `WorkerRunner` chain (or a fixed-host judge call) and send empty
-> parameters. See "Worker-grid flows send no parameters" below. Only the
-> single-result, picker-driven secondaries listed above resolve params here.
->
-> **The main Translate batch run is a worker-grid flow, not a
-> `resolveSecondaryParams` caller** — despite `TRANSLATE` being one of the eight
-> `SecondaryKind` values, `TranslationRunManager.runOneTranslation` dispatches
-> each item straight through `WorkerRunner.run` (the same pool shape as
-> Tournament / Compare) with no explicit parameter / system-prompt preset — see
-> [translation.md](translation.md). Only the **find-alternative-translation**
-> candidate preview (a fixed model per candidate) calls `resolveSecondaryParams`.
+WorkerRunner and fixed-judge calls now resolve the internal prompt's parameters
+and system prompt, then the bound Agent's settings, then the app-wide defaults.
+Explicit per-operation parameters take precedence. Parameter preset lists use
+the first non-empty level; fields within that list are folded by `mergeParameters`.
+System prompts resolve independently: runtime selection → internal prompt →
+Agent → app-wide. Rerank and Moderation dedicated APIs expose only their API's
+supported controls.
 
-Unlike the report chains, the parameter-id source here is picked by
-**first-non-empty** (`ifEmpty`), *not* a cross-level merge — once a level
-supplies any ids the lower levels are ignored, and only that level's ids are then
-folded with `Settings.mergeParameters`:
+### Frozen workers and replay
 
-| # (first non-empty wins) | Source |
-|---|---|
-| 1 | **Runtime 🌡️ pick** on the op's model selector (`paramsIds`) |
-| 2 | The **internal prompt's own** parameters preset (`prompt.parameters`, resolved by stable id or — legacy — by name; blank / `*NONE` ignored) |
-| 3 | The **bound agent's** preset (`agent.paramsIds`) — when the prompt is pinned to an agent |
-| 4 | **App-wide** default (`appWideParametersIds`) |
-| 5 | empty `AgentParameters()` |
+`InternalPrompt.freezeWorkers` expands configured Agent/Flock/Swarm references
+once, recording provider, model, endpoint and resolved parameters on each worker.
+Credentials remain live lookups; secrets are not copied into the manifest.
+Tournament, Compare, Judge evaluation, Translation and Translation review save
+run manifests before dispatch. Tournament's explicit runtime temperature is
+saved with the run. A retry reads that manifest instead of re-expanding edited
+settings. Legacy runs with no manifest can only use available current settings.
 
-> Level 3 is **currently inert**: `resolveSecondaryParams` accepts an `agent`
-> argument and would slot it between the prompt's own and the app-wide level, but
-> **no call site passes one** — every secondary op is driven by a provider+model
-> worker or a runtime-picked model, so the `agent` parameter always defaults to
-> `null`. It is kept in the signature for the (not-yet-wired) agent-pinned case.
-
-The system prompt resolves independently (also first-non-empty):
-`systemPromptId` → the prompt's own `systemPrompt` (by stable id or legacy name) →
-`agent.systemPromptId` → `appWideSystemPromptId`; if found it is copied onto the
-resolved bundle's `systemPrompt`. Callers include `SecondaryRunManager` (rerank /
-meta / fan-in, via `runSecondaryViaSwarm` → `executeSecondaryTask`),
-`FanOutEngine`, `MetaEditManager`, `TranslationRunManager` (find-alternative-
-translation candidates only), and `IconGenerationManager` (alt icons, model
-titles). For the swarm-driven kinds (rerank / meta / fan-in) the **worker chain
-only picks the provider/model** (random pick + fallback); fan-out / find-
-alternative-translation / alt-metadata run against a fixed model. Either way
-the *parameters* come from `resolveSecondaryParams` above.
-
-(Moderation: no parameters.)
-
-### Worker-grid flows send **no parameters** at all
-
-Tournament, Judge-the-judges, Compare-with-meta, and Rank-the-translators
-(`SecondaryKind` = `TOURNAMENT` / `JUDGES` / `COMPARE` / `TRANSRANK` — the latter
-four of the **eight** kinds) are worker-grid flows rather than single
-selected-model secondary calls, and they bypass `resolveSecondaryParams`
-entirely:
-
-- **Tournament** and **Compare-with-meta** run each cell through
-  `WorkerRunner.run` (the random-pick + fallback worker chain over the prompt's
-  swarm).
-- **Judge-the-judges** (`JudgeEvalEngine`) and **Rank-the-translators**
-  (`TranslatorRankEngine`) fix one named judge per cell and call
-  `analyzeWithAgent` directly.
-
-In **all four** the call is `analyzeWithAgent(agent, "", resolved, …)` with
-**neither `agentResolvedParams` nor `overrideParams` supplied** — so
-`agentResolvedParams` defaults to an empty `AgentParameters()` and nothing is
-overridden. The resolved worker contributes **only** provider / model / API key /
-base URL; its agent or provider parameter presets, and the prompt's own preset,
-are **all ignored**. Net effect: every judge/match/compare cell is sent with the
-provider defaults (no temperature, maxTokens, top-p, …). This is what the
-rank-translators feature means by "the judge worker uses `parameters=*NONE`". The
-runtime shape of these grids is documented in
-[tournament-judges-compare.md](tournament-judges-compare.md) and
-[secondary-results.md](secondary-results.md).
+Primary Report attempts save `ReportExecutionConfig` before calling the model.
+It includes the resolved prompt, system/generation parameters and endpoint.
+Report or row parameter edits invalidate this configuration for the next run.
+A report's primary controls do not claim to override every worker or metadata
+call; each operation resolves the control scope described above.
 
 ### `modelSelection` — `*CONFIGURED` vs `*SELECT`
 

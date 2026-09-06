@@ -198,24 +198,24 @@ internal fun zipReports(context: android.content.Context, ids: Set<String>?): Pa
     val ts = SimpleDateFormat("yyMMdd_HHmmss", Locale.US).format(Date())
     val outDir = File(context.cacheDir, "report_backup").also { it.mkdirs() }
     val outFile = File(outDir, "ai_reports_backup_$ts.zip")
-    val reportsDir = File(context.filesDir, "reports")
     val secondaryDir = File(context.filesDir, "secondary")
     ZipOutputStream(FileOutputStream(outFile)).use { zip ->
-        // Filter `.tmp` files left over from interrupted writeTextAtomic
-        // calls — they're not valid report JSON, so including them would
-        // make a later restore choke on parse failures. The .tmp files
-        // are eventually cleaned up on the next successful save anyway.
-        reportsDir.listFiles { f -> f.extension == "json" }?.forEach { f ->
-            if (f.nameWithoutExtension !in includedIds) return@forEach
-            zip.putNextEntry(ZipEntry("reports/${f.name}"))
-            f.inputStream().use { it.copyTo(zip) }
+        val gson = com.ai.data.createAppGson()
+        reports.forEach { report ->
+            zip.putNextEntry(ZipEntry("reports/${report.id}.json"))
+            zip.write(com.ai.data.ReportExportRedaction.json(gson.toJson(report)).toByteArray())
             zip.closeEntry()
+            com.ai.data.ReportEvidenceStore.files(report.id).forEach { f ->
+                zip.putNextEntry(ZipEntry("report_evidence/${report.id}/${f.name}"))
+                zip.write(com.ai.data.ReportExportRedaction.json(f.readText()).toByteArray())
+                zip.closeEntry()
+            }
         }
         secondaryDir.listFiles()?.forEach { perReport ->
             if (perReport.isDirectory && perReport.name in includedIds) {
                 perReport.listFiles { f -> f.extension == "json" }?.forEach { f ->
                     zip.putNextEntry(ZipEntry("secondary/${perReport.name}/${f.name}"))
-                    f.inputStream().use { it.copyTo(zip) }
+                    zip.write(com.ai.data.ReportExportRedaction.json(f.readText()).toByteArray())
                     zip.closeEntry()
                 }
             }

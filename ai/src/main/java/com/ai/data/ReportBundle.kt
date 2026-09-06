@@ -136,7 +136,7 @@ suspend fun importReportFromUri(context: Context, uri: Uri): String {
                 if (missingProviders > 0) append(" · $missingProviders providers missing")
                 if (missingAgents > 0) append(" · $missingAgents agents missing")
                 if (missingProviders > 0 || missingAgents > 0) {
-                    append(" — Regenerate / new sub-runs against them will be skipped")
+                    append(" — saved model identities are preserved; configure credentials for replay")
                 }
             }
         }
@@ -145,7 +145,7 @@ suspend fun importReportFromUri(context: Context, uri: Uri): String {
     }
 }
 
-private const val EXPORT_VERSION = 1
+private const val EXPORT_VERSION = 2
 private val gson = createAppGson()
 
 /** Write a single report's bundle (report JSON + every secondary +
@@ -170,12 +170,12 @@ internal fun writeReportZip(context: Context, reportId: String, out: OutputStrea
 
     ZipOutputStream(out).use { zip ->
         // 1) report.json — sanitised serialised Report.
-        zip.writeEntry("report.json", gson.toJson(sanitized).toByteArray(Charsets.UTF_8))
+        zip.writeEntry("report.json", ReportExportRedaction.json(gson.toJson(sanitized)).toByteArray(Charsets.UTF_8))
 
         // 2) secondary/<resultId>.json — one entry per persisted row.
         for (sec in secondaries) {
             zip.writeEntry("secondary/${sec.id}.json",
-                gson.toJson(sec).toByteArray(Charsets.UTF_8))
+                ReportExportRedaction.json(gson.toJson(sec)).toByteArray(Charsets.UTF_8))
         }
 
         // 3) traces/<originalFilename>.json — original filename
@@ -186,10 +186,12 @@ internal fun writeReportZip(context: Context, reportId: String, out: OutputStrea
         var traceCount = 0
         for (info in traceInfos) {
             val raw = ApiTracer.readTraceFileRaw(info.filename) ?: continue
-            zip.writeEntry("traces/${info.filename}", raw.toByteArray(Charsets.UTF_8))
+            zip.writeEntry("traces/${info.filename}", ReportExportRedaction.json(raw).toByteArray(Charsets.UTF_8))
             traceCount++
         }
 
+        val evidence = ReportEvidenceStore.files(reportId)
+        evidence.forEach { file -> zip.writeEntry("evidence/${file.name}", ReportExportRedaction.json(file.readText()).toByteArray(Charsets.UTF_8)) }
         // 4) meta.json — last, after counts are known.
         val meta = JsonObject().apply {
             addProperty("exportVersion", EXPORT_VERSION)
@@ -197,6 +199,7 @@ internal fun writeReportZip(context: Context, reportId: String, out: OutputStrea
             addProperty("originalReportId", report.id)
             addProperty("originalTitle", report.title)
             addProperty("secondaryCount", secondaries.size)
+            addProperty("evidenceCount", evidence.size)
             addProperty("traceCount", traceCount)
             addProperty("exportedAt", System.currentTimeMillis())
         }
@@ -218,24 +221,33 @@ internal fun readReportZip(
     // caller is responsible for the bracketing start()/finish() calls.
     importId: String? = null
 ): ReportImportSummary {
-    // Per-report bundles are small (low-MB at worst). Buffer the
-    // whole zip into memory so we can read entries in any order;
-    // ZipInputStream is single-pass otherwise.
-    val entries = mutableMapOf<String, ByteArray>()
+    val newReportId = importId ?: UUID.randomUUID().toString()
+    require(newReportId.matches(Regex("[A-Za-z0-9_-]+"))) { "Invalid import identity" }
+    require(!ReportStorage.reportFileExists(context, newReportId)) { "Import identity already exists" }
+    val stage = java.io.File(context.cacheDir, "report-import-$newReportId").apply { mkdirs() }
+    val journal = java.io.File(context.filesDir, "report_import_journal/$newReportId").apply { parentFile?.mkdirs() }
+    val entries = mutableMapOf<String, java.io.File>()
+    var committed = false
+    try {
     var totalBytes = 0L
     ZipInputStream(input).use { zip ->
         while (true) {
             val entry = zip.nextEntry ?: break
             if (!entry.isDirectory) {
-                if (entries.size >= MAX_BUNDLE_ENTRIES)
-                    error("Bundle has too many entries (> $MAX_BUNDLE_ENTRIES)")
-                // Read the INFLATED stream with a per-entry cap so a zip-bomb
-                // entry can't exhaust memory before validation. See audit data bug 4.
-                val bytes = readBytesCapped(zip, MAX_BUNDLE_ENTRY_BYTES)
-                totalBytes += bytes.size
-                if (totalBytes > MAX_BUNDLE_TOTAL_BYTES)
-                    error("Bundle is too large (> ${MAX_BUNDLE_TOTAL_BYTES / (1024 * 1024)} MB inflated)")
-                entries[entry.name] = bytes
+                require(entries.size < MAX_BUNDLE_ENTRIES) { "Bundle has too many entries" }
+                require(entry.name !in entries) { "Duplicate bundle entry: ${entry.name}" }
+                require(entry.name.matches(Regex("(?:report|meta)\\.json|(?:secondary|traces|evidence)/[A-Za-z0-9_.-]+\\.json"))) { "Unrecognized or unsafe bundle entry: ${entry.name}" }
+                val target = java.io.File(stage, "entry_${entries.size}")
+                target.outputStream().use { out ->
+                    val buffer = ByteArray(64 * 1024); var entryBytes = 0L
+                    while (true) {
+                        val n = zip.read(buffer); if (n < 0) break
+                        entryBytes += n; totalBytes += n
+                        require(entryBytes <= MAX_BUNDLE_ENTRY_BYTES && totalBytes <= MAX_BUNDLE_TOTAL_BYTES) { "Bundle exceeds import size limits" }
+                        out.write(buffer, 0, n)
+                    }
+                }
+                entries[entry.name] = target
             }
             zip.closeEntry()
         }
@@ -259,7 +271,7 @@ internal fun readReportZip(
     // A non-object root (`.asJsonObject`) or a non-numeric exportVersion
     // (`.asInt`) would otherwise throw a generic Gson exception past the
     // controlled `error()` import path below.
-    val metaRoot = runCatching { JsonParser.parseString(String(metaBytes, Charsets.UTF_8)) }.getOrNull()
+    val metaRoot = runCatching { JsonParser.parseString(metaBytes.readText()) }.getOrNull()
     if (metaRoot == null || !metaRoot.isJsonObject) {
         error("Malformed meta.json — not a valid AI Report bundle")
     }
@@ -271,9 +283,10 @@ internal fun readReportZip(
 
     val reportBytes = entries["report.json"]
         ?: error("Missing report.json")
-    val parsedReport = gson.fromJson(String(reportBytes, Charsets.UTF_8), Report::class.java)
+    val parsedReport = gson.fromJson(reportBytes.readText(), Report::class.java)
         ?: error("report.json could not be parsed as a Report")
 
+    require((parsedReport.id as String?) != null && (parsedReport.title as String?) != null && (parsedReport.prompt as String?) != null && (parsedReport.agents as List<*>?) != null) { "Malformed report fields" }
     // Re-key the report onto a fresh UUID so we never clobber an
     // existing same-id report on this install. Report.id is val so
     // we go through data-class .copy. Also re-stamp the timestamp to
@@ -282,8 +295,6 @@ internal fun readReportZip(
     // When an [importId] was supplied, reuse it verbatim — it's already a
     // fresh UUID, and matching the report id to the progress key lets the hub
     // hide the still-importing report behind its placeholder row.
-    val newReportId = importId ?: UUID.randomUUID().toString()
-
     // Pass 1 — assign a fresh id to every secondary up front, so the
     // cross-references that point at secondary ids (a TRANSLATE row's
     // translateSourceTargetId, a fan-out pair's iconCalls.agentId, and
@@ -293,12 +304,23 @@ internal fun readReportZip(
     // reference ids that no longer exist on this install.
     val parsedSecondaries = entries.entries
         .filter { it.key.startsWith("secondary/") && it.key.endsWith(".json") }
-        .mapNotNull { (key, bytes) ->
-            // Contain a single malformed secondary so it skips instead of
-            // aborting the whole import. See audit data bug 6.
-            try { gson.fromJson(String(bytes, Charsets.UTF_8), SecondaryResult::class.java) }
-            catch (e: Exception) { AppLog.w("ImportExport", "skipped bad secondary $key: ${e.message}"); null }
+        .map { (key, bytes) ->
+            val row = gson.fromJson(bytes.readText(), SecondaryResult::class.java) ?: error("Malformed secondary: $key")
+            require((row.id as String?) != null && row.id.isNotBlank() && (row.kind as SecondaryKind?) != null && row.reportId == parsedReport.id) { "Mismatched secondary identity: $key" }
+            row
         }
+    require(parsedSecondaries.map { it.id }.distinct().size == parsedSecondaries.size) { "Duplicate secondary IDs" }
+    require(parsedReport.agents.map { it.agentId }.distinct().size == parsedReport.agents.size) { "Duplicate Agent IDs" }
+    require(parsedSecondaries.size == meta.get("secondaryCount")?.asInt) { "Secondary count does not match manifest" }
+    val traceEntries = entries.filterKeys { it.startsWith("traces/") }
+    require(traceEntries.size == meta.get("traceCount")?.asInt) { "Trace count does not match manifest" }
+    traceEntries.forEach { (key,file) ->
+        val trace = gson.fromJson(ReportExportRedaction.json(file.readText()), ApiTrace::class.java) ?: error("Malformed trace: $key")
+        require(trace.hostname.isNotBlank() && (trace.request as Any?) != null && (trace.response as Any?) != null) { "Malformed trace: $key" }
+    }
+    // Validate the core rows before staging final locations. A journal lets startup
+    // remove interrupted imports; the final report JSON is the commit marker.
+    require(journal.writeTextAtomic("prepared")) { "Cannot stage import transaction" }
     val secIdMap: Map<String, String> =
         parsedSecondaries.associate { it.id to UUID.randomUUID().toString() }
     // Fresh translationRunId per imported run group. _translationRuns is
@@ -317,7 +339,7 @@ internal fun readReportZip(
     // Lazily populated so every run-id source (report, agents, secondaries'
     // runId/iconRunId/titleRunId/tournamentJudgeRunId/compareRunId, and the
     // traces themselves) maps consistently. Blank/null pass through.
-    val runIdMap = mutableMapOf<String, String>()
+    val runIdMap = translateRunIdMap.toMutableMap()
     fun remapRunId(old: String?): String? =
         old?.takeIf { it.isNotBlank() }?.let { runIdMap.getOrPut(it) { UUID.randomUUID().toString() } } ?: old
 
@@ -337,11 +359,10 @@ internal fun readReportZip(
             tick()
             // Contain a single malformed trace so it skips instead of aborting
             // the whole import. See audit data bug 6.
-            val parsed = try { gson.fromJson(String(bytes, Charsets.UTF_8), ApiTrace::class.java) }
-                catch (e: Exception) { AppLog.w("ImportExport", "skipped bad trace $key: ${e.message}"); return@forEach }
-                ?: return@forEach
-            val newName = ApiTracer.saveTrace(parsed.copy(reportId = newReportId, runId = remapRunId(parsed.runId)), filename = null)
-                ?: return@forEach
+            val parsed = gson.fromJson(ReportExportRedaction.json(bytes.readText()), ApiTrace::class.java)
+            val newName = "import_${newReportId}_${UUID.randomUUID()}.json"
+            ApiTracer.init(context)
+            require(ApiTracer.saveTrace(parsed.copy(reportId = newReportId, runId = remapRunId(parsed.runId)), filename = newName, importExisting = true) != null) { "Could not persist imported trace" }
             // Zip entry is "traces/<originalFilename>"; the basename is
             // exactly the value stored in the rows' traceFile fields.
             traceFileMap[key.removePrefix("traces/")] = newName
@@ -405,8 +426,27 @@ internal fun readReportZip(
         languageIconTraceFile = remapTrace(parsedReport.languageIconTraceFile),
         runId = remapRunId(parsedReport.runId)
     )
-    ReportStorage.persistNewReport(context, report)
-    tick()
+    // Stage secondaries until every one has been serialized successfully.
+    val stagedSecondary = java.io.File(stage, "secondary").apply { mkdirs() }
+    val evidenceIdMap = mutableMapOf<String,String>()
+    val evidenceEntries = entries.filterKeys { it.startsWith("evidence/") }
+    if (version >= 2) require(evidenceEntries.size == meta.get("evidenceCount")?.asInt) { "Evidence count does not match manifest" }
+    evidenceEntries.filterKeys { !it.substringAfter('/').startsWith("run_") }.forEach { (key, file) ->
+        val snapshot = gson.fromJson(file.readText(), ReportSourceSnapshot::class.java) ?: error("Malformed evidence: $key")
+        val rewritten = snapshot.copy(secondaryBodies = snapshot.secondaryBodies.mapKeys { (id,_) -> secIdMap[id] ?: id })
+        val json = gson.toJson(rewritten); val hash = ReportEvidenceStore.digest(json)
+        evidenceIdMap[key.substringAfter('/').removeSuffix(".json")] = hash
+        ReportEvidenceStore.importFile(context,newReportId,hash,json)
+    }
+    evidenceEntries.filterKeys { it.substringAfter('/').startsWith("run_") }.forEach { (key,file) ->
+        val oldId = key.substringAfter("run_").removeSuffix(".json")
+        val suffix = listOf("_text","_title").firstOrNull { oldId.endsWith(it) }.orEmpty()
+        val base = oldId.removeSuffix(suffix)
+        val newId = (translateRunIdMap[base] ?: remapRunId(base)) + suffix
+        val manifest = gson.fromJson(file.readText(), ReportRunManifest::class.java) ?: error("Malformed run manifest")
+        val sourceId = evidenceIdMap[manifest.sourceSnapshotId] ?: error("Missing run source snapshot")
+        ReportEvidenceStore.importFile(context,newReportId,"run_$newId",gson.toJson(manifest.copy(sourceSnapshotId=sourceId)))
+    }
 
     // Pass 3b — persist every secondary onto its new id, with reportId,
     // translate cross-link, and trace pointer remapped.
@@ -415,6 +455,7 @@ internal fun readReportZip(
         tick()
         val rekeyed = parsed.copy(
             id = secIdMap.getValue(parsed.id),
+            sourceSnapshotId = parsed.sourceSnapshotId?.let { evidenceIdMap[it] ?: error("Missing source snapshot: $it") },
             reportId = newReportId,
             // Pass through the targets that are NOT secondary ids: AGENT /
             // AGENT_TITLE carry an agent id (agents keep their ids on import),
@@ -446,24 +487,43 @@ internal fun readReportZip(
             // text. Null (not a dead id) when the target wasn't bundled.
             compareToResultId = parsed.compareToResultId?.let { secIdMap[it] }
         )
-        SecondaryResultStorage.save(context, rekeyed)
+        require(java.io.File(stagedSecondary, "${rekeyed.id}.json").writeTextAtomic(gson.toJson(rekeyed))) { "Could not stage imported secondary" }
         secondaryCount++
     }
-    // The total counts every secondary ZIP ENTRY, but the loop above ticks
-    // only for rows that PARSED (malformed ones are dropped by mapNotNull).
-    // Tick the dropped remainder so the counter reaches Y instead of ending
-    // short — the trace pass stays monotonic by ticking before parsing.
-    if (importId != null) {
-        val droppedSecondaries = entries.keys.count { it.startsWith("secondary/") && it.endsWith(".json") } - parsedSecondaries.size
-        repeat(droppedSecondaries.coerceAtLeast(0)) { tick() }
-    }
-
+    val secondaryTarget = java.io.File(context.filesDir, "secondary/$newReportId")
+    secondaryTarget.parentFile?.mkdirs()
+    require(!secondaryTarget.exists() && stagedSecondary.renameTo(secondaryTarget)) { "Could not commit imported secondary files" }
+    require(ReportStorage.persistNewReport(context, report, recoverOnFailure = false)) { "Could not commit imported report" }
+    committed = true
+    tick()
     return ReportImportSummary(
         title = report.title,
         newReportId = newReportId,
         secondaryCount = secondaryCount,
         traceCount = traceCount
     )
+    } finally {
+        stage.deleteRecursively()
+        if (!committed) rollbackReportImport(context, newReportId)
+        journal.delete()
+    }
+}
+
+/** Called at process start as well as after a failed import. No existing report
+ * is removed: its presence means the parent-last transaction committed. */
+internal fun recoverReportImports(context: Context) {
+    java.io.File(context.filesDir, "report_import_journal").listFiles().orEmpty().forEach { marker ->
+        if (marker.name.matches(Regex("[A-Za-z0-9_-]+"))) rollbackReportImport(context, marker.name)
+        marker.delete()
+    }
+}
+private fun rollbackReportImport(context: Context, id: String) {
+    if (java.io.File(context.filesDir, "reports/$id.json").exists()) return
+    java.io.File(context.filesDir, "secondary/$id").deleteRecursively()
+    java.io.File(context.filesDir, "report_evidence/$id").deleteRecursively()
+    ApiTracer.init(context)
+    java.io.File(context.filesDir, "trace").listFiles().orEmpty().filter { it.name.startsWith("import_${id}_") }.forEach { ApiTracer.deleteTrace(it.name) }
+    java.io.File(context.cacheDir, "report-import-$id").deleteRecursively()
 }
 
 private fun ZipOutputStream.writeEntry(name: String, bytes: ByteArray) {
@@ -474,9 +534,9 @@ private fun ZipOutputStream.writeEntry(name: String, bytes: ByteArray) {
 
 // Import resource caps — a report bundle is low-MB at worst, so these only ever
 // reject pathological / zip-bomb inputs. See audit data bug 4.
-private const val MAX_BUNDLE_ENTRIES = 100_000
-private const val MAX_BUNDLE_ENTRY_BYTES = 64L * 1024 * 1024     // 64 MB inflated, per entry
-private const val MAX_BUNDLE_TOTAL_BYTES = 256L * 1024 * 1024    // 256 MB inflated, whole bundle
+private const val MAX_BUNDLE_ENTRIES = 10_000
+private const val MAX_BUNDLE_ENTRY_BYTES = 16L * 1024 * 1024     // 16 MB inflated, per entry
+private const val MAX_BUNDLE_TOTAL_BYTES = 128L * 1024 * 1024    // 128 MB inflated, whole bundle
 
 /** Read the (inflated) stream into memory, aborting once [cap] bytes are
  *  exceeded so a high-ratio zip-bomb entry can't exhaust the heap. */

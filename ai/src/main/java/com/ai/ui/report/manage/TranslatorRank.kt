@@ -98,7 +98,7 @@ fun TranslatorRankManageRow() {
                 }
                 RowTypeCell("transrank")
                 Text(
-                    "Rank the translators · $lang", color = AppColors.TextPrimary, fontSize = 13.sp,
+                    "Translation review · $lang", color = AppColors.TextPrimary, fontSize = 13.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
                 )
                 if (run.totalCost > 0.0) {
@@ -111,7 +111,7 @@ fun TranslatorRankManageRow() {
     }
 }
 
-/** Shared confirm dialog for launching a "Rank the translators" run, showing
+/** Shared confirm dialog for launching a "Translation review" run, showing
  *  the live count of scoring calls. [pending] = (translationRunId, langName,
  *  langNative); [onLaunch] performs the actual start (build-stage handling
  *  differs per call site). Mounted by the Translations list (Run.kt) and the
@@ -154,11 +154,11 @@ internal fun RankTranslatorsConfirmHost(
     }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = { pending.value = null },
-        title = { Text("Rank the translators?") },
+        title = { Text("Translation review?") },
         text = {
             Text(
                 "Have the other models score the translated answers in ${p.lang.ifBlank { "this language" }} " +
-                    "(0–100) and rank the translator models by average score." +
+                    "(0–100). Each passage has equal weight. Models may have translated different passages and received different judges: this reviews produced translations and is not a controlled model benchmark. Legacy translations without a saved original are excluded." +
                     (count?.let { "\n\nThis is about $it scoring call${if (it == 1) "" else "s"}." } ?: "\n\n(counting…)")
             )
         },
@@ -215,7 +215,7 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
 
     if (run == null) {
         Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)) {
-            TitleBar(helpTopic = "translator_rank", title = "Rank the translators",
+            TitleBar(helpTopic = "translator_rank", title = "Translation review",
                 subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack)
             Spacer(Modifier.height(20.dp))
             Text("One moment, collecting information…", color = AppColors.TextSecondary, fontSize = 14.sp)
@@ -247,7 +247,7 @@ fun TranslatorRankScreen(engine: TranslatorRankEngine, runKey: String, onBack: (
     if (confirmDeleteRun) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmDeleteRun = false },
-            title = { Text("Delete Rank-the-translators?") },
+            title = { Text("Delete Translation review?") },
             text = { Text("Drops every score cell and the translator ranking for this run. Can't be undone.") },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
@@ -315,7 +315,7 @@ private fun TranslatorRankL1(
         // has restart-failed — same glyph, opposite meaning. The failed-
         // cell restart is an explicit labeled button below instead.
         TitleBar(
-            helpTopic = "translator_rank", title = "Rank the translators",
+            helpTopic = "translator_rank", title = "Translation review",
             subject = reportTitle, reportIcon = reportIcon,
             onBackClick = onBack,
             onBatchWorkers = onOpenWorkers,
@@ -327,6 +327,7 @@ private fun TranslatorRankL1(
             textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
         )
+        Text("Review of produced translations: equal weight per passage, different passages and judge coverage. Not a controlled model benchmark.", color = AppColors.TextTertiary, fontSize = 11.sp)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
             BatchStatsRow(buildList {

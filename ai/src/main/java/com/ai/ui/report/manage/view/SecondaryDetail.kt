@@ -500,6 +500,7 @@ internal fun SecondaryResultDetailScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            com.ai.ui.shared.ReportSourceNotice(effRow)
             InternalPromptCard(result, aiSettings)
             when {
                 result.errorMessage != null -> {

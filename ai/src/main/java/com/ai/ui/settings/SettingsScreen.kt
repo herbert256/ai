@@ -2037,7 +2037,7 @@ private fun RankingWeightsSubScreen(
     onNavigateHome: () -> Unit
 ) {
     // One card for the three named rankings, one for every Tournament method.
-    val coreEntries = listOf("rerank" to "Rerank", "judges" to "Judges", "translations" to "Translations", "compare" to "Compare")
+    val coreEntries = listOf("rerank" to "Rerank", "judges" to "Judges", "compare" to "Score against meta")
     val tournamentEntries = remember {
         com.ai.data.TournamentMethod.values().map { m -> m.name to m.name.lowercase().replaceFirstChar { it.uppercase() } }
     }
@@ -2061,12 +2061,12 @@ private fun RankingWeightsSubScreen(
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Each ranking gets a weight from 0 to 10. The 🧽 in the icons bar resets every slider to its default.",
+                "Weights range from 0 to 10. Tournament methods share one evidence-family vote, weighted by the largest selected method weight. Translation reviews stay separate from answer quality. The 🧽 resets all weights.",
                 fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 8.dp)
             )
             val setWeight: (String, Int) -> Unit = { key, v -> weights = weights + (key to v) }
-            RankingWeightCard("Rerank · Judges · Translations · Compare", coreEntries, weights, setWeight)
-            RankingWeightCard("Tournament rankings", tournamentEntries, weights, setWeight)
+            RankingWeightCard("Answer evidence families", coreEntries, weights, setWeight)
+            RankingWeightCard("Methods within the Tournament family", tournamentEntries, weights, setWeight)
             Spacer(Modifier.height(24.dp))
         }
     }

@@ -193,7 +193,7 @@ internal fun ReportSelectWorkersScreen(
                 onToggle = { paramsOpen = !paramsOpen }
             ) {
                 Text(
-                    "API parameter presets (temperature, max tokens, …) applied to every call in this report.",
+                    "API parameter presets for primary report answers. Secondary operations use their own prompt and worker settings.",
                     fontSize = 11.sp, color = AppColors.TextDim
                 )
                 OutlinedButton(

@@ -105,7 +105,11 @@ class TranslatorRankEngine internal constructor(
         // not the configured swarm — otherwise every pinned judge misses
         // the lookup and falls back to a bare provider/model worker.
         val effPrompt = run.prompt.withBatchWorkers(report)
-        val items = scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
+        val manifest = com.ai.data.ReportEvidenceStore.run(run.reportId, run.runId)
+        val frozen = com.ai.data.ReportEvidenceStore.sources(run.reportId, manifest?.sourceSnapshotId)?.secondaryBodies
+        val items = if (!frozen.isNullOrEmpty()) frozen.mapValues { (id, body) ->
+            com.ai.data.createAppGson().fromJson(body, ScorableItem::class.java).copy(translationRowId = id)
+        } else scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
         val judgesByKey = resolveJudges(aiSettings, effPrompt).associateBy { it.key }
         val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
@@ -152,10 +156,10 @@ class TranslatorRankEngine internal constructor(
     )
 
     private fun originalTextFor(context: Context, report: Report, row: SecondaryResult): String? =
-        when (row.translateSourceKind) {
-            "AGENT" -> report.agents.firstOrNull { it.agentId == row.translateSourceTargetId }?.responseBody
+        row.translationSourceText ?: when (row.translateSourceKind) {
+            "AGENT" -> com.ai.data.ReportEvidenceStore.sources(row)?.answers?.firstOrNull { it.id == row.translateSourceTargetId }?.body
             "META" -> row.translateSourceTargetId?.let {
-                SecondaryResultStorage.get(context, report.id, it)?.content
+                com.ai.data.ReportEvidenceStore.sources(row)?.secondaryBodies?.get(it)
             }
             else -> null
         }
@@ -211,7 +215,10 @@ class TranslatorRankEngine internal constructor(
             // time `shuffled()` runs. See audit report bug 5.
             .flatMap { (translatorKey, list) ->
                 val seed = "$sourceTranslationRunId|$translatorKey".hashCode().toLong()
-                list.shuffled(kotlin.random.Random(seed)).take(com.ai.data.TRANSRANK_CELLS_PER_TRANSLATOR)
+                val groups = list.groupBy { it.item.translationRowId }.values.shuffled(kotlin.random.Random(seed))
+                    .map { it.shuffled(kotlin.random.Random(seed xor it.first().item.translationRowId.hashCode().toLong())) }
+                (0 until (groups.maxOfOrNull { it.size } ?: 0)).flatMap { i -> groups.mapNotNull { it.getOrNull(i) } }
+                    .take(com.ai.data.TRANSRANK_CELLS_PER_TRANSLATOR)
             }
 
     /** The number of scoring calls a run would make right now — for the confirm
@@ -284,6 +291,9 @@ class TranslatorRankEngine internal constructor(
             }
             ReportStorage.bumpReportTimestamp(context, reportId)
             AuditLog.append(reportId, "Start Rank-the-translators ($langName) — $cellCount cells × ${judges.size} judges")
+            com.ai.data.ReportEvidenceStore.saveRun(context, report, runId,
+                prompt.copy(workers = judges.map { it.worker }).freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings),
+                secondaryBodies = items.associate { it.translationRowId to com.ai.data.createAppGson().toJson(it) })
             val scopeEncoded = SecondaryScope.AllReports.encode()
 
             val aggregate = SecondaryResult(
@@ -415,7 +425,7 @@ class TranslatorRankEngine internal constructor(
             val res = withTimeout(NetworkSettings.batchItemTimeoutMs) {
                 runFixedJudgeCall(
                     appViewModel, context, aiSettings, item.judge, resolved,
-                    usageKind = "transrank", noArtifactMessage = "judge produced no score"
+                    usageKind = "transrank", noArtifactMessage = "judge produced no score", prompt = prompt
                 ) { resp -> parseScoreAndReason(resp.analysis)?.first != null }
             }
             when (res) {
@@ -501,7 +511,7 @@ class TranslatorRankEngine internal constructor(
             // the row metadata (blank text / no workers) so the run hydrates
             // read-only. Restart is gated on a real prompt — a synthetic one has
             // blank text — see restartFailedCells. See audit bug 4.
-            val prompt = realPrompt ?: InternalPrompt(
+            val prompt = com.ai.data.ReportEvidenceStore.run(reportId, anchor.tournamentJudgeRunId)?.prompt ?: realPrompt ?: InternalPrompt(
                 id = anchor.metaPromptId ?: "",
                 name = anchor.metaPromptName?.takeIf { it.isNotBlank() } ?: PROMPT_NAME,
                 category = "workers"

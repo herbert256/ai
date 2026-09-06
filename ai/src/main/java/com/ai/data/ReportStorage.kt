@@ -114,7 +114,8 @@ data class AgentStatusPatch(
     val relatedQuestions: List<String>? = null,
     val rawUsageJson: String? = null,
     val durationMs: Long? = null,
-    val traceFile: String? = null
+    val traceFile: String? = null,
+    val attemptId: String? = null
 )
 
 /**
@@ -133,6 +134,7 @@ object ReportStorage {
     private val gson = createAppGson()
     private val lock = ReentrantLock()
     @Volatile private var reportsDir: File? = null
+    private var importsRecovered = false
     @Volatile private var lastLoadFailures: List<ReportLoadFailure> = emptyList()
 
     data class ApiCallCostLedgerDelta(
@@ -144,6 +146,9 @@ object ReportStorage {
     )
 
     fun init(context: Context) {
+        ReportEvidenceStore.init(context)
+        ReportWorkLimits.init(context)
+        lock.withLock { if (!importsRecovered) { recoverReportImports(context); importsRecovered = true } }
         if (reportsDir == null) lock.withLock {
             if (reportsDir == null) {
                 val dir = File(context.filesDir, REPORTS_DIR)
@@ -235,6 +240,7 @@ object ReportStorage {
         return lock.withLock { with(patch) {
             val report = loadReport(reportId) ?: return@withLock false
             val agent = report.agents.find { it.agentId == agentId } ?: return@withLock false
+            if (attemptId != null && agent.attemptId != attemptId) return@withLock false
             val duplicateSuccessForTrace = status == ReportStatus.SUCCESS &&
                 traceFile != null &&
                 agent.traceFile == traceFile
@@ -257,6 +263,8 @@ object ReportStorage {
             // Other transitions keep the "preserve on null" behaviour
             // so a partial mid-flight update doesn't drop earlier data.
             if (status == ReportStatus.SUCCESS) {
+                agent.currentAttemptCost = cost ?: inputCost?.let { it + (outputCost ?: 0.0) }
+                agent.currentAttemptUsage = tokenUsage
                 agent.errorMessage = null
                 agent.citations = citations
                 agent.searchResults = searchResults
@@ -286,7 +294,8 @@ object ReportStorage {
                     apiCost = tokenUsage.apiCost ?: agent.tokenUsage?.apiCost,
                     cachedInputTokens = (agent.tokenUsage?.cachedInputTokens ?: 0) + tokenUsage.cachedInputTokens,
                     cacheCreationTokens = (agent.tokenUsage?.cacheCreationTokens ?: 0) + tokenUsage.cacheCreationTokens,
-                    reasoningTokens = (agent.tokenUsage?.reasoningTokens ?: 0) + tokenUsage.reasoningTokens
+                    reasoningTokens = (agent.tokenUsage?.reasoningTokens ?: 0) + tokenUsage.reasoningTokens,
+                    estimated = agent.tokenUsage?.estimated == true || tokenUsage.estimated
                 )
             }
             if (cost != null && !duplicateSuccessForTrace) {
@@ -314,6 +323,27 @@ object ReportStorage {
             }
             true
         } }
+    }
+
+    /** Save the effective request before network work; a new attempt fences old completions. */
+    fun beginAgentAttempt(context: Context, reportId: String, agentId: String, config: ReportExecutionConfig): String? {
+        init(context)
+        return lock.withLock {
+            val report=loadReport(reportId) ?: return@withLock null
+            val agent=report.agents.firstOrNull { it.agentId==agentId } ?: return@withLock null
+            val id=UUID.randomUUID().toString()
+            agent.executionConfig = config
+            agent.attemptId = id
+            agent.reportStatus = ReportStatus.RUNNING
+            saveReport(report)
+            id
+        }
+    }
+    fun saveKnowledgeContext(context: Context, reportId: String, content: String?, status: String) {
+        init(context); lock.withLock {
+            val report=loadReport(reportId) ?: return@withLock
+            report.knowledgeContext=content; report.knowledgeStatus=status; saveReport(report)
+        }
     }
 
     fun markAgentRunning(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
@@ -367,6 +397,14 @@ object ReportStorage {
             val report = loadReport(reportId) ?: return@withLock false
             val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withLock false
             agent.responseBody = body
+            agent.currentAttemptCost = null
+            agent.currentAttemptUsage = null
+            agent.citations = null
+            agent.searchResults = null
+            agent.relatedQuestions = null
+            agent.traceFile = null
+            agent.durationMs = null
+            agent.rawUsageJson = null
             agent.responseChangeSource = changeSource?.takeIf { it.isNotBlank() }
             agent.responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
             saveReport(report.copy(timestamp = System.currentTimeMillis()))
@@ -441,6 +479,22 @@ object ReportStorage {
             .forEach { markAgentStopped(context, reportId, it.agentId) }
     }
 
+    internal fun reportCostByFilesDir(files: File, reportId: String): Double {
+        if (!isSafeFlatId(reportId)) return 0.0
+        val file = File(files,"reports/$reportId.json")
+        if (!file.exists()) return 0.0
+        file.bufferedReader().use { input ->
+            com.google.gson.stream.JsonReader(input).use { reader ->
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    if (reader.nextName() == "totalCost") return reader.nextDouble()
+                    reader.skipValue()
+                }
+            }
+        }
+        return 0.0
+    }
+
     fun getReport(context: Context, reportId: String): Report? { init(context); return lock.withLock { loadReport(reportId) } }
     /** Stream just the top-level userNotes array for read-only note strips.
      *  This avoids constructing and normalizing the full Report object on
@@ -500,6 +554,8 @@ object ReportStorage {
         // Cascade: drop any rerank/summary meta-results associated with the
         // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
         SecondaryResultStorage.deleteAllForReport(context, reportId)
+        ReportEvidenceStore.delete(reportId)
+        ReportContentStore.delete(context.filesDir, reportId)
         RegenerateBatchStorage.delete(context, reportId)
         ApiTracer.init(context)
         ApiTracer.deleteTracesForReport(reportId)
@@ -520,6 +576,8 @@ object ReportStorage {
         deletedIds.forEach { reportId ->
             SecondaryResultStorage.deleteAllForReport(context, reportId)
             RegenerateBatchStorage.delete(context, reportId)
+            ReportEvidenceStore.delete(reportId)
+            ReportContentStore.delete(context.filesDir, reportId)
             ApiTracer.init(context)
             ApiTracer.deleteTracesForReport(reportId)
         }
@@ -558,7 +616,7 @@ object ReportStorage {
         val dir = reportsDir ?: return null
         val file = File(dir, "$reportId.json")
         if (!file.exists()) return null
-        return try { gson.fromJson(file.readText(), Report::class.java)?.let(::normalizeReport) } catch (e: Exception) {
+        return try { gson.fromJson(ReportContentStore.unpack(dir.parentFile!!, reportId, file.readText()), Report::class.java)?.let(::normalizeReport) } catch (e: Exception) {
             AppLog.e("ReportStorage", "Failed to load report $reportId: ${e.message}"); null
         }
     }
@@ -614,7 +672,7 @@ object ReportStorage {
         val failures = mutableListOf<ReportLoadFailure>()
         val reports = files.mapNotNull { file ->
             try {
-                gson.fromJson(file.readText(), Report::class.java)?.let(::normalizeReport)
+                gson.fromJson(ReportContentStore.unpack(file.parentFile!!.parentFile!!, file.nameWithoutExtension, file.readText()), Report::class.java)?.let(::normalizeReport)
                     ?: run {
                         failures += ReportLoadFailure(file.name, "Invalid report data")
                         null
@@ -716,7 +774,7 @@ object ReportStorage {
      */
     private fun saveReport(report: Report) {
         check(lock.isHeldByCurrentThread) { "ReportStorage.saveReport must be called under lock" }
-        val dir = reportsDir ?: return
+        val dir = reportsDir ?: throw java.io.IOException("Report storage is unavailable")
         // Defence in depth: a runtime-import JSON payload can carry a
         // crafted `id` ("../prefs/foo") that would otherwise escape
         // reportsDir on write. Every internal caller uses UUIDs; the
@@ -724,24 +782,20 @@ object ReportStorage {
         // the embedded id verbatim. Gate write-side too so the rule
         // can't be bypassed by adding another import call site.
         if (!isSafeFlatId(report.id)) {
-            AppLog.e("ReportStorage", "Refusing to save report with suspect id ${report.id}")
-            return
+            throw java.io.IOException("Invalid report identifier")
         }
         val target = File(dir, "${report.id}.json")
         if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
-            AppLog.e("ReportStorage", "Refusing to save report that escapes reportsDir: ${report.id}")
-            return
+            throw java.io.IOException("Invalid report storage path")
         }
-        val ok = target.writeTextAtomic(gson.toJson(report))
-        if (!ok) {
-            // Surface the failure in logcat — disk-full or permission
-            // races would otherwise leave the in-memory state diverged
-            // from disk until the next reload, where the fresh load
-            // would silently hand back the pre-update report.
-            AppLog.e("ReportStorage", "Failed to save report ${report.id} (writeTextAtomic returned false)")
-        } else {
-            ReportDataVersion.bump(report.id)
-        }
+        val existed = target.exists()
+        val fullJson = gson.toJson(report)
+        // If blob storage is full, retain a self-contained recovery payload.
+        val diskJson = runCatching { ReportContentStore.pack(dir.parentFile!!, report.id, fullJson) }.getOrElse { fullJson }
+        ReportSaveRecovery.write(target, diskJson, report.id, recoveryText = fullJson,
+            retryLocked = { action -> lock.withLock { action() } },
+            stillValid = { !existed || target.exists() },
+            onSaved = { ReportDataVersion.bump(report.id) })
     }
 
     private fun isSafeFlatId(id: String): Boolean =
@@ -780,7 +834,8 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            val updated = report.copy(title = newTitle, titleLong = null, prompt = newPrompt)
+            val updated = report.copy(title = newTitle, titleLong = null, prompt = newPrompt,
+                knowledgeContext = null, knowledgeStatus = null, agents = report.agents.map { it.copy(executionConfig = null) }.toMutableList())
             saveReport(updated)
             true
         }
@@ -1624,7 +1679,10 @@ object ReportStorage {
         if (records.isEmpty()) return null
         initFromFilesDir(root)
         return lock.withLock {
-            val report = loadReport(id) ?: return@withLock null
+            val report = loadReport(id) ?: run {
+                if (File(root, "reports/$id.json").exists()) throw java.io.IOException("Report cannot be read; pending call costs retained")
+                return@withLock null
+            }
             // Dedup hit: this exact record id is already in the ledger, so
             // nothing is appended. Return null (not a result) so the caller
             // doesn't bump the per-report usage stats for a row that wasn't
@@ -2519,7 +2577,8 @@ object ReportStorage {
                 report.promptHistory.lastOrNull()?.prompt != report.prompt) {
                 report.promptHistory + PromptRevision(report.prompt)
             } else report.promptHistory
-            saveReport(report.copy(prompt = newPrompt, promptHistory = history))
+            saveReport(report.copy(prompt = newPrompt, promptHistory = history, knowledgeContext = null, knowledgeStatus = null,
+                agents = report.agents.map { it.copy(executionConfig = null) }.toMutableList()))
             true
         }
     }
@@ -2649,7 +2708,8 @@ object ReportStorage {
         init(context)
         lock.withLock {
             val report = loadReport(reportId) ?: return
-            saveReport(report.copy(selectionParamsById = report.selectionParamsById + (rowId to presetIds)))
+            saveReport(report.copy(selectionParamsById = report.selectionParamsById + (rowId to presetIds),
+                agents = report.agents.map { if (it.agentId == rowId) it.copy(executionConfig = null) else it }.toMutableList()))
         }
     }
 
@@ -2752,14 +2812,18 @@ object ReportStorage {
      *  init + lock + saveReport pattern as [createReport]. Refuses to
      *  overwrite an existing report so this API cannot be used as a stale
      *  full-report update path. */
-    fun persistNewReport(context: Context, report: Report): Boolean {
+    fun persistNewReport(context: Context, report: Report, recoverOnFailure: Boolean = true): Boolean {
         init(context)
         return lock.withLock {
             if (loadReport(report.id) != null) {
                 AppLog.e("ReportStorage", "Refusing to overwrite existing report ${report.id} via persistNewReport")
                 return@withLock false
             }
-            saveReport(report)
+            if (recoverOnFailure) saveReport(report) else {
+                val target = reportsDir?.let { File(it, "${report.id}.json") } ?: return@withLock false
+                if (!target.writeTextAtomic(gson.toJson(report))) return@withLock false
+                ReportDataVersion.bump(report.id)
+            }
             true
         }
     }
@@ -2813,6 +2877,7 @@ object ReportStorage {
                 // at the default false: a copy shouldn't inherit pin
                 // status, that's a fresh user choice on the new entry.
                 knowledgeBaseIds = src.knowledgeBaseIds,
+                knowledgeContext = src.knowledgeContext, knowledgeStatus = src.knowledgeStatus,
                 // No history of deletions on the brand-new copy — the
                 // running tally on the source reflected rows the user
                 // had trimmed from THAT report. Starting it at 0 lets
@@ -2833,6 +2898,7 @@ object ReportStorage {
                 // report-info calls silently route through PROMPT defaults
                 // instead of the config the source ran with.
                 workerConfig = src.workerConfig,
+                metadataDisabled = src.metadataDisabled,
                 // Carry the prompt-edit history + user notes too — they're
                 // part of the report's authored state, not a fresh-choice
                 // reset like pinned/costsFromDeletedItems. Notes are

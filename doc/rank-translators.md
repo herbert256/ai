@@ -1,5 +1,7 @@
 # Rank the translators
 
+> September 2026 update: The UI now calls this Translation review. Scores average within each passage first, then across passages. Sampling spreads judge cells across passages before the per-translator cap. Original and translated text are frozen for replay. Different passages or judge coverage do not form a controlled benchmark; translation scores do not enter Combined answer quality. See [remediation details](report-audit-remediation-2026-09-06.md).
+
 **Rank the translators** (`SecondaryKind.TRANSRANK`, the eighth of the
 eight kinds in `data/SecondaryModels.kt` — `RERANK, META, MODERATION,
 TRANSLATE, TOURNAMENT, JUDGES, COMPARE, TRANSRANK`) grades which

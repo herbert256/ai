@@ -267,6 +267,7 @@ object ApiFactory {
         // into HttpStatusStats for the Live Dashboard's HTTP-responses card.
         // Sits below the retries so each per-attempt 429 is counted, and
         // below tracing so it runs regardless of the tracing toggle.
+        .addInterceptor(ReportWorkLimitInterceptor())
         .addInterceptor(HttpStatusStatsInterceptor())
         // Propagate ApiTracer.currentTags from the calling coroutine
         // onto the dispatcher worker thread so concurrent flows don't
@@ -315,6 +316,7 @@ object ApiFactory {
         addInterceptor(ReadTimeoutInterceptor())
         addInterceptor(TestCallTimeoutInterceptor())
         addInterceptor(TracingInterceptor())
+        addInterceptor(ReportWorkLimitInterceptor())
         addInterceptor(HttpStatusStatsInterceptor())
     }.build()
 

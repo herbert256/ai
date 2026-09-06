@@ -9,6 +9,8 @@ import com.ai.data.AppLog
 import com.ai.data.TraceRequest
 import com.ai.data.TraceResponse
 import com.ai.data.createAppGson
+import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
+import com.ai.data.AgentParameters
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import java.io.File
 import java.util.Locale
@@ -176,13 +178,24 @@ object LocalLlm {
      *  serialised per-engine — two parallel report agents pointing at
      *  the same `.task` file would otherwise corrupt the runtime
      *  state. */
-    fun generate(context: Context, modelName: String, prompt: String): String? {
+    fun generate(context: Context, modelName: String, prompt: String, parameters: AgentParameters = AgentParameters()): String? {
         val started = System.currentTimeMillis()
         AppLog.d("LocalLlm", "→ generate $modelName promptChars=${prompt.length}")
         markGeneratingStart(modelName)
         return try {
             val engine = getEngine(context, modelName)
-            val out = synchronized(engine) { engine.generateResponse(prompt) }
+            val out = synchronized(engine) {
+                val options = LlmInferenceSession.LlmInferenceSessionOptions.builder().apply {
+                    parameters.temperature?.let { setTemperature(it) }
+                    parameters.topP?.let { setTopP(it) }
+                    parameters.topK?.let { setTopK(it) }
+                    parameters.seed?.let { setRandomSeed(it) }
+                }.build()
+                LlmInferenceSession.createFromOptions(engine, options).use { session ->
+                    session.addQueryChunk(prompt)
+                    session.generateResponse()
+                }
+            }
             val durMs = System.currentTimeMillis() - started
             recordTrace(modelName, prompt, out, durationMs = durMs, error = null)
             val outLen = out?.length ?: 0

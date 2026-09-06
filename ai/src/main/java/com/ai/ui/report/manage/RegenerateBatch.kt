@@ -137,7 +137,7 @@ fun RegenerateBatchScreen(
             text = {
                 Text(
                     "Removes the regenerate job from this report. " +
-                        "Any in-flight phase is cancelled; rows that already " +
+                        "Scheduling stops; already started calls may finish and incur cost. Rows that already " +
                         "finished keep their new content. The report itself is untouched."
                 )
             },
@@ -204,7 +204,7 @@ private fun StatusBanner(job: RegenerateJob) {
             Text(
                 // No auto-resume promise: the background sweep only DETECTS
                 // stalled batches (doc/regenerate.md) — it never restarts one.
-                "Waiting on: $pausedLabel — fix the row and tap Restart, or Skip row to continue without it.",
+                "Waiting on: $pausedLabel — tap Retry unfinished, or Skip row to continue without it.",
                 color = AppColors.TextTertiary, fontSize = 12.sp, lineHeight = 16.sp
             )
         }
@@ -230,7 +230,7 @@ private fun ActionRow(
                 onClick = onCancel,
                 colors = AppColors.outlinedButtonColors(),
                 modifier = Modifier.weight(1f)
-            ) { Text("Cancel", fontSize = 13.sp) }
+            ) { Text("Stop scheduling", fontSize = 13.sp) }
         }
         if (canSkip) {
             // Drops the paused task from THIS batch and continues; the
@@ -247,7 +247,7 @@ private fun ActionRow(
                 onClick = onRestart,
                 colors = AppColors.outlinedButtonColors(),
                 modifier = Modifier.weight(1f)
-            ) { Text("Restart", fontSize = 13.sp) }
+            ) { Text("Retry unfinished", fontSize = 13.sp) }
         }
     }
 }

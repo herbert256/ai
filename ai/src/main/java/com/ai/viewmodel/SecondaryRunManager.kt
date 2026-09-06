@@ -45,7 +45,7 @@ class SecondaryRunManager(
     private fun requestBrokenBatchesRefresh(context: Context, delayMs: Long = 2_000L) {
         val appContext = context.applicationContext
         brokenRefreshJob?.cancel()
-        brokenRefreshJob = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        brokenRefreshJob = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             delay(delayMs)
             try {
                 refreshBrokenBatches(appContext)
@@ -935,6 +935,7 @@ class SecondaryRunManager(
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
+                com.ai.data.ReportWorkLimits.review(reportId, "Retry secondary result", 1)
                 placeholder.fullCost().takeIf { it > 0.0 }?.let {
                     ReportStorage.bumpCostsFromDeletedItems(context, reportId, it)
                 }
@@ -971,8 +972,7 @@ class SecondaryRunManager(
                     // provider is gone (providerId="" interrupted rows,
                     // deleted providers) — and they honour the report's
                     // Worker-batches choice, unlike Rerank/Moderation.
-                    val needsFreshWorker = kind == SecondaryKind.RERANK ||
-                        kind == SecondaryKind.MODERATION || fallbackProvider == null
+                    val needsFreshWorker = fallbackProvider == null
                     val freshWorker = if (needsFreshWorker) {
                         // alwaysPromptWorkers, like the runRerank/runModeration
                         // launch sites: these kinds opt out of the report's
@@ -1072,7 +1072,7 @@ class SecondaryRunManager(
                             val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                             val topAgents = com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful)
                             val positions = topAgents.map { a -> successful.indexOfFirst { it.agentId == a.agentId } + 1 }.filter { it >= 1 }.toSet()
-                            positions.ifEmpty { null }
+                            positions
                         }
                         is com.ai.data.SecondaryScope.Manual -> {
                             val successful = report.agents.filter {
@@ -1081,11 +1081,12 @@ class SecondaryRunManager(
                             val ids = successful.mapIndexedNotNull { idx, a ->
                                 if (a.agentId in scope.agentIds) idx + 1 else null
                             }
-                            if (ids.isEmpty()) null else ids.toSet()
+                            ids.toSet()
                         }
                     }
                     val successfulCount = if (includeIds != null) includeIds.size
                         else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    require(successfulCount > 0) { "The selected scope contains no available answers. Select answers before running." }
                     val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
                     val resolvedPrompt = resolveSecondaryPrompt(
                         metaPrompt.text, question = translatedPrompt, results = resultsBlock,
@@ -1477,7 +1478,7 @@ class SecondaryRunManager(
                         val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                         val topAgents = com.ai.data.resolveTopRankedAgents(rerank, scopeChoice.count, successful)
                         val positions = topAgents.map { a -> successful.indexOfFirst { it.agentId == a.agentId } + 1 }.filter { it >= 1 }.toSet()
-                        positions.ifEmpty { null }
+                        positions
                     }
                     is SecondaryScope.Manual -> {
                         // Manual is expressed as agentIds; convert to the
@@ -1487,12 +1488,13 @@ class SecondaryRunManager(
                         val ids = successful.mapIndexedNotNull { idx, a ->
                             if (a.agentId in scopeChoice.agentIds) idx + 1 else null
                         }
-                        if (ids.isEmpty()) null else ids.toSet()
+                        ids.toSet()
                     }
                 }
                 val successfulCount = if (includeIds != null) includeIds.size
                     else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
 
+                require(successfulCount > 0) { "The selected scope contains no available answers. Select answers before running." }
                 // Multi-language fan-out: one batch per language present
                 // on the report. The Original language is encoded as null
                 // and the SecondaryResult.targetLanguage stays null for
@@ -1653,7 +1655,7 @@ class SecondaryRunManager(
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
         val agentName = "${provider.id} / ${shortModelName(model)}$langSuffix"
-        val placeholder = existingPlaceholder ?: SecondaryResultStorage.create(
+        var placeholder = existingPlaceholder ?: SecondaryResultStorage.create(
             context, reportId, kind, provider.id, model, agentName
         ) {
             it.copy(
@@ -1669,6 +1671,8 @@ class SecondaryRunManager(
             )
         }
 
+        val report = com.ai.data.ReportEvidenceStore.historicalReport(report, SecondaryResultStorage.get(context,reportId,placeholder.id) ?: placeholder)
+        com.ai.data.ReportWorkLimits.review(reportId, "${kind.name.lowercase()} result", 1)
         // Mark this single-secondary row in flight for the whole call
         // (incl. its wait in the per-provider rate gate) so the resume
         // sweep doesn't see a slow-but-running meta/rerank/moderation as
@@ -1720,6 +1724,7 @@ class SecondaryRunManager(
             val pricing = PricingCache.getPricing(context, provider, model)
             val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, pricing) }
                 ?: (null to null)
+            if (tu != null) appViewModel.settingsPrefs.updateUsageStatsAsync(provider,model,tu,kind="moderation",durationMs=r.durationMs)
             val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
                 content = r.content,
                 errorMessage = r.errorMessage,
@@ -1734,11 +1739,6 @@ class SecondaryRunManager(
             // Skip usage-stats too if the row was deleted while in
             // flight — the user dropped this run, so we shouldn't bill
             // the per-provider token counters for it either.
-            if (saved && r.errorMessage == null && tu != null) {
-                appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, tu, kind = "moderation", durationMs = r.durationMs
-                )
-            }
             return
         }
 
@@ -1791,8 +1791,13 @@ class SecondaryRunManager(
                 else -> null
             }
             val rerankTokenUsage = if (estInputTokens > 0)
-                com.ai.data.TokenUsage(inputTokens = estInputTokens, outputTokens = 0) else null
-            val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                com.ai.data.TokenUsage(inputTokens = estInputTokens, outputTokens = 0, estimated = true) else null
+            if (r.errorMessage == null) {
+                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                    provider, model, rerankTokenUsage ?: com.ai.data.TokenUsage(0, 0), kind = "rerank", searchUnits = units, durationMs = r.durationMs
+                )
+            }
+            SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
                 content = r.content,
                 errorMessage = r.errorMessage,
                 inputCost = rerankCost,
@@ -1800,11 +1805,6 @@ class SecondaryRunManager(
                 durationMs = r.durationMs,
                 httpStatusCode = r.httpStatusCode
             ))
-            if (saved && r.errorMessage == null) {
-                appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, estInputTokens, 0, estInputTokens, kind = "rerank", searchUnits = units, durationMs = r.durationMs
-                )
-            }
             return
         }
 
@@ -1817,9 +1817,14 @@ class SecondaryRunManager(
         val secondaryParams = resolveSecondaryParams(
             appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, metaPrompt
         )
+        val execution = (SecondaryResultStorage.get(context,reportId,placeholder.id)?.executionConfig)
+            ?: com.ai.data.ReportExecutionConfig(secondaryParams,baseUrl,resolvedPrompt).also {
+                placeholder = placeholder.copy(executionConfig=it)
+                check(SecondaryResultStorage.saveIfStillPresent(context,placeholder,mergeCosts=false)) { "Secondary result was removed before dispatch" }
+            }
         val response = try {
             appViewModel.repository.analyzeWithAgent(
-                agent, "", resolvedPrompt, secondaryParams, null, context, baseUrl
+                agent, "", execution.prompt, execution.parameters, null, context, execution.endpointUrl
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
             // Don't translate cancellation into a fake error stored on
@@ -1854,6 +1859,22 @@ class SecondaryRunManager(
         // it flows through the normal save path below so the row
         // stays as a visible red error carrying the real API error,
         // instead of silently disappearing.
+        if (tu != null) {
+            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                provider, model, tu,
+                kind = when (kind) {
+                    SecondaryKind.RERANK -> "rerank"
+                    SecondaryKind.META -> "meta"
+                    SecondaryKind.MODERATION -> "moderation"
+                    SecondaryKind.TRANSLATE -> "translate"
+                    SecondaryKind.TOURNAMENT -> "tournament"
+                    SecondaryKind.JUDGES -> "judges"
+                    SecondaryKind.COMPARE -> "compare"
+                    SecondaryKind.TRANSRANK -> "transrank"
+                },
+                durationMs = duration
+            )
+        }
         val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
             content = finalContent,
             errorMessage = response.error,
@@ -1878,22 +1899,6 @@ class SecondaryRunManager(
                 SecondaryKind.META -> "Meta '${metaPrompt.name}'"
             }
             AuditLog.append(reportId, "$what result produced by ${provider.id}/$model")
-        }
-        if (saved && response.error == null && tu != null) {
-            appViewModel.settingsPrefs.updateUsageStatsAsync(
-                provider, model, tu,
-                kind = when (kind) {
-                    SecondaryKind.RERANK -> "rerank"
-                    SecondaryKind.META -> "meta"
-                    SecondaryKind.MODERATION -> "moderation"
-                    SecondaryKind.TRANSLATE -> "translate"
-                    SecondaryKind.TOURNAMENT -> "tournament"
-                    SecondaryKind.JUDGES -> "judges"
-                    SecondaryKind.COMPARE -> "compare"
-                    SecondaryKind.TRANSRANK -> "transrank"
-                },
-                durationMs = duration
-            )
         }
         } finally {
             appViewModel.updateRunningSingleSecondaries { it - placeholder.id }

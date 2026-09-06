@@ -703,7 +703,7 @@ internal fun ColumnScope.GenerationPhase(
     }
 
     data class DisplayRow(val rowId: String, val displayName: String, val providerDisplay: String, val isNew: Boolean)
-    val displayRows: List<DisplayRow> = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings.agents) {
+    val displayRows: List<DisplayRow> = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings.agents, agentRecordsByAgentId) {
         val rows = if (isStagedMode) {
             staged.map { m ->
                 val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId
@@ -716,11 +716,13 @@ internal fun ColumnScope.GenerationPhase(
         } else {
             selectedAgents.map { agentId ->
                 val result = reportsAgentResults[agentId]
-                val name = result?.let { resolveModelForResult(agentId, it) }
+                val name = agentRecordsByAgentId[agentId]?.model?.takeIf { it.isNotBlank() }
+                    ?: result?.let { resolveModelForResult(agentId, it) }?.takeIf { it.isNotBlank() }
                     ?: aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
                     ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringAfter(':')
                     ?: agentId
-                val providerDisplay = result?.service?.id
+                val providerDisplay = agentRecordsByAgentId[agentId]?.provider?.takeIf { it.isNotBlank() }
+                    ?: result?.service?.id
                     ?: aiSettings.getAgentById(agentId)?.provider?.id
                     ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringBefore(':')?.let {
                         AppService.findById(it)?.id ?: it
@@ -905,12 +907,11 @@ internal fun ColumnScope.GenerationPhase(
                 }
                 RowTypeCell("report")
                 Column(modifier = Modifier.weight(1f)) {
-                    // A generated per-model title (when present) replaces the
-                    // model name on the 'report' row — see [AgentModelTitle].
+                    // Keep the recorded model identity visible beside any generated title.
                     val modelLabel = com.ai.ui.shared.modelLabel(row.providerDisplay, displayName)
                     val modelTitle = if (showModelNamesInReportRows) null
                         else agentModelTitles[agentId]?.title?.takeIf { it.isNotBlank() }
-                    Text(modelTitle ?: modelLabel,
+                    Text(if (modelTitle.isNullOrBlank()) modelLabel else "$modelLabel · $modelTitle",
                         fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (result?.tokenUsage != null) {

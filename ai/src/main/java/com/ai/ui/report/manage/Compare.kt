@@ -176,7 +176,7 @@ fun CompareManageRow() {
 
     // Label = the title of the prompt this batch ran; while cells are
     // still settling a live done/total counter ticks next to the cost.
-    val rowText = run.comparePrompt.title.takeIf { it.isNotBlank() } ?: run.comparePrompt.name
+    val rowText = "Score against meta · " + (run.comparePrompt.title.takeIf { it.isNotBlank() } ?: run.comparePrompt.name)
     val compareIcon = com.ai.ui.shared.LocalMetadataIcons.current.compare
         .takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.COMPARE
     Column(modifier = Modifier.fillMaxWidth()) {

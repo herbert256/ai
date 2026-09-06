@@ -716,7 +716,8 @@ fun ReportsScreenNav(
                 context = context, selectedAgentIds = agentIds, swarmModelIds = swarmModelIds,
                 directModelIds = directIds, parametersIds = paramsIds, reportType = reportType,
                 selectionParamsById = selectionParamsById,
-                workerConfig = workerConfig
+                workerConfig = workerConfig,
+                selectedModels = models
             )
         },
         onDismiss = handleDismiss,

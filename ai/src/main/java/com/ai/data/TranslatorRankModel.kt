@@ -214,7 +214,8 @@ fun aggregateTranslatorRanks(cells: Collection<TransRankCellState>): List<Transl
             TranslatorRankRow(
                 providerId = first.translatorProviderId,
                 model = first.translatorModel,
-                avgScore = scores.average(),
+                avgScore = cs.filter { it.judgeKey != it.translatorKey && it.score != null }
+                    .groupBy { it.translationRowId }.values.map { group -> group.mapNotNull { it.score }.average() }.average(),
                 // Distinct translated items this model produced — counted over
                 // ALL its cells (matching the L2 "Item N" list), not just the
                 // ones already carrying a parsed score, so the count doesn't

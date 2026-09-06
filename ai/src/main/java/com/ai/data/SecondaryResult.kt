@@ -50,7 +50,9 @@ object SecondaryResultStorage {
             }
         }
     }
-    @Volatile private var reportCaches: HashMap<String, ReportCache> = HashMap()
+    private val reportCaches = object : LinkedHashMap<String, ReportCache>(4, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ReportCache>?) = size > 3
+    }
 
     fun init(context: Context) {
         if (rootDir == null) lock.withLock {
@@ -111,6 +113,7 @@ object SecondaryResultStorage {
         val cache = cacheForReport(reportId)
         cache.put(file.name, CachedEntry(file.lastModified(), file.length(), result))
         if (cache.loaded) cache.dirMtime = file.parentFile?.lastModified() ?: cache.dirMtime
+        if (cache.byFilename.values.sumOf { it.length } > 8L * 1024 * 1024) reportCaches.remove(reportId)
     }
 
     private fun forgetCachedResult(reportId: String, filename: String) {
@@ -155,11 +158,25 @@ object SecondaryResultStorage {
         return rows.sortedWith(compareBy({ it.timestamp }, { it.id }))
     }
 
+    private fun captureSources(context: Context, row: SecondaryResult): SecondaryResult {
+        if (row.sourceSnapshotId != null) return row
+        val existing = get(context,row.reportId,row.id)
+        existing?.sourceSnapshotId?.let { return row.copy(sourceSnapshotId=it) }
+        if (existing != null && !existing.content.isNullOrBlank()) return row // legacy revision is unknown
+        val manifestId=ReportEvidenceStore.sourceId(row)
+        if (manifestId != null) return row.copy(sourceSnapshotId=manifestId)
+        val report=ReportStorage.getReport(context,row.reportId) ?: return row
+        val target=row.compareToResultId ?: row.translateSourceTargetId?.takeIf { row.translateSourceKind=="META" }
+        val extra=target?.let { id -> get(context,row.reportId,id)?.content?.let { mapOf(id to it) } }.orEmpty()
+        return row.copy(sourceSnapshotId=ReportEvidenceStore.capture(report,extra))
+    }
+
     fun save(context: Context, result: SecondaryResult): SecondaryResult {
         init(context)
+        val result = captureSources(context, result)
         if (!ReportStorage.reportFileExists(context, result.reportId)) {
             AppLog.w("SecondaryResultStorage", "Skipping save for deleted report ${result.reportId}")
-            return result
+            throw kotlinx.coroutines.CancellationException("Report/result is no longer available")
         }
         // Defence in depth: every caller today uses UUIDs, but a future
         // regression that constructs an id with a slash or `..` would
@@ -169,30 +186,31 @@ object SecondaryResultStorage {
         if (result.id.isBlank() || result.id.contains('/') || result.id.contains('\\')
                 || result.id == "." || result.id == "..") {
             AppLog.e("SecondaryResultStorage", "Refusing to save result with suspect id ${result.id}")
-            return result
+            throw kotlinx.coroutines.CancellationException("Report/result is no longer available")
         }
         var saved = false
         lock.withLock {
             if (!ReportStorage.reportFileExists(context, result.reportId)) {
                 AppLog.w("SecondaryResultStorage", "Skipping save for deleted report ${result.reportId}")
-                return result
+                throw kotlinx.coroutines.CancellationException("Report/result is no longer available")
             }
-            val dir = reportDir(result.reportId) ?: return result
+            val dir = reportDir(result.reportId) ?: throw kotlinx.coroutines.CancellationException("Report/result is no longer available")
             val target = File(dir, "${result.id}.json")
             if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
                 AppLog.e("SecondaryResultStorage", "Refusing to save result that escapes report dir: ${result.id}")
-                return result
+                throw kotlinx.coroutines.CancellationException("Report/result is no longer available")
             }
-            if (!target.writeTextAtomic(gson.toJson(result))) {
-                AppLog.e("SecondaryResultStorage", "Failed to save result ${result.id}")
-                return result
-            }
+            val existedBeforeSave = target.exists()
+            ReportSaveRecovery.write(target, gson.toJson(result), result.reportId,
+                retryLocked = { action -> lock.withLock { action() } },
+                stillValid = { (!existedBeforeSave || target.exists()) && ReportStorage.reportFileExists(context, result.reportId) },
+                onSaved = { forgetCachedResult(result.reportId, target.name); SecondaryDataVersion.bump(result.reportId, result.kind) })
             if (!ReportStorage.reportFileExists(context, result.reportId)) {
                 target.delete()
                 if (dir.listFiles()?.isEmpty() == true) dir.delete()
                 AppLog.w("SecondaryResultStorage", "Removed late save for deleted report ${result.reportId}")
                 forgetCachedResult(result.reportId, target.name)
-                return result
+                throw kotlinx.coroutines.CancellationException("Report/result is no longer available")
             }
             rememberCachedResult(result.reportId, target, result)
             saved = true
@@ -216,12 +234,19 @@ object SecondaryResultStorage {
         onProgress: ((Int) -> Unit)? = null
     ): List<SecondaryResult> {
         if (results.isEmpty()) return emptyList()
+        ReportWorkLimits.checkSize((results.size - 1).coerceAtLeast(0))
         init(context)
         val safeResults = results.filter { result ->
             result.id.isNotBlank() && !result.id.contains('/') && !result.id.contains('\\') &&
                 result.id != "." && result.id != ".."
         }
-        if (safeResults.isEmpty()) return emptyList()
+        val snapshots = safeResults.groupBy { it.reportId }.mapValues { (id, group) ->
+            ReportEvidenceStore.sourceId(group.first()) ?: ReportStorage.getReport(context, id)?.let { report ->
+                ReportEvidenceStore.capture(report, listForReport(context, id).filter { !it.content.isNullOrBlank() }.associate { it.id to it.content!! })
+            }
+        }
+        val capturedResults = safeResults.map { row -> if (row.sourceSnapshotId != null) row else row.copy(sourceSnapshotId = snapshots[row.reportId]) }
+        if (capturedResults.isEmpty()) return emptyList()
         val reportIds = safeResults.map { it.reportId }.distinct()
         val existingReports = reportIds.filter { ReportStorage.reportFileExists(context, it) }.toSet()
         if (existingReports.isEmpty()) return emptyList()
@@ -229,7 +254,7 @@ object SecondaryResultStorage {
         val saved = mutableListOf<SecondaryResult>()
         lock.withLock {
             val liveReports = existingReports.filter { ReportStorage.reportFileExists(context, it) }.toSet()
-            for (result in safeResults) {
+            for (result in capturedResults) {
                 if (result.reportId !in liveReports) continue
                 val dir = reportDir(result.reportId) ?: continue
                 val target = File(dir, "${result.id}.json")
@@ -238,8 +263,13 @@ object SecondaryResultStorage {
                     continue
                 }
                 if (!target.writeTextAtomic(gson.toJson(result))) {
-                    AppLog.e("SecondaryResultStorage", "Failed to save result ${result.id}")
-                    continue
+                    // Already-written siblings remain visible if this batch stops.
+                    if (savedAny) SecondaryDataVersion.bumpMany(saved.map { it.reportId to it.kind })
+                    val existed = target.exists()
+                    ReportSaveRecovery.write(target, gson.toJson(result), result.reportId,
+                        retryLocked = { action -> lock.withLock { action() } },
+                        stillValid = { (!existed || target.exists()) && ReportStorage.reportFileExists(context,result.reportId) },
+                        onSaved = { forgetCachedResult(result.reportId,target.name); SecondaryDataVersion.bump(result.reportId,result.kind) })
                 }
                 rememberCachedResult(result.reportId, target, result)
                 saved += result
@@ -283,7 +313,9 @@ object SecondaryResultStorage {
             if (!cache.loaded || cache.dirMtime != dirMtime) {
                 refreshReportCacheFromDisk(dir, cache)
             }
-            rowsFromCache(cache, kind)
+            rowsFromCache(cache, kind).also {
+                if (cache.byFilename.values.sumOf { it.length } > 8L * 1024 * 1024) reportCaches.remove(reportId)
+            }
         }
     }
 
@@ -539,11 +571,15 @@ object SecondaryResultStorage {
             // expenditure, so the saved row reflects (prior + new).
             // Caller-controlled overwrites that don't want
             // accumulation should write via [save] instead.
-            val toWrite = if (mergeCosts) mergeCostFromCurrent(readCachedOrDisk(result.reportId, target), result) else result
-            if (!target.writeTextAtomic(gson.toJson(toWrite))) {
-                AppLog.e("SecondaryResultStorage", "Failed to save result ${result.id}")
-                return false
-            }
+            val current = readCachedOrDisk(result.reportId, target)
+            val incoming = result.copy(sourceSnapshotId = current?.sourceSnapshotId ?: result.sourceSnapshotId,
+                executionConfig = current?.executionConfig ?: result.executionConfig,
+                translationSourceText = current?.translationSourceText ?: result.translationSourceText)
+            val toWrite = if (mergeCosts) mergeCostFromCurrent(current, incoming) else incoming
+            ReportSaveRecovery.write(target, gson.toJson(toWrite), result.reportId,
+                retryLocked = { action -> lock.withLock { action() } },
+                stillValid = { target.exists() && ReportStorage.reportFileExists(context, result.reportId) },
+                onSaved = { forgetCachedResult(result.reportId, target.name); SecondaryDataVersion.bump(result.reportId, result.kind) })
             rememberCachedResult(result.reportId, target, toWrite)
         }
         SecondaryDataVersion.bump(result.reportId, result.kind)
@@ -585,7 +621,8 @@ object SecondaryResultStorage {
             apiCost = apiCost,
             cachedInputTokens = (prior?.cachedInputTokens ?: 0) + (incoming?.cachedInputTokens ?: 0),
             cacheCreationTokens = (prior?.cacheCreationTokens ?: 0) + (incoming?.cacheCreationTokens ?: 0),
-            reasoningTokens = (prior?.reasoningTokens ?: 0) + (incoming?.reasoningTokens ?: 0)
+            reasoningTokens = (prior?.reasoningTokens ?: 0) + (incoming?.reasoningTokens ?: 0),
+            estimated = prior?.estimated == true || incoming?.estimated == true
         )
     }
 
@@ -1467,6 +1504,7 @@ fun resolveTopRankedAgents(rerankRow: SecondaryResult?, count: Int, successful: 
  *  the numbering. Rows written before the snapshot existed fall back
  *  to the current-set map (drift risk, but nothing better exists). */
 fun sourceAgentLabels(report: Report, row: SecondaryResult): Map<Int, String> {
+    val report = ReportEvidenceStore.historicalReport(report,row)
     val snapshot = row.sourceAgentIds
     if (!snapshot.isNullOrEmpty()) {
         val byId = report.agents.associateBy { it.agentId }
@@ -1491,6 +1529,7 @@ fun sourceAgentLabels(report: Report, row: SecondaryResult): Map<Int, String> {
  *  the agents' response bodies (the exact text a moderation call ran
  *  on). A removed agent's body is gone — empty string. */
 fun sourceAgentResponses(report: Report, row: SecondaryResult): Map<Int, String> {
+    val report = ReportEvidenceStore.historicalReport(report,row)
     val snapshot = row.sourceAgentIds
     if (!snapshot.isNullOrEmpty()) {
         val byId = report.agents.associateBy { it.agentId }

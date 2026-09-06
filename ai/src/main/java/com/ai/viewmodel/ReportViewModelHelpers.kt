@@ -143,8 +143,8 @@ internal fun reportToModels(report: Report, aiSettings: Settings): List<ReportMo
     return report.agents.mapNotNull { ra ->
         val provider = AppService.findById(ra.provider) ?: return@mapNotNull null
         if (ra.agentId.startsWith("swarm:")) toReportModel(provider, ra.model)
-        else aiSettings.getAgentById(ra.agentId)?.let { expandAgentToModel(it, aiSettings) }
-            ?: toReportModel(provider, ra.model)
+        else com.ai.model.ReportModel(provider, ra.model, "agent", "agent", ra.agentName,
+            sourceId=ra.agentId, agentId=ra.agentId)
     }
 }
 
@@ -192,7 +192,8 @@ internal fun resolveBatchSwarm(report: Report, configured: List<Worker>, overrid
  *  batch engines apply to their driving worker prompt. [alwaysPromptWorkers]
  *  forces the prompt's own workers (Rerank / Moderation). */
 internal fun com.ai.model.InternalPrompt.withBatchWorkers(report: Report, overrideWorkers: List<Worker>? = null, alwaysPromptWorkers: Boolean = false): com.ai.model.InternalPrompt =
-    copy(workers = resolveBatchSwarm(report, workers, overrideWorkers, alwaysPromptWorkers))
+    if (workers.isNotEmpty() && workers.all { it.frozenParameters != null }) this
+    else copy(workers = resolveBatchSwarm(report, workers, overrideWorkers, alwaysPromptWorkers))
 
 /** UI-side decision for a type-B batch launch site: open the runtime
  *  worker picker first, or dispatch straight away (the engine-side
@@ -545,3 +546,16 @@ internal fun lookupLanguageTranslations(
         }
     return LangCtx(prompt, title, native, bodies)
 }
+
+/** Freeze the expanded pool and non-secret effective configuration before launch.
+ * Credentials remain live references so key rotation never requires new runs. */
+internal fun com.ai.model.InternalPrompt.freezeWorkers(settings: Settings, general: GeneralSettings): com.ai.model.InternalPrompt =
+    copy(workers = workers.flatMap { settings.expandWorker(it) }.mapNotNull { worker ->
+        if (worker.frozenParameters != null) worker else settings.resolveWorker(worker)?.let { agent ->
+            worker.copy(agent = "*N/A", flock = "*N/A", swarm = "*N/A",
+                provider = agent.provider.id, model = settings.getEffectiveModelForAgent(agent),
+                credentialAgentId = agent.id.takeIf { it.isNotBlank() },
+                frozenParameters = resolveSecondaryParams(general, settings, emptyList(), null, this, agent),
+                frozenEndpointUrl = settings.getEffectiveEndpointUrlForAgent(agent))
+        }
+    })

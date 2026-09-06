@@ -233,6 +233,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             regenerateJobs[reportId]?.any { it.isActive } == true ||
             regenerateBatchEngine.isActivelyRunning(reportId)
 
+    internal fun hasActiveReportCalls(context: Context, reportId: String): Boolean =
+        appViewModel.runningInfoJobs.value.any { it.startsWith("$reportId|") } ||
+        resumingMetaIds.any { SecondaryResultStorage.get(context,reportId,it) != null } ||
+        (activeGenerationReportId == reportId && reportGenerationJob?.isActive == true) ||
+        regenerateJobs[reportId]?.any { it.isActive } == true ||
+        fanOutEngine.hasActiveCalls(reportId) || tournamentEngine.hasActiveCalls(reportId) ||
+        judgeEvalEngine.hasActiveCalls(reportId) || compareEngine.hasActiveCalls(reportId) ||
+        translatorRankEngine.hasActiveCalls(reportId) ||
+        translation.translationRuns.value.values.any { it.sourceReportId == reportId && !it.isFinished && !it.cancelled }
+
     // The in-flight fan-meta batch job now lives in the FanOutEngine run-job
     // registry under a namespaced "|meta|" key (FanOutEngine.registerFanMetaJob)
     // — it's a decorator pass over that engine's pairs, so it belongs there.
@@ -398,7 +408,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportType: ReportType = ReportType.CLASSIC,
         /** Worker routing picked on "Report - select workers"; stamped
          *  onto the new Report and consulted by every worker flow. */
-        workerConfig: ReportWorkerConfig = ReportWorkerConfig()
+        workerConfig: ReportWorkerConfig = ReportWorkerConfig(),
+        selectedModels: List<ReportModel> = emptyList()
     ) {
         reportGenerationJob?.cancel()
         // Outer launch on viewModelScope so navigating away from the
@@ -410,7 +421,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // and the NonCancellable terminal write persisted that error.
         // continueReportInBackground() only sets a flag — without
         // viewModelScope here, "background" can't actually happen.
-        reportGenerationJob = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        reportGenerationJob = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val prompt = state.genericPromptText
@@ -476,7 +487,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 state.reportWebSearchTool || state.reportReasoningEffort != null
             val reportTasks = buildReportTasks(
                 aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt,
-                reportLevelSystemPrompt, state.generalSettings, directModelSids, preGenParamsActive
+                reportLevelSystemPrompt, state.generalSettings, directModelSids, preGenParamsActive, selectedModels
             )
 
             _agentResults.value = emptyMap()
@@ -497,10 +508,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val aiPrompt = if (userMatch != null) prompt.replace(userMatch.value, "").trim() else prompt
 
             val runId = java.util.UUID.randomUUID().toString()
+            val plannedReportId = java.util.UUID.randomUUID().toString()
+            com.ai.data.ReportWorkLimits.init(context)
+            com.ai.data.ReportWorkLimits.review(plannedReportId, "Primary answers", reportTasks.size)
             val report = ReportStorage.createReportAsync(
                 context = context, title = title.ifBlank { "AI Report" },
                 prompt = aiPrompt, agents = reportTasks.map { it.reportAgent },
                 config = CreateReportConfig(
+                    explicitId = plannedReportId,
                     rapportText = rapportText, reportType = reportType, closeText = state.externalCloseHtml,
                     imageBase64 = imageBase64, imageMime = imageMime,
                     webSearchTool = state.reportWebSearchTool,
@@ -635,8 +650,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         directModelSids: Set<String> = emptySet(),
         /** When a pre-generation params override (🌡️ / web / reasoning) is
          *  active, the report-model + app-wide PARAM fallbacks are skipped. */
-        preGenParamsActive: Boolean = false
+        preGenParamsActive: Boolean = false,
+        selectedModels: List<ReportModel> = emptyList()
     ): List<ReportTask> {
+        val selections = selectedModels.associateBy { it.agentId ?: "swarm:${it.provider.id}:${it.model}" }
+        fun groupPrompt(id: String): String? = selections[id]?.let { selection ->
+            val spId = when(selection.sourceType) {
+                "flock" -> selection.sourceId?.let { aiSettings.getFlockById(it)?.systemPromptId }
+                "swarm" -> selection.sourceId?.let { aiSettings.getSwarmById(it)?.systemPromptId }
+                else -> null
+            }
+            spId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+        }
         val appSp = general.appWideSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
         val rmSp = general.reportModelSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
 
@@ -653,10 +678,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // already does per-field "later wins", so selection wins per field,
             // falling back to agent then app-wide per field.
             var params = aiSettings.mergeParameters(
-                general.appWideParametersIds + agent.paramsIds + (selectionParamsById[agent.id] ?: emptyList())
+                general.appWideParametersIds + (selections[agent.id]?.paramsIds ?: agent.paramsIds) + (selectionParamsById[agent.id] ?: emptyList())
             ) ?: AgentParameters()
             val spText = reportLevelSystemPrompt
-                ?: resolveSystemPromptText(aiSettings, agent.systemPromptId, findFlockSystemPromptIdForAgent(aiSettings, agent.id))
+                ?: groupPrompt(agent.id)
+                ?: agent.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
                 ?: externalSystemPrompt
                 ?: appSp
             if (spText != null) params = params.copy(systemPrompt = spText)
@@ -672,7 +698,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // universal floor for both.
             val providerConfig = aiSettings.getProvider(member.provider)
             val spText = reportLevelSystemPrompt
-                ?: findSwarmSystemPromptIdForMember(aiSettings, member.provider, member.model)?.let { aiSettings.getSystemPromptById(it)?.prompt }
+                ?: groupPrompt(sid)
                 ?: (if (isDirect) providerConfig.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt } else null)
                 ?: (if (isDirect) rmSp else null)
                 ?: externalSystemPrompt
@@ -686,6 +712,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 if (!preGenParamsActive) addAll(general.appWideParametersIds)
                 if (isDirect && !preGenParamsActive) addAll(general.reportModelParametersIds)
                 if (isDirect) addAll(providerConfig.parametersIds)
+                addAll(selections[sid]?.paramsIds.orEmpty())
                 addAll(selectionParamsById[sid] ?: emptyList())
             }
             var params = aiSettings.mergeParameters(paramIds) ?: AgentParameters()
@@ -705,7 +732,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // already collapsed these cross-source duplicates).
         val seen = mutableSetOf<String>()
         return (agentTasks + modelTasks).filter { task ->
-            seen.add("${task.runtimeAgent.provider}:${task.runtimeAgent.model}")
+            seen.add(task.resultId)
         }
     }
 
@@ -734,7 +761,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val sid = "swarm:${provider.id}:${reportAgent.model}"
         val task = if (currentAgent != null) {
             buildReportTasks(
-                ai, listOf(currentAgent), emptyList(), report.selectionParamsById,
+                ai, listOf(currentAgent.copy(provider = provider, model = reportAgent.model)), emptyList(), report.selectionParamsById,
                 state.externalSystemPrompt, reportLevelSystemPrompt,
                 state.generalSettings, emptySet(), preGenParamsActive
             ).firstOrNull()
@@ -744,7 +771,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 report.selectionParamsById, state.externalSystemPrompt, reportLevelSystemPrompt,
                 state.generalSettings, setOf(sid), preGenParamsActive
             ).firstOrNull()
-        } ?: return null
+        } ?: ReportTask(reportAgent.agentId, reportAgent,
+            Agent(id=reportAgent.agentId,name=reportAgent.agentName,provider=provider,model=reportAgent.model,apiKey=ai.getApiKey(provider)),
+            reportAgent.executionConfig?.parameters ?: AgentParameters())
         val endpointId = currentAgent?.endpointId?.takeIf { currentAgent.provider.id == provider.id }
         val apiKey = currentAgent
             ?.takeIf { it.provider.id == provider.id }
@@ -763,7 +792,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return task.copy(
             resultId = reportAgent.agentId,
             reportAgent = reportAgent.copy(reportStatus = ReportStatus.PENDING),
-            runtimeAgent = runtimeAgent
+            runtimeAgent = runtimeAgent,
+            resolvedParams = reportAgent.executionConfig?.parameters ?: task.resolvedParams
         )
     }
 
@@ -913,13 +943,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         // The resolved prompt is the request BODY, not headers — passing it
         // positionally landed it in requestHeaders (Bug 57). Name the arg.
-        ReportStorage.markAgentRunningAsync(context, reportId, task.resultId, requestBody = aiPrompt)
-
-        // Pull the report's attached KB ids so analyzeWithAgent can
-        // do RAG retrieval on this turn. Cheap re-read; the
-        // alternative (caching on the ReportTask) is more surface
-        // area than payoff.
-        val knowledgeBaseIds = ReportStorage.getReport(context, reportId)?.knowledgeBaseIds.orEmpty()
+        val storedReport = ReportKnowledge.prepare(context, reportId, appViewModel.repository,
+            appViewModel.uiState.value.aiSettings) ?: return
+        val previous = storedReport.agents.firstOrNull { it.agentId == task.resultId } ?: return
+        val execution = (if (isRegeneration) previous.executionConfig else null) ?: run {
+            val params = appViewModel.repository.effectiveReportParameters(task.resolvedParams, overrideParams,
+                task.runtimeAgent.provider, task.runtimeAgent.model, context)
+            val question = appViewModel.repository.resolveReportPrompt(aiPrompt, task.runtimeAgent)
+            val prompt = storedReport.knowledgeContext?.takeIf { it.isNotBlank() }?.let { "$it\n\n$question" } ?: question
+            com.ai.data.ReportExecutionConfig(params,
+                appViewModel.uiState.value.aiSettings.getEffectiveEndpointUrlForAgent(task.runtimeAgent), prompt)
+        }
+        val attemptId = ReportStorage.beginAgentAttempt(context, reportId, task.resultId, execution) ?: return
+        val knowledgeBaseIds = emptyList<String>() // context is part of the saved execution prompt
         val startTime = System.currentTimeMillis()
         // Capture the primary call's trace filename so it can be stored on
         // the agent row (read directly by the per-model viewer's 🐞 instead
@@ -931,12 +967,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // IOException — handled by the catch (Exception) below like any
         // other failed call.
         val response = try {
-            val baseUrl = appViewModel.uiState.value.aiSettings.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
+            val baseUrl = execution.endpointUrl
             com.ai.data.withTraceFilenameSink(traceSink) {
                 if (headless) {
                     // Background / best-effort calls have no card to stream into.
                     appViewModel.repository.analyzeWithAgent(
-                        task.runtimeAgent, "", aiPrompt, task.resolvedParams, overrideParams,
+                        task.runtimeAgent, "", execution.prompt, execution.parameters, null,
                         context, baseUrl, imageBase64, imageMime,
                         knowledgeBaseIds = knowledgeBaseIds,
                         aiSettings = appViewModel.uiState.value.aiSettings
@@ -948,7 +984,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // live per-chunk row preview was removed, so chunks aren't
                     // accumulated for display.
                     appViewModel.repository.analyzeWithAgentStreaming(
-                        task.runtimeAgent, "", aiPrompt, task.resolvedParams, overrideParams,
+                        task.runtimeAgent, "", execution.prompt, execution.parameters, null,
                         context, baseUrl, imageBase64, imageMime,
                         knowledgeBaseIds = knowledgeBaseIds,
                         aiSettings = appViewModel.uiState.value.aiSettings
@@ -988,38 +1024,34 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // A benched-on-this-call >1h 429 flows through the normal
         // error path — it stays as a visible red row, same as any
         // other failure, instead of being removed from the run.
-        val persisted = kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-            if (response.isSuccess) {
-                ReportStorage.markAgentSuccessAsync(context, reportId, task.resultId,
-                    response.httpStatusCode ?: 200, response.httpHeaders, response.analysis,
-                    response.tokenUsage, cost,
-                    response.tokenUsage?.let { frozenInputCost },
-                    response.tokenUsage?.let { frozenOutputCost },
-                    response.citations, response.searchResults,
-                    response.relatedQuestions, response.rawUsageJson, durationMs,
-                    traceFile = traceSink.get())
-            } else {
-                ReportStorage.markAgentErrorAsync(context, reportId, task.resultId,
-                    response.httpStatusCode, response.error, response.httpHeaders, response.analysis, durationMs,
-                    traceFile = traceSink.get())
-            }
-        }
-        if (!persisted) {
-            cost?.takeIf { it > 0.0 }?.let {
-                ReportStorage.bumpCostsFromDeletedItems(context, reportId, it)
-            }
-        }
-
-        if (response.error == null && response.tokenUsage != null) {
+        if (response.tokenUsage != null) {
             val usage = response.tokenUsage
             appViewModel.settingsPrefs.updateUsageStatsAsync(
                 task.runtimeAgent.provider, task.runtimeAgent.model, usage, durationMs = durationMs
             )
         }
 
+        val persisted = kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+            ReportStorage.updateAgentStatus(context, reportId, task.resultId,
+                if (response.isSuccess) ReportStatus.SUCCESS else ReportStatus.ERROR,
+                com.ai.data.AgentStatusPatch(httpStatus=response.httpStatusCode,
+                    requestBody=execution.prompt, responseHeaders=response.httpHeaders, responseBody=response.analysis,
+                    errorMessage=response.error, tokenUsage=response.tokenUsage, cost=cost,
+                    inputCost=response.tokenUsage?.let { frozenInputCost }, outputCost=response.tokenUsage?.let { frozenOutputCost },
+                    citations=response.citations, searchResults=response.searchResults, relatedQuestions=response.relatedQuestions,
+                    rawUsageJson=response.rawUsageJson, durationMs=durationMs, traceFile=traceSink.get(), attemptId=attemptId))
+        }
+
+        if (!persisted) {
+            cost?.takeIf { it > 0.0 }?.let {
+                ReportStorage.bumpCostsFromDeletedItems(context, reportId, it)
+            }
+        }
+
+
         val stillPresent = ReportStorage.getReport(context, reportId)
             ?.agents
-            ?.any { it.agentId == task.resultId } == true
+            ?.any { it.agentId == task.resultId && it.attemptId == attemptId } == true
         if (!stillPresent) {
             AppLog.d("Report", "skip UI publish for deleted agent=${task.resultId} report=$reportId")
             // The agent was removed mid-run. removeAgentInternal already
@@ -1068,7 +1100,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val key = TemperatureSweepState.key(reportId, agentId)
         val candidate = temperatureSweep.get(key)?.candidates
             ?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             ReportStorage.applyAgentChatResponse(
                 context = context,
                 reportId = reportId,
@@ -1268,7 +1300,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val key = ReasoningEffortSweepState.key(reportId, agentId)
         val candidate = reasoningEffortSweep.get(key)?.candidates
             ?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             ReportStorage.applyAgentChatResponse(
                 context = context,
                 reportId = reportId,
@@ -1453,7 +1485,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun applyWebSearchReplay(context: Context, reportId: String, agentId: String) {
         val key = WebSearchReplayState.key(reportId, agentId)
         val result = webSearchReplay.get(key)?.result as? WebSearchReplayResult.Success ?: return
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             ReportStorage.applyAgentChatResponse(
                 context = context,
                 reportId = reportId,
@@ -1629,7 +1661,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun applyPromptEditReplay(context: Context, reportId: String, agentId: String) {
         val key = PromptEditReplayState.key(reportId, agentId)
         val result = promptEditReplay.get(key)?.result as? PromptEditReplayResult.Success ?: return
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             ReportStorage.applyAgentChatResponse(
                 context = context,
                 reportId = reportId,
@@ -1822,11 +1854,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         overrideParams: AgentParameters?, reportTasks: List<ReportTask>,
         aiSettings: Settings, imageBase64: String?, imageMime: String?, headless: Boolean
     ) {
+        ReportKnowledge.prepare(context, reportId, appViewModel.repository, aiSettings)
+        com.ai.data.ReportWorkLimits.checkSize(reportTasks.size)
+        interleaveByHost(reportTasks) { providerHost(it.runtimeAgent.provider) }.chunked(64).forEach { window ->
         coroutineScope {
             // Interleave by host so a picks list clustered by provider
             // doesn't have the first launches all hammer one host while
             // holding outer cap permits idle.
-            interleaveByHost(reportTasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
+            window.map { task ->
                 async {
                     // Canonical acquire order: global → report → per-host
                     // (acquireOrRequeue). The per-host gate MUST be acquired
@@ -1866,6 +1901,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             }.awaitAll()
         }
+        }
     }
 
     /** Fire-and-forget: create + run ONE report fully in the background from
@@ -1879,7 +1915,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context, prompt: String, title: String, swarmId: String,
         onReportCreated: ((String) -> Unit)? = null,
     ) {
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val swarmMembers = aiSettings.getMembersForSwarms(setOf(swarmId))
@@ -2391,40 +2427,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val state = appViewModel.uiState.value
             val ai = state.aiSettings
-            val rebuilt = reportToModels(report, ai)
-            val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
-            // Kept swarm members from their explicit (provider, model) — never
-            // re-expand swarm ids, which re-adds removed members.
-            val swarmMembers = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.map { SwarmMember(it.provider, it.model) }
-            val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val directIds = rebuilt.filter { it.sourceType == "model" }
-                .map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val agents = agentIds.mapNotNull { ai.getAgentById(it) }
-            val uniqueDirectIds = directIds.filter { it !in swarmMemberIds }.toSet()
-            val directModels = uniqueDirectIds.mapNotNull { mid ->
-                val parts = mid.removePrefix("swarm:").split(":", limit = 2)
-                val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null)
-                    ?: return@mapNotNull null
-                SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
+            val tasks = report.agents.filter { onlyAgentIds == null || it.agentId in onlyAgentIds }
+                .mapNotNull { buildTemperatureSweepTask(report, state, it) }
+            val plannedIds = tasks.map { it.resultId }.toSet()
+            report.agents.filter { (onlyAgentIds == null || it.agentId in onlyAgentIds) && it.agentId !in plannedIds }.forEach {
+                ReportStorage.updateAgentStatus(context,reportId,it.agentId,ReportStatus.ERROR,
+                    com.ai.data.AgentStatusPatch(errorMessage="Saved provider ${it.provider} is unavailable; configure it before replay."))
             }
-            // Replay the report's CAPTURED generation config (system prompt,
-            // per-model param selections, preset/advanced params), exactly
-            // like regenerateReport — NOT the live UiState. Reading state.*
-            // here meant a batch regenerate after a restart or a settings
-            // edit silently re-ran every agent with a different system
-            // prompt / parameter set than the report was generated with.
-            val reportLevelSystemPrompt = report.reportSystemPromptId
-                ?.let { ai.getSystemPromptById(it)?.prompt }
-            val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val preGenParamsActive = reportPreGenParamsActive(report)
-            val builtTasks = buildReportTasks(
-                ai, agents, swarmMembers + directModels, report.selectionParamsById,
-                state.externalSystemPrompt, reportLevelSystemPrompt,
-                state.generalSettings, directModelSids, preGenParamsActive
-            )
-            val tasks = if (onlyAgentIds == null) builtTasks
-                else builtTasks.filter { it.resultId in onlyAgentIds }
             if (tasks.isEmpty()) return@launch
+            com.ai.data.ReportWorkLimits.review(reportId, "Replay primary answers", tasks.size)
+            ReportKnowledge.prepare(context, reportId, appViewModel.repository, ai)
             // Reset every existing agent to PENDING so the row shows
             // ⏳ while the new dispatch is in flight. Use the
             // *KeepingCost variant so prior expenditure stays on
@@ -2448,8 +2460,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     ai, report.parameterPresetIds, report.advancedParameters,
                     report.webSearchTool, report.reasoningEffort
                 )
+                interleaveByHost(tasks) { providerHost(it.runtimeAgent.provider) }.chunked(64).forEach { window ->
                 coroutineScope {
-                    interleaveByHost(tasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
+                    window.map { task ->
                         async {
                             // Canonical order global → report → per-host (host
                             // gate INSIDE global) to avoid the global↔host
@@ -2479,6 +2492,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             }
                         }
                     }.awaitAll()
+                }
                 }
             }
         }
@@ -2583,7 +2597,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // The disk delete (report file + per-report secondary dir) off the
         // main thread; the cancellations above are non-blocking and must
         // run synchronously first so nothing is still writing as we delete.
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             ReportStorage.deleteReport(context, reportId)
         }
     }
@@ -2596,7 +2610,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job {
         val ids = reportIds.distinct().filter { it.isNotBlank() }
         ids.forEach { cancelReportOwnedWorkBeforeDelete(it, context) }
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             ids.forEachIndexed { index, reportId ->
                 ReportStorage.deleteReport(context, reportId)
                 if (onProgress != null) {
@@ -2610,7 +2624,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     /** Toggle the persisted pinned flag for [reportId]. Pinned reports
      *  surface as their own section on the AI Reports hub. */
     fun toggleReportPinned(context: Context, reportId: String, scope: kotlinx.coroutines.CoroutineScope) {
-        scope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val r = ReportStorage.getReport(context, reportId) ?: return@launch
             ReportStorage.setReportPinned(context, reportId, !r.pinned)
         }
@@ -2847,6 +2861,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // "Call model API again" and Broken-work restarts silently
             // answered under a different config than their siblings.
             val task = buildTemperatureSweepTask(report, state, ra) ?: return@withTracerTags
+            com.ai.data.ReportWorkLimits.review(reportId, "Replay ${ra.provider}/${ra.model}", 1)
 
             // Drop the old result so the report row reverts to ⏳ until
             // executeReportTask publishes the new one.
@@ -2956,7 +2971,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // Storage read-modify-write + per-orphan deletes off the main
         // thread — this is fired from a UI click and was blocking it.
         // Returns the Job so Broken-work recovery can join the removal.
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             // "Use report models" unifies the report's answer models with the
             // batch pools — removing one model must remove it from the report
             // AND every batch. Delegate to the unified path in that mode.
@@ -3045,7 +3060,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  report model (provider, model) from the report's agents AND from every
      *  batch. Returns the Job so callers can join. */
     fun removeReportModelEverywhere(context: Context, reportId: String, providerId: String, model: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             removeReportModelEverywhereInternal(context, reportId, providerId, model)
         }
 

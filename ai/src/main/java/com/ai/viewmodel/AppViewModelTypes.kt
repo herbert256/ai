@@ -137,7 +137,7 @@ enum class ReportTitleMode { Manual, AI }
  *  "rerank" / "judges" / "translations" or a [com.ai.data.TournamentMethod]
  *  name; any key not listed defaults to 0. */
 val RANKING_WEIGHT_DEFAULTS: Map<String, Int> = mapOf(
-    "rerank" to 3, "judges" to 6, "translations" to 6, "compare" to 4,
+    "rerank" to 3, "judges" to 6, "translations" to 0, "compare" to 4,
     "COPELAND" to 2, "ELO" to 2, "DAVIDSON" to 2, "MARKOV" to 2,
     "SCHULZE" to 2, "COLLEY" to 2, "TRUESKILL2" to 2
 )

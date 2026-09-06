@@ -1,6 +1,7 @@
 package com.ai.viewmodel
 
 import android.content.Context
+import kotlinx.coroutines.asContextElement
 import androidx.lifecycle.viewModelScope
 import com.ai.data.AppLog
 import com.ai.data.ReportStorage
@@ -366,6 +367,8 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
 
     /** Best-effort cancel of every in-flight run/item for [reportId] (called
      *  from the synchronous report-delete path). */
+    fun hasActiveCalls(reportId: String): Boolean = runKeysForReport(reportId).any { runJobOf(it)?.isActive == true }
+
     fun cancelAllForReport(reportId: String) {
         runKeysForReport(reportId).forEach { k ->
             runJobOf(k)?.cancel()
@@ -461,6 +464,8 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         // BEFORE any row is cleared so it never strands cleared rows.
         if (!canRedispatch(context, run)) { buildKey?.let { appViewModel.finishBuild(it) }; return }
         val reportId = reportIdOf(runKey)
+        com.ai.data.ReportWorkLimits.review(reportId, "Retry batch items", itemKeys.size)
+        withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reportId)) {
         var clearedCostDelta = 0.0
         val clearedRows = mutableListOf<SecondaryResult>()
         // Build stage: resetting each broken item to a PENDING placeholder is
@@ -484,8 +489,9 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         // Build phase complete — release the popup so the UI navigates to the
         // batch screen while the dispatch below keeps running in the background.
         if (buildKey != null) appViewModel.finishBuild(buildKey)
-        if (clearedRows.isEmpty()) return
+        if (clearedRows.isEmpty()) return@withContext
         redispatchRows(context, runKey, clearedRows)
+        }
     }
 
     /** Rerun the items matching [predicate] — clear → PENDING → re-dispatch —

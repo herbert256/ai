@@ -138,3 +138,18 @@ internal fun RerankTable(
         }
     }
 }
+
+/** Convert the run's frozen ordinal IDs into the current display order.
+ * Legacy rankings without an identity snapshot are not safe to join. */
+internal fun currentRerankRows(report: com.ai.data.Report?, result: com.ai.data.SecondaryResult?): List<RerankRow> {
+    if (report == null || result == null) return emptyList()
+    if (com.ai.data.ReportEvidenceStore.isStale(report, result)) return emptyList()
+    val ids = result.sourceAgentIds?.takeIf { it.isNotEmpty() } ?: return emptyList()
+    val current = report.agents.filter {
+        it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+    }.mapIndexed { i, a -> a.agentId to i + 1 }.toMap()
+    return parseRerankRows(result.content.orEmpty()).orEmpty().mapNotNull { row ->
+        val agentId = ids.getOrNull(row.id - 1) ?: return@mapNotNull null
+        current[agentId]?.let { row.copy(id = it) }
+    }
+}

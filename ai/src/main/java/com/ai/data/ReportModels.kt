@@ -111,7 +111,11 @@ data class ReportAgent(
      *  [responseBody]. Immutable list — always replaced wholesale, never
      *  mutated in place (so the Gson empty-list coercion is harmless).
      *  Empty on legacy rows / agents never refined. */
-    var chatMessages: List<ChatMessage> = emptyList()
+    var chatMessages: List<ChatMessage> = emptyList(),
+    var executionConfig: ReportExecutionConfig? = null,
+    var currentAttemptCost: Double? = null,
+    var currentAttemptUsage: TokenUsage? = null,
+    var attemptId: String? = null
 )
 
 /** One captured API call from the 3-tier Create → Report icons
@@ -171,7 +175,8 @@ data class ReportApiCallCost(
     val outputCost: Double,
     val searchUnits: Int = 0,
     val durationMs: Long? = null,
-    val traceFile: String? = null
+    val traceFile: String? = null,
+    val estimatedUsage: Boolean = false
 )
 
 /** A free-text note the user attaches to something in a report. The
@@ -347,6 +352,8 @@ data class Report(
      *  chunks across these KBs (see KnowledgeService.retrieve /
      *  formatContextBlock). Empty when no RAG is wired. */
     val knowledgeBaseIds: List<String> = emptyList(),
+    var knowledgeContext: String? = null,
+    var knowledgeStatus: String? = null,
     /** Generation config captured at create time so Regenerate replays the
      *  SAME selections instead of falling back to whatever the live UiState /
      *  Settings hold now (after a restart or a settings edit). Persisted on

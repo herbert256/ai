@@ -1,5 +1,7 @@
 # AI Knowledge — RAG knowledge bases
 
+> September 2026 update: Report generation retrieves knowledge once, persists the shared context, and reuses it for competing answers and replay. Invalid configuration or retrieval failures stop grounded answer generation with an explicit error; an empty successful retrieval is recorded separately. See [remediation details](report-audit-remediation-2026-09-06.md).
+
 > Retrieval-augmented generation. A **knowledge base** (KB) holds
 > ingested documents, chunked and embedded; a KB attached to a chat
 > or report retrieves the chunks most similar to the current prompt

@@ -207,8 +207,8 @@ Two non-obvious conventions:
   just the shipped defaults, not hardcoded. Has an explicit
   `Looper.myLooper() == getMainLooper()` guard. Don't remove the
   guard — it prevents the retry from ANR-ing the UI.
-- **Export version is `1`** (`EXPORT_VERSION` in
-  `data/ReportBundle.kt`). Import accepts `1..1`. Bump only when
+- **Export version is `2`** (`EXPORT_VERSION` in
+  `data/ReportBundle.kt`). Import accepts `1..2`. Bump only when
   adding/removing a top-level field.
 
 ## Memory & plans

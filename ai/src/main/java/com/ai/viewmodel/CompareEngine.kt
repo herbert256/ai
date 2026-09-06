@@ -145,7 +145,8 @@ class CompareEngine internal constructor(
             // overridePromptText) across a mid-run hydrate — same fix as
             // TranslatorRank; rebuilding from settings alone dropped the
             // edit and re-queued cells were scored with a different rubric.
-            val prompt = _runs.value[reportId]?.takeIf { it.runId == runId }?.comparePrompt
+            val prompt = com.ai.data.ReportEvidenceStore.run(reportId, runId)?.prompt
+                ?: _runs.value[reportId]?.takeIf { it.runId == runId }?.comparePrompt
                 ?: aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
                 ?: comparePromptById(aiSettings, null)
                 ?: InternalPrompt(
@@ -207,6 +208,7 @@ class CompareEngine internal constructor(
             val prompt = comparePromptById(aiSettings, promptId)
                 ?.let { if (overridePromptText != null) it.copy(text = overridePromptText) else it }
                 ?.withBatchWorkers(report, overrideWorkers)
+                ?.freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings)
             if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
                 AppLog.w("Compare", "meta_compare prompt not configured / no runnable workers — aborting")
                 return@launchRun
@@ -225,6 +227,8 @@ class CompareEngine internal constructor(
                 return@launchRun
             }
             AuditLog.append(reportId, "Start Compare with meta — ${successful.size} answers × ${metaRows.size} meta items")
+            com.ai.data.ReportEvidenceStore.saveRun(context, report, runId, prompt, secondaryBodies =
+                SecondaryResultStorage.listForReport(context, reportId).filter { !it.content.isNullOrBlank() }.associate { it.id to it.content!! })
             val scopeEncoded = SecondaryScope.AllReports.encode()
 
             val pending = mutableListOf<PendingCell>()
@@ -280,7 +284,8 @@ class CompareEngine internal constructor(
         question: String, title: String, items: List<PendingCell>
     ) {
         if (items.isEmpty()) return
-        val report = ReportStorage.getReport(context, reportId)
+        val report = ReportStorage.getReport(context, reportId)?.let { com.ai.data.ReportEvidenceStore.historicalReport(it, items.first().placeholder) }
+        val snapshot = com.ai.data.ReportEvidenceStore.sources(items.first().placeholder)
         // Worker-selection mode (round robin deals cells across the
         // REPORT_MODELS pool; Random everywhere else).
         val schedule = report?.let { workerScheduleFor(it) } ?: WorkerSchedule.Random
@@ -288,7 +293,7 @@ class CompareEngine internal constructor(
         // Resolve each referenced meta row's content once (strip the appended
         // reference legend so [1]/[2] artifacts don't pollute the judgment).
         val metaContentById = items.map { it.metaResultId }.distinct().associateWith { mid ->
-            SecondaryResultStorage.get(context, reportId, mid)?.content
+            (snapshot?.secondaryBodies?.get(mid) ?: SecondaryResultStorage.get(context, reportId, mid)?.content)
                 ?.let { stripMetaReferenceLegend(it) }.orEmpty()
         }
         runThrottledBatch(

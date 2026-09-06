@@ -167,8 +167,8 @@ object ApiTracer {
      * disk) skips the cache update so the listing can't carry an entry
      * for a file that isn't there.
      */
-    fun saveTrace(trace: ApiTrace, filename: String? = null): String? {
-        if (!isTracingEnabled) return null
+    fun saveTrace(trace: ApiTrace, filename: String? = null, importExisting: Boolean = false): String? {
+        if (!isTracingEnabled && !importExisting) return null
         val dir = traceDir ?: return null
         if (!dir.exists()) dir.mkdirs()
         val resolvedFilename = filename ?: run {

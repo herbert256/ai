@@ -630,7 +630,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
                     type = c.type,
                     providerDisplay = c.provider,
                     model = c.model,
-                    tier = c.pricingTier,
+                    tier = c.pricingTier + if (c.estimatedUsage) " · estimated usage" else "",
                     durationMs = c.durationMs,
                     inputTokens = c.inputTokens,
                     outputTokens = c.outputTokens,
@@ -1025,6 +1025,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
 
 @Composable
 fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
+    report.knowledgeStatus?.let { Text(it, color = AppColors.TextTertiary, fontSize = 11.sp) }
     val data = rememberReportCostData(report) ?: return
     val tColor = AppColors.InfoAccent
     var popup by remember { mutableStateOf<CostPopup?>(null) }

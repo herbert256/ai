@@ -114,8 +114,13 @@ internal suspend fun <T> runThrottledBatch(
     body: suspend (T) -> Unit,
 ) {
     if (items.isEmpty()) return
-    coroutineScope {
-        interleaveByHost(items) { if (dynamicHost) null else hostOf(it) }.map { item ->
+    com.ai.data.ReportWorkLimits.checkSize(items.size)
+    val reviewReportId = com.ai.data.ApiTracer.currentReportId
+    if (reviewReportId != null) com.ai.data.ReportWorkLimits.review(reviewReportId, "Batch", items.size)
+    withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reviewReportId)) {
+    interleaveByHost(items) { if (dynamicHost) null else hostOf(it) }.chunked(64).forEach { window ->
+      coroutineScope {
+        window.map { item ->
             val deferred = async(start = CoroutineStart.LAZY) {
                 if (dynamicHost) {
                     // Worker-style: host is picked per call inside body, so
@@ -232,6 +237,8 @@ internal suspend fun <T> runThrottledBatch(
                 kotlin.coroutines.coroutineContext.ensureActive()
             }
         }
+      }
+    }
     }
 }
 

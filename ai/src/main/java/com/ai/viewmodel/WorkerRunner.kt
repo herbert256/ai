@@ -152,7 +152,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
         // per (provider, model), a Model / Agent worker just itself. So a
         // flock/swarm's members each become an independent fallback
         // candidate (own cooldown key, own attribution).
-        val members = prompt.workers.flatMap { aiSettings.expandWorker(it) }
+        val members = prompt.freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings).workers
         if (members.isEmpty()) {
             AppLog.w("Workers", "prompt '${prompt.name}' has no runnable workers — nothing to run")
             return WorkerOutcome.Failed
@@ -212,13 +212,18 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
                     apiKey = aiSettings.getEffectiveApiKeyForAgent(raw),
                     model = effModel
                 )
-                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                val baseUrl = w.frozenEndpointUrl ?: aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val resp = appViewModel.repository.analyzeWithAgent(
-                    agent, "", resolvedText, overrideParams = overrideParams,
+                    agent, "", resolvedText, agentResolvedParams = w.frozenParameters ?: com.ai.data.AgentParameters(), overrideParams = overrideParams,
                     context = context, baseUrl = baseUrl, retry = false
                 )
+                val artifactAccepted = resp.isSuccess && accept(resp)
+                if (!artifactAccepted) resp.tokenUsage?.let { usage ->
+                    appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, usage,
+                        kind = "worker/rejected")
+                }
                 when {
-                    resp.isSuccess && accept(resp) -> {
+                    artifactAccepted -> {
                         AppLog.i("Workers", "${com.ai.data.MetadataIconsHolder.current.checkMark} '${prompt.name}' via ${agent.name} (worker ${idx + 1}/$n)")
                         return WorkerOutcome.Success(resp, w)
                     }

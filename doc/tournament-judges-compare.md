@@ -233,7 +233,8 @@ Stored rows:
 
 The agreement layer (`data/JudgeAgreement.kt`) computes, per judge:
 
-- agreement with the per-match consensus
+- independent agreement with a unique plurality from at least two OTHER distinct judges; the evaluated judge is excluded
+- eligible-match count; absent independent evidence displays as unavailable
 - cost and total API time
 - overall consensus strength
 - per-match consensus and vote counts

@@ -38,7 +38,8 @@ data class TokenUsage(
      *  reasoning_tokens. Billed at the output rate but distinct from
      *  visible output. Lets the test probe recognise "model is reachable,
      *  budget went to reasoning" when [outputTokens] is 0. */
-    val reasoningTokens: Int = 0
+    val reasoningTokens: Int = 0,
+    val estimated: Boolean = false
 ) {
     val totalTokens: Int get() = inputTokens + outputTokens + cachedInputTokens + cacheCreationTokens + reasoningTokens
     /** All input-side tokens the call is BILLED on: uncached + cached +
@@ -167,6 +168,13 @@ class AnalysisRepository {
     private fun withRagPrefix(prompt: String, ragPrefix: String): String =
         if (ragPrefix.isBlank()) prompt else "$ragPrefix\n\n$prompt"
 
+    internal fun resolveReportPrompt(prompt: String, agent: com.ai.model.Agent): String = buildPrompt(prompt,"",agent)
+    internal fun effectiveReportParameters(base: AgentParameters, overlay: AgentParameters?, provider: AppService,
+        model: String, context: Context): AgentParameters {
+        val merged=validateParams(mergeParameters(base,overlay),provider)
+        return if(overlay != null) filterParametersBySupported(merged,PricingCache.getSupportedParameters(context,provider,model)) else merged
+    }
+
     private fun buildPrompt(promptTemplate: String, content: String, agent: com.ai.model.Agent? = null): String {
         var result = promptTemplate.replace("@FEN@", content).replace("@DATE@", formatCurrentDate())
         if (agent != null) {
@@ -269,10 +277,23 @@ class AnalysisRepository {
             if (context == null) {
                 return@withContext AnalysisResponse(agent.provider, null, "Local LLM call requires a Context", agentName = agent.name)
             }
-            val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
-            val out = LocalLlm.generate(context, agent.model, finalPrompt)
+            val localParams = mergeParameters(agentResolvedParams, overrideParams)
+            val unsupported = buildList {
+                if (localParams.maxTokens != null && localParams.maxTokens != 2048) add("max tokens (local context is fixed at 2048)")
+                if (localParams.frequencyPenalty != null || localParams.presencePenalty != null) add("penalties")
+                if (!localParams.stopSequences.isNullOrEmpty()) add("stop sequences")
+                if (localParams.responseFormatJson) add("JSON constraint")
+                if (localParams.searchEnabled || localParams.webSearchTool || localParams.searchRecency != null) add("web search")
+                if (localParams.reasoningEffort != null) add("reasoning effort")
+            }
+            if (unsupported.isNotEmpty()) return@withContext AnalysisResponse(agent.provider, null,
+                "Local runtime does not support: ${unsupported.joinToString()}. Clear these controls before running.", agentName = agent.name)
+            val userPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
+            val finalPrompt = localParams.systemPrompt?.takeIf { it.isNotBlank() }?.let { "System instructions:\n$it\n\nUser request:\n$userPrompt" } ?: userPrompt
+            val out = LocalLlm.generate(context, agent.model, finalPrompt, localParams)
             return@withContext if (out != null) {
-                AnalysisResponse(agent.provider, out, null, agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 200)
+                AnalysisResponse(agent.provider, out, null, agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 200,
+                    tokenUsage = TokenUsage(finalPrompt.length / 4, out.length / 4, apiCost = 0.0, estimated = true))
             } else {
                 AnalysisResponse(agent.provider, null, "Local LLM \"${agent.model}\" failed — verify it loaded in Housekeeping → Local LLMs.", agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 500)
             }
@@ -431,7 +452,7 @@ class AnalysisRepository {
                 // estimate tokens (~4 chars/token) so a usable answer is never
                 // re-billed by falling back.
                 resp.isSuccess -> resp.copy(
-                    tokenUsage = TokenUsage((finalPrompt.length + 3) / 4, ((resp.analysis ?: "").length + 3) / 4),
+                    tokenUsage = TokenUsage((finalPrompt.length + 3 + (params.systemPrompt?.length ?: 0)) / 4, ((resp.analysis ?: "").length + 3) / 4, estimated = true),
                     agentName = agent.name, promptUsed = finalPrompt
                 )
                 // Stream failed / empty → authoritative non-streaming call.

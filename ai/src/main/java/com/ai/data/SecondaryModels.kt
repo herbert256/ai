@@ -125,6 +125,9 @@ data class SecondaryResult(
      *  regenerate shifted the numbering. Null on rows from other kinds
      *  and on legacy rows (viewers fall back to the current-set map). */
     val sourceAgentIds: List<String>? = null,
+    val sourceSnapshotId: String? = null,
+    val translationSourceText: String? = null,
+    val executionConfig: ReportExecutionConfig? = null,
     /** Secondary-call parameter/system-prompt selections captured when
      *  this row was launched. Fan-out pair variation replays use them
      *  to preserve the original call shape; legacy rows fall back to
