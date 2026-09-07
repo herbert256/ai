@@ -1,0 +1,444 @@
+{
+  "reportId": "4757c2cc-36e7-4d2e-9a9c-531bca7162dd",
+  "runIds": [
+    "c5335659-6265-44a8-9c20-b1238ff562ad"
+  ],
+  "pairCount": 1260,
+  "uniquePairCount": 1260,
+  "expectedPairCount": 1260,
+  "missingPairs": 0,
+  "unexpectedPairs": 0,
+  "duplicatePairs": 0,
+  "successCount": 1245,
+  "errorCount": 15,
+  "unfinishedCount": 0,
+  "startedPairCount": 1260,
+  "exactSourcePromptCount": 1260,
+  "primaryAgentsUnchanged": true,
+  "baselineLedgerUnchanged": true,
+  "otherReportFieldsChanged": [
+    "timestamp"
+  ],
+  "blankSuccessRows": [],
+  "costs": {
+    "baselineRows": 116,
+    "addedRows": 1251,
+    "ledgerRows": 1367,
+    "baselineCost": 0.1208429681,
+    "addedCost": 0.6977812352,
+    "pairCost": 0.6977812352,
+    "ledgerTotal": 0.8186242033,
+    "persistedTotalCost": 0.8186242033000005,
+    "difference": 0.0
+  },
+  "traces": {
+    "capturedCount": 1315,
+    "partialCount": 0,
+    "secondaryDirectLinks": 0,
+    "addedCostLinks": 1251,
+    "missingCostTraces": [],
+    "wrongReportCostTraces": [],
+    "wrongRunCostTraces": [],
+    "modelMismatches": {
+      "Replicate | meta/meta-llama-3-8b-instruct | meta": 35
+    },
+    "httpStatuses": {
+      "200": 1216,
+      "503": 20,
+      "429": 28,
+      "201": 35,
+      "0": 14,
+      "500": 2
+    },
+    "categories": {
+      "fan_out/response": 1315
+    },
+    "hosts": {
+      "api.aimlapi.com": 35,
+      "api.fireworks.ai": 35,
+      "api.deepinfra.com": 35,
+      "api.x.ai": 35,
+      "bedrock-mantle.eu-central-1.api.aws": 35,
+      "integrate.api.nvidia.com": 49,
+      "api.novita.ai": 35,
+      "api.gmi-serving.com": 35,
+      "api.z.ai": 35,
+      "generativelanguage.googleapis.com": 35,
+      "api-gateway.merge.dev": 35,
+      "api.moonshot.ai": 35,
+      "llm.chutes.ai": 49,
+      "ai-gateway.vercel.sh": 35,
+      "api.sambanova.ai": 35,
+      "api.parasail.io": 37,
+      "api.cerebras.ai": 35,
+      "ws-dft0j6dsrm76r6ud.eu-central-1.maas.aliyuncs.com": 36,
+      "router.requesty.ai": 35,
+      "openrouter.ai": 35,
+      "router.huggingface.co": 35,
+      "api.perplexity.ai": 35,
+      "api.minimax.io": 35,
+      "glama.ai": 35,
+      "api.replicate.com": 50,
+      "api.anthropic.com": 35,
+      "api.mistral.ai": 35,
+      "api.cohere.ai": 35,
+      "api.studio.nebius.com": 40,
+      "api.together.xyz": 35,
+      "api.groq.com": 35,
+      "api.atlascloud.ai": 35,
+      "inference.baseten.co": 38,
+      "api.siliconflow.com": 36,
+      "api.openai.com": 35,
+      "api.deepseek.com": 35
+    }
+  },
+  "providerResults": {
+    "AI-ML-API": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.00046031999999999996
+    },
+    "Alibaba": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.02925088
+    },
+    "Amazon": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.007095824999999999
+    },
+    "Anthropic": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.008385
+    },
+    "AtlasCloud": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.081425002
+    },
+    "Baseten": {
+      "success": 33,
+      "error": 2,
+      "cost": 0.00413392
+    },
+    "Cerebras": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.00845215
+    },
+    "Chutes": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.000777886
+    },
+    "Cohere": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.000702825
+    },
+    "DeepInfra": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.0505387
+    },
+    "DeepSeek": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.00141624
+    },
+    "Fireworks": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.008590249999999999
+    },
+    "GMI-Cloud": {
+      "success": 34,
+      "error": 1,
+      "cost": 0.0105051892
+    },
+    "Glama": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.0017475000000000001
+    },
+    "Google": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.0723724
+    },
+    "Groq": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.0061730249999999995
+    },
+    "HuggingFace": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.00207785
+    },
+    "MergeGateway": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.017826
+    },
+    "MiniMax": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.0328308
+    },
+    "Mistral": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.00094725
+    },
+    "Moonshot": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.05896369
+    },
+    "NVIDIA": {
+      "success": 28,
+      "error": 7,
+      "cost": 0.0105384
+    },
+    "NebiusAIStudio": {
+      "success": 32,
+      "error": 3,
+      "cost": 0.00060344
+    },
+    "Novita.ai": {
+      "success": 34,
+      "error": 1,
+      "cost": 0.0005171399999999999
+    },
+    "OpenAI": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.00116325
+    },
+    "OpenRouter": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.000241203
+    },
+    "Parasail": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.00010008
+    },
+    "Perplexity": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.17824
+    },
+    "Replicate": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.00059085
+    },
+    "Requesty": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.0007031
+    },
+    "SambaNova": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.00179466
+    },
+    "SiliconFlow": {
+      "success": 34,
+      "error": 1,
+      "cost": 0.01329126
+    },
+    "Together": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.0056839
+    },
+    "VercelAIGateway": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.0011293
+    },
+    "Z.AI": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.0454704
+    },
+    "xAI": {
+      "success": 35,
+      "error": 0,
+      "cost": 0.03304155
+    }
+  },
+  "errors": [
+    {
+      "id": "0a9b3024-2ba6-496f-9f39-95b36d1a433f",
+      "provider": "NVIDIA",
+      "sourceAgentId": "5f40695b-00d9-4dae-a573-32c93cb0a3a5",
+      "error": "API error: 503  - {\"error\":{\"message\":\"Service temporarily overloaded\",\"type\":\"Service Unavailable\",\"code\":503}}",
+      "httpStatus": 503,
+      "durationMs": 2261,
+      "cost": 0
+    },
+    {
+      "id": "3b5c3dbe-0402-4ea0-8ec2-2cbfeff25978",
+      "provider": "Baseten",
+      "sourceAgentId": "217ebca7-4973-4212-94a6-f1ebe45f565c",
+      "error": "Fan-out pair timed out after 180s",
+      "httpStatus": null,
+      "durationMs": 475459,
+      "cost": 0
+    },
+    {
+      "id": "482fe1fe-8aaa-4acc-9308-120fa49ea88c",
+      "provider": "NVIDIA",
+      "sourceAgentId": "631d45e7-ff81-4161-b126-2725b335381a",
+      "error": "API error: 503  - {\"error\":{\"message\":\"Service temporarily overloaded\",\"type\":\"Service Unavailable\",\"code\":503}}",
+      "httpStatus": 503,
+      "durationMs": 2997,
+      "cost": 0
+    },
+    {
+      "id": "4d9b97a7-0f17-4d6a-b46f-1633c6049b7e",
+      "provider": "NVIDIA",
+      "sourceAgentId": "1c015ef2-4669-4439-9131-cf3db897626f",
+      "error": "API error: 503  - {\"error\":{\"message\":\"Service temporarily overloaded\",\"type\":\"Service Unavailable\",\"code\":503}}",
+      "httpStatus": 503,
+      "durationMs": 2712,
+      "cost": 0
+    },
+    {
+      "id": "67a2035a-54d6-4c5f-b2d1-821aa26594d7",
+      "provider": "NVIDIA",
+      "sourceAgentId": "217ebca7-4973-4212-94a6-f1ebe45f565c",
+      "error": "API error: 503  - {\"error\":{\"message\":\"Service temporarily overloaded\",\"type\":\"Service Unavailable\",\"code\":503}}",
+      "httpStatus": 503,
+      "durationMs": 121538,
+      "cost": 0
+    },
+    {
+      "id": "6d6272df-e591-415f-ba41-ff3cd460e5fe",
+      "provider": "NVIDIA",
+      "sourceAgentId": "b914df65-16b4-498f-b461-30890a7bb245",
+      "error": "API error: 503  - {\"error\":{\"message\":\"Service temporarily overloaded\",\"type\":\"Service Unavailable\",\"code\":503}}",
+      "httpStatus": 503,
+      "durationMs": 2668,
+      "cost": 0
+    },
+    {
+      "id": "9713b0fc-1b1a-45bd-bfa2-dfaaa0b8d043",
+      "provider": "NVIDIA",
+      "sourceAgentId": "dc6fe740-bb67-456a-8922-10e358793669",
+      "error": "API error: 503  - {\"error\":{\"message\":\"Service temporarily overloaded\",\"type\":\"Service Unavailable\",\"code\":503}}",
+      "httpStatus": 503,
+      "durationMs": 2770,
+      "cost": 0
+    },
+    {
+      "id": "9c79ae82-3307-4a99-bedf-2bf56c8c886a",
+      "provider": "NebiusAIStudio",
+      "sourceAgentId": "504588e8-8c89-45ad-b535-75d4c1ae9ab2",
+      "error": "No final answer content returned (finish_reason=stop).",
+      "httpStatus": 200,
+      "durationMs": 3578,
+      "cost": 5.92e-05
+    },
+    {
+      "id": "9e65aab8-4291-4b75-8700-bd780c63038f",
+      "provider": "SiliconFlow",
+      "sourceAgentId": "9383ecf3-2697-4d33-b121-6d7ca80b2cad",
+      "error": "Fan-out pair timed out after 180s",
+      "httpStatus": null,
+      "durationMs": 180005,
+      "cost": 0
+    },
+    {
+      "id": "ace75831-be4d-480b-97de-0de26c15cee8",
+      "provider": "Baseten",
+      "sourceAgentId": "d1245961-f464-4f07-865b-35404247a6e5",
+      "error": "API error: 500  - {\"error\": \"Internal Server Error\"}",
+      "httpStatus": 500,
+      "durationMs": 1981,
+      "cost": 0
+    },
+    {
+      "id": "b649d62b-3ab3-4879-8cdc-c30d73ed6072",
+      "provider": "GMI-Cloud",
+      "sourceAgentId": "82f88956-eefe-43be-9161-138aef912710",
+      "error": "No complete answer: the provider filtered the response (finish_reason=content_filter).",
+      "httpStatus": 200,
+      "durationMs": 15100,
+      "cost": 0.0002106696
+    },
+    {
+      "id": "b685dfac-877f-4b00-bd27-535675a90e71",
+      "provider": "NVIDIA",
+      "sourceAgentId": "68eac4bc-2281-48ca-bc1f-369dbfc21f4e",
+      "error": "API error: 503  - {\"error\":{\"message\":\"Service temporarily overloaded\",\"type\":\"Service Unavailable\",\"code\":503}}",
+      "httpStatus": 503,
+      "durationMs": 5164,
+      "cost": 0
+    },
+    {
+      "id": "c8e77df6-fa33-40b2-a1f8-cf71641bb9a1",
+      "provider": "NebiusAIStudio",
+      "sourceAgentId": "01b5ed36-80e2-4713-9c81-dde2878cc88b",
+      "error": "Fan-out pair timed out after 180s",
+      "httpStatus": null,
+      "durationMs": 180003,
+      "cost": 0
+    },
+    {
+      "id": "dad5894f-711f-4ebb-97c7-e27e88de80bd",
+      "provider": "Novita.ai",
+      "sourceAgentId": "01b5ed36-80e2-4713-9c81-dde2878cc88b",
+      "error": "Response truncated: output token limit reached (finish_reason=length).",
+      "httpStatus": 200,
+      "durationMs": 84685,
+      "cost": 0.00036998999999999995
+    },
+    {
+      "id": "f59108b2-b223-434d-8f6e-bd024e591f8d",
+      "provider": "NebiusAIStudio",
+      "sourceAgentId": "cb87de24-3c57-49f6-b892-680373bd6562",
+      "error": "Fan-out pair timed out after 180s",
+      "httpStatus": null,
+      "durationMs": 180012,
+      "cost": 0
+    }
+  ],
+  "auditDate": "2026-09-07",
+  "sourceRevision": "f5d860adf",
+  "completedAtLocal": "2026-09-07T11:56:57+02:00",
+  "durationApproxSeconds": 2366,
+  "redundantSuccessfulCalls": 3,
+  "redundantRecordedCost": 0.000184508,
+  "newUsageTokens": 494600,
+  "newEstimatedUsageRows": 0,
+  "newLedgerTracesStillOnDevice": 1251,
+  "uiVerified": {
+    "done": 1245,
+    "error": 15,
+    "run": 0,
+    "bench": 0,
+    "wait": 0,
+    "queue": 0,
+    "fanOutCostCents": 69.78,
+    "reportCostCents": 81.86,
+    "reportCostedCalls": 1367,
+    "fanOutCostedCalls": 1251,
+    "reopened": true,
+    "httpStatisticsControlAvailable": false,
+    "brokenWorkErrors": 15
+  },
+  "stability": {
+    "pidAtStart": 7148,
+    "pidAtEnd": 7148,
+    "foreground": true,
+    "scopedCrashAnrStorageFailureMarkers": 0
+  }
+}
