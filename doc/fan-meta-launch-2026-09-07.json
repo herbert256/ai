@@ -1,0 +1,194 @@
+{
+  "plan": {
+    "reportId": "4757c2cc-36e7-4d2e-9a9c-531bca7162dd",
+    "reportTitle": "Funny question request",
+    "fanOutPromptId": "594de4a7-854c-4004-971f-8e70f879fa87",
+    "eligiblePairCount": 1256,
+    "excludedExistingFanOutFailures": 4,
+    "swarmId": "2f12f785-2852-4815-89f2-ec4298573c87",
+    "workers": [
+      {
+        "provider": "Mistral",
+        "model": "ministral-14b-latest",
+        "origin": "https://api.mistral.ai:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "OpenAI",
+        "model": "gpt-4o-mini",
+        "origin": "https://api.openai.com:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Groq",
+        "model": "openai/gpt-oss-20b",
+        "origin": "https://api.groq.com:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Cerebras",
+        "model": "gpt-oss-120b",
+        "origin": "https://api.cerebras.ai:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "DeepSeek",
+        "model": "deepseek-v4-flash",
+        "origin": "https://api.deepseek.com:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Google",
+        "model": "gemini-2.5-flash-lite",
+        "origin": "https://generativelanguage.googleapis.com:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "origin": "https://api.anthropic.com:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "xAI",
+        "model": "grok-4-1-fast-non-reasoning",
+        "origin": "https://api.x.ai:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Cohere",
+        "model": "command-r7b-12-2024",
+        "origin": "https://api.cohere.ai:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "DeepInfra",
+        "model": "google/gemma-3-12b-it",
+        "origin": "https://api.deepinfra.com:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Together",
+        "model": "openai/gpt-oss-20b",
+        "origin": "https://api.together.xyz:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Parasail",
+        "model": "google/gemma-3-4b-it",
+        "origin": "https://api.parasail.io:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "NebiusAIStudio",
+        "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "origin": "https://api.studio.nebius.com:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Novita.ai",
+        "model": "meta-llama/llama-3.1-8b-instruct",
+        "origin": "https://api.novita.ai:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "OpenRouter",
+        "model": "ibm-granite/granite-4.0-h-micro",
+        "origin": "https://openrouter.ai:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "VercelAIGateway",
+        "model": "mistral/ministral-3b",
+        "origin": "https://ai-gateway.vercel.sh:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Amazon",
+        "model": "openai.gpt-oss-20b",
+        "origin": "https://bedrock-mantle.eu-central-1.api.aws:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Requesty",
+        "model": "openai-responses/gpt-4.1-nano",
+        "origin": "https://router.requesty.ai:443",
+        "configuredKeyPresent": true
+      },
+      {
+        "provider": "Glama",
+        "model": "google/gemini-2.5-flash-lite",
+        "origin": "https://glama.ai:443",
+        "configuredKeyPresent": true
+      }
+    ],
+    "prompt": "Please analyse below text\n\nReply with EXACTLY two lines and nothing else:\ntitle: <a title for the text, maximum 30 characters>\nicon: <single fitting emoji>\n\nTEXT:\n@PROMPT@",
+    "payload": "Each job sends one saved Fan Out answer substituted into @PROMPT@ in the title-and-icon prompt. A shuffled worker is selected; fallback workers can receive that same answer if the first attempt fails.",
+    "inputCharacterCounts": {
+      "sum": 519578,
+      "median": 136.0,
+      "maximum": 23117
+    },
+    "status": "Awaiting explicit scope approval after automatic review rejection",
+    "launched": false,
+    "fanMetaRequestsSent": 0
+  },
+  "baseline": {
+    "reportId": "4757c2cc-36e7-4d2e-9a9c-531bca7162dd",
+    "title": "Funny question request",
+    "workerConfig": {
+      "batchWorkers": [],
+      "batches": "PROMPT",
+      "metaBatchWorkers": [],
+      "metaBatches": "PROMPT",
+      "metaWorkerSelection": "WHEN_AVAILABLE",
+      "modelInfo": "PROMPT",
+      "primaryAnswersOnly": false,
+      "reportInfo": "PROMPT",
+      "reportInfoWorkers": [],
+      "secondResultRuntimeParams": true,
+      "secondResultSelectScope": false,
+      "useReportModels": false,
+      "workerSelection": "WHEN_AVAILABLE"
+    },
+    "metadataDisabled": false,
+    "primaryCount": 36,
+    "primaryStatuses": {
+      "SUCCESS": 36
+    },
+    "ledgerCalls": 1380,
+    "recordedCostUsd": 0.8235966389000007,
+    "pairs": 1260,
+    "fanOutErrorCount": 4,
+    "pairsWithTitle": 0,
+    "pairsWithIcon": 0,
+    "pendingMetaEligible": 1256,
+    "metaPromptIds": {
+      "594de4a7-854c-4004-971f-8e70f879fa87": 1260
+    },
+    "metaExistingRunIds": {
+      "null": 1260
+    },
+    "fanMetaPrompt": {
+      "agent": "*select",
+      "category": "workers",
+      "id": "fb161531-05b6-4429-b8b5-3901dc22a3a6",
+      "modelSelection": "*CONFIGURED",
+      "name": "fan-meta",
+      "parameters": "*NONE",
+      "reference": false,
+      "systemPrompt": "*NONE",
+      "text": "Please analyse below text\n\nReply with EXACTLY two lines and nothing else:\ntitle: <a title for the text, maximum 30 characters>\nicon: <single fitting emoji>\n\nTEXT:\n@PROMPT@",
+      "title": "Decide title & icon for a fan-out response.",
+      "workers": [
+        {
+          "agent": "*N/A",
+          "flock": "*N/A",
+          "model": "*N/A",
+          "provider": "*N/A",
+          "swarm": "workers"
+        }
+      ]
+    }
+  }
+}
