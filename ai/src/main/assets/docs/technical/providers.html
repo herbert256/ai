@@ -232,7 +232,7 @@ matters for pricing-key lookups).</p>
 <div class="body">
 <p class="muted">Base <code>api.together.xyz/</code> · Admin
 <a href="https://api.together.xyz/settings/api-keys">api.together.xyz</a></p>
-<p>Default model <code>Qwen/Qwen2.5-7B-Instruct-Turbo</code>.</p>
+<p>Default model <code>deepseek-ai/DeepSeek-V4-Flash-0731</code>.</p>
 <ul>
 <li><code>modelListFormat = array</code></li>
 <li><code>litellmPrefix = together_ai</code></li>
@@ -266,9 +266,9 @@ matters for pricing-key lookups).</p>
 <p class="muted">Base <code>ai-gateway.vercel.sh/</code> · Admin
 <a href="https://vercel.com/dashboard/ai-gateway/api-keys">vercel.com</a></p>
 <p>Cross-provider gateway, ~300 models, zero markup. Anthropic ids use <strong>dots</strong> (<code>anthropic/claude-opus-4.8</code>) unlike most other aggregators’ dashes.</p>
-<p>Default model <code>arcee-ai/trinity-mini</code>.</p>
+<p>Default model <code>mistral/ministral-3b</code>.</p>
 <ul>
-<li>7 hardcoded models (merged with the live list on refresh)</li>
+<li>8 hardcoded models (merged with the live list on refresh)</li>
 </ul>
 </div>
 </details>
@@ -276,12 +276,12 @@ matters for pricing-key lookups).</p>
 <details class="entity">
 <summary>Glama</summary>
 <div class="body">
-<p class="muted">Base <code>gateway.glama.ai/</code> · Admin
+<p class="muted">Base <code>glama.ai/api/gateway/openai/</code> · Admin
 <a href="https://glama.ai/settings/gateway">glama.ai</a></p>
-<p>OpenAI-compatible aggregator, ~80 models. Anthropic ids use <strong>dashes</strong>; OpenAI ids carry a date suffix; no Google models in the catalog.</p>
-<p>Default model <code>zai/glm-4.6</code>.</p>
+<p>OpenAI-compatible aggregator using its supported legacy endpoint. Anthropic ids use <strong>dashes</strong>; OpenAI ids support dated snapshots and undated aliases; catalog includes Google models.</p>
+<p>Default model <code>google/gemini-2.5-flash-lite</code>.</p>
 <ul>
-<li>5 hardcoded models (merged with the live list on refresh)</li>
+<li>6 hardcoded models (merged with the live list on refresh)</li>
 </ul>
 </div>
 </details>
@@ -332,9 +332,9 @@ matters for pricing-key lookups).</p>
 <p class="muted">Base <code>api.parasail.io/</code> · Admin
 <a href="https://saas.parasail.io/keys">saas.parasail.io</a></p>
 <p>Serverless open-weight host, ~70 models; self-hosts <code>zai-org/GLM-5.2</code>. Ids come in two flavours — HF-style (<code>zai-org/GLM-5.2</code>) and Parasail aliases (<code>parasail-glm-52</code>); a <code>-FP8</code> suffix marks quantized variants.</p>
-<p>Default model <code>arcee-ai/Trinity-Large-Thinking</code>.</p>
+<p>Default model <code>meta-llama/Llama-3.2-3B-Instruct</code>.</p>
 <ul>
-<li>6 hardcoded models (merged with the live list on refresh)</li>
+<li>7 hardcoded models (merged with the live list on refresh)</li>
 </ul>
 </div>
 </details>
@@ -345,9 +345,9 @@ matters for pricing-key lookups).</p>
 <p class="muted">Base <code>inference.baseten.co/</code> · Admin
 <a href="https://app.baseten.co/settings/api_keys">app.baseten.co</a></p>
 <p>Model-APIs inference host, small curated catalog (~11: gpt-oss, GLM incl. self-hosted <code>zai-org/GLM-5.2</code>, Kimi, DeepSeek-V4, Nemotron). Host is <code>inference.baseten.co</code>, not <code>app</code>/<code>api.baseten.co</code>.</p>
-<p>Default model <code>moonshotai/Kimi-K2.5</code>.</p>
+<p>Default model <code>deepseek-ai/DeepSeek-V4-Flash-0731</code>.</p>
 <ul>
-<li>5 hardcoded models (merged with the live list on refresh)</li>
+<li>6 hardcoded models (merged with the live list on refresh)</li>
 </ul>
 </div>
 </details>
@@ -375,7 +375,7 @@ upstream catalog each, no cross-provider aggregation.</p>
 <div class="body">
 <p class="muted">Base <code>api.groq.com/openai/</code> · Admin
 <a href="https://console.groq.com/keys">console.groq.com</a></p>
-<p>Default model <code>meta-llama/llama-4-scout-17b-16e-instruct</code>.</p>
+<p>Default model <code>openai/gpt-oss-20b</code>.</p>
 <ul>
 <li><code>litellmPrefix = groq</code></li>
 </ul>
@@ -495,7 +495,7 @@ upstream catalog each, no cross-provider aggregation.</p>
 <div class="body">
 <p class="muted">Base <code>api.fireworks.ai/inference/</code> · Admin
 <a href="https://app.fireworks.ai/">app.fireworks.ai</a></p>
-<p>Default model <code>accounts/fireworks/models/deepseek-v4-pro</code>.</p>
+<p>Default model <code>accounts/fireworks/models/glm-5p3-flash</code>.</p>
 <ul>
 <li>Throttle override: <code>maxCallsPerProviderPerMinute = 12</code>, <code>maxConcurrentCallsPerProvider = 2</code></li>
 </ul>
@@ -594,7 +594,7 @@ upstream catalog each, no cross-provider aggregation.</p>
 <div class="body">
 <p class="muted">Base <code>api.novita.ai/v3/openai/</code> · Admin
 <a href="https://novita.ai/settings/key-management">novita.ai</a></p>
-<p>Default model <code>inclusionai/ling-2.6-flash</code>.</p>
+<p>Default model <code>meta-llama/llama-3.1-8b-instruct</code>.</p>
 <ul>
 <li><code>typePaths.chat = chat/completions</code></li>
 <li><code>modelsPath = models</code></li>
@@ -607,7 +607,7 @@ upstream catalog each, no cross-provider aggregation.</p>
 <div class="body">
 <p class="muted">Base <code>api.studio.nebius.com/</code> · Admin
 <a href="https://studio.nebius.com/settings/api-keys">studio.nebius.com</a></p>
-<p>Default model <code>NousResearch/Hermes-4-70B</code>.</p>
+<p>Default model <code>google/gemma-3-27b-it</code>.</p>
 </div>
 </details>
 
@@ -643,9 +643,9 @@ upstream catalog each, no cross-provider aggregation.</p>
 <p class="muted">Base <code>bedrock-mantle.eu-central-1.api.aws/</code> · Admin
 <a href="https://eu-central-1.console.aws.amazon.com/bedrock-mantle/?region=eu-central-1">eu-central-1.console.aws.amazon.com</a></p>
 <p>AWS Bedrock via the eu-central-1 Bedrock Mantle gateway.</p>
-<p>Default model <code>qwen.qwen3-next-80b-a3b-instruct</code>.</p>
+<p>Default model <code>openai.gpt-oss-20b</code>.</p>
 <ul>
-<li>6 hardcoded models (merged with the live list on refresh)</li>
+<li>7 hardcoded models (merged with the live list on refresh)</li>
 </ul>
 </div>
 </details>
@@ -717,7 +717,7 @@ upstream catalog each, no cross-provider aggregation.</p>
 <div class="body">
 <p class="muted">Base <code>api.moonshot.ai/</code> · Admin
 <a href="https://platform.moonshot.ai/console/api-keys">platform.moonshot.ai</a></p>
-<p>Default model <code>kimi-latest</code>.</p>
+<p>Default model <code>kimi-k2.6</code>.</p>
 <ul>
 <li><code>openRouterName = moonshot</code></li>
 <li>4 hardcoded models</li>

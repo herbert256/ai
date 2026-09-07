@@ -2,7 +2,7 @@
   "adminUrl": "https://console.groq.com/keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.groq.com/openai/",
-  "defaultModel": "meta-llama/llama-4-scout-17b-16e-instruct",
+  "defaultModel": "openai/gpt-oss-20b",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Groq",

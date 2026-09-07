@@ -2,7 +2,7 @@
   "adminUrl": "https://studio.nebius.com/settings/api-keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.studio.nebius.com/",
-  "defaultModel": "NousResearch/Hermes-4-70B",
+  "defaultModel": "google/gemma-3-27b-it",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "NebiusAIStudio",

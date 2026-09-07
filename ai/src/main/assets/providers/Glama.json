@@ -1,10 +1,11 @@
 {
   "adminUrl": "https://glama.ai/settings/gateway",
   "apiFormat": "OPENAI_COMPATIBLE",
-  "baseUrl": "https://gateway.glama.ai/",
-  "defaultModel": "zai/glm-4.6",
+  "baseUrl": "https://glama.ai/api/gateway/openai/",
+  "defaultModel": "google/gemini-2.5-flash-lite",
   "defaultModelSource": "API",
   "hardcodedModels": [
+    "google/gemini-2.5-flash-lite",
     "deepseek/deepseek-chat-v3",
     "anthropic/claude-opus-4-6",
     "anthropic/claude-sonnet-4-6",

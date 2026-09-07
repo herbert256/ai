@@ -2,14 +2,14 @@
   "adminUrl": "https://platform.moonshot.ai/console/api-keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.moonshot.ai/",
-  "defaultModel": "kimi-latest",
+  "defaultModel": "kimi-k2.6",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "hardcodedModels": [
-    "kimi-latest",
-    "moonshot-v1-8k",
-    "moonshot-v1-32k",
-    "moonshot-v1-128k"
+    "kimi-k2.6",
+    "kimi-k2.7-code",
+    "kimi-k2.7-code-highspeed",
+    "kimi-k3"
   ],
   "id": "Moonshot",
   "modelListFormat": "object",

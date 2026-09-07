@@ -2,9 +2,10 @@
   "adminUrl": "https://vercel.com/dashboard/ai-gateway/api-keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://ai-gateway.vercel.sh/",
-  "defaultModel": "arcee-ai/trinity-mini",
+  "defaultModel": "mistral/ministral-3b",
   "defaultModelSource": "API",
   "hardcodedModels": [
+    "mistral/ministral-3b",
     "openai/gpt-4.1-nano",
     "anthropic/claude-opus-4.8",
     "anthropic/claude-sonnet-4.6",

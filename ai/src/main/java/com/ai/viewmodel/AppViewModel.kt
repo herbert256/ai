@@ -1819,6 +1819,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val wrkJob = launch { runWorkerPhase(testable) }
                     catJob.join(); wrkJob.join()
                 }
+                // Parallel full-settings saves can finish out of order.
+                // Persist the merged result after every writer has joined,
+                // before the UI offers a restart, so no default agent or
+                // refreshed model list is lost to an older snapshot.
+                settingsPrefs.saveSettings(_uiState.value.aiSettings)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -1872,6 +1877,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     settingsPrefs.saveSettings(cleaned)
                 }
                 runWorkerPhase(testable)
+                // Persist the complete worker result before offering restart.
+                settingsPrefs.saveSettings(_uiState.value.aiSettings)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -2054,72 +2061,66 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         settingsPrefs.saveSettings(_uiState.value.aiSettings)
     }
 
-    /** Per-provider worker phase. Each provider runs in parallel:
-     *  (if ModelSource.API) fetch model list → test default → write default
-     *  agent + add to `default agents` flock. The settings copy-on-write
-     *  is serialised through [_uiState.update]'s CAS lambda which already
-     *  handles concurrent mutators (same pattern as updateProviderState). */
+    /** Fetch each provider's model list, test its default, then create its
+     *  agent and flock membership. Each worker merges expensive metadata
+     *  into the same Settings value. Running them sequentially avoids CAS
+     *  retries that repeatedly rebuild whole catalogs and starve large ones. */
     private suspend fun runWorkerPhase(testable: List<AppService>) {
-        if (testable.isEmpty()) return
-        kotlinx.coroutines.supervisorScope {
-            testable.map { service ->
-                async(Dispatchers.IO) {
-                    val snapshot = _uiState.value.aiSettings
-                    val apiKey = snapshot.getApiKey(service)
-                    val model = snapshot.getModel(service)
+        for (service in testable) {
+            val snapshot = _uiState.value.aiSettings
+            val apiKey = snapshot.getApiKey(service)
+            val model = snapshot.getModel(service)
 
-                    // Discovery must run even when the saved default has been
-                    // retired. Keep its outcome separate from the model probe:
-                    // neither result proves the other endpoint works.
-                    if (resolveModelSource(service) == ModelSource.API) {
-                        setWorkerStage(service.id, WorkerStage.FetchingModels)
-                        setWorkerModelListStatus(service.id, RefreshStepStatus.Running())
-                        val fetchError = fetchModelsAwait(service, apiKey, flipToApiOnSuccess = false)
-                        setWorkerModelListStatus(service.id, if (fetchError == null) {
-                            RefreshStepStatus.Done("${_uiState.value.aiSettings.getProvider(service).models.size} models refreshed")
-                        } else {
-                            RefreshStepStatus.Failed(fetchError)
-                        })
-                    } else {
-                        setWorkerModelListStatus(service.id, RefreshStepStatus.Skipped)
-                    }
+            // Discovery must run even when the saved default has been
+            // retired. Keep its outcome separate from the model probe:
+            // neither result proves the other endpoint works.
+            if (resolveModelSource(service) == ModelSource.API) {
+                setWorkerStage(service.id, WorkerStage.FetchingModels)
+                setWorkerModelListStatus(service.id, RefreshStepStatus.Running())
+                val fetchError = fetchModelsAwait(service, apiKey, flipToApiOnSuccess = false)
+                setWorkerModelListStatus(service.id, if (fetchError == null) {
+                    RefreshStepStatus.Done("${_uiState.value.aiSettings.getProvider(service).models.size} models refreshed")
+                } else {
+                    RefreshStepStatus.Failed(fetchError)
+                })
+            } else {
+                setWorkerModelListStatus(service.id, RefreshStepStatus.Skipped)
+            }
 
-                    setWorkerStage(service.id, WorkerStage.TestingModel)
-                    val testError = if (model.isBlank()) "No default model selected" else testAiModel(service, apiKey, model)
-                    val passed = testError == null
-                    updateProviderState(service, if (passed) "ok" else "error")
-                    if (!passed) {
-                        setWorkerStage(service.id, WorkerStage.Failed("Default model '$model': $testError"))
-                        return@async
-                    }
+            setWorkerStage(service.id, WorkerStage.TestingModel)
+            val testError = if (model.isBlank()) "No default model selected" else testAiModel(service, apiKey, model)
+            val passed = testError == null
+            updateProviderState(service, if (passed) "ok" else "error")
+            if (!passed) {
+                setWorkerStage(service.id, WorkerStage.Failed("Default model '$model': $testError"))
+                continue
+            }
 
-                    setWorkerStage(service.id, WorkerStage.WritingAgent)
-                    val currentModel = _uiState.value.aiSettings.getModel(service)
-                    val agentId = java.util.UUID.randomUUID().toString()
-                    val newAgent = com.ai.model.Agent(agentId, service.id, service, currentModel, "")
-                    _uiState.update { st ->
-                        val cur = st.aiSettings
-                        val withAgent = cur.copy(agents = cur.agents + newAgent)
-                        val flocks = withAgent.flocks
-                        val existing = flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
-                        val withFlock = if (existing != null) {
-                            withAgent.copy(flocks = flocks.map {
-                                if (it.id == existing.id) it.copy(agentIds = it.agentIds + agentId) else it
-                            })
-                        } else {
-                            val flock = com.ai.model.Flock(
-                                java.util.UUID.randomUUID().toString(),
-                                com.ai.model.DEFAULT_AGENTS_FLOCK_NAME,
-                                listOf(agentId)
-                            )
-                            withAgent.copy(flocks = withAgent.flocks + flock)
-                        }
-                        st.copy(aiSettings = withFlock)
-                    }
-                    settingsPrefs.saveSettings(_uiState.value.aiSettings)
-                    setWorkerStage(service.id, WorkerStage.Done)
+            setWorkerStage(service.id, WorkerStage.WritingAgent)
+            val currentModel = _uiState.value.aiSettings.getModel(service)
+            val agentId = java.util.UUID.randomUUID().toString()
+            val newAgent = com.ai.model.Agent(agentId, service.id, service, currentModel, "")
+            _uiState.update { st ->
+                val cur = st.aiSettings
+                val withAgent = cur.copy(agents = cur.agents + newAgent)
+                val flocks = withAgent.flocks
+                val existing = flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
+                val withFlock = if (existing != null) {
+                    withAgent.copy(flocks = flocks.map {
+                        if (it.id == existing.id) it.copy(agentIds = it.agentIds + agentId) else it
+                    })
+                } else {
+                    val flock = com.ai.model.Flock(
+                        java.util.UUID.randomUUID().toString(),
+                        com.ai.model.DEFAULT_AGENTS_FLOCK_NAME,
+                        listOf(agentId)
+                    )
+                    withAgent.copy(flocks = withAgent.flocks + flock)
                 }
-            }.awaitAll()
+                st.copy(aiSettings = withFlock)
+            }
+            settingsPrefs.saveSettings(_uiState.value.aiSettings)
+            setWorkerStage(service.id, WorkerStage.Done)
         }
     }
 

@@ -330,9 +330,13 @@ object ApiTracer {
     private data class TracePruneCandidate(val file: File, val info: TraceFileInfo, val size: Long)
 
     private fun pruneTraceDirLocked(dir: File, protectedFilename: String): Int {
+        // Pruning runs on every traced response. Reuse metadata from the
+        // listing cache instead of reparsing up to 50 MB of retained JSON
+        // under the global lock for every request during a provider refresh.
+        val cachedByName = cachedTraceFiles?.associateBy { it.filename }.orEmpty()
         val candidates = dir.listFiles { file -> file.extension == "json" }
             ?.mapNotNull { file ->
-                parseTraceFileInfoStreaming(file)?.let { info ->
+                (cachedByName[file.name] ?: parseTraceFileInfoStreaming(file))?.let { info ->
                     TracePruneCandidate(file, info, file.length().coerceAtLeast(0L))
                 }
             }
@@ -352,9 +356,9 @@ object ApiTracer {
                 deletedNames += candidate.info.filename
             }
         }
-        if (deletedNames.isNotEmpty()) {
-            cachedTraceFiles = cachedTraceFiles?.filterNot { it.filename in deletedNames }
-        }
+        // Also prime a cold cache: otherwise a run that never opens the
+        // trace-list screen would keep reparsing the entire directory.
+        cachedTraceFiles = candidates.filterNot { it.info.filename in deletedNames }.map { it.info }
         return deletedNames.size
     }
 

@@ -2,9 +2,10 @@
   "adminUrl": "https://app.baseten.co/settings/api_keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://inference.baseten.co/",
-  "defaultModel": "moonshotai/Kimi-K2.5",
+  "defaultModel": "deepseek-ai/DeepSeek-V4-Flash-0731",
   "defaultModelSource": "API",
   "hardcodedModels": [
+    "deepseek-ai/DeepSeek-V4-Flash-0731",
     "openai/gpt-oss-120b",
     "zai-org/GLM-5.2",
     "moonshotai/Kimi-K2.6",

@@ -2,7 +2,7 @@
   "adminUrl": "https://app.fireworks.ai/",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.fireworks.ai/inference/",
-  "defaultModel": "accounts/fireworks/models/deepseek-v4-pro",
+  "defaultModel": "accounts/fireworks/models/glm-5p3-flash",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Fireworks",

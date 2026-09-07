@@ -123,6 +123,38 @@ class LenientModelPricingDeserializer : JsonDeserializer<TogetherPricing?> {
     }
 }
 
+/** Mistral uses boolean capability fields; gateways such as Glama use
+ *  capability-name arrays. Optional metadata must not reject an entire
+ *  otherwise valid model catalog when providers use a different shape. */
+class LenientModelCapabilitiesDeserializer : JsonDeserializer<MistralCapabilities?> {
+    override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): MistralCapabilities? {
+        if (json == null || json.isJsonNull) return null
+        if (json.isJsonObject) {
+            return runCatching { context?.deserialize<MistralCapabilities>(json, MistralCapabilities::class.java) }.getOrNull()
+        }
+        if (!json.isJsonArray) return null
+        val names = json.asJsonArray.mapNotNull {
+            it.takeIf { value -> value.isJsonPrimitive && value.asJsonPrimitive.isString }?.asString
+        }.toSet()
+        // Unlisted flags remain unknown so other capability sources can
+        // still fill them in; only map names with an established meaning.
+        fun declared(vararg values: String): Boolean? = true.takeIf { values.any { it in names } }
+        return MistralCapabilities(
+            completion_chat = declared("completion_chat"),
+            completion_fim = declared("completion_fim"),
+            function_calling = declared("function_calling", "native_tool_use"),
+            fine_tuning = declared("fine_tuning", "tuning"),
+            vision = declared("vision", "input:image"),
+            classification = declared("classification"),
+            reasoning = declared("reasoning"),
+            moderation = declared("moderation"),
+            ocr = declared("ocr"),
+            audio_transcription = declared("audio_transcription"),
+            audio_speech = declared("audio_speech")
+        )
+    }
+}
+
 // ============================================================================
 // OpenAI models — single request class with optional stream field
 // ============================================================================
@@ -477,6 +509,7 @@ data class OpenAiModelsResponse(val data: List<OpenAiModel>?)
 data class OpenAiModel(
     val id: String?,
     val owned_by: String? = null,
+    @JsonAdapter(LenientModelCapabilitiesDeserializer::class)
     val capabilities: MistralCapabilities? = null,
     val max_context_length: Int? = null,
     val context_length: Int? = null,
