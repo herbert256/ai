@@ -115,7 +115,8 @@ data class AgentStatusPatch(
     val rawUsageJson: String? = null,
     val durationMs: Long? = null,
     val traceFile: String? = null,
-    val attemptId: String? = null
+    val attemptId: String? = null,
+    val finishReason: String? = null
 )
 
 /**
@@ -123,7 +124,7 @@ data class AgentStatusPatch(
  */
 object ReportStorage {
     private const val REPORTS_DIR = "reports"
-    private const val API_CALL_COST_LEDGER_VERSION = 3
+    private const val API_CALL_COST_LEDGER_VERSION = 4
     /** iconCalls `type` values for the report-level Find-alt title
      *  fan-out (short + long report title, per-model title). These are
      *  the only alt records with no structured cost field; see
@@ -142,7 +143,8 @@ object ReportStorage {
         val title: String,
         val timestamp: Long,
         val oldRows: List<ReportApiCallCost>,
-        val newRows: List<ReportApiCallCost>
+        val newRows: List<ReportApiCallCost>,
+        val adjustAggregateStats: Boolean = true
     )
 
     fun init(context: Context) {
@@ -249,6 +251,7 @@ object ReportStorage {
             }
             agent.reportStatus = status
             agent.httpStatus = httpStatus
+            agent.finishReason = finishReason
             if (requestHeaders != null) agent.requestHeaders = requestHeaders
             if (requestBody != null) agent.requestBody = requestBody
             if (responseHeaders != null) agent.responseHeaders = responseHeaders
@@ -338,6 +341,7 @@ object ReportStorage {
             if (agent.reportStatus == ReportStatus.SUCCESS) archiveAnswer(report, agent)
             agent.executionConfig = config
             agent.attemptId = id
+            agent.finishReason = null
             agent.reportStatus = ReportStatus.RUNNING
             saveReport(report)
             id
@@ -456,6 +460,7 @@ object ReportStorage {
             val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withLock false
             if (agent.responseBody != body) archiveAnswer(report, agent)
             agent.responseBody = body
+            agent.finishReason = null
             agent.currentAttemptCost = null
             agent.currentAttemptUsage = null
             agent.citations = null
@@ -1790,6 +1795,25 @@ object ReportStorage {
         if (!isSafeFlatId(reportId)) return null
         val initial = lock.withLock { loadReport(reportId) } ?: return null
         if (isApiCallCostLedgerCurrent(initial)) return null
+
+        // Version 3 already has an append-only ledger. Repair its omissions
+        // without rebuilding from current answers (which would erase billed
+        // retries and earlier answer versions). Title usage was already in
+        // global statistics; only the report attribution was missing.
+        if (initial.apiCallCostsVersion == 3 && initial.apiCallCostsComplete) {
+            val repaired = ReportAuditRepair.repair(context, initial)
+            return lock.withLock {
+                val current = loadReport(reportId) ?: return@withLock null
+                if (isApiCallCostLedgerCurrent(current)) return@withLock null
+                // Do not overwrite work completed while evidence was read.
+                if (current != initial) return@withLock null
+                val updated = repaired.copy(apiCallCostsVersion = API_CALL_COST_LEDGER_VERSION)
+                updated.totalCost = ledgerTotalCost(updated)
+                saveReport(updated)
+                ApiCallCostLedgerDelta(updated.id, updated.barTitle, updated.createdAt,
+                    current.apiCallCosts.toList(), updated.apiCallCosts.toList(), adjustAggregateStats = false)
+            }
+        }
 
         val secondaries = SecondaryResultStorage.listForReport(context, reportId)
         val structuredRows = buildStructuredApiCallCostRows(context, initial, secondaries)

@@ -292,13 +292,16 @@ internal fun extractOpenAiContent(eventType: String?, data: String): String? {
  *  early reasoning deltas have empty content and fall through). After the
  *  stream, call [reasoningFallback] to recover the answer for the
  *  non-conforming providers that put it in `reasoning_content` with empty
- *  `content` (see the matching whole-message fallback in parseOpenAiAnalysisResponse). */
+ *  `content`. Reports require final content; only chat uses the compatibility fallback. */
 internal class OpenAiContentExtractor {
     private val reasoning = StringBuilder()
+    var finishReason: String? = null; private set
     var sawContent = false; private set
     fun extract(@Suppress("UNUSED_PARAMETER") eventType: String?, data: String): String? {
         return try {
-            val delta = gson.fromJson(data, OpenAiStreamChunk::class.java)?.choices?.firstOrNull()?.delta
+            val choice = gson.fromJson(data, OpenAiStreamChunk::class.java)?.choices?.firstOrNull()
+            choice?.finish_reason?.takeIf { it.isNotBlank() }?.let { finishReason = it }
+            val delta = choice?.delta
             val content = delta?.content?.takeIf { it.isNotEmpty() }
             if (content != null) { sawContent = true; content }
             else {
@@ -308,9 +311,9 @@ internal class OpenAiContentExtractor {
             }
         } catch (_: Exception) { null }
     }
-    /** Reasoning text to use as the answer iff NO content was streamed. */
+    /** Compatibility fallback for chat only, after a normal completion. */
     fun reasoningFallback(): String? =
-        if (!sawContent) reasoning.toString().takeIf { it.isNotBlank() } else null
+        if (!sawContent && finishReason == "stop") reasoning.toString().takeIf { it.isNotBlank() } else null
 }
 
 /** OpenAI Responses API SSE: event=response.output_text.delta, data.delta contains text */

@@ -59,17 +59,11 @@ internal fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService,
     val statusCode = response.code()
     return if (response.isSuccessful) {
         val body = response.body()
-        val content = body?.choices?.let { choices ->
-            choices.firstOrNull()?.message?.contentAsString()
-                ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstOrNull()?.message?.reasoning
-                ?: choices.firstNotNullOfOrNull { it.message?.contentAsString() }
-                ?: choices.firstNotNullOfOrNull { it.message?.reasoning_content }
-                ?: choices.firstNotNullOfOrNull { it.message?.reasoning }
-        }
+        val choice = body?.choices?.firstOrNull()
+        val content = choice?.message?.contentAsString()
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.toTokenUsage(service)
-        if (!content.isNullOrBlank()) AnalysisResponse(service, content, null, usage,
+        val result = if (!content.isNullOrBlank()) AnalysisResponse(service, content, null, usage,
             citations = body.citations, searchResults = body.search_results, relatedQuestions = body.related_questions,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
         // Pass `usage` on the empty-content branch too — a reasoning
@@ -78,10 +72,25 @@ internal fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService,
         // completion_tokens. The "Test all models" probe treats 200 +
         // outputTokens > 0 as reachable instead of a hard failure.
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        validateOpenAiReportCompletion(result, choice?.finish_reason)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
     }
+}
+
+/** Keep transport success separate from a usable, complete report answer. */
+internal fun validateOpenAiReportCompletion(response: AnalysisResponse, finishReason: String?): AnalysisResponse {
+    val reason = finishReason?.lowercase()
+    if (response.httpStatusCode !in 200..299) return response.copy(finishReason = reason)
+    val failure = when (reason) {
+        "length", "max_tokens" -> "Response truncated: output token limit reached (finish_reason=$reason)."
+        "content_filter" -> "No complete answer: the provider filtered the response (finish_reason=$reason)."
+        "tool_calls", "function_call" -> "No final answer: the model requested a tool call (finish_reason=$reason)."
+        else -> if (response.analysis.isNullOrBlank()) "No final answer content returned${reason?.let { " (finish_reason=$it)" }.orEmpty()}." else null
+    }
+    return response.copy(finishReason = reason, error = failure ?: response.error,
+        generationFailed = response.generationFailed || failure != null)
 }
 
 internal fun extractResponsesApiContent(body: OpenAiResponsesApiResponse?): String? {

@@ -33,19 +33,30 @@ private suspend fun AnalysisRepository.collectStreamResponse(
     val sb = StringBuilder()
     var usage: TokenUsage? = null
     var rawUsage: String? = null
-    parseSseStream(
-        body = body,
-        extractContent = extractContent,
-        isFinalChunk = isFinalChunk,
-        requireTerminator = requireTerminator,
-        extractUsage = extractUsage
-    ) { u, raw ->
-        usage = when (usageMergeMode) {
-            StreamingUsageMergeMode.FieldMax -> mergeUsage(usage, u)
-            StreamingUsageMergeMode.LastComplete -> u
-        }
-        if (!raw.isNullOrBlank()) rawUsage = raw
-    }.collect { chunk -> sb.append(chunk); onDelta(chunk) }
+    try {
+        parseSseStream(
+            body = body,
+            extractContent = extractContent,
+            isFinalChunk = isFinalChunk,
+            requireTerminator = requireTerminator,
+            extractUsage = extractUsage
+        ) { u, raw ->
+            usage = when (usageMergeMode) {
+                StreamingUsageMergeMode.FieldMax -> mergeUsage(usage, u)
+                StreamingUsageMergeMode.LastComplete -> u
+            }
+            if (!raw.isNullOrBlank()) rawUsage = raw
+        }.collect { chunk -> sb.append(chunk); onDelta(chunk) }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        // Preserve already reported usage if the stream ends abnormally.
+        // A paid partial generation must not be silently retried and lost.
+        return AnalysisResponse(service, sb.toString().takeIf { it.isNotBlank() },
+            "Incomplete stream: ${e.message}", usage, rawUsageJson = rawUsage,
+            httpHeaders = headers, httpStatusCode = statusCode,
+            generationFailed = sb.isNotEmpty() || usage != null)
+    }
     val text = sb.toString().takeIf { it.isNotBlank() }
     return if (text != null)
         AnalysisResponse(service, text, null, usage, rawUsageJson = rawUsage, httpHeaders = headers, httpStatusCode = statusCode)
@@ -63,22 +74,20 @@ internal suspend fun AnalysisRepository.streamOpenAiReport(
     val request = buildOpenAiRequest(service, model, messages, params, stream = true)
         .copy(stream_options = StreamOptions(include_usage = true))
     val response = api.chatStream(chatUrl, "Bearer $apiKey", request)
-    // Emit content only; buffer reasoning so a reasoning model's chain-of-
-    // thought doesn't get concatenated into the persisted report answer. Fall
-    // back to the buffered reasoning only if no content streamed at all
-    // (providers that put the answer in reasoning_content with empty content).
+    // Reports require final answer content. Reasoning-only output is a failed
+    // generation, even if the transport succeeded and usage was billed.
     val ext = OpenAiContentExtractor()
     val resp = collectStreamResponse(
         service,
         response,
         ext::extract,
         extractOpenAiUsage(service),
+        isFinalChunk = { _, _ -> ext.finishReason != null },
+        requireTerminator = true,
         usageMergeMode = StreamingUsageMergeMode.LastComplete,
         onDelta = onDelta
     )
-    return if (resp.analysis.isNullOrBlank())
-        ext.reasoningFallback()?.let { resp.copy(analysis = it, error = null) } ?: resp
-    else resp
+    return validateOpenAiReportCompletion(resp, ext.finishReason)
 }
 
 internal suspend fun AnalysisRepository.streamResponsesApiReport(
@@ -179,4 +188,3 @@ internal suspend fun AnalysisRepository.streamGeminiReport(
         onDelta = onDelta
     )
 }
-

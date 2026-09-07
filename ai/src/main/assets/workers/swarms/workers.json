@@ -10,7 +10,7 @@
       "provider": "OpenAI"
     },
     {
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-20b",
       "provider": "Groq"
     },
     {
@@ -42,7 +42,7 @@
       "provider": "DeepInfra"
     },
     {
-      "model": "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+      "model": "openai/gpt-oss-20b",
       "provider": "Together"
     },
     {

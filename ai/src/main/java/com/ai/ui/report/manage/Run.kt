@@ -562,11 +562,21 @@ internal fun ReportRunScreen(
             swipeSwitch!!(match.reportId)
         }
     }
-    // Running total cost, reported up from GenerationPhase, shown in the
-    // statistics line under the title bar. Hoisted to this scope so the
-    // Get-info / second-results overlay layers (mounted outside the hub
-    // Column below) can render the same live number in their stats lines.
-    var totalCostForBar by remember { mutableStateOf(0.0) }
+    // Current ledgers include billed retries and replaced results that the
+    // visible result rows cannot reconstruct. Share that lifetime total
+    // with all three stats lines and the deletion summary. The journal's
+    // per-call flush bumps ReportDataVersion, including during translation.
+    var structuredCostForBar by remember(currentReportId) { mutableStateOf(0.0) }
+    val ledgerCostForBar by produceState<Double?>(null, currentReportId, pinDataVersion) {
+        value = currentReportId?.let { rid ->
+            withContext(Dispatchers.IO) {
+                ReportStorage.getReport(context, rid)
+                    ?.takeIf { ReportStorage.isApiCallCostLedgerCurrent(it) }
+                    ?.apiCallCosts?.sumOf { it.inputCost + it.outputCost }
+            }
+        }
+    }
+    val totalCostForBar = ledgerCostForBar ?: structuredCostForBar
     Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
@@ -859,7 +869,7 @@ internal fun ReportRunScreen(
             currentReportId = currentReportId,
             handlers = generationHandlers,
             onOpenViewReport = onOpenViewReport,
-            onTotalCostChange = { totalCostForBar = it },
+            onTotalCostChange = { structuredCostForBar = it },
             editSystemPromptTrigger = editSystemPromptTrigger,
             secondaryCounts = secondaryCounts,
             costsFromDeletedItems = costsFromDeletedItems,

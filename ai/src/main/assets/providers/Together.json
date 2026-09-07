@@ -2,7 +2,7 @@
   "adminUrl": "https://api.together.xyz/settings/api-keys",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.together.xyz/",
-  "defaultModel": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "defaultModel": "openai/gpt-oss-20b",
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Together",

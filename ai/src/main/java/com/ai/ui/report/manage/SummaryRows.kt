@@ -122,16 +122,17 @@ internal fun SecondSummaryRow(state: InfoJobState, cost: Double, onClick: () -> 
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 }
 
-/** The "nnn api calls / x.xxx s duration / x.xx ¢" statistics line shown
+/** The "nnn costed calls / x.xxx s duration / x.xx ¢" statistics line shown
  *  under the title bar of all three report screens.
  *
  *  Call count + duration are re-read from disk (keyed on [refreshKey] + the
- *  secondary-data version — the same sources the Report-information Totals
- *  use, so the numbers match). The cost is the hub's LIVE running total
- *  passed in as [costDollars]: GenerationPhase folds in-flight translation
- *  spend into it, which disk misses mid-run, and the hub stays composed under
- *  both overlay screens — so all three show the same ticking number the
- *  bottom bar used to. Tap → the report's costs screen. */
+ *  primary and secondary data versions — the same sources the Report-information Totals
+ *  use, so the numbers match). The cost is the shared lifetime ledger total
+ *  passed in as [costDollars], updated as completed calls are persisted.
+ *  Legacy reports use the hub's structured total until their ledger is
+ *  migrated. Calls means ledger entries with usage/cost, not raw
+ *  HTTP attempts (failed/retried HTTP operations remain in traces).
+ *  Tap → the report's costs screen. */
 @Composable
 internal fun ReportStatsLine(
     reportId: String,
@@ -141,7 +142,8 @@ internal fun ReportStatsLine(
 ) {
     val context = LocalContext.current
     val secDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
-    val loaded by produceState<Pair<Report, List<SecondaryResult>>?>(null, reportId, refreshKey, secDataVersion) {
+    val reportDataVersion by com.ai.data.ReportDataVersion.versionFor(reportId).collectAsState()
+    val loaded by produceState<Pair<Report, List<SecondaryResult>>?>(null, reportId, refreshKey, secDataVersion, reportDataVersion) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext null
             r to SecondaryResultStorage.listForReport(context, reportId)
@@ -159,7 +161,7 @@ internal fun ReportStatsLine(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "$apiCalls api calls", fontSize = 10.sp,
+            "$apiCalls costed ${if (apiCalls == 1) "call" else "calls"}", fontSize = 10.sp,
             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
         )
         Spacer(modifier = Modifier.weight(1f))

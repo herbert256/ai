@@ -2,7 +2,22 @@
 
 The requested report was created from the **Funny question** example using the **default agents** flock. All 36 expected agent/provider/model combinations ran, with no missing or duplicate agents. Generation and metadata work finished in approximately three minutes. The app saved 35 successes and one error, but only **34 agents produced a final answer**: Together's reasoning-only, truncated response was incorrectly treated as a success.
 
-This record documents the original run and source inspection. No application code, defaults, or report results were changed during this monitoring task.
+This record preserves the original run and source inspection. The original monitoring task made no changes; the follow-up fixes and verification below were performed afterward.
+
+## Follow-up status, 7 September 2026
+
+F01 was already fixed. The remaining application defects F02–F06 are now fixed in source and deployed to the emulator. The original report now has **36 successful answers**, **116 costed calls**, and a lifetime ledger total of **$0.1208429681 (12.08¢)**. Its existing 111 cost records and the other 35 answer bodies were preserved. See [the remaining-fixes verification record](report-monitor-fixes-2026-09-07.md) for the checks and limitations.
+
+| Finding | Current status |
+| --- | --- |
+| F01 — Novita context limit | Previously fixed and verified; retained |
+| F02 — Reasoning-only false success | Fixed; forced output exhaustion saves ERROR with usage, cost and trace; original Together slot successfully retried |
+| F03 — Unavailable metadata workers | Defaults and unchanged installed worker pool repaired; both replacement models validated; final title-prompt wording has a live-verification limitation described below |
+| F04 — Missing report-title accounting | Fixed; $0.012213 restored without removing prior calls or charging global usage twice; Manage now uses the lifetime ledger |
+| F05 — Lost trace references | Fixed for new calls; available historical links recovered conservatively; deleted original traces cannot be recovered |
+| F06 — Stale call count | Fixed; primary data changes refresh the counter, labelled “costed calls” |
+
+The observations, costs, model selections and source line references in the original-run sections below are historical.
 
 ## Run identity and method
 
@@ -47,6 +62,8 @@ Evidence in the device's `files/trace/` directory:
 
 ### F02 · P1 — Together's truncated reasoning is saved and displayed as a successful answer
 
+**Follow-up:** Fixed. Both streaming and non-streaming OpenAI-compatible report responses require final content and retain finish reasons. Exhausted output budgets fail without an unchanged fallback/retry, while retaining billed usage. The original invalid text was preserved in answer history, and Together succeeded with `openai/gpt-oss-20b` on a targeted retry. A one-token emulator check produced exactly one costed ERROR and no metadata work.
+
 **Observed:** `deepseek-ai/DeepSeek-V4-Flash-0731` ran for 171.295 seconds. The stream contained **zero final-content characters**, 62,106 reasoning characters, and `finish_reason: length`. Its usage reported 16,384 completion tokens, all of them reasoning tokens. The app saved the reasoning as the response body with `SUCCESS`, then generated the title **Joke Brainstorming Process** and an icon. Opening the result showed the brainstorming text, with no final question.
 
 **Cause:** `streamOpenAiReport()` in `ApiDispatchStreaming.kt:80` substitutes `reasoningFallback()` when analysis is empty and clears the error. `OpenAiContentExtractor.reasoningFallback()` in `ApiStreaming.kt:312` does not require a normal completion or final answer. `AnalysisRepository.kt:71` accepts non-null analysis with no error as success. This path turns an exhausted reasoning budget into an apparently complete answer.
@@ -58,6 +75,8 @@ Evidence in the device's `files/trace/` directory:
 Evidence: `api.together.xyz_20260907_072528_035_4v7z_12c769b7.json` and the saved Together response in this report.
 
 ### F03 · P2 — The bundled metadata worker pool still uses unavailable models
+
+**Follow-up:** Fixed. Groq and Together worker selections now use `openai/gpt-oss-20b`; Together's provider default matches. Existing pools that exactly match the old bundle are migrated while preserving their identity; edited pools are retained. Both models passed parallel answer/title/icon probes and actual emulator report calls. A title-only check also exposed ambiguous source-text instructions; source quoting and a new cache variant were added. Automatic approval review blocked the final two-call title rerun, so the exact final wording has build/source verification but no final live confirmation.
 
 Seven metadata attempts failed against two worker models:
 
@@ -73,6 +92,8 @@ Both IDs remain in `ai/src/main/assets/workers/swarms/workers.json` (Groq around
 **Recommended correction:** Update and validate the bundled worker pool alongside provider defaults, and repair the existing installed worker selections so this emulator also benefits. Do not assume a provider's primary default change updates its worker models.
 
 ### F04 · P2 — The report cost ledger omits both report-title calls
+
+**Follow-up:** Fixed. Title accounting now retains report attribution and uses distinct short/long categories. Ledger version 4 repairs missing saved title amounts while preserving existing records and avoiding a second charge to aggregate usage. The original report recovered exactly $0.012213. New title calls were both costed and trace-linked. Manage and its sibling summaries now use the lifetime ledger, so billed earlier attempts remain included after a retry.
 
 Manage and the Costs screen disagree because the ledger is missing the short-title and long-title calls. Manage's total includes their separately stored costs; the ledger and persisted `totalCost` do not.
 
@@ -94,6 +115,8 @@ Manage displays **12.04¢**; Costs displays **10.82¢**. Both report titles were
 
 ### F05 · P2 — Direct trace references are missing from saved answers and costs
 
+**Follow-up:** Fixed for new calls. Nested auditing publishes the trace to its caller and carries immutable per-call trace attribution with usage. All eight positive-check cost records and both primary answers linked to their matching report/model traces. Historical repair links only unambiguous evidence. The original 07:25 traces had already been deleted before this follow-up; their missing references remain blank rather than pointing to invented files.
+
 Tracing was enabled and **121 HTTP trace files** carried the correct report ID. Nevertheless, **0 of 36 primary agent records** and **0 of 108 cost records** had a populated `traceFile` reference. The underlying traces exist, but the result/cost records lose their direct connection to them.
 
 **Cause:** `ReportViewModel.kt:982` installs a trace sink and later persists its value at line 1062. `ApiDispatch.auditApiCall()` at lines 759–763 installs a new nested sink without propagating its result to the caller's sink. The interceptor fills the nested sink instead. Separately, the `ReportApiCallCost` construction in `SettingsPreferences.kt:742` never supplies `traceFile`.
@@ -103,6 +126,8 @@ Tracing was enabled and **121 HTTP trace files** carried the correct report ID. 
 **Recommended correction:** Reuse or propagate the trace sink across nested auditing and dispatch, and attach the correctly attributed trace to each cost record. Preserve report and individual-call attribution when fallbacks produce multiple traces.
 
 ### F06 · P3 — Manage's API-call counter becomes stale after completion
+
+**Follow-up:** Fixed. `ReportStatsLine` observes the primary and secondary data versions. Live completion updated the verification report's counter, and the original report shows 116 costed calls, matching its ledger. “Costed calls” explicitly describes ledger entries rather than outbound HTTP attempts.
 
 Manage continued to show **107 api calls** for several minutes after the saved ledger contained 108 records. Opening Costs and returning updated it to 108; reopening the report also showed 108.
 

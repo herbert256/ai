@@ -749,16 +749,21 @@ internal suspend fun AnalysisRepository.auditApiCall(
     val reportId = ApiTracer.currentReportId
     if (reportId == null) return block()
     val url = dispatchUrl(service, model, baseUrl)
+    val callerSink = ApiTracer.traceFilenameSink.get()
     val traceSink = java.util.concurrent.atomic.AtomicReference<String?>()
     try {
         val resp = withTraceFilenameSink(traceSink) { block() }
         AuditLog.appendApiCall(reportId, service, model, url, resp.tokenUsage, resp.httpStatusCode, resp.error, traceSink.get())
-        return resp
+        return resp.copy(tokenUsage = resp.tokenUsage?.copy(traceFile = traceSink.get()))
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Throwable) {
         AuditLog.appendApiCall(reportId, service, model, url, null, null, e.message ?: e.javaClass.simpleName, traceSink.get())
         throw e
+    } finally {
+        // A nested audit must hand its result back to the originating report
+        // call. Null also matters: do not reuse a preceding worker's trace.
+        callerSink?.set(traceSink.get())
     }
 }
 

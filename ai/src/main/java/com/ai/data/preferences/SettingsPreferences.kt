@@ -600,7 +600,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         if (deltas.isEmpty()) return false
         val usageStats = ensureUsageStatsCache()
         val categoryStats = ensureUsageCategoryStatsCache()
-        deltas.forEach { delta ->
+        deltas.filter { it.adjustAggregateStats }.forEach { delta ->
             delta.oldRows.forEach { row -> adjustUsageStatsForApiRow(usageStats, row, -1) }
             delta.newRows.forEach { row -> adjustUsageStatsForApiRow(usageStats, row, 1) }
             delta.oldRows.forEach { row -> adjustCategoryStatsForApiRow(categoryStats, row, -1) }
@@ -695,7 +695,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             normalizedKind
         }
         val costs = computeUsageCostSnapshot(provider, model, usage, searchUnits)
-        try { recordReportApiCallCost(provider, model, inputTokens, outputTokens, category, searchUnits, costs, durationMs, usage.estimated) }
+        try { recordReportApiCallCost(provider, model, inputTokens, outputTokens, category, searchUnits, costs, durationMs, usage.estimated, usage.traceFile) }
         catch (e: com.ai.data.ReportSaveException) { AppLog.e("ReportCosts", "Cost awaiting save retry", e) }
         scheduleUsageStatsFlush()
         if (!usageStatsEnabled) return
@@ -748,7 +748,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         searchUnits: Int,
         costs: UsageCostSnapshot,
         durationMs: Long? = null,
-        estimated: Boolean = false
+        estimated: Boolean = false,
+        traceFile: String? = null
     ) {
         val reportId = ApiTracer.currentReportId?.takeIf { it.isNotBlank() } ?: return
         if (inputTokens <= 0 && outputTokens <= 0 && searchUnits <= 0 && costs.inputCost <= 0.0 && costs.outputCost <= 0.0) return
@@ -763,7 +764,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             outputCost = costs.outputCost,
             searchUnits = searchUnits,
             durationMs = durationMs,
-            estimatedUsage = estimated
+            estimatedUsage = estimated,
+            traceFile = traceFile
         )
         ReportCostJournal.enqueue(filesDir, reportId, record)
         synchronized(usageStatsLock) {

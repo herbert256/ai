@@ -52,6 +52,21 @@ object SwarmSeed {
         if (bundled.isEmpty()) return existing
         val known = existing.map { it.name.lowercase() }.toSet()
         val toAdd = bundled.filter { it.name.lowercase() !in known }
-        return if (toAdd.isEmpty()) existing else existing + toAdd
+        val repaired = existing.map { swarm ->
+            // Only migrate the unchanged bundled pool, identified by all of
+            // its original members. Custom pools and edited selections remain
+            // intact; UUIDs and references to this swarm are preserved.
+            val replacement = bundled.firstOrNull { it.name.equals("workers", true) }
+            if (!swarm.name.equals("workers", true) || replacement == null) return@map swarm
+            val original = replacement.members.map { member ->
+                when (member.provider.id) {
+                    "Groq" -> member.copy(model = "llama-3.3-70b-versatile")
+                    "Together" -> member.copy(model = "Qwen/Qwen3-235B-A22B-Instruct-2507-tput")
+                    else -> member
+                }
+            }
+            if (swarm.members == original) swarm.copy(members = replacement.members) else swarm
+        }
+        return if (toAdd.isEmpty() && repaired == existing) existing else repaired + toAdd
     }
 }

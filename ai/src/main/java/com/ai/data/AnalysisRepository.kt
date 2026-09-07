@@ -39,7 +39,10 @@ data class TokenUsage(
      *  visible output. Lets the test probe recognise "model is reachable,
      *  budget went to reasoning" when [outputTokens] is 0. */
     val reasoningTokens: Int = 0,
-    val estimated: Boolean = false
+    val estimated: Boolean = false,
+    /** Immutable call attribution for the accounting hand-off, even after
+     *  leaving a tracing scope. Not part of persisted token counts. */
+    @Transient val traceFile: String? = null
 ) {
     val totalTokens: Int get() = inputTokens + outputTokens + cachedInputTokens + cacheCreationTokens + reasoningTokens
     /** All input-side tokens the call is BILLED on: uncached + cached +
@@ -66,7 +69,10 @@ data class AnalysisResponse(
     val relatedQuestions: List<String>? = null,
     val rawUsageJson: String? = null,
     val httpHeaders: String? = null,
-    val httpStatusCode: Int? = null
+    val httpStatusCode: Int? = null,
+    val finishReason: String? = null,
+    /** A completed but unusable generation must not be billed again by retries. */
+    val generationFailed: Boolean = false
 ) {
     val isSuccess: Boolean get() = analysis != null && error == null
     val displayName: String get() = agentName ?: service.id
@@ -110,6 +116,7 @@ class AnalysisRepository {
          *  fields. Auth, model, context and other deterministic client errors
          *  must reach the report unchanged instead of triggering another call. */
         internal fun shouldFallbackFromReportStream(response: AnalysisResponse): Boolean {
+            if (response.generationFailed) return false
             if (response.httpStatusCode !in PERMANENT_CLIENT_ERROR_CODES) return true
             if (response.httpStatusCode != 400 && response.httpStatusCode != 422) return false
             val error = response.error.orEmpty().lowercase()
@@ -394,7 +401,7 @@ class AnalysisRepository {
             label = "Agent ${agent.name}",
             makeCall = { makeApiCall() },
             isSuccess = { it.isSuccess },
-            isPermanentFailure = { it.httpStatusCode in PERMANENT_CLIENT_ERROR_CODES },
+            isPermanentFailure = { it.generationFailed || it.httpStatusCode in PERMANENT_CLIENT_ERROR_CODES },
             errorResult = { e -> AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name) }
         )
     }
@@ -473,12 +480,12 @@ class AnalysisRepository {
             return@withContext if (resp.tokenUsage.let { it != null && (it.inputTokens > 0 || it.outputTokens > 0) }) {
                 resp.copy(agentName = agent.name, promptUsed = finalPrompt)
             } else resp.copy(
-                tokenUsage = TokenUsage((finalPrompt.length + 3 + (params.systemPrompt?.length ?: 0)) / 4, ((resp.analysis ?: "").length + 3) / 4, estimated = true),
+                tokenUsage = TokenUsage((finalPrompt.length + 3 + (params.systemPrompt?.length ?: 0)) / 4, ((resp.analysis ?: "").length + 3) / 4, estimated = true, traceFile = ApiTracer.traceFilenameSink.get()?.get()),
                 agentName = agent.name, promptUsed = finalPrompt
             )
         }
         if (!shouldFallbackFromReportStream(resp)) {
-            AppLog.i("AiAnalysis", "Skipping non-streaming fallback for ${agent.name}: permanent HTTP ${resp.httpStatusCode}")
+            AppLog.i("AiAnalysis", "Skipping non-streaming fallback for ${agent.name}: HTTP ${resp.httpStatusCode}, finish=${resp.finishReason}, generationFailed=${resp.generationFailed}")
             return@withContext resp.copy(agentName = agent.name, promptUsed = finalPrompt)
         }
         AppLog.w("AiAnalysis", "Streaming attempt failed for ${agent.name}; trying non-streaming")
@@ -516,7 +523,7 @@ class AnalysisRepository {
             label = "Agent ${agent.name} player",
             makeCall = { makeApiCall() },
             isSuccess = { it.isSuccess },
-            isPermanentFailure = { it.httpStatusCode in PERMANENT_CLIENT_ERROR_CODES },
+            isPermanentFailure = { it.generationFailed || it.httpStatusCode in PERMANENT_CLIENT_ERROR_CODES },
             errorResult = { e -> AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name) }
         )
     }

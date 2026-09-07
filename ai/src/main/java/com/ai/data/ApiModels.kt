@@ -214,7 +214,7 @@ data class StreamOptions(val include_usage: Boolean)
 
 data class OpenAiResponseFormat(val type: String = "text")
 
-data class OpenAiChoice(val message: OpenAiMessage, val index: Int)
+data class OpenAiChoice(val message: OpenAiMessage, val index: Int, val finish_reason: String? = null)
 
 data class UsageCost(
     val total_cost: Double? = null,

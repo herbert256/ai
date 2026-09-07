@@ -91,10 +91,14 @@ Request/response shapes are `OpenAiRequest` / `OpenAiResponse` in
   `streamOpenAi` / `streamOpenAiReport` implementations. Data lines are
   buffered per W3C spec — multiple `data:` lines in one event are
   concatenated with `\n` and dispatched on the blank line. Content
-  comes from `choices[0].delta.content`, falling back to
-  `delta.reasoning_content` / `delta.reasoning` only when no content
-  streamed (reasoning models that put the answer in the reasoning
-  field). Streaming usage is read from the trailing `include_usage`
+  comes from `choices[0].delta.content`. Reports require final answer
+  content and preserve `finish_reason`: output-limit truncation,
+  filtering, tool-only and reasoning-only responses are failed generations,
+  even after HTTP 200. Their reported usage is retained, and they do not
+  trigger automatic non-streaming fallback or metadata generation. The
+  non-streaming report parser applies the same checks. Chat's compatibility
+  fallback to reasoning fields requires a normal `stop` finish reason.
+  Streaming usage is read from the trailing `include_usage`
   chunk (the report path sets `stream_options.include_usage = true`).
 - **Report streaming fallback**: deterministic HTTP 4xx errors return
   directly with their original diagnostic. HTTP 400/422 can fall back

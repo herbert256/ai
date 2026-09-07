@@ -601,8 +601,8 @@ internal fun ColumnScope.GenerationPhase(
 
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
-    // The stats-line total is the exact sum of the body rows below — each
-    // term is shown in a row, so the headline can't drift from the page:
+    // Structured fallback for reports without a current ledger. The host
+    // prefers the lifetime ledger, which also includes earlier attempts:
     //   agentCost                  → the per-model report rows
     //   secondaryTotals in/out     → the meta / fan-out / translation rows
     //   secondaryTotals.fanOutMeta → the per-run "fan-meta" rows (title+icon)

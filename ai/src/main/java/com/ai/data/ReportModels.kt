@@ -37,6 +37,7 @@ data class ReportAgent(
     val model: String,
     var reportStatus: ReportStatus = ReportStatus.PENDING,
     var httpStatus: Int? = null,
+    var finishReason: String? = null,
     var requestHeaders: String? = null,
     var requestBody: String? = null,
     var responseHeaders: String? = null,

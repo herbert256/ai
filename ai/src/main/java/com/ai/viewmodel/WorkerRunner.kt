@@ -112,7 +112,8 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
     private fun isModelGone(resp: AnalysisResponse): Boolean =
         resp.httpStatusCode == 404 || resp.httpStatusCode == 410 ||
             resp.error?.contains("API error: 404") == true ||
-            resp.error?.contains("API error: 410") == true
+            resp.error?.contains("API error: 410") == true ||
+            (resp.httpStatusCode == 400 && resp.error?.contains("model_not_available") == true)
 
     private fun workerKey(w: Worker): String =
         if (w.agent != "*N/A" && w.agent.isNotBlank() && w.agent != "*select")

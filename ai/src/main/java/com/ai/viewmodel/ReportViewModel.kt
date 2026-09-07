@@ -1055,6 +1055,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ReportStorage.updateAgentStatus(context, reportId, task.resultId,
                 if (response.isSuccess) ReportStatus.SUCCESS else ReportStatus.ERROR,
                 com.ai.data.AgentStatusPatch(httpStatus=response.httpStatusCode,
+                    finishReason=response.finishReason,
                     requestBody=execution.prompt, responseHeaders=response.httpHeaders, responseBody=response.analysis,
                     errorMessage=response.error, tokenUsage=response.tokenUsage, cost=cost,
                     inputCost=response.tokenUsage?.let { frozenInputCost }, outputCost=response.tokenUsage?.let { frozenOutputCost },

@@ -14,6 +14,8 @@ half). They nest:
 | **Flock** | 🦆 | a named group of **Agents** | the member agent ids + its own Parameters presets + system prompt |
 | **Swarm** | 🐝 | a named group of **(provider, model)** pairs | the member pairs + its own Parameters presets + system prompt |
 
+The bundled `workers` swarm now uses `openai/gpt-oss-20b` for both Groq and Together. An unchanged older bundled pool is migrated on startup while retaining its ID and references; custom or edited pools are preserved. Together's primary default also uses this model. Provider defaults and swarm selections are separate settings and are updated independently. A worker returning `model_not_available` is excluded for the rest of the session, just like a missing model, so one unavailable dedicated endpoint is not retried for every metadata item.
+
 All three live on `Settings` (`agents`, `flocks`, `swarms`) and
 round-trip through Import/Export. The three glyphs are the
 factory `MetadataDefaults` constants `AGENT`/`FLOCK`/`SWARM`

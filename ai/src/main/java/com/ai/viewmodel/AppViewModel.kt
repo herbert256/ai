@@ -824,7 +824,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val before = ai.swarms.size
                 val merged = com.ai.data.SwarmSeed.ensureAllPresent(ai.swarms, bundled)
                 val added = merged.size - before
-                if (added != 0) {
+                if (merged != ai.swarms) {
                     ai = ai.copy(swarms = merged)
                     settingsPrefs.saveSettings(ai)
                 }
@@ -935,6 +935,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← meta.json delta-merge failed in ${System.currentTimeMillis() - tMeta}ms", it)
         }
 
+
+        // Flush completed attempts before upgrading legacy accounting. This
+        // also repairs saved trace links and proven reasoning-only successes
+        // before a report is opened after an APK update.
+        runCatching {
+            com.ai.data.ReportCostJournal.flush(application.filesDir)
+            settingsPrefs.reconcileReportCostLedgers(application)
+        }.onFailure { AppLog.w(tag, "Report accounting repair will retry: ${it.message}") }
 
         AppLog.d(tag, "bootstrap total ${System.currentTimeMillis() - bootStart}ms")
         return gs to ai
