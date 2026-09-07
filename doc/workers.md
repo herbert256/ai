@@ -14,7 +14,7 @@ half). They nest:
 | **Flock** | 🦆 | a named group of **Agents** | the member agent ids + its own Parameters presets + system prompt |
 | **Swarm** | 🐝 | a named group of **(provider, model)** pairs | the member pairs + its own Parameters presets + system prompt |
 
-The bundled `workers` swarm now uses `openai/gpt-oss-20b` for both Groq and Together. An unchanged older bundled pool is migrated on startup while retaining its ID and references; custom or edited pools are preserved. Together's primary default also uses this model. Provider defaults and swarm selections are separate settings and are updated independently. A worker returning `model_not_available` is excluded for the rest of the session, just like a missing model, so one unavailable dedicated endpoint is not retried for every metadata item.
+The bundled `workers` swarm contains 19 models from 19 providers. It favours inexpensive general-purpose models, with Anthropic Haiku retained for provider diversity. Unchanged historical 12-member bundled pools migrate on startup while retaining their ID, parameters and prompt references; custom membership is preserved. Membership comparison ignores display sorting. Provider defaults and swarm selections are separate settings and are updated independently. SiliconFlow was removed from this pool after its endpoint certificate expired on 7 September 2026; its provider definition and saved key remain intact. A worker returning `model_not_available` is excluded for the rest of the session, just like a missing model. See [the worker health check](workers-health-2026-09-07.md) for verification and pricing sources.
 
 All three live on `Settings` (`agents`, `flocks`, `swarms`) and
 round-trip through Import/Export. The three glyphs are the
@@ -113,7 +113,7 @@ The bundled set that currently ships:
 
 | File | Kind | Name | Members |
 |---|---|---|---|
-| `swarms/workers.json` | Swarm | `workers` | Mistral `mistral-medium-latest`, OpenAI `gpt-4o-mini`, Groq `llama-3.3-70b-versatile`, Cerebras `gpt-oss-120b`, DeepSeek `deepseek-v4-flash`, Google `gemini-3.5-flash`, Anthropic `claude-haiku-4-5-20251001`, xAI `grok-4.20-0309-non-reasoning`, Cohere `command-r-08-2024`, DeepInfra `google/gemma-3-12b-it`, Together `Qwen/Qwen3-235B-A22B-Instruct-2507-tput`, SiliconFlow `Qwen/Qwen3-14B` |
+| `swarms/workers.json` | Swarm | `workers` | Mistral `ministral-14b-latest`, OpenAI `gpt-4o-mini`, Groq `openai/gpt-oss-20b`, Cerebras `gpt-oss-120b`, DeepSeek `deepseek-v4-flash`, Google `gemini-2.5-flash-lite`, Anthropic `claude-haiku-4-5-20251001`, xAI `grok-4-1-fast-non-reasoning`, Cohere `command-r7b-12-2024`, DeepInfra `google/gemma-3-12b-it`, Together `openai/gpt-oss-20b`, Parasail `google/gemma-3-4b-it`, NebiusAIStudio `Qwen/Qwen3-30B-A3B-Instruct-2507`, Novita.ai `meta-llama/llama-3.1-8b-instruct`, OpenRouter `ibm-granite/granite-4.0-h-micro`, VercelAIGateway `mistral/ministral-3b`, Amazon `openai.gpt-oss-20b`, Requesty `openai-responses/gpt-4.1-nano`, Glama `google/gemini-2.5-flash-lite` |
 | `swarms/level-1.json` | Swarm | `Level 1` | Anthropic `claude-haiku-4-5-20251001`, DeepSeek `deepseek-v4-flash`, Mistral `mistral-small-latest`, OpenAI `gpt-5.4-nano`, Google `gemini-2.5-flash-lite`, xAI `grok-4-1-fast-non-reasoning` |
 | `swarms/level-2.json` | Swarm | `Level 2` | Anthropic `claude-sonnet-4-6`, DeepSeek `deepseek-chat`, Mistral `mistral-medium-latest`, OpenAI `gpt-5.4-mini`, xAI `grok-4.3`, Google `gemini-2.5-flash` |
 | `swarms/level-3.json` | Swarm | `Level 3` | Anthropic `claude-opus-4-7`, DeepSeek `deepseek-v4-pro`, Google `gemini-3.1-pro-preview`, Mistral `mistral-large-latest`, xAI `grok-4.20-0309-reasoning`, OpenAI `gpt-5.5` |
@@ -284,7 +284,7 @@ report/model/translation icons + titles, tournament, user-note)
 each carry an ordered **`workers` fallback chain**
 ([`SettingsModels.kt:258`](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 Every bundled worker prompt ships with a single chain entry — the
-`workers` **swarm** — so the cheap 12-member `workers` swarm is the
+`workers` **swarm** — so the inexpensive 19-member `workers` swarm is the
 default model pool for all of these single-call kinds. (There's no
 `tournament`-specific pool; `tournament.json` also points at
 `workers`.)

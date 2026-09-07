@@ -1,0 +1,1299 @@
+{
+  "date": "2026-09-07",
+  "swarmId": "2f12f785-2852-4815-89f2-ec4298573c87",
+  "members": [
+    {
+      "model": "ministral-14b-latest",
+      "provider": "Mistral"
+    },
+    {
+      "model": "gpt-4o-mini",
+      "provider": "OpenAI"
+    },
+    {
+      "model": "openai/gpt-oss-20b",
+      "provider": "Groq"
+    },
+    {
+      "model": "gpt-oss-120b",
+      "provider": "Cerebras"
+    },
+    {
+      "model": "deepseek-v4-flash",
+      "provider": "DeepSeek"
+    },
+    {
+      "model": "gemini-2.5-flash-lite",
+      "provider": "Google"
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "provider": "Anthropic"
+    },
+    {
+      "model": "grok-4-1-fast-non-reasoning",
+      "provider": "xAI"
+    },
+    {
+      "model": "command-r7b-12-2024",
+      "provider": "Cohere"
+    },
+    {
+      "model": "google/gemma-3-12b-it",
+      "provider": "DeepInfra"
+    },
+    {
+      "model": "openai/gpt-oss-20b",
+      "provider": "Together"
+    },
+    {
+      "provider": "Parasail",
+      "model": "google/gemma-3-4b-it"
+    },
+    {
+      "provider": "NebiusAIStudio",
+      "model": "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    },
+    {
+      "provider": "Novita.ai",
+      "model": "meta-llama/llama-3.1-8b-instruct"
+    },
+    {
+      "provider": "OpenRouter",
+      "model": "ibm-granite/granite-4.0-h-micro"
+    },
+    {
+      "provider": "VercelAIGateway",
+      "model": "mistral/ministral-3b"
+    },
+    {
+      "provider": "Amazon",
+      "model": "openai.gpt-oss-20b"
+    },
+    {
+      "provider": "Requesty",
+      "model": "openai-responses/gpt-4.1-nano"
+    },
+    {
+      "provider": "Glama",
+      "model": "google/gemini-2.5-flash-lite"
+    }
+  ],
+  "originalHealthProbes": [
+    {
+      "provider": "Mistral",
+      "model": "mistral-medium-latest",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 38,
+        "total_tokens": 52,
+        "completion_tokens": 14,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "service_tier": "standard"
+      },
+      "ok": true,
+      "seconds": 0.415
+    },
+    {
+      "provider": "OpenAI",
+      "model": "gpt-4o-mini",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready  \nicon: ✅  \nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 29,
+        "completion_tokens": 12,
+        "total_tokens": 41,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "ok": true,
+      "seconds": 2.004
+    },
+    {
+      "provider": "Groq",
+      "model": "openai/gpt-oss-20b",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "queue_time": 0.048378615,
+        "prompt_tokens": 93,
+        "prompt_time": 0.005140034,
+        "completion_tokens": 96,
+        "completion_time": 0.09993716,
+        "total_tokens": 189,
+        "total_time": 0.105077194,
+        "completion_tokens_details": {
+          "reasoning_tokens": 75
+        }
+      },
+      "ok": true,
+      "seconds": 0.269
+    },
+    {
+      "provider": "Cerebras",
+      "model": "gpt-oss-120b",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "total_tokens": 149,
+        "completion_tokens": 60,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0,
+          "reasoning_tokens": 38
+        },
+        "prompt_tokens": 89,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "ok": true,
+      "seconds": 0.323
+    },
+    {
+      "provider": "DeepSeek",
+      "model": "deepseek-v4-flash",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 105,
+        "completion_tokens": 38,
+        "total_tokens": 143,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 25
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 105
+      },
+      "ok": true,
+      "seconds": 0.883
+    },
+    {
+      "provider": "Google",
+      "model": "gemini-3.5-flash",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "STOP",
+      "usage": {
+        "promptTokenCount": 24,
+        "candidatesTokenCount": 12,
+        "totalTokenCount": 200,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 24
+          }
+        ],
+        "thoughtsTokenCount": 164,
+        "serviceTier": "standard"
+      },
+      "ok": true,
+      "seconds": 1.327
+    },
+    {
+      "provider": "Anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "end_turn",
+      "usage": {
+        "input_tokens": 32,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 17,
+        "service_tier": "standard",
+        "inference_geo": "not_available"
+      },
+      "ok": true,
+      "seconds": 1.24
+    },
+    {
+      "provider": "xAI",
+      "model": "grok-4.20-0309-non-reasoning",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 206,
+        "completion_tokens": 12,
+        "total_tokens": 218,
+        "prompt_tokens_details": {
+          "text_tokens": 206,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "cached_tokens": 128
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "num_sources_used": 0,
+        "cost_in_usd_ticks": 1531000
+      },
+      "ok": true,
+      "seconds": 0.641
+    },
+    {
+      "provider": "Cohere",
+      "model": "command-r-08-2024",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 23,
+        "completion_tokens": 12,
+        "total_tokens": 35,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "ok": true,
+      "seconds": 3.73
+    },
+    {
+      "provider": "DeepInfra",
+      "model": "google/gemma-3-12b-it",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 32,
+        "total_tokens": 45,
+        "completion_tokens": 13,
+        "estimated_cost": 3.55e-06,
+        "prompt_tokens_details": null
+      },
+      "ok": true,
+      "seconds": 0.755
+    },
+    {
+      "provider": "Together",
+      "model": "openai/gpt-oss-20b",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 89,
+        "total_tokens": 193,
+        "completion_tokens": 104,
+        "reasoning_tokens": 0
+      },
+      "ok": true,
+      "seconds": 2.583
+    },
+    {
+      "provider": "SiliconFlow",
+      "model": "Qwen/Qwen3-14B",
+      "maxOutputTokens": 512,
+      "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1082)>",
+      "ok": false,
+      "seconds": 0.243
+    }
+  ],
+  "candidateProbes": [
+    {
+      "provider": "Mistral",
+      "model": "ministral-8b-latest",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "```markdown\ntitle: Worker ready\nicon: ✅\nlanguage: English\n```",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 26,
+        "total_tokens": 46,
+        "completion_tokens": 20,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "service_tier": "standard"
+      },
+      "ok": true,
+      "seconds": 0.412
+    },
+    {
+      "provider": "Google",
+      "model": "gemini-2.5-flash-lite",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "STOP",
+      "usage": {
+        "promptTokenCount": 24,
+        "candidatesTokenCount": 12,
+        "totalTokenCount": 36,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 24
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      "ok": true,
+      "seconds": 0.636
+    },
+    {
+      "provider": "xAI",
+      "model": "grok-4-1-fast-non-reasoning",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 206,
+        "completion_tokens": 12,
+        "total_tokens": 218,
+        "prompt_tokens_details": {
+          "text_tokens": 206,
+          "audio_tokens": 0,
+          "image_tokens": 0,
+          "cached_tokens": 128
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        },
+        "num_sources_used": 0,
+        "cost_in_usd_ticks": 1531000
+      },
+      "ok": true,
+      "seconds": 0.696
+    },
+    {
+      "provider": "Cohere",
+      "model": "command-r7b-12-2024",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "Here is the answer you requested:\n\ntitle: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 23,
+        "completion_tokens": 21,
+        "total_tokens": 44,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "ok": true,
+      "seconds": 0.565
+    },
+    {
+      "provider": "Parasail",
+      "model": "meta-llama/Llama-3.2-3B-Instruct",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: \nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 58,
+        "total_tokens": 70,
+        "completion_tokens": 12,
+        "prompt_tokens_details": {
+          "cached_tokens": 16
+        }
+      },
+      "ok": false,
+      "seconds": 0.847
+    },
+    {
+      "provider": "NebiusAIStudio",
+      "model": "google/gemma-3-27b-it",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "completion_tokens": 13,
+        "prompt_tokens": 32,
+        "total_tokens": 45,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": null
+      },
+      "ok": true,
+      "seconds": 0.561
+    },
+    {
+      "provider": "Novita.ai",
+      "model": "meta-llama/llama-3.1-8b-instruct",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 58,
+        "completion_tokens": 14,
+        "total_tokens": 72,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      },
+      "ok": true,
+      "seconds": 0.786
+    },
+    {
+      "provider": "OpenRouter",
+      "model": "ibm-granite/granite-4.0-h-micro",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 53,
+        "completion_tokens": 14,
+        "total_tokens": 67,
+        "cost": 2.469e-06,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 2.469e-06,
+          "upstream_inference_prompt_cost": 9.01e-07,
+          "upstream_inference_completions_cost": 1.568e-06
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "ok": true,
+      "seconds": 0.758
+    },
+    {
+      "provider": "VercelAIGateway",
+      "model": "mistral/ministral-3b",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 26,
+        "completion_tokens": 14,
+        "total_tokens": 40,
+        "cost": 4e-06,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": null,
+          "upstream_inference_prompt_cost": 0,
+          "upstream_inference_completions_cost": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0
+        },
+        "cache_creation_input_tokens": 0,
+        "market_cost": 4e-06,
+        "gateway_cost": 4e-06
+      },
+      "ok": true,
+      "seconds": 0.907
+    },
+    {
+      "provider": "Amazon",
+      "model": "openai.gpt-oss-20b",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "completion_tokens": 72,
+        "prompt_tokens": 89,
+        "total_tokens": 161
+      },
+      "ok": true,
+      "seconds": 0.516
+    },
+    {
+      "provider": "Requesty",
+      "model": "openai-responses/gpt-4.1-nano",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready  \nicon: ✅  \nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "completion_tokens": 13,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_tokens": 29,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "caching_tokens": 0
+        },
+        "total_tokens": 42,
+        "cost": 8.1e-06
+      },
+      "ok": true,
+      "seconds": 0.928
+    },
+    {
+      "provider": "Glama",
+      "model": "google/gemini-2.5-flash-lite",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 23,
+        "completion_tokens": 12,
+        "total_tokens": 35,
+        "cost": 7.1e-06,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 7.1e-06,
+          "upstream_inference_prompt_cost": 2.3e-06,
+          "upstream_inference_completions_cost": 4.8e-06
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "ok": true,
+      "seconds": 1.646
+    },
+    {
+      "provider": "Parasail",
+      "model": "google/gemma-3-4b-it",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English\n",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 32,
+        "total_tokens": 46,
+        "completion_tokens": 14,
+        "prompt_tokens_details": null
+      },
+      "ok": true,
+      "seconds": 0.93
+    },
+    {
+      "provider": "Mistral",
+      "model": "ministral-14b-latest",
+      "maxOutputTokens": 512,
+      "status": 200,
+      "content": "title: Worker ready\nicon: ✅\nlanguage: English",
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 26,
+        "total_tokens": 40,
+        "completion_tokens": 14,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "service_tier": "standard"
+      },
+      "ok": true,
+      "seconds": 0.599
+    }
+  ],
+  "nebiusReplacementStreamingProbe": {
+    "provider": "NebiusAIStudio",
+    "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "stream": true,
+    "status": 200,
+    "content": "title: Worker ready  \nicon: ✅  \nlanguage: English",
+    "finishReason": "stop",
+    "ok": true,
+    "seconds": 0.736
+  },
+  "certificateFailure": {
+    "provider": "SiliconFlow",
+    "subjectCommonName": "siliconflow.com",
+    "issuer": "Let's Encrypt YE2",
+    "notAfterUtc": "2026-09-07T10:12:23Z",
+    "tlsValidationKeptEnabled": true
+  },
+  "initialEmulatorReport": {
+    "id": "1b6c1e0a-c814-400f-9e44-048e2b85137b",
+    "successCount": 18,
+    "errorCount": 1,
+    "recordedCostUsd": 0.00069406,
+    "results": [
+      {
+        "provider": "Mistral",
+        "model": "ministral-14b-latest",
+        "reportStatus": "SUCCESS",
+        "durationMs": 88718,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 9.6e-06
+      },
+      {
+        "provider": "OpenAI",
+        "model": "gpt-4o-mini",
+        "reportStatus": "SUCCESS",
+        "durationMs": 97893,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 1.335e-05
+      },
+      {
+        "provider": "Groq",
+        "model": "openai/gpt-oss-20b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 91304,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 2.5274999999999998e-05
+      },
+      {
+        "provider": "Cerebras",
+        "model": "gpt-oss-120b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 96745,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 0.0001172
+      },
+      {
+        "provider": "DeepSeek",
+        "model": "deepseek-v4-flash",
+        "reportStatus": "SUCCESS",
+        "durationMs": 95554,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 0.00012628
+      },
+      {
+        "provider": "Google",
+        "model": "gemini-2.5-flash-lite",
+        "reportStatus": "SUCCESS",
+        "durationMs": 95063,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 7.5e-06
+      },
+      {
+        "provider": "Anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "reportStatus": "SUCCESS",
+        "durationMs": 90288,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 0.000124
+      },
+      {
+        "provider": "xAI",
+        "model": "grok-4-1-fast-non-reasoning",
+        "reportStatus": "SUCCESS",
+        "durationMs": 96350,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 0.0001631
+      },
+      {
+        "provider": "Cohere",
+        "model": "command-r7b-12-2024",
+        "reportStatus": "SUCCESS",
+        "durationMs": 94520,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 4.275e-06
+      },
+      {
+        "provider": "DeepInfra",
+        "model": "google/gemma-3-12b-it",
+        "reportStatus": "SUCCESS",
+        "durationMs": 93753,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 3.9e-06
+      },
+      {
+        "provider": "Together",
+        "model": "openai/gpt-oss-20b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 92427,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 3.0650000000000006e-05
+      },
+      {
+        "provider": "Parasail",
+        "model": "google/gemma-3-4b-it",
+        "reportStatus": "SUCCESS",
+        "durationMs": 75449,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 3.25e-06
+      },
+      {
+        "provider": "NebiusAIStudio",
+        "model": "google/gemma-3-27b-it",
+        "reportStatus": "ERROR",
+        "durationMs": 538571,
+        "httpStatus": null,
+        "errorMessage": "Streaming error: timeout\n\nNon-streaming fallback also failed: Network error after retry: timeout",
+        "cost": null
+      },
+      {
+        "provider": "Novita.ai",
+        "model": "meta-llama/llama-3.1-8b-instruct",
+        "reportStatus": "SUCCESS",
+        "durationMs": 88980,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 2.3999999999999995e-06
+      },
+      {
+        "provider": "OpenRouter",
+        "model": "ibm-granite/granite-4.0-h-micro",
+        "reportStatus": "SUCCESS",
+        "durationMs": 84520,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 2.605e-06
+      },
+      {
+        "provider": "VercelAIGateway",
+        "model": "mistral/ministral-3b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 86888,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 4.8e-06
+      },
+      {
+        "provider": "Amazon",
+        "model": "openai.gpt-oss-20b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 86476,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 3.8775e-05
+      },
+      {
+        "provider": "Requesty",
+        "model": "openai-responses/gpt-4.1-nano",
+        "reportStatus": "SUCCESS",
+        "durationMs": 88957,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 8.9e-06
+      },
+      {
+        "provider": "Glama",
+        "model": "google/gemini-2.5-flash-lite",
+        "reportStatus": "SUCCESS",
+        "durationMs": 90336,
+        "httpStatus": 200,
+        "errorMessage": null,
+        "cost": 8.2e-06
+      }
+    ]
+  },
+  "finalEmulatorReport": {
+    "id": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+    "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+    "title": "Workers verification - 19 providers",
+    "successCount": 19,
+    "errorCount": 0,
+    "metadataDisabled": true,
+    "recordedCostUsd": 0.00130451,
+    "costedCalls": 19,
+    "distinctFinalTraces": 19,
+    "allTraceTagsMatch": true,
+    "costLedgerMatchesReportTotal": true,
+    "results": [
+      {
+        "provider": "Mistral",
+        "model": "ministral-14b-latest",
+        "reportStatus": "SUCCESS",
+        "durationMs": 6883,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 9.6e-06,
+        "finishReason": "stop",
+        "traceFile": "api.mistral.ai_20260907_133626_963_5pcx_0bbf6d35.json"
+      },
+      {
+        "provider": "OpenAI",
+        "model": "gpt-4o-mini",
+        "reportStatus": "SUCCESS",
+        "durationMs": 7748,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready  \nicon: ✅  \nlanguage: English  ",
+        "cost": 1.335e-05,
+        "finishReason": "stop",
+        "traceFile": "api.openai.com_20260907_133604_785_5pcr_a976535d.json"
+      },
+      {
+        "provider": "Groq",
+        "model": "openai/gpt-oss-20b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 2142,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 3.2474999999999997e-05,
+        "finishReason": "stop",
+        "traceFile": "api.groq.com_20260907_133643_964_5pd2_da218e24.json"
+      },
+      {
+        "provider": "Cerebras",
+        "model": "gpt-oss-120b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 7307,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 8.045e-05,
+        "finishReason": "stop",
+        "traceFile": "api.cerebras.ai_20260907_133605_677_5pcs_16db21a8.json"
+      },
+      {
+        "provider": "DeepSeek",
+        "model": "deepseek-v4-flash",
+        "reportStatus": "SUCCESS",
+        "durationMs": 10080,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 0.0008126800000000001,
+        "finishReason": "stop",
+        "traceFile": "api.deepseek.com_20260907_133612_798_5pct_02f5dc1e.json"
+      },
+      {
+        "provider": "Google",
+        "model": "gemini-2.5-flash-lite",
+        "reportStatus": "SUCCESS",
+        "durationMs": 6132,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English.",
+        "cost": 7.899999999999999e-06,
+        "finishReason": null,
+        "traceFile": "generativelanguage.googleapis.com_20260907_133613_371_5pcu_166e62fb.json"
+      },
+      {
+        "provider": "Anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "reportStatus": "SUCCESS",
+        "durationMs": 7554,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 0.000124,
+        "finishReason": null,
+        "traceFile": "api.anthropic.com_20260907_133616_348_5pcv_15276c2f.json"
+      },
+      {
+        "provider": "xAI",
+        "model": "grok-4-1-fast-non-reasoning",
+        "reportStatus": "SUCCESS",
+        "durationMs": 6550,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 9.59e-05,
+        "finishReason": "stop",
+        "traceFile": "api.x.ai_20260907_133621_171_5pcw_05c52e36.json"
+      },
+      {
+        "provider": "Cohere",
+        "model": "command-r7b-12-2024",
+        "reportStatus": "SUCCESS",
+        "durationMs": 2396,
+        "httpStatus": 200,
+        "responseBody": "Here is the response that meets your requirements:\n\ntitle: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 4.575e-06,
+        "finishReason": "stop",
+        "traceFile": "api.cohere.ai_20260907_133704_446_5pd8_29b01600.json"
+      },
+      {
+        "provider": "DeepInfra",
+        "model": "google/gemma-3-12b-it",
+        "reportStatus": "SUCCESS",
+        "durationMs": 6034,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 3.9e-06,
+        "finishReason": "stop",
+        "traceFile": "api.deepinfra.com_20260907_133635_596_5pcz_fadce074.json"
+      },
+      {
+        "provider": "Together",
+        "model": "openai/gpt-oss-20b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 5686,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 2.0850000000000002e-05,
+        "finishReason": "stop",
+        "traceFile": "api.together.xyz_20260907_133632_360_5pcy_a77773eb.json"
+      },
+      {
+        "provider": "Parasail",
+        "model": "google/gemma-3-4b-it",
+        "reportStatus": "SUCCESS",
+        "durationMs": 3928,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 3.25e-06,
+        "finishReason": "stop",
+        "traceFile": "api.parasail.io_20260907_133637_042_5pd0_ceddb928.json"
+      },
+      {
+        "provider": "NebiusAIStudio",
+        "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "reportStatus": "SUCCESS",
+        "durationMs": 4124,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 8.1e-06,
+        "finishReason": "stop",
+        "traceFile": "api.studio.nebius.com_20260907_133641_510_5pd1_bb751706.json"
+      },
+      {
+        "provider": "Novita.ai",
+        "model": "meta-llama/llama-3.1-8b-instruct",
+        "reportStatus": "SUCCESS",
+        "durationMs": 2870,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\n\nicon: ✅\n\nlanguage: English",
+        "cost": 2.3999999999999995e-06,
+        "finishReason": "stop",
+        "traceFile": "api.novita.ai_20260907_133651_462_5pd3_34f7f3df.json"
+      },
+      {
+        "provider": "OpenRouter",
+        "model": "ibm-granite/granite-4.0-h-micro",
+        "reportStatus": "SUCCESS",
+        "durationMs": 2589,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 2.605e-06,
+        "finishReason": "stop",
+        "traceFile": "openrouter.ai_20260907_133654_530_5pd4_200f11ca.json"
+      },
+      {
+        "provider": "VercelAIGateway",
+        "model": "mistral/ministral-3b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 3768,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 4.8e-06,
+        "finishReason": "stop",
+        "traceFile": "ai-gateway.vercel.sh_20260907_133657_504_5pd6_d2773d17.json"
+      },
+      {
+        "provider": "Amazon",
+        "model": "openai.gpt-oss-20b",
+        "reportStatus": "SUCCESS",
+        "durationMs": 3706,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 6.0975e-05,
+        "finishReason": "stop",
+        "traceFile": "bedrock-mantle.eu-central-1.api.aws_20260907_133657_160_5pd5_bfb02b93.json"
+      },
+      {
+        "provider": "Requesty",
+        "model": "openai-responses/gpt-4.1-nano",
+        "reportStatus": "SUCCESS",
+        "durationMs": 2653,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready  \nicon: ✅  \nlanguage: English",
+        "cost": 8.9e-06,
+        "finishReason": "stop",
+        "traceFile": "router.requesty.ai_20260907_133701_627_5pd7_a6a27912.json"
+      },
+      {
+        "provider": "Glama",
+        "model": "google/gemini-2.5-flash-lite",
+        "reportStatus": "SUCCESS",
+        "durationMs": 2849,
+        "httpStatus": 200,
+        "responseBody": "title: Worker ready\nicon: ✅\nlanguage: English",
+        "cost": 7.8e-06,
+        "finishReason": "stop",
+        "traceFile": "glama.ai_20260907_133704_928_5pd9_45886d86.json"
+      }
+    ],
+    "traces": [
+      {
+        "filename": "api.mistral.ai_20260907_133626_963_5pcx_0bbf6d35.json",
+        "timestamp": 1788780986963,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "ministral-14b-latest",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.openai.com_20260907_133604_785_5pcr_a976535d.json",
+        "timestamp": 1788780964785,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "gpt-4o-mini",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.groq.com_20260907_133643_964_5pd2_da218e24.json",
+        "timestamp": 1788781003964,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "openai/gpt-oss-20b",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.cerebras.ai_20260907_133605_677_5pcs_16db21a8.json",
+        "timestamp": 1788780965677,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "gpt-oss-120b",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.deepseek.com_20260907_133612_798_5pct_02f5dc1e.json",
+        "timestamp": 1788780972798,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "deepseek-v4-flash",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "generativelanguage.googleapis.com_20260907_133613_371_5pcu_166e62fb.json",
+        "timestamp": 1788780973371,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "gemini-2.5-flash-lite",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.anthropic.com_20260907_133616_348_5pcv_15276c2f.json",
+        "timestamp": 1788780976348,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "claude-haiku-4-5-20251001",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.x.ai_20260907_133621_171_5pcw_05c52e36.json",
+        "timestamp": 1788780981171,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "grok-4-1-fast-non-reasoning",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.cohere.ai_20260907_133704_446_5pd8_29b01600.json",
+        "timestamp": 1788781024446,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "command-r7b-12-2024",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.deepinfra.com_20260907_133635_596_5pcz_fadce074.json",
+        "timestamp": 1788780995596,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "google/gemma-3-12b-it",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.together.xyz_20260907_133632_360_5pcy_a77773eb.json",
+        "timestamp": 1788780992360,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "openai/gpt-oss-20b",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.parasail.io_20260907_133637_042_5pd0_ceddb928.json",
+        "timestamp": 1788780997042,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "google/gemma-3-4b-it",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.studio.nebius.com_20260907_133641_510_5pd1_bb751706.json",
+        "timestamp": 1788781001510,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "api.novita.ai_20260907_133651_462_5pd3_34f7f3df.json",
+        "timestamp": 1788781011462,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "meta-llama/llama-3.1-8b-instruct",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "openrouter.ai_20260907_133654_530_5pd4_200f11ca.json",
+        "timestamp": 1788781014530,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "ibm-granite/granite-4.0-h-micro",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "ai-gateway.vercel.sh_20260907_133657_504_5pd6_d2773d17.json",
+        "timestamp": 1788781017504,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "mistral/ministral-3b",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "bedrock-mantle.eu-central-1.api.aws_20260907_133657_160_5pd5_bfb02b93.json",
+        "timestamp": 1788781017160,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "openai.gpt-oss-20b",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "router.requesty.ai_20260907_133701_627_5pd7_a6a27912.json",
+        "timestamp": 1788781021627,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "openai-responses/gpt-4.1-nano",
+        "statusCode": 200,
+        "partial": false
+      },
+      {
+        "filename": "glama.ai_20260907_133704_928_5pd9_45886d86.json",
+        "timestamp": 1788781024928,
+        "reportId": "6758992b-5542-4c29-b6f5-e5c8e2e47627",
+        "runId": "c5e1e4f3-b4cf-4b80-b909-53ed7dca19fa",
+        "category": "report/prompt",
+        "model": "google/gemini-2.5-flash-lite",
+        "statusCode": 200,
+        "partial": false
+      }
+    ]
+  },
+  "timing": {
+    "commonUnchangedSelections": 18,
+    "initialMedianMs": 90820.0,
+    "finalCommonMedianMs": 4807.0,
+    "finalAllMedianMs": 4124,
+    "finalMinMs": 2142,
+    "finalMaxMs": 10080
+  },
+  "persistence": {
+    "savedPoolMatchesSeed": true,
+    "swarmIdPreserved": true,
+    "otherSwarmsPreserved": true,
+    "unrelatedPreferencesPreservedDuringTargetedUpdate": true
+  },
+  "validation": {
+    "debugBuild": "passed",
+    "installedOn": "emulator-5554",
+    "cloudApk": "/Users/herbert/cloud/ai.apk",
+    "unitTestsRun": false,
+    "instrumentedTestsRun": false,
+    "cycle": "default",
+    "foregroundConfirmed": "com.ai/.MainActivity",
+    "runtimeOrTraceWriteErrorsObserved": false,
+    "retainedJsonTraceCount": 1672,
+    "retainedJsonTraceBytes": 51944877,
+    "traceLimitCount": 2000,
+    "traceLimitBytes": 52428800,
+    "buildAndCloudApkSha256": "543823ffa7ac5f53ceb7df2346e8552db208b8b90fc81accd7a266d3f59a1feb"
+  }
+}

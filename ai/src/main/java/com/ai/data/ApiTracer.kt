@@ -42,6 +42,8 @@ object ApiTracer {
     private val gson = createAppGson(prettyPrint = true)
     private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.US).withZone(ZoneId.systemDefault())
     private val lock = ReentrantLock()
+    private var directoryVersion = 0L
+    private val filenameTimestamp = Regex("_(\\d{8}_\\d{6}_\\d{3})_")
     // Seed with a random offset rather than 0 (Bug 21a): the sequence is
     // in-memory only, so after a process restart a new trace written in the
     // same millisecond + host as a pre-restart trace could otherwise collide
@@ -143,7 +145,12 @@ object ApiTracer {
     }
 
     fun init(context: Context) = lock.withLock {
-        traceDir = File(context.filesDir, TRACE_DIR).also { if (!it.exists()) it.mkdirs() }
+        val dir = File(context.filesDir, TRACE_DIR).also { if (!it.exists()) it.mkdirs() }
+        if (traceDir != dir) {
+            traceDir = dir
+            directoryVersion++
+            cachedTraceFiles = null
+        }
     }
 
     /** Reserve a stable per-request filename before a cancellable network call. */
@@ -209,6 +216,7 @@ object ApiTracer {
                 AppLog.w("ApiTracer", "Trace $resolvedFilename was removed before cache update — skipping cache entry")
                 return null
             }
+            directoryVersion++
             try {
                 cachedTraceFiles?.let { current ->
                     val info = TraceFileInfo(
@@ -236,17 +244,30 @@ object ApiTracer {
         }
     }
 
-    fun getTraceFiles(): List<TraceFileInfo> = lock.withLock {
-        cachedTraceFiles?.let { return it }
-        val dir = traceDir ?: return emptyList()
-        if (!dir.exists()) return emptyList()
-        val list = dir.listFiles()
-            ?.filter { it.extension == "json" }
-            ?.mapNotNull { parseTraceFileInfoStreaming(it) }
-            ?.sortedByDescending { it.timestamp }
-            ?: emptyList()
-        cachedTraceFiles = list
-        list
+    fun getTraceFiles(): List<TraceFileInfo> {
+        while (true) {
+            val (dir, version) = lock.withLock {
+                cachedTraceFiles?.let { return it }
+                val dir = traceDir ?: return emptyList()
+                dir to directoryVersion
+            }
+            // A cold listing can parse 50 MiB. Never hold the writer lock
+            // while doing that: streaming responses must be able to finish.
+            val list = dir.listFiles()
+                ?.filter { it.extension == "json" }
+                ?.mapNotNull { parseTraceFileInfoStreaming(it) }
+                ?.sortedByDescending { it.timestamp }
+                ?: emptyList()
+            val published = lock.withLock {
+                cachedTraceFiles ?: if (version == directoryVersion) {
+                    cachedTraceFiles = list
+                    list
+                } else null
+            }
+            // A concurrent write/delete invalidates the snapshot. Retry off
+            // the lock rather than publishing stale or resurrected entries.
+            if (published != null) return published
+        }
     }
 
     /** Warm the trace-file cache off the calling thread so the first
@@ -313,38 +334,40 @@ object ApiTracer {
             reader.nextNull(); null
         } else reader.nextString()
 
-    private data class TracePruneCandidate(val file: File, val info: TraceFileInfo, val size: Long)
+    private data class TracePruneCandidate(val file: File, val timestamp: Long, val size: Long)
 
     private fun pruneTraceDirLocked(dir: File, protectedFilename: String): Int {
-        // Pruning runs on every traced response. Reuse metadata from the
-        // listing cache instead of reparsing up to 50 MB of retained JSON
-        // under the global lock for every request during a provider refresh.
+        // Retention needs only age and size, not request/response JSON.
+        // Filenames encode request time; legacy names fall back to file time.
+        // In particular, a cold UI listing must not force a full JSON scan
+        // under the writer lock on the first response after startup.
         val cachedByName = cachedTraceFiles?.associateBy { it.filename }.orEmpty()
         val candidates = dir.listFiles { file -> file.extension == "json" }
-            ?.mapNotNull { file ->
-                (cachedByName[file.name] ?: parseTraceFileInfoStreaming(file))?.let { info ->
-                    TracePruneCandidate(file, info, file.length().coerceAtLeast(0L))
-                }
+            ?.map { file ->
+                val timestamp = cachedByName[file.name]?.timestamp ?: runCatching {
+                    filenameTimestamp.find(file.name)?.groupValues?.get(1)?.let {
+                        Instant.from(dateFormat.parse(it)).toEpochMilli()
+                    }
+                }.getOrNull() ?: file.lastModified()
+                TracePruneCandidate(file, timestamp, file.length().coerceAtLeast(0L))
             }
-            ?.sortedByDescending { it.info.timestamp }
+            ?.sortedByDescending { it.timestamp }
             ?: return 0
         var keptCount = 0
         var keptBytes = 0L
         val deletedNames = mutableSetOf<String>()
         candidates.forEach { candidate ->
-            val protected = candidate.info.filename == protectedFilename
+            val protected = candidate.file.name == protectedFilename
             val keepByCount = keptCount < MAX_TRACE_FILES
             val keepByBytes = keptBytes + candidate.size <= MAX_TRACE_BYTES || keptCount == 0
             if (protected || (keepByCount && keepByBytes)) {
                 keptCount++
                 keptBytes += candidate.size
             } else if (candidate.file.delete()) {
-                deletedNames += candidate.info.filename
+                deletedNames += candidate.file.name
             }
         }
-        // Also prime a cold cache: otherwise a run that never opens the
-        // trace-list screen would keep reparsing the entire directory.
-        cachedTraceFiles = candidates.filterNot { it.info.filename in deletedNames }.map { it.info }
+        cachedTraceFiles = cachedTraceFiles?.filterNot { it.filename in deletedNames }
         return deletedNames.size
     }
 
@@ -407,6 +430,7 @@ object ApiTracer {
 
     fun clearTraces() = lock.withLock {
         traceDir?.listFiles()?.forEach { if (it.extension == "json") it.delete() }
+        directoryVersion++
         cachedTraceFiles = emptyList()
         bumpTraceVersionNow()
     }
@@ -419,6 +443,7 @@ object ApiTracer {
         val file = java.io.File(dir, filename)
         if (!file.exists()) return false
         val ok = try { file.delete() } catch (_: Exception) { false }
+        if (ok) directoryVersion++
         if (ok) cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename == filename }
         }
@@ -445,7 +470,7 @@ object ApiTracer {
         cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename in deletedNames }
         }
-        if (count > 0) bumpTraceVersionNow()
+        if (count > 0) { directoryVersion++; bumpTraceVersionNow() }
         count
     }
 
@@ -468,7 +493,7 @@ object ApiTracer {
         cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename in deletedNames }
         }
-        if (count > 0) bumpTraceVersionNow()
+        if (count > 0) { directoryVersion++; bumpTraceVersionNow() }
         count
     }
 

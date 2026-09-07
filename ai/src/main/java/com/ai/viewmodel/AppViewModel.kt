@@ -469,17 +469,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // launch) must not leak a trace before we know the master + the
         // user's tracing choice are both on.
         ApiTracer.isTracingEnabled = false
-        // Warm the trace-file cache off the main thread so the first
-        // UI-side getTraceFiles() (Trace screen open, agent test 🐞
-        // lookup, fan-out 🐞 lookup) doesn't pay the streaming-parse
-        // cost across the whole trace dir.
-        // Off-thread cache prewarms. The two below are fire-and-forget on
-        // viewModelScope — the bootstrap launch below doesn't depend on
-        // either finishing. Logged from inside each function at TRACE.
-        AppLog.d("App.start", "→ Prewarm caches (ApiTracer + PricingCache)")
-        ApiTracer.prewarmCache(viewModelScope)
+        // Preload pricing independently of bootstrap. Trace prewarming
+        // starts in bootstrap after ApiTracer.init supplies its directory;
+        // launching it here could return early with no directory to scan.
+        AppLog.d("App.start", "→ Prewarm PricingCache")
         PricingCache.preloadAsync(application, viewModelScope)
-        AppLog.d("App.start", "← Prewarm caches dispatched (background)")
+        AppLog.d("App.start", "← PricingCache prewarm dispatched (background)")
 
         // Stall watchdog. Every 15s WHILE work is in flight, log the cap
         // snapshot + per-host throttle state. If the global in-flight count
@@ -638,6 +633,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.d(tag, "→ Singletons init")
         AppLog.d(tag, "  init AppLog"); AppLog.init(application)
         AppLog.d(tag, "  init ApiTracer"); ApiTracer.init(application)
+        ApiTracer.prewarmCache(viewModelScope)
         AppLog.d(tag, "  init AuditLog"); AuditLog.init(application)
         AppLog.d(tag, "  init ChatHistoryManager"); ChatHistoryManager.init(application)
         AppLog.d(tag, "  init ReportStorage"); ReportStorage.init(application)

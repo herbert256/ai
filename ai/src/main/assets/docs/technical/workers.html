@@ -143,17 +143,8 @@ at load — exactly like the Import/Export re-link path.</dd></div>
 <details class="entity">
 <summary>swarms/workers.json <span class="badge">Swarm &middot; workers</span></summary>
 <div class="body">
-<p>12 members: Mistral <code>mistral-medium-latest</code>, OpenAI
-<code>gpt-4o-mini</code>, Groq <code>llama-3.3-70b-versatile</code>,
-Cerebras <code>gpt-oss-120b</code>, DeepSeek
-<code>deepseek-v4-flash</code>, Google
-<code>gemini-3.5-flash</code>, Anthropic
-<code>claude-haiku-4-5-20251001</code>, xAI
-<code>grok-4.20-0309-non-reasoning</code>, Cohere
-<code>command-r-08-2024</code>, DeepInfra
-<code>google/gemma-3-12b-it</code>, Together
-<code>Qwen/Qwen3-235B-A22B-Instruct-2507-tput</code>, SiliconFlow
-<code>Qwen/Qwen3-14B</code>.</p>
+<p>19 members from 19 providers: Mistral <code>ministral-14b-latest</code>, OpenAI <code>gpt-4o-mini</code>, Groq <code>openai/gpt-oss-20b</code>, Cerebras <code>gpt-oss-120b</code>, DeepSeek <code>deepseek-v4-flash</code>, Google <code>gemini-2.5-flash-lite</code>, Anthropic <code>claude-haiku-4-5-20251001</code>, xAI <code>grok-4-1-fast-non-reasoning</code>, Cohere <code>command-r7b-12-2024</code>, DeepInfra <code>google/gemma-3-12b-it</code>, Together <code>openai/gpt-oss-20b</code>, Parasail <code>google/gemma-3-4b-it</code>, NebiusAIStudio <code>Qwen/Qwen3-30B-A3B-Instruct-2507</code>, Novita.ai <code>meta-llama/llama-3.1-8b-instruct</code>, OpenRouter <code>ibm-granite/granite-4.0-h-micro</code>, VercelAIGateway <code>mistral/ministral-3b</code>, Amazon <code>openai.gpt-oss-20b</code>, Requesty <code>openai-responses/gpt-4.1-nano</code>, Glama <code>google/gemini-2.5-flash-lite</code>.</p>
+<p>Unchanged historical 12-member pools migrate while preserving the swarm ID, parameters and prompt references. Custom membership is retained. SiliconFlow was removed after its endpoint certificate expired on 7 September 2026.</p>
 <p>This is the swarm every bundled worker-prompt chain points at (see
 <a href="#worker-swarm">the worker swarm</a> below) — there is
 <strong>no separate <code>tournament</code> swarm</strong>; the
@@ -352,7 +343,7 @@ translate-text / translate-title / translate-rank, find-translation,
 report/model/translation icons + titles, tournament, user-note — each
 carry an ordered <strong><code>workers</code> fallback chain</strong>.
 Every bundled worker prompt ships with a single chain entry — the
-<code>workers</code> swarm — so the cheap 12-member swarm is the
+<code>workers</code> swarm — so the inexpensive 19-member swarm is the
 default model pool for all of these single-call kinds. There's no
 <code>tournament</code>-specific pool; <code>tournament.json</code>
 also points at <code>workers</code>.</p>

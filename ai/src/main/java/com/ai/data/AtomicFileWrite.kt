@@ -84,7 +84,9 @@ private fun File.pruneOldAtomicTempSiblings(parent: File?) {
     parent ?: return
     val cutoff = System.currentTimeMillis() - ATOMIC_TMP_MAX_AGE_MS
     parent.listFiles { f ->
-        f.isFile && f.name.startsWith("$name.") && f.name.endsWith(".tmp") && f.lastModified() < cutoff
+        // Reject unrelated names before stat calls: trace/ can contain
+        // thousands of files, and this path runs on every atomic write.
+        f.name.startsWith("$name.") && f.name.endsWith(".tmp") && f.isFile && f.lastModified() < cutoff
     }?.forEach { stale ->
         try {
             if (!stale.delete()) {

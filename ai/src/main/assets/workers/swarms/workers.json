@@ -2,7 +2,7 @@
   "id": "7e8eaffc-32ad-4813-9daa-31e12a1e575c",
   "members": [
     {
-      "model": "mistral-medium-latest",
+      "model": "ministral-14b-latest",
       "provider": "Mistral"
     },
     {
@@ -22,7 +22,7 @@
       "provider": "DeepSeek"
     },
     {
-      "model": "gemini-3.5-flash",
+      "model": "gemini-2.5-flash-lite",
       "provider": "Google"
     },
     {
@@ -30,11 +30,11 @@
       "provider": "Anthropic"
     },
     {
-      "model": "grok-4.20-0309-non-reasoning",
+      "model": "grok-4-1-fast-non-reasoning",
       "provider": "xAI"
     },
     {
-      "model": "command-r-08-2024",
+      "model": "command-r7b-12-2024",
       "provider": "Cohere"
     },
     {
@@ -46,8 +46,36 @@
       "provider": "Together"
     },
     {
-      "model": "Qwen/Qwen3-14B",
-      "provider": "SiliconFlow"
+      "provider": "Parasail",
+      "model": "google/gemma-3-4b-it"
+    },
+    {
+      "provider": "NebiusAIStudio",
+      "model": "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    },
+    {
+      "provider": "Novita.ai",
+      "model": "meta-llama/llama-3.1-8b-instruct"
+    },
+    {
+      "provider": "OpenRouter",
+      "model": "ibm-granite/granite-4.0-h-micro"
+    },
+    {
+      "provider": "VercelAIGateway",
+      "model": "mistral/ministral-3b"
+    },
+    {
+      "provider": "Amazon",
+      "model": "openai.gpt-oss-20b"
+    },
+    {
+      "provider": "Requesty",
+      "model": "openai-responses/gpt-4.1-nano"
+    },
+    {
+      "provider": "Glama",
+      "model": "google/gemini-2.5-flash-lite"
     }
   ],
   "name": "workers",
