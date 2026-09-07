@@ -203,7 +203,7 @@ internal fun ReportRunScreen(
     // secondary launchers live on second-results only.
     val manageLayer = activeReportLayer == 1
     val secondLayer = activeReportLayer == 3
-    // Direct jumps for the 1️⃣ 2️⃣ 3️⃣ switcher (cycleReportScreens only steps
+    // Direct jumps for the fixed section rows (cycleReportScreens only steps
     // forward). Each clears the others so exactly one layer is shown.
     val goManageScreen: () -> Unit = { st.showGetInfo.value = false; showSecondResults?.value = false }
     val goGetInfoScreen: () -> Unit = { showSecondResults?.value = false; st.showGetInfo.value = true }
@@ -769,18 +769,8 @@ internal fun ReportRunScreen(
             // has no notes yet — still clickable so the User-notes screen (which
             // hosts ✍️ Add note) stays reachable. ✍️ itself moved there.
             onListNotes = if (manageLayer && currentReportId != null) { { showNotesList = true } } else null,
-            listNotesActive = reportNotes.isNotEmpty(),
-            // 1️⃣ 2️⃣ 3️⃣ switcher — leads the bar on all three report screens.
-            screenNav = currentReportId?.let {
-                com.ai.ui.shared.ReportScreenNav(activeReportLayer, goManageScreen, goGetInfoScreen, goSecondScreen)
-            }
+            listNotesActive = reportNotes.isNotEmpty()
         )
-        }
-
-        if (manageLayer && currentReportId != null) {
-            androidx.compose.material3.OutlinedButton(onClick={showReadingHome=true},modifier=Modifier.fillMaxWidth()) {
-                Text("Read answers · Compare · Choose conclusion")
-            }
         }
 
         // Statistics line — api calls / total API time / running cost —
@@ -792,6 +782,23 @@ internal fun ReportRunScreen(
                 refreshKey = totalCostForBar,
                 onClick = generationHandlers.onViewCosts
             )
+        }
+
+        if (currentReportId != null) {
+            ReportSectionNavigation(
+                active = ReportSection.Report,
+                reportCost = mainResponseTotal,
+                infoState = infoState, infoCost = infoMetaTotal,
+                secondState = secondState, secondCost = secondTotal,
+                onReport = goManageScreen, onInfo = goGetInfoScreen, onSecond = goSecondScreen,
+                reportIcon = reportIcon
+            )
+        }
+
+        if (manageLayer && currentReportId != null) {
+            androidx.compose.material3.OutlinedButton(onClick={showReadingHome=true},modifier=Modifier.fillMaxWidth()) {
+                Text("Read answers · Compare · Choose conclusion")
+            }
         }
 
         if (currentReportId != null) {
@@ -962,6 +969,8 @@ internal fun ReportRunScreen(
                     costDollars = totalCostForBar,
                     onViewCosts = generationHandlers.onViewCosts,
                     reportCost = mainResponseTotal,
+                    infoState = infoState,
+                    infoMetaTotal = infoMetaTotal,
                     secondState = secondState,
                     secondTotal = secondTotal,
                     onGoManage = goManageScreen,
@@ -1012,7 +1021,8 @@ internal fun ReportRunScreen(
                     costDollars = totalCostForBar,
                     onViewCosts = generationHandlers.onViewCosts,
                     reportCost = mainResponseTotal,
-                    infoEnabled = infoEnabled,
+                    secondState = secondState,
+                    secondTotal = secondTotal,
                     infoState = infoState,
                     infoMetaTotal = infoMetaTotal,
                     onGoManage = goManageScreen,

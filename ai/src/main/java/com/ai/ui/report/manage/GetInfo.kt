@@ -346,8 +346,8 @@ internal fun InfoStatusCell(state: InfoJobState, doneIcon: String? = null) {
  * "Report - Get info" — full-screen list of the report's metadata-generation
  * jobs, each with a clock/hourglass/cross/ok status and its own cost. The
  * report's api-calls / duration / cost statistics line sits under the title
- * bar, and the list leads with the "report" / "second" cross-link rows to the
- * other two report screens. Rows are clickable to their existing detail
+ * bar, followed by the fixed three-section navigation. Metadata rows scroll
+ * below that navigation and open their existing detail
  * screens, layered over this overlay.
  */
 @Composable
@@ -370,7 +370,10 @@ fun ReportGetInfoScreen(
     onViewCosts: (() -> Unit)? = null,
     /** Combined main-response cost of every model — the "report" row's cost. */
     reportCost: Double = 0.0,
-    /** Aggregate state + total for the "second" cross-link row. */
+    /** Metadata status and spend, including currently disabled categories. */
+    infoState: InfoJobState = InfoJobState.DONE,
+    infoMetaTotal: Double = 0.0,
+    /** Aggregate state + total for the "second" navigation row. */
     secondState: InfoJobState = InfoJobState.DONE,
     secondTotal: Double = 0.0,
     /** "report" row tap → the Manage hub. */
@@ -434,19 +437,14 @@ fun ReportGetInfoScreen(
             refreshKey = "$iconRefreshTick|${runningInfoJobs.size}|$costDollars",
             onClick = onViewCosts
         )
+        ReportSectionNavigation(
+            active = ReportSection.Info,
+            reportCost = reportCost,
+            infoState = infoState, infoCost = infoMetaTotal,
+            secondState = secondState, secondCost = secondTotal,
+            onReport = onGoManage, onInfo = {}, onSecond = onGoSecond
+        )
         LazyColumn(modifier = Modifier.weight(1f)) {
-            // Top-of-list divider — same 1 dp cap the Manage list paints.
-            item(key = "top-divider") {
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-            }
-            // Cross-link rows to the other two report screens: the report
-            // itself (Manage hub) and the second-results aggregate.
-            item(key = "row-reports") {
-                ReportsSummaryRow(cost = reportCost, onClick = onGoManage)
-            }
-            item(key = "row-second") {
-                SecondSummaryRow(secondState, cost = secondTotal, onClick = onGoSecond)
-            }
             items(jobs, key = { "${it.type}-${it.agentId ?: it.label}" }) { job ->
                 val click: (() -> Unit)? = when (job.type) {
                     "report-icon" -> onOpenIconDetail

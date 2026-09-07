@@ -442,7 +442,6 @@ internal fun ColumnScope.GenerationPhase(
     val onViewIcons = handlers.onViewIcons
     val onViewLog = handlers.onViewLog
     val onEditTitle = handlers.onEditTitle
-    val onGetInfo = handlers.onGetInfo
     val onEditPromptInline = handlers.onEditPromptInline
     val onEditModelsInline = handlers.onEditModelsInline
     val onEditParametersInline = handlers.onEditParametersInline
@@ -819,34 +818,7 @@ internal fun ColumnScope.GenerationPhase(
         if (currentReportId == null || paused) return@LaunchedEffect
         resultListState.scrollToItem(0)
     }
-    // Capture the icon-gen-enabled flag here (Composable scope) so the
-    // LazyListScope DSL inside the LazyColumn below can gate the icon
-    // row without invoking @Composable functions.
-    val iconGenEnabledForRow = com.ai.ui.shared.LocalIconGenEnabled.current
     LazyColumn(state = resultListState, modifier = Modifier.weight(1f)) {
-        // Top-of-list divider — same 1 dp TextDisabled rule the
-        // inter-row dividers use, so the first row in the list
-        // (Regenerate when present, otherwise the first agent /
-        // secondary) gets a consistent visual cap.
-        item(key = "top-divider") {
-            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-        }
-        // Info row — always the first row. Single summary row replacing the
-        // old icon / language / title rows; those jobs (plus per-model icon /
-        // model-title) now live on the "Report - Get info" screen. The row's
-        // status aggregates every enabled job (❌ if any failed, else ⏳ if any
-        // clock/running, else ✅) and its cost is the info meta total; tapping
-        // opens the Info screen. Shown when a metadata job is enabled OR
-        // metadata cost was already spent — so toggling a metadata feature off
-        // doesn't hide its already-spent cost from the page (that cost stays
-        // in the grand total).
-        if (infoEnabled || infoMetaTotal > 0.0) {
-            item(key = "row-info") {
-                // When all jobs are done, the aggregate cell shows the
-                // report's own icon instead of ✅.
-                InfoSummaryRow(infoState, doneIcon = reportIcon, cost = infoMetaTotal, onClick = onGetInfo)
-            }
-        }
         // Regenerate batch — top of body when a RegenerateJob is
         // active for this report. Hoisted into its own composable
         // (RegenerateBatchManageRow) to keep this LazyColumn body
@@ -856,22 +828,6 @@ internal fun ColumnScope.GenerationPhase(
         item(key = "regen-batch-row") {
             RegenerateBatchManageRow()
         }
-        // Second results — single summary row replacing every secondary-result
-        // row (Tournament / Judges / Compare / Rank-translators batches, Meta /
-        // Rerank / Moderation / Fan-in, Fan-out / Fan-meta, Translations); those
-        // now live on the "Report - second results" screen. Status aggregates
-        // them (❌ if any failed, else ⏳ if any running, else ✅) and the cost is
-        // the summed secondary spend. Always shown — even with nothing run yet —
-        // so the second-results screen stays one tap away.
-        item(key = "row-second") {
-            // Open via the survivable LocalShowSecondResults (held in
-            // ReportsScreenNav) so a Nav-level batch drill-in opened from
-            // the second-results screen returns to it, not to Manage.
-            val showSecond = com.ai.ui.shared.LocalShowSecondResults.current
-            SecondSummaryRow(secondState, cost = secondTotal, onClick = { showSecond?.value = true })
-        }
-
-
         items(displayRows, key = { "row-${it.rowId}" }) { row ->
             val agentId = row.rowId
             val result = reportsAgentResults[agentId]

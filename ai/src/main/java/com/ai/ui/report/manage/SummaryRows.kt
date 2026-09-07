@@ -1,11 +1,15 @@
 package com.ai.ui.report.manage
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,91 +42,64 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-// The summary rows shared by the three report screens (Manage / Get-info /
-// second results). Each screen lists the OTHER screens' aggregate rows at the
-// top of its body, so the three stay one tap apart; the rows render
-// identically everywhere (status cell + type cell + label + cost) and each
-// paints its own trailing divider, like every other list row.
+internal enum class ReportSection { Report, Info, SecondResults }
 
-/** "report" row — links the Get-info / second-results screens back to the
- *  Manage hub: the report's icon + a fixed "Manage this report" label (the
- *  report's own title already shows in the orange title-bar line). The
- *  trailing [cost] is the combined main-response cost of every model (the
- *  sum of the Manage hub's per-model "report" rows); always shown, like the
- *  other cross-link rows. */
+/** Fixed navigation above each section's scrolling content. All three rows
+ * remain available even when metadata or secondary results are empty. */
 @Composable
-internal fun ReportsSummaryRow(cost: Double, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        InfoStatusCell(InfoJobState.DONE, doneIcon = com.ai.ui.shared.LocalReportIcon.current)
-        RowTypeCell("report")
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "Manage this report", fontSize = 13.sp, color = AppColors.TextPrimary,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-        }
-        Text(
-            formatCents(cost), fontSize = 10.sp,
-            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
-        )
+internal fun ReportSectionNavigation(
+    active: ReportSection,
+    reportCost: Double,
+    infoState: InfoJobState,
+    infoCost: Double,
+    secondState: InfoJobState,
+    secondCost: Double,
+    onReport: () -> Unit,
+    onInfo: () -> Unit,
+    onSecond: () -> Unit,
+    reportIcon: String? = null
+) {
+    val resolvedReportIcon = reportIcon ?: com.ai.ui.shared.LocalReportIcon.current
+    Column(Modifier.fillMaxWidth().background(AppColors.AppBackground)) {
+        ReportSectionRow("Report", "Read the model responses", InfoJobState.DONE,
+            resolvedReportIcon, reportCost, active == ReportSection.Report, onReport)
+        ReportSectionRow("Info", "Titles, icons and language", infoState,
+            resolvedReportIcon, infoCost, active == ReportSection.Info, onInfo)
+        ReportSectionRow("Second result", "Comparisons, rankings and more", secondState,
+            com.ai.ui.shared.LocalMetadataIcons.current.meta, secondCost,
+            active == ReportSection.SecondResults, onSecond)
+        HorizontalDivider(color = AppColors.TextSecondary, thickness = 4.dp)
     }
-    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 }
 
-/** "info" row — aggregate status + total of the report's metadata jobs;
- *  tap → "Report - Get info". When all jobs are done the status cell shows
- *  the report's own icon instead of ✅ (the [doneIcon]). */
 @Composable
-internal fun InfoSummaryRow(state: InfoJobState, doneIcon: String?, cost: Double, onClick: () -> Unit) {
+private fun ReportSectionRow(
+    label: String,
+    description: String,
+    state: InfoJobState,
+    icon: String?,
+    cost: Double,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onClick() },
+        modifier = Modifier.fillMaxWidth()
+            .background(if (selected) AppColors.SelectionHighlight else AppColors.AppBackground)
+            .selectable(selected = selected, onClick = onClick, role = Role.Tab)
+            .heightIn(min = 40.dp)
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        InfoStatusCell(state, doneIcon = doneIcon)
-        RowTypeCell("info")
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "icon, language, title, per-model icon / title",
-                fontSize = 13.sp, color = AppColors.TextPrimary,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-        }
-        // Always shown — a 0 means every metadata job was a cache hit (or
-        // nothing has spent yet), matching the per-job rows on Get-info.
-        Text(
-            formatCents(cost), fontSize = 10.sp,
-            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
-        )
-    }
-    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-}
-
-/** "second" row — aggregate status + total of every secondary result;
- *  tap → "Report - second results". The cost is always shown — 0 when no
- *  secondary results have run yet. */
-@Composable
-internal fun SecondSummaryRow(state: InfoJobState, cost: Double, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        InfoStatusCell(state, doneIcon = com.ai.ui.shared.LocalMetadataIcons.current.meta)
-        RowTypeCell("second")
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "Second results",
-                fontSize = 13.sp, color = AppColors.TextPrimary,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-        }
-        // Always shown — 0 when there are no secondary results yet.
-        Text(
-            formatCents(cost), fontSize = 10.sp,
-            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
-        )
+        InfoStatusCell(state, doneIcon = icon)
+        Text(label, fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = AppColors.TextPrimary, maxLines = 1,
+            modifier = Modifier.width(104.dp).padding(start = 8.dp, end = 6.dp))
+        Text(description, fontSize = 12.sp, color = AppColors.TextSecondary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(formatCents(cost), fontSize = 10.sp, color = AppColors.TextSecondary,
+            fontFamily = FontFamily.Monospace, maxLines = 1,
+            modifier = Modifier.padding(start = 6.dp))
     }
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 }
@@ -167,7 +146,7 @@ internal fun ReportStatsLine(
     // The bottom padding is the ONLY gap between this line and the list's
     // top divider on all three report screens (Manage dropped its own
     // pre-list Spacer), so the divider sits at the same height everywhere
-    // and nothing jumps when flipping 1️⃣2️⃣3️⃣.
+    // and nothing jumps when switching report sections.
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)
             .let { m -> if (onClick != null) m.clickable { onClick() } else m },

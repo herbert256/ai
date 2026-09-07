@@ -185,16 +185,22 @@ on the row's cost cell and show up under the Costs view's per-call
 ### Result phase
 
 A finished report lives on the **Manage a report** screen — a row per
-agent, the running total cost in the bottom bar, and a full bottom
-**action bar**. There are two gestures worth knowing on the title bar:
+agent, cost statistics below the title, and a bottom **action bar**.
+The **Report**, **Info**, and **Second result** navigation rows always
+stay visible above the scrolling content on all three sections, including
+empty sections. A colored background and bold label mark the active section;
+a thick divider separates navigation from the content. Tap a row to switch
+sections. These rows replace the bottom 1/2/3 buttons.
+
+There are two gestures worth knowing on the title bar:
 
 - **Tap the title** (or the orange report-name line) to **cycle three
   report screens**: **Manage a report** → **Report - Get info** →
   **Report - second results** → back to Manage. *Get info* lists every
   metadata-generation job (report icon, language, short/long title,
   per-model icons + titles) with its status and cost; *second results*
-  lists every secondary result (see below). The second-results step is
-  skipped when the report has none.
+  lists every secondary result (see below), including an empty section
+  when no secondary results have run yet.
 - **Tap the report icon** (the leftmost title-bar emoji, shown when
   icon-gen is on) — or the bottom-bar 👁 — to open the **View a report**
   hub, a grid of content tiles.
@@ -270,7 +276,7 @@ reusing or jumping to an existing one is the common path. Disabled rows
 #### Report - second results
 
 The Manage screen folds every secondary result into a single
-**second** row (status ⏳/✅/❌ and the summed secondary spend). Tapping
+**Second result** row (status ⏳/✅/❌ and the summed secondary spend). Tapping
 it — or cycling the title twice — opens **Report - second results**,
 which lists the Tournament / Judges / Compare / Rank-the-translators
 batches, then the individual Meta / Rerank / Moderation / Fan-in rows,

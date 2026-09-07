@@ -98,9 +98,9 @@ internal fun ReportSecondResultsScreen(
     onViewCosts: (() -> Unit)? = null,
     /** Combined main-response cost of every model — the "report" row's cost. */
     reportCost: Double = 0.0,
-    /** Gate + aggregate state + total for the "info" cross-link row (same
-     *  gate as the Manage hub's info row). */
-    infoEnabled: Boolean = false,
+    /** Aggregate status and spend for the fixed section navigation. */
+    secondState: InfoJobState = InfoJobState.DONE,
+    secondTotal: Double = 0.0,
     infoState: InfoJobState = InfoJobState.DONE,
     infoMetaTotal: Double = 0.0,
     /** "report" row tap → the Manage hub. */
@@ -184,6 +184,13 @@ internal fun ReportSecondResultsScreen(
             refreshKey = costDollars,
             onClick = onViewCosts
         )
+        ReportSectionNavigation(
+            active = ReportSection.SecondResults,
+            reportCost = reportCost,
+            infoState = infoState, infoCost = infoMetaTotal,
+            secondState = secondState, secondCost = secondTotal,
+            onReport = onGoManage, onInfo = onGoInfo, onSecond = {}
+        )
         // Status filter chips + cost sort for the standalone rows.
         if (secondaryRuns.isNotEmpty()) {
             Row(
@@ -240,26 +247,6 @@ internal fun ReportSecondResultsScreen(
             }
         }
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            // Top-of-list divider — same 1 dp cap the Manage list paints.
-            item(key = "top-divider") {
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-            }
-            // Cross-link rows to the other two report screens: the report
-            // itself (Manage hub) and the Get-info aggregate (same gate as
-            // the Manage hub's info row).
-            item(key = "row-reports") {
-                ReportsSummaryRow(cost = reportCost, onClick = onGoManage)
-            }
-            if (infoEnabled || infoMetaTotal > 0.0) {
-                item(key = "row-info") {
-                    InfoSummaryRow(
-                        infoState,
-                        doneIcon = com.ai.ui.shared.LocalReportIcon.current,
-                        cost = infoMetaTotal,
-                        onClick = onGoInfo
-                    )
-                }
-            }
             item(key = "tournament-batch-row") { TournamentManageRow() }
             item(key = "judge-eval-batch-row") { JudgeEvalManageRow() }
             item(key = "compare-batch-row") { CompareManageRow() }
