@@ -248,9 +248,8 @@ A few non-default fields warrant explanation:
   `providerStates[id] = "inactive"` the **first** time the provider is
   seen — so it ships visible in pickers but disabled until the user
   explicitly flips it on. An install that has already touched the
-  provider's state keeps that state untouched. No bundled provider
-  currently sets it — StepFun did, but was dropped in the
-  keyless-provider sweep.
+  provider's state keeps that state untouched. Baseten, SiliconFlow
+  and Perplexity ship inactive by default.
 - **`nativeRerankUrl` / `nativeModerationUrl` / `nativeCapabilityUrl`**:
   full URLs the rerank / moderation / capability dispatchers POST to
   instead of building a chat fallback. `nativeRerankUrl` is set on

@@ -18,7 +18,6 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.shortModelName
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -109,7 +108,7 @@ class RegenerateBatchEngine internal constructor(
         context: Context, reportId: String,
         erroredOnly: Boolean = false, onlyAgentIds: Set<String>? = null
     ) {
-        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             orchestratorJobs.remove(reportId)?.cancelAndJoin()
             val allTasks = buildTaskList(context, reportId)
             val tasks = when {
@@ -144,7 +143,7 @@ class RegenerateBatchEngine internal constructor(
                 ).show()
                 return@launch
             }
-            com.ai.data.ReportWorkLimits.review(reportId, "Regenerate report", tasks.size)
+            com.ai.data.ReportWorkLimits.checkSize(tasks.size)
             val now = System.currentTimeMillis()
             // Start at the FIRST phase the enum declares — not a
             // hardcoded one. Otherwise prepending a new phase
@@ -172,7 +171,7 @@ class RegenerateBatchEngine internal constructor(
      *  is restarted at `currentPhase`; otherwise this is a
      *  no-op. CANCELLED jobs always restart at `currentPhase`. */
     fun restart(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             if (reportViewModel.hasActiveReportCalls(context, reportId)) {
                 withContext(Dispatchers.Main) { android.widget.Toast.makeText(context,
                     "Previously scheduled calls are still finishing. Retry when they finish.", android.widget.Toast.LENGTH_LONG).show() }
@@ -187,7 +186,7 @@ class RegenerateBatchEngine internal constructor(
                 }) }
             }
             val unfinishedCount = RegenerateBatchStorage.get(context,reportId)?.tasks?.count { it.state != RegenerateTaskState.SUCCESS } ?: 0
-            com.ai.data.ReportWorkLimits.review(reportId, "Retry unfinished report work", unfinishedCount)
+            com.ai.data.ReportWorkLimits.checkSize(unfinishedCount)
             var shouldStart = false
             mutateJob(context, reportId, allowTerminalMutation = true) { job ->
                 when {
@@ -212,7 +211,7 @@ class RegenerateBatchEngine internal constructor(
      *  and re-enter the current phase over the remaining tasks — one
      *  failing row no longer holds every downstream phase hostage. */
     fun skipPausedRowAndContinue(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             var shouldStart = false
             mutateJob(context, reportId, allowTerminalMutation = true) { job ->
                 val rowId = job.pausedOnRowId
@@ -243,7 +242,7 @@ class RegenerateBatchEngine internal constructor(
      *  orchestrator — already-in-flight HTTP calls finish
      *  themselves and persist as normal. */
     fun cancel(context: Context, reportId: String) {
-        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             // Just cancel the orchestrator coroutine and let ITS finally
             // block decrement activeSecondaryBatches (Bug 80). Decrementing
             // here too double-counted the same logical batch end, drifting
@@ -348,7 +347,7 @@ class RegenerateBatchEngine internal constructor(
     /** Drop the persisted job + in-memory entry. Used by the
      *  detail screen's "delete" action (future). */
     fun deleteJob(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             orchestratorJobs.remove(reportId)?.cancelAndJoin()
             RegenerateBatchStorage.delete(context, reportId)
             _jobs.update { it - reportId }
@@ -363,8 +362,7 @@ class RegenerateBatchEngine internal constructor(
         appViewModel.updateUiState {
             it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1)
         }
-        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId) +
-            com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reportId)) {
+        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             try {
                 orchestrate(context, reportId)
             } catch (e: Exception) {

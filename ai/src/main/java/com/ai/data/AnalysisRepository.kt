@@ -281,6 +281,11 @@ class AnalysisRepository {
         // simply skipped (the user can regenerate info).
         retry: Boolean = true
     ): AnalysisResponse = withContext(Dispatchers.IO) {
+        if (com.ai.model.SettingsHolder.current?.getProviderState(agent.provider) == "inactive") {
+            return@withContext AnalysisResponse(agent.provider, null,
+                "Provider ${agent.provider.id} is inactive. Enable it in AI setup before retrying.",
+                agentName = agent.name, generationFailed = true)
+        }
         // Local on-device path — no API key, no HTTP, no retry. The
         // sentinel AppService.LOCAL is the marker. Embedding-style
         // simple flow: build the prompt, call MediaPipe LLM Inference,
@@ -317,7 +322,7 @@ class AnalysisRepository {
             val out = LocalLlm.generate(context, agent.model, finalPrompt, localParams)
             return@withContext if (out != null) {
                 AnalysisResponse(agent.provider, out, null, agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 200,
-                    tokenUsage = TokenUsage(finalPrompt.length / 4, out.length / 4, apiCost = 0.0, estimated = true))
+                    tokenUsage = TokenUsage(finalPrompt.length / 4, out.length / 4, apiCost = 0.0, estimated = true)).withoutThinkSections()
             } else {
                 AnalysisResponse(agent.provider, null, "Local LLM \"${agent.model}\" failed — verify it loaded in Housekeeping → Local LLMs.", agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 500)
             }
@@ -383,7 +388,7 @@ class AnalysisRepository {
                 }
                 retried
             } else first
-            return response.copy(agentName = agent.name, promptUsed = finalPrompt)
+            return response.copy(agentName = agent.name, promptUsed = finalPrompt).withoutThinkSections()
         }
         if (!retry) {
             // Single attempt, no in-line 429/529 retry — see the `retry` param.
@@ -445,7 +450,8 @@ class AnalysisRepository {
         }
         val merged = mergeParameters(agentResolvedParams, overrideParams)
         // Streaming-ineligible → authoritative non-streaming path (no preview).
-        if (agent.provider.id == AppService.LOCAL.id ||
+        if (com.ai.model.SettingsHolder.current?.getProviderState(agent.provider) == "inactive" ||
+            agent.provider.id == AppService.LOCAL.id ||
             agent.apiKey.isBlank() ||
             merged.webSearchTool ||
             PricingCache.liteLLMSupportsNativeStreaming(agent.provider, agent.model) == false) {
@@ -464,23 +470,27 @@ class AnalysisRepository {
             params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))
         }
         val effectiveBaseUrl = baseUrl ?: agent.provider.baseUrl
-        val resp = try {
+        val answerFilter = ReportAnswerFilter()
+        val rawResponse = try {
             analyzeAgentStreaming(
                 agent.provider, agent.apiKey, finalPrompt, agent.model, params,
-                effectiveBaseUrl, imageBase64, imageMime, onDelta
+                effectiveBaseUrl, imageBase64, imageMime,
+                onDelta = { chunk -> answerFilter.append(chunk).takeIf { it.isNotEmpty() }?.let(onDelta) }
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             AnalysisResponse(agent.provider, null, "Streaming error: ${e.message}")
         }
+        answerFilter.finish().takeIf { it.isNotEmpty() }?.let(onDelta)
+        val resp = rawResponse.withoutThinkSections()
         if (resp.isSuccess) {
             // Keep a successful stream even when usage must be estimated;
             // missing usage never justifies billing the same answer again.
             return@withContext if (resp.tokenUsage.let { it != null && (it.inputTokens > 0 || it.outputTokens > 0) }) {
                 resp.copy(agentName = agent.name, promptUsed = finalPrompt)
             } else resp.copy(
-                tokenUsage = TokenUsage((finalPrompt.length + 3 + (params.systemPrompt?.length ?: 0)) / 4, ((resp.analysis ?: "").length + 3) / 4, estimated = true, traceFile = ApiTracer.traceFilenameSink.get()?.get()),
+                tokenUsage = TokenUsage((finalPrompt.length + 3 + (params.systemPrompt?.length ?: 0)) / 4, ((rawResponse.analysis ?: "").length + 3) / 4, estimated = true, traceFile = ApiTracer.traceFilenameSink.get()?.get()),
                 agentName = agent.name, promptUsed = finalPrompt
             )
         }

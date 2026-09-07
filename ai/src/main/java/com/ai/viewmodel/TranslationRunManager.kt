@@ -167,7 +167,7 @@ class TranslationRunManager(
         selection: TranslationSelection = TranslationSelection()
     ): Pair<String, Job> {
         val runId = java.util.UUID.randomUUID().toString()
-        val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+        val job = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             try {
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
                 _runs.update { it - runId }
@@ -188,9 +188,7 @@ class TranslationRunManager(
             require(selection.itemIds == null || items.size == selection.itemIds.size) { "Selected content changed or was removed. Review the translation selection again." }
             require(selection.sourceDigests.isEmpty() || items.all { selection.sourceDigests[it.id] == ReportEvidenceStore.digest(it.sourceText) }) { "Selected text changed. Review the translation selection again." }
             val (textPrompt,titlePrompt) = freezeTranslationPrompts(sourceReport,overrideWorkers,overrideTextPromptText,overrideTitlePromptText,selection)
-            val plan = ReportWorkLimits.promptWorkPlan(listOfNotNull(textPrompt,titlePrompt)).copy(
-                jobs=items.map { "${it.label}: ${it.sourceText.length} characters" })
-            com.ai.data.ReportWorkLimits.review(sourceReportId, "Translate ${items.size} selected items to $targetLanguageName", items.size,plan)
+            com.ai.data.ReportWorkLimits.checkSize(items.size)
             textPrompt?.let { ReportEvidenceStore.saveRun(context,sourceReport,"${runId}_text",it) }
             titlePrompt?.let { ReportEvidenceStore.saveRun(context,sourceReport,"${runId}_title",it) }
 
@@ -256,10 +254,10 @@ class TranslationRunManager(
             // Under Worker-batches REPORT_MODELS the whole translation
             // runs against its own answer models (winning over a *SELECT
             // pick); the swarm spreads across every report-model.
-            if (!withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(sourceReportId)) { dispatchTranslationItems(
+            if (!dispatchTranslationItems(
                     context, sourceReportId, runId, sourceReport, itemsWithIds,
                     targetLanguageName, overrideWorkers, overrideTextPromptText, overrideTitlePromptText, selection
-                ) }
+                )
             ) return@launch
 
             // Per-item rows were already persisted inside
@@ -645,7 +643,7 @@ class TranslationRunManager(
         else
             rawTemplate.replace("@LANGUAGE@", targetLanguageName).replace("@TEXT@", sourceText)
         appViewModel.updateAltTranslationFanOut(itemId) { unique.map { TranslationCandidate.Running(it.provider, it.model) } }
-        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             unique.forEach { item ->
                 launch { runAltTranslationCandidate(context, reportId, itemId, item, resolved, traceType, aiSettings, paramsIds, systemPromptId, prompt) }
             }
@@ -825,7 +823,7 @@ class TranslationRunManager(
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
         if (runJobOf(runId)?.isActive == true) {
             AppLog.d("Translation", "reconcile skipped — runId=$runId has active dispatch job")
             return@launch
@@ -956,7 +954,7 @@ class TranslationRunManager(
         sourceReportId: String,
         runId: String,
         rowFilter: (SecondaryResult) -> Boolean
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
         // Register so a report delete cancels this dispatch (see startMissingTranslations).
         if (runJobOf(runId)?.isActive != true) coroutineContext[Job]?.let { registerRunJob(runId, it) }
         val rows = SecondaryResultStorage
@@ -1016,7 +1014,7 @@ class TranslationRunManager(
         runId: String,
         itemStatus: TranslationStatus?,
         rowFilter: (SecondaryResult) -> Boolean
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
         val rows = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId && rowFilter(it) }
@@ -1048,7 +1046,7 @@ class TranslationRunManager(
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
         // Cancel any in-flight run for this runId so its already-
         // dispatched coroutines don't keep writing fresh rows under
         // the about-to-be-restarted runId. Cancellation is co-operative;
@@ -1107,7 +1105,7 @@ class TranslationRunManager(
         sourceReportId: String,
         runId: String,
         buildKey: String?
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
         try {
             cancelTranslation(runId)
             _runs.update { it - runId }
@@ -1156,7 +1154,7 @@ class TranslationRunManager(
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
         // Dedupe the 30s background sweep racing a screen-reopen relaunch
         // (replaces the old activeTranslationRunIds snapshot guard).
         if (!beginResumeScan(runId)) return@launch
@@ -1732,7 +1730,7 @@ class TranslationRunManager(
         targetLanguageNative: String
     ): Job? {
         if (items.isEmpty()) return null
-        return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        return appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
             val existingRunId = allSecondaries
                 .firstOrNull { it.kind == SecondaryKind.TRANSLATE && it.targetLanguage == targetLanguageName }

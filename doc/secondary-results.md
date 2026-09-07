@@ -449,6 +449,13 @@ edit / Select icon). See [report-icons.md](report-icons.md).
 
 ## Fan-out / Fan-in
 
+Report answers discard model-generated `<think>…</think>` sections before
+storage, including streamed output. Thinking-only output remains a failed
+answer. Fan-out also cleans legacy source responses and saved retry prompts,
+so older thinking blocks cannot be forwarded on replay. Raw traces and billed
+token usage remain intact. An inactive provider cannot be called through a
+saved report or Fan-out retry; enable it explicitly before retrying that row.
+
 Fan-out is owned by **`FanOutEngine`**
 (`viewmodel/FanOutEngine.kt`); Fan-in by
 `SecondaryRunManager.runFanInPrompt`. The legacy

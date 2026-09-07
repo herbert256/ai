@@ -565,7 +565,7 @@ class JudgeEvalEngine internal constructor(
      *  are left untouched (only the new judge's row appears / updates). No-op if
      *  the judge is already in the run or there are no matches yet. */
     fun addJudgeToRun(context: Context, reportId: String, provider: AppService, model: String): Job =
-        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             val run = _runs.value[reportId] ?: return@launch
             val judgeKey = "${provider.id}/$model"
             if (run.cells.values.any { it.judgeKey == judgeKey }) return@launch

@@ -149,7 +149,6 @@ object ReportStorage {
 
     fun init(context: Context) {
         ReportEvidenceStore.init(context)
-        ReportWorkLimits.init(context)
         if (!importsRecovered) lock.withLock { if (!importsRecovered) { recoverReportImports(context); importsRecovered = true } }
         if (reportsDir == null) lock.withLock {
             if (reportsDir == null) {
@@ -632,7 +631,8 @@ object ReportStorage {
         ReportEvidenceStore.delete(reportId)
         ReportContentStore.delete(context.filesDir, reportId)
         ReportCostJournal.deleteForReport(context.filesDir, reportId)
-        ReportWorkLimits.deleteForReport(reportId)
+        // Remove obsolete work-review settings when deleting an older report.
+        File(context.filesDir, "report_work_limits/$reportId.json").delete()
         RegenerateBatchStorage.delete(context, reportId)
         ApiTracer.init(context)
         ApiTracer.deleteTracesForReport(reportId)

@@ -253,11 +253,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  plus the [com.ai.data.CrashReporter] handler. Drop-in for
      *  `Dispatchers.IO` at report-section `viewModelScope.launch`
      *  sites; `return@launch` stays valid because the `launch` call
-     *  itself is unchanged. The [logId] argument names the report the
-     *  launch belongs to and scopes inherited work-preview approval to
-     *  this operation's child jobs. It is not written into the log. */
-    internal fun reportLogContext(logId: String?) =
-        Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler + com.ai.data.ReportWorkLimits.inheritedApproval(logId)
+     *  itself is unchanged. */
+    internal fun reportLogContext() =
+        Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler
 
     // Outer Jobs for "Find alternative icons" fan-outs, keyed by
     // reportId. Cancelling the entry cascades to every per-pair child
@@ -508,11 +506,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
             val runId = java.util.UUID.randomUUID().toString()
             val plannedReportId = java.util.UUID.randomUUID().toString()
-            com.ai.data.ReportWorkLimits.init(context)
-            val decision = try {
-                val plan = buildPrimaryWorkPlan(context, plannedReportId, aiPrompt, reportTasks, overrideParams,
-                    workerConfig, state.reportMetadataDisabled, state.attachedKnowledgeBaseIds, aiSettings, state.generalSettings, appViewModel.repository)
-                com.ai.data.ReportWorkLimits.review(plannedReportId, "Primary answers", reportTasks.size, plan)
+            try {
+                com.ai.data.ReportWorkLimits.checkSize(reportTasks.size)
+                preparePrimaryExecution(context, aiPrompt, reportTasks, overrideParams,
+                    state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository)
             } catch (e: Exception) {
                 if (reportGenerationJob == kotlin.coroutines.coroutineContext[Job]) {
                     appViewModel.updateUiState { it.copy(showGenericReportsDialog=false,showGenericAgentSelection=true,
@@ -534,8 +531,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     imageBase64 = imageBase64, imageMime = imageMime,
                     webSearchTool = state.reportWebSearchTool,
                     reasoningEffort = state.reportReasoningEffort,
-                    metadataDisabled = state.reportMetadataDisabled || decision.answersOnly,
-                    workerConfig = workerConfig.copy(primaryAnswersOnly = decision.answersOnly),
+                    metadataDisabled = state.reportMetadataDisabled,
+                    workerConfig = workerConfig,
                     knowledgeBaseIds = state.attachedKnowledgeBaseIds,
                     runId = runId,
                     // Capture the generation config so Regenerate replays these
@@ -1149,7 +1146,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             candidates = temps.map { temp -> TemperatureSweepCandidate.Pending(temp) },
             isRunning = true
         ))
-        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        val job = appViewModel.viewModelScope.launch(reportLogContext()) {
             try {
                 val report = ReportStorage.getReport(context, reportId) ?: run {
                     updateTemperatureSweepState(key) {
@@ -1352,7 +1349,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             candidates = requestedEfforts.map { effort -> ReasoningEffortCandidate.Pending(effort) },
             isRunning = true
         ))
-        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        val job = appViewModel.viewModelScope.launch(reportLogContext()) {
             try {
                 val report = ReportStorage.getReport(context, reportId) ?: run {
                     updateReasoningEffortSweepState(key) {
@@ -1531,7 +1528,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             result = WebSearchReplayResult.Running,
             isRunning = true
         ))
-        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        val job = appViewModel.viewModelScope.launch(reportLogContext()) {
             try {
                 val report = ReportStorage.getReport(context, reportId) ?: run {
                     updateWebSearchReplayState(key) {
@@ -1711,7 +1708,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             result = PromptEditReplayResult.Running,
             isRunning = true
         ))
-        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        val job = appViewModel.viewModelScope.launch(reportLogContext()) {
             try {
                 if (editedPrompt.isBlank()) {
                     val msg = "Prompt is empty"
@@ -2056,7 +2053,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * the batch path ("Update model list" used to be silently ignored).
      */
     fun regenerateReportBatch(context: Context, reportId: String, erroredOnly: Boolean = false) {
-        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportLogContext()) {
             if (!erroredOnly) {
                 // "Retry failed" must NOT consume staged Edit-Models changes —
                 // it re-runs only what already errored; the staged list stays
@@ -2276,7 +2273,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  ended in an error (red ❌), clearing each one's error first so its row
      *  flips from ❌ back to pending/running. Successful jobs are left alone. */
     fun restartReportInfoErrors(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportLogContext()) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val ai = appViewModel.uiState.value.aiSettings
             val g = appViewModel.uiState.value.generalSettings
@@ -2323,7 +2320,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
 
     fun regenerateReportInfo(context: Context, reportId: String) {
-        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportLogContext()) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val ai = appViewModel.uiState.value.aiSettings
             val g = appViewModel.uiState.value.generalSettings
@@ -2352,7 +2349,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  (clearing only the short / long / language-icon entry, not its sibling,
      *  so the untouched one keeps its cached value). */
     fun regenerateMetaItem(context: Context, reportId: String, kind: MetaRegenKind, agentId: String?) {
-        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportLogContext()) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val ai = appViewModel.uiState.value.aiSettings
             withTracerTags(reportId = reportId, category = "Report info regenerate") {
@@ -2443,7 +2440,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  on a normal Regenerate, just the errored ones on "Retry failed").
      *  Null = every agent, the historical behavior. */
     fun forceRegenerateAllAgents(context: Context, reportId: String, onlyAgentIds: Set<String>? = null) {
-        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportLogContext()) {
             trackRegenerateJob(reportId, coroutineContext[Job]!!)
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val state = appViewModel.uiState.value
@@ -2456,7 +2453,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     com.ai.data.AgentStatusPatch(errorMessage="Saved provider ${it.provider} is unavailable; configure it before replay."))
             }
             if (tasks.isEmpty()) return@launch
-            com.ai.data.ReportWorkLimits.review(reportId, "Replay primary answers", tasks.size)
+            com.ai.data.ReportWorkLimits.checkSize(tasks.size)
             ReportKnowledge.prepare(context, reportId, appViewModel.repository, ai)
             // Reset every existing agent to PENDING so the row shows
             // ⏳ while the new dispatch is in flight. Use the
@@ -2821,7 +2818,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (activeGenerationReportId != reportId) return
         val job = reportGenerationJob ?: return
         reportGenerationJob = null
-        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportLogContext()) {
             // Join so the finally's NonCancellable STOPPED writes land
             // before the re-hydration below reads the rows back.
             job.cancelAndJoin()
@@ -2850,7 +2847,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // turn the in-flight call into ERROR on disk if the user
         // navigates away before the new response lands. Returns the Job so
         // the Broken-work recovery can join one agent's regenerate.
-        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+        return appViewModel.viewModelScope.launch(reportLogContext()) {
             trackRegenerateJob(reportId, coroutineContext[Job]!!)
             // Also register per-agent so removeAgentInternal can cancel THIS
             // call specifically when its agent is removed mid-flight.
@@ -2882,7 +2879,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // "Call model API again" and Broken-work restarts silently
             // answered under a different config than their siblings.
             val task = buildTemperatureSweepTask(report, state, ra) ?: return@withTracerTags
-            com.ai.data.ReportWorkLimits.review(reportId, "Replay ${ra.provider}/${ra.model}", 1)
 
             // Drop the old result so the report row reverts to ⏳ until
             // executeReportTask publishes the new one.

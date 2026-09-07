@@ -351,7 +351,7 @@ The UI offers a network-free retry or copying the unsaved payload.
 | `report_evidence/<reportId>/<sha256>.json` | Original report inputs and secondary bodies for an analysis |
 | `report_evidence/<reportId>/run_<runId>.json` | Frozen worker/prompt/parameter configuration and source snapshot ID |
 | `report_cost_pending/<reportId>/<callId>.json` | Durable accounting journal; UUID-deduplicated flush into the Report ledger |
-| `report_work_limits/<reportId>.json` | Remaining HTTP-request allowance and optional recorded-cost stop |
+| `report_work_limits/<reportId>.json` | Legacy work-review settings; no longer read or written, removed when the report is deleted |
 | `report_import_journal/<newReportId>` | Import transaction marker; startup rolls back uncommitted imports |
 
 Ordinary full backups include these directories. Single-report bundles and bulk
@@ -365,9 +365,9 @@ writing final files; imports with the same active destination ID cannot overlap.
 Large content blobs are verified against their SHA-256 reference when loaded.
 An unreadable existing report is never treated as an available new-report ID.
 Malformed pending cost records remain on disk for repair while valid records
-continue flushing. Malformed work-limit files fail the request as an I/O error;
-a fresh work preview can replace the invalid limit. Deleting a report
-also removes its work limit and pending-cost directory under their owners’ locks.
+continue flushing. Legacy work-limit files have no effect, including malformed
+files or files restored from an older backup. Deleting a report also removes
+its legacy work-limit file and pending-cost directory.
 
 ### `secondary/<reportId>/<resultId>.json`
 One file per `SecondaryResult` row — RERANK, META (every chat-type
@@ -645,4 +645,4 @@ restore does not live-reload.
 
 `ReportAgent.answerHistory` archives replaced answer bodies, execution prompts, model identity, timestamps, costs and citations. `Report.conclusion` stores the owner-selected body, rationale, uncertainty, dissent, sources, and immutable source snapshot ID. Both are nested report fields; bodies and history prompts participate in the existing content store. Old reports have no conclusion and empty answer history. Portable Report bundle version remains 2; imports remap conclusion source IDs and evidence hashes.
 
-`report_work_limits/<reportId>.json` stores the remaining HTTP request allowance (`requestsLeft`) and optional report cost threshold (`stopAtCost`). The network interceptor checks these limits for each report-tagged HTTP request, including redirects. Endpoint restrictions have been removed: legacy `allowedOrigins` fields are ignored immediately and omitted when the limits are next saved, including after restoring an older backup. Corrupt request/spend limits fail closed and can be replaced by an explicit new work review. `ReportWorkerConfig.primaryAnswersOnly` suppresses optional automatic analyses, while `metadataDisabled` suppresses metadata.
+The work-review popup and its per-report request, spend and endpoint restrictions have been removed. Legacy `report_work_limits/<reportId>.json` files are ignored entirely, including after restoring an older backup. The 5,000-item batch-size limit and provider rate/concurrency controls remain active. Existing `ReportWorkerConfig.primaryAnswersOnly` values still suppress optional automatic analyses, while `metadataDisabled` suppresses metadata; new reports use their selected generation settings directly.

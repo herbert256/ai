@@ -73,7 +73,7 @@ class AgentModelSwitchManager internal constructor(
         _states.update { it + (key to ModelSwitchState(reportId, agentId, selection, ModelSwitchResult.Running, isRunning = true)) }
         fun finish(result: ModelSwitchResult) =
             _states.update { m -> m[key]?.let { m + (key to it.copy(result = result, isRunning = false)) } ?: m }
-        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             try {
                 val result = runCandidate(context, reportId, agentId, selection)
                 finish(result)
@@ -199,7 +199,7 @@ class AgentModelSwitchManager internal constructor(
         val st = _states.value[key] ?: return null
         val success = st.result as? ModelSwitchResult.Success ?: return null
         val selection = st.selection
-        return appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        return appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return@launch
             val oldAgent = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
             val newId = "swarm:${selection.provider.id}:${selection.model}"

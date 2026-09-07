@@ -116,109 +116,39 @@ internal suspend fun <T> runThrottledBatch(
 ) {
     if (items.isEmpty()) return
     com.ai.data.ReportWorkLimits.checkSize(items.size)
-    val reviewReportId = com.ai.data.ApiTracer.currentReportId
-    if (reviewReportId != null) com.ai.data.ReportWorkLimits.review(reviewReportId, "Batch", items.size)
-    withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reviewReportId)) {
-        coroutineScope {
-            // Bound admitted jobs, not waves of work. A completed/cancelled item
-            // immediately admits its successor, even if an earlier provider is slow.
-            // Honour larger configured caps instead of imposing a hidden 64-call cap.
-            val admissionLimit = maxOf(64, com.ai.data.ApiCallCaps.snapshot().globalMax)
-                .coerceAtMost(com.ai.data.ReportWorkLimits.MAX_ITEMS)
-            val remaining = interleaveByHost(items) { if (dynamicHost) null else hostOf(it) }.iterator()
-            val inFlight = mutableSetOf<Deferred<Unit>>()
-            val completed = Channel<Deferred<Unit>>(Channel.UNLIMITED)
-            while (remaining.hasNext() || inFlight.isNotEmpty()) {
-                while (remaining.hasNext() && inFlight.size < admissionLimit) {
-                    val item = remaining.next()
-                    val deferred = async(start = CoroutineStart.LAZY) {
-                        if (dynamicHost) {
-                            // Worker-style: host is picked per call inside body, so
-                            // acquire only subCap + global (blank host = no-op gate)
-                            // and DON'T set permitPreAcquired — each inner worker call
-                            // self-throttles its own provider host via the interceptor.
-                            val hold = acquireThrottledPermits(
-                                subCap, "",
-                                onThrottled = { onThrottled(item) },
-                                onCleared = { onCleared(item) }
-                            )
-                            try {
-                                // Pool-cooling waits run permit-free: when the worker
-                                // chain finds EVERY candidate cooling it calls the
-                                // installed waiter instead of delaying in place, so an
-                                // item waiting out a cooling pool doesn't pin sub-cap /
-                                // global capacity other items could use (the
-                                // dynamic-host sibling of backoffPermitYielder).
-                                withContext(
-                                    ProviderThrottle.poolCoolingWaiter
-                                        .asContextElement({ ms -> hold.yieldSuspending(ms) })
-                                ) {
-                                    if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
-                                    else body(item)
-                                }
-                            } finally {
-                                hold.dispose()
-                            }
-                            return@async
-                        }
-                        val host = hostOf(item) ?: return@async
-                        // Type-A bench-and-requeue loop. Each iteration: gate while the
-                        // model is short-benched (no permits held), then run one body
-                        // attempt with a fresh bench signal; a 429/529 sets the signal
-                        // (the interceptor short-benched the model) → un-error + re-gate
-                        // + retry, bounded by typeABenchMaxAttempts. A clear signal
-                        // means the body settled (done / genuine error) — return.
-                        val benchPair = if (benchEnabled) benchKey(item) else null
-                        if (benchPair != null) {
-                            val (benchPid, benchMdl) = benchPair
-                            var benchAttempts = 0
-                            while (true) {
-                                while (com.ai.data.ModelCooldownStore.isShortBenched(benchPid, benchMdl)) {
-                                    val until = com.ai.data.ModelCooldownStore.shortBenchUntil(benchPid, benchMdl) ?: break
-                                    kotlinx.coroutines.delay((until - System.currentTimeMillis()).coerceIn(50L, 1_000L))
-                                }
-                                val hold = acquireThrottledPermits(
-                                    subCap, host,
-                                    onThrottled = { onThrottled(item) },
-                                    onCleared = { onCleared(item) }
-                                )
-                                val sig = java.util.concurrent.atomic.AtomicBoolean(false)
-                                try {
-                                    withContext(
-                                        ProviderThrottle.permitPreAcquired.asContextElement(true) +
-                                            ProviderThrottle.backoffPermitYielder
-                                                .asContextElement({ ms -> hold.yieldFor(ms) }) +
-                                            ProviderThrottle.benchSignal.asContextElement(sig)
-                                    ) {
-                                        if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
-                                        else body(item)
-                                    }
-                                } finally {
-                                    hold.dispose()
-                                }
-                                if (!sig.get()) return@async
-                                benchAttempts++
-                                if (benchAttempts >= com.ai.data.ModelCooldownStore.typeABenchMaxAttempts) return@async
-                                onBenchRetry(item)
-                            }
-                        }
-                        // Acquire sub-cap → global → host, but with the outer two
-                        // RELEASED while parked on the per-host gate, so a per-flow
-                        // cap counts only pairs holding a live provider slot (real
-                        // in-flight calls) — not pairs queued behind a busy provider.
-                        // Returns a hold owning all three; a cancellation mid-wait
-                        // releases everything + clears the throttled mark internally,
-                        // so there's nothing to dispose if it throws.
+    coroutineScope {
+        // Bound admitted jobs, not waves of work. A completed/cancelled item
+        // immediately admits its successor, even if an earlier provider is slow.
+        // Honour larger configured caps instead of imposing a hidden 64-call cap.
+        val admissionLimit = maxOf(64, com.ai.data.ApiCallCaps.snapshot().globalMax)
+            .coerceAtMost(com.ai.data.ReportWorkLimits.MAX_ITEMS)
+        val remaining = interleaveByHost(items) { if (dynamicHost) null else hostOf(it) }.iterator()
+        val inFlight = mutableSetOf<Deferred<Unit>>()
+        val completed = Channel<Deferred<Unit>>(Channel.UNLIMITED)
+        while (remaining.hasNext() || inFlight.isNotEmpty()) {
+            while (remaining.hasNext() && inFlight.size < admissionLimit) {
+                val item = remaining.next()
+                val deferred = async(start = CoroutineStart.LAZY) {
+                    if (dynamicHost) {
+                        // Worker-style: host is picked per call inside body, so
+                        // acquire only subCap + global (blank host = no-op gate)
+                        // and DON'T set permitPreAcquired — each inner worker call
+                        // self-throttles its own provider host via the interceptor.
                         val hold = acquireThrottledPermits(
-                            subCap, host,
+                            subCap, "",
                             onThrottled = { onThrottled(item) },
                             onCleared = { onCleared(item) }
                         )
                         try {
+                            // Pool-cooling waits run permit-free: when the worker
+                            // chain finds EVERY candidate cooling it calls the
+                            // installed waiter instead of delaying in place, so an
+                            // item waiting out a cooling pool doesn't pin sub-cap /
+                            // global capacity other items could use (the
+                            // dynamic-host sibling of backoffPermitYielder).
                             withContext(
-                                ProviderThrottle.permitPreAcquired.asContextElement(true) +
-                                    ProviderThrottle.backoffPermitYielder
-                                        .asContextElement({ ms -> hold.yieldFor(ms) })
+                                ProviderThrottle.poolCoolingWaiter
+                                    .asContextElement({ ms -> hold.yieldSuspending(ms) })
                             ) {
                                 if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
                                 else body(item)
@@ -226,32 +156,98 @@ internal suspend fun <T> runThrottledBatch(
                         } finally {
                             hold.dispose()
                         }
+                        return@async
                     }
-                    register(item, deferred)
-                    inFlight += deferred
-                    deferred.invokeOnCompletion { completed.trySend(deferred) }
-                    deferred.start()
+                    val host = hostOf(item) ?: return@async
+                    // Type-A bench-and-requeue loop. Each iteration: gate while the
+                    // model is short-benched (no permits held), then run one body
+                    // attempt with a fresh bench signal; a 429/529 sets the signal
+                    // (the interceptor short-benched the model) → un-error + re-gate
+                    // + retry, bounded by typeABenchMaxAttempts. A clear signal
+                    // means the body settled (done / genuine error) — return.
+                    val benchPair = if (benchEnabled) benchKey(item) else null
+                    if (benchPair != null) {
+                        val (benchPid, benchMdl) = benchPair
+                        var benchAttempts = 0
+                        while (true) {
+                            while (com.ai.data.ModelCooldownStore.isShortBenched(benchPid, benchMdl)) {
+                                val until = com.ai.data.ModelCooldownStore.shortBenchUntil(benchPid, benchMdl) ?: break
+                                kotlinx.coroutines.delay((until - System.currentTimeMillis()).coerceIn(50L, 1_000L))
+                            }
+                            val hold = acquireThrottledPermits(
+                                subCap, host,
+                                onThrottled = { onThrottled(item) },
+                                onCleared = { onCleared(item) }
+                            )
+                            val sig = java.util.concurrent.atomic.AtomicBoolean(false)
+                            try {
+                                withContext(
+                                    ProviderThrottle.permitPreAcquired.asContextElement(true) +
+                                        ProviderThrottle.backoffPermitYielder
+                                            .asContextElement({ ms -> hold.yieldFor(ms) }) +
+                                        ProviderThrottle.benchSignal.asContextElement(sig)
+                                ) {
+                                    if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
+                                    else body(item)
+                                }
+                            } finally {
+                                hold.dispose()
+                            }
+                            if (!sig.get()) return@async
+                            benchAttempts++
+                            if (benchAttempts >= com.ai.data.ModelCooldownStore.typeABenchMaxAttempts) return@async
+                            onBenchRetry(item)
+                        }
+                    }
+                    // Acquire sub-cap → global → host, but with the outer two
+                    // RELEASED while parked on the per-host gate, so a per-flow
+                    // cap counts only pairs holding a live provider slot (real
+                    // in-flight calls) — not pairs queued behind a busy provider.
+                    // Returns a hold owning all three; a cancellation mid-wait
+                    // releases everything + clears the throttled mark internally,
+                    // so there's nothing to dispose if it throws.
+                    val hold = acquireThrottledPermits(
+                        subCap, host,
+                        onThrottled = { onThrottled(item) },
+                        onCleared = { onCleared(item) }
+                    )
+                    try {
+                        withContext(
+                            ProviderThrottle.permitPreAcquired.asContextElement(true) +
+                                ProviderThrottle.backoffPermitYielder
+                                    .asContextElement({ ms -> hold.yieldFor(ms) })
+                        ) {
+                            if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
+                            else body(item)
+                        }
+                    } finally {
+                        hold.dispose()
+                    }
                 }
-                val deferred = completed.receive()
-                inFlight -= deferred
-                // Await each item individually instead of awaitAll():
-                // awaitAll rethrows the FIRST cancellation it sees, so
-                // cancelling one registered item deferred (the engines'
-                // removeItemsMatching / deleteJudgeFromRun cancelAndJoin on
-                // a removed model or judge) tore down this coroutineScope —
-                // every sibling item died mid-flight and got stamped
-                // "Interrupted". A child's own cancellation is expected
-                // teardown of that ONE item; only cancellation of the batch
-                // itself (cancelRun / report delete) may propagate, which
-                // ensureActive() rethrows.
-                try {
-                    deferred.await()
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    kotlin.coroutines.coroutineContext.ensureActive()
-                }
+                register(item, deferred)
+                inFlight += deferred
+                deferred.invokeOnCompletion { completed.trySend(deferred) }
+                deferred.start()
             }
-            completed.close()
+            val deferred = completed.receive()
+            inFlight -= deferred
+            // Await each item individually instead of awaitAll():
+            // awaitAll rethrows the FIRST cancellation it sees, so
+            // cancelling one registered item deferred (the engines'
+            // removeItemsMatching / deleteJudgeFromRun cancelAndJoin on
+            // a removed model or judge) tore down this coroutineScope —
+            // every sibling item died mid-flight and got stamped
+            // "Interrupted". A child's own cancellation is expected
+            // teardown of that ONE item; only cancellation of the batch
+            // itself (cancelRun / report delete) may propagate, which
+            // ensureActive() rethrows.
+            try {
+                deferred.await()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                kotlin.coroutines.coroutineContext.ensureActive()
+            }
         }
+        completed.close()
     }
 }
 

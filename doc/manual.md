@@ -102,7 +102,7 @@ Open Manage → **Read answers · Compare · Choose conclusion**. The Answers ta
 
 Choose an answer or synthesis as your conclusion and record your rationale, uncertainty, disagreements and sources. Saving captures the selected text and its source versions. Later edits do not change your decision. Update it deliberately, clear it, or export it as HTML with an optional evidence appendix. Complete report exports and portable bundles also carry the decision.
 
-Before a new report runs, review the primary answers, enabled metadata and automatic analyses, eligible recipient endpoints, and effective instructions. **Answers only** disables optional metadata and automatic analyses for that report. Request ceilings and optional recorded-spend stops apply to the report; already submitted calls may exceed a spend stop. Restrict endpoints to prevent other workers, fallbacks or redirects from sending report HTTP requests.
+Report generation, retries and secondary analyses start directly from their action buttons using the selected models, workers and generation settings. There is no additional work-review popup or per-report HTTP request/spend allowance. Provider rate limits, concurrency controls and batch-size checks still apply.
 
 ### Selection phase
 

@@ -146,7 +146,6 @@ class MainActivity : ComponentActivity() {
                         onSharedContentHandled = { sharedContent.value = null },
                         appViewModel = viewModel
                     )
-                    com.ai.ui.shared.ReportWorkReviewDialog()
                     com.ai.ui.shared.ReportSaveRecoveryDialog()
                 }
               }

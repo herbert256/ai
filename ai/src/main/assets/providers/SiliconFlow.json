@@ -2,6 +2,7 @@
   "adminUrl": "https://cloud.siliconflow.com/account/ak",
   "apiFormat": "OPENAI_COMPATIBLE",
   "baseUrl": "https://api.siliconflow.com/",
+  "defaultInactive": true,
   "defaultModel": "ByteDance-Seed/Seed-OSS-36B-Instruct",
   "defaultModelSource": "API",
   "extractApiCost": false,

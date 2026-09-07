@@ -398,7 +398,7 @@ class IconGenerationManager(
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "report-icon"
         } ?: return
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             withTracerTags(reportId = reportId, category = "report/icon") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 appViewModel.updateRunningInfoJobs { it + "$reportId|icon" }
@@ -630,7 +630,7 @@ class IconGenerationManager(
             it.category == "workers" && it.name == "report-title-long"
         }
         if (basShortPrompt == null && basLongPrompt == null) return
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
             try {
             // Report-info card: a CUSTOM per-report worker group swaps in for
@@ -722,7 +722,7 @@ class IconGenerationManager(
             it.category == "workers" && it.name == "user-note"
         } ?: return
         if (prompt.workers.none { aiSettings.resolveWorker(it) != null }) return
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             val res = runTitlePrompt(
                 context, reportId, prompt, noteText, aiSettings,
                 cap = 40, traceCategory = "note/title"
@@ -816,7 +816,7 @@ class IconGenerationManager(
         val agentResponse = ra.responseBody.orEmpty()
         if (agentResponse.isBlank()) return
         val resolved = titlePrompt.text.replace("@RESPONSE@", agentResponse)
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             // Model-info "Own model": have THIS model write its own
             // response's title — a one-worker swarm of the answer's own
             // provider/model, not the configured model-titles swarm. The
@@ -1000,7 +1000,7 @@ class IconGenerationManager(
             it.category == "workers" && it.name == "report-language-icon"
         }
         val resolvedName = namePrompt.text.replace("@PROMPT@", promptText)
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
             // Report-info card: a CUSTOM per-report worker group covers the
             // language detect + icon calls too. The resolvability pre-flight
@@ -1513,7 +1513,7 @@ class IconGenerationManager(
         rowId: String,
         emoji: String
     ) {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             SecondaryResultStorage.setRowIcon(context, reportId, rowId, emoji)
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -1552,7 +1552,7 @@ class IconGenerationManager(
         appViewModel.updatePairIconFanOut(pairId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
-        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             // Clear the pre-inserted ⏳ candidates if the target vanished (see
             // startAgentIconFanOut).
             val pair = SecondaryResultStorage.listForReport(context, reportId)
@@ -1691,7 +1691,7 @@ class IconGenerationManager(
         pairId: String,
         emoji: String
     ) {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             SecondaryResultStorage.setFanOutIconAndTier(
                 context, reportId, pairId,
                 icon = emoji, winningTier = null,
@@ -1738,7 +1738,7 @@ class IconGenerationManager(
         appViewModel.updatePairTitleFanOut(pairId) {
             unique.map { TitleCandidate.Running(it.provider, it.model) }
         }
-        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             // Clear the pre-inserted ⏳ candidates if the target vanished (see
             // startAgentIconFanOut).
             val pair = SecondaryResultStorage.listForReport(context, reportId)
@@ -1837,7 +1837,7 @@ class IconGenerationManager(
          *  fan-out. */
         model: String
     ) {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             SecondaryResultStorage.setFanOutTitle(
                 context, reportId, pairId, title,
                 promptUsed = "model_title_alt",
@@ -2158,7 +2158,7 @@ class IconGenerationManager(
         appViewModel.updateIconFanOut(reportId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
-        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             unique.forEach { item ->
                 // One async per model. Throttle pre-acquire matches
                 // runFanOutPrompt's pattern so the OkHttp interceptor
@@ -2316,7 +2316,7 @@ class IconGenerationManager(
         if (unique.isEmpty()) return
         val resolved = consumeAltEdit()?.edited ?: altPrompt.text.replace("@PROMPT@", promptText)
         appViewModel.updateReportTitleFanOut(reportId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
-        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             unique.forEach { item ->
                 launch { runTitleCandidate(context, reportId, null, item, resolved, "alt/$altPromptName", aiSettings, paramsIds, systemPromptId, altPrompt) }
             }
@@ -2336,7 +2336,7 @@ class IconGenerationManager(
         if (unique.isEmpty()) return
         val altEdit = consumeAltEdit()
         appViewModel.updateAgentTitleFanOut(agentId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
-        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             // Clear the pre-inserted ⏳ candidates if the target vanished (see
             // startAgentIconFanOut).
             val report = ReportStorage.getReport(context, reportId)
@@ -2501,7 +2501,7 @@ class IconGenerationManager(
         appViewModel.updateLanguageIconFanOut(reportId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
-        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             unique.forEach { item ->
                 launch {
                     val host = providerHost(item.provider)
@@ -2642,7 +2642,7 @@ class IconGenerationManager(
         appViewModel.updateAgentIconFanOut(agentId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
-        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             // Clear the pre-inserted ⏳ candidates if the target vanished
             // between opening the picker and this dispatch — otherwise the
             // Running rows spin forever and hasActiveFanOut pins the button.
@@ -2772,7 +2772,7 @@ class IconGenerationManager(
         agentId: String,
         emoji: String
     ) {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             ReportStorage.setReportAgentIconChoice(context, reportId, agentId, emoji, promptUsed = "report_alt")
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -2798,7 +2798,7 @@ class IconGenerationManager(
         emoji: String,
         iconModel: String
     ) {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             ReportStorage.setReportIconChoice(context, reportId, emoji, iconModel, promptUsed = "main_alt")
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -2815,7 +2815,7 @@ class IconGenerationManager(
         emoji: String,
         iconModel: String
     ) {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             ReportStorage.setReportLanguageChoice(context, reportId, emoji, iconModel, promptUsed = "language_alt")
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -2928,7 +2928,7 @@ class IconGenerationManager(
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val fanRunId = java.util.UUID.randomUUID().toString()
         val iconRefreshCoalescer = FanMetaIconRefreshCoalescer()
-        val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        val job = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             try {
                 val aiSettings = appViewModel.uiState.value.aiSettings
                 // Model info → Own model: each fan-out pair's icon/title is
@@ -2971,11 +2971,7 @@ class IconGenerationManager(
                     AppLog.w("FanMeta", "No runnable workers in the frozen plan")
                     return@launch
                 }
-                // Review the exact frozen worker/parameter plan before any row is
-                // queued. A cancelled preview must leave saved metadata untouched.
-                com.ai.data.ReportWorkLimits.review(reportId, "Fan Meta", pending.size,
-                    com.ai.data.ReportWorkLimits.promptWorkPlan(listOf(frozenPrompt)))
-                withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reportId)) {
+                com.ai.data.ReportWorkLimits.checkSize(pending.size)
                 if (report != null) com.ai.data.ReportEvidenceStore.saveRun(context, report, fanRunId,
                     frozenPrompt, secondaryBodies = pending.associate { it.id to it.content.orEmpty() })
                 if (replaceExisting) clearFanMetaTitleIconState(context, reportId, pending)
@@ -3014,7 +3010,6 @@ class IconGenerationManager(
                             appViewModel.updateThrottledFanMetaPairs { it - pair.id }
                         }
                     }
-                }
                 }
                 AppLog.i("FanMeta", "← end (report=$reportId)")
             } finally {
@@ -3179,7 +3174,7 @@ class IconGenerationManager(
 
     /** Review a replacement before clearing any saved metadata. */
     fun relaunchFanMetaBatch(context: Context, reportId: String, metaPromptId: String): Job =
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             cancelFanMetaBatch(reportId, metaPromptId)?.join()
             runFanMetaBatch(context, reportId, metaPromptId, replaceExisting = true)?.join()
         }
@@ -3217,7 +3212,7 @@ class IconGenerationManager(
     }
 
     fun clearFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job =
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             // join — load-bearing, see relaunchFanMetaBatch: an active batch
             // would re-stamp the just-cleared rows from its leftover scan.
             cancelFanMetaBatch(reportId, metaPromptId)?.join()
@@ -3229,7 +3224,7 @@ class IconGenerationManager(
         }
 
     fun clearFanMetaRows(context: Context, reportId: String, rowIds: Set<String>): Job =
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             val rows = withContext(Dispatchers.IO) {
                 SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                     .filter { it.id in rowIds && it.fanOutSourceAgentId != null && it.fanInOf == null }
@@ -3245,7 +3240,7 @@ class IconGenerationManager(
         }
 
     fun restartFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job =
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             cancelFanMetaBatch(reportId, metaPromptId)?.join()
             val ids = withContext(Dispatchers.IO) { erroredFanMetaPairs(context, reportId, metaPromptId).map { it.id }.toSet() }
             runFanMetaBatch(context, reportId, metaPromptId, rowIds = ids, replaceExisting = true)?.join()
@@ -3258,7 +3253,7 @@ class IconGenerationManager(
      *  ones while leaving finished pairs alone — so this re-queues every broken
      *  item, keeping finished. [buildKey] drives the build-stage popup. */
     fun continueBrokenFanMeta(context: Context, reportId: String, metaPromptId: String, buildKey: String?): Job =
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             try {
                 cancelFanMetaBatch(reportId, metaPromptId)?.join()
                 val ids = withContext(Dispatchers.IO) {
@@ -3283,7 +3278,7 @@ class IconGenerationManager(
         }
 
     fun restartFanMetaRows(context: Context, reportId: String, metaPromptId: String, rowIds: Set<String>): Job =
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             cancelFanMetaBatch(reportId, metaPromptId)?.join()
             runFanMetaBatch(context, reportId, metaPromptId, rowIds = rowIds, replaceExisting = true)?.join()
         }

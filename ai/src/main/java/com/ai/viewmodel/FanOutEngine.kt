@@ -1122,7 +1122,7 @@ class FanOutEngine internal constructor(
         }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
-        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             val cat = "${metaPrompt.category}/${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat, runId = runId) {
@@ -1485,7 +1485,9 @@ class FanOutEngine internal constructor(
                             count = sourceCount,
                             title = title
                         )
-                        val resolved = resolvedBase.replace("@RESPONSE@", sourceBody)
+                        val sourceAnswer = com.ai.data.stripThinkSections(sourceBody)
+                        require(sourceAnswer.isNotBlank()) { "Source response contains no final answer after removing thinking." }
+                        val resolved = resolvedBase.replace("@RESPONSE@", sourceAnswer)
                         // Per-pair wall-clock ceiling (the user-tunable
                         // "Batch item" timeout, default 180 s). Stops a
                         // single runaway model (the Qwen2.5-7B word-salad
@@ -2220,7 +2222,7 @@ class FanOutEngine internal constructor(
      *  locate (prompt deleted / answerer agent gone) so they stop
      *  spinning. */
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
           // Fire-and-forget on viewModelScope with no global exception
           // handler — an uncaught throw here crashes the app (the startup
           // resume sweep only join()s this Job, it can't catch it). Contain.

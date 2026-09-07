@@ -1,7 +1,6 @@
 package com.ai.viewmodel
 
 import android.content.Context
-import kotlinx.coroutines.asContextElement
 import androidx.lifecycle.viewModelScope
 import com.ai.data.AppLog
 import com.ai.data.ReportStorage
@@ -189,7 +188,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val reportId = reportIdOf(runKey)
         val runId = java.util.UUID.randomUUID().toString()
-        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             try {
                 supersededDelete?.join()
                 withTracerTags(reportId = reportId, category = traceCategory, runId = runId) {
@@ -394,7 +393,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  budget. The stale filter is sentinel-independent (content blank + no
      *  duration), so an interrupted-after-worker row is still found. */
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
-        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             // hydrate runs before the scan guard, so it needs its own guard —
             // this launch is a direct child of viewModelScope and no global
             // coroutine exception handler exists, so an uncaught throw here
@@ -472,8 +471,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         // BEFORE any row is cleared so it never strands cleared rows.
         if (!canRedispatch(context, run)) { buildKey?.let { appViewModel.finishBuild(it) }; return }
         val reportId = reportIdOf(runKey)
-        com.ai.data.ReportWorkLimits.review(reportId, "Retry batch items", itemKeys.size)
-        withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reportId)) {
+        com.ai.data.ReportWorkLimits.checkSize(itemKeys.size)
         var clearedCostDelta = 0.0
         val clearedRows = mutableListOf<SecondaryResult>()
         // Build stage: resetting each broken item to a PENDING placeholder is
@@ -497,9 +495,8 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         // Build phase complete — release the popup so the UI navigates to the
         // batch screen while the dispatch below keeps running in the background.
         if (buildKey != null) appViewModel.finishBuild(buildKey)
-        if (clearedRows.isEmpty()) return@withContext
+        if (clearedRows.isEmpty()) return
         redispatchRows(context, runKey, clearedRows)
-        }
     }
 
     /** Rerun the items matching [predicate] — clear → PENDING → re-dispatch —
