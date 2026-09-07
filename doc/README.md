@@ -36,6 +36,7 @@ and a manual override layer into one resolved view per
   title and its subtitle line.
 
 ### For developers
+- **[Functional audit reassessment](functional-audit-reassessment-2026-09-07.md)** — Current status of all 14 functional findings after both Report remediation rounds; [HTML edition](../functional-audit-2026-09-07.html).
 - **[Report audit remediation](report-audit-remediation-2026-09-06.md)** — September 2026 fixes, compatibility changes, and validation.
 - **[architecture.md](architecture.md)** — Big-picture map of the app:
   navigation, view models, data layer, layered lookups, concurrency,
@@ -227,3 +228,5 @@ truth. When in doubt, the relevant files are:
 - `data/preferences/SettingsPreferences.kt` — every prefs key
 - `ui/admin/HelpScreen.kt` — per-screen / per-provider / per-repository help topics
 - `data/BackupManager.kt` — what gets backed up
+
+- [Functional audit fixes — 7 September 2026](functional-audit-remediation-2026-09-07.md) — closure of the 12 partial/open findings and verification details.

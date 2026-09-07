@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>Functional audit reassessment — 7 September 2026</title><style>
+:root{--paper:#fff;--background:#f3f5f7;--ink:#172638;--muted:#526477;--line:#dce3eb;--accent:#195ba0;--wash:#edf4fb}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:28px}body{margin:0;background:var(--background);color:var(--ink);font:17px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:3px}a:hover{color:#103b68}a:focus-visible,button:focus-visible,summary:focus-visible,.table-scroll:focus-visible{outline:3px solid #378bdb;outline-offset:4px}.skip{position:fixed;left:16px;top:-100px;background:white;padding:12px;z-index:10}.skip:focus{top:12px}.topbar{max-width:1290px;margin:auto;padding:25px 32px;display:flex;justify-content:space-between;gap:20px;align-items:center}.kicker{font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}.actions{display:flex;align-items:center;gap:20px;font-size:14px}button{font:inherit;color:var(--ink);border:1px solid #bbc8d6;background:white;border-radius:6px;padding:7px 14px;cursor:pointer}.layout{max-width:1290px;margin:0 auto 64px;padding:0 32px;display:grid;grid-template-columns:250px minmax(0,1fr);gap:32px;align-items:start}aside{position:sticky;top:24px;max-height:calc(100vh - 48px);overflow:auto;padding:15px 8px 16px 0;font-size:13px;line-height:1.5}summary{font-size:12px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;margin-bottom:16px;color:var(--muted)}nav{display:grid;gap:3px}nav a{display:block;text-decoration:none;padding:7px 10px;border-left:2px solid transparent;color:var(--muted)}nav a:hover{border-left-color:var(--accent);background:var(--wash);color:var(--accent)}article{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:clamp(25px,4vw,60px);box-shadow:0 5px 30px #17263805}h1{font-size:clamp(2rem,3.8vw,3.2rem);line-height:1.14;letter-spacing:-.035em;margin:0 0 30px;font-weight:750}h2{font-size:1.45rem;line-height:1.4;letter-spacing:-.015em;margin:2.7em 0 1em;padding-top:1.5em;border-top:1px solid var(--line);text-wrap:pretty}.audit-date{display:block;margin-top:12px;font-size:.5em;font-weight:500;letter-spacing:0;color:var(--muted)}h1+p{font-size:1.08rem;padding:23px 25px;background:var(--wash);border-left:4px solid var(--accent);border-radius:0 7px 7px 0}h1+p strong{font-weight:600}p{margin:1.15em 0}strong{font-weight:680}li{padding-left:3px;margin:.65em 0}ul,ol{padding-left:1.45em}code{background:#eef1f5;border:1px solid #e0e6ee;border-radius:4px;font-size:.85em;padding:2px 5px;overflow-wrap:anywhere}article a{overflow-wrap:anywhere}.table-scroll{overflow-x:auto;margin:24px 0;border:1px solid var(--line);border-radius:7px}table{border-collapse:collapse;width:100%;font-size:.87rem;line-height:1.55;text-align:left}th,td{padding:13px 15px;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--wash);font-weight:700}tr:last-child td{border-bottom:0}tbody tr:nth-child(even){background:#fafbfd}th:first-child{min-width:92px}footer{max-width:1290px;margin:0 auto;padding:0 32px 36px;font-size:13px;color:var(--muted)}
+@media(max-width:850px){.topbar{padding:20px}.layout{grid-template-columns:1fr;padding:0 20px;gap:18px}aside{position:static;max-height:none;padding:0}details{background:white;border:1px solid var(--line);border-radius:7px;padding:15px}summary{margin:0}details[open] summary{margin-bottom:12px}nav{max-height:50vh;overflow:auto}article{padding:28px 23px}h1{font-size:2.3rem}h2{font-size:1.28rem}.actions{gap:12px;font-size:13px}.kicker{font-size:10px}body{font-size:16px}h1+p{padding:17px}footer{padding:0 20px 25px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{@page{margin:18mm}body{background:white;color:black;font-size:10.5pt;line-height:1.5}.topbar,aside,.skip,footer{display:none}.layout{display:block;padding:0;margin:0;max-width:none}article{border:0;border-radius:0;box-shadow:none;padding:0}h1{font-size:26pt}h2{font-size:15pt;break-after:avoid;margin-top:22pt;padding-top:15pt}h1+p{font-size:11pt;background:transparent}p,li{orphans:3;widows:3}a{color:inherit}th{background:#eee}tr{break-inside:avoid}.table-scroll{overflow:visible;border-radius:0}thead{display:table-header-group}table{font-size:9pt}th,td{padding:8pt}}
+
+.audit-date{display:block;font-size:.43em;line-height:1.5;font-weight:500;letter-spacing:0;color:var(--muted);margin-top:18px}.status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 34px}.status-grid>div{border:1px solid var(--line);border-radius:8px;padding:17px 18px}.status-grid b{display:block;font-size:2rem;line-height:1.2}.status-grid span{display:block;font-size:13px;line-height:1.5;margin-top:5px}#what-was-compared+.table-scroll td:nth-child(2) code{white-space:nowrap}.resolved{background:#edf7f2;color:#175a42}.partial{background:#fff7e4;color:#81560d}.open{background:#fceeed;color:#943c36}.status{display:inline-block;font-size:12px;font-weight:700;border-radius:5px;padding:3px 7px}.table-scroll table th:first-child{min-width:38px}.table-scroll table td:first-child{min-width:38px}.actions{flex-wrap:wrap}.history-note{margin:0 0 32px;padding:17px 20px;background:var(--wash);border-left:4px solid var(--accent);font-size:15px}h2:target{background:linear-gradient(transparent 70%,var(--wash) 70%)}
+@media(max-width:550px){.status-grid{gap:6px}.status-grid>div{padding:13px 10px}.status-grid b{font-size:1.65rem}.status-grid span{font-size:11px}.topbar{align-items:start;flex-direction:column;gap:10px}.table-scroll table{min-width:610px}.audit-date{font-size:.46em}}
+@media print{.status-grid{margin-bottom:16pt;break-inside:avoid}.status-grid>div{padding:8pt}.status-grid b{font-size:18pt}.status-grid span{font-size:9pt}.status{font-size:9pt}.history-note{font-size:10pt}.table-scroll table{min-width:0}.audit-date{font-size:12pt}}
+</style></head>
+<body><aside id="functional-fixes-update" style="padding:18px 24px;background:#e7f5ee;color:#174c3e;border-bottom:1px solid #aacdbb;font:15px/1.6 system-ui">The partial/open findings were addressed in the <a style="color:inherit;font-weight:700" href="functional-audit-fixes-2026-09-07.html">7 September fix record</a>. This page preserves the earlier audit.</aside><a class="skip" href="#audit">Skip to reassessment</a>
+<header class="topbar"><div class="kicker">AI Workbench · Current functional review</div><div class="actions"><a href="functional-audit-2026-09-05.html">Original audit</a><a href="doc/functional-audit-reassessment-2026-09-07.md">Markdown</a><button type="button" id="print">Print / PDF</button></div></header>
+<div class="layout"><aside><details open id="contents"><summary>Contents · 14 findings</summary><nav aria-label="Reassessment contents"><a href="#what-was-compared">What was compared</a>
+<a href="#status-of-all-14-findings">Status of all 14 findings</a>
+<a href="#finding-1">1. Ranking meanings — partly addressed</a>
+<a href="#finding-2">2. Value and cost attribution — partly addressed; high-priority gap</a>
+<a href="#finding-3">3. Combined score — partly addressed</a>
+<a href="#finding-4">4. Translator ranking — partly addressed</a>
+<a href="#finding-5">5. Answer matrix — partly addressed</a>
+<a href="#finding-6">6. Named Agent identity — core resolved in source</a>
+<a href="#finding-7">7. Configuration consistency — partly addressed; high-priority gap</a>
+<a href="#finding-8">8. Revisions and evaluation coverage — partly addressed; high-priority gap</a>
+<a href="#finding-9">9. Optional metadata versus answers — core resolved in source</a>
+<a href="#finding-10">10. Launch commitment — partly addressed</a>
+<a href="#finding-11">11. Navigation and reading — partly addressed</a>
+<a href="#finding-12">12. First use and documentation — partly addressed</a>
+<a href="#finding-13">13. Initial translation scope — open</a>
+<a href="#finding-14">14. A user-selected final deliverable — open</a>
+<a href="#what-should-happen-next">What should happen next</a>
+<a href="#evidence-limits-and-acceptance-work-remaining">Evidence limits and acceptance work remaining</a></nav></details></aside><article id="audit"><h1 id="functional-audit-reassessment-7-september-2026">Functional audit reassessment<span class="audit-date">7 September 2026 · after two fix rounds</span></h1><div class="status-grid" aria-label="Finding status totals"><div class="resolved"><b>2</b><span>Core resolved</span></div><div class="partial"><b>10</b><span>Partly addressed</span></div><div class="open"><b>2</b><span>Open</span></div></div>
+<p><strong>Verdict: the two remediation rounds substantially improved Report integrity and execution, but they did not close the original functional audit. Of its 14 findings, 2 have their core failure resolved in source, 10 are partly addressed, and 2 remain open. The most important remaining gaps are translation scores paired with answer costs, inconsistent Agent instructions in Chat, and incomplete evaluation coverage notices.</strong></p>
+<p>This is a reassessment of the <a href="doc/functional-audit-2026-09-05.md" title="doc/functional-audit-2026-09-05.md">5 September functional audit</a>, preserving its numbering and acceptance criteria. The original document remains a historical record. “Partly addressed” means meaningful progress with an original acceptance condition still unmet; it does not mean the changes were ineffective. “Core resolved” closes the identified functional failure, while separately retaining any broader product recommendations. These are source-review conclusions, not claims that all acceptance scenarios passed on a device.</p>
+<h2 id="what-was-compared">What was compared</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reassessment table"><table>
+<thead>
+<tr>
+<th>Baseline or change</th>
+<th>Commit</th>
+<th>Role in this review</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Original functional audit&#39;s source baseline</td>
+<td><code>6f10aba69</code></td>
+<td>Original behavior and 14 findings</td>
+</tr>
+<tr>
+<td>First Report remediation</td>
+<td><code>e87c6b8a2</code></td>
+<td>Identity, settings, source snapshots, evaluation semantics, costs, execution and storage</td>
+</tr>
+<tr>
+<td>Second Report remediation</td>
+<td><code>adbbc11b2</code></td>
+<td>Retry approval, saved-input replay, completion, imports, recovery, cost journals and work-limit edge cases</td>
+</tr>
+<tr>
+<td>Current checkout inspected</td>
+<td><code>63e471253</code></td>
+<td>Same application source as the second remediation; latest commit adds the original audit&#39;s HTML edition</td>
+</tr>
+</tbody></table></div>
+<p>I read the current implementations and the two diffs, then checked the installed app without generating new answers, changing configuration or editing report content. The emulator runs version <strong>26.249.607</strong>. Its installed APK SHA-256 matches the workspace APK and the checksum recorded by the second remediation: <code>5dc9cb784d74d8ac03a3b4a69deb58583cdca894101d3e4ec7f6a94ab3ae1b7e</code>. This verifies artifact identity; it is not a fresh reproducible-build claim. Read-only live inspection covered the Reports hub and the existing Chess GOAT Debate report&#39;s Manage screen. Other behavioral conclusions below are from source.</p>
+<p>The <a href="doc/report-audit-remediation-2026-09-06.md" title="doc/report-audit-remediation-2026-09-06.md">first remediation record</a> and <a href="doc/report-audit-followup-2026-09-06.md" title="doc/report-audit-followup-2026-09-06.md">second bug-hunt record</a> describe work against the deeper Report audit. Their 28 findings and 12 follow-up issue groups are different units from the 14 functional findings here. Fixing those technical issues does not automatically satisfy every functional acceptance criterion. Their earlier build/import/retry checks were reviewed as historical evidence and were not rerun for this documentation review.</p>
+<h2 id="status-of-all-14-findings">Status of all 14 findings</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reassessment table"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Original concern</th>
+<th>Current status</th>
+<th>Remaining acceptance gap</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Different meanings of ranking</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Clearer Compare wording and independent judge agreement; no consistent criterion/reference/coverage explanation across every ranking</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Universal Best value and mismatched costs</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Ratio winner removed and attempt costs separated, but translator scores still plot against original-answer costs</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Combined score mixes overlapping/incomplete evidence</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Common coverage and one tournament family implemented; custom-score meaning, scale sensitivity and contributing dimensions remain insufficiently explained</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Translators receive unequal assignments</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Review limitation disclosed and passages weighted equally; shared-passage, common-panel comparison still absent</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Matrix heuristics look like assessments</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Confidence renamed and missing cues become Unknown; language gating and other categorical heuristics remain</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Different Agents on one model collapse</td>
+<td><span class="status resolved">Core resolved</span></td>
+<td>Distinct Agent IDs survive selection; broader group terminology and duplicate-selection explanation remain product follow-ups</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Agent configuration changes meaning by workflow</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Report group provenance fixed; Chat still omits the standalone Agent system prompt</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Mutable answers coexist with old evaluations</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Saved inputs and historical notices added; participant additions and changed secondary references are not fully explained</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Optional metadata blocks primary answers</td>
+<td><span class="status resolved">Core resolved</span></td>
+<td>Regeneration runs primary answers first; optional phases can still leave the overall batch paused</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Launch does not explain the whole commitment</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Work counts, HTTP ceiling and recorded-spend stop added; full job/recipient summary still missing</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Navigation requires internal categories and symbols</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Model identity now accompanies generated titles; main navigation structure is largely unchanged</td>
+</tr>
+<tr>
+<td>12</td>
+<td>First use and documentation do not match the journey</td>
+<td><span class="status partial">Partly addressed</span></td>
+<td>Regeneration phase documentation corrected; first-run flow, hub manual and parts of Value documentation remain outdated</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Translation cannot start with just the needed answer</td>
+<td><span class="status open">Open</span></td>
+<td>Initial translation still builds the whole report content set; retrying a subset later does not provide initial scope selection</td>
+</tr>
+<tr>
+<td>14</td>
+<td>No explicit user-selected final deliverable</td>
+<td><span class="status open">Open</span></td>
+<td>No conclusion-selection workflow, version-bound decision export or explicit neutral-title rule was added</td>
+</tr>
+</tbody></table></div>
+<h2 id="finding-1" class="finding-heading">1. Ranking meanings — partly addressed</h2>
+<p><strong>Changed.</strong> Judge agreement now excludes the judge being scored, requires at least two other distinct judge models and uses only a unique plurality. The UI exposes an eligible-match denominator and an unavailable state. Compare rows say “Score against meta”; its launcher already explains similarity to a Meta result. These reduce two specific sources of overclaiming.</p>
+<p><strong>Still missing.</strong> This does not establish factual correctness or external judge quality: different model identities do not guarantee statistically independent judgments. Labels such as “Rerank”, “Combined” and “Tournament” still require interpretation. There is no consistent result summary covering criterion, evaluator, reference and participant coverage, and no new independent-reference workflow was added. Keep this finding open until the meaning is clear at the point of reading a result, including exports.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/data/JudgeAgreement.kt#L58" title="ai/src/main/java/com/ai/data/JudgeAgreement.kt, line 58">leave-one-out calculation</a>, <a href="ai/src/main/java/com/ai/ui/report/manage/JudgeEval.kt#L478" title="ai/src/main/java/com/ai/ui/report/manage/JudgeEval.kt, line 478">judge availability UI</a>, <a href="ai/src/main/java/com/ai/ui/report/manage/Compare.kt#L179" title="ai/src/main/java/com/ai/ui/report/manage/Compare.kt, line 179">Compare row</a>, <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L651" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 651">Value source labels</a>.</p>
+<h2 id="finding-2" class="finding-heading">2. Value and cost attribution — partly addressed; high-priority gap</h2>
+<p><strong>Changed.</strong> The score-divided-by-cost winner is gone. Every priced, nondominated answer is eligible for the Pareto frontier; the highlighted row is now a “Frontier example”. The chart uses <code>currentAttemptCost</code>, excludes unknown attempt cost, marks estimated usage, and does not add Fan-out spend. Applying a refined answer clears attempt cost and usage instead of pretending the replacement cost the same as its predecessor. That intentionally makes some legacy or refined answers unavailable for Value comparison until their cost is known.</p>
+<p><strong>Still wrong.</strong> Translator runs remain selectable sources. <code>rowsForSource(TransRank)</code> joins translator scores onto successful original report answers by provider/model. <code>buildValuePoints</code> then prices those rows with the original answer&#39;s <code>currentAttemptCost</code>. A translator with a scored translation and a matching priced report answer can therefore appear on a frontier whose two axes describe different tasks. Removing translations from Combined did not remove this separate Value source. The HTML Value exporter shares these source/point builders, so the mismatch also affects that export.</p>
+<p><strong>Required closure.</strong> Either remove translation rankings from answer Value entirely, or build a translation-specific comparison using the scored translation items and their own costs. A worked counterexample to validate later: an original answer costs $0.01, its translation costs $0.10 and receives 90 points; the translation chart must not plot 90 against $0.01. Threshold/budget exploration remains a useful enhancement, but the task-cost mismatch is the immediate correctness issue.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L185" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 185">attempt-cost points and Pareto flags</a>, <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L370" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 370">translator source remains available</a>, <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L415" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 415">translator-to-answer join</a>, <a href="ai/src/main/java/com/ai/ui/report/view/ValueViewExport.kt" title="ai/src/main/java/com/ai/ui/report/view/ValueViewExport.kt">shared export calculation</a>, <a href="ai/src/main/java/com/ai/data/ReportStorage.kt#L397" title="ai/src/main/java/com/ai/data/ReportStorage.kt, line 397">replacement cost clearing</a>.</p>
+<h2 id="finding-3" class="finding-heading">3. Combined score — partly addressed</h2>
+<p><strong>Changed.</strong> Tournament methods are blended within one family rather than each adding a full independent family contribution. Translation scores no longer enter the Combined calculation. Every included answer must have a score in every informative, positively weighted family; missing evidence cannot improve a model&#39;s average. The caption explains common coverage and the tournament family.</p>
+<p><strong>Still missing.</strong> The result remains “Combined · weighted 0–1000” and uses min-max scaling. It does not provide the proposed per-answer explanation of dimensions, effective weights and scale sensitivity. The tournament family&#39;s effective weight is the maximum enabled method weight, which is less obvious than a separately named family control. Common coverage improves comparability but does not make relevance, synthesis agreement and panel preference the same construct, or make tiny raw differences substantively large.</p>
+<p><strong>Required closure.</strong> Present this as a custom preference score and expose its contributing families, effective weights, included/excluded participants and raw-to-normalized values. The principal missing-data failure is corrected in source; the interpretation acceptance criterion is not fully met.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L243" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 243">family aggregation and common-coverage calculation</a>, <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L652" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 652">label</a>, <a href="ai/src/main/java/com/ai/ui/report/view/ValueView.kt#L781" title="ai/src/main/java/com/ai/ui/report/view/ValueView.kt, line 781">explanatory caption</a>.</p>
+<h2 id="finding-4" class="finding-heading">4. Translator ranking — partly addressed</h2>
+<p><strong>Changed.</strong> The confirmation now calls this “Translation review” and explicitly warns that passages and judges differ and that it is not a controlled model benchmark. Aggregation first averages each passage&#39;s received scores, then averages passages, preventing a passage with more judge cells from dominating solely through cell count. Unscored translators are omitted; legacy translations without a saved original are excluded from scoring.</p>
+<p><strong>Still missing.</strong> Equal weighting does not equalize passage difficulty or judge strictness. The results still rank translators by average received score, and the confirmation action still says “Rank”. There is no newly implemented benchmark in which every candidate translates shared passages under a common independent panel. Treat the current feature as review of produced work. Its limitation is better disclosed, but it has not acquired the evidence needed for general translator selection.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/report/manage/TranslatorRank.kt#L156" title="ai/src/main/java/com/ai/ui/report/manage/TranslatorRank.kt, line 156">review confirmation</a>, <a href="ai/src/main/java/com/ai/data/TranslatorRankModel.kt#L206" title="ai/src/main/java/com/ai/data/TranslatorRankModel.kt, line 206">passage aggregation</a>, <a href="ai/src/main/java/com/ai/viewmodel/TranslatorRankEngine.kt" title="ai/src/main/java/com/ai/viewmodel/TranslatorRankEngine.kt">assignment and judge construction</a>.</p>
+<h2 id="finding-5" class="finding-heading">5. Answer matrix — partly addressed</h2>
+<p><strong>Changed.</strong> “Confidence” is now “Wording cues”; no decisive cue produces “Unknown”, and “Refuses” becomes “Refusal wording”. The matrix says its English phrase scan can be misled by quotations, negation and other languages, and does not measure correctness or model confidence. Its cost display uses current-attempt attribution.</p>
+<p><strong>Still missing.</strong> The extractor receives only the answer body and applies the English patterns without a language eligibility check. Unsupported-language extraction is therefore not explicitly unavailable. Other outputs still include “Recommends”, “Cautious”, “Neutral” and “None explicit”; absent English matches can look like substantive absence of risk or stance. Recommendation/risk snippets exist, but wording cues do not provide a matching-evidence explanation.</p>
+<p><strong>Required closure.</strong> Gate unsupported languages or label every affected field unavailable; make the remaining categories explicitly detected wording, with the relevant excerpts. The original “Medium confidence by default” defect is resolved, but the whole matrix acceptance criterion is not.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt#L282" title="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt, line 282">disclosure</a>, <a href="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt#L359" title="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt, line 359">column label</a>, <a href="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt#L503" title="ai/src/main/java/com/ai/ui/report/view/AnswerMatrix.kt, line 503">language-agnostic extractor</a>.</p>
+<h2 id="finding-6" class="finding-heading">6. Named Agent identity — core resolved in source</h2>
+<p><strong>Changed.</strong> A named Agent now deduplicates by <code>agent:&lt;id&gt;</code>; a bare model still deduplicates by provider/model. Two saved Agents on the same model retain separate entries through the Report picker and become tasks keyed by their Agent IDs. The original Optimist/Skeptic failure no longer follows from this path.</p>
+<p><strong>Remaining product follow-ups.</strong> The Swarms list still says “Multi-step agent pipelines”, even though it represents a flat group. Selecting the same Agent through multiple sources still yields one Agent entry, with no new explanation of which selection provenance survives. These are distinct usability/inheritance follow-ups; they do not reopen the specific failure of two different Agent IDs collapsing to one. A fresh two-role generation was not run during this review.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/model/SettingsModels.kt#L1032" title="ai/src/main/java/com/ai/model/SettingsModels.kt, line 1032">identity and deduplication</a>, <a href="ai/src/main/java/com/ai/ui/report/start/SelectionOverlays.kt#L140" title="ai/src/main/java/com/ai/ui/report/start/SelectionOverlays.kt, line 140">picker</a>, <a href="ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt#L668" title="ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt, line 668">Agent task construction</a>, <a href="ai/src/main/java/com/ai/ui/cruds/workers/swarms/list.kt#L42" title="ai/src/main/java/com/ai/ui/cruds/workers/swarms/list.kt, line 42">unchanged Swarm subtitle</a>.</p>
+<h2 id="finding-7" class="finding-heading">7. Configuration consistency — partly addressed; high-priority gap</h2>
+<p><strong>Changed.</strong> Report task construction now resolves a group prompt through the group&#39;s recorded selection provenance. It no longer needs the first unrelated group containing that Agent/model to decide the current direct run&#39;s instructions. Primary runs also retain resolved execution settings for replay.</p>
+<p><strong>Still wrong.</strong> Chat&#39;s saved-Agent route still calls <code>resolveAgentParameters(agent)</code>, which merges only parameter presets, then uses <code>resolvedParams.systemPrompt</code>. It does not read <code>agent.systemPromptId</code>. Report task construction does read that field. A saved Agent with a standalone “Skeptic” system prompt and no preset system prompt consequently starts Chat with an empty seeded system prompt while Reports applies the role. This is the original cross-workflow inconsistency, not a newly introduced regression.</p>
+<p><strong>Required closure.</strong> Use a shared effective-Agent configuration contract for both launchers and expose the resolved instructions and override source before execution. Saving settings for replay solves a different problem from using the right settings on the first run.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt#L88" title="ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt, line 88">Chat route</a>, <a href="ai/src/main/java/com/ai/model/SettingsModels.kt#L725" title="ai/src/main/java/com/ai/model/SettingsModels.kt, line 725">preset-only resolver</a>, <a href="ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt#L655" title="ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt, line 655">selection-scoped group and Agent prompt resolution</a>.</p>
+<h2 id="finding-8" class="finding-heading">8. Revisions and evaluation coverage — partly addressed; high-priority gap</h2>
+<p><strong>Changed.</strong> Source snapshots preserve prompt and answer text; manifests preserve run inputs/settings, and some operations also capture secondary reference bodies. Detail screens show historical/unknown-source notices. Value and current Rerank joins exclude results whose recorded primary sources are stale or unknown. Bundle evidence can preserve those relationships during transfer. The second round corrected mixed-run snapshot association and saved-prompt retry behavior.</p>
+<p><strong>Still incomplete.</strong> The current staleness check compares the prompt and the bodies of answers already present in the snapshot. Adding a new successful Agent does not change any old answer body, so that check returns false. The source notice then says the original revision was recorded, without “Covers 5 of 6 current answers”. This leaves the original participant-addition acceptance case unmet; keeping a valid subset evaluation is reasonable, but its subset must be visible. The same check does not compare captured <code>secondaryBodies</code> to current secondary references, so changing a Meta reference is not represented by this freshness check either.</p>
+<p>Applying a refinement still replaces the current answer field. Earlier text may survive in an existing source snapshot or refinement conversation, but the apply operation does not guarantee creation of a complete answer-revision history. A readable version history, selective derived-result update and concise coverage-aware export are not yet a complete user workflow. The “replays use saved inputs” notice also overstates the fallback case: <code>historicalReport</code> returns the current report when no snapshot can be read.</p>
+<p><strong>Required closure.</strong> Distinguish valid subset evidence, superseded evidence and unavailable provenance; show participant counts and reference revisions; preserve each applied answer revision; refuse or explicitly review a replay when recorded inputs are unavailable. Validate adding a participant separately from changing an existing answer.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/data/ReportEvidenceStore.kt#L32" title="ai/src/main/java/com/ai/data/ReportEvidenceStore.kt, line 32">snapshot capture, fallback and staleness</a>, <a href="ai/src/main/java/com/ai/ui/shared/ReportSourceNotice.kt#L17" title="ai/src/main/java/com/ai/ui/shared/ReportSourceNotice.kt, line 17">notice branches</a>, <a href="ai/src/main/java/com/ai/viewmodel/CompareEngine.kt#L230" title="ai/src/main/java/com/ai/viewmodel/CompareEngine.kt, line 230">Compare reference capture</a>, <a href="ai/src/main/java/com/ai/data/ReportStorage.kt#L397" title="ai/src/main/java/com/ai/data/ReportStorage.kt, line 397">replacement operation</a>, <a href="ai/src/main/java/com/ai/data/ReportBundle.kt" title="ai/src/main/java/com/ai/data/ReportBundle.kt">bundle implementation</a>.</p>
+<h2 id="finding-9" class="finding-heading">9. Optional metadata versus answers — core resolved in source</h2>
+<p><strong>Changed.</strong> Regeneration starts with AGENTS; report TITLE, ICON and LANGUAGE phases occur after primary and analysis work. The engine lets submitted siblings settle before pausing a failed phase, and completed primary tasks are not the work retried merely because later enrichment fails. An icon/title failure in the later phases can no longer prevent the earlier primary-answer phase from starting.</p>
+<p><strong>Residual behavior.</strong> Optional-phase errors can still leave the overall regeneration job “paused on error”. A more explicit “answers complete; optional enrichment incomplete” summary would improve comprehension, but it is no longer the original prerequisite failure. No deliberate icon-worker failure was injected during this review; closure is based on the current phase order and controller.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/data/RegenerateBatch.kt#L18" title="ai/src/main/java/com/ai/data/RegenerateBatch.kt, line 18">primary-first phase enum</a>, <a href="ai/src/main/java/com/ai/viewmodel/RegenerateBatchEngine.kt#L421" title="ai/src/main/java/com/ai/viewmodel/RegenerateBatchEngine.kt, line 421">phase controller</a>, <a href="doc/regenerate.md#L177" title="doc/regenerate.md, line 177">corrected phase documentation</a>.</p>
+<h2 id="finding-10" class="finding-heading">10. Launch commitment — partly addressed</h2>
+<p><strong>Changed.</strong> The shared review dialog reports an operation&#39;s work-item count, allows an HTTP-request ceiling and an optional additional-spend stop, and explains that retries, fallbacks and metadata may add requests. It explicitly states that recorded-cost enforcement can be exceeded by calls already in flight. The second round fixed approval isolation, repeated approvals and malformed saved limits.</p>
+<p><strong>Still missing.</strong> The primary preview is labelled “Primary answers” and counts primary tasks; its review data carries a label and item count, not a complete auxiliary-job plan or eligible-provider list. The dialog provides a spending guard rather than an estimated price for the planned run. The setup screen exposes configurable workers but does not summarize every content recipient or offer the proposed consolidated “Answers only” / “Use only these providers” choice beside the launch summary.</p>
+<p><strong>Required closure.</strong> Show the resolved job families and eligible recipients before launch, including optional worker pools. Keep honest estimate uncertainty and the existing ceiling controls. Do not describe the current preview as a complete execution-plan review.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/data/ReportWorkLimits.kt#L15" title="ai/src/main/java/com/ai/data/ReportWorkLimits.kt, line 15">review data and limit behavior</a>, <a href="ai/src/main/java/com/ai/ui/shared/ReportWorkReviewDialog.kt#L17" title="ai/src/main/java/com/ai/ui/shared/ReportWorkReviewDialog.kt, line 17">dialog</a>, <a href="ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt#L512" title="ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt, line 512">primary count</a>, <a href="ai/src/main/java/com/ai/ui/report/start/SelectWorkers.kt#L141" title="ai/src/main/java/com/ai/ui/report/start/SelectWorkers.kt, line 141">setup</a>.</p>
+<h2 id="finding-11" class="finding-heading">11. Navigation and reading — partly addressed</h2>
+<p><strong>Changed.</strong> Current Manage rows keep model identity alongside generated titles. The existing report&#39;s visible rows now expose model names, which is a useful improvement over title-only identification.</p>
+<p><strong>Still missing.</strong> The Reports hub still routes Create/Search/list navigation through its bottom bar. Manage still uses categories such as “second” and “report”, while analysis entry points are spread across separate launchers and shortcuts. Read-only live inspection confirms this structure remains on the current installed APK. The proposed obvious reading home and named outcome-based journey were not implemented in these two rounds.</p>
+<p><strong>Required closure.</strong> Add a clear route through reading, comparing, refining and exporting while preserving expert shortcuts. Source inspection can establish the current structure; it cannot establish that an unfamiliar user would successfully navigate it. That acceptance criterion still needs a small usability exercise.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/hub/HubScreens.kt#L384" title="ai/src/main/java/com/ai/ui/hub/HubScreens.kt, line 384">Reports hub</a>, <a href="ai/src/main/java/com/ai/ui/report/manage/GenerationPhase.kt#L908" title="ai/src/main/java/com/ai/ui/report/manage/GenerationPhase.kt, line 908">model identity in Manage</a>, <a href="ai/src/main/java/com/ai/ui/report/manage/CreateOverview.kt#L30" title="ai/src/main/java/com/ai/ui/report/manage/CreateOverview.kt, line 30">separate launchers</a>; current emulator Reports and Manage screens.</p>
+<h2 id="finding-12" class="finding-heading">12. First use and documentation — partly addressed</h2>
+<p><strong>Changed.</strong> The regeneration document now lists the actual 13 phases and the primary-first order. Several subsystem documents received remediation notes. This closes the specific old ten-phase description.</p>
+<p><strong>Still missing.</strong> FirstLaunchScreen is unchanged: Import API keys, AI Setup, Example reports, Housekeeping, Settings, Help and About remain the entry choices. The manual still describes Start/Existing/Search cards that the current Reports hub no longer presents. Value documentation also retains an opening claim about a “best-value” model and historical/fan-out cost descriptions despite later remediation text and the current attempt-only Pareto calculation. Documentation updates have not been reconciled end to end.</p>
+<p><strong>Required closure.</strong> Give first use a direct example/provider path, and update whole affected sections rather than appending corrections to conflicting old descriptions. The first-run acceptance scenario was not replayed by clearing the user&#39;s configuration.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/ui/hub/FirstLaunchScreen.kt#L43" title="ai/src/main/java/com/ai/ui/hub/FirstLaunchScreen.kt, line 43">first launch</a>, <a href="doc/manual.md#L98" title="doc/manual.md, line 98">stale hub walkthrough</a>, <a href="doc/regenerate.md#L177" title="doc/regenerate.md, line 177">corrected phases</a>, <a href="doc/value-view.md#L3" title="doc/value-view.md, line 3">conflicting Value introduction</a>.</p>
+<h2 id="finding-13" class="finding-heading">13. Initial translation scope — open</h2>
+<p>The main start method still constructs report titles, the prompt, successful answers, model titles, Fan-out titles and eligible Meta bodies. It accepts worker/prompt overrides but no general selected-answer/content-ID scope. Saved original text and subset retry operations improve replay integrity; they do not let a user start by translating only one existing answer. Later per-item alternatives likewise do not satisfy that initial reading need.</p>
+<p><strong>Required closure.</strong> Add “This answer”, “Selected content” and “Entire report” at launch, with the actual selected item count and translator choices. No additional closed status is warranted for this functional finding from the two remediation rounds.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/viewmodel/TranslationRunManager.kt#L149" title="ai/src/main/java/com/ai/viewmodel/TranslationRunManager.kt, line 149">start signature and content construction</a>, <a href="ai/src/main/java/com/ai/viewmodel/TranslationRunManager.kt#L988" title="ai/src/main/java/com/ai/viewmodel/TranslationRunManager.kt, line 988">subset retry APIs</a>.</p>
+<h2 id="finding-14" class="finding-heading">14. A user-selected final deliverable — open</h2>
+<p>Notes, refinement and exports remain useful ingredients, and safer export/import is real progress. However, the Report model and inspected reading/refinement/export flows still do not provide the proposed explicit conclusion selection, rationale, dissent and supporting-version relationship as a finished deliverable. A replacement answer marker or another Meta result is not that whole workflow.</p>
+<p>The bundled long-title prompt remains a short instruction to create a title from the report prompt; the remediation did not add a rule to describe the question neutrally. The existing report still displays “Magnus Carlsen: The Undisputed Chess GOAT”. That is an observation of retained content, not evidence that the current worker newly generated it or that every generated title is biased.</p>
+<p><strong>Required closure.</strong> Let the user select an answer or synthesis as the conclusion, attach rationale and uncertainty, and export it with references to the relevant versions and optional full evidence. Add explicit neutral-title guidance for future generation. This remains a product-design task beyond the reliability fixes.</p>
+<p>Evidence: <a href="ai/src/main/java/com/ai/data/ReportModels.kt#L311" title="ai/src/main/java/com/ai/data/ReportModels.kt, line 311">Report model</a>, <a href="ai/src/main/java/com/ai/ui/report/manage/AgentChat.kt#L61" title="ai/src/main/java/com/ai/ui/report/manage/AgentChat.kt, line 61">refinement workflow</a>, <a href="ai/src/main/assets/internal-prompts/English/workers/report-title-long.txt#L1" title="ai/src/main/assets/internal-prompts/English/workers/report-title-long.txt, line 1">current title prompt</a>; current emulator Manage heading.</p>
+<h2 id="what-should-happen-next">What should happen next</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reassessment table"><table>
+<thead>
+<tr>
+<th>Order</th>
+<th>Concrete next change</th>
+<th>How to demonstrate closure</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Correct translation Value attribution (#2)</td>
+<td>A translation score cannot be paired with original-answer cost, in UI or export</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Share effective Agent instructions across Chat and Reports (#7)</td>
+<td>A standalone Agent system prompt appears in both resolved initial requests; unused group membership has no effect</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Complete source coverage and revision handling (#8)</td>
+<td>Adding a sixth answer shows “5 of 6”; changing a Meta reference identifies the previous reference; unavailable saved inputs cannot silently replay live inputs</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Finish evaluation interpretation (#1, #3–5)</td>
+<td>Criterion/reference/coverage are visible; Combined explains dimensions; unsupported-language matrix cues are unavailable; translator review is distinct from benchmarking</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Complete launch disclosure and documentation (#10, #12)</td>
+<td>Preview enumerates eligible recipients and auxiliary jobs; manual controls match the screen</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Finish the reading-to-deliverable journey (#11, #13–14)</td>
+<td>User translates one answer, selects a conclusion and exports it without learning internal result categories</td>
+</tr>
+</tbody></table></div>
+<p>The immediate priority is the first three concrete correctness gaps, followed by interpretation and the common journey. A broad visual redesign is not a prerequisite for those fixes.</p>
+<h2 id="evidence-limits-and-acceptance-work-remaining">Evidence limits and acceptance work remaining</h2>
+<p>This pass made documentation changes only. It did not run a new Android build, unit or instrumented suites, paid generations, full-disk/process-death fault injection, destructive restore/import, or a first-run reset. No application bug fixes are claimed by this reassessment. Existing snapshots cannot retroactively recover inputs that were never recorded.</p>
+<p>The most useful next validation is a small controlled fixture set: two distinct Agents sharing one model; one Agent with only a standalone system prompt; a five-answer evaluation followed by a sixth answer; a changed Meta reference; translation costs deliberately different from answer costs; a non-English answer with no English cues; and a failing optional icon worker. Those are proposed acceptance checks, not tests executed in this review. Follow with one unfamiliar-user journey from a single provider to a selected exported conclusion.</p>
+<p>The revised assessment is therefore <strong>a stronger and more defensible Report foundation, with material functional work still outstanding</strong>. Keep #6 and #9 closed at their core-failure level, retain the ten partial findings with the remaining conditions above, and leave #13–14 open.</p>
+</article></div>
+<footer>Reviewed 7 September 2026 · Application source at <code>63e471253</code> · Documentation review; no new app fixes claimed · <a href="functional-audit-2026-09-05.html">Original functional audit</a> · <a href="audit-2026-09-06.html">Deep Report audit and remediation history</a></footer>
+<script>document.getElementById('print').addEventListener('click',()=>window.print());if(window.matchMedia('(max-width:850px)').matches)document.getElementById('contents').open=false;</script></body></html>

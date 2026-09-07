@@ -440,7 +440,7 @@ internal fun readReportZip(
             else -> note
         }
     }.toMutableList()
-    val report = parsedReport.copy(
+    var report = parsedReport.copy(
         id = newReportId,
         timestamp = System.currentTimeMillis(),
         agents = remappedAgents,
@@ -479,6 +479,11 @@ internal fun readReportZip(
         val sourceId = evidenceIdMap[manifest.sourceSnapshotId] ?: error("Missing run source snapshot")
         ReportEvidenceStore.importFile(context,newReportId,"run_$newId",gson.toJson(manifest.copy(sourceSnapshotId=sourceId)))
     }
+
+    report = report.copy(conclusion = report.conclusion?.let { decision -> decision.copy(
+        sourceId = if (decision.sourceKind == "meta") secIdMap[decision.sourceId] ?: decision.sourceId else decision.sourceId,
+        snapshotId = evidenceIdMap[decision.snapshotId] ?: error("Missing conclusion source snapshot")
+    ) })
 
     // Pass 3b — persist every secondary onto its new id, with reportId,
     // translate cross-link, and trace pointer remapped.
@@ -590,8 +595,19 @@ private fun validateBundleReport(json: JsonObject) {
         require(listOf("agentId", "provider", "model").all { agent.get(it).asString.isNotBlank() }) { "Missing agent identity" }
         bundleEnum(agent, "reportStatus", ReportStatus.entries.map { it.name }, ReportStatus.PENDING.name)
         require(listOf("_responseBody", "_requestBody", "_rawUsageJson").none { agent.has(it) }) { "Bundle contains unresolved answer content" }
+        bundleObjects(agent, "answerHistory").forEach { revision ->
+            bundleStrings(revision, "answer revision", "id", "prompt", "body", "provider", "model", "source")
+            require(!revision.has("_body") && !revision.has("_prompt")) { "Unresolved answer revision content" }
+            revision.get("citations")?.let { require(it.isJsonArray && it.asJsonArray.all { node -> node.isJsonPrimitive && node.asJsonPrimitive.isString }) { "Invalid revision citations" } }
+        }
         validateBundleExecution(agent)
         bundleObjects(agent, "chatMessages").forEach { bundleStrings(it, "chat message", "role", "content") }
+    }
+    json.get("conclusion")?.takeUnless { it.isJsonNull }?.let {
+        val decision = bundleObject(it,"conclusion")
+        bundleStrings(decision,"conclusion","sourceKind","sourceId","sourceLabel","body","rationale","uncertainty","dissent","sources","snapshotId")
+        require(decision.get("sourceKind").asString in setOf("answer","meta")) { "Invalid conclusion source" }
+        require(!decision.has("_body")) { "Unresolved conclusion content" }
     }
     bundleObjects(json, "userNotes").forEach { bundleStrings(it, "note", "id", "targetKind", "targetId", "text") }
     bundleObjects(json, "iconCalls").forEach { bundleStrings(it, "icon call", "agentId", "provider", "model", "pricingTier") }

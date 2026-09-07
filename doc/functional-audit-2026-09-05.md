@@ -1,5 +1,7 @@
 # Functional audit — 5 September 2026
 
+> **Reassessed 7 September 2026 after both Report fix rounds:** 2 core failures resolved, 10 findings partly addressed, 2 open. Read the [current reassessment](functional-audit-reassessment-2026-09-07.md) or its [HTML edition](../functional-audit-2026-09-07.html). The original audit below is preserved as historical evidence.
+
 **Verdict: the application makes sense as a personal AI comparison workbench. Its strongest workflow is asking several models the same question, inspecting disagreement, refining an answer, and retaining the work. However, some evaluation features imply stronger conclusions than their inputs justify, and ordinary tasks require understanding too much of the application's internal organization.**
 
 The priority is to make the existing functionality predictable and its results interpretable. Adding more functionality is not the immediate need.

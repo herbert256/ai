@@ -183,6 +183,7 @@ internal class ReportsScreenState(
      *  ReportRunScreen and cancels any scope remembered there) — the
      *  fresh-config read + SELECT_ONCE persist in launchWithWorkerPlan. */
     val screenScope: kotlinx.coroutines.CoroutineScope,
+    val translationSelection: MutableState<com.ai.viewmodel.TranslationSelection> = mutableStateOf(com.ai.viewmodel.TranslationSelection()),
 )
 
 /** A pending "pick workers before running" request (see [InternalPrompt.modelSelection]

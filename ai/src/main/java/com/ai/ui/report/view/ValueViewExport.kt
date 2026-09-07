@@ -137,7 +137,9 @@ internal fun buildValueViewHtml(
                 .append(esc(p.modelShort)).append("</div><div class=\"vnums\">")
                 .append(esc(fmtCentsValue(p.costCents))).append(" &nbsp;·&nbsp; score ")
                 .append(esc(formatScore(p.quality)))
-                .append("</div></td><td class=\"").append(cls).append("\">")
+                .append("</div>")
+                .append(if (p.evidence.isNotBlank()) "<details><summary>Score basis</summary><p>" + esc(p.evidence).replace("\n","<br>") + "</p></details>" else "")
+                .append("</td><td class=\"").append(cls).append("\">")
                 .append(badge).append("</td></tr>\n")
         }
         sb.append("</table>\n</section>\n")

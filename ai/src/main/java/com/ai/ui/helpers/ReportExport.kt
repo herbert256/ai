@@ -62,7 +62,8 @@ internal data class HtmlReportData(
      *  per-call All-tab so every attempt shows as its own row;
      *  aggregates automatically into the Types tab's "icon" bucket
      *  and into the Models tab per (provider, model). */
-    val iconCalls: List<HtmlIconCallData> = emptyList()
+    val iconCalls: List<HtmlIconCallData> = emptyList(),
+    val conclusionText: String? = null
 )
 
 /** One captured per-tier call from the 3-tier Report icons chain.
@@ -154,7 +155,10 @@ internal data class HtmlSecondaryData(
     /** [com.ai.data.SecondaryResult.icon] — fan-out pair icon (or any
      *  other per-row icon the secondary carries). Additive, prefixed
      *  on per-secondary headings. Null / blank → no prefix. */
-    val icon: String? = null
+    val icon: String? = null,
+    val evaluationEvidence: String = "",
+    val sourceLabels: Map<Int,String> = emptyMap(),
+    val linksMatchCurrent: Boolean = false
 )
 
 /** A "view" of [HtmlReportData] under one language — Original or one of
@@ -382,7 +386,11 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             fanOutSourceAgentId = s.fanOutSourceAgentId,
             fanInOf = s.fanInOf,
             tournamentRole = s.tournamentRole,
-            icon = s.icon
+            icon = s.icon,
+            evaluationEvidence = evaluationMeaning(s.kind) + "\n" + ReportEvidenceStore.sourceDescription(report,s) + "\nSaved rubric / inputs: " +
+                (ReportEvidenceStore.run(report.id,s.tournamentJudgeRunId ?: s.compareRunId ?: s.runId)?.prompt?.text ?: s.executionConfig?.prompt ?: "Unavailable"),
+            sourceLabels = ReportEvidenceStore.sources(s)?.answers?.mapIndexed { i,a -> i+1 to "${a.name} · ${a.provider}/${a.model}" }?.toMap().orEmpty(),
+            linksMatchCurrent = !ReportEvidenceStore.isStale(report,s) && ReportEvidenceStore.sources(s)?.answers?.map { it.id } == anchorByAgentId.keys.toList()
         )
     }
 
@@ -458,6 +466,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         rapportText = report.rapportText, closeText = report.closeText,
         agents = agents, reportType = report.reportType, secondary = secondary,
         traces = traces,
+        conclusionText = conclusionExportText(report),
         reportIcon = report.icon,
         sourceLanguageIcon = report.languageIcon,
         sourceLanguageName = report.languageName,
@@ -470,7 +479,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         iconInputCost = report.iconInputCost,
         iconOutputCost = report.iconOutputCost,
         iconCalls = iconCalls,
-        userNotes = report.userNotes.map { n ->
+        userNotes = listOfNotNull(conclusionExportText(report)?.let { "My selected conclusion" to it }) + report.userNotes.map { n ->
             val head = n.title?.takeIf { it.isNotBlank() }
                 ?: n.text.lineSequence().firstOrNull().orEmpty().take(80)
             head to n.text
@@ -620,6 +629,7 @@ private fun renderHtmlReport(
     sb.append("<body><div class='container'>")
     sb.append("<h1>${iconPrefixHtml(data.reportIcon)}${esc(data.title)}</h1>")
     data.rapportText?.let { sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(it)}</div>") }
+    data.conclusionText?.let { sb.append("<section><h2>My selected conclusion</h2><pre style='white-space:pre-wrap'>${esc(ReportExportRedaction.plainText(it))}</pre></section>") }
 
     val languages = buildLanguageViews(data)
 
@@ -652,7 +662,7 @@ private fun renderHtmlReport(
     // human-readable format (JSON bundle only).
     if (data.userNotes.isNotEmpty()) {
         sb.append("<div class='user-notes'><h2>Notes</h2>")
-        data.userNotes.forEach { (head, text) ->
+        data.userNotes.filterNot { it.first == "My selected conclusion" && data.conclusionText != null }.forEach { (head, text) ->
             sb.append("<div class='user-note'><b>${esc(head)}</b><br>${convertMarkdownToHtmlForExport(text)}</div>")
         }
         sb.append("</div>")
@@ -869,6 +879,9 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
 }
 
 private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()) {
+    val maxAnchor = if(item.linksMatchCurrent) maxAnchor else 0
+    val agentsByAnchor = item.sourceLabels
+    sb.append("<details><summary>Criterion, sources and saved inputs</summary><pre style='white-space:pre-wrap'>${esc(ReportExportRedaction.plainText(item.evaluationEvidence))}</pre></details>")
     sb.append("<div class='secondary-card'>")
     sb.append("<div class='secondary-card-header'>${iconPrefixHtml(item.icon)}${esc(item.providerDisplay)} · ${esc(com.ai.ui.shared.shortModelName(item.model))} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
     if (item.errorMessage != null) {

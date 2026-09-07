@@ -639,3 +639,10 @@ After any wholesale-state-replace op (including a full restore), the
 in-memory singletons are stale; the **Restart-app dialog** kills and
 relaunches the process so the next launch reads fresh from disk —
 restore does not live-reload.
+
+
+## Report decisions and answer revisions (September 2026)
+
+`ReportAgent.answerHistory` archives replaced answer bodies, execution prompts, model identity, timestamps, costs and citations. `Report.conclusion` stores the owner-selected body, rationale, uncertainty, dissent, sources, and immutable source snapshot ID. Both are nested report fields; bodies and history prompts participate in the existing content store. Old reports have no conclusion and empty answer history. Portable Report bundle version remains 2; imports remap conclusion source IDs and evidence hashes.
+
+`report_work_limits/<reportId>.json` may also store `allowedOrigins`: a nullable set of normalized `scheme://host:port` recipients. The network interceptor checks each report-tagged HTTP request, including redirected destinations. Corrupt saved limits fail closed and can be replaced by an explicit new work review. `ReportWorkerConfig.primaryAnswersOnly` suppresses optional automatic analyses, while `metadataDisabled` suppresses metadata.

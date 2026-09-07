@@ -92,7 +92,7 @@ internal fun NavGraphBuilder.chatRoutes(
                     frequencyPenalty = resolvedParams.frequencyPenalty, presencePenalty = resolvedParams.presencePenalty,
                     systemPrompt = resolvedParams.systemPrompt ?: "", searchEnabled = resolvedParams.searchEnabled,
                     returnCitations = resolvedParams.returnCitations, searchRecency = resolvedParams.searchRecency,
-                    webSearchTool = resolvedParams.webSearchTool
+                    webSearchTool = resolvedParams.webSearchTool, reasoningEffort = resolvedParams.reasoningEffort
                 )
                 val endpointUrl = uiState.aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val customBaseUrl = if (endpointUrl != agent.provider.baseUrl) endpointUrl else null

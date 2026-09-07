@@ -167,7 +167,11 @@ object SecondaryResultStorage {
         if (manifestId != null) return row.copy(sourceSnapshotId=manifestId)
         val report=ReportStorage.getReport(context,row.reportId) ?: return row
         val target=row.compareToResultId ?: row.translateSourceTargetId?.takeIf { row.translateSourceKind=="META" }
-        val extra=target?.let { id -> get(context,row.reportId,id)?.content?.let { mapOf(id to it) } }.orEmpty()
+        val extra=target?.let { id -> get(context,row.reportId,id)?.content?.let { mapOf(id to it) } }.orEmpty() +
+            listForReport(context,row.reportId).filter {
+                !it.content.isNullOrBlank() && ((row.targetLanguage != null && it.kind==SecondaryKind.TRANSLATE && it.targetLanguage==row.targetLanguage) ||
+                    (row.fanInOf != null && it.fanOutSourceAgentId != null))
+            }.associate { it.id to it.content!! }
         return row.copy(sourceSnapshotId=ReportEvidenceStore.capture(report,extra))
     }
 

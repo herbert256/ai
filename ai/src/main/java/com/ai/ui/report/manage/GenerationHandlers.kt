@@ -34,7 +34,7 @@ internal fun buildGenerationPhaseHandlers(
         onDelete = { st.showDeleteConfirm.value = true },
         onCopy = { currentReportId?.let(onCopyReport) },
         onTogglePin = { currentReportId?.let(onTogglePinReport) },
-        onTranslate = { st.showTranslateLanguagePicker.value = true },
+        onTranslate = { st.translationSelection.value = com.ai.viewmodel.TranslationSelection(); st.showTranslateLanguagePicker.value = true },
         onOpenMetaPicker = { st.showMetaPicker.value = true },
         onOpenFanOutPicker = { st.showFanOutPicker.value = true },
         onOpenRerankPicker = {

@@ -2037,7 +2037,7 @@ private fun RankingWeightsSubScreen(
     onNavigateHome: () -> Unit
 ) {
     // One card for the three named rankings, one for every Tournament method.
-    val coreEntries = listOf("rerank" to "Rerank", "judges" to "Judges", "compare" to "Score against meta")
+    val coreEntries = listOf("rerank" to "Relevance", "judges" to "Panel preference", "compare" to "Reference agreement", "tournament" to "Tournament family")
     val tournamentEntries = remember {
         com.ai.data.TournamentMethod.values().map { m -> m.name to m.name.lowercase().replaceFirstChar { it.uppercase() } }
     }
@@ -2061,7 +2061,7 @@ private fun RankingWeightsSubScreen(
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Weights range from 0 to 10. Tournament methods share one evidence-family vote, weighted by the largest selected method weight. Translation reviews stay separate from answer quality. The 🧽 resets all weights.",
+                "Weights range from 0 to 10. The Tournament family has its own weight. Method weights only blend calculations within that family. Custom preference uses min-max scaling; small raw differences can span the whole scale. Translation reviews stay separate from answer quality. The 🧽 resets all weights.",
                 fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 8.dp)
             )
             val setWeight: (String, Int) -> Unit = { key, v -> weights = weights + (key to v) }

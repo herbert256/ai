@@ -378,3 +378,10 @@ report-View-family screen. Its orange report line is the report's `barTitle`
 (recorded as `<report title>` above); it also carries a secondary
 `subject = "ranked by <rerank model>"` line when a rerank result exists. It
 reuses the `view_ai_report` help topic rather than defining its own.
+
+## Reading and decisions
+
+| Screen | Subject |
+|---|---|
+| Read and finish report | <report title> · Answers / Analysis / Conclusion |
+| Choose content to translate | Selected item count, then choose a language |

@@ -1,0 +1,91 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Functional audit fixes — 7 September 2026</title><link rel="stylesheet" href="style.css"></head><body><header class="topbar"><a href="index.html">Documentation</a><span>Functional audit fixes — 7 September 2026</span></header><main><h1 id="functional-audit-fixes-7-september-2026">Functional audit fixes — 7 September 2026</h1>
+<p>The 12 findings left partial or open by the reassessment are addressed in this change. The two previously resolved core behaviors—distinct named Agent identity and primary answers before optional metadata—are retained. This closes the reported functional failures; it does not turn model judgments into factual verification or introduce a controlled translator benchmark.</p>
+<h2 id="changes-against-the-original-findings">Changes against the original findings</h2>
+<table>
+<thead>
+<tr>
+<th>Finding</th>
+<th>Resolution</th>
+<th>Main implementation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1 · Evaluation meanings</td>
+<td>Shared criterion, evaluator, saved rubric and source-coverage explanations; independent user-authored reference input; matching export explanations</td>
+<td><code>ReportEvaluation.kt</code>, <code>ReportSourceNotice.kt</code>, <code>ReportReadingHome.kt</code>, report exporters</td>
+</tr>
+<tr>
+<td>2 · Value task/cost mismatch</td>
+<td>Translation reviews removed from answer Value sources, including the legacy-source fallback and HTML export</td>
+<td><code>ValueView.kt</code>, <code>ValueViewExport.kt</code></td>
+</tr>
+<tr>
+<td>3 · Combined score</td>
+<td>Renamed Custom preference; separate tournament family weight; per-answer raw ranges, normalization, effective weights and common-coverage explanation</td>
+<td><code>ValueView.kt</code>, Settings</td>
+</tr>
+<tr>
+<td>4 · Unfair translator leaderboard</td>
+<td>Replaced unsupported ordering with an alphabetical review of produced work; no ordinal rank in new aggregate JSON; equal passage weighting retained</td>
+<td><code>TranslatorRankModel.kt</code>, <code>TranslatorRank.kt</code></td>
+</tr>
+<tr>
+<td>5 · Matrix overclaims</td>
+<td>English report-language eligibility; literal advice/risk wording labels, matching excerpts and explicit unavailable states</td>
+<td><code>AnswerMatrix.kt</code></td>
+</tr>
+<tr>
+<td>7 · Agent role changes</td>
+<td>Standalone Agent system prompt resolves with its presets in Chat and Report continuation; reasoning setting carried into Chat; primary launch shows and freezes effective instructions</td>
+<td><code>SettingsModels.kt</code>, <code>ChatRoutes.kt</code>, <code>ReportLaunchPlan.kt</code></td>
+</tr>
+<tr>
+<td>8 · Mutable evidence</td>
+<td>Previous answer bodies and prompts archived; saved source hashes verified; current participant coverage and changed references disclosed; unavailable replay fails explicitly; saved reference text used for replay</td>
+<td><code>ReportStorage.kt</code>, <code>ReportEvidenceStore.kt</code>, secondary engines</td>
+</tr>
+<tr>
+<td>10 · Hidden launch commitment</td>
+<td>Whole primary-launch job and recipient preview, expandable effective settings, answers-only mode, report endpoint restrictions including redirects, request/spend ceilings, scoped translation preview</td>
+<td><code>ReportLaunchPlan.kt</code>, <code>ReportWorkLimits.kt</code>, <code>ReportWorkReviewDialog.kt</code></td>
+</tr>
+<tr>
+<td>11 · Navigation</td>
+<td>Named Create/Search/Browse actions and a reading flow with Answers, Analysis and Conclusion tabs</td>
+<td><code>HubScreens.kt</code>, <code>ReportReadingHome.kt</code></td>
+</tr>
+<tr>
+<td>12 · First use and documentation</td>
+<td>Try an example / Connect a provider, optional advanced setup, current manual and in-app Help</td>
+<td><code>FirstLaunchScreen.kt</code>, Help content, documentation assets</td>
+</tr>
+<tr>
+<td>13 · Initial translation scope</td>
+<td>One answer, arbitrary selection, all answers or whole report; item/character preview, shared terminology, one consistent translator; changed source text requires review</td>
+<td><code>TranslationSelectionScreen.kt</code>, <code>TranslationSelection.kt</code>, <code>TranslationRunManager.kt</code></td>
+</tr>
+<tr>
+<td>14 · User deliverable</td>
+<td>Explicit answer/synthesis selection with rationale, uncertainty, disagreements and sources; immutable text and evidence snapshot; conclusion HTML and appendix, complete export/bundle support; neutral future report titles</td>
+<td><code>ReportReadingHome.kt</code>, <code>ReportConclusionExport.kt</code>, Report storage/bundle, title generation</td>
+</tr>
+</tbody></table>
+<h2 id="workflow">Workflow</h2>
+<p>Open Reports → a report → <strong>Read answers · Compare · Choose conclusion</strong>. Compare two answers or open one for refinement. <strong>Previous versions</strong> shows saved earlier text. In Analysis, add your own independent reference with source attribution or create a synthesis. Choose a result, review the text, explain the decision and save it. The Conclusion tab exports the decision alone or with its evidence appendix.</p>
+<p>Translation starts with explicit content selection. <strong>Translate only this answer</strong> selects exactly one body. A chosen single translator remains the sole worker for the selected items. Terminology and prompt edits are frozen in the run manifests; retry retains the original item set. Hashes detect text changed after the scope was reviewed.</p>
+<p>A new report&#39;s work review lists primary answers, enabled metadata, automatic analyses, knowledge retrieval when attached, and resolved recipient endpoints. Answers only persists the choice to skip optional automatic work. Endpoint restrictions cover every tagged report HTTP request, including redirects and fallbacks. They can be reviewed or extended on later operations. The spend stop remains based on recorded costs, so requests already in flight can exceed it.</p>
+<h2 id="evidence-and-compatibility">Evidence and compatibility</h2>
+<p>Answer history is stored as nested <code>ReportAgent.answerHistory</code> records; large history bodies/prompts use the existing content store. The optional <code>Report.conclusion</code> stores the selected text and source snapshot identity. Old reports default to empty history and no conclusion. Existing generated titles are retained; the neutral-title rule affects future generation.</p>
+<p>Portable bundles keep export version 2 because no bundle top-level field changes. Import validates the nested history/decision shape, re-keys secondary references and recomputes/remaps evidence hashes. Duplicate reports copy the selected decision&#39;s source file; the decision remains readable even when its original analysis is not duplicated. Complete human-readable exports carry the user decision; conclusion HTML can include the actual saved inputs.</p>
+<p>Current analysis exports include criterion, saved rubric and source coverage. Historical source labels come from the recorded answer order; ordinal links to current answers are disabled when that mapping no longer matches. User-authored references cannot be regenerated as provider calls. A changed result cannot silently replace the text the user reviewed when saving a decision.</p>
+<h2 id="verification">Verification</h2>
+<p>The Kotlin build and emulator reading, answer-history and conclusion-storage checks passed. The repository remediation record contains the final artifact checksums and complete verification details. Unit and instrumented suites were not requested.</p>
+<h2 id="deliberate-limits">Deliberate limits</h2>
+<ul>
+<li>Translation review remains a review of unequal produced passages. A shared-passage/common-panel benchmark is not implemented, and no capability leaderboard is presented.</li>
+<li>The matrix scans English wording. A non-English or unknown report language is unavailable; quotations, negation and mixed-language answers can still mislead literal matching. Excerpts are exposed for inspection.</li>
+<li>Saved-source history is conservative. A legacy result without a valid original snapshot cannot be certified as current. A replay whose referenced identity metadata has been deleted fails explicitly; saved conclusion text and readable evidence remain available.</li>
+<li>Scores express a saved rubric or user preference. They do not establish truth. Independent reference text is supplied by the user and is not automatically verified.</li>
+<li>Live paid-provider generations are not needed for the non-generating UI and storage checks. Validation details distinguish inspected code from exercised behavior.</li>
+</ul>
+</main></body></html>

@@ -195,6 +195,14 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
                 withTracerTags(reportId = reportId, category = traceCategory, runId = runId) {
                     body(runId)
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(logTag, "Batch stopped: ${e.message}")
+                _runs.value[runKey]?.items?.values?.filter { it.status == BatchItemStatus.PENDING || it.status == BatchItemStatus.RUNNING }?.forEach { item ->
+                    markRowInterrupted(context, reportId, item.id, e.message ?: "Batch unavailable")
+                    transitionItem(runKey, item.key) { terminalizeItem(it, e.message ?: "Batch unavailable") }
+                }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
                 finalizeLeftoverItems(context, runKey)

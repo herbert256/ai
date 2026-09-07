@@ -150,6 +150,8 @@ internal fun ReportRunScreen(
 ) {
     val aiSettings = uiState.aiSettings
     val context = LocalContext.current
+    var showReadingHome by rememberSaveable(currentReportId) { mutableStateOf(false) }
+    val readAnswer = com.ai.ui.shared.LocalNavigateToReportModel.current
     // Tournament is started from the Create launcher with just a confirm
     // dialog showing the match count — judging runs on the worker engine,
     // so there is no judge model to pick.
@@ -245,10 +247,26 @@ internal fun ReportRunScreen(
         it.kind == com.ai.data.SecondaryKind.META &&
             it.fanInOf == null && it.fanOutSourceAgentId == null &&
             !it.content.isNullOrBlank() &&
-            it.metaPromptName?.lowercase() in metaCompareNames
+            (it.providerId == "User" || it.metaPromptName?.lowercase() in metaCompareNames)
     }
     val compareEnabled = compareMetaItems.isNotEmpty() && tournamentResponseCount >= 1
     var compareStep by rememberSaveable { mutableStateOf(0) }
+    if (showReadingHome && currentReportId != null) {
+        ReportReadingHome(
+            reportId = currentReportId,
+            onRead = { readAnswer(currentReportId, it) },
+            onAnalysis = { showReadingHome=false; st.showMetaPicker.value=true },
+            onCompareReference = { showReadingHome=false; compareStep=1 },
+            onTranslate = { ids ->
+                showReadingHome=false
+                st.translationSelection.value = com.ai.viewmodel.TranslationSelection(itemIds=ids)
+                st.showTranslateLanguagePicker.value=true
+            },
+            onFullExport = { showReadingHome=false; generationHandlers.onRequestExport() },
+            onBack = { showReadingHome=false }
+        )
+        return
+    }
     val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
     val navigateToNewReport = com.ai.ui.shared.LocalNavigateToNewReport.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
@@ -747,6 +765,12 @@ internal fun ReportRunScreen(
                 com.ai.ui.shared.ReportScreenNav(activeReportLayer, goManageScreen, goGetInfoScreen, goSecondScreen)
             }
         )
+        }
+
+        if (manageLayer && currentReportId != null) {
+            androidx.compose.material3.OutlinedButton(onClick={showReadingHome=true},modifier=Modifier.fillMaxWidth()) {
+                Text("Read answers · Compare · Choose conclusion")
+            }
         }
 
         // Statistics line — api calls / total API time / running cost —

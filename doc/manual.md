@@ -15,8 +15,8 @@ app, plus optional on-device LLMs and embedders.
    Prompts (Meta / Compare / Fan-out / Fan-in / Workers / Alt / fixed
    templates) from `internal-prompts/`, so you don't have to type any
    URLs or prompt templates yourself.
-2. Open **Settings → AI Setup → Providers**. Pick the providers you
-   want to use, paste in their API keys (each card has a 🔗 link to
+2. Choose **Try an example** to read bundled results without keys, or
+   **Connect a provider** → **Providers** to create your own reports. Start with one provider, paste in their API keys (each card has a 🔗 link to
    that provider's console), and tap **Test API Key**. A successful
    model-list fetch + key test marks the provider as 🔑 and adds it
    to **Active**. Activation is gated on both passing — a stale
@@ -85,8 +85,7 @@ Pressing the Home/About logo opens whatever makes sense for your state:
 if you have a report it lands on the newest one's **Manage** screen; if
 you have no report but have API keys it opens the **AI Reports** hub;
 and a freshly-installed, unconfigured app opens **First launch**, with
-cards for **Import API keys**, **AI Setup**, **Example reports**,
-**Housekeeping**, **Settings**, **Help**, and **About**.
+two main choices: **Try an example** and **Connect a provider**. Other setup options expands key import, Housekeeping, Settings and About. Help remains visible.
 
 ## Reports
 
@@ -95,27 +94,15 @@ models in parallel.
 
 ### AI Reports hub
 
-Tapping **AI Reports** lands on a hub screen with several cards:
+Tapping **AI Reports** opens named **Create report**, **Search reports** and **Browse all reports** actions. Pinned reports appear when present, followed by Latest reports and bundled Examples. The bottom icon shortcuts remain available. A report row opens Manage; the eye opens the expert View grid.
 
-- **Start** — `New AI Report`, `Start with an example prompt`,
-  `Start with a previous prompt`.
-- **Existing reports** — combined card with Pinned, Recent, and a
-  `View previous reports` row in one place. Pinned reports appear
-  first (when present), then the most recent few. Every row's
-  leading icon is the report's **generated emoji** (or the
-  static 🕘 / 📌 when icon-gen is off or the call failed). The
-  card is styled to match Start so the hub reads as two parallel
-  entry points.
-- **Search** — escalating-cost options:
-  - **Quick local search** — fast keyword scan across saved report
-    prompts and bodies.
-  - **Extended local search** — slower, broader scan (also into
-    secondaries / translations).
-  - **Remote semantic search** — embed your query against any chat
-    provider and rank reports by cosine similarity.
-  - **Local semantic search** — the same cosine ranking but embedded
-    with an on-device embedder; only shown when one is installed.
-- **Manage** — bulk housekeeping (pin/unpin, delete, export many).
+### Read, compare and finish a report
+
+Open Manage → **Read answers · Compare · Choose conclusion**. The Answers tab offers reading/refinement, comparison of two selected texts, previous answer versions, and translation of one answer or selected content. Analysis lets you create a synthesis, add an independently authored reference with attribution, and evaluate against a saved reference.
+
+Choose an answer or synthesis as your conclusion and record your rationale, uncertainty, disagreements and sources. Saving captures the selected text and its source versions. Later edits do not change your decision. Update it deliberately, clear it, or export it as HTML with an optional evidence appendix. Complete report exports and portable bundles also carry the decision.
+
+Before a new report runs, review the primary answers, enabled metadata and automatic analyses, eligible recipient endpoints, and effective instructions. **Answers only** disables optional metadata and automatic analyses for that report. Request ceilings and optional recorded-spend stops apply to the report; already submitted calls may exceed a spend stop. Restrict endpoints to prevent other workers, fallbacks or redirects from sending report HTTP requests.
 
 ### Selection phase
 
@@ -320,21 +307,9 @@ at the default size.
 
 #### Value view
 
-The 💎 **Value view** tile plots every successful model on a
-**cost × quality** plane and marks the **best-value** model and the
-**Pareto frontier** — answering "which model gives the most quality for
-the least money?". It's a pure local derivation (no API calls): the X
-axis is each agent's recorded cost, and the Y axis is a per-model
-**ranking** you pick with a chip switch along the top — the report's
-**Rerank**, the **Judge-the-judges** consensus, any **Rank the
-translators** run (one chip per language), the **Tournament** total or
-any individual Tournament method, or the weighted **Combined** blend
-(see [Ranking weights](#preferences) below). Switching the ranking
-re-ranks the chart, the 💎 best-value pick and the list instantly.
+The 💎 **Value view** compares current answer-attempt cost with an explicitly selected evaluation criterion. Question relevance, reference agreement and panel preference are different measurements. Every nondominated answer lies on the Pareto frontier; the highlighted frontier example is not a universal best model.
 
-The tile only appears once the report has at least one ranking to draw
-on (a Rerank, Tournament, Judge-the-judges, or Rank-the-translators
-run). Full detail in [value-view.md](value-view.md).
+**Custom preference** blends informative evidence families using your weights. The **Basis** button shows raw scores, normalized contributions and effective weights; only common participants qualify. Translation scores and Fan-out spending never price original answers. Unknown cost or historical/unknown source evidence is excluded. See [Value details](value-view.md).
 
 #### Per-agent prev/next on Model response
 
@@ -412,26 +387,9 @@ restart-failed and redo actions, per-cell cost, app-kill resume, and
 trace links when tracing was enabled. See
 [tournament-judges-compare.md](tournament-judges-compare.md).
 
-#### Rank the translators
+#### Translation review
 
-A fourth worker-judged batch, but it grades **translations** instead of
-the original answers: it scores which translator *model* produced the
-best translation of a finished [Translate](translation.md) run. It does
-not re-translate anything — it reuses one existing translation run (one
-run = one target language) and has a panel of judge models score each
-long-form translated answer 0–100, then ranks each translator model by
-the average score its translations earned.
-
-There's no separate button: a run starts from the **🏅 medal** on a
-translation row — on the 🌐 **Translations** list (one per run) and on a
-**Translation run** screen's title bar. A confirm dialog shows the
-planned number of scoring calls; on **Rank** the batch builds and runs,
-landing on the **Rank the translators** screen — an L1 leaderboard
-(`#`, translator model, items, average score) with a 🐜 workers panel,
-🔄 restart-failed and 🗑 delete. Because it's keyed per language, you
-can rank each language's translation run independently. Its result feeds
-the [Value view](#value-view) as a ranking source. Full detail in
-[rank-translators.md](rank-translators.md).
+Use the medal action on a translation run to review the produced translations. Other translator models score saved original/translation pairs. Models are listed alphabetically, with per-passage averages and individual judge explanations. Unequal passages and judge coverage do not support a general translator leaderboard. Translation review does not feed the answer Value chart. See [Translation review](rank-translators.md).
 
 #### Scope step
 
@@ -758,11 +716,7 @@ visual customization under dedicated UI screens.
   toggles: **Generate report icon**, **Generate per model icons**,
   **Generate per model titles**, report language/title, and
   internal-prompt icons. See [report-icons.md](report-icons.md).
-- **Ranking weights** — two cards of 0–10 sliders: one for the named
-  rankings (**Rerank**, **Judges**, **Translations**), one with a
-  slider per Tournament method (Copeland, Elo, Davidson, …). These feed
-  the **Combined** score in the report [Value view](#value-view); the
-  🧽 in the icons bar resets every slider to its default.
+- **Ranking weights** — family sliders for question relevance, panel preference, reference agreement and tournament. Method sliders control only the blend inside the tournament family. They feed **Custom preference** in Value; zero excludes a family. Reset restores defaults.
 - **Autostart** — report-completion automation: **Auto create Rerank
   and Moderation**, **Autostart Fan Meta**, and **Default meta
   items**.

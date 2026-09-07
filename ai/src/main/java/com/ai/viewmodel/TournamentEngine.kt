@@ -538,7 +538,7 @@ class TournamentEngine internal constructor(
     override suspend fun redispatchRows(context: Context, runKey: TournamentRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
         val current = ReportStorage.getReport(context, runKey) ?: return
-        val report = com.ai.data.ReportEvidenceStore.historicalReport(current, rows.first())
+        val report = com.ai.data.ReportEvidenceStore.requireHistoricalReport(current, rows.first())
         // The report's Worker-batches mode must hold on resume / Broken-work
         // restart / regenerate too — the hydrated prompt carries the
         // CONFIGURED swarm, so re-judging without the swap would pull in

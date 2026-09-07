@@ -20,7 +20,11 @@ internal object ReportContentStore {
             val agent=node.asJsonObject
             listOf("responseBody","requestBody","rawUsageJson").forEach { visit(agent,it) }
             agent.get("executionConfig")?.takeIf { it.isJsonObject }?.asJsonObject?.let { visit(it,"prompt") }
+            agent.get("answerHistory")?.takeIf { it.isJsonArray }?.asJsonArray?.forEach { revision ->
+                if (revision.isJsonObject) { visit(revision.asJsonObject,"body"); visit(revision.asJsonObject,"prompt") }
+            }
         }
+        root.get("conclusion")?.takeIf { it.isJsonObject }?.asJsonObject?.let { visit(it,"body") }
     }
     fun pack(files: File, reportId: String, fullJson: String): String {
         val root=JsonParser.parseString(fullJson).asJsonObject

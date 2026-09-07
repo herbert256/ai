@@ -210,7 +210,7 @@ internal fun AnswerMatrixViewScreen(
             // 📋 — the whole matrix as CSV, ready for a spreadsheet.
             onCopy = if (matrixRows.isNotEmpty()) ({
                 val csv = buildString {
-                    appendLine("rank,model,stance,english_wording_cues,recommendation,risks,cost_cents,latency,tokens")
+                    appendLine("rank,model,detected_wording,english_wording_cues,advice_excerpt,risk_wording_excerpt,cost_cents,latency,tokens")
                     matrixRows.forEach { r ->
                         appendLine(listOf(
                             r.rank?.toString().orEmpty(), r.modelLabel, r.stance, r.confidence,
@@ -355,10 +355,10 @@ private fun AnswerMatrixTable(
             HeaderCell("#", 46.dp, end = true)
             HeaderCell("Model" + mark("model"), 180.dp, onClick = onSortBy?.let { { it("model") } })
             HeaderCell("Rank" + mark("rank"), 64.dp, end = true, onClick = onSortBy?.let { { it("rank") } })
-            HeaderCell("Stance" + mark("stance"), 96.dp, onClick = onSortBy?.let { { it("stance") } })
+            HeaderCell("Detected wording" + mark("stance"), 96.dp, onClick = onSortBy?.let { { it("stance") } })
             HeaderCell("Wording cues" + mark("confidence"), 96.dp, onClick = onSortBy?.let { { it("confidence") } })
-            HeaderCell("Recommendation", 280.dp)
-            HeaderCell("Risks", 260.dp)
+            HeaderCell("Advice excerpt", 280.dp)
+            HeaderCell("Risk wording excerpt", 260.dp)
             HeaderCell("Cost" + mark("cost"), 88.dp, end = true, onClick = onSortBy?.let { { it("cost") } })
             HeaderCell("Latency" + mark("latency"), 88.dp, end = true, onClick = onSortBy?.let { { it("latency") } })
             HeaderCell("Tokens" + mark("tokens"), 84.dp, end = true, onClick = onSortBy?.let { { it("tokens") } })
@@ -373,7 +373,7 @@ private fun AnswerMatrixTable(
             val rowDescription = "Row ${row.ordinal}: ${row.modelLabel}, " +
                 (row.rank?.let { "rank $it, " } ?: "") +
                 "stance ${row.stance}, English wording cues ${row.confidence}, cost ${row.cost}, " +
-                "latency ${row.latency}, ${row.tokens} tokens. Recommendation: ${row.recommendation}"
+                "latency ${row.latency}, ${row.tokens} tokens. Advice wording excerpt: ${row.recommendation}"
             Row(modifier = Modifier
                 .let { m ->
                     if (onOpenAgent != null && row.agentId.isNotBlank())
@@ -461,7 +461,12 @@ private fun buildAnswerMatrixRows(
         val title = translationByTarget["AGENT_TITLE:${agent.agentId}"]
             ?.takeIf { it.isNotBlank() }
             ?: agent.modelTitle?.takeIf { it.isNotBlank() }
-        val extraction = extractMatrixSignals(agent.responseBody.orEmpty())
+        val english = report.languageName?.trim()?.lowercase(Locale.US) in setOf("english", "en", "en-us", "en-gb")
+        val extraction = if (english) extractMatrixSignals(agent.responseBody.orEmpty()) else MatrixExtraction(
+            "Unavailable", AppColors.TextSecondary, "Unavailable", AppColors.TextSecondary,
+            "English wording scan unavailable for an unknown or non-English report language.",
+            "Not assessed"
+        )
         val provider = AppService.findById(agent.provider)?.id ?: agent.provider
         val costUsd = agent.currentAttemptCost
         AnswerMatrixRow(
@@ -504,35 +509,28 @@ private fun extractMatrixSignals(body: String): MatrixExtraction {
     val clean = cleanResponseText(body)
     val sentences = splitSentences(clean)
     val lower = clean.lowercase(Locale.US)
-    val conclusion = extractTagContent(body, "conclusion")
-        ?.let { firstUsefulSentence(it) }
-    val recommendation = listOfNotNull(
-        conclusion,
-        sentences.firstOrNull { recommendationRegex.containsMatchIn(it) },
-        sentences.firstOrNull()
-    ).firstOrNull { it.isNotBlank() }
-        ?.let { compactText(it, 220) }
-        ?: "(no recommendation extracted)"
+    val recommendation = sentences.firstOrNull { recommendationRegex.containsMatchIn(it) }
+        ?.let { compactText(it, 220) } ?: "No matching English advice wording"
     val risk = sentences
         .filter { riskRegex.containsMatchIn(it) }
         .take(2)
         .joinToString(" ")
         .let { compactText(it, 220) }
-        .ifBlank { "None explicit" }
+        .ifBlank { "No matching English risk wording; risks not assessed" }
     val refused = refusalRegex.containsMatchIn(lower)
     val hasRecommendation = recommendationRegex.containsMatchIn(lower)
     val hasRisk = riskRegex.containsMatchIn(lower)
     val stance = when {
         refused -> "Refusal wording"
-        hasRecommendation && hasRisk -> "Mixed"
-        hasRecommendation -> "Recommends"
-        hasRisk -> "Cautious"
-        else -> "Neutral"
+        hasRecommendation && hasRisk -> "Advice + risk wording"
+        hasRecommendation -> "Advice wording"
+        hasRisk -> "Risk wording"
+        else -> "No matched wording"
     }
     val stanceColor = when (stance) {
-        "Recommends" -> AppColors.SuccessAccent
-        "Mixed" -> AppColors.WarningAccent
-        "Cautious" -> AppColors.CautionAccent
+        "Advice wording" -> AppColors.SuccessAccent
+        "Advice + risk wording" -> AppColors.WarningAccent
+        "Risk wording" -> AppColors.CautionAccent
         "Refusal wording" -> AppColors.DangerAccent
         else -> AppColors.TextSecondary
     }
@@ -548,7 +546,10 @@ private fun extractMatrixSignals(body: String): MatrixExtraction {
         "Cautious wording" -> AppColors.CautionAccent
         else -> AppColors.InfoAccent
     }
-    return MatrixExtraction(stance, stanceColor, confidence, confidenceColor, recommendation, risk)
+    val cueExcerpt = sentences.firstOrNull {
+        confidenceHighRegex.containsMatchIn(it) || confidenceLowRegex.containsMatchIn(it)
+    }?.let { " · “${compactText(it, 180)}”" }.orEmpty()
+    return MatrixExtraction(stance, stanceColor, confidence + cueExcerpt, confidenceColor, recommendation, risk)
 }
 
 private fun rankText(row: AnswerMatrixRow): String {

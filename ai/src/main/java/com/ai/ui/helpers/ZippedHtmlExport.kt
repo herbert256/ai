@@ -329,6 +329,7 @@ private fun zipRootIndex(data: HtmlReportData, languages: List<HtmlLanguageView>
     sb.append("<h1>").append(titlePrefix).append(esc(titleText)).append("</h1>")
     sb.append("<div class='meta'>").append(esc(data.timestamp)).append("</div>")
     if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(data.rapportText)}</div>")
+    data.conclusionText?.let { sb.append("<h2>My selected conclusion</h2><pre class='prompt'>${esc(com.ai.data.ReportExportRedaction.plainText(it))}</pre>") }
     sb.append("<h2>Languages</h2><ul class='section-list'>")
     languages.forEach { lv ->
         // Icon replaces the displayName + native span when cached.
@@ -372,6 +373,7 @@ private fun languageIndex(data: HtmlReportData, lv: HtmlLanguageView, basePath: 
         sb.append("<h1>").append(reportPrefix).append(esc(titleText)).append("</h1>")
         sb.append("<div class='meta'>").append(esc(data.timestamp)).append("</div>")
         if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(data.rapportText)}</div>")
+        data.conclusionText?.let { sb.append("<h2>My selected conclusion</h2><pre class='prompt'>${esc(com.ai.data.ReportExportRedaction.plainText(it))}</pre>") }
         sb.append("<h2>").append(langLabelHtml).append("</h2>")
     } else {
         sb.append("<h1>").append(langLabelHtml).append("</h1>")
@@ -540,6 +542,7 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
 }
 
 private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, traceCategory: String, basePath: String, langDisplay: String?): String {
+    val maxAnchor = if(s.linksMatchCurrent) maxAnchor else 0
     val sb = StringBuilder()
     sb.append(htmlHead("$itemLabel - ${data.title}", depth = 1, basePath = basePath))
     // Breadcrumb hop back to the section index — the per-row file
@@ -551,14 +554,13 @@ private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryDa
     val match = traceIndex.findMatch(s.providerDisplay, s.model, traceCategory)
     sb.append("<h1>").append(iconPrefixHtml(s.icon)).append(esc(itemLabel)).append(bugLink(match, pageDepth = 1, basePath = basePath)).append("</h1>")
     sb.append("<div class='meta'>").append(esc(s.timestamp)).append("</div>")
+    sb.append("<details><summary>Criterion, sources and saved inputs</summary><pre class='prompt'>${esc(com.ai.data.ReportExportRedaction.plainText(s.evaluationEvidence))}</pre></details>")
     if (s.errorMessage != null) {
         sb.append("<div class='error'>Error: ${esc(s.errorMessage)}</div>")
     } else if (!s.content.isNullOrBlank()) {
         when (s.kind) {
             SecondaryKind.RERANK -> {
-                val agentsByAnchor = data.agents.mapNotNull { a ->
-                    a.anchorIndex?.let { it to "${a.providerDisplay} · ${a.model}" }
-                }.toMap()
+                val agentsByAnchor = s.sourceLabels
                 sb.append("<div class='response'>${renderRerankContentLocal(s.content, maxAnchor, agentsByAnchor)}</div>")
             }
             SecondaryKind.META -> {

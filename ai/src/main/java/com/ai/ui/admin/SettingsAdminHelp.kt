@@ -59,13 +59,12 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "Renaming yourself mid-conversation has no retroactive effect on already-saved chats / reports — the Name field only shapes outbound prompts going forward."),
         )
     ),
-    "first_launch" to HelpContent(
-        title = "Help - First launch",
-        cards = listOf(
-            HelpCard("Overview", "Shown only in Home bar mode when no reports exist yet. It replaces the classic Home hub with the setup shortcuts needed to make the first real report possible."),
-            HelpCard("Cards", "Import API keys opens the import/export screen with the API keys card pre-opened. AI Setup opens providers, models, workers, prompts and parameters. Example reports opens the bundled ready-made reports so you can browse a real, fully-populated report before configuring a provider. Housekeeping opens backup, import/export, trim, update, test and reset tools. Settings and About open their normal hubs, and Help opens the main help home.")
-        )
-    ),
+    "first_launch" to HelpContent(title="Help - First launch",cards=listOf(
+        HelpCard("Try an example", "Open bundled saved answers without a provider key, then explore the reading and conclusion flow."),
+        HelpCard("Connect a provider", "Open AI Setup, add one provider key and select a chat model. Then use Reports → Create report, choose one or two models, and select Answers only at the work review."),
+        HelpCard("Other setup options", "Expand to import API keys, open Housekeeping, Settings or About. These are optional setup paths.")
+    )),
+
     "settings_autostart" to HelpContent(
         title = "Help - Autostart",
         cards = listOf(
@@ -76,14 +75,11 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Default meta items", "Only shown while the master switch is on. Opens the list of meta prompts that auto-run when a report finishes. Add or remove entries there; each runs as soon as the report's models complete."),
         )
     ),
-    "settings_ranking_weights" to HelpContent(
-        title = "Help - Ranking weights",
-        cards = listOf(
-            HelpCard("What this is", "A weight from 0 to 10 for each ranking the app can produce: Rerank, Judge-the-judges, Translations, Compare-with-meta, and every Tournament method (Copeland, Elo, Davidson, Markov, Schulze, Colley, Trueskill2). Drag a slider to set a weight."),
-            HelpCard("Defaults", "Rerank 3, Judges 6, Translations 6, Compare 4, and every Tournament method 2 each. The 🧽 in the icons bar resets all sliders to these defaults."),
-            HelpCard("Saving", "Changes save automatically. Weights are stored per value — a slider left at its default isn't stored, so future default changes still apply to it.")
-        )
-    ),
+    "settings_ranking_weights" to HelpContent(title="Help - Custom preference weights",cards=listOf(
+        HelpCard("Evidence families", "Weights from 0 to 10 control question relevance, panel preference, reference agreement and the tournament family. Zero excludes a family."),
+        HelpCard("Tournament methods", "The method sliders choose the blend within one tournament family. They do not add independent evidence. Value → Basis shows the effective calculation and common participant coverage.")
+    )),
+
     "settings_metadata" to HelpContent(
         title = "Help - Metadata & icons",
         cards = listOf(

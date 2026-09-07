@@ -284,7 +284,7 @@ class CompareEngine internal constructor(
         question: String, title: String, items: List<PendingCell>
     ) {
         if (items.isEmpty()) return
-        val report = ReportStorage.getReport(context, reportId)?.let { com.ai.data.ReportEvidenceStore.historicalReport(it, items.first().placeholder) }
+        val report = ReportStorage.getReport(context, reportId)?.let { com.ai.data.ReportEvidenceStore.requireHistoricalReport(it, items.first().placeholder) }
         val snapshot = com.ai.data.ReportEvidenceStore.sources(items.first().placeholder)
         // Worker-selection mode (round robin deals cells across the
         // REPORT_MODELS pool; Random everywhere else).
@@ -293,8 +293,8 @@ class CompareEngine internal constructor(
         // Resolve each referenced meta row's content once (strip the appended
         // reference legend so [1]/[2] artifacts don't pollute the judgment).
         val metaContentById = items.map { it.metaResultId }.distinct().associateWith { mid ->
-            (snapshot?.secondaryBodies?.get(mid) ?: SecondaryResultStorage.get(context, reportId, mid)?.content)
-                ?.let { stripMetaReferenceLegend(it) }.orEmpty()
+            (snapshot?.secondaryBodies?.get(mid) ?: throw java.io.IOException("Saved reference unavailable; create a new comparison"))
+                .let { stripMetaReferenceLegend(it) }
         }
         runThrottledBatch(
             items = items,

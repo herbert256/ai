@@ -413,6 +413,7 @@ private fun JudgeEvalL1(
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
+            com.ai.ui.shared.ReportRunEvidenceNotice(run.reportId, com.ai.data.SecondaryKind.JUDGES, run.runId)
             BatchStatsRow(buildList {
                 add(Triple("Total", run.totalCells.toString(), AppColors.InfoAccent))
                 add(Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent))

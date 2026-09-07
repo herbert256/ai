@@ -12,50 +12,19 @@ again to add another language. It is owned by `TranslationRunManager`
 (`viewmodel/TranslationRunManager.kt`), reached from
 `ReportViewModel` as `reportViewModel.translation`.
 
-A sibling feature, **Rank the translators** (`TRANSRANK`), grades and
-ranks which translator model produced the best translation of a run —
-see [rank-translators.md](rank-translators.md). The rest of this doc
-covers the Translate flow itself.
+A sibling feature, **Translation review** (`TRANSRANK`), reviews the produced translations without claiming a general model leaderboard. See [rank-translators.md](rank-translators.md).
 
 ## Triggering a Translate run
 
-From the result-phase Actions row on a finished report, tap
-**Translate** (`onTranslate` → `showTranslateLanguagePicker`, wired
-in `GenerationHandlers.kt`). The flow has **no scope picker and no
-model picker** — the language picker launches the run directly
-(`ui/report/manage/Main.kt`, "Order: language picker → progress
-screen"):
+From Manage, choose Translate, or use **Translate only this answer** in the reading screen.
 
-1. **Language picker** (`ui/report/other/LanguageSelection.kt`,
-   `LanguageSelectionScreen`, title "Pick target language", help
-   `translation_language`) — a **single-select** picker over the
-   curated `TARGET_LANGUAGES` list (~55 entries; English name as the
-   `@LANGUAGE@` key, native rendering on a second line). It has a
-   search box and a **Recent** block (`RecentTargetLanguages`, an MRU
-   of the last 3 picks persisted in `eval_prefs`). Tapping a row
-   confirms one language; pick more languages by re-running Translate.
-2. **Worker pick (conditional)** — decided by the report's Worker-batches
-   mode (`Report.workerConfig.batches`, see [workers.md](workers.md)):
-   `REPORT_MODELS` uses the report's own answer models
-   (`reportModelWorkers`) with no picker — optionally round-robin
-   scheduled (`workerSelection`); `SELECT_EACH` (or `PROMPT` with the
-   driving `translate-text` prompt set to `*SELECT`) shows the
-   `RuntimeWorkerPick` overlay ("Translate — pick workers", passed as
-   `overrideWorkers`); `SELECT_ONCE` shows it only for the report's
-   first type-B batch and then reuses the persisted group. In every
-   other case the run goes straight to the configured swarm.
-3. **Run** — `TranslationRunManager.startTranslation` allocates a
-   fresh `runId`, snapshots the report's translatable items, and fires
-   the runner behind a blocking build-stage popup ("Preparing N / M…"
-   / "Translating to <language>", keyed by `buildKey`) that covers the
-   up-front placeholder persistence, then lands on the Translation L1
-   screen. Each item is dispatched through the **translate worker
-   swarm** (see below), so the model is chosen by the `WorkerRunner`
-   fallback chain rather than the user. Each settled item writes a
-   `SecondaryResult` with `kind = TRANSLATE`, attributed to the worker
-   that actually answered. Every item is **persisted as it settles**
-   (`saveOneTranslationItem`), not in one bulk flush at the end, so a
-   crash mid-run keeps the completed translations.
+1. **Content selection** lists each eligible answer, prompt, title and analysis. Select one item, a subset, all answers, or the entire report. The screen shows item counts and character counts. Optional shared terminology/style applies across selected items.
+2. **Translator consistency** lets you choose one existing report model for all selected items, or keep the configured pool. A single explicit translator overrides the report-model pool; automatic fallback to another model is disabled for that choice.
+3. **Language selection** chooses one target language. Conditional worker and runtime prompt editors remain available for configured-pool launches.
+4. **Work review** shows selected items, eligible worker endpoints, frozen prompts and parameters, and request/spend limits. Source hashes detect text changes between scope selection and launch. Cancel sends no translation request.
+5. **Run** persists one placeholder per selected item, then dispatches the frozen translate-text / translate-title workers. Each result is saved as it settles. Saved terminology, scope and source text survive retry. Newly added report content is not silently added to an existing run.
+
+`TranslationSelectionScreen`, `TranslationSelection`, and `translatableReportItems` share the UI/engine enumeration. `TranslationRunManager` owns dispatch and saved manifests.
 
 Up front, `startTranslation` writes one empty placeholder
 `SecondaryResult` per planned item (stamped with its eventual
@@ -260,7 +229,7 @@ user-given name regardless of language.
   shared `BatchStatsRow` panel (Total / Done / Error / Run / Wait /
   Queue / Costs — worker-pool batch, so there is no Bench bucket;
   failed items stay normal failed rows). The title-bar actions are
-  👁 **View**, 🐜 **Translation workers**, 🏅 **Rank the translators**,
+  👁 **View**, 🐜 **Translation workers**, 🏅 **Translation review**,
   🔄 **Redo every entry** (deletes every row and re-dispatches the
   full set), 🐞 **trace**, and 🗑 **delete run**. The per-model
   grouping moved off L1 into its own **`TranslationWorkersScreen`**
@@ -390,9 +359,7 @@ reloads the bundled tree fresh.
 
 ## See also
 
-- [rank-translators.md](rank-translators.md) for the **Rank the
-  translators** (`TRANSRANK`) batch — the 🏅 flow that scores and
-  ranks which translator model produced the best translation of a run.
+- [rank-translators.md](rank-translators.md) for **Translation review** (`TRANSRANK`) — the 🏅 flow that reviews saved translations and individual judge explanations.
 - [secondary-results.md](secondary-results.md) for the full
   secondary-result lifecycle, prompt resolution, and the
   `@RESULTS@` block.

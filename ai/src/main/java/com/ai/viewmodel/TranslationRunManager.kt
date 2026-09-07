@@ -163,10 +163,12 @@ class TranslationRunManager(
          *  workers/translate-title prompts for THIS run only (text only — the
          *  workers come from the live prompts). */
         overrideTextPromptText: String? = null,
-        overrideTitlePromptText: String? = null
+        overrideTitlePromptText: String? = null,
+        selection: TranslationSelection = TranslationSelection()
     ): Pair<String, Job> {
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
+            try {
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
                 _runs.update { it - runId }
                 if (buildKey != null) appViewModel.clearBuild(buildKey)  // dismiss the build popup (no run to open)
@@ -180,91 +182,17 @@ class TranslationRunManager(
             // JSON, no human-language content to translate). The title
             // is only included when non-blank — a blank title has
             // nothing meaningful to translate.
-            val items = mutableListOf<TranslationItem>()
-            if (sourceReport.title.isNotBlank()) {
-                items += TranslationItem(
-                    id = "title",
-                    label = "Report title",
-                    kind = TranslationKind.TITLE,
-                    sourceText = sourceReport.title
-                )
-            }
-            sourceReport.titleLong?.takeIf { it.isNotBlank() }?.let { longTitle ->
-                items += TranslationItem(
-                    id = "titleLong",
-                    label = "Report long title",
-                    kind = TranslationKind.TITLE_LONG,
-                    sourceText = longTitle
-                )
-            }
-            items += TranslationItem(
-                id = "prompt",
-                label = "Report prompt",
-                kind = TranslationKind.PROMPT,
-                sourceText = sourceReport.prompt
-            )
-            sourceReport.agents
-                .forEach { agent ->
-                    val body = agent.responseBody?.takeIf(String::isNotBlank) ?: return@forEach
-                    if (agent.reportStatus != ReportStatus.SUCCESS) return@forEach
-                    val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
-                    items += TranslationItem(
-                        id = "agent:${agent.agentId}",
-                        label = "$provDisplay / ${shortModelName(agent.model)}",
-                        kind = TranslationKind.AGENT_RESPONSE,
-                        sourceText = body,
-                        target = agent.agentId
-                    )
-                }
-            // Per-model response titles (ReportAgent.modelTitle), one
-            // per success agent that has a generated title.
-            sourceReport.agents
-                .forEach { agent ->
-                    val title = agent.modelTitle?.takeIf(String::isNotBlank) ?: return@forEach
-                    if (agent.reportStatus != ReportStatus.SUCCESS) return@forEach
-                    val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
-                    items += TranslationItem(
-                        id = "agentTitle:${agent.agentId}",
-                        label = "Title: $provDisplay / ${shortModelName(agent.model)}",
-                        kind = TranslationKind.AGENT_TITLE,
-                        sourceText = title,
-                        target = agent.agentId
-                    )
-                }
-            // Per-fan-out-pair response titles (SecondaryResult.title on
-            // fan-out pair rows), one per pair that has a generated title.
-            secondaries
-                .forEach { s ->
-                    val title = s.title?.takeIf(String::isNotBlank) ?: return@forEach
-                    if (s.kind != SecondaryKind.META || s.fanOutSourceAgentId == null) return@forEach
-                    val provDisplay = AppService.findById(s.providerId)?.id ?: s.providerId
-                    items += TranslationItem(
-                        id = "fanoutTitle:${s.id}",
-                        label = "Fan title: $provDisplay / ${shortModelName(s.model)}",
-                        kind = TranslationKind.FANOUT_TITLE,
-                        sourceText = title,
-                        target = s.id
-                    )
-                }
-            // Every chat-type Meta result is a candidate for translation.
-            // Label the row by the user-given Meta prompt name so the
-            // progress screen / per-call detail show "Compare 1: …" or
-            // "Critique 2: …" — driven entirely by the CRUD prompt name,
-            // not a hardcoded "Summary" / "Compare".
-            secondaries.filter { it.kind == SecondaryKind.META && !it.content.isNullOrBlank() }
-                .forEachIndexed { idx, s ->
-                    val content = s.content?.takeIf(String::isNotBlank) ?: return@forEachIndexed
-                    val provDisplay = AppService.findById(s.providerId)?.id ?: s.providerId
-                    val name = s.metaPromptName?.takeIf { it.isNotBlank() }
-                        ?: com.ai.data.legacyKindDisplayName(s.kind)
-                    items += TranslationItem(
-                        id = "meta:${s.id}",
-                        label = "$name ${idx + 1}: $provDisplay / ${shortModelName(s.model)}",
-                        kind = TranslationKind.META,
-                        sourceText = content,
-                        target = s.id
-                    )
-                }
+            val allItems = translatableReportItems(sourceReport, secondaries)
+            val items = allItems.filter { selection.itemIds == null || it.id in selection.itemIds }
+            require(items.isNotEmpty()) { "No translation items selected" }
+            require(selection.itemIds == null || items.size == selection.itemIds.size) { "Selected content changed or was removed. Review the translation selection again." }
+            require(selection.sourceDigests.isEmpty() || items.all { selection.sourceDigests[it.id] == ReportEvidenceStore.digest(it.sourceText) }) { "Selected text changed. Review the translation selection again." }
+            val (textPrompt,titlePrompt) = freezeTranslationPrompts(sourceReport,overrideWorkers,overrideTextPromptText,overrideTitlePromptText,selection)
+            val plan = ReportWorkLimits.promptWorkPlan(listOfNotNull(textPrompt,titlePrompt)).copy(
+                jobs=items.map { "${it.label}: ${it.sourceText.length} characters" })
+            com.ai.data.ReportWorkLimits.review(sourceReportId, "Translate ${items.size} selected items to $targetLanguageName", items.size,plan)
+            textPrompt?.let { ReportEvidenceStore.saveRun(context,sourceReport,"${runId}_text",it) }
+            titlePrompt?.let { ReportEvidenceStore.saveRun(context,sourceReport,"${runId}_title",it) }
 
             // Stamp each item with the SecondaryResultStorage row id it
             // will eventually write to. Persisting an empty placeholder
@@ -328,10 +256,10 @@ class TranslationRunManager(
             // Under Worker-batches REPORT_MODELS the whole translation
             // runs against its own answer models (winning over a *SELECT
             // pick); the swarm spreads across every report-model.
-            if (!dispatchTranslationItems(
+            if (!withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(sourceReportId)) { dispatchTranslationItems(
                     context, sourceReportId, runId, sourceReport, itemsWithIds,
-                    targetLanguageName, overrideWorkers, overrideTextPromptText, overrideTitlePromptText
-                )
+                    targetLanguageName, overrideWorkers, overrideTextPromptText, overrideTitlePromptText, selection
+                ) }
             ) return@launch
 
             // Per-item rows were already persisted inside
@@ -349,9 +277,32 @@ class TranslationRunManager(
             val okCount = finalState.items.values.count { it.translatedText?.isNotBlank() == true }
             val failCount = finalState.items.values.count { it.errorMessage != null }
             AuditLog.append(sourceReportId, "End Translation to $targetLanguageName — ok=$okCount fail=$failCount")
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) {
+                AppLog.w("Translation", "Translation stopped: ${e.message}")
+                withContext(Dispatchers.Main) { android.widget.Toast.makeText(context,e.message ?: "Translation unavailable",android.widget.Toast.LENGTH_LONG).show() }
+                _runs.update { runs -> runs[runId]?.let { run -> runs + (runId to run.copy(finished=true, items=run.items.mapValues { (_,item) ->
+                    if (item.status==TranslationStatus.PENDING || item.status==TranslationStatus.RUNNING) item.copy(status=TranslationStatus.ERROR,errorMessage=e.message) else item
+                })) } ?: runs }
+            } finally { if (buildKey != null) appViewModel.clearBuild(buildKey) }
         }
         registerRunJob(runId, job)
         return runId to job
+    }
+
+    private fun freezeTranslationPrompts(sourceReport: Report, overrideWorkers: List<com.ai.model.Worker>?,
+        overrideTextPromptText: String?, overrideTitlePromptText: String?, selection: TranslationSelection
+    ): Pair<InternalPrompt?,InternalPrompt?> {
+        val aiSettings=appViewModel.uiState.value.aiSettings
+        fun configure(prompt: InternalPrompt): InternalPrompt {
+            val picked = selection.singleWorker?.let { prompt.copy(workers=listOf(it)) }
+                ?: prompt.withBatchWorkers(sourceReport,overrideWorkers)
+            return if(selection.terminology.isBlank()) picked else picked.copy(text=picked.text + "\n\nTerminology and style instructions:\n" + selection.terminology)
+        }
+        fun freeze(title: Boolean, override: String?) = workerTranslatePrompt(aiSettings,title)
+            ?.let { if(override!=null) it.copy(text=override) else it }?.let(::configure)
+            ?.freezeWorkers(aiSettings,appViewModel.uiState.value.generalSettings)
+        return freeze(false,overrideTextPromptText) to freeze(true,overrideTitlePromptText)
     }
 
     /** Resolve the translate worker prompts and dispatch [items] through
@@ -380,17 +331,14 @@ class TranslationRunManager(
          *  resume / cross-translate / missing-items paths). Text only — the
          *  workers come from the live prompts. */
         overrideTextPromptText: String? = null,
-        overrideTitlePromptText: String? = null
+        overrideTitlePromptText: String? = null,
+        selection: TranslationSelection = TranslationSelection()
     ): Boolean {
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val textPrompt = com.ai.data.ReportEvidenceStore.run(sourceReportId, "${runId}_text")?.prompt ?: workerTranslatePrompt(aiSettings, title = false)
-            ?.let { if (overrideTextPromptText != null) it.copy(text = overrideTextPromptText) else it }
-            ?.withBatchWorkers(sourceReport, overrideWorkers)
-            ?.freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings)
-        val titlePrompt = com.ai.data.ReportEvidenceStore.run(sourceReportId, "${runId}_title")?.prompt ?: workerTranslatePrompt(aiSettings, title = true)
-            ?.let { if (overrideTitlePromptText != null) it.copy(text = overrideTitlePromptText) else it }
-            ?.withBatchWorkers(sourceReport, overrideWorkers)
-            ?.freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings)
+        val (configuredText, configuredTitle) = freezeTranslationPrompts(sourceReport,overrideWorkers,
+            overrideTextPromptText,overrideTitlePromptText,selection)
+        val textPrompt = ReportEvidenceStore.run(sourceReportId,"${runId}_text")?.prompt ?: configuredText
+        val titlePrompt = ReportEvidenceStore.run(sourceReportId,"${runId}_title")?.prompt ?: configuredTitle
         textPrompt?.let { com.ai.data.ReportEvidenceStore.saveRun(context, sourceReport, "${runId}_text", it) }
         titlePrompt?.let { com.ai.data.ReportEvidenceStore.saveRun(context, sourceReport, "${runId}_title", it) }
         // Worker-selection mode: round robin deals items across the

@@ -630,8 +630,8 @@ class IconGenerationManager(
             // both title prompts' configured chains. Usability pre-flights
             // run on the EFFECTIVE prompts.
             val titleReport = ReportStorage.getReport(context, reportId)
-            val shortPrompt = basShortPrompt?.withReportInfoWorkers(titleReport)
-            val longPrompt = basLongPrompt?.withReportInfoWorkers(titleReport)
+            val shortPrompt = basShortPrompt?.neutralReportTitle()?.withReportInfoWorkers(titleReport)
+            val longPrompt = basLongPrompt?.neutralReportTitle()?.withReportInfoWorkers(titleReport)
             val shortUsable = shortPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
             val longUsable = longPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
             if (!shortUsable && !longUsable) {
@@ -3281,3 +3281,7 @@ class IconGenerationManager(
             runFanMetaBatch(context, reportId, metaPromptId, rowIds = rowIds)
         }
 }
+
+/** A report title describes the question; the report owner chooses the conclusion separately. */
+private fun InternalPrompt.neutralReportTitle() = copy(text = text +
+    "\nUse a neutral description of the user's question or topic. Do not declare a winning answer, endorse a model's conclusion, or present a disputed claim as settled.")

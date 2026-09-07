@@ -1,0 +1,103 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Functional audit fixes · 7 September 2026</title><style>:root{color-scheme:light;--ink:#163043;--muted:#587080;--line:#d7e2e8;--wash:#f2f7f8;--accent:#087f72}*{box-sizing:border-box}body{margin:0;background:#fafcfd;color:var(--ink);font:16px/1.7 system-ui,-apple-system,sans-serif}a{color:#087366;text-underline-offset:3px}header{padding:18px max(24px,calc((100vw - 1240px)/2));border-bottom:1px solid var(--line);background:white;display:flex;gap:20px;justify-content:space-between}header a{font-size:14px}main{max-width:1240px;margin:auto;display:grid;grid-template-columns:210px minmax(0,1fr);gap:48px;padding:48px 24px}nav{position:sticky;top:24px;align-self:start;font-size:14px}nav a{display:block;padding:7px 0;color:var(--muted)}article{min-width:0}h1{font-size:clamp(32px,4vw,52px);line-height:1.15;letter-spacing:-1.5px;margin:0 0 25px}h2{font-size:25px;line-height:1.3;margin:46px 0 15px;scroll-margin-top:20px}p{margin:14px 0}.stats{display:flex;gap:12px;margin:26px 0}.stats>div{flex:1;padding:18px;border:1px solid #b8d7cc;background:#edf7f2;border-radius:8px}.stats b{font-size:30px;display:block}.stats span{font-size:13px;color:#376153}.table-scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;vertical-align:top;padding:14px 12px;border-bottom:1px solid var(--line)}th{background:#e9f1f3}td:first-child{font-weight:650;min-width:160px}td:last-child{min-width:210px}code{font-size:.88em;overflow-wrap:anywhere;background:#eff3f5;padding:2px 4px;border-radius:3px}li{margin:10px 0}footer{color:var(--muted);font-size:13px;border-top:1px solid var(--line);margin-top:40px;padding-top:18px}blockquote{border-left:4px solid var(--accent);padding:8px 20px;background:var(--wash)}@media(max-width:760px){main{display:block;padding:30px 18px}nav{position:static;margin:0 0 26px;display:flex;gap:6px 15px;flex-wrap:wrap}nav a{padding:0;font-size:12px}header{padding:15px 18px;flex-wrap:wrap;gap:8px}.stats{gap:8px}.stats>div{padding:12px}.stats b{font-size:25px}.stats span{font-size:12px}table{min-width:760px}}@media print{header,nav{display:none}body{background:white;font-size:10pt}main{display:block;padding:0;max-width:none}h1{font-size:27pt}h2{font-size:16pt;break-after:avoid}table{min-width:0;font-size:8pt}td,th{padding:6pt}.table-scroll{overflow:visible}.stats{break-inside:avoid}a{color:inherit}code{overflow-wrap:anywhere}}</style></head><body><header><strong>Report feature · remediation record</strong><a href="functional-audit-2026-09-07.html">Pre-fix reassessment</a><a href="doc/functional-audit-remediation-2026-09-07.md">Markdown source</a></header><main><nav aria-label="Contents"><a href="#changes-against-the-original-findings">Changes against the original findings</a><a href="#workflow">Workflow</a><a href="#evidence-and-compatibility">Evidence and compatibility</a><a href="#verification">Verification</a><a href="#deliberate-limits">Deliberate limits</a></nav><article><h1 id="functional-audit-fixes-7-september-2026">Functional audit fixes — 7 September 2026</h1><div class="stats"><div><b>12</b><span>Partial/open findings addressed</span></div><div><b>2</b><span>Previously resolved behaviors retained</span></div></div>
+<p>The 12 findings left partial or open by the reassessment are addressed in this change. The two previously resolved core behaviors—distinct named Agent identity and primary answers before optional metadata—are retained. This closes the reported functional failures; it does not turn model judgments into factual verification or introduce a controlled translator benchmark.</p>
+<h2 id="changes-against-the-original-findings">Changes against the original findings</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Finding resolutions"><table>
+<thead>
+<tr>
+<th>Finding</th>
+<th>Resolution</th>
+<th>Main implementation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1 · Evaluation meanings</td>
+<td>Shared criterion, evaluator, saved rubric and source-coverage explanations; independent user-authored reference input; matching export explanations</td>
+<td><code>ReportEvaluation.kt</code>, <code>ReportSourceNotice.kt</code>, <code>ReportReadingHome.kt</code>, report exporters</td>
+</tr>
+<tr>
+<td>2 · Value task/cost mismatch</td>
+<td>Translation reviews removed from answer Value sources, including the legacy-source fallback and HTML export</td>
+<td><code>ValueView.kt</code>, <code>ValueViewExport.kt</code></td>
+</tr>
+<tr>
+<td>3 · Combined score</td>
+<td>Renamed Custom preference; separate tournament family weight; per-answer raw ranges, normalization, effective weights and common-coverage explanation</td>
+<td><code>ValueView.kt</code>, Settings</td>
+</tr>
+<tr>
+<td>4 · Unfair translator leaderboard</td>
+<td>Replaced unsupported ordering with an alphabetical review of produced work; no ordinal rank in new aggregate JSON; equal passage weighting retained</td>
+<td><code>TranslatorRankModel.kt</code>, <code>TranslatorRank.kt</code></td>
+</tr>
+<tr>
+<td>5 · Matrix overclaims</td>
+<td>English report-language eligibility; literal advice/risk wording labels, matching excerpts and explicit unavailable states</td>
+<td><code>AnswerMatrix.kt</code></td>
+</tr>
+<tr>
+<td>7 · Agent role changes</td>
+<td>Standalone Agent system prompt resolves with its presets in Chat and Report continuation; reasoning setting carried into Chat; primary launch shows and freezes effective instructions</td>
+<td><code>SettingsModels.kt</code>, <code>ChatRoutes.kt</code>, <code>ReportLaunchPlan.kt</code></td>
+</tr>
+<tr>
+<td>8 · Mutable evidence</td>
+<td>Previous answer bodies and prompts archived; saved source hashes verified; current participant coverage and changed references disclosed; unavailable replay fails explicitly; saved reference text used for replay</td>
+<td><code>ReportStorage.kt</code>, <code>ReportEvidenceStore.kt</code>, secondary engines</td>
+</tr>
+<tr>
+<td>10 · Hidden launch commitment</td>
+<td>Whole primary-launch job and recipient preview, expandable effective settings, answers-only mode, report endpoint restrictions including redirects, request/spend ceilings, scoped translation preview</td>
+<td><code>ReportLaunchPlan.kt</code>, <code>ReportWorkLimits.kt</code>, <code>ReportWorkReviewDialog.kt</code></td>
+</tr>
+<tr>
+<td>11 · Navigation</td>
+<td>Named Create/Search/Browse actions and a reading flow with Answers, Analysis and Conclusion tabs</td>
+<td><code>HubScreens.kt</code>, <code>ReportReadingHome.kt</code></td>
+</tr>
+<tr>
+<td>12 · First use and documentation</td>
+<td>Try an example / Connect a provider, optional advanced setup, current manual and in-app Help</td>
+<td><code>FirstLaunchScreen.kt</code>, Help content, documentation assets</td>
+</tr>
+<tr>
+<td>13 · Initial translation scope</td>
+<td>One answer, arbitrary selection, all answers or whole report; item/character preview, shared terminology, one consistent translator; changed source text requires review</td>
+<td><code>TranslationSelectionScreen.kt</code>, <code>TranslationSelection.kt</code>, <code>TranslationRunManager.kt</code></td>
+</tr>
+<tr>
+<td>14 · User deliverable</td>
+<td>Explicit answer/synthesis selection with rationale, uncertainty, disagreements and sources; immutable text and evidence snapshot; conclusion HTML and appendix, complete export/bundle support; neutral future report titles</td>
+<td><code>ReportReadingHome.kt</code>, <code>ReportConclusionExport.kt</code>, Report storage/bundle, title generation</td>
+</tr>
+</tbody></table></div>
+<h2 id="workflow">Workflow</h2>
+<p>Open Reports → a report → <strong>Read answers · Compare · Choose conclusion</strong>. Compare two answers or open one for refinement. <strong>Previous versions</strong> shows saved earlier text. In Analysis, add your own independent reference with source attribution or create a synthesis. Choose a result, review the text, explain the decision and save it. The Conclusion tab exports the decision alone or with its evidence appendix.</p>
+<p>Translation starts with explicit content selection. <strong>Translate only this answer</strong> selects exactly one body. A chosen single translator remains the sole worker for the selected items. Terminology and prompt edits are frozen in the run manifests; retry retains the original item set. Hashes detect text changed after the scope was reviewed.</p>
+<p>A new report&#39;s work review lists primary answers, enabled metadata, automatic analyses, knowledge retrieval when attached, and resolved recipient endpoints. Answers only persists the choice to skip optional automatic work. Endpoint restrictions cover every tagged report HTTP request, including redirects and fallbacks. They can be reviewed or extended on later operations. The spend stop remains based on recorded costs, so requests already in flight can exceed it.</p>
+<h2 id="evidence-and-compatibility">Evidence and compatibility</h2>
+<p>Answer history is stored as nested <code>ReportAgent.answerHistory</code> records; large history bodies/prompts use the existing content store. The optional <code>Report.conclusion</code> stores the selected text and source snapshot identity. Old reports default to empty history and no conclusion. Existing generated titles are retained; the neutral-title rule affects future generation.</p>
+<p>Portable bundles keep export version 2 because no bundle top-level field changes. Import validates the nested history/decision shape, re-keys secondary references and recomputes/remaps evidence hashes. Duplicate reports copy the selected decision&#39;s source file; the decision remains readable even when its original analysis is not duplicated. Complete human-readable exports carry the user decision; conclusion HTML can include the actual saved inputs.</p>
+<p>Current analysis exports include criterion, saved rubric and source coverage. Historical source labels come from the recorded answer order; ordinal links to current answers are disabled when that mapping no longer matches. Worker fallbacks retain their own endpoint, role and credential reference while preserving already billed attempt costs. User-authored references cannot be regenerated as provider calls. A changed result cannot silently replace the text the user reviewed when saving a decision.</p>
+<h2 id="verification">Verification</h2>
+<ul>
+<li><strong>Build:</strong> <code>JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleDebug</code> passed. <code>git diff --check</code> passed.</li>
+<li><strong>Deployment:</strong> installed with <code>adb install -r</code>, copied to <code>/Users/herbert/cloud/ai.apk</code>, launched, and confirmed <code>com.ai/.MainActivity</code> as the resumed activity.</li>
+<li><strong>Artifact identity:</strong> workspace APK, emulator-installed APK, and cloud copy have identical SHA-256 <strong><code>83782e7051d4a03e1e3ca747e9fac73a4f264e92b27b3187b6e45c746d870aa8</code></strong>. App version <code>26.249.607</code>; APK size 116,965,392 bytes. The unchanged version label alone is not used to identify the build.</li>
+<li><strong>Device behavior:</strong> the named Reports hub actions render; two named Agents sharing one model remain separate in the reading screen; saved previous answer text and its source prompt are readable; the decision editor shows the selected text before save; rationale, selected identity and both source answers persist; the saved source file&#39;s SHA-256 matches the stored snapshot ID.</li>
+<li><strong>HTML export:</strong> saved a conclusion through Android&#39;s document picker, read the resulting HTML, and verified the rationale, evidence identity and both saved answer bodies in its appendix. The picker initially remembered a deleted test directory; choosing the existing Downloads directory completed the save.</li>
+<li><strong>Translation scope:</strong> opening Translate only this answer produced exactly one checked content item. Source review also verified explicit single-worker precedence, saved terminology/prompt reuse, and source-change rejection. No translation request was sent during verification.</li>
+<li><strong>Bundle import:</strong> imported a disposable version-2 bundle through the app. A fresh report identity was minted; the conclusion, rationale, previous answer history and hash-verified source snapshot survived.</li>
+<li><strong>Document rendering:</strong> offline desktop/mobile checks passed for all 12 finding rows, section links, horizontal containment and print layout. Exported conclusion evidence and bundled document heading anchors were checked.</li>
+<li><strong>Cleanup:</strong> the two disposable verification reports and temporary Downloads artifacts were removed; the app was reopened.</li>
+<li><strong>Scope:</strong> these were manual UI/storage/artifact checks and source review. Unit and instrumented suites were not run, following the repository&#39;s default cycle. Live paid-provider generations, redirect rejection and every provider format were not exercised end-to-end in this turn.</li>
+</ul>
+<h2 id="deliberate-limits">Deliberate limits</h2>
+<ul>
+<li>Translation review remains a review of unequal produced passages. A shared-passage/common-panel benchmark is not implemented, and no capability leaderboard is presented.</li>
+<li>The matrix scans English wording. A non-English or unknown report language is unavailable; quotations, negation and mixed-language answers can still mislead literal matching. Excerpts are exposed for inspection.</li>
+<li>Saved-source history is conservative. A legacy result without a valid original snapshot cannot be certified as current. A replay whose referenced identity metadata has been deleted fails explicitly; saved conclusion text and readable evidence remain available.</li>
+<li>Scores express a saved rubric or user preference. They do not establish truth. Independent reference text is supplied by the user and is not automatically verified.</li>
+<li>Live paid-provider generations are not needed for the non-generating UI and storage checks. Validation details distinguish inspected code from exercised behavior.</li>
+</ul>
+<p>The commit also includes the pre-existing audit documents and <code>.github/workflows/ci.yml</code> deletion, following the repository rule to commit all current changes.</p>
+<footer>Historical audits remain preserved. Verification scope and deliberate limits are stated above.</footer></article></main></body></html>

@@ -244,6 +244,9 @@ object ReportStorage {
             val duplicateSuccessForTrace = status == ReportStatus.SUCCESS &&
                 traceFile != null &&
                 agent.traceFile == traceFile
+            if (responseBody != null && responseBody != agent.responseBody && agent.reportStatus == ReportStatus.SUCCESS) {
+                archiveAnswer(report, agent)
+            }
             agent.reportStatus = status
             agent.httpStatus = httpStatus
             if (requestHeaders != null) agent.requestHeaders = requestHeaders
@@ -332,6 +335,7 @@ object ReportStorage {
             val report=loadReport(reportId) ?: return@withLock null
             val agent=report.agents.firstOrNull { it.agentId==agentId } ?: return@withLock null
             val id=UUID.randomUUID().toString()
+            if (agent.reportStatus == ReportStatus.SUCCESS) archiveAnswer(report, agent)
             agent.executionConfig = config
             agent.attemptId = id
             agent.reportStatus = ReportStatus.RUNNING
@@ -377,6 +381,49 @@ object ReportStorage {
             relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, durationMs = durationMs,
             traceFile = traceFile))
 
+    private fun archiveAnswer(report: Report, agent: ReportAgent) {
+        val body = agent.responseBody?.takeIf { it.isNotBlank() } ?: return
+        agent.answerHistory = agent.answerHistory.orEmpty() + ReportAnswerRevision(
+            id = java.util.UUID.randomUUID().toString(), savedAt = System.currentTimeMillis(),
+            prompt = agent.executionConfig?.prompt ?: report.prompt, body = body,
+            provider = agent.provider, model = agent.model,
+            source = agent.responseChangeSource ?: "Generated answer",
+            cost = agent.currentAttemptCost, citations = agent.citations.orEmpty().toList()
+        )
+    }
+
+    fun selectConclusion(context: Context, reportId: String, sourceKind: String, sourceId: String,
+                         rationale: String, uncertainty: String, dissent: String, sources: String, expectedBody: String? = null) {
+        init(context)
+        val secondary = if (sourceKind == "meta") SecondaryResultStorage.get(context, reportId, sourceId) else null
+        lock.withLock {
+            val report = loadReport(reportId) ?: throw java.io.IOException("Report is unavailable")
+            val agent = report.agents.firstOrNull { it.agentId == sourceId }
+            val body = when (sourceKind) {
+                "answer" -> agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }?.responseBody
+                "meta" -> secondary?.takeIf { it.kind == SecondaryKind.META }?.content
+                else -> null
+            }?.takeIf { it.isNotBlank() } ?: throw java.io.IOException("Selected result is unavailable")
+            require(rationale.isNotBlank()) { "Explain why you selected this conclusion" }
+            require(expectedBody == null || body == expectedBody) { "The selected result changed. Review it again before saving your conclusion." }
+            val sourceSnapshot = secondary?.let { ReportEvidenceStore.sources(it) }
+            if (sourceKind == "meta" && sourceSnapshot == null) throw java.io.IOException("This analysis has no readable saved source. Create a new analysis before using it as a version-bound conclusion.")
+            val evidenceReport = if (sourceSnapshot != null) ReportEvidenceStore.historicalReport(report, sourceSnapshot) else report
+            val snapshotId = ReportEvidenceStore.capture(evidenceReport,
+                if (sourceKind == "meta") sourceSnapshot!!.secondaryBodies.orEmpty() + (sourceId to body) else emptyMap())
+            val label = if (sourceKind == "answer") "${agent!!.agentName} · ${agent.provider}/${agent.model}"
+                else "${secondary!!.metaPromptName ?: "Synthesis"} · ${secondary.providerId}/${secondary.model}"
+            saveReport(report.copy(conclusion = ReportConclusion(sourceKind, sourceId, label, body,
+                rationale.trim(), uncertainty.trim(), dissent.trim(), sources.trim(), snapshotId), timestamp = System.currentTimeMillis()))
+        }
+    }
+
+    fun clearConclusion(context: Context, reportId: String) {
+        init(context)
+        lock.withLock { loadReport(reportId)?.let { saveReport(it.copy(conclusion = null, timestamp = System.currentTimeMillis())) } }
+    }
+
+
     /** Persist the in-report "refine" chat conversation for one agent.
      *  Replaces [ReportAgent.chatMessages] wholesale (the screen owns the
      *  full list). Does NOT touch the agent's response — see
@@ -407,6 +454,7 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withLock false
+            if (agent.responseBody != body) archiveAnswer(report, agent)
             agent.responseBody = body
             agent.currentAttemptCost = null
             agent.currentAttemptUsage = null
@@ -761,6 +809,17 @@ object ReportStorage {
                     agentId = (it.agentId as String?) ?: "", agentName = (it.agentName as String?) ?: ""
                 )
             }.toMutableList())
+        }
+        res = res.copy(agents = res.agents.map { agent ->
+            agent.copy(answerHistory = agent.answerHistory.orEmpty().filter { revision ->
+                revision != null && revision.id != null && revision.body != null && revision.prompt != null &&
+                    revision.provider != null && revision.model != null && revision.source != null
+            }.map { it.copy(citations = it.citations.orEmpty().filterNotNull()) })
+        }.toMutableList())
+        res.conclusion?.let { decision ->
+            if (listOf(decision.sourceKind,decision.sourceId,decision.sourceLabel,decision.body,decision.rationale,
+                    decision.uncertainty,decision.dissent,decision.sources,decision.snapshotId).any { it == null })
+                res = res.copy(conclusion = null)
         }
         // iconCalls / userNotes / apiCallCosts are declared MutableList, but the
         // NullSafeFieldAdapterFactory coerces a *missing* field to the
@@ -2741,7 +2800,10 @@ object ReportStorage {
         lock.withLock {
             val report = loadReport(reportId) ?: return
             val agent = report.agents.find { it.agentId == agentId } ?: return
+            archiveAnswer(report, agent)
             agent.reportStatus = ReportStatus.PENDING
+            agent.currentAttemptCost = null
+            agent.currentAttemptUsage = null
             agent.httpStatus = null
             agent.requestHeaders = null
             agent.requestBody = null
@@ -2770,7 +2832,10 @@ object ReportStorage {
         lock.withLock {
             val report = loadReport(reportId) ?: return
             val agent = report.agents.find { it.agentId == agentId } ?: return
+            archiveAnswer(report, agent)
             agent.reportStatus = ReportStatus.PENDING
+            agent.currentAttemptCost = null
+            agent.currentAttemptUsage = null
             agent.httpStatus = null
             agent.requestHeaders = null
             agent.requestBody = null
@@ -2924,6 +2989,7 @@ object ReportStorage {
                 // copy carries no secondary rows, so they could only ever
                 // render as "Deleted item".
                 promptHistory = src.promptHistory,
+                conclusion = src.conclusion,
                 userNotes = src.userNotes.mapNotNull { note ->
                     when (note.targetKind) {
                         "REPORT" -> note.copy(targetId = newId)
@@ -2961,6 +3027,11 @@ object ReportStorage {
             // then silently dropped to the agents-only figure. Computing it
             // here makes the displayed total self-consistent from the start.
             copy.totalCost = computeReportTotalCost(copy)
+            src.conclusion?.let { decision ->
+                ReportEvidenceStore.files(reportId).firstOrNull { it.name == "${decision.snapshotId}.json" }?.let {
+                    ReportEvidenceStore.importFile(context,newId,decision.snapshotId,it.readText())
+                }
+            }
             saveReport(copy)
             AuditLog.start(newId)
             AuditLog.append(newId, "Duplicated from report $reportId")

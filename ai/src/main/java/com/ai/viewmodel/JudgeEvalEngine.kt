@@ -102,7 +102,7 @@ class JudgeEvalEngine internal constructor(
     override suspend fun redispatchRows(context: Context, runKey: JudgeEvalRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
         val current = ReportStorage.getReport(context, runKey) ?: return
-        val report = com.ai.data.ReportEvidenceStore.historicalReport(current, rows.first())
+        val report = com.ai.data.ReportEvidenceStore.requireHistoricalReport(current, rows.first())
         val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
             val c = cellsById[row.id] ?: return@mapNotNull null

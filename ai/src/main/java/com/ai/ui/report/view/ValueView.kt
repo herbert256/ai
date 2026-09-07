@@ -111,19 +111,19 @@ internal sealed class RankSource(val label: String) {
     /** A single 0–1000 score per model, a weighted blend of every available
      *  ranking (Rerank / Judges / Translations / each Tournament method) using
      *  the weights from Settings → Ranking weights. First in the list. */
-    object Combined : RankSource("Combined")
-    object Rerank : RankSource("Rerank")
+    object Combined : RankSource("Custom preference")
+    object Rerank : RankSource("Question relevance")
     /** Judge-the-judges: answers ranked by the panel's CONSENSUS verdict
      *  per match (Copeland over the consensus win matrix). One source, like
      *  Rerank — sits between Rerank and the Tournament methods. */
-    object Judges : RankSource("Judges")
+    object Judges : RankSource("Panel preference")
     /** A "Rank the translators" run — quality = each model's average score as a
      *  translator (matched onto the report's answer models). One per language;
      *  the chip shows the language name. Sits right after Rerank. */
     data class TransRank(val runId: String, val language: String) : RankSource(language)
     /** Compare with meta: quality = each answer's mean match % against the chosen
      *  meta result(s) (the result screen's first column). Sits after Judges. */
-    object Compare : RankSource("Compare")
+    object Compare : RankSource("Reference agreement")
     /** The Tournament "Total" — quality is the inverse of each model's AVERAGE
      *  position across every method (the Tournament Total grid's ordering).
      *  Sits just before the individual Tournament methods. */
@@ -166,7 +166,8 @@ internal data class ValuePoint(
     val bestValue: Boolean,
     /** Report agent behind this point — lets a row tap open the answer. */
     val agentId: String = "",
-    val estimated: Boolean = false
+    val estimated: Boolean = false,
+    val evidence: String = ""
 )
 
 /** Pair each SUCCESS agent with its ranking score + cost, then mark the
@@ -218,7 +219,8 @@ internal fun buildValuePoints(
     // Pareto frontier = quality-per-cost; an UNKNOWN-cost model would score
     // quality/eps ≈ ∞ and steal the badge, so only priced models are eligible.
     return raw.map { p ->
-        ValuePoint(p.provider, p.modelShort, p.costCents, p.quality, isDominated(p), p.costKnown && !isDominated(p), p.agentId, success.first { it.agentId == p.agentId }.currentAttemptUsage?.estimated == true)
+        ValuePoint(p.provider, p.modelShort, p.costCents, p.quality, isDominated(p), p.costKnown && !isDominated(p), p.agentId, success.first { it.agentId == p.agentId }.currentAttemptUsage?.estimated == true,
+            rowsById[success.indexOfFirst { it.agentId == p.agentId } + 1]?.reason.orEmpty())
     }
 }
 
@@ -254,15 +256,16 @@ internal fun buildCombinedRows(
     val n = success.size
     if (n == 0) return emptyList()
     // (weight, per-id raw score) for each contributing ranking.
-    val rankings = mutableListOf<Pair<Int, Map<Int, Double>>>()
+    data class Family(val name: String, val weight: Int, val scores: Map<Int, Double>)
+    val rankings = mutableListOf<Family>()
     weightOf("rerank").takeIf { it > 0 }?.let { w ->
         val sc = rerankRows.mapNotNull { r -> (r.score ?: r.rank?.let { (n - it + 1).toDouble() })?.let { r.id to it } }.toMap()
-        if (sc.isNotEmpty()) rankings.add(w to sc)
+        if (sc.isNotEmpty()) rankings.add(Family("Question relevance", w, sc))
     }
     weightOf("judges").takeIf { it > 0 }?.let { w ->
         judgesMatrix?.let { m ->
             rankFor(TournamentMethod.COPELAND, m).associate { it.id to it.score }
-                .takeIf { it.isNotEmpty() }?.let { rankings.add(w to it) }
+                .takeIf { it.isNotEmpty() }?.let { rankings.add(Family("Panel preference", w, it)) }
         }
     }
     weightOf("compare").takeIf { it > 0 }?.let { w ->
@@ -271,7 +274,7 @@ internal fun buildCombinedRows(
             success.forEachIndexed { idx, a ->
                 compareScoreByAgentId[a.agentId]?.let { sc[idx + 1] = it }
             }
-            if (sc.isNotEmpty()) rankings.add(w to sc)
+            if (sc.isNotEmpty()) rankings.add(Family("Reference agreement", w, sc))
         }
     }
     tournamentMatrix?.let { m ->
@@ -284,14 +287,14 @@ internal fun buildCombinedRows(
                 if (high <= low) null else weight to scores.associate { it.id to ((it.score!! - low)/(high-low)) }
             }
         }
-        if (methods.isNotEmpty()) {
+        if (methods.isNotEmpty() && weightOf("tournament") > 0) {
             val scores = (1..n).mapNotNull { id ->
                 val values = methods.mapNotNull { (w, scores) -> scores[id]?.let { w to it } }
                 if (values.isEmpty()) null else id to values.sumOf { it.first * it.second } / values.sumOf { it.first }
             }.toMap()
             // Method sliders only choose the within-family blend. They cannot
             // multiply the influence of the same underlying pairwise judgments.
-            rankings.add((methods.maxOf { it.first }) to scores)
+            rankings.add(Family("Tournament method blend", weightOf("tournament"), scores))
         }
     }
     if (rankings.isEmpty()) return emptyList()
@@ -304,20 +307,26 @@ internal fun buildCombinedRows(
     // participants unchanged and removes that amplifier.
     //
     // Require common coverage across informative families; missing evidence is not a score.
-    val informative = rankings.filter { (_, scores) ->
-        (scores.values.maxOrNull() ?: 0.0) > (scores.values.minOrNull() ?: 0.0)
+    val informative = rankings.filter { family ->
+        family.scores.values.all { it.isFinite() } &&
+            (family.scores.values.maxOrNull() ?: 0.0) > (family.scores.values.minOrNull() ?: 0.0)
     }
     if (informative.isEmpty()) return emptyList()
-    val normed = informative.map { (w, scores) ->
-        val mn = scores.values.minOrNull() ?: 0.0; val mx = scores.values.maxOrNull() ?: 0.0
-        w to scores.mapValues { (_, v) -> if (mx > mn) (v - mn) / (mx - mn) else 0.5 }
-    }
-    return (1..n).mapNotNull { id ->
-        // Compare only common coverage; a missing poor score must not raise rank.
-        if (normed.any { id !in it.second }) return@mapNotNull null
-        var num = 0.0; var den = 0.0
-        normed.forEach { (w, norm) -> norm[id]?.let { num += w * it; den += w } }
-        if (den > 0) RerankRow(id, null, (num / den) * 1000.0, "${normed.size}/${normed.size} evidence families; common participants only") else null
+    val common = (1..n).filter { id -> informative.all { id in it.scores } }
+    return common.map { id ->
+        var numerator = 0.0
+        var denominator = 0.0
+        val details = informative.joinToString("\n") { family ->
+            val low = family.scores.values.min()
+            val high = family.scores.values.max()
+            val raw = family.scores.getValue(id)
+            val normalized = (raw-low)/(high-low)
+            numerator += family.weight * normalized
+            denominator += family.weight
+            "${family.name}: raw ${formatScore(raw)}; range ${formatScore(low)}–${formatScore(high)}; normalized ${formatScore(normalized*1000)}; weight ${family.weight}."
+        }
+        RerankRow(id,null,numerator/denominator*1000,
+            "Custom preference, ${informative.size} evidence families; ${common.size}/$n common participants. Min-max scaling can magnify small raw differences.\n$details")
     }
 }
 
@@ -373,7 +382,8 @@ internal fun buildRankSources(data: ValueViewData, combinedRows: List<RerankRow>
         if (data.rerankRows.isNotEmpty()) add(RankSource.Rerank)
         // Every "Rank the translators" run sits right after Rerank, labelled
         // with its language.
-        data.transRankRuns.forEach { add(RankSource.TransRank(it.runId, it.language)) }
+        // Translation is a different task, with different source items and costs.
+        // Its review must never be projected onto an original-answer cost axis.
         // Judges sits after those, before the Tournament methods.
         if (data.judgesMatrix != null) add(RankSource.Judges)
         // Compare with meta (match %) — after Judges.
@@ -412,17 +422,8 @@ internal fun rowsForSource(
                     data.compareScoreByAgentId[a.agentId]?.let { RerankRow(idx + 1, null, it, null) }
                 }
         }
-        is RankSource.TransRank -> {
-            // Map each model's translator average score onto the report's
-            // SUCCESS answer models (by provider/model); models that weren't
-            // translators get no row and drop off the plot.
-            val scoreByKey = data.transRankRuns.firstOrNull { it.runId == source.runId }?.scoreByModelKey ?: emptyMap()
-            report.agents
-                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                .mapIndexedNotNull { idx, a ->
-                    scoreByKey[vvModelKey(a.provider, a.model)]?.let { RerankRow(idx + 1, null, it, null) }
-                }
-        }
+        // Also reject old saved selections and callers of the shared HTML exporter.
+        is RankSource.TransRank -> emptyList()
         is RankSource.Tournament -> data.tournamentMatrix?.let { m ->
             remapTournamentRows(
                 rankFor(source.method, m).map { rr -> RerankRow(rr.id, rr.rank, rr.score, rr.reason) },
@@ -649,7 +650,7 @@ fun ValueViewScreen(
     val best = remember(points) { points.firstOrNull { it.bestValue } }
 
     val subject = when (val s = selected) {
-        is RankSource.Combined -> "Combined · weighted 0–1000"
+        is RankSource.Combined -> "Custom preference · weighted 0–1000, not calibrated quality"
         is RankSource.Rerank -> loaded.rerankModel?.let { "ranked by $it" }
         is RankSource.Judges -> "Judge the judges · consensus"
         is RankSource.Compare -> "Compare with meta · match %"
@@ -767,7 +768,7 @@ fun ValueViewScreen(
 
         if (points.isEmpty()) {
             Text(
-                "No current ranking with known source revisions and attempt costs. Run a Rerank, Tournament, Judge-the-judges, Rank-the-translators, or Compare-with-meta on this report first.",
+                "No current answer ranking with known source revisions and attempt costs. Run a Rerank, Tournament, Judge-the-judges, or Compare-with-meta. Translation reviews are separate and cannot price original answers.",
                 color = AppColors.TextSecondary, fontSize = 13.sp,
                 modifier = Modifier.padding(top = 16.dp)
             )
@@ -782,6 +783,10 @@ fun ValueViewScreen(
                 color = AppColors.TextTertiary, fontSize = 11.sp,
                 modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
             )
+            val excluded = loaded.report?.agents.orEmpty().filter { a ->
+                a.reportStatus == ReportStatus.SUCCESS && points.none { it.agentId == a.agentId }
+            }
+            if (excluded.isNotEmpty()) Text("Excluded (missing common evidence, changed sources, or unknown attempt cost): " + excluded.joinToString { "${it.agentName} · ${it.provider}/${it.model}" },color=AppColors.TextSecondary,fontSize=12.sp)
             ValueScatter(
                 points, xAxisTitle = "Cost", yAxisTitle = rankingName,
                 modifier = Modifier.fillMaxWidth().height(240.dp).padding(bottom = 12.dp),
@@ -1205,6 +1210,7 @@ private fun ValueGraphFullScreen(
 
 @Composable
 private fun ValueRow(p: ValuePoint, onOpenAgent: ((String) -> Unit)? = null) {
+    var showEvidence by remember(p.agentId, p.evidence) { mutableStateOf(false) }
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         shape = RoundedCornerShape(10.dp),
@@ -1229,6 +1235,9 @@ private fun ValueRow(p: ValuePoint, onOpenAgent: ((String) -> Unit)? = null) {
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
+            if (p.evidence.isNotBlank()) {
+                androidx.compose.material3.TextButton(onClick={showEvidence=!showEvidence}) { Text("Basis",fontSize=12.sp) }
+            }
             Spacer(Modifier.width(8.dp))
             val (badge, color) = when {
                 p.bestValue -> "${com.ai.data.MetadataIconsHolder.current.gem} Pareto frontier" to AppColors.SuccessAccent
@@ -1237,6 +1246,7 @@ private fun ValueRow(p: ValuePoint, onOpenAgent: ((String) -> Unit)? = null) {
             }
             Text(badge, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
+        if (showEvidence) Text(p.evidence,modifier=Modifier.padding(12.dp),fontSize=12.sp,color=AppColors.TextSecondary)
     }
 }
 

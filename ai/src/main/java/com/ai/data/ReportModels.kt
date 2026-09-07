@@ -15,6 +15,21 @@ const val RESPONSE_CHANGE_SOURCE_WEB_SEARCH = "Web Search"
 const val RESPONSE_CHANGE_SOURCE_EDIT = "Edit"
 const val RESPONSE_CHANGE_SOURCE_MODEL_SWITCH = "Model switch"
 
+/** Preserved before an answer is replaced or cleared for a new attempt. */
+data class ReportAnswerRevision(
+    val id: String, val savedAt: Long, val prompt: String, val body: String,
+    val provider: String, val model: String, val source: String,
+    val cost: Double? = null, val citations: List<String> = emptyList()
+)
+
+/** A user's decision, bound to immutable evidence rather than a mutable answer. */
+data class ReportConclusion(
+    val sourceKind: String, val sourceId: String, val sourceLabel: String,
+    val body: String, val rationale: String, val uncertainty: String,
+    val dissent: String, val sources: String, val snapshotId: String,
+    val selectedAt: Long = System.currentTimeMillis()
+)
+
 data class ReportAgent(
     val agentId: String,
     val agentName: String,
@@ -115,7 +130,8 @@ data class ReportAgent(
     var executionConfig: ReportExecutionConfig? = null,
     var currentAttemptCost: Double? = null,
     var currentAttemptUsage: TokenUsage? = null,
-    var attemptId: String? = null
+    var attemptId: String? = null,
+    var answerHistory: List<ReportAnswerRevision> = emptyList()
 )
 
 /** One captured API call from the 3-tier Create → Report icons
@@ -287,6 +303,8 @@ data class ReportWorkerConfig(
      *  REPORT_MODELS with [workerSelection] = ROUND_ROBIN, [metaBatches] =
      *  REPORT_MODELS. Default false (each card configured independently). */
     val useReportModels: Boolean = false,
+    /** Persist the launch choice so automatic work cannot start after primary answers. */
+    val primaryAnswersOnly: Boolean = false,
 ) {
     /** Defaults any null sub-field read from a file written by hand or a
      *  truncated write (Gson's UnsafeAllocator bypasses constructor
@@ -305,6 +323,7 @@ data class ReportWorkerConfig(
         secondResultSelectScope = (secondResultSelectScope as Boolean?) ?: false,
         secondResultRuntimeParams = (secondResultRuntimeParams as Boolean?) ?: true,
         useReportModels = (useReportModels as Boolean?) ?: false,
+        primaryAnswersOnly = primaryAnswersOnly,
     )
 }
 
@@ -592,7 +611,8 @@ data class Report(
      *  legacy reports / reports the user never annotated. Guarded in
      *  [com.ai.data.ReportStorage]'s normalizeReport against Gson's
      *  default-not-applied null trap, same as [iconCalls]. */
-    var userNotes: MutableList<UserNote> = mutableListOf()
+    var userNotes: MutableList<UserNote> = mutableListOf(),
+    val conclusion: ReportConclusion? = null
 )
 
 /** Title for the top-bar orange line: the long title when present, else the

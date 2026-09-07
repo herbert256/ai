@@ -35,5 +35,6 @@ object ReportExportRedaction {
         value.isJsonPrimitive && value.asJsonPrimitive.isString -> JsonPrimitive(text(value.asString,depth))
         else -> value
     }
+    fun plainText(value: String): String = text(value, 0)
     fun json(json: String): String = clean(JsonParser.parseString(json)).toString()
 }

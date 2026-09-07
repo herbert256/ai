@@ -224,13 +224,13 @@ fun aggregateTranslatorRanks(cells: Collection<TransRankCellState>): List<Transl
                 judgedCount = scores.size
             )
         }
-        .sortedWith(compareByDescending<TranslatorRankRow> { it.avgScore }.thenByDescending { it.judgedCount })
+        .sortedWith(compareBy<TranslatorRankRow> { it.providerId.lowercase() }.thenBy { it.model.lowercase() })
 
 fun List<TranslatorRankRow>.toTransRankJson(): String {
     val arr = JsonArray()
     forEachIndexed { i, r ->
         arr.add(JsonObject().apply {
-            addProperty("rank", i + 1)
+            addProperty("interpretation", "Translation review; not a comparable model rank")
             addProperty("provider", r.providerId)
             addProperty("model", r.model)
             addProperty("avgScore", r.avgScore)

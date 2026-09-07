@@ -279,7 +279,7 @@ fun ReportsScreen(
     /** Item ids currently parked on a provider rate / concurrency gate;
      *  feeds the translation L1 "Throttled" stat. */
     throttledTranslationItems: Set<String> = emptySet(),
-    onStartTranslation: (String, String, String, String?, List<com.ai.model.Worker>?, String?, String?) -> String? = { _, _, _, _, _, _, _ -> null },
+    onStartTranslation: (String, String, String, String?, List<com.ai.model.Worker>?, String?, String?, com.ai.viewmodel.TranslationSelection) -> String? = { _, _, _, _, _, _, _, _ -> null },
     /** Build-stage progress for big batches, keyed by the UUID the launch
      *  site minted (collected from [AppViewModel.batchBuildProgress]). The
      *  blocking "Preparing…" overlay shows while `st.pendingBuildKey`'s
@@ -1267,7 +1267,7 @@ fun ReportsScreen(
                             val startWith = { ws: List<com.ai.model.Worker>? ->
                                 onBeginBuild(key, 0, "Translating to ${rtReqMain.lang}")
                                 pendingBuildKey = key
-                                val newRunId = onStartTranslation(rid, rtReqMain.lang!!, rtReqMain.langNative!!, key, ws, bodyText, titleText)
+                                val newRunId = onStartTranslation(rid, rtReqMain.lang!!, rtReqMain.langNative!!, key, ws, bodyText, titleText, st.translationSelection.value)
                                 if (newRunId.isNullOrBlank()) {
                                     onClearBuild(key); pendingBuildKey = null
                                 } else {
@@ -1279,7 +1279,7 @@ fun ReportsScreen(
                                     }
                                 }
                             }
-                            launchWithWorkerPlan(
+                            if (st.translationSelection.value.singleWorker != null) startWith(null) else launchWithWorkerPlan(
                                 st.runtimeWorkerPick, context, st.screenScope, rid,
                                 aiSettings.workerPromptByName("translate-text"), "Translate — pick workers"
                             ) { picked -> startWith(picked) }
@@ -1328,6 +1328,12 @@ fun ReportsScreen(
     // falls back on 429 / miss), the same Mode-B path tournament /
     // fan-meta use. The progress screen sticks around until the run
     // finishes (or Cancel).
+    if (showTranslateLanguagePicker && currentReportId != null && !st.translationSelection.value.confirmed) {
+        TranslationSelectionScreen(currentReportId, st.translationSelection.value,
+            onConfirm={st.translationSelection.value=it},
+            onBack={showTranslateLanguagePicker=false})
+        return
+    }
     if (showTranslateLanguagePicker) {
         // Picker overlays opt OUT of the standard TitleBar swipe —
         // these composables are also used outside the AI Report flow
@@ -1359,7 +1365,7 @@ fun ReportsScreen(
                                 val startWith = { ws: List<com.ai.model.Worker>? ->
                                     onBeginBuild(key, 0, "Translating to ${lang.name}")
                                     pendingBuildKey = key
-                                    val newRunId = onStartTranslation(rid, lang.name, lang.native, key, ws, null, null)
+                                    val newRunId = onStartTranslation(rid, lang.name, lang.native, key, ws, null, null, st.translationSelection.value)
                                     if (newRunId.isNullOrBlank()) {
                                         onClearBuild(key); pendingBuildKey = null
                                     } else {
@@ -1374,7 +1380,7 @@ fun ReportsScreen(
                                 // Picker (per the report's Worker-batches mode /
                                 // the driving translate-text prompt's *SELECT)
                                 // applies to the whole run; else run straight.
-                                launchWithWorkerPlan(
+                                if (st.translationSelection.value.singleWorker != null) startWith(null) else launchWithWorkerPlan(
                                     st.runtimeWorkerPick, context, st.screenScope, rid,
                                     aiSettings.workerPromptByName("translate-text"), "Translate — pick workers"
                                 ) { picked -> startWith(picked) }

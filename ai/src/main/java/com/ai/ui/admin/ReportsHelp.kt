@@ -1,39 +1,35 @@
 package com.ai.ui.admin
 
 internal val reportsHelp: Map<String, HelpContent> = mapOf(
-    "translator_rank" to HelpContent(
-        title = "Help - Rank the translators",
-        cards = listOf(
-            HelpCard("What this is", "Reached from the 🏅 on a translation row. It ranks the MODELS that produced this language's translation by how good their translations are — judged by the OTHER models. It reuses the existing translation (no re-translation)."),
-            HelpCard("How it scores", "Every long-form translated answer (model responses + fan-out / meta responses; titles and the prompt are skipped) is scored 0–100 by each model in the panel EXCEPT the model that produced it. The panel is the `translate-rank` worker swarm (the report's own models when Worker batches = Report models). Each translator's average score becomes its rank."),
-            HelpCard("Reading it", "The leaderboard lists each translator model with how many of its items were scored and its average score (best first). Tap a row to see that model's items and each judge's score + motivation."),
-            HelpCard("A fairness note", "The translation pool spreads items across models, so each model is judged on the items IT happened to translate — not the same passage head-to-head. Item difficulty can therefore skew the average. It's most meaningful when a translation was produced by several models."),
-            HelpCard("Cost", "Each score is a normal API call, counted in the report's cost table under the 'transrank' group. Each translator model gets at most 25 scoring cells (a random sample of its translation × judge pairs), so the whole batch is at most the translator count × 25; the launch popup shows the exact number of calls and asks to confirm first."),
-            HelpCard("🐜 Workers", "The 🐜 icon switches to the per-judge-model breakdown — one row per model that did the scoring, with how many it judged and its cost. Tap 🐜 again to go back to the translator ranking.")
-        )
-    ),
+    "report_reading" to HelpContent(title="Help - Read and finish report", cards=listOf(
+        HelpCard("Answers", "Read and improve individual answers, compare two selected texts, translate only the content you need, or inspect saved previous versions."),
+        HelpCard("Analysis", "Add an independently authored reference with attribution, then evaluate against it. Read the criterion and saved source coverage before interpreting scores."),
+        HelpCard("Conclusion", "Choose an answer or synthesis and explain why. The saved text, question and evidence versions remain unchanged when the report changes. Export the conclusion with an optional evidence appendix, update the selection, or clear it.")
+    )),
+    "translation_scope" to HelpContent(title="Help - Translation scope", cards=listOf(
+        HelpCard("Choose content", "Check one answer, any selected items, all answers or the entire report before choosing a language. Titles and analyses are optional."),
+        HelpCard("Consistency", "Choose one report model to translate every selected item, or use the configured worker pool. Shared terminology and style instructions apply to all selected items."),
+        HelpCard("Review", "The launch review lists items, recipients and saved instructions. Changed or removed text requires another scope review. Retry uses the saved source text and prompts.")
+    )),
+    "translator_rank" to HelpContent(title="Help - Translation review", cards=listOf(
+        HelpCard("What is reviewed","Existing long-form translations are scored by the other translator models. No new translation is generated. This is a review of produced work, not a controlled model benchmark."),
+        HelpCard("Reading the results","Models are listed alphabetically. Passage scores are averaged within each passage, then across passages. Open a model to inspect individual passages, judges, scores and reasons. Unequal passage difficulty and judge coverage make a general model leaderboard unsupported."),
+        HelpCard("Cost and scope","The confirmation shows the judge-call count. Completed scores are retained when retrying failed cells. Translation reviews never feed the Value chart for original answers.")
+    )),
+
     "translator_rank_workers" to HelpContent(
         title = "Help - Rank workers",
         cards = listOf(
-            HelpCard("What this is", "The per-judge-model breakdown for a 'Rank the translators' run: one row per model that scored translations, showing how many it judged (done / total) and its cost. The green bar fills with each model's progress while the batch runs."),
-            HelpCard("Back to the ranking", "Tap the 🐜 icon (or back) to return to the translator leaderboard.")
+            HelpCard("What this is", "The per-judge-model breakdown for a translation review: one row per model that scored translations, showing how many it judged (done / total) and its cost. The green bar fills with each model's progress while the batch runs."),
+            HelpCard("Back to the ranking", "Tap the 🐜 icon (or back) to return to the alphabetical translation review.")
         )
     ),
-    "value_view" to HelpContent(
-        title = "Help - Value view",
-        cards = listOf(
-            HelpCard("What this is", "A cost × quality map of the models in this report. The horizontal axis is each model's cost; the vertical axis is its ranking score (quality). It answers \"which model gives most of the quality for the least cost?\". It appears once the report has a Rerank, a Tournament, or a Judge-the-judges run — that's where the quality scores come from."),
-            HelpCard("Ranking switch", "The chips at the top pick which ranking feeds the quality axis: Combined first, then Rerank, then Judges (when a Judge-the-judges run exists), then Compare (each answer's match % against the meta), then Tournament (the total) and each Tournament method (Copeland / Elo / Davidson / Markov / Schulze / Colley / TrueSkill2). Judges ranks the answers by the panel's consensus verdict per match (plurality across judges, Copeland-scored). Tap one and the whole chart, the 💎 frontier pick and the list re-rank instantly — all recomputed locally from stored verdicts / win matrices, no new API calls."),
-            HelpCard("Combined", "A single 0–1000 score per model: every available ranking (Rerank, Judges, Translations, Compare, each Tournament method) is normalised to 0–1, then blended by the weights from Settings → Ranking weights and scaled to 0–1000. A ranking weighted 0 is left out. Change the weights and Combined re-blends. It's the first chip."),
-            HelpCard("Tournament (total)", "Sits just before the individual methods. Each model's quality is the inverse of its AVERAGE position across all seven Tournament methods — the same ordering as the Tournament screen's Total grid, so the best-on-average model sits highest."),
-            HelpCard("How to read it", "Top-left is the sweet spot: cheap and high-scoring. 💎 marks the frontier model (the most quality per cost). Dimmed points are 'dominated': another model is at least as good for the same or less money; the non-dimmed points form the Pareto frontier. Both axes are padded a little so no point sits on an axis line."),
-            HelpCard("Full-screen graph", "Tap the chart to open it full-screen — nothing but the graph, no bars. Pinch to zoom in and out and drag to pan around. Press back to return."),
-            HelpCard("Export (📤)", "The 📤 icon in the bottom bar exports this whole screen as ONE self-contained HTML page and opens the share sheet. The page has a tab per ranking source (the same set as the chips), each with its cost × quality graph and the ranked model list; click a graph to view it full screen (Esc or click closes). Plain HTML with inline styling — opens in any browser, no internet needed."),
-            HelpCard("Where it comes from", "Pure derivation — no new API calls. It reuses the per-agent cost already stored on the report and the scores from the selected ranking. Scores are model-scaled (e.g. 0–1 vs 0–100), so the quality axis auto-scales to this report's range."),
-            HelpCard("Fan-out cost", "If this report has a fan-out AND every model shown here also answered that fan-out (the answerer set matches the report's models), each model's cost adds up its main answer PLUS all the fan-out responses it produced — so the comparison reflects total spend per model. A partial fan-out (only some models answered) leaves costs as the main answer only. The caption says when fan-out cost is included."),
-            HelpCard("List below the chart", "Each model with its cost and score, sorted frontier first, badged 💎 Pareto frontier / Pareto / dominated.")
-        )
-    ),
+    "value_view" to HelpContent(title="Help - Value view", cards=listOf(
+        HelpCard("What the axes mean","X is the recorded cost of the current answer attempt. Y is the selected criterion: question relevance, reference agreement, panel preference or a tournament method. These are not calibrated factual correctness. Unknown attempt cost and historical or unknown source inputs are excluded."),
+        HelpCard("Custom preference","Choose family weights in Settings. The Basis button shows each raw score, normalization range, normalized contribution and effective weight. Only common participants in every informative family qualify. Min-max scaling can magnify small differences. Tournament methods share one family weight; translations are excluded."),
+        HelpCard("Pareto frontier","Every undominated answer is on the frontier. A frontier example is a navigation aid, not a universal best value. Fan-out spending is excluded from the original answer cost.")
+    )),
+
     "report_notes" to HelpContent(
         title = "Help - User notes",
         cards = listOf(
@@ -64,15 +60,12 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Auto title", "On save, a short title is generated for the note by a quick background call (the bundled workers/user-note prompt) and becomes the card's headline. It refreshes a moment after you save and regenerates whenever you edit the text.")
         )
     ),
-    "reports_hub" to HelpContent(
-        title = "Help - Reports",
-        cards = listOf(
-            HelpCard("Overview", "Dashboard for everything to do with reports. New / Search / All live as icons in the bottom bar; list cards summarise what's already on disk."),
-            HelpCard("Bottom icons — 🆕 / 🔍 / 🗂️", "🆕 New opens the creation entry points (blank, previous prompt, example prompt). 🔍 Search opens Quick local, Extended local, Remote semantic, and — when Experimental features is on — Local semantic search. 🗂️ All opens the paginated swipe-through of every saved report."),
-            HelpCard("Pinned / Latest", "Two list cards (📌 Pinned mirrors every report flagged on Manage; 🕘 Latest shows the five newest), each up to five rows. There's no separate Running or Problems card — instead a row flags its own state (see Per-row icons). An empty card stays on screen at reduced opacity so the layout doesn't shift."),
-            HelpCard("Per-row icons", "A row's leading icon is the report's own — UNLESS it's still running (a spinning ⏳ hourglass) or has broken work (⚠️, also listed on the Broken-work screen), which replace it. Tap a row to open at Manage; 🔧 jumps to Manage explicitly, 👁 opens the View tile grid, 🗑 prompts a delete confirmation.")
-        )
-    ),
+    "reports_hub" to HelpContent(title="Help - Reports", cards=listOf(
+        HelpCard("Start here","Use Create report, Search reports or Browse all reports. Pinned and Latest reports follow, with bundled Examples below. Expert icon shortcuts remain available."),
+        HelpCard("Read and finish","Open a report at Manage, then Read answers · Compare · Choose conclusion. Compare two answers, improve one, translate selected content, add an independent reference or save your final decision."),
+        HelpCard("Per-row icons","The leading icon shows the report emoji, running hourglass or broken-work warning. The row opens Manage; the eye opens the expert View grid; Delete asks for confirmation.")
+    )),
+
     "new_ai_report_screen" to HelpContent(
         title = "Help - New report",
         cards = listOf(
@@ -240,7 +233,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What you see", "A plain list of the language versions of this report: the Original language first, then one row per existing translation. No progress, counts or cost — just the language. Reached from the 🌐 icon on Manage report once at least one translation exists (with none, 🌐 starts a new translation directly)."),
             HelpCard("How it works", "Tap the Original row to return to the report. Tap a translation row to open that run's detail (its per-call list). The only bottom-bar icon is 🆕 — it starts a new translation (pick a target language, then the model(s)) and drops you on the new run."),
-            HelpCard("🏅 Rank the translators", "Each translation row carries a 🏅. Tap it to rank the models that produced that translation: every translated answer is scored 0–100 by the other models, and the translators are ranked by average. Most useful when several models shared the translation.")
+            HelpCard("🏅 Translation review", "Review the saved translations and individual judge explanations. Models are listed alphabetically; unequal passages and judge coverage do not support a general translator leaderboard.")
         )
     ),
     // Per-screen icon legend reached from the ❔ bottom-bar glyph on

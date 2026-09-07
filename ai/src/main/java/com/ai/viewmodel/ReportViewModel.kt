@@ -509,7 +509,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val runId = java.util.UUID.randomUUID().toString()
             val plannedReportId = java.util.UUID.randomUUID().toString()
             com.ai.data.ReportWorkLimits.init(context)
-            com.ai.data.ReportWorkLimits.review(plannedReportId, "Primary answers", reportTasks.size)
+            val decision = try {
+                val plan = buildPrimaryWorkPlan(context, plannedReportId, aiPrompt, reportTasks, overrideParams,
+                    workerConfig, state.reportMetadataDisabled, state.attachedKnowledgeBaseIds, aiSettings, state.generalSettings, appViewModel.repository)
+                com.ai.data.ReportWorkLimits.review(plannedReportId, "Primary answers", reportTasks.size, plan)
+            } catch (e: Exception) {
+                if (reportGenerationJob == kotlin.coroutines.coroutineContext[Job]) {
+                    appViewModel.updateUiState { it.copy(showGenericReportsDialog=false,showGenericAgentSelection=true,
+                        reportImageBase64=imageBase64,reportImageMime=imageMime,reportWebSearchTool=state.reportWebSearchTool,
+                        reportReasoningEffort=state.reportReasoningEffort,reportMetadataDisabled=state.reportMetadataDisabled) }
+                    if (e !is kotlinx.coroutines.CancellationException) withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(context,e.message ?: "Could not prepare report",android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                return@launch
+            }
             val report = ReportStorage.createReportAsync(
                 context = context, title = title.ifBlank { "AI Report" },
                 prompt = aiPrompt, agents = reportTasks.map { it.reportAgent },
@@ -519,8 +534,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     imageBase64 = imageBase64, imageMime = imageMime,
                     webSearchTool = state.reportWebSearchTool,
                     reasoningEffort = state.reportReasoningEffort,
-                    metadataDisabled = state.reportMetadataDisabled,
-                    workerConfig = workerConfig,
+                    metadataDisabled = state.reportMetadataDisabled || decision.answersOnly,
+                    workerConfig = workerConfig.copy(primaryAnswersOnly = decision.answersOnly),
                     knowledgeBaseIds = state.attachedKnowledgeBaseIds,
                     runId = runId,
                     // Capture the generation config so Regenerate replays these
@@ -824,6 +839,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private fun maybeAutoCreateSecondaries(
         context: Context, reportId: String, aiSettings: Settings, successCount: Int
     ) {
+        if (ReportStorage.getReport(context, reportId)?.workerConfig?.primaryAnswersOnly == true) return
         if (!appViewModel.uiState.value.generalSettings.autostartItemsEnabled) return
         if (!appViewModel.uiState.value.generalSettings.autoCreateRerankAndModeration) return
         if (successCount < 1) return  // nothing to rank / moderate
@@ -855,6 +871,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private fun maybeAutoCreateDefaultMetas(
         context: Context, reportId: String, aiSettings: Settings, successCount: Int
     ) {
+        if (ReportStorage.getReport(context, reportId)?.workerConfig?.primaryAnswersOnly == true) return
         if (!appViewModel.uiState.value.generalSettings.autostartItemsEnabled) return
         if (successCount < 1) return
         val items = aiSettings.defaultMetaItems.filter { it.active }
@@ -945,7 +962,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val storedReport = ReportKnowledge.prepare(context, reportId, appViewModel.repository,
             appViewModel.uiState.value.aiSettings) ?: return
         val previous = storedReport.agents.firstOrNull { it.agentId == task.resultId } ?: return
-        val execution = (if (isRegeneration) previous.executionConfig else null) ?: run {
+        val execution = previous.executionConfig?.let { saved ->
+            if (isRegeneration) saved else storedReport.knowledgeContext?.takeIf { it.isNotBlank() }
+                ?.let { saved.copy(prompt="$it\n\n${saved.prompt}") } ?: saved
+        } ?: run {
             val params = appViewModel.repository.effectiveReportParameters(task.resolvedParams, overrideParams,
                 task.runtimeAgent.provider, task.runtimeAgent.model, context)
             val question = appViewModel.repository.resolveReportPrompt(aiPrompt, task.runtimeAgent)

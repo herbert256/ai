@@ -722,7 +722,12 @@ data class Settings(
     fun hasAnyApiKey() = providers.values.any { it.apiKey.isNotBlank() }
 
     fun getAgentById(id: String) = agents.find { it.id == id }
-    fun resolveAgentParameters(agent: Agent) = mergeParameters(agent.paramsIds) ?: AgentParameters()
+    /** A saved Agent carries its standalone role in every launch workflow. */
+    fun resolveAgentParameters(agent: Agent): AgentParameters {
+        val presets = mergeParameters(agent.paramsIds) ?: AgentParameters()
+        val role = agent.systemPromptId?.let { getSystemPromptById(it)?.prompt }
+        return if (role != null) presets.copy(systemPrompt = role) else presets
+    }
     fun getEffectiveApiKeyForAgent(agent: Agent) = agent.apiKey.ifBlank { getApiKey(agent.provider) }
     fun getEffectiveModelForAgent(agent: Agent) = agent.model.ifBlank { getModel(agent.provider) }
 

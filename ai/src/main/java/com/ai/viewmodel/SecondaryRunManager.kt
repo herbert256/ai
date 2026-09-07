@@ -94,13 +94,15 @@ class SecondaryRunManager(
          *  separate meta routing instead of the general batches routing. */
         meta: Boolean = false
     ) {
-        val members = swarm.flatMap { aiSettings.expandWorker(it) }
+        val frozenPrompt = contentPrompt.copy(workers=swarm).freezeWorkers(aiSettings,appViewModel.uiState.value.generalSettings)
+        val members = frozenPrompt.workers
         if (members.isEmpty()) {
             SecondaryResultStorage.saveIfStillPresent(context, base.copy(
                 errorMessage = "No workers configured for '${contentPrompt.name}' — add a swarm under AI Setup → Prompt management → Worker prompts."
             ))
             return
         }
+        ReportWorkLimits.review(reportId,"${kind.name.lowercase()} result",1,ReportWorkLimits.promptWorkPlan(listOf(frozenPrompt)))
         val cooldown = HashMap<String, Long>()
         var sawRateLimit = false
         var lastErr: String? = null
@@ -122,7 +124,7 @@ class SecondaryRunManager(
             if (ModelCooldownStore.isUnavailable(provider.id, model)) { sawRateLimit = true; continue }
             // Row deleted mid-run — stop without recreating it.
             if (!SecondaryResultStorage.exists(context, reportId, base.id)) return
-            ApiCallCaps.global.withPermit {
+            withContext(ReportWorkLimits.reviewedReport.asContextElement(reportId)) { ApiCallCaps.global.withPermit {
                 executeSecondaryTask(
                     context, reportId, kind, contentPrompt,
                     provider, model, resolvedPrompt, aiSettings, report,
@@ -130,9 +132,9 @@ class SecondaryRunManager(
                     referenceLegend = referenceLegend, fanInOf = fanInOf,
                     existingPlaceholder = base.copy(providerId = provider.id, model = model),
                     scopeEncoded = scopeEncoded,
-                    paramsIds = paramsIds, systemPromptId = systemPromptId
+                    paramsIds = paramsIds, systemPromptId = systemPromptId, executionWorker = w
                 )
-            }
+            } }
             val row = SecondaryResultStorage.get(context, reportId, base.id) ?: return
             if (row.errorMessage == null && !row.content.isNullOrBlank()) return  // success
             lastErr = row.errorMessage
@@ -903,6 +905,7 @@ class SecondaryRunManager(
         reportId: String,
         placeholder: SecondaryResult
     ): Job? {
+        if (placeholder.providerId == "User") return null // authored references are edited by the owner
         if (!rvm.resumingMetaIds.add(placeholder.id)) return null
         val promptId = placeholder.metaPromptId ?: run {
             rvm.resumingMetaIds.remove(placeholder.id); return null
@@ -939,6 +942,9 @@ class SecondaryRunManager(
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
+                val sourceReport = ReportStorage.getReport(context, reportId) ?: return@launch
+                ReportEvidenceStore.requireHistoricalReport(sourceReport, placeholder)
+                if (placeholder.targetLanguage != null) ReportEvidenceStore.historicalSecondaries(context, placeholder)
                 com.ai.data.ReportWorkLimits.review(reportId, "Retry secondary result", 1)
                 withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reportId)) {
                     placeholder.fullCost().takeIf { it > 0.0 }?.let {
@@ -969,7 +975,7 @@ class SecondaryRunManager(
                     if (!SecondaryResultStorage.saveIfStillPresent(context, clearedPlaceholder, mergeCosts = false)) return@withContext
                     withTracerTags(reportId = reportId, category = cat) {
                         val currentReport = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                        val report = ReportEvidenceStore.historicalReport(currentReport, placeholder)
+                        val report = ReportEvidenceStore.requireHistoricalReport(currentReport, placeholder)
                         // Rerank / Moderation: a resolvable member of the
                         // report-aware batch pool (REPORT_MODELS / stored
                         // SELECT_ONCE pick / configured chain). Under Round
@@ -1029,6 +1035,12 @@ class SecondaryRunManager(
                         // placeholder (preserving the fanInOf linkage). Without
                         // this branch the row would be regenerated as a plain
                         // meta over the report answers (wrong content).
+                        if (placeholder.executionConfig != null && kind == SecondaryKind.META) {
+                            executeSecondaryTask(context,reportId,kind,metaPrompt,provider,model,placeholder.executionConfig.prompt,
+                                aiSettings,report,targetLanguage=lang,targetLanguageNative=langNative,
+                                fanInOf=placeholder.fanInOf,existingPlaceholder=clearedPlaceholder,scopeEncoded=placeholder.secondaryScope)
+                            return@withTracerTags
+                        }
                         if (placeholder.fanInOf != null) {
                             val resolution = buildFanInResolution(context, reportId, metaPrompt, report, lang)
                             if (resolution == null) {
@@ -1067,7 +1079,7 @@ class SecondaryRunManager(
                             )
                             return@withTracerTags
                         }
-                        val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+                        val allSecondaries = ReportEvidenceStore.historicalSecondaries(context,placeholder)
                         // Same scope → includeIds resolution as runMetaPrompt.
                         val includeIds: Set<Int>? = when (scope) {
                             com.ai.data.SecondaryScope.AllReports -> null
@@ -1075,7 +1087,7 @@ class SecondaryRunManager(
                                 // Snapshot-mapped resolution — same as runMetaPrompt —
                                 // so a success-set change doesn't reselect different
                                 // models (see resolveTopRankedAgents).
-                                val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
+                                val rerank = allSecondaries.firstOrNull { it.id == scope.rerankResultId }
                                 val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                                 val topAgents = com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful)
                                 val positions = topAgents.map { a -> successful.indexOfFirst { it.agentId == a.agentId } + 1 }.filter { it >= 1 }.toSet()
@@ -1114,6 +1126,13 @@ class SecondaryRunManager(
                             scopeEncoded = placeholder.secondaryScope
                         )
                     }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Secondary", "Replay stopped: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, e.message ?: "Replay unavailable", android.widget.Toast.LENGTH_LONG).show()
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
@@ -1656,9 +1675,12 @@ class SecondaryRunManager(
         scopeEncoded: String? = null,
         /** Per-launch 🌡️ / 🎭 pick; empty → App-wide default fallback. */
         paramsIds: List<String> = emptyList(),
-        systemPromptId: String? = null
+        systemPromptId: String? = null,
+        executionWorker: com.ai.model.Worker? = null
     ) {
-        val apiKey = aiSettings.getApiKey(provider)
+        val configuredAgent = executionWorker?.let { aiSettings.resolveWorker(it) }
+            ?: existingPlaceholder?.executionConfig?.credentialAgentId?.let { aiSettings.getAgentById(it) }?.takeIf { it.provider==provider }
+        val apiKey = configuredAgent?.let { aiSettings.getEffectiveApiKeyForAgent(it) } ?: aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
         val agentName = "${provider.id} / ${shortModelName(model)}$langSuffix"
         var placeholder = existingPlaceholder ?: SecondaryResultStorage.create(
@@ -1677,7 +1699,12 @@ class SecondaryRunManager(
             )
         }
 
-        val report = com.ai.data.ReportEvidenceStore.historicalReport(report, SecondaryResultStorage.get(context,reportId,placeholder.id) ?: placeholder)
+        val report = try {
+            com.ai.data.ReportEvidenceStore.requireHistoricalReport(report, SecondaryResultStorage.get(context,reportId,placeholder.id) ?: placeholder)
+        } catch (e: java.io.IOException) {
+            SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(errorMessage = e.message))
+            return
+        }
         com.ai.data.ReportWorkLimits.review(reportId, "${kind.name.lowercase()} result", 1)
         // Mark this single-secondary row in flight for the whole call
         // (incl. its wait in the per-provider rate gate) so the resume
@@ -1713,7 +1740,7 @@ class SecondaryRunManager(
             // original body per-agent when a translation row is
             // missing so a partial set still classifies coherently.
             val translatedBodies: Map<String, String>? = targetLanguage?.let { lang ->
-                val secondaries = SecondaryResultStorage.listForReport(context, reportId)
+                val secondaries = ReportEvidenceStore.historicalSecondaries(context,placeholder)
                 lookupLanguageTranslations(report, secondaries, lang)?.bodiesByAgentId
             }
             val responses = report.agents
@@ -1762,7 +1789,7 @@ class SecondaryRunManager(
             // ranks the Dutch text rather than the English originals — same
             // as the moderation branch above.
             val rerankLangCtx = targetLanguage?.let { lang ->
-                lookupLanguageTranslations(report, SecondaryResultStorage.listForReport(context, reportId), lang)
+                lookupLanguageTranslations(report, ReportEvidenceStore.historicalSecondaries(context,placeholder), lang)
             }
             val query = rerankLangCtx?.prompt?.takeIf { it.isNotBlank() } ?: report.prompt
             val docs = report.agents
@@ -1817,19 +1844,25 @@ class SecondaryRunManager(
             return
         }
 
-        val agent = Agent(
+        val agent = configuredAgent ?: Agent(
             id = "secondary:${kind.name}:${provider.id}:$model",
             name = agentName, provider = provider, model = model, apiKey = apiKey
         )
         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
         val start = System.currentTimeMillis()
-        val secondaryParams = resolveSecondaryParams(
-            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, metaPrompt
+        val secondaryParams = executionWorker?.frozenParameters ?: resolveSecondaryParams(
+            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, metaPrompt, configuredAgent
         )
-        val execution = (SecondaryResultStorage.get(context,reportId,placeholder.id)?.executionConfig)
-            ?: com.ai.data.ReportExecutionConfig(secondaryParams,baseUrl,resolvedPrompt).also {
+        val storedAttempt = SecondaryResultStorage.get(context,reportId,placeholder.id)
+        val execution = storedAttempt?.takeIf { it.providerId==provider.id && it.model==model }?.executionConfig
+            ?: com.ai.data.ReportExecutionConfig(secondaryParams,executionWorker?.frozenEndpointUrl ?: baseUrl,resolvedPrompt,credentialAgentId=configuredAgent?.id).also {
                 placeholder = placeholder.copy(executionConfig=it)
-                check(SecondaryResultStorage.saveIfStillPresent(context,placeholder,mergeCosts=false)) { "Secondary result was removed before dispatch" }
+                // A fallback changes execution settings, not the already billed
+                // attempts. Stage configuration from the current stored ledger;
+                // the result patch below still contributes only this new call.
+                val staged = (storedAttempt ?: placeholder).copy(providerId=provider.id,model=model,
+                    agentName=agentName,executionConfig=it,content=null,errorMessage=null)
+                check(SecondaryResultStorage.saveIfStillPresent(context,staged,mergeCosts=false)) { "Secondary result was removed before dispatch" }
             }
         val response = try {
             appViewModel.repository.analyzeWithAgent(

@@ -850,13 +850,13 @@ fun ReportsScreenNav(
             .toList(),
         deletingTranslationRunIds = reportViewModel.translation.deletingRuns.collectAsState().value,
         throttledTranslationItems = throttledTranslationItems,
-        onStartTranslation = { sourceId, langName, langNative, buildKey, overrideWorkers, overrideTextPromptText, overrideTitlePromptText ->
+        onStartTranslation = { sourceId, langName, langNative, buildKey, overrideWorkers, overrideTextPromptText, overrideTitlePromptText, selection ->
             // Returns the new run's id so Manage can land on the Translation
             // L1 page once the build stage finishes. overrideWorkers is set when
             // the translate-text prompt is *SELECT (user picked the workers).
             // overrideText/TitlePromptText are run-only prompt edits from the
             // runtime-params screen.
-            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, buildKey, overrideWorkers, overrideTextPromptText, overrideTitlePromptText).first
+            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, buildKey, overrideWorkers, overrideTextPromptText, overrideTitlePromptText, selection).first
         },
         batchBuildProgress = batchBuildProgress,
         onBeginBuild = { key, total, label -> viewModel.beginBuild(key, total, label) },

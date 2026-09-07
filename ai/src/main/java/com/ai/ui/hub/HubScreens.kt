@@ -394,6 +394,9 @@ fun ReportsHubScreen(
                 importReportLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
             }
         )
+        HubCard(icon = MetadataDefaults.REPORT_ICON, title = "Create report", onClick = onNavigateToNewAiReport)
+        HubCard(icon = MetadataDefaults.SEARCH, title = "Search reports", onClick = onNavigateToSearchAiReports)
+        HubCard(icon = MetadataDefaults.REPORT_ICON, title = "Browse all reports", onClick = onNavigateToAllReports)
         // Pinned leads when there are any pinned reports (hidden otherwise);
         // Latest always follows. Examples stays last.
         val hubCards = buildList {

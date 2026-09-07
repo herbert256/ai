@@ -163,7 +163,7 @@ internal fun RankTranslatorsConfirmHost(
             )
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { val req = p; pending.value = null; onLaunch(req) }) { Text("Rank") }
+            androidx.compose.material3.TextButton(onClick = { val req = p; pending.value = null; onLaunch(req) }) { Text("Review translations") }
         },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = { pending.value = null }) { Text("Cancel") }
@@ -327,7 +327,7 @@ private fun TranslatorRankL1(
             textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
         )
-        Text("Review of produced translations: equal weight per passage, different passages and judge coverage. Not a controlled model benchmark.", color = AppColors.TextTertiary, fontSize = 11.sp)
+        Text("Not enough comparable evidence for a model leaderboard: passages and judges differ. Reviews below are alphabetical, with equal weight per passage. Scores describe the produced work only.", color = AppColors.TextTertiary, fontSize = 11.sp)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
             BatchStatsRow(buildList {
@@ -396,7 +396,7 @@ private fun TranslatorRankL1(
                                 .padding(start = 10.dp, end = 10.dp, top = 9.dp, bottom = 9.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("${i + 1}", color = AppColors.TextTertiary, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(22.dp))
+                            Text("•", color = AppColors.TextTertiary, fontSize = 12.sp, modifier = Modifier.width(22.dp))
                             Text(shortModelName(r.model), color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 4.dp))
                             Text("${r.itemCount}", color = AppColors.TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace, textAlign = TextAlign.End, modifier = Modifier.width(46.dp))

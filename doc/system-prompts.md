@@ -306,3 +306,10 @@ turn — there is no per-turn system-prompt override.
    initial icons / titles / language) and the fixed-cell family (judges,
    transrank), plus moderation, dispatch with default params and send **no**
    system prompt.
+
+
+## Agent consistency and launch inspection
+
+`Settings.resolveAgentParameters` overlays the Agent's standalone system prompt on its merged presets. Chat and Report continuation use that role consistently. Report participant selection retains group-specific overrides only for members selected through that group. The Report launch review shows the effective system instruction, parameters and resolved question for each participant and freezes that execution configuration before dispatch; attached knowledge context is added once before the call.
+
+Future generated Report short/long titles receive an explicit neutral-question rule. The report owner selects the conclusion separately; existing saved titles are not rewritten.

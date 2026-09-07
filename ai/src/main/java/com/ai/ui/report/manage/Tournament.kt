@@ -397,6 +397,7 @@ private fun TournamentL1(
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
+            com.ai.ui.shared.ReportRunEvidenceNotice(run.reportId, com.ai.data.SecondaryKind.TOURNAMENT, run.runId)
             BatchStatsRow(listOf(
                 Triple("Total", counts.total.toString(), AppColors.InfoAccent),
                 Triple("Done", counts.done.toString(), AppColors.SuccessAccent),
