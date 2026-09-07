@@ -129,9 +129,10 @@
       "median": 136.0,
       "maximum": 23117
     },
-    "status": "Awaiting explicit scope approval after automatic review rejection",
-    "launched": false,
-    "fanMetaRequestsSent": 0
+    "status": "Completed after explicit user scope approval",
+    "launched": true,
+    "fanMetaRequestsSent": 1258,
+    "fanMetaRunId": "aa426a44-24e5-48d5-9286-71a9dec28775"
   },
   "baseline": {
     "reportId": "4757c2cc-36e7-4d2e-9a9c-531bca7162dd",
@@ -190,5 +191,21 @@
         }
       ]
     }
-  }
+  },
+  "approvalHistory": {
+    "initialAutomaticReview": "Rejected over report-text disclosure and API charges; no request sent before explicit approval",
+    "subsequentUserApproval": "force it, it is ok, I want it",
+    "launchPath": "Standard Fan Meta confirmation and work review; endpoints restricted to the 19 approved origins"
+  },
+  "outcome": {
+    "completedWithTitleAndIcon": 1256,
+    "newMetadataErrors": 0,
+    "excludedOriginalFanOutFailures": 4,
+    "apiAttempts": 1258,
+    "billedRejectedAttempts": 2,
+    "recordedAdditionalCostUsd": 0.105643623,
+    "finalReportCostUsd": 0.9292402619000013,
+    "batchEndUtc": "2026-09-07T12:12:01.085000+00:00"
+  },
+  "monitoringAudit": "fan-meta-monitor-2026-09-07.md"
 }

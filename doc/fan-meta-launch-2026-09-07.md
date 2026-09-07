@@ -1,6 +1,8 @@
-# Funny question Fan Meta — prepared launch
+# Funny question Fan Meta — launch scope and outcome
 
-**Status: not launched.** Automatic approval review rejected the launch because of report-text disclosure to external providers and API charges. No Fan Meta request has been sent.
+**Status: completed after explicit user approval.** Automatic approval review initially rejected the launch over report-text disclosure and API charges. The user subsequently approved the concrete scope below (“force it, it is ok, I want it”), and the normal app confirmation and work-review flow were used. All 1,256 eligible metadata jobs completed. See the [monitoring audit](fan-meta-monitor-2026-09-07.md) for results, costs and five open findings.
+
+The scope and baseline below describe the state prepared before launch; outcome details appear at the end.
 
 ## Exact scope
 
@@ -52,12 +54,18 @@ All nineteen configured keys are present. Keys and authorization headers are exc
 
 ## Baseline and monitoring prepared
 
-The baseline contains **36 successful primary answers**, **1,260 Fan Out rows** (1,256 successful / 4 errors), **1,380 existing cost entries**, and **$0.8235966389** recorded lifetime report cost. No Fan Meta titles, icons or run IDs exist. The report uses prompt-configured workers and has metadata enabled.
+The baseline contains **36 successful primary answers**, **1,260 Fan Out rows** (1,256 successful / 4 errors), **1,380 existing cost entries**, and **$0.8235966389** recorded lifetime report cost. At that baseline, no Fan Meta titles, icons or run IDs existed. The report uses prompt-configured workers and has metadata enabled.
 
 Temporary before-state copies and the read-only progress/trace collector are under `/tmp/funny-fanmeta-20260907/`. The temporary log collector and keep-awake monitor were stopped while awaiting approval; the last sample showed zero new calls, zero touched metadata rows, unchanged primary answers and unchanged existing cost records. Planned checks cover completion, worker fallbacks, usable title/icon output, timings, saved trace attribution, accounting, UI/persistence agreement and preservation of original answer fields.
 
 ## Pre-launch source observation
 
-The generic batch work review can show the original report agents instead of the actual Fan Meta worker pool. `runFanMetaBatch` invokes `runThrottledBatch` without an explicit `ReportWorkPlan`; `ReportWorkLimits.savedWorkPlan` falls back to `report.agents` when it finds no evidence prompt for the newly generated Fan Meta run ID. Those original 36 agent configurations differ from this 19-worker pool. This is a source-confirmed review-context issue; the live Fan Meta work-review dialog has not yet been opened. The destination table above was resolved directly from the current saved swarm and provider registry.
+The generic batch work review can show the original report agents instead of the actual Fan Meta worker pool. `runFanMetaBatch` invokes `runThrottledBatch` without an explicit `ReportWorkPlan`; `ReportWorkLimits.savedWorkPlan` falls back to `report.agents` when it finds no evidence prompt for the newly generated Fan Meta run ID. Those original 36 agent configurations differ from this 19-worker pool. This was a source-confirmed review-context issue before launch and was subsequently reproduced in the actual Fan Meta work-review dialog. The destination table above was resolved directly from the current saved swarm and provider registry.
 
-The rejected action was the Fan Meta entry button. Source inspection shows that button initially opens a local “Start Fan Meta job” confirmation. No retry of the rejected action or alternative launch path was used. Explicit approval of the payload, provider scope and charges is required before proceeding.
+The initially rejected action was the Fan Meta entry button, which opens a local “Start Fan Meta job” confirmation. Work stopped at that point until the user explicitly approved the payload, provider scope and charges. After approval, launch proceeded through that confirmation and the standard work review; no alternative launch path or approval bypass was used.
+
+## Completed run
+
+Run `aa426a44-24e5-48d5-9286-71a9dec28775` finished on 7 September 2026 at 14:12:01 Europe/Amsterdam. Exactly the 19 approved origins were selected in the work review and verified in persisted limits. All 1,256 eligible answers received a title and icon. Two empty Together responses were rejected and recovered by fallback, giving 1,258 attempts and $0.105643623 additional recorded cost. Original report/Fan Out answers and the four pre-existing failures were preserved. All new traces matched the approved pool.
+
+The initial no-request sample above is historical. Final counts, UI checks, provider totals, formatting defects and performance evidence are in the [monitoring audit](fan-meta-monitor-2026-09-07.md) and its [structured evidence](fan-meta-monitor-2026-09-07-evidence.json).
