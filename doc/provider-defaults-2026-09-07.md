@@ -1,5 +1,10 @@
 # Provider default repairs — 2026-09-07
 
+The sequential refresh workaround described in this historical record was
+subsequently replaced with parallel workers and fixes for catalog lookup,
+state merging, and persistence. See
+[Parallel refresh verification](parallel-refresh-2026-09-07.md).
+
 The 11 providers that failed after refresh now have replacement defaults that
 returned `OK` through the Android app. The emulator was verified before these
 models were copied into `ai/src/main/assets/providers/` for new installs.

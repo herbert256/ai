@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 
@@ -1509,6 +1512,63 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ===== Model Fetching =====
 
+    /** Compute one provider's derived data outside StateFlow's retryable CAS
+     *  lambda. Only that provider's fetched fields are merged, so concurrent
+     *  keys, overrides, agents and other catalogs are never replaced. */
+    private fun publishFetchedModels(service: AppService, fetched: FetchedModels): ProviderConfig {
+        val computed = _uiState.value.aiSettings.withModels(
+            service, fetched.ids, fetched.types, fetched.visionModels,
+            fetched.capabilities, fetched.rawResponse
+        ).getProvider(service)
+        return _uiState.updateAndGet { state ->
+            val current = state.aiSettings.getProvider(service)
+            val merged = current.copy(
+                models = computed.models,
+                modelTypes = computed.modelTypes,
+                visionModels = current.visionModels + fetched.visionModels,
+                modelCapabilities = computed.modelCapabilities,
+                modelListRawJson = computed.modelListRawJson,
+                visionCapableComputed = computed.visionCapableComputed,
+                webSearchCapableComputed = computed.webSearchCapableComputed,
+                reasoningCapableComputed = computed.reasoningCapableComputed,
+                modelPricing = computed.modelPricing
+            )
+            state.copy(aiSettings = state.aiSettings.withProvider(service, merged))
+        }.aiSettings.getProvider(service)
+    }
+
+    /** After catalog downloads join, refresh derived fields once. A CAS
+     *  retry caused by another provider reuses the computed result. Only a
+     *  change to this provider's inputs requires computing it again. */
+    private suspend fun recomputeRefreshedCapabilities() = coroutineScope {
+        AppService.entries.map { service ->
+            launch(Dispatchers.Default) {
+                while (true) {
+                    val base = _uiState.value.aiSettings
+                    val before = base.getProvider(service)
+                    val computed = base.recomputeCapabilities(service).getProvider(service)
+                    var applied = false
+                    _uiState.update { state ->
+                        val current = state.aiSettings.getProvider(service)
+                        applied = current.models === before.models &&
+                            current.modelCapabilities === before.modelCapabilities &&
+                            state.aiSettings.disabledInfoProviders == base.disabledInfoProviders
+                        if (!applied) state else state.copy(aiSettings = state.aiSettings.withProvider(
+                            service, current.copy(
+                                visionCapableComputed = computed.visionCapableComputed,
+                                webSearchCapableComputed = computed.webSearchCapableComputed,
+                                reasoningCapableComputed = computed.reasoningCapableComputed,
+                                modelPricing = computed.modelPricing
+                            )
+                        ))
+                    }
+                    if (applied) break
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                }
+            }
+        }.forEach { it.join() }
+    }
+
     fun fetchModels(service: AppService, apiKey: String, flipToApiOnSuccess: Boolean = false) {
         viewModelScope.launch { fetchModelsAwait(service, apiKey, flipToApiOnSuccess) }
     }
@@ -1517,7 +1577,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  error message on failure. Used by the provider-activation flow,
      *  which needs to await the result before deciding whether to test
      *  the API key and create the default agent. */
-    suspend fun fetchModelsAwait(service: AppService, apiKey: String, flipToApiOnSuccess: Boolean = false): String? {
+    suspend fun fetchModelsAwait(
+        service: AppService, apiKey: String, flipToApiOnSuccess: Boolean = false,
+        deferCrossProviderTypes: Boolean = false
+    ): String? {
         return withContext(Dispatchers.IO) {
             val startedAt = System.currentTimeMillis()
             _uiState.update { it.copy(
@@ -1541,22 +1604,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (fetched.nativePricing.isNotEmpty()) {
                     com.ai.data.PricingCache.saveTogetherPricing(getApplication(), fetched.nativePricing)
                 }
-                _uiState.update { state ->
-                    val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)
-                    // When the caller asked for an API-source flip
-                    // (per-provider Test button), apply it in the same
-                    // state update so model list + source land atomically.
-                    val withSource = if (flipToApiOnSuccess && fetched.ids.isNotEmpty()) {
-                        if (withSelf.getModelSource(service) != ModelSource.API) {
-                            // Writes through ProviderRegistry.update — Settings is unchanged.
-                            withSelf.withModelSource(service, ModelSource.API)
-                        }
-                        withSelf
-                    } else withSelf
-                    // Fan out-pollinate OpenRouter labels — covers two flows:
-                    //   • non-OpenRouter fetch picks up labels OpenRouter already has cached
-                    //   • OpenRouter fetch propagates fresh labels to every other provider
-                    state.copy(aiSettings = withSource.applyOpenRouterTypes(), loadingModelsFor = state.loadingModelsFor - service)
+                publishFetchedModels(service, fetched)
+                if (flipToApiOnSuccess) {
+                    _uiState.value.aiSettings.withModelSource(service, ModelSource.API)
+                }
+                if (!deferCrossProviderTypes) {
+                    _uiState.update { state -> state.copy(aiSettings = state.aiSettings.applyOpenRouterTypes()) }
                 }
                 val final = _uiState.value.aiSettings
                 val cfgSelf = final.getProvider(service)
@@ -1565,13 +1618,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // timestamp. modelSource was flipped above through
                 // ProviderRegistry.update (which auto-persists to its
                 // own prefs), so no settings flush needed here.
-                if (service.crossProviderModelList) {
+                if (service.crossProviderModelList && !deferCrossProviderTypes) {
                     // Persist the freshly fan out-applied labels for every other provider.
                     AppService.entries.filter { it.id != service.id }.forEach { other ->
                         val cfg = final.getProvider(other)
                         if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(other, cfg.models, cfg.modelTypes, cfg.visionModels, cfg.modelCapabilities)
                     }
                 }
+                _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor - service) }
+                AppLog.d("RefreshAll", "${service.id}: ${cfgSelf.models.size} models fetched and merged in ${System.currentTimeMillis() - startedAt}ms")
                 null
             } catch (e: kotlinx.coroutines.CancellationException) {
                 _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor - service) }
@@ -1693,14 +1748,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             // pricing / capability lookups (see
                             // ModelListCache).
                             ModelListCache.save(getApplication(), service, fetched.rawResponse)
-                            // Use updateAndGet so the provider config we
-                            // persist comes from the exact post-update
-                            // snapshot this lambda produced, not a later
-                            // _uiState.value that a concurrent provider's
-                            // update may have replaced (Bug 54).
-                            val updated = _uiState.updateAndGet { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)) }
+                            // Publish only this provider's fields; expensive
+                            // capability computation is outside CAS retries.
+                            if (fetched.nativePricing.isNotEmpty()) {
+                                PricingCache.saveTogetherPricing(getApplication(), fetched.nativePricing)
+                            }
+                            val cfg = publishFetchedModels(service, fetched)
                             // Persist with the freshly-merged visionModels (auto + user override), capability map, and raw response snapshot.
-                            val cfg = updated.aiSettings.getProvider(service)
                             settingsPrefs.saveModelsForProvider(service, cfg.models, cfg.modelTypes, cfg.visionModels, cfg.modelCapabilities, cfg.modelListRawJson, refreshedFromApi = true)
                             service to fetched.ids.size
                         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -1819,10 +1873,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val wrkJob = launch { runWorkerPhase(testable) }
                     catJob.join(); wrkJob.join()
                 }
-                // Parallel full-settings saves can finish out of order.
-                // Persist the merged result after every writer has joined,
-                // before the UI offers a restart, so no default agent or
-                // refreshed model list is lost to an older snapshot.
+                recomputeRefreshedCapabilities()
+                _uiState.update { it.copy(aiSettings = it.aiSettings.applyOpenRouterTypes()) }
+                // All downloads, merges and worker checkpoints have joined.
+                // One full snapshot now contains every provider's result.
                 settingsPrefs.saveSettings(_uiState.value.aiSettings)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -1877,6 +1931,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     settingsPrefs.saveSettings(cleaned)
                 }
                 runWorkerPhase(testable)
+                _uiState.update { it.copy(aiSettings = it.aiSettings.applyOpenRouterTypes()) }
                 // Persist the complete worker result before offering restart.
                 settingsPrefs.saveSettings(_uiState.value.aiSettings)
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -2055,80 +2110,102 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             jobs.awaitAll()
         }
-        // Catalog answers may have shifted — refresh the precomputed
-        // vision / web-search sets so list renders pick up the new state.
-        _uiState.update { it.copy(aiSettings = it.aiSettings.recomputeAllCapabilities()) }
-        settingsPrefs.saveSettings(_uiState.value.aiSettings)
+        // The caller recomputes once after provider downloads also join.
+        // Saving here would race with providers still publishing their lists.
     }
 
-    /** Fetch each provider's model list, test its default, then create its
-     *  agent and flock membership. Each worker merges expensive metadata
-     *  into the same Settings value. Running them sequentially avoids CAS
-     *  retries that repeatedly rebuild whole catalogs and starve large ones. */
-    private suspend fun runWorkerPhase(testable: List<AppService>) {
-        for (service in testable) {
-            val snapshot = _uiState.value.aiSettings
-            val apiKey = snapshot.getApiKey(service)
-            val model = snapshot.getModel(service)
+    private val workerCheckpointMutex = Mutex()
 
-            // Discovery must run even when the saved default has been
-            // retired. Keep its outcome separate from the model probe:
-            // neither result proves the other endpoint works.
-            if (resolveModelSource(service) == ModelSource.API) {
-                setWorkerStage(service.id, WorkerStage.FetchingModels)
-                setWorkerModelListStatus(service.id, RefreshStepStatus.Running())
-                val fetchError = fetchModelsAwait(service, apiKey, flipToApiOnSuccess = false)
-                setWorkerModelListStatus(service.id, if (fetchError == null) {
-                    RefreshStepStatus.Done("${_uiState.value.aiSettings.getProvider(service).models.size} models refreshed")
-                } else {
-                    RefreshStepStatus.Failed(fetchError)
-                })
-            } else {
-                setWorkerModelListStatus(service.id, RefreshStepStatus.Skipped)
-            }
+    private suspend fun saveWorkerCheckpoint() = workerCheckpointMutex.withLock {
+        // Read inside the lock so a late writer cannot save an old snapshot.
+        // This tiny checkpoint never serializes provider catalogs.
+        settingsPrefs.saveProviderWorkers(_uiState.value.aiSettings)
+    }
 
-            setWorkerStage(service.id, WorkerStage.TestingModel)
-            val testError = if (model.isBlank()) "No default model selected" else testAiModel(service, apiKey, model)
-            val passed = testError == null
-            updateProviderState(service, if (passed) "ok" else "error")
-            if (!passed) {
-                setWorkerStage(service.id, WorkerStage.Failed("Default model '$model': $testError"))
-                continue
-            }
+    /** Providers download, process and test independently in parallel.
+     *  Expensive catalog computation stays outside shared-state CAS loops;
+     *  only the small worker checkpoints share a persistence lock. */
+    private suspend fun runWorkerPhase(testable: List<AppService>) = coroutineScope {
+        val startedAt = System.currentTimeMillis()
+        AppLog.d("RefreshAll", "Starting ${testable.size} provider workers in parallel")
+        testable.map { service ->
+            launch(Dispatchers.IO) {
+                try {
+                    val snapshot = _uiState.value.aiSettings
+                    val apiKey = snapshot.getApiKey(service)
+                    val model = snapshot.getModel(service)
 
-            setWorkerStage(service.id, WorkerStage.WritingAgent)
-            val currentModel = _uiState.value.aiSettings.getModel(service)
-            val agentId = java.util.UUID.randomUUID().toString()
-            val newAgent = com.ai.model.Agent(agentId, service.id, service, currentModel, "")
-            _uiState.update { st ->
-                val cur = st.aiSettings
-                val withAgent = cur.copy(agents = cur.agents + newAgent)
-                val flocks = withAgent.flocks
-                val existing = flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
-                val withFlock = if (existing != null) {
-                    withAgent.copy(flocks = flocks.map {
-                        if (it.id == existing.id) it.copy(agentIds = it.agentIds + agentId) else it
-                    })
-                } else {
-                    val flock = com.ai.model.Flock(
-                        java.util.UUID.randomUUID().toString(),
-                        com.ai.model.DEFAULT_AGENTS_FLOCK_NAME,
-                        listOf(agentId)
-                    )
-                    withAgent.copy(flocks = withAgent.flocks + flock)
+                    // Discovery must run even when the saved default has been
+                    // retired. Keep its outcome separate from the model probe:
+                    // neither result proves the other endpoint works.
+                    if (resolveModelSource(service) == ModelSource.API) {
+                        setWorkerStage(service.id, WorkerStage.FetchingModels)
+                        setWorkerModelListStatus(service.id, RefreshStepStatus.Running())
+                        val fetchError = fetchModelsAwait(service, apiKey, deferCrossProviderTypes = true)
+                        setWorkerModelListStatus(service.id, if (fetchError == null) {
+                            RefreshStepStatus.Done("${_uiState.value.aiSettings.getProvider(service).models.size} models refreshed")
+                        } else {
+                            RefreshStepStatus.Failed(fetchError)
+                        })
+                    } else {
+                        setWorkerModelListStatus(service.id, RefreshStepStatus.Skipped)
+                    }
+
+                    setWorkerStage(service.id, WorkerStage.TestingModel)
+                    val testError = if (model.isBlank()) "No default model selected" else
+                        testAiModel(service, apiKey, model, retryServiceUnavailable = true)
+                    val passed = testError == null
+                    _uiState.update { it.copy(aiSettings = it.aiSettings.withProviderState(service, if (passed) "ok" else "error")) }
+                    if (!passed) {
+                        saveWorkerCheckpoint()
+                        setWorkerStage(service.id, WorkerStage.Failed("Default model '$model': $testError"))
+                        return@launch
+                    }
+
+                    setWorkerStage(service.id, WorkerStage.WritingAgent)
+                    val currentModel = _uiState.value.aiSettings.getModel(service)
+                    val agentId = java.util.UUID.randomUUID().toString()
+                    val newAgent = com.ai.model.Agent(agentId, service.id, service, currentModel, "")
+                    _uiState.update { st ->
+                        val cur = st.aiSettings
+                        val withAgent = cur.copy(agents = cur.agents + newAgent)
+                        val flocks = withAgent.flocks
+                        val existing = flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
+                        val withFlock = if (existing != null) {
+                            withAgent.copy(flocks = flocks.map {
+                                if (it.id == existing.id) it.copy(agentIds = it.agentIds + agentId) else it
+                            })
+                        } else {
+                            val flock = com.ai.model.Flock(
+                                java.util.UUID.randomUUID().toString(),
+                                com.ai.model.DEFAULT_AGENTS_FLOCK_NAME,
+                                listOf(agentId)
+                            )
+                            withAgent.copy(flocks = withAgent.flocks + flock)
+                        }
+                        st.copy(aiSettings = withFlock)
+                    }
+                    saveWorkerCheckpoint()
+                    setWorkerStage(service.id, WorkerStage.Done)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    AppLog.w("RefreshAll", "${service.id}: worker failed: ${e.message}")
+                    setWorkerStage(service.id, WorkerStage.Failed(e.message ?: e.javaClass.simpleName))
                 }
-                st.copy(aiSettings = withFlock)
             }
-            settingsPrefs.saveSettings(_uiState.value.aiSettings)
-            setWorkerStage(service.id, WorkerStage.Done)
-        }
+        }.forEach { it.join() }
+        AppLog.d("RefreshAll", "Provider workers joined in ${System.currentTimeMillis() - startedAt}ms")
     }
 
     // ===== Model Testing =====
 
-    suspend fun testAiModel(service: AppService, apiKey: String, model: String): String? {
+    suspend fun testAiModel(
+        service: AppService, apiKey: String, model: String,
+        retryServiceUnavailable: Boolean = false
+    ): String? {
         return try {
-            val result = repository.testModel(service, apiKey, model)
+            val result = repository.testModel(service, apiKey, model, retryServiceUnavailable)
             if (result == null) settingsPrefs.updateUsageStatsAsync(service, model, 10, 2, 12)
             result
         } catch (e: kotlinx.coroutines.CancellationException) {

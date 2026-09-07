@@ -159,23 +159,6 @@ object PricingCache {
     @Volatile private var aaTimestamp: Long = 0
     @Volatile private var preloadCompleted = false
 
-    // Per-(provider, model) memoization for the LiteLLM / models.dev meta
-    // lookups. findLiteLLMMeta and findModelsDevMeta otherwise do two full
-    // ~1k-entry scans per call (findBestPrefixedMatch + findLatestAliasKey),
-    // which dominated render time on screens that show many model rows
-    // (each row asks for vision + web-search badges, so 4 scans per row).
-    // Cleared whenever the underlying catalog map is reassigned. The
-    // sentinel encodes "looked up, found nothing" — without it a missing
-    // entry would re-scan on every call.
-    private val litellmMetaLookupCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
-    private val modelsDevMetaLookupCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
-    // Same memoization for the per-row pricing lookup. The catalog
-    // contains ~1k entries and getPricing is called from every row of
-    // every cost table / model picker; without this, scrolling a long
-    // list runs findBestPrefixedMatch O(rows × catalogSize) times.
-    private val litellmPricingLookupCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
-    private val MISSING_META: Any = Any()
-
     data class ModelPricing(
         val modelId: String,
         val promptPrice: Double,
@@ -528,6 +511,62 @@ object PricingCache {
      *  Normalize both sides to lowercase-dash for matching. */
     private fun normalizeModelId(s: String): String = s.replace('.', '-').lowercase()
 
+    private data class CatalogKey(val key: String, val normalized: String, val order: Int)
+
+    /** Catalogs are published as immutable map snapshots. Index their keys
+     *  once, instead of normalizing/scanning every catalog for every model
+     *  on each parallel provider refresh. First-in-map tie breaking is kept.
+     *  Weak identity avoids stale lookups after a reload and does not retain
+     *  the old pricing/capability values. The key indexes are bounded too. */
+    private class CatalogIndex(map: Map<String, *>) {
+        val source = java.lang.ref.WeakReference(map)
+        val exact = HashMap<String, CatalogKey>()
+        val suffix = HashMap<String, CatalogKey>()
+        val tails = HashMap<String, CatalogKey>()
+
+        init {
+            map.keys.forEachIndexed { order, key ->
+                val normalized = normalizeModelId(key)
+                val entry = CatalogKey(key, normalized, order)
+                exact.putIfAbsent(normalized, entry)
+                var slash = normalized.indexOf('/')
+                while (slash >= 0) {
+                    suffix.putIfAbsent(normalized.substring(slash + 1), entry)
+                    slash = normalized.indexOf('/', slash + 1)
+                }
+                val tail = normalized.substringAfterLast('/').substringBefore(':').substringBefore('@')
+                tails.putIfAbsent(tail, entry)
+            }
+        }
+
+        fun bare(target: String, selfPrefix: String): CatalogKey? {
+            var best: CatalogKey? = null
+            fun consider(tail: String) {
+                val entry = tails[tail] ?: return
+                if (bareModelKey(entry.normalized, selfPrefix) == target &&
+                    (best == null || entry.order < best!!.order)) best = entry
+            }
+            // bareModelKey strips an optional self prefix and at most one
+            // quantization suffix. Enumerating those tails preserves that
+            // exact behavior, including names that themselves end in fp8.
+            for (base in listOf(target, selfPrefix + target)) {
+                consider(base)
+                for (quant in QUANT_SUFFIXES) consider("$base-$quant")
+            }
+            return best
+        }
+    }
+
+    private val catalogIndexLock = Any()
+    private val catalogIndexes = mutableListOf<CatalogIndex>()
+
+    private fun catalogIndex(map: Map<String, *>): CatalogIndex = synchronized(catalogIndexLock) {
+        catalogIndexes.firstOrNull { it.source.get() === map }?.let { return@synchronized it }
+        catalogIndexes.removeAll { it.source.get() == null }
+        if (catalogIndexes.size >= 48) catalogIndexes.removeAt(0)
+        CatalogIndex(map).also { catalogIndexes.add(it) }
+    }
+
     /** Resolve a `-latest` rolling alias to the catalog's most recent dated
      *  snapshot. Strips the `-latest` suffix, finds every key whose
      *  remainder after the stripped base is a supported date-like token,
@@ -618,22 +657,15 @@ object PricingCache {
     /** Look up the LiteLLM capability sidecar for (provider, model) using
      *  the same dash/dot normalization the pricing lookup uses. Returns
      *  null when LiteLLM hasn't loaded yet OR the model isn't cataloged.
-     *  Memoized per (provider, model); the cache is cleared when the
-     *  underlying catalog reloads. */
+     *  Normalized keys are indexed per immutable catalog snapshot, so
+     *  concurrent catalog reloads cannot repopulate stale lookup caches. */
     private fun findLiteLLMMeta(provider: AppService, model: String): LiteLLMMeta? {
         if (!isInfoProviderEnabled(InfoProvider.LITELLM)) return null
         val meta = litellmMeta ?: return null
-        val cacheKey = "${provider.id}|$model"
-        val cached = litellmMetaLookupCache[cacheKey]
-        if (cached != null) {
-            @Suppress("UNCHECKED_CAST")
-            return if (cached === MISSING_META) null else cached as LiteLLMMeta
-        }
         val resolved = meta[model]
             ?: provider.litellmPrefix?.let { prefix -> meta["$prefix/$model"] }
             ?: findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
             ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
-        litellmMetaLookupCache[cacheKey] = resolved ?: MISSING_META
         return resolved
     }
 
@@ -690,17 +722,11 @@ object PricingCache {
     private fun findLiteLLMPricing(provider: AppService, model: String): ModelPricing? {
         if (!isInfoProviderEnabled(InfoProvider.LITELLM)) return null
         val pricing = litellmPricing ?: return null
-        val cacheKey = "${provider.id}|$model"
-        val cached = litellmPricingLookupCache[cacheKey]
-        if (cached != null) {
-            return if (cached === MISSING_META) null else cached as ModelPricing
-        }
         // Exact-key fast path, then prefix variants, then prefix-aware scan.
         val resolved = pricing[model]
             ?: provider.litellmPrefix?.let { prefix -> pricing["$prefix/$model"] }
             ?: findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
             ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { pricing[it] }
-        litellmPricingLookupCache[cacheKey] = resolved ?: MISSING_META
         return resolved
     }
 
@@ -758,23 +784,13 @@ object PricingCache {
         // the id actually had a prefix/suffix to strip and the remainder is
         // distinctive enough to not collide on a trivial token.
         val useBare = bareTarget != target && bareTarget.length > 2
-        @Suppress("UNCHECKED_CAST")
-        val buckets = arrayOfNulls<Any>(5) as Array<V?>
-        for ((key, value) in map) {
-            val k = normalizeModelId(key)
-            val priority = when {
-                k == target -> 0
-                targetDeclared != null && k == targetDeclared -> 1
-                k == targetId -> 2
-                k.endsWith("/$target") -> 3
-                useBare && bareModelKey(k, selfPrefix) == bareTarget -> 4
-                else -> -1
-            }
-            if (priority < 0) continue
-            if (priority == 0) return value // bare match is unique
-            if (buckets[priority] == null) buckets[priority] = value
-        }
-        return buckets.firstOrNull { it != null }
+        val index = catalogIndex(map)
+        val match = index.exact[target]
+            ?: targetDeclared?.let { index.exact[it] }
+            ?: index.exact[targetId]
+            ?: index.suffix[target]
+            ?: if (useBare) index.bare(bareTarget, selfPrefix) else null
+        return match?.let { map[it.key] }
     }
 
     fun getAllPricing(context: Context): Map<String, ModelPricing> {
@@ -992,8 +1008,7 @@ object PricingCache {
             synchronized(lock) {
                 litellmPricing = pricing
                 litellmMeta = meta
-                litellmMetaLookupCache.clear()
-                litellmPricingLookupCache.clear()
+
                 litellmTimestamp = System.currentTimeMillis()
                 saveBlob(context, KEY_LITELLM_PRICING, gson.toJson(pricing))
                 saveBlob(context, KEY_LITELLM_META, gson.toJson(meta))
@@ -1032,7 +1047,7 @@ object PricingCache {
             synchronized(lock) {
                 modelsDevPricing = pricing
                 modelsDevMeta = meta
-                modelsDevMetaLookupCache.clear()
+
                 modelsDevTimestamp = System.currentTimeMillis()
                 saveBlob(context, KEY_MODELS_DEV_PRICING, gson.toJson(pricing))
                 saveBlob(context, KEY_MODELS_DEV_META, gson.toJson(meta))
@@ -1063,16 +1078,9 @@ object PricingCache {
     private fun findModelsDevMeta(provider: AppService, model: String): ModelsDevMeta? {
         if (!isInfoProviderEnabled(InfoProvider.MODELS_DEV)) return null
         val meta = modelsDevMeta ?: return null
-        val cacheKey = "${provider.id}|$model"
-        val cached = modelsDevMetaLookupCache[cacheKey]
-        if (cached != null) {
-            @Suppress("UNCHECKED_CAST")
-            return if (cached === MISSING_META) null else cached as ModelsDevMeta
-        }
         val resolved = meta[model]
             ?: findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
             ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
-        modelsDevMetaLookupCache[cacheKey] = resolved ?: MISSING_META
         return resolved
     }
 
@@ -1277,7 +1285,6 @@ object PricingCache {
         "amazon", "anthropic", "deepseek", "google", "minimax",
         "mistral", "moonshot-ai", "openai", "qwen", "xai"
     )
-
 
     suspend fun fetchLLMPricesOnline(context: Context): Int? = withTraceCategory("pricing/llm-prices") {
       withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1810,7 +1817,7 @@ object PricingCache {
                     append("https://ai.cloudprice.net/api/v1/models?page_size=100")
                     token?.let { append("&next_token="); append(java.net.URLEncoder.encode(it, "UTF-8")) }
                 }
-                val json = ApiFactory.fetchUrlAsString(url)
+                val json = ApiFactory.fetchCatalogPage(url)
                 check(!json.isNullOrBlank()) {
                     "CloudPrice download incomplete at page ${pages + 1}; previous cache retained"
                 }
@@ -1973,7 +1980,7 @@ object PricingCache {
                 catch (_: Exception) {}
             }
             if (litellmPricing == null) litellmPricing = emptyMap()
-            litellmPricingLookupCache.clear()
+
         }
         if (litellmMeta == null) {
             loadBlob(context, KEY_LITELLM_META)?.let { json ->
@@ -1983,7 +1990,7 @@ object PricingCache {
                 } catch (_: Exception) {}
             }
             if (litellmMeta == null) litellmMeta = emptyMap()
-            litellmMetaLookupCache.clear()
+
         }
         // models.dev: no bundled asset (network only). Both maps live in
         // filesDir/pricing/, repopulate from there if present. The user's
@@ -2007,7 +2014,7 @@ object PricingCache {
             // failing assets.open() per call while scrolling a list.
             if (modelsDevPricing == null) modelsDevPricing = emptyMap()
             if (modelsDevMeta == null) modelsDevMeta = emptyMap()
-            modelsDevMetaLookupCache.clear()
+
         }
         // Helicone — exact map plus pattern list. Both are network-only
         // (no bundled asset); empty until the user runs the refresh.
@@ -2394,10 +2401,8 @@ object PricingCache {
         blobKeys.forEach { try { blobFile(context, it).delete() } catch (_: Exception) {} }
         getPrefs(context).edit { blobKeys.forEach { remove(it) }; tsKey?.let { remove(it) } }
         when (source) {
-            "LiteLLM" -> { litellmPricing = null; litellmMeta = null; litellmTimestamp = 0
-                litellmMetaLookupCache.clear(); litellmPricingLookupCache.clear() }
-            "models.dev" -> { modelsDevPricing = null; modelsDevMeta = null; modelsDevTimestamp = 0
-                modelsDevMetaLookupCache.clear() }
+            "LiteLLM" -> { litellmPricing = null; litellmMeta = null; litellmTimestamp = 0 }
+            "models.dev" -> { modelsDevPricing = null; modelsDevMeta = null; modelsDevTimestamp = 0 }
             "llm-prices" -> { llmPricesPricing = null; llmPricesTimestamp = 0 }
             "Artificial Analysis" -> { aaPricing = null; aaMeta = null; aaTimestamp = 0 }
             "OpenRouter" -> { openRouterPricing = null; openRouterTimestamp = 0 }
@@ -2462,9 +2467,7 @@ object PricingCache {
         genaiPricesPricing = null; genaiPricesMeta = null; genaiPricesTimestamp = 0
         trueFoundryPricing = null; trueFoundryMeta = null; trueFoundryTimestamp = 0
         cloudPriceMeta = null; cloudPriceTimestamp = 0
-        litellmMetaLookupCache.clear()
-        modelsDevMetaLookupCache.clear()
-        litellmPricingLookupCache.clear()
+
         supportedParametersCache = null
         // preloadCompleted intentionally kept true — manual + together
         // tiers are still loaded; only the eleven Info-provider tiers were
@@ -2527,9 +2530,7 @@ object PricingCache {
         trueFoundryTimestamp = 0
         cloudPriceTimestamp = 0
         preloadCompleted = false
-        litellmMetaLookupCache.clear()
-        modelsDevMetaLookupCache.clear()
-        litellmPricingLookupCache.clear()
+
         supportedParametersCache = null
     }
 }

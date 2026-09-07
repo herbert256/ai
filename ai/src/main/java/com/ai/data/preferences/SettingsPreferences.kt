@@ -441,6 +441,16 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
+    /** Refresh checkpoints must not rewrite unrelated model catalogs from
+     *  an older snapshot while other providers are still downloading. */
+    fun saveProviderWorkers(settings: Settings) {
+        prefs.edit {
+            putString(KEY_AI_AGENTS, gson.toJson(scrubAgentApiKeys(settings.agents)))
+            putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
+            putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
+        }
+    }
+
     fun saveModelsForProvider(
         service: AppService, models: List<String>, types: Map<String, String> = emptyMap(),
         visionModels: Set<String>? = null,

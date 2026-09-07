@@ -14,6 +14,7 @@ import retrofit2.http.Streaming
 import retrofit2.http.Url
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.ensureActive
 
 // ============================================================================
 // Retrofit API interfaces
@@ -351,6 +352,36 @@ object ApiFactory {
             // Leave a breadcrumb (Bug 67): the blanket swallow previously
             // stored a null raw snapshot with no clue why.
             AppLog.w("ApiClient", "fetchUrlAsString failed for $url: ${e.message}")
+            null
+        }
+    }
+
+    /** Required catalog pages must survive a short upstream rate limit.
+     *  Unlike optional raw model-list sidecars, retry 429/503 twice, honoring
+     *  Retry-After. Close the response and release its network permits before
+     *  suspending, so other providers continue throughout the backoff. */
+    suspend fun fetchCatalogPage(url: String): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val request = okhttp3.Request.Builder().url(url).get().build().withCapturedOkHttpCallContext()
+        try {
+            for (attempt in 0..2) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                val retryDelay = rawFetchClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) return@withContext response.body.string()
+                    if (response.code !in setOf(429, 503) || attempt == 2) {
+                        AppLog.w("ApiClient", "Catalog page failed: HTTP ${response.code} on ${request.url.host}")
+                        return@withContext null
+                    }
+                    resolveRetryAfter(response, 1_000L shl attempt, request.url.host).also {
+                        AppLog.w("ApiClient", "Catalog page HTTP ${response.code} on ${request.url.host}; retry ${attempt + 1}/2 in ${it}ms")
+                    }
+                }
+                kotlinx.coroutines.delay(retryDelay)
+            }
+            null
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.w("ApiClient", "Catalog page failed on ${request.url.host}: ${e.message}")
             null
         }
     }

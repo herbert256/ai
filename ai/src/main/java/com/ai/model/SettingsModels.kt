@@ -714,7 +714,9 @@ data class Settings(
                 if (current == com.ai.data.ModelType.CHAT && orKind != null && orKind != com.ai.data.ModelType.CHAT) orKind else current
             }
             if (newTypes != cfg.modelTypes) {
-                updated = updated.withModels(service, cfg.models, newTypes)
+                // Only labels changed. Capability/pricing snapshots depend
+                // on model IDs and native capabilities, not these labels.
+                updated = updated.withProvider(service, cfg.copy(modelTypes = newTypes))
             }
         }
         return updated

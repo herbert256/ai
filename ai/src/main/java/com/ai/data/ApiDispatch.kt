@@ -851,17 +851,30 @@ private suspend fun AnalysisRepository.chatGeminiResponse(
 // Model fetching implementations
 // ============================================================================
 
-suspend fun AnalysisRepository.testModel(service: AppService, apiKey: String, model: String): String? = withContext(Dispatchers.IO) {
+suspend fun AnalysisRepository.testModel(
+    service: AppService, apiKey: String, model: String,
+    retryServiceUnavailable: Boolean = false
+): String? = withContext(Dispatchers.IO) {
     withTraceCategory("Provider test") {
         try {
             // Reachability probe — only needs "OK" back, so cap tiny rather
             // than inheriting defaultMaxTokens (the model's full output window,
             // which overflows input+output context limits → OpenRouter 400 /
             // Together 422, and balance-pre-auths expensive models).
-            val response = analyze(
+            suspend fun probe() = analyze(
                 service, apiKey, AnalysisRepository.TEST_PROMPT, model,
                 params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
             )
+            var response = probe()
+            // Refresh must not disable a working provider after one explicit
+            // overload response. Retry only this worker, once; auth/model
+            // errors and other test workflows retain their existing policy.
+            if (retryServiceUnavailable && response.httpStatusCode == 503) {
+                val waitMs = retryAfterFromHeaderBlock(response.httpHeaders) ?: 1_000L
+                AppLog.w("RefreshAll", "${service.id}: default-model probe overloaded; retrying once in ${waitMs}ms")
+                kotlinx.coroutines.delay(waitMs)
+                response = probe()
+            }
             if (response.isSuccess) null else response.error ?: "Unknown error"
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
