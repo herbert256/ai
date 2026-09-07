@@ -11,15 +11,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import okhttp3.Interceptor
 import okhttp3.Response
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 data class ReportRecipient(val label: String, val endpoint: String)
 data class ReportWorkPlan(val jobs: List<String> = emptyList(), val recipients: List<ReportRecipient> = emptyList(),
     val instructions: List<String> = emptyList(), val primaryLaunch: Boolean = false)
 data class ReportWorkDecision(val answersOnly: Boolean = false)
 data class ReportWorkReview(val id: String, val reportId: String, val label: String, val items: Int,
-    val plan: ReportWorkPlan = ReportWorkPlan(), val allowedOrigins: Set<String>? = null)
-private data class SavedReportLimit(val requestsLeft: Int, val stopAtCost: Double?, val allowedOrigins: Set<String>? = null)
+    val plan: ReportWorkPlan = ReportWorkPlan())
+private data class SavedReportLimit(val requestsLeft: Int, val stopAtCost: Double?)
 
 /** Shared, explicit request ceiling for all report HTTP traffic, including
  * fallback attempts and metadata. The spend stop uses acknowledged costs;
@@ -40,12 +39,10 @@ object ReportWorkLimits {
         reviewedReport.asContextElement(reviewedReport.get().takeIf { it == reportId })
     fun init(context: Context) { synchronized(lock) { root = context.filesDir; appContext = context.applicationContext } }
     fun checkSize(size: Int) { require(size in 0..MAX_ITEMS) { "This operation has $size items. Limit is $MAX_ITEMS; reduce participants or scope." } }
-    fun origin(endpoint: String): String? = endpoint.toHttpUrlOrNull()?.let { "${it.scheme}://${it.host}:${it.port}" }
     suspend fun review(reportId: String, label: String, items: Int, plan: ReportWorkPlan = ReportWorkPlan()): ReportWorkDecision {
         checkSize(items)
         if (items == 0 || reviewedReport.get() == reportId) return ReportWorkDecision()
-        val previousOrigins = synchronized(lock) { root?.let { runCatching { readLimit(limitFile(it,reportId)).allowedOrigins }.getOrElse { emptySet() } } }
-        val review = ReportWorkReview(UUID.randomUUID().toString(),reportId,label,items,if(plan==ReportWorkPlan()) savedWorkPlan(reportId) else plan,previousOrigins)
+        val review = ReportWorkReview(UUID.randomUUID().toString(),reportId,label,items,if(plan==ReportWorkPlan()) savedWorkPlan(reportId) else plan)
         val waiter = CompletableDeferred<ReportWorkDecision?>()
         waiters[review.id] = waiter
         pending.update { it + review }
@@ -73,7 +70,7 @@ object ReportWorkLimits {
             "${it.provider}/${it.model}: ${it.frozenParameters}"
         } })
     fun approve(review: ReportWorkReview, requests: Int, additionalSpend: Double?,
-                answersOnly: Boolean = false, allowedOrigins: Set<String>? = review.allowedOrigins) {
+                answersOnly: Boolean = false) {
         require(requests in 1..MAX_ITEMS)
         require(additionalSpend == null || (additionalSpend.isFinite() && additionalSpend > 0))
         val files = synchronized(lock) { root } ?: throw IOException("Report limits are not initialized")
@@ -83,8 +80,7 @@ object ReportWorkLimits {
             require(cost.isFinite() && (additionalSpend == null || (additionalSpend + cost).isFinite())) { "Invalid report spend total" }
             val file = limitFile(files, review.reportId)
             file.parentFile?.mkdirs()
-            require(allowedOrigins == null || allowedOrigins.isNotEmpty()) { "Choose at least one recipient endpoint" }
-            if (!file.writeTextAtomic(gson.toJson(SavedReportLimit(requests, additionalSpend?.plus(cost), allowedOrigins))))
+            if (!file.writeTextAtomic(gson.toJson(SavedReportLimit(requests, additionalSpend?.plus(cost)))))
                 throw IOException("Could not save work limits")
             waiter.complete(ReportWorkDecision(answersOnly))
         }
@@ -108,13 +104,11 @@ object ReportWorkLimits {
             require(it.isJsonPrimitive && it.asJsonPrimitive.isNumber)
             it.asDouble.also { value -> require(value.isFinite() && value >= 0) }
         }
-        val allowed = json.get("allowedOrigins")?.takeUnless { it.isJsonNull }?.let { array ->
-            require(array.isJsonArray)
-            array.asJsonArray.map { node -> require(node.isJsonPrimitive && node.asJsonPrimitive.isString);node.asString.also { require(origin(it)==it) } }.toSet()
-        }
-        return SavedReportLimit(requests, spend, allowed)
+        // Obsolete settings in older files have no effect and are dropped
+        // when the request/spend limits are next saved.
+        return SavedReportLimit(requests, spend)
     }
-    fun reserveRequest(reportId: String?, endpoint: String? = null) {
+    fun reserveRequest(reportId: String?) {
         if (reportId == null) return
         val files = synchronized(lock) { root } ?: return
         try {
@@ -127,8 +121,6 @@ object ReportWorkLimits {
                 val reserved = synchronized(lock) {
                     val limit = readLimit(file)
                     if (limit != before) return@synchronized false
-                    if (limit.allowedOrigins != null && (endpoint == null || origin(endpoint) !in limit.allowedOrigins))
-                        throw IOException("Recipient endpoint is outside this report's approved providers. Review recipients before continuing.")
                     if (limit.requestsLeft <= 0) throw IOException("Report request limit reached. Start a new operation and review its work limit.")
                     if (limit.stopAtCost != null && (!currentCost.isFinite() || currentCost >= limit.stopAtCost))
                         throw IOException("Report spend stop reached. Review the limit before continuing.")
@@ -149,7 +141,7 @@ object ReportWorkLimits {
 }
 class ReportWorkLimitInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        ReportWorkLimits.reserveRequest(ApiTracer.currentReportId, chain.request().url.toString())
+        ReportWorkLimits.reserveRequest(ApiTracer.currentReportId)
         return chain.proceed(chain.request())
     }
 }
