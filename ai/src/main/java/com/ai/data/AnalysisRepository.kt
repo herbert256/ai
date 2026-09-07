@@ -105,6 +105,23 @@ class AnalysisRepository {
          *  in-OkHttp 429 loop has exhausted itself. */
         internal val PERMANENT_CLIENT_ERROR_CODES: Set<Int> =
             (400..499).toSet() - setOf(408, 425, 429)
+
+        /** Only a stream-specific rejection can be fixed by removing stream
+         *  fields. Auth, model, context and other deterministic client errors
+         *  must reach the report unchanged instead of triggering another call. */
+        internal fun shouldFallbackFromReportStream(response: AnalysisResponse): Boolean {
+            if (response.httpStatusCode !in PERMANENT_CLIENT_ERROR_CODES) return true
+            if (response.httpStatusCode != 400 && response.httpStatusCode != 422) return false
+            val error = response.error.orEmpty().lowercase()
+            val streamField = Regex("\\b(stream|streaming|stream_options|include_usage)\\b").containsMatchIn(error)
+            val rejected = listOf("unsupported", "not supported", "does not support", "unknown", "unrecognized",
+                "unexpected", "not permitted", "not allowed", "extra", "invalid", "must be false")
+                .any { it in error }
+            val tokenLimit = listOf("context length", "context_length", "context window", "context_window",
+                "max_tokens", "max_new_tokens", "max_completion_tokens", "max_output_tokens", "token limit", "token count")
+                .any { it in error }
+            return streamField && rejected && !tokenLimit
+        }
     }
 
     internal val gson = createAppGson(prettyPrint = true)
@@ -391,8 +408,9 @@ class AnalysisRepository {
      * Falls back to [analyzeWithAgent] (the authoritative path) for cases
      * streaming can't safely cover — LOCAL, missing key, a web-search-tool
      * agent (so citations + tool-fallback survive), or a model LiteLLM marks
-     * non-streamable — and on any stream error / empty body. So nothing
-     * regresses and there's no systematic double-billing. When a provider
+     * non-streamable — and on transient errors, empty bodies or an explicit
+     * stream-field rejection. Permanent client errors are returned directly;
+     * a failed fallback retains both diagnostics. When a provider
      * streams text but reports no usage, the streamed text is kept and tokens
      * are estimated (as chat already does) rather than re-billing the call.
      *
@@ -439,31 +457,43 @@ class AnalysisRepository {
             params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))
         }
         val effectiveBaseUrl = baseUrl ?: agent.provider.baseUrl
-        try {
-            val resp = analyzeAgentStreaming(
+        val resp = try {
+            analyzeAgentStreaming(
                 agent.provider, agent.apiKey, finalPrompt, agent.model, params,
                 effectiveBaseUrl, imageBase64, imageMime, onDelta
             )
-            when {
-                // Streamed OK with real usage → exact result + cost, single call.
-                resp.isSuccess && resp.tokenUsage.let { it != null && (it.inputTokens > 0 || it.outputTokens > 0) } ->
-                    resp.copy(agentName = agent.name, promptUsed = finalPrompt)
-                // Streamed OK but provider reported no usage → keep the text,
-                // estimate tokens (~4 chars/token) so a usable answer is never
-                // re-billed by falling back.
-                resp.isSuccess -> resp.copy(
-                    tokenUsage = TokenUsage((finalPrompt.length + 3 + (params.systemPrompt?.length ?: 0)) / 4, ((resp.analysis ?: "").length + 3) / 4, estimated = true),
-                    agentName = agent.name, promptUsed = finalPrompt
-                )
-                // Stream failed / empty → authoritative non-streaming call.
-                else -> nonStreaming()
-            }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            AppLog.w("AiAnalysis", "Streaming attempt failed for ${agent.name} (${e.message}); using non-streaming")
-            nonStreaming()
+            AnalysisResponse(agent.provider, null, "Streaming error: ${e.message}")
         }
+        if (resp.isSuccess) {
+            // Keep a successful stream even when usage must be estimated;
+            // missing usage never justifies billing the same answer again.
+            return@withContext if (resp.tokenUsage.let { it != null && (it.inputTokens > 0 || it.outputTokens > 0) }) {
+                resp.copy(agentName = agent.name, promptUsed = finalPrompt)
+            } else resp.copy(
+                tokenUsage = TokenUsage((finalPrompt.length + 3 + (params.systemPrompt?.length ?: 0)) / 4, ((resp.analysis ?: "").length + 3) / 4, estimated = true),
+                agentName = agent.name, promptUsed = finalPrompt
+            )
+        }
+        if (!shouldFallbackFromReportStream(resp)) {
+            AppLog.i("AiAnalysis", "Skipping non-streaming fallback for ${agent.name}: permanent HTTP ${resp.httpStatusCode}")
+            return@withContext resp.copy(agentName = agent.name, promptUsed = finalPrompt)
+        }
+        AppLog.w("AiAnalysis", "Streaming attempt failed for ${agent.name}; trying non-streaming")
+        // Keep the fallback outside the streaming try/catch: an exception in
+        // the fallback must not accidentally start a second fallback call.
+        val fallback = try {
+            nonStreaming()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AnalysisResponse(agent.provider, null, "Network error: ${e.message}", agentName = agent.name, promptUsed = finalPrompt)
+        }
+        if (fallback.isSuccess) fallback else fallback.copy(
+            error = "${resp.error ?: "Streaming returned no answer"}\n\nNon-streaming fallback also failed: ${fallback.error ?: "No response content"}"
+        )
     }
 
     /**

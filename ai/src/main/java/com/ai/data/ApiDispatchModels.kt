@@ -155,7 +155,7 @@ internal suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, a
             ?: info?.supports_image_input
             ?: info?.supports_image_in
         val supportsFn = info?.capabilities?.function_calling
-        val ctx = info?.max_context_length ?: info?.context_length ?: info?.context_window
+        val ctx = info?.nativeContextLength
         // Reasoning: prefer Mistral's nested `capabilities.reasoning`
         // boolean; fall back to any `supported_parameters` array
         // (xAI / Together / etc.) carrying a "reasoning" entry.
@@ -176,7 +176,7 @@ internal suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, a
             supportsVision = supportsVision ?: cohereCap?.supportsVision,
             supportsFunctionCalling = supportsFn,
             contextLength = ctx ?: cohereCap?.contextLength,
-            maxOutputTokens = null,
+            maxOutputTokens = info?.max_output_tokens?.takeIf { it > 0 },
             supportsReasoning = supportsReasoning,
             aliases = aliases,
             deprecationDate = deprecationDate,
@@ -326,4 +326,3 @@ internal suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, a
 // ============================================================================
 // Test methods
 // ============================================================================
-

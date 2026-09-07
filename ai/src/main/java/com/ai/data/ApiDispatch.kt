@@ -21,51 +21,44 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * entire output window against the account balance, which 402s expensive
  * models that would answer a normal request fine. Per-model rule first
  * (the provider's maxTokensDefaults table), then the known output-token
- * limit from models.dev when available, then a conservative fixed fallback.
+ * limit from the native catalog or models.dev, then a fixed fallback.
  *
  * models.dev often reports a model's max OUTPUT as the whole context window,
  * and several providers count input + output against that window (OpenRouter
  * 400, Together 422 — "input + max_new_tokens must be <= context"). So when a
  * context size is known, cap the output cap to leave [INPUT_HEADROOM] tokens
- * for the prompt; a true small output limit (output < context) is untouched.
+ * for the prompt. This is fixed headroom, not exact prompt tokenization;
+ * callers retain explicit user-supplied max-token parameters.
  */
 private const val INPUT_HEADROOM = 4_096
 
 /** Ceiling applied ONLY to a value derived from a loose, cross-provider
  *  catalog match — a model served under the same id by a *different* host.
  *  A provider's own /models self-report and a same-provider models.dev row
- *  are trusted as-is; this only bounds the last-resort guess so an inflated
+ *  have no such ceiling (known context limits still apply); this only bounds the last-resort guess so an inflated
  *  reseller window can't over-request. (models.dev's
  *  `submodel/…/DeepSeek-V3-0324` reports a 75 000-token context → the old
  *  code sent max_tokens=70904, which 400'd AtlasCloud.) */
 private const val LOOSE_MATCH_CEILING = 16_384
 
 private fun clampOutputToContext(out: Int, context: Int?): Int =
-    if (context != null && context > 0) out.coerceAtMost((context - INPUT_HEADROOM).coerceAtLeast(1_024)) else out
+    if (context != null && context > 0) out.coerceAtMost((context - INPUT_HEADROOM).coerceAtLeast(1)) else out
 
 internal fun defaultMaxTokens(service: AppService, model: String): Int {
-    // 1. Explicit per-(provider, model) rule wins (Anthropic families,
-    //    AtlasCloud DeepSeek-V3, …).
-    service.maxTokensDefaults.resolveMaxTokens(model)?.let { return it }
-    // 2. The provider's OWN /models self-report (ModelCapabilities) —
-    //    authoritative when present: it's the actual host's limit, not a
-    //    cross-provider catalog guess. Reached statically via SettingsHolder
-    //    (defaultMaxTokens can't thread Settings through the dispatch stack).
-    com.ai.model.SettingsHolder.current?.getProvider(service)?.modelCapabilities?.get(model)?.let { caps ->
-        caps.maxOutputTokens?.takeIf { it > 0 }?.let { out ->
-            return clampOutputToContext(out, caps.contextLength ?: PricingCache.modelsDevMaxInputTokensOwn(service, model))
-        }
-    }
-    // 3. A SAME-PROVIDER models.dev row — the provider's own catalog entry,
-    //    never an arbitrary reseller that happens to list the same model id.
-    PricingCache.modelsDevMaxOutputTokensOwn(service, model)?.takeIf { it > 0 }?.let { out ->
-        return clampOutputToContext(out, PricingCache.modelsDevMaxInputTokensOwn(service, model))
-    }
-    // 4. Loose cross-provider match, last resort and bounded — keeps coverage
-    //    for resellers models.dev only knows under the model-maker's key,
-    //    without letting a stray window blow past what the host accepts.
-    val out = PricingCache.modelsDevMaxOutputTokens(service, model)?.takeIf { it > 0 } ?: return 4_096
-    return clampOutputToContext(out, PricingCache.modelsDevMaxInputTokens(service, model)).coerceAtMost(LOOSE_MATCH_CEILING)
+    val native = com.ai.model.SettingsHolder.current?.getProvider(service)?.modelCapabilities?.get(model)
+    val nativeOutput = native?.maxOutputTokens?.takeIf { it > 0 }
+    // Resolve output and context independently. A native context-only entry
+    // must still constrain a catalog guess, a provider rule, or the fixed
+    // fallback; previously it was ignored unless native output was also set.
+    val output = service.maxTokensDefaults.resolveMaxTokens(model)?.takeIf { it > 0 }
+        ?: nativeOutput
+        ?: PricingCache.modelsDevMaxOutputTokensOwn(service, model)?.takeIf { it > 0 }
+        ?: PricingCache.modelsDevMaxOutputTokens(service, model)?.takeIf { it > 0 }?.coerceAtMost(LOOSE_MATCH_CEILING)
+        ?: 4_096
+    val context = native?.contextLength?.takeIf { it > 0 }
+        ?: PricingCache.modelsDevMaxInputTokensOwn(service, model)?.takeIf { it > 0 }
+        ?: PricingCache.modelsDevMaxInputTokens(service, model)?.takeIf { it > 0 }
+    return clampOutputToContext(output.coerceAtMost(nativeOutput ?: Int.MAX_VALUE), context)
 }
 
 /**

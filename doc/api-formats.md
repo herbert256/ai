@@ -70,10 +70,18 @@ Request/response shapes are `OpenAiRequest` / `OpenAiResponse` in
   self-report (`ModelCapabilities.maxOutputTokens`, when the account's
   live catalog has been fetched); (3) a same-provider `models.dev`
   max-output cap; (4) a loose cross-provider `models.dev` match as a
-  last resort. Steps 2–4 are each clamped to `context − 4096` headroom
-  (floor 1024) when a context length is known, and step 4 is
-  additionally capped at a 16384-token ceiling. Only when none of
-  those resolve does it fall back to a flat `4096`. Although 4096 is
+  last resort, capped at 16384 tokens. When none resolve, the candidate
+  default is `4096`. Every candidate, including provider rules and the
+  fixed fallback, respects a positive native output limit and is clamped
+  to `max(1, context − 4096)` when a context length is known. Context is
+  resolved independently: native host limit → same-provider models.dev
+  → loose models.dev match. A native context-only entry therefore still
+  bounds every fallback. Generic catalogs accept `context_size` and
+  `max_output_tokens` (Novita) alongside the existing context aliases;
+  settings loading recovers these limits from saved raw catalogs after
+  an update, without a network refresh. The 4096-token input reserve is
+  fixed headroom, not exact prompt tokenization; explicit user max-token
+  parameters still take precedence over generated defaults. Although 4096 is
   "Anthropic's required default", the dispatch layer applies this same
   chain to OpenAI-compatible chat too — without a cap, OpenRouter and
   others gate the whole output window against the account balance and
@@ -88,6 +96,12 @@ Request/response shapes are `OpenAiRequest` / `OpenAiResponse` in
   streamed (reasoning models that put the answer in the reasoning
   field). Streaming usage is read from the trailing `include_usage`
   chunk (the report path sets `stream_options.include_usage = true`).
+- **Report streaming fallback**: deterministic HTTP 4xx errors return
+  directly with their original diagnostic. HTTP 400/422 can fall back
+  only when the error identifies rejected streaming fields, excluding
+  token/context-limit errors. Transient errors, empty bodies and stream
+  transport failures can still use non-streaming. If that fallback also
+  fails, the saved error includes both diagnostics, in attempt order.
 - **Native streaming gate**: `sendChatStream` first checks
   `PricingCache.liteLLMSupportsNativeStreaming`. If that returns
   `false`, it routes through the non-streaming `sendChat` and emits the

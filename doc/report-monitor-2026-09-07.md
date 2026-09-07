@@ -30,6 +30,8 @@ Monitoring covered the launch review, live report UI, logcat, persisted report a
 
 ### F01 · P1 — Novita's default report request exceeds the host's context limit
 
+**Update, 7 September 2026:** Fixed and verified on the existing report: one streaming HTTP 200 with `max_tokens=12288`, using limits recovered from the saved native catalog. See [the fix and verification record](novita-token-limit-fix-2026-09-07.md). The observations below describe the original failure.
+
 **Observed:** `meta-llama/llama-3.1-8b-instruct` failed both attempts with HTTP 400. The streaming request set `max_tokens=16384`. Novita reported a 16,384-token context window and 68 input tokens: the request therefore required 16,452 tokens. The non-streaming fallback repeated the same invalid completion budget. Its generic “invalid request error” replaced the first, actionable context-limit diagnosis in the saved error.
 
 The cached native Novita catalog explicitly supplies `context_size: 16384` and `max_output_tokens: 16384`. The app does not ingest those fields into its generic model capabilities. `ApiDispatchModels.kt:158` reads only `max_context_length`, `context_length`, or `context_window`, and line 179 sets `maxOutputTokens` to null. `ApiModels.kt:514` lacks the Novita limit fields. `defaultMaxTokens()` in `ApiDispatch.kt:46` then relies on other catalog limits; it also only applies native context bounds inside its native-output-limit branch.

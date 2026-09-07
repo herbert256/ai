@@ -11,6 +11,7 @@ import com.ai.data.ReportApiCallCost
 import com.ai.data.ReportStorage
 import com.ai.data.TokenUsage
 import com.ai.data.barTitle
+import com.ai.data.backfillCachedTokenLimits
 import com.ai.data.createAppGson
 import com.ai.data.normalizeUsageKind
 import com.ai.data.writeTextAtomic
@@ -372,7 +373,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 webSearchCapableComputed = webSearchCapableComputed,
                 reasoningCapableComputed = reasoningCapableComputed,
                 modelPricing = modelPricing,
-                modelCapabilities = modelCapabilities,
+                modelCapabilities = if (service.apiFormat == com.ai.data.ApiFormat.OPENAI_COMPATIBLE && !service.crossProviderModelList)
+                    backfillCachedTokenLimits(modelListRawJson, modelCapabilities, gson)
+                else modelCapabilities,
                 modelListRawJson = modelListRawJson,
                 parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList(),
                 systemPromptId = prefs.getString("${key}_system_prompt_id", null)

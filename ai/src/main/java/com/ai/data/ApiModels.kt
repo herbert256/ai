@@ -502,6 +502,7 @@ data class OpenAiModelsResponse(val data: List<OpenAiModel>?)
  *    - Mistral exposes a rich `capabilities` block + max_context_length.
  *    - Together AI ships `context_length` and `type` (chat / image / etc).
  *    - Groq ships `context_window`.
+ *    - Novita ships `context_size` and `max_output_tokens`.
  *    - Fireworks ships `supports_chat` / `supports_image_input` /
  *      `context_length`.
  *  Letting them all coexist lets one OpenAiModel data class absorb
@@ -514,6 +515,8 @@ data class OpenAiModel(
     val max_context_length: Int? = null,
     val context_length: Int? = null,
     val context_window: Int? = null,
+    val context_size: Int? = null,
+    val max_output_tokens: Int? = null,
     val supports_chat: Boolean? = null,
     val supports_image_input: Boolean? = null,
     /** Moonshot's `/v1/models` declares vision under
