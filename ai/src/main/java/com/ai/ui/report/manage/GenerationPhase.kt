@@ -1212,7 +1212,7 @@ internal data class FanOutRunSummary(
  *  excluded by the caller — each is its own row in secondaryRuns since
  *  there's nothing to fold (one click → one row). Legacy rows missing
  *  `metaPromptName` fall back to `metaPromptId` to keep them grouped. */
-internal fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List<FanOutRunSummary> {
+internal fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>, unattributed: List<com.ai.data.FanMetaAttempt> = emptyList()): List<FanOutRunSummary> {
     if (rows.isEmpty()) return emptyList()
     return rows
         .groupBy { it.metaPromptName?.takeIf { n -> n.isNotBlank() } ?: (it.metaPromptId ?: "") }
@@ -1248,7 +1248,8 @@ internal fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List
                         it.title.isNullOrBlank() && it.titleErrorMessage.isNullOrBlank()
                 },
                 titleErrorCount = items.count { !it.titleErrorMessage.isNullOrBlank() },
-                titleCost = items.sumOf { it.titleInputCost + it.titleOutputCost },
+                titleCost = items.sumOf { it.titleInputCost + it.titleOutputCost } +
+                    unattributed.filter { a -> items.any { it.titleRunId == a.runId } }.sumOf { it.cost },
                 totalCost = items.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) },
                 timestamp = items.maxOf { it.timestamp }
             )

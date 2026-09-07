@@ -407,6 +407,9 @@ internal fun readReportZip(
     // wasn't in the bundle) becomes null — a blank 🐞 beats a dead link
     // to a filename that never existed on this install.
     fun remapTrace(old: String?): String? = old?.let { traceFileMap[it] }
+    fun remapMetaAttempt(attempt: FanMetaAttempt) = attempt.copy(
+        runId = remapRunId(attempt.runId) ?: attempt.runId,
+        traceFile = remapTrace(attempt.traceFile))
     // Pass 3a — persist the report with every trace pointer + secondary
     // cross-reference remapped onto the new ids.
     val remappedAgents = parsedReport.agents.map { a ->
@@ -446,6 +449,7 @@ internal fun readReportZip(
         agents = remappedAgents,
         userNotes = remappedNotes,
         iconCalls = remappedIconCalls,
+        unattributedFanMetaAttempts = parsedReport.unattributedFanMetaAttempts.orEmpty().map(::remapMetaAttempt),
         // The per-call cost ledger rows carry 🐞 traceFile pointers too —
         // verbatim copies referenced filenames that were never created here
         // (imported traces are re-minted under fresh names), or on a
@@ -514,6 +518,7 @@ internal fun readReportZip(
             runId = remapRunId(parsed.runId),
             iconRunId = remapRunId(parsed.iconRunId),
             titleRunId = remapRunId(parsed.titleRunId),
+            fanMetaAttempts = parsed.fanMetaAttempts.orEmpty().map(::remapMetaAttempt),
             tournamentJudgeRunId = remapRunId(parsed.tournamentJudgeRunId),
             compareRunId = remapRunId(parsed.compareRunId),
             // compareToResultId is a secondary id too: the meta row a

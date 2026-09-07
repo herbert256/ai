@@ -469,7 +469,10 @@ internal fun LazyListScope.secondaryResultRows(
                             val prompt = aiSettings.internalPrompts.firstOrNull {
                                 it.id == run.metaPromptId || it.name == run.metaPromptName
                             }
-                            val title = prompt?.title?.takeIf { it.isNotBlank() }
+                            val nativeRerank = run.kind == SecondaryKind.RERANK && AppService.findById(run.providerId)?.let {
+                                aiSettings.getModelType(it, run.model) == com.ai.data.ModelType.RERANK
+                            } == true
+                            val title = (if (nativeRerank) "Rank responses by question relevance" else prompt?.title?.takeIf { it.isNotBlank() })
                                 ?: run.metaPromptName?.takeIf { it.isNotBlank() }?.let { secondaryPromptDisplayName(it) }
                                 ?: when (run.kind) {
                                     SecondaryKind.RERANK -> "Rerank"

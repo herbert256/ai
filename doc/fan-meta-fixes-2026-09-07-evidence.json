@@ -1,0 +1,81 @@
+{
+  "date": "2026-09-07",
+  "reportId": "4757c2cc-36e7-4d2e-9a9c-531bca7162dd",
+  "legacyRepair": {
+    "titles": 1256,
+    "overlong": 0,
+    "markdownPrefixes": 0,
+    "attemptLinks": 1237,
+    "unattributedRejectedAttempts": 1,
+    "fanMetaCostUsd": 0.105643623,
+    "reportTotalCostUnchanged": true,
+    "costLedgerUnchanged": true,
+    "primaryRecordsUnchanged": true,
+    "originalFanOutFieldsUnchanged": true
+  },
+  "additionalResults": [
+    {
+      "id": "dbd0b7cb-5ba4-42e2-a255-6e131370c01f",
+      "kind": "META",
+      "metaPromptName": "compare",
+      "providerId": "Requesty",
+      "model": "openai-responses/gpt-4.1-nano",
+      "durationMs": 6354,
+      "traceFile": "router.requesty.ai_20260907_145937_905_upt_5992b5a6.json",
+      "costUsd": 0.0004177,
+      "sourceAnswers": 36,
+      "httpStatus": 200,
+      "traceMatchesEndpoint": true
+    },
+    {
+      "id": "30530d4f-1349-463d-b6ee-6e44a8e1b077",
+      "kind": "META",
+      "metaPromptName": "summarize",
+      "providerId": "DeepInfra",
+      "model": "google/gemma-3-12b-it",
+      "durationMs": 1607,
+      "traceFile": "api.deepinfra.com_20260907_150102_958_upv_cccfd0bb.json",
+      "costUsd": 7.365e-05,
+      "sourceAnswers": 36,
+      "httpStatus": 200,
+      "traceMatchesEndpoint": true
+    },
+    {
+      "id": "e57bbadc-cbf5-4ffb-b6c7-ad4b6caf4149",
+      "kind": "RERANK",
+      "metaPromptName": "second-rerank",
+      "providerId": "Cohere",
+      "model": "rerank-v3.5",
+      "durationMs": 382,
+      "traceFile": "api.cohere.com_20260907_150426_746_6xg0_8ab5573a.json",
+      "costUsd": 0.002,
+      "sourceAnswers": 36,
+      "httpStatus": 200,
+      "traceMatchesEndpoint": true,
+      "allAnswersRankedExactlyOnce": true
+    }
+  ],
+  "newCostedCalls": 3,
+  "additionalCostUsd": 0.0024913500000000002,
+  "lifetimeReportCostUsd": 0.9317316119000013,
+  "lifetimeCostedCalls": 2641,
+  "allOriginalPrimaryRecordsPreserved": true,
+  "allOriginal2638LedgerRowsPreserved": true,
+  "allOriginalFanOutResponseFieldsPreserved": true,
+  "allNewLedgerTracesLinked": true,
+  "cancelReviewLeavesNoPlaceholder": true,
+  "largeFanMetaRerunPerformed": false,
+  "moderationDispatched": false,
+  "validation": {
+    "androidDebugBuild": "passed",
+    "installedInPlace": "emulator-5554",
+    "cloudApk": "/Users/herbert/cloud/ai.apk",
+    "apkSha256": "569aea044cabae31c4fd10544e4ba10feb296c91e74ef20c4d27764d43550b76",
+    "foreground": "com.ai/.MainActivity",
+    "unitOrInstrumentedSuitesRun": false,
+    "finalUiCostedCalls": 2641,
+    "finalUiCostCents": 93.17,
+    "newResultCountAfterConfirmedReviewCancellation": 3,
+    "processScopedFatalOrStorageErrorsObserved": false
+  }
+}

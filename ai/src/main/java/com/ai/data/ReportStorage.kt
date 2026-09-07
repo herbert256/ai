@@ -135,7 +135,7 @@ object ReportStorage {
     private val gson = createAppGson()
     private val lock = ReentrantLock()
     @Volatile private var reportsDir: File? = null
-    private var importsRecovered = false
+    @Volatile private var importsRecovered = false
     @Volatile private var lastLoadFailures: List<ReportLoadFailure> = emptyList()
 
     data class ApiCallCostLedgerDelta(
@@ -150,7 +150,7 @@ object ReportStorage {
     fun init(context: Context) {
         ReportEvidenceStore.init(context)
         ReportWorkLimits.init(context)
-        lock.withLock { if (!importsRecovered) { recoverReportImports(context); importsRecovered = true } }
+        if (!importsRecovered) lock.withLock { if (!importsRecovered) { recoverReportImports(context); importsRecovered = true } }
         if (reportsDir == null) lock.withLock {
             if (reportsDir == null) {
                 val dir = File(context.filesDir, REPORTS_DIR)
@@ -559,6 +559,17 @@ object ReportStorage {
         return 0.0
     }
 
+    internal fun finishFanMetaRepair(context: Context, reportId: String, attempts: List<FanMetaAttempt>): Report? {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock null
+            if (report.fanMetaRepairVersion >= 1) return@withLock report
+            report.copy(fanMetaRepairVersion = 1,
+                unattributedFanMetaAttempts = (report.unattributedFanMetaAttempts.orEmpty() + attempts).distinctBy { it.id }
+            ).also { saveReport(it) }
+        }
+    }
+
     fun getReport(context: Context, reportId: String): Report? { init(context); return lock.withLock { loadReport(reportId) } }
     /** Stream just the top-level userNotes array for read-only note strips.
      *  This avoids constructing and normalizing the full Report object on
@@ -682,7 +693,7 @@ object ReportStorage {
         val dir = reportsDir ?: return null
         val file = File(dir, "$reportId.json")
         if (!file.exists()) return null
-        return try { gson.fromJson(ReportContentStore.unpack(dir.parentFile!!, reportId, file.readText()), Report::class.java)?.let(::normalizeReport) } catch (e: Exception) {
+        return try { gson.fromJson(ReportContentStore.unpackElement(dir.parentFile!!, reportId, file.readText()), Report::class.java)?.let(::normalizeReport) } catch (e: Exception) {
             AppLog.e("ReportStorage", "Failed to load report $reportId: ${e.message}"); null
         }
     }
@@ -768,6 +779,7 @@ object ReportStorage {
             return null
         }
         var res = r
+        if ((res.unattributedFanMetaAttempts as List<FanMetaAttempt>?) == null) res = res.copy(unattributedFanMetaAttempts = emptyList())
         // title / prompt are non-null display fields — default a null from a
         // partial write so the list row / header don't NPE.
         if ((res.title as String?) == null) res = res.copy(title = "")

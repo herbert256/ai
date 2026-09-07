@@ -149,7 +149,10 @@ class FanOutEngine internal constructor(
         val state = appViewModel.uiState.value
         val aiSettings = state.aiSettings
         val report = withContext(Dispatchers.IO) {
-            ReportStorage.getReport(context, reportId)
+            ReportStorage.getReport(context, reportId)?.let { report ->
+                if (report.fanMetaRepairVersion < 1 && state.activeSecondaryBatches == 0)
+                    com.ai.data.FanMetaRepair.repair(context, report) else report
+            }
         } ?: return
         val all = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
@@ -252,6 +255,11 @@ class FanOutEngine internal constructor(
                 responderIds = null,    // not persisted; lost across hydration
                 pairs = pairs,
                 combinedReports = combinedRows,
+                unattributedMetaAttempts = report.unattributedFanMetaAttempts.orEmpty().filter {
+                    it.metaPromptId == metaPromptId && rows.any { row -> row.titleRunId == it.runId }
+                },
+                preparedMetaPairs = currentRuns[key]?.preparedMetaPairs ?: 0,
+                preparingMetaTotal = currentRuns[key]?.preparingMetaTotal ?: 0,
                 sourceLanguage = sourceLanguage
             )
         }
@@ -289,6 +297,14 @@ class FanOutEngine internal constructor(
      *  is the bridge that keeps memory == disk in real time. No-op when
      *  the run / pair isn't loaded — the one-shot entry [hydrate] covers
      *  that case. */
+    internal fun updateFanMetaPreparation(reportId: String, metaPromptId: String, done: Int, total: Int) {
+        val key = runKey(reportId, metaPromptId)
+        _runs.update { runs ->
+            val run = runs[key] ?: return@update runs
+            runs + (key to run.copy(preparedMetaPairs = done, preparingMetaTotal = total))
+        }
+    }
+
     internal fun refreshPairFromDisk(context: Context, reportId: String, pairId: String) {
         val row = SecondaryResultStorage.get(context, reportId, pairId) ?: return
         // The pair row carries its fan-out prompt id, so the run key is
@@ -307,6 +323,7 @@ class FanOutEngine internal constructor(
                 titleRunId = row.titleRunId,
                 titlePromptUsed = row.titlePromptUsed,
                 titleModel = row.titleModel,
+                fanMetaAttempts = row.fanMetaAttempts.orEmpty(),
                 icon = row.icon,
                 iconWinningTier = row.iconWinningTier,
                 iconInputCost = row.iconInputCost,

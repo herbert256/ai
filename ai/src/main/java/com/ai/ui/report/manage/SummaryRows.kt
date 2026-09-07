@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +32,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.formatCentsValue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -143,10 +146,20 @@ internal fun ReportStatsLine(
     val context = LocalContext.current
     val secDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
     val reportDataVersion by com.ai.data.ReportDataVersion.versionFor(reportId).collectAsState()
-    val loaded by produceState<Pair<Report, List<SecondaryResult>>?>(null, reportId, refreshKey, secDataVersion, reportDataVersion) {
-        value = withContext(Dispatchers.IO) {
-            val r = ReportStorage.getReport(context, reportId) ?: return@withContext null
-            r to SecondaryResultStorage.listForReport(context, reportId)
+    val refresh by rememberUpdatedState(Triple(refreshKey, secDataVersion, reportDataVersion))
+    val loaded by produceState<Pair<Report, List<SecondaryResult>>?>(null, reportId) {
+        value = null
+        var reportMtime = -1L
+        var cachedReport: Report? = null
+        snapshotFlow { refresh }.conflate().collect {
+            value = withContext(Dispatchers.IO) {
+                val mtime = ReportStorage.reportLastModified(context, reportId)
+                val r = if (cachedReport != null && mtime == reportMtime) cachedReport
+                    else ReportStorage.getReport(context, reportId)
+                cachedReport = r
+                reportMtime = mtime
+                r?.let { it to SecondaryResultStorage.listForReport(context, reportId) }
+            }
         }
     }
     val apiCalls = loaded?.first?.let { rememberReportCostData(it)?.rows?.size } ?: 0
@@ -161,17 +174,17 @@ internal fun ReportStatsLine(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "$apiCalls costed ${if (apiCalls == 1) "call" else "calls"}", fontSize = 10.sp,
+            if (loaded == null) "Loading costs…" else "$apiCalls costed ${if (apiCalls == 1) "call" else "calls"}", fontSize = 10.sp,
             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
         )
         Spacer(modifier = Modifier.weight(1f))
         Text(
-            String.format(Locale.US, "%.3f s duration", durationMs / 1000.0),
+            if (loaded == null) "…" else String.format(Locale.US, "%.3f s duration", durationMs / 1000.0),
             fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
         )
         Spacer(modifier = Modifier.weight(1f))
         Text(
-            formatCentsValue(costDollars * 100, 2), fontSize = 10.sp,
+            if (loaded == null) "…" else formatCentsValue(costDollars * 100, 2), fontSize = 10.sp,
             color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace
         )
     }

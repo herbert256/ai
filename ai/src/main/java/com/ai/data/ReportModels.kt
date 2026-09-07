@@ -613,7 +613,9 @@ data class Report(
      *  [com.ai.data.ReportStorage]'s normalizeReport against Gson's
      *  default-not-applied null trap, same as [iconCalls]. */
     var userNotes: MutableList<UserNote> = mutableListOf(),
-    val conclusion: ReportConclusion? = null
+    val conclusion: ReportConclusion? = null,
+    val fanMetaRepairVersion: Int = 0,
+    val unattributedFanMetaAttempts: List<FanMetaAttempt> = emptyList()
 )
 
 /** Title for the top-bar orange line: the long title when present, else the

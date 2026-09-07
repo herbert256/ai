@@ -96,7 +96,8 @@ data class PairState(
      *  title+icon for this pair. Surfaces as the L3 META screen's
      *  "Meta model" line. Null on legacy rows / before the batch
      *  recorded cost. */
-    val titleModel: String? = null
+    val titleModel: String? = null,
+    val fanMetaAttempts: List<FanMetaAttempt> = emptyList()
 ) : BatchItem<PairKey> {
     override val key: PairKey get() = pairKey(answererAgentId, sourceAgentId)
     override val totalCost: Double get() =
@@ -111,6 +112,14 @@ data class PairState(
      *  uses so it matches the title+icon-scoped Fan-Meta L1 / Workers rows
      *  (doc/secondary-results.md), instead of folding in the response. */
     val metaCost: Double get() = iconInputCost + iconOutputCost + titleInputCost + titleOutputCost
+    fun metaCostForWorker(modelKey: String): Double {
+        val attempts = fanMetaAttempts.orEmpty()
+        val captured = attempts.sumOf { it.cost }
+        // Missing historical links are already included in legacy title fields.
+        val legacy = (metaCost - captured).coerceAtLeast(0.0)
+        return attempts.filter { it.modelKey == modelKey }.sumOf { it.cost } +
+            if (titleModel == modelKey) legacy else 0.0
+    }
 }
 
 /** Icon-chain lifecycle for this pair. Mirrors the MAIN-mode status
@@ -196,10 +205,15 @@ data class FanOutRunState(
      *  ("Dutch") — null = Original (untranslated). Replayed by
      *  rerunComplete so the new batch fires against the same
      *  translated bodies + prompt as the original run. */
-    val sourceLanguage: String? = null
+    val sourceLanguage: String? = null,
+    /** Historical rejected calls whose exact pair cannot be proved. */
+    val unattributedMetaAttempts: List<FanMetaAttempt> = emptyList(),
+    val preparedMetaPairs: Int = 0,
+    val preparingMetaTotal: Int = 0
 ) : BatchRun<PairKey, PairState> {
     override val items: Map<PairKey, PairState> get() = pairs
     val totalPairs: Int get() = pairs.size
+    val metaCost: Double get() = pairs.values.sumOf { it.metaCost } + unattributedMetaAttempts.sumOf { it.cost }
     override val totalCost: Double get() =
         pairs.values.sumOf { it.totalCost } + combinedReports.sumOf { it.totalCost }
 
@@ -261,7 +275,8 @@ fun SecondaryResult.toPairState(answererAgentId: String): PairState? {
         titleErrorMessage = titleErrorMessage,
         titleRunId = titleRunId,
         titlePromptUsed = titlePromptUsed,
-        titleModel = titleModel
+        titleModel = titleModel,
+        fanMetaAttempts = fanMetaAttempts.orEmpty()
     )
 }
 

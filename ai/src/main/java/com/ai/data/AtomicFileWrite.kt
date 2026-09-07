@@ -3,6 +3,10 @@ package com.ai.data
 import java.io.File
 
 private const val ATOMIC_TMP_MAX_AGE_MS = 30L * 60L * 1000L
+private val atomicPruneTimes = object : LinkedHashMap<String, Long>(16, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?) = size > 256
+}
+private val atomicTempName = Regex(".+\\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.tmp")
 
 /**
  * Atomically writes [content] to [this] file via a temp file + rename.
@@ -82,11 +86,17 @@ fun File.writeTextAtomic(content: String): Boolean {
 
 private fun File.pruneOldAtomicTempSiblings(parent: File?) {
     parent ?: return
-    val cutoff = System.currentTimeMillis() - ATOMIC_TMP_MAX_AGE_MS
+    val now = System.currentTimeMillis()
+    synchronized(atomicPruneTimes) {
+        val previous = atomicPruneTimes[parent.absolutePath]
+        if (previous != null && now - previous in 0 until 60_000L) return
+        atomicPruneTimes[parent.absolutePath] = now
+    }
+    val cutoff = now - ATOMIC_TMP_MAX_AGE_MS
     parent.listFiles { f ->
-        // Reject unrelated names before stat calls: trace/ can contain
-        // thousands of files, and this path runs on every atomic write.
-        f.name.startsWith("$name.") && f.name.endsWith(".tmp") && f.isFile && f.lastModified() < cutoff
+        // One scan per directory/minute, not per row. Only our UUID temporary
+        // names qualify; keep file and directory fsyncs on every actual write.
+        f.name.endsWith(".tmp") && atomicTempName.matches(f.name) && f.isFile && f.lastModified() < cutoff
     }?.forEach { stale ->
         try {
             if (!stale.delete()) {

@@ -2914,7 +2914,8 @@ class IconGenerationManager(
         reportId: String,
         metaPromptId: String,
         rowIds: Set<String>? = null,
-        buildKey: String? = null
+        buildKey: String? = null,
+        replaceExisting: Boolean = false
     ): Job? {
         if (metadataDisabledFor(context, reportId)) return null
         if (!appViewModel.uiState.value.generalSettings.fanMetaOn()) return null
@@ -2954,7 +2955,7 @@ class IconGenerationManager(
                             it.fanOutSourceAgentId != null &&
                             it.fanInOf == null &&
                             !it.content.isNullOrBlank() && it.errorMessage.isNullOrBlank() &&
-                            it.title.isNullOrBlank() && it.icon.isNullOrBlank() &&
+                            (replaceExisting || (it.title.isNullOrBlank() && it.icon.isNullOrBlank())) &&
                             (rowIds == null || it.id in rowIds)
                     }
                 if (pending.isEmpty()) {
@@ -2962,13 +2963,32 @@ class IconGenerationManager(
                     buildKey?.let { appViewModel.finishBuild(it) }
                     return@launch
                 }
-                // Build stage: marking each pending pair "started" is the
-                // "Preparing N / M…" phase the Broken-work Continue popup covers.
+                val frozenPrompt = (if (ownModelPairs) effBatchPrompt.copy(
+                    workers = pending.distinctBy { it.providerId to it.model }
+                        .flatMap { singleModelWorker(it.providerId, it.model) }
+                ) else effBatchPrompt).freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings)
+                if (frozenPrompt.workers.isEmpty()) {
+                    AppLog.w("FanMeta", "No runnable workers in the frozen plan")
+                    return@launch
+                }
+                // Review the exact frozen worker/parameter plan before any row is
+                // queued. A cancelled preview must leave saved metadata untouched.
+                com.ai.data.ReportWorkLimits.review(reportId, "Fan Meta", pending.size,
+                    com.ai.data.ReportWorkLimits.promptWorkPlan(listOf(frozenPrompt)))
+                withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reportId)) {
+                if (report != null) com.ai.data.ReportEvidenceStore.saveRun(context, report, fanRunId,
+                    frozenPrompt, secondaryBodies = pending.associate { it.id to it.content.orEmpty() })
+                if (replaceExisting) clearFanMetaTitleIconState(context, reportId, pending)
+                rvm.fanOutEngine.updateFanMetaPreparation(reportId, metaPromptId, 0, pending.size)
                 if (buildKey != null) appViewModel.beginBuild(buildKey, pending.size, "Re-queuing fan meta")
                 SecondaryResultStorage.markFanOutFanMetaStartedBatch(
                     context, reportId, pending.map { it.id }, fanRunId, promptUsed = "fan-meta",
-                    onProgress = { n -> if (buildKey != null) appViewModel.updateBuild(buildKey, n) }
+                    onProgress = { n ->
+                        if (buildKey != null) appViewModel.updateBuild(buildKey, n)
+                        rvm.fanOutEngine.updateFanMetaPreparation(reportId, metaPromptId, n, pending.size)
+                    }
                 )
+                rvm.fanOutEngine.updateFanMetaPreparation(reportId, metaPromptId, 0, 0)
                 if (buildKey != null) appViewModel.finishBuild(buildKey)
                 AppLog.i("FanMeta", "→ start (report=$reportId, ${pending.size} pairs)")
                 withTracerTags(reportId = reportId, category = "fan/meta", runId = fanRunId) {
@@ -2986,7 +3006,7 @@ class IconGenerationManager(
                         if (!SecondaryResultStorage.exists(context, reportId, pair.id)) return@runThrottledBatch
                         appViewModel.updateRunningFanMetaPairs { it + pair.id }
                         try {
-                            runFanMetaForPair(context, reportId, pair, effBatchPrompt, aiSettings, fanRunId, iconRefreshCoalescer, ownModelPairs)
+                            runFanMetaForPair(context, reportId, pair, frozenPrompt, aiSettings, fanRunId, iconRefreshCoalescer, ownModelPairs)
                         } finally {
                             appViewModel.updateRunningFanMetaPairs { it - pair.id }
                             // acquireOrWait clears its own wait notification, but
@@ -2995,8 +3015,11 @@ class IconGenerationManager(
                         }
                     }
                 }
+                }
                 AppLog.i("FanMeta", "← end (report=$reportId)")
             } finally {
+                rvm.fanOutEngine.updateFanMetaPreparation(reportId, metaPromptId, 0, 0)
+                buildKey?.let { appViewModel.finishBuild(it) }
                 appViewModel.updateUiState {
                     it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
                 }
@@ -3004,7 +3027,7 @@ class IconGenerationManager(
                     val running = appViewModel.runningFanMetaPairs.value
                     val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                         .filter {
-                            it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
+                            it.metaPromptId == metaPromptId && it.titleRunId == fanRunId && it.fanOutSourceAgentId != null &&
                                 it.fanInOf == null && !it.content.isNullOrBlank() && it.errorMessage.isNullOrBlank() &&
                                 it.title.isNullOrBlank() && it.icon.isNullOrBlank() && it.id !in running &&
                                 // Only rows THIS run queued: a rowIds-restricted
@@ -3058,10 +3081,10 @@ class IconGenerationManager(
     ) {
         val started = System.currentTimeMillis()
         val effPrompt = if (ownModelPairs)
-            fanMetaPrompt.copy(workers = singleModelWorker(pair.providerId, pair.model)) else fanMetaPrompt
+            fanMetaPrompt.copy(workers = fanMetaPrompt.workers.filter { it.provider == pair.providerId && it.model == pair.model }) else fanMetaPrompt
         val resolved = effPrompt.text.replace("@PROMPT@", pair.content.orEmpty())
-        // A fan-meta reply is usable when it yields at least a title or an
-        // emoji; an empty/garbage 200 is a logical miss → next worker.
+        // Both fields are required. Tolerated formatting is normalized before
+        // acceptance; an incomplete reply advances to the next worker.
         // Surface real provider throttling to the L1 "Throttled" counter:
         // a fan-meta call is dynamic-host, so its rate-limit / concurrency
         // wait happens inside ProviderThrottle.acquireOrWait (via the
@@ -3075,28 +3098,43 @@ class IconGenerationManager(
             onThrottleWait = { waiting ->
                 if (waiting) appViewModel.updateThrottledFanMetaPairs { it + pairId }
                 else appViewModel.updateThrottledFanMetaPairs { it - pairId }
+            },
+            onAttempt = { attempt ->
+                val usage = attempt.response?.tokenUsage
+                // Rejected usage is recorded by WorkerRunner. Record a winner
+                // here too, before the durable pair attempt and terminal result.
+                if (attempt.accepted && usage != null) appViewModel.settingsPrefs.updateUsageStatsAsync(
+                    attempt.agent.provider, attempt.agent.model, usage, kind = "title", durationMs = attempt.durationMs)
+                val costs = usage?.let { PricingCache.computeInOutCost(it,
+                    PricingCache.lookupPricing(attempt.agent.provider, attempt.agent.model)) } ?: (0.0 to 0.0)
+                SecondaryResultStorage.recordFanMetaAttempt(context, reportId, pair.id, com.ai.data.FanMetaAttempt(
+                    id = java.util.UUID.randomUUID().toString(), runId = fanRunId,
+                    metaPromptId = pair.metaPromptId.orEmpty(), provider = attempt.agent.provider.id,
+                    model = attempt.agent.model, traceFile = attempt.traceFile,
+                    accepted = attempt.accepted, error = attempt.error,
+                    inputTokens = usage?.billedInputTokens ?: 0, outputTokens = usage?.billedOutputTokens ?: 0,
+                    inputCost = costs.first, outputCost = costs.second, durationMs = attempt.durationMs))
+                rvm.fanOutEngine.refreshPairFromDisk(context, reportId, pair.id)
             }
         ) { resp ->
-            extractFirstEmoji(resp.analysis) != null || cleanTitle(parseFanMetaTitle(resp.analysis)).isNotBlank()
+            com.ai.data.FanMetaFormat.parse(resp.analysis) != null
         }
         when (val outcome = call.outcome) {
             is WorkerOutcome.Success -> {
-                val analysis = outcome.response.analysis
-                val title = cleanTitle(parseFanMetaTitle(analysis))
-                val iconLine = analysis?.lineSequence()?.firstOrNull { it.trim().startsWith("icon", ignoreCase = true) }
-                val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: MetadataIconsHolder.current.fanOutRow
-                val win = resolvePooledWinner(appViewModel, context, aiSettings, outcome, usageKind = "title", durationMs = System.currentTimeMillis() - started)
-                val titleModel = win.agent?.let { "${it.provider.id}/${it.model}" }
+                val metadata = requireNotNull(com.ai.data.FanMetaFormat.parse(outcome.response.analysis))
+                val title = metadata.title
+                val emoji = metadata.icon
+                val titleModel = "${outcome.worker.provider}/${outcome.worker.model}"
                 SecondaryResultStorage.recordFanMetaResult(
                     context = context,
                     reportId = reportId,
                     resultId = pair.id,
                     title = title,
                     icon = emoji,
-                    inputTokens = win.inTokens,
-                    outputTokens = win.outTokens,
-                    inputCost = win.inCost,
-                    outputCost = win.outCost,
+                    inputTokens = 0,
+                    outputTokens = 0,
+                    inputCost = 0.0,
+                    outputCost = 0.0,
                     titleRunId = fanRunId,
                     iconRunId = fanRunId,
                     promptUsed = "fan-meta",
@@ -3139,27 +3177,11 @@ class IconGenerationManager(
         rvm.fanOutEngine.refreshPairFromDisk(context, reportId, pair.id)
     }
 
-    /** Re-fire fan-meta after clearing every pair's title+icon. */
+    /** Review a replacement before clearing any saved metadata. */
     fun relaunchFanMetaBatch(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            // Stop any in-flight fan-meta batch BEFORE clearing. join() (not
-            // just cancel()) is load-bearing: clearFanMetaTitleIconState blanks
-            // EVERY pair's title+icon, and runFanMetaBatch below dedups on a
-            // live job — so without the join, a running batch's already-completed
-            // pairs get blanked here but never reprocessed (their runId is nulled
-            // too, so the resume scan misses them): silent lost work. Mirrors
-            // FanOutEngine.clearFanMeta.
             cancelFanMetaBatch(reportId, metaPromptId)?.join()
-            withContext(Dispatchers.IO) {
-                val rows = SecondaryResultStorage
-                    .listForReport(context, reportId, SecondaryKind.META)
-                    .filter { it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null }
-                clearFanMetaTitleIconState(context, reportId, rows)
-            }
-            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-            // Run the batch only after the clear is applied (avoids the same
-            // clear-vs-scan race as restartFanMetaErrors).
-            runFanMetaBatch(context, reportId, metaPromptId)
+            runFanMetaBatch(context, reportId, metaPromptId, replaceExisting = true)?.join()
         }
 
     fun cancelFanMetaBatch(reportId: String, metaPromptId: String): Job? =
@@ -3224,24 +3246,9 @@ class IconGenerationManager(
 
     fun restartFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            // join — load-bearing, see relaunchFanMetaBatch: runFanMetaBatch
-            // below dedupes onto a live job whose pending set was snapshotted
-            // at ITS start, so without stopping that batch first the
-            // just-cleared rows were never re-queued and the restart was a
-            // silent no-op that ended in "Interrupted" stamps.
             cancelFanMetaBatch(reportId, metaPromptId)?.join()
-            withContext(Dispatchers.IO) {
-                val errored = erroredFanMetaPairs(context, reportId, metaPromptId)
-                clearFanMetaTitleIconState(context, reportId, errored)
-            }
-            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-            // Run the batch only after the clear is fully applied. The batch's
-            // pending scan keys on blank title+icon; a partial-success errored
-            // pair (title OR icon already set) only becomes eligible once the
-            // clear has blanked it. Previously the clear ran in a separate
-            // coroutine and the scan could win the race — seeing such a pair as
-            // "not pending" and clearing its errors without restarting it.
-            runFanMetaBatch(context, reportId, metaPromptId)
+            val ids = withContext(Dispatchers.IO) { erroredFanMetaPairs(context, reportId, metaPromptId).map { it.id }.toSet() }
+            runFanMetaBatch(context, reportId, metaPromptId, rowIds = ids, replaceExisting = true)?.join()
         }
 
     /** Broken-work "Continue" for a fan-meta batch: stop any in-flight batch
@@ -3254,12 +3261,12 @@ class IconGenerationManager(
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
                 cancelFanMetaBatch(reportId, metaPromptId)?.join()
-                withContext(Dispatchers.IO) {
-                    val errored = erroredFanMetaPairs(context, reportId, metaPromptId)
-                    clearFanMetaTitleIconState(context, reportId, errored)
+                val ids = withContext(Dispatchers.IO) {
+                    SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                        .filter { it.metaPromptId == metaPromptId &&
+                            (isFanMetaError(it) || (it.title.isNullOrBlank() && it.icon.isNullOrBlank())) }.map { it.id }.toSet()
                 }
-                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-                runFanMetaBatch(context, reportId, metaPromptId, buildKey = buildKey)?.join()
+                runFanMetaBatch(context, reportId, metaPromptId, rowIds = ids, buildKey = buildKey, replaceExisting = true)?.join()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 buildKey?.let { appViewModel.clearBuild(it) }
                 throw e
@@ -3277,16 +3284,10 @@ class IconGenerationManager(
 
     fun restartFanMetaRows(context: Context, reportId: String, metaPromptId: String, rowIds: Set<String>): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            // join — load-bearing, see restartFanMetaErrors.
             cancelFanMetaBatch(reportId, metaPromptId)?.join()
-            withContext(Dispatchers.IO) {
-                val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-                    .filter { it.id in rowIds && it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null }
-                clearFanMetaTitleIconState(context, reportId, rows)
-            }
-            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-            runFanMetaBatch(context, reportId, metaPromptId, rowIds = rowIds)
+            runFanMetaBatch(context, reportId, metaPromptId, rowIds = rowIds, replaceExisting = true)?.join()
         }
+
 }
 
 /** A report title describes the question; the report owner chooses the conclusion separately. */

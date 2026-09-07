@@ -48,6 +48,10 @@ androidx VM). Primary generation already has a formal shape — this is the
 The in-flight fan-meta batch job is **not** a `ReportViewModel` field — it
 lives in the `FanOutEngine` run-job registry under a namespaced `|meta|`
 key, because it's a decorator pass over that engine's pairs.
+The same engine owns Fan Meta preparation counters and mirrors durable
+per-pair attempt records. `IconGenerationManager` advances those counters
+through engine methods; Compose only observes them. Legacy attempt repair
+is idempotent and runs on hydration only when no secondary batch is active.
 
 ### Secondary, metadata, and cost state
 

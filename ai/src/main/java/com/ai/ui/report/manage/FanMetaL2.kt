@@ -243,7 +243,7 @@ internal fun FanMetaMetaModelScreen(
 
     val rows: List<PairState> = remember(run, metaModelKey) {
         run.pairs.values
-            .filter { it.titleModel == metaModelKey }
+            .filter { it.titleModel == metaModelKey || it.fanMetaAttempts.orEmpty().any { a -> a.modelKey == metaModelKey } }
             .sortedBy { it.timestamp }
     }
 
@@ -270,7 +270,7 @@ internal fun FanMetaMetaModelScreen(
                 Text("No titles from this meta model yet", color = AppColors.TextTertiary, fontSize = 13.sp)
             }
         } else {
-            val rowsTotalCost = rows.sumOf { it.metaCost }
+            val rowsTotalCost = rows.sumOf { it.metaCostForWorker(metaModelKey) } + run.unattributedMetaAttempts.filter { it.modelKey == metaModelKey }.sumOf { it.cost }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
                     Row(
@@ -294,9 +294,9 @@ internal fun FanMetaMetaModelScreen(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
-                        if (p.metaCost > 0.0) {
+                        if (p.metaCostForWorker(metaModelKey) > 0.0) {
                             Text(
-                                formatCents(p.metaCost), fontSize = 12.sp,
+                                formatCents(p.metaCostForWorker(metaModelKey)), fontSize = 12.sp,
                                 color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 12.dp)
                             )

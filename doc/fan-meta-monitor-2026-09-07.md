@@ -1,10 +1,12 @@
 # Funny question Fan Meta monitoring — 7 September 2026
 
+**Follow-up:** all five findings have source fixes; saved metadata was repaired locally. See [fixes, new second results and validation limits](fan-meta-fixes-2026-09-07.md). The observations and amounts below describe the original monitored run.
+
 **Completed: 1,256 / 1,256 eligible answers now have a title and icon, with no new metadata failures.** All 19 configured worker providers produced results. The four errors shown by the final Fan Meta screen are unchanged failures of the earlier Fan Out. Completion does not mean every generated title meets the requested format: FM03 below documents malformed output accepted as successful.
 
 The batch made **1,258 HTTP attempts**, all with final HTTP 200 responses. Two Together responses had empty content and were rejected; fallback workers recovered both. Recorded additional cost is **$0.105643623 (10.5643623¢)**. The existing report's total is now **$0.9292402619 across 2,638 costed calls**.
 
-Requests started at **14:00:12.758** and the app logged batch end at **14:12:01.085**, Europe/Amsterdam: **11 minutes 48.327 seconds**, following roughly 41 seconds of staging. Five confirmed issues remain open. This task ran and monitored the feature; it did not change application source.
+Requests started at **14:00:12.758** and the app logged batch end at **14:12:01.085**, Europe/Amsterdam: **11 minutes 48.327 seconds**, following roughly 41 seconds of staging. Five confirmed issues were open at the end of this monitoring run. The subsequent fixes are documented in the follow-up above. This monitoring task did not change application source.
 
 ## Run scope
 
@@ -135,4 +137,4 @@ The initial strict JSON comparison detected only newly materialized empty `sourc
 
 The permanent [structured evidence](fan-meta-monitor-2026-09-07-evidence.json) contains final counts, reconciled costs, per-provider totals, title examples, attempt trace filenames, relevant thread-stack excerpts and verification results. Monitoring collected 60 interval samples plus focused UI/log/thread observations. There were no observed fatal-exception, app-ANR or storage-write-failure markers in the process-scoped log. This does not prove the absence of every possible issue or assess every title's semantic quality.
 
-The temporary collector was stopped after completion and the debugger detached. The emulator was left in `com.ai/.MainActivity` on the completed Fan Meta summary. No source changes, build/deploy, unit tests, instrumented tests, reinstall or destructive reset were performed. Only the monitoring documentation and launch status were updated. All five findings above remain open.
+The temporary collector was stopped after completion and the debugger detached. The emulator was left in `com.ai/.MainActivity` on the completed Fan Meta summary. No source changes, build/deploy, unit tests, instrumented tests, reinstall or destructive reset were performed. Only the monitoring documentation and launch status were updated. All five findings were open at the end of the original monitoring task; the follow-up records their later source fixes and validation limits.

@@ -192,6 +192,8 @@ data class SecondaryResult(
      *  for this pair, so the Costs table's `fan/meta` row shows the
      *  model that billed. Null until the Fan Meta batch records cost. */
     val titleModel: String? = null,
+    /** Durable winning, rejected and failed metadata attempts; unrelated to traceFile. */
+    val fanMetaAttempts: List<FanMetaAttempt> = emptyList(),
     /** Wall-clock duration (ms) of the fan-out pair title call, for the
      *  Report-info screen's total-API-time tally. Null before it ran. */
     val titleDurationMs: Long? = null,

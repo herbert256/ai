@@ -40,140 +40,140 @@
       {
         "id": "57ac6a85-1e06-482a-98a8-6555cfcb61eb",
         "title": "**title:** *Quietest Dog Breeds & Their Traits*",
-        "icon": "🐕",
+        "icon": "\ud83d\udc15",
         "titleModel": "Mistral/ministral-14b-latest",
         "titleDurationMs": 53003
       },
       {
         "id": "752a94b9-3506-431f-aca7-04c5d0d3cb96",
         "title": "**Title:** *Sweet Tooth Delight*",
-        "icon": "🍬",
+        "icon": "\ud83c\udf6c",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 21772
       },
       {
         "id": "570af9c2-6817-4063-b068-bda8fd2772a1",
         "title": "**title: Seagulls Over Ocean: Survival & Flight Strategies**",
-        "icon": "🦅",
+        "icon": "\ud83e\udd85",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 28141
       },
       {
         "id": "0bbfb438-dbf7-4047-928a-4b6587fb3d35",
         "title": "**title:** *Watch Band Essentials Guide*",
-        "icon": "🕒",
+        "icon": "\ud83d\udd52",
         "titleModel": "Mistral/ministral-14b-latest",
         "titleDurationMs": 140321
       },
       {
         "id": "4aa25455-ca73-4a77-860f-e434b105fbcb",
         "title": "**Title:** *Celebrating Excellence in His Field*",
-        "icon": "🌟",
+        "icon": "\ud83c\udf1f",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 59020
       },
       {
         "id": "c8f265d7-4cc4-49e3-a220-0db3e82fe3b0",
         "title": "**Title:** *A Mysterious Ocean Wave*",
-        "icon": "🌊",
+        "icon": "\ud83c\udf0a",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 26732
       },
       {
         "id": "ec3ca433-1fbf-487c-b78d-5a41c348b3ef",
         "title": "**Gummy Bear Joy**",
-        "icon": "🐻",
+        "icon": "\ud83d\udc3b",
         "titleModel": "Mistral/ministral-14b-latest",
         "titleDurationMs": 160406
       },
       {
         "id": "dc03858c-f828-4e4c-bd5a-0f7a9a252add",
         "title": "**Title:** *Monkey or Keyword Play*",
-        "icon": "🔑",
+        "icon": "\ud83d\udd11",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 28373
       },
       {
         "id": "6dba5dfb-c6f5-47f3-a0f7-a1763b87d656",
         "title": "**Title:** *Funny Food Puns*",
-        "icon": "🍜",
+        "icon": "\ud83c\udf5c",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 135696
       },
       {
         "id": "c379eb54-6049-4021-bb62-79a0cce6d99e",
         "title": "**Banking on Words**",
-        "icon": "🏞️",
+        "icon": "\ud83c\udfde\ufe0f",
         "titleModel": "Mistral/ministral-14b-latest",
         "titleDurationMs": 169660
       },
       {
         "id": "00af34ba-9348-4413-aada-4c9334c5613d",
         "title": "**Why He Stood Out**",
-        "icon": "🌟",
+        "icon": "\ud83c\udf1f",
         "titleModel": "Mistral/ministral-14b-latest",
         "titleDurationMs": 95151
       },
       {
         "id": "fffe4b5d-4eb8-47c5-9c70-a4e304fda5d0",
         "title": "**Title:** *Rubber Band Magic*",
-        "icon": "🧲",
+        "icon": "\ud83e\uddf2",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 33592
       },
       {
         "id": "9d9eebea-1744-4ef6-a435-0a1e4c2e9fc2",
         "title": "**Title:** Why Seagulls Fly Over the Sea",
-        "icon": "🦅",
+        "icon": "\ud83e\udd85",
         "titleModel": "Cohere/command-r7b-12-2024",
         "titleDurationMs": 25344
       },
       {
         "id": "eb95fa48-7be6-4790-9843-87726dc83679",
         "title": "**Title:** *Funny Animal Riddle*",
-        "icon": "🐄",
+        "icon": "\ud83d\udc04",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 29074
       },
       {
         "id": "b3b0d6f9-6be5-4690-b21e-3f26d2b98ca5",
         "title": "**\"Bank of Water, Not Cash\"**",
-        "icon": "💧",
+        "icon": "\ud83d\udca7",
         "titleModel": "Mistral/ministral-14b-latest",
         "titleDurationMs": 42880
       },
       {
         "id": "0f38d331-ca4d-4932-ac69-c13652e70602",
         "title": "**Why He Stood Out**",
-        "icon": "🌟",
+        "icon": "\ud83c\udf1f",
         "titleModel": "Mistral/ministral-14b-latest",
         "titleDurationMs": 69463
       },
       {
         "id": "a377e5ee-c737-4d30-b080-f798a194cc02",
         "title": "**Dozer: Heavy Machinery Power**",
-        "icon": "🚜",
+        "icon": "\ud83d\ude9c",
         "titleModel": "Mistral/ministral-14b-latest",
         "titleDurationMs": 42931
       },
       {
         "id": "09abf171-52ee-4054-9283-797806d61c51",
         "title": "**title:** *Birdy Pun Play**",
-        "icon": "🦅",
+        "icon": "\ud83e\udd85",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 24496
       },
       {
         "id": "96de0482-dcec-42fd-a3fc-79ebb9b51045",
-        "title": "**title: \"The Paradox of a Coin’s Divide\"**",
-        "icon": "🎲",
+        "title": "**title: \"The Paradox of a Coin\u2019s Divide\"**",
+        "icon": "\ud83c\udfb2",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 30954
       },
       {
         "id": "7e62ffcd-ddce-451e-88d5-23ad494e2248",
         "title": "**Pasta Pun Play**",
-        "icon": "🍝",
+        "icon": "\ud83c\udf5d",
         "titleModel": "VercelAIGateway/mistral/ministral-3b",
         "titleDurationMs": 42782
       }
@@ -515,32 +515,42 @@
     {
       "id": "FM01",
       "priority": "P2",
-      "status": "open",
-      "title": "Work review uses original report agents instead of effective Fan Meta workers"
+      "status": "source-fixed",
+      "title": "Work review uses original report agents instead of effective Fan Meta workers",
+      "statusAtRunCompletion": "open",
+      "followUp": "fan-meta-fixes-2026-09-07.md"
     },
     {
       "id": "FM02",
       "priority": "P1",
-      "status": "open",
-      "title": "Repeated report loading blocks completed workers behind the cost journal"
+      "status": "source-fixed",
+      "title": "Repeated report loading blocks completed workers behind the cost journal",
+      "statusAtRunCompletion": "open",
+      "followUp": "fan-meta-fixes-2026-09-07.md"
     },
     {
       "id": "FM03",
       "priority": "P2",
-      "status": "open",
-      "title": "Malformed or overlong titles accepted and displayed"
+      "status": "source-fixed",
+      "title": "Malformed or overlong titles accepted and displayed",
+      "statusAtRunCompletion": "open",
+      "followUp": "fan-meta-fixes-2026-09-07.md"
     },
     {
       "id": "FM04",
       "priority": "P2",
-      "status": "open",
-      "title": "Metadata results lack exact per-attempt trace references"
+      "status": "source-fixed",
+      "title": "Metadata results lack exact per-attempt trace references",
+      "statusAtRunCompletion": "open",
+      "followUp": "fan-meta-fixes-2026-09-07.md"
     },
     {
       "id": "FM05",
       "priority": "P2",
-      "status": "open",
-      "title": "Fan Meta subtotal omits billed rejected attempts"
+      "status": "source-fixed",
+      "title": "Fan Meta subtotal omits billed rejected attempts",
+      "statusAtRunCompletion": "open",
+      "followUp": "fan-meta-fixes-2026-09-07.md"
     }
   ],
   "threadSnapshot": {

@@ -591,15 +591,10 @@ internal fun SecondaryResultsScreen(
             // disk; subsequent disk changes (via the existing
             // ReportViewModel runners) re-hydrate on each refresh tick.
             val runKey = com.ai.data.runKey(reportId, fanOutPrompt.id)
-            // One hydrate per ~500 ms regardless of refreshTick rate.
-            // Re-keying on refreshTick (the old pattern) cancelled the
-            // in-flight 1k-file hydrate mid-read on every burst tick,
-            // so the L1 stats froze for the whole batch then jumped
-            // 100+ in one frame at the end. throttledTick (defined
-            // above) is the shared lag-once-per-window signal —
-            // allRows below sees the same throttle so we don't double
-            // up on disk reads.
-            LaunchedEffect(reportId, runKey, throttledTick) {
+            // Engine transitions and per-pair refreshes are authoritative while
+            // running. Hydrate on entry only; refresh ticks must not reload the
+            // full parent report and every pair after each metadata completion.
+            LaunchedEffect(reportId, runKey) {
                 withContext(Dispatchers.IO) { fanOutEngine.hydrate(context, reportId) }
             }
             val actions = FanOutActions(

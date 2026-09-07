@@ -59,6 +59,7 @@ internal suspend fun runPooledWorkerCall(
     onThrottleWait: (Boolean) -> Unit = {},
     schedule: WorkerSchedule = WorkerSchedule.Random,
     overrideParams: com.ai.data.AgentParameters? = null,
+    onAttempt: (suspend (WorkerAttempt) -> Unit)? = null,
     accept: (AnalysisResponse) -> Boolean,
 ): PooledWorkerCall {
     val started = System.currentTimeMillis()
@@ -66,9 +67,9 @@ internal suspend fun runPooledWorkerCall(
     val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(onThrottleWait)) {
         withTraceFilenameSink(traceSink) {
             if (traceCategory != null) withTraceCategory(traceCategory) {
-                workerRunner.run(prompt, resolved, aiSettings, context, schedule, overrideParams, accept)
+                workerRunner.run(prompt, resolved, aiSettings, context, schedule, overrideParams, onAttempt, accept)
             } else {
-                workerRunner.run(prompt, resolved, aiSettings, context, schedule, overrideParams, accept)
+                workerRunner.run(prompt, resolved, aiSettings, context, schedule, overrideParams, onAttempt, accept)
             }
         }
     }
@@ -158,7 +159,7 @@ internal suspend fun runPooledItemCall(
     val aiSettings = appViewModel.uiState.value.aiSettings
     val call = try {
         withTimeout(NetworkSettings.batchItemTimeoutMs) {
-            runPooledWorkerCall(workerRunner, aiSettings, context, prompt, resolved, traceCategory, onThrottleWait, schedule, overrideParams, accept)
+            runPooledWorkerCall(workerRunner, aiSettings, context, prompt, resolved, traceCategory, onThrottleWait, schedule, overrideParams, accept = accept)
         }
     } catch (e: TimeoutCancellationException) {
         return PooledItemOutcome.Error(timeoutMessage, rateLimited = false)

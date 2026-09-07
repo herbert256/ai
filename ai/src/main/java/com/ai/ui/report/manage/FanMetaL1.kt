@@ -135,10 +135,18 @@ internal fun FanMetaL1Screen(
         val throttledHere = counts.wait
         val queuedCount = counts.queued
         val allDone = run.totalPairs > 0 && doneCount == run.totalPairs
+        if (run.preparingMetaTotal > 0) {
+            Text("Preparing ${run.preparedMetaPairs} / ${run.preparingMetaTotal}…", color = AppColors.InfoAccent)
+            LinearProgressIndicator(progress = { run.preparedMetaPairs.toFloat() / run.preparingMetaTotal }, modifier = Modifier.fillMaxWidth())
+        }
         Spacer(modifier = Modifier.height(8.dp))
         // Worker-swarm batch (category B): a benched meta-worker is
         // skipped and another picked, so benched errors fold into Error
         // and there's no separate Bench column.
+        if (run.unattributedMetaAttempts.isNotEmpty()) {
+            Text("Includes ${formatCents(run.unattributedMetaAttempts.sumOf { it.cost })} from historical attempts with no exact pair link.",
+                color = AppColors.TextTertiary, fontSize = 12.sp)
+        }
         BatchStatsRow(listOf(
             Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent),
             Triple("Done", doneCount.toString(), AppColors.SuccessAccent),
@@ -146,7 +154,7 @@ internal fun FanMetaL1Screen(
             Triple("Run", runningCount.toString(), AppColors.WarningAccent),
             Triple("Wait", throttledHere.toString(), AppColors.CautionAccent),
             Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)}", AppColors.InfoAccent)
+            Triple("Costs", "${formatCents(run.metaCost, decimals = 2)}", AppColors.InfoAccent)
         ))
 
         // L1 lists the report (answerer) models. The meta-worker
@@ -379,7 +387,15 @@ internal fun FanMetaWorkersScreen(
             onTrace = onTrace,
             onDelete = onDelete
         )
+        if (run.preparingMetaTotal > 0) {
+            Text("Preparing ${run.preparedMetaPairs} / ${run.preparingMetaTotal}…", color = AppColors.InfoAccent)
+            LinearProgressIndicator(progress = { run.preparedMetaPairs.toFloat() / run.preparingMetaTotal }, modifier = Modifier.fillMaxWidth())
+        }
         Spacer(modifier = Modifier.height(8.dp))
+        if (run.unattributedMetaAttempts.isNotEmpty()) {
+            Text("Includes ${formatCents(run.unattributedMetaAttempts.sumOf { it.cost })} from historical attempts with no exact pair link.",
+                color = AppColors.TextTertiary, fontSize = 12.sp)
+        }
         BatchStatsRow(listOf(
             Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent),
             Triple("Done", counts.done.toString(), AppColors.SuccessAccent),
@@ -387,18 +403,21 @@ internal fun FanMetaWorkersScreen(
             Triple("Run", counts.running.toString(), AppColors.WarningAccent),
             Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
             Triple("Queue", counts.queued.toString(), AppColors.QueueAccent),
-            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)}", AppColors.InfoAccent)
+            Triple("Costs", "${formatCents(run.metaCost, decimals = 2)}", AppColors.InfoAccent)
         ))
         Spacer(modifier = Modifier.height(8.dp))
 
-        // One row per meta-worker model (titleModel); count = pairs it titled.
+        // Attribute fallback spend to the model that billed it, independently
+        // of the final winning title model. Count remains completed titles.
         val rows = remember(run) {
-            run.pairs.values
-                .filter { !it.titleModel.isNullOrBlank() }
-                .groupBy { it.titleModel!! }
-                .entries
-                .sortedBy { it.key.substringAfterLast('/').lowercase() }
-                .map { (metaKey, pairs) -> Triple(metaKey, pairs.size, pairs.sumOf { pairCost(it) }) }
+            val keys = run.pairs.values.flatMap { p ->
+                listOfNotNull(p.titleModel) + p.fanMetaAttempts.orEmpty().map { it.modelKey }
+            }.toSet() + run.unattributedMetaAttempts.map { it.modelKey }
+            keys.sortedBy { it.substringAfterLast('/').lowercase() }.map { key ->
+                Triple(key, run.pairs.values.count { it.titleModel == key && !it.title.isNullOrBlank() },
+                    run.pairs.values.sumOf { it.metaCostForWorker(key) } +
+                        run.unattributedMetaAttempts.filter { it.modelKey == key }.sumOf { it.cost })
+            }
         }
         val maxDone = (rows.maxOfOrNull { it.second } ?: 0).coerceAtLeast(1)
         val showBars = summary.activeOutstanding

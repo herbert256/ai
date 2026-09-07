@@ -43,7 +43,10 @@ internal object ReportContentStore {
         }
         return root.toString()
     }
-    fun unpack(files: File, reportId: String, json: String): String {
+    fun unpack(files: File, reportId: String, json: String): String = unpackElement(files, reportId, json).toString()
+
+    /** Hydrate once without serializing large bodies only to parse them again. */
+    fun unpackElement(files: File, reportId: String, json: String): JsonObject {
         val root=JsonParser.parseString(json).asJsonObject
         slots(root) { obj,key ->
             val hash=obj["_$key"]?.takeIf { it.isJsonPrimitive }?.asString
@@ -56,7 +59,7 @@ internal object ReportContentStore {
                 obj.addProperty(key,value); obj.remove("_$key")
             }
         }
-        return root.toString()
+        return root
     }
     fun delete(files: File, reportId: String) { directory(files,reportId).deleteRecursively() }
 }

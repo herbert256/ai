@@ -33,16 +33,19 @@ object SecondaryResultStorage {
         val filenamesByKind = HashMap<SecondaryKind, LinkedHashSet<String>>()
         var loaded: Boolean = false
         var dirMtime: Long = 0L
+        var bytes: Long = 0L
 
         fun put(filename: String, entry: CachedEntry) {
             remove(filename)
             byFilename[filename] = entry
+            bytes += entry.length
             filenameById[entry.parsed.id] = filename
             filenamesByKind.getOrPut(entry.parsed.kind) { LinkedHashSet() }.add(filename)
         }
 
         fun remove(filename: String) {
             val old = byFilename.remove(filename) ?: return
+            bytes -= old.length
             filenameById.remove(old.parsed.id)
             filenamesByKind[old.parsed.kind]?.let { names ->
                 names.remove(filename)
@@ -113,7 +116,7 @@ object SecondaryResultStorage {
         val cache = cacheForReport(reportId)
         cache.put(file.name, CachedEntry(file.lastModified(), file.length(), result))
         if (cache.loaded) cache.dirMtime = file.parentFile?.lastModified() ?: cache.dirMtime
-        if (cache.byFilename.values.sumOf { it.length } > 8L * 1024 * 1024) reportCaches.remove(reportId)
+        if (cache.bytes > 8L * 1024 * 1024) reportCaches.remove(reportId)
     }
 
     private fun forgetCachedResult(reportId: String, filename: String) {
@@ -328,7 +331,7 @@ object SecondaryResultStorage {
                 refreshReportCacheFromDisk(dir, cache)
             }
             rowsFromCache(cache, kind).also {
-                if (cache.byFilename.values.sumOf { it.length } > 8L * 1024 * 1024) reportCaches.remove(reportId)
+                if (cache.bytes > 8L * 1024 * 1024) reportCaches.remove(reportId)
             }
         }
     }
@@ -558,7 +561,8 @@ object SecondaryResultStorage {
      *  spend into [ReportStorage.bumpCostsFromDeletedItems] before wiping
      *  a row MUST pass false — the merge would silently keep the banked
      *  spend on the row and count it twice. */
-    fun saveIfStillPresent(context: Context, result: SecondaryResult, mergeCosts: Boolean = true): Boolean {
+    fun saveIfStillPresent(context: Context, result: SecondaryResult, mergeCosts: Boolean = true,
+                           replaceExecutionConfig: Boolean = false): Boolean {
         init(context)
         if (!ReportStorage.reportFileExists(context, result.reportId)) return false
         if (result.id.isBlank() || result.id.contains('/') || result.id.contains('\\')
@@ -592,7 +596,7 @@ object SecondaryResultStorage {
             // accumulation should write via [save] instead.
             val current = readCachedOrDisk(result.reportId, target)
             val incoming = result.copy(sourceSnapshotId = current?.sourceSnapshotId ?: result.sourceSnapshotId,
-                executionConfig = current?.executionConfig ?: result.executionConfig,
+                executionConfig = if (replaceExecutionConfig) result.executionConfig else current?.executionConfig ?: result.executionConfig,
                 translationSourceText = current?.translationSourceText ?: result.translationSourceText)
             val toWrite = if (mergeCosts) mergeCostFromCurrent(current, incoming) else incoming
             ReportSaveRecovery.write(target, gson.toJson(toWrite), result.reportId,
@@ -1003,6 +1007,56 @@ object SecondaryResultStorage {
         }
     }
 
+    internal fun repairFanMetaRow(context: Context, baseline: SecondaryResult, attempts: List<FanMetaAttempt>) {
+        init(context)
+        lock.withLock {
+            val dir = resolveReportDirForRead(baseline.reportId) ?: return
+            val target = File(dir, "${baseline.id}.json")
+            val row = readCachedOrDisk(baseline.reportId, target) ?: return
+            // Do not alter metadata replaced while the historical traces were read.
+            if (row.titleRunId != baseline.titleRunId || row.title != baseline.title || row.icon != baseline.icon) return
+            val added = attempts.filter { a -> row.fanMetaAttempts.orEmpty().none { it.id == a.id || it.traceFile == a.traceFile } }
+            val rejected = added.filterNot { it.accepted }
+            val updated = row.copy(
+                title = row.title?.let { FanMetaFormat.cleanTitle(it).takeIf(String::isNotBlank) ?: it },
+                fanMetaAttempts = row.fanMetaAttempts.orEmpty() + added,
+                // The historical winner was already charged to title fields.
+                titleInputCost = row.titleInputCost + rejected.sumOf { it.inputCost },
+                titleOutputCost = row.titleOutputCost + rejected.sumOf { it.outputCost },
+                titleInputTokens = row.titleInputTokens + rejected.sumOf { it.inputTokens },
+                titleOutputTokens = row.titleOutputTokens + rejected.sumOf { it.outputTokens }
+            )
+            if (updated == row) return
+            ReportSaveRecovery.write(target, gson.toJson(updated), baseline.reportId,
+                retryLocked = { action -> lock.withLock { action() } }, stillValid = { target.exists() },
+                onSaved = { forgetCachedResult(baseline.reportId, target.name); SecondaryDataVersion.bump(baseline.reportId, SecondaryKind.META) })
+            rememberCachedResult(baseline.reportId, target, updated)
+        }
+    }
+
+    /** Save each attempt before fallback or cancellation can discard its trace/cost. */
+    fun recordFanMetaAttempt(context: Context, reportId: String, resultId: String, attempt: FanMetaAttempt) {
+        init(context)
+        lock.withLock {
+            val dir = resolveReportDirForRead(reportId) ?: return
+            val target = File(dir, "$resultId.json")
+            val current = readCachedOrDisk(reportId, target) ?: return
+            if (current.fanMetaAttempts.orEmpty().any { it.id == attempt.id }) return
+            val updated = current.copy(
+                fanMetaAttempts = current.fanMetaAttempts.orEmpty() + attempt,
+                titleInputTokens = current.titleInputTokens + attempt.inputTokens,
+                titleOutputTokens = current.titleOutputTokens + attempt.outputTokens,
+                titleInputCost = current.titleInputCost + attempt.inputCost,
+                titleOutputCost = current.titleOutputCost + attempt.outputCost
+            )
+            ReportSaveRecovery.write(target, gson.toJson(updated), reportId,
+                retryLocked = { action -> lock.withLock { action() } },
+                stillValid = { target.exists() },
+                onSaved = { forgetCachedResult(reportId, target.name); SecondaryDataVersion.bump(reportId, SecondaryKind.META) })
+            rememberCachedResult(reportId, target, updated)
+        }
+    }
+
     /** Commit one Fan Meta worker result in a single row rewrite. The
      *  legacy path wrote cost, title, and icon/error as separate atomic
      *  writes per pair; large Fan Meta batches spent most of their time
@@ -1082,8 +1136,8 @@ object SecondaryResultStorage {
                 if (!target.exists()) continue
                 val current = readCachedOrDisk(reportId, target) ?: continue
                 val updated = current.copy(
-                    titleRunId = current.titleRunId ?: fanMetaRunId,
-                    iconRunId = current.iconRunId ?: fanMetaRunId,
+                    titleRunId = fanMetaRunId,
+                    iconRunId = fanMetaRunId,
                     titlePromptUsed = current.titlePromptUsed ?: promptUsed,
                     iconPromptUsed = current.iconPromptUsed ?: promptUsed,
                     timestamp = System.currentTimeMillis()
@@ -1151,7 +1205,8 @@ object SecondaryResultStorage {
                 titleOutputTokens = 0,
                 titleInputCost = 0.0,
                 titleOutputCost = 0.0,
-                titleModel = null
+                titleModel = null,
+                fanMetaAttempts = emptyList()
             )
             if (!target.writeTextAtomic(gson.toJson(updated))) {
                 AppLog.e("SecondaryResultStorage", "Failed to write result $resultId")

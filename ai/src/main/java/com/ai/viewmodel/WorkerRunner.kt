@@ -24,6 +24,16 @@ sealed class WorkerOutcome {
     data object Failed : WorkerOutcome()
 }
 
+/** Settled attempt delivered before fallback or success leaves the worker runner. */
+data class WorkerAttempt(
+    val agent: com.ai.model.Agent,
+    val response: AnalysisResponse?,
+    val accepted: Boolean,
+    val traceFile: String?,
+    val durationMs: Long,
+    val error: String?
+)
+
 /** How a worker-pool call picks its primary worker (and the fallback
  *  order after a miss): [Random] shuffles per call — the historical
  *  "when available" behaviour where fast models absorb more work —
@@ -146,6 +156,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
          *  resolution for every candidate in the chain. Declared BEFORE
          *  [accept] so trailing-lambda call sites keep binding to accept. */
         overrideParams: com.ai.data.AgentParameters? = null,
+        onAttempt: (suspend (WorkerAttempt) -> Unit)? = null,
         accept: (AnalysisResponse) -> Boolean = { true },
     ): WorkerOutcome {
         // Expand each worker into the per-member plain workers we actually
@@ -214,14 +225,34 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
                     model = effModel
                 )
                 val baseUrl = w.frozenEndpointUrl ?: aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                val resp = appViewModel.repository.analyzeWithAgent(
-                    agent, "", resolvedText, agentResolvedParams = w.frozenParameters ?: com.ai.data.AgentParameters(), overrideParams = overrideParams,
-                    context = context, baseUrl = baseUrl, retry = false
-                )
+                val started = System.currentTimeMillis()
+                val outerSink = com.ai.data.ApiTracer.traceFilenameSink.get()
+                val sink = java.util.concurrent.atomic.AtomicReference<String?>()
+                val resp = try {
+                    com.ai.data.withTraceFilenameSink(sink) {
+                        appViewModel.repository.analyzeWithAgent(
+                            agent, "", resolvedText, agentResolvedParams = w.frozenParameters ?: com.ai.data.AgentParameters(), overrideParams = overrideParams,
+                            context = context, baseUrl = baseUrl, retry = false
+                        )
+                    }
+                } catch (e: Exception) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                        onAttempt?.invoke(WorkerAttempt(agent, null, false, sink.get(),
+                            System.currentTimeMillis() - started, e.message ?: "Worker interrupted"))
+                    }
+                    throw e
+                } finally {
+                    outerSink?.set(sink.get())
+                }
                 val artifactAccepted = resp.isSuccess && accept(resp)
                 if (!artifactAccepted) resp.tokenUsage?.let { usage ->
                     appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, usage,
-                        kind = "worker/rejected")
+                        kind = "worker/rejected", durationMs = System.currentTimeMillis() - started)
+                }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.IO) {
+                    onAttempt?.invoke(WorkerAttempt(agent, resp, artifactAccepted, sink.get(),
+                        System.currentTimeMillis() - started,
+                        if (artifactAccepted) null else resp.error ?: "No usable metadata in reply"))
                 }
                 when {
                     artifactAccepted -> {

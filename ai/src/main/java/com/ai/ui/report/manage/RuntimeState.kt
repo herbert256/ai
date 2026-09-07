@@ -46,6 +46,7 @@ import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 
 internal data class ReportRuntimeState(
@@ -128,6 +129,7 @@ internal fun rememberReportRuntimeState(
     // Combined main-response cost of every model (report/prompt calls).
     var mainResponseTotal by remember { mutableStateOf(0.0) }
     var costsFromDeletedItems by remember { mutableStateOf(0.0) }
+    var unattributedMetaAttempts by remember { mutableStateOf(emptyList<FanMetaAttempt>()) }
 
     var reportIcon by remember { mutableStateOf<String?>(null) }
     var reportIconError by remember { mutableStateOf<String?>(null) }
@@ -154,10 +156,22 @@ internal fun rememberReportRuntimeState(
     // iconRefreshTick re-run keeps it loaded → no hourglass flash.
     var loadedReportId by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
+    val latestUiState by rememberUpdatedState(uiState)
+    val latestIconGenEnabled by rememberUpdatedState(iconGenEnabled)
+    LaunchedEffect(currentReportId) {
+      var loadedMtime = -1L
+      var cachedReport: Report? = null
+      // Finish one read before consuming the newest refresh; cancelling a blocking
+      // disk read on every tick only piles up more readers behind the storage lock.
+      snapshotFlow {
+          Triple(latestUiState.iconRefreshTick, latestUiState.aiSettings, latestUiState.generalSettings) to latestIconGenEnabled
+      }.conflate().collect {
+        val uiState = latestUiState
         val rid = currentReportId
         if (rid == null) {
             loadedReportId = null
+            costsFromDeletedItems = 0.0
+            unattributedMetaAttempts = emptyList()
             reportIcon = null
             reportIconError = null
             reportIconCost = 0.0
@@ -178,7 +192,13 @@ internal fun rememberReportRuntimeState(
             loadedReportTitle = null
             loadedReportTimestamp = 0L
         } else {
-            val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
+            val mtime = withContext(Dispatchers.IO) { ReportStorage.reportLastModified(context, rid) }
+            val r = if (loadedReportId == rid && mtime == loadedMtime) cachedReport
+                else withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid) }
+            cachedReport = r
+            loadedMtime = mtime
+            costsFromDeletedItems = r?.costsFromDeletedItems ?: 0.0
+            unattributedMetaAttempts = r?.unattributedFanMetaAttempts.orEmpty()
             reportIcon = r?.icon
             reportIconError = r?.iconErrorMessage
             reportIconCost = (r?.iconInputCost ?: 0.0) + (r?.iconOutputCost ?: 0.0)
@@ -199,7 +219,7 @@ internal fun rememberReportRuntimeState(
             // input+output cost (matches the Manage hub's per-model rows).
             mainResponseTotal = r?.agents?.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
             val infoJobs = if (r != null) buildInfoJobs(
-                r, uiState.aiSettings, iconGenEnabled,
+                r, uiState.aiSettings, latestIconGenEnabled,
                 uiState.generalSettings.reportLanguageOn(),
                 uiState.generalSettings.reportTitleAiOn(),
                 uiState.generalSettings.perModelIconOn(),
@@ -233,6 +253,7 @@ internal fun rememberReportRuntimeState(
             loadedReportTimestamp = r?.timestamp ?: 0L
             loadedReportId = rid
         }
+      }
     }
 
     var secondaryRefreshTick by remember { mutableStateOf(0) }
@@ -269,7 +290,7 @@ internal fun rememberReportRuntimeState(
     // reloads secondaryRuns from disk; without it the in-memory list
     // keeps the old SecondaryResult.icon value and the View tile +
     // Manage row never reflect the user's pick.
-    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick, uiState.iconRefreshTick, deletingFanOutRuns, deletingTranslationRunIds) {
+    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick, uiState.iconRefreshTick, deletingFanOutRuns, deletingTranslationRunIds, unattributedMetaAttempts) {
         val rid = currentReportId ?: run {
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0)
             secondaryRuns = emptyList()
@@ -282,9 +303,6 @@ internal fun rememberReportRuntimeState(
             secondTotal = 0.0
             costsFromDeletedItems = 0.0
             return@LaunchedEffect
-        }
-        costsFromDeletedItems = withContext(Dispatchers.IO) {
-            com.ai.data.ReportStorage.getReport(context, rid)?.costsFromDeletedItems ?: 0.0
         }
         suspend fun reload() {
             withContext(Dispatchers.IO) {
@@ -317,7 +335,7 @@ internal fun rememberReportRuntimeState(
                         // Hide runs whose delete is in flight (rows still on disk).
                         val pid = row.metaPromptId
                         pid == null || com.ai.data.runKey(rid, pid) !in deletingFanOutRuns
-                    }
+                    }, unattributedMetaAttempts
                 )
                 secondaryCounts = SecondaryResultStorage.Counts(
                     rerank = all.count { it.kind == SecondaryKind.RERANK },
@@ -335,7 +353,7 @@ internal fun rememberReportRuntimeState(
                     // (which counts the title half as its fan/meta rows).
                     fanOutMetaCost = all.sumOf {
                         it.iconInputCost + it.iconOutputCost + it.titleInputCost + it.titleOutputCost
-                    }
+                    } + unattributedMetaAttempts.filter { a -> all.any { it.titleRunId == a.runId } }.sumOf { it.cost }
                 )
                 // "second" row aggregate + summed cost — disk-based, like the
                 // info row. Any unfinished cell (blank content, no error, no

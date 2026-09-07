@@ -102,7 +102,20 @@ class SecondaryRunManager(
             ))
             return
         }
-        ReportWorkLimits.review(reportId,"${kind.name.lowercase()} result",1,ReportWorkLimits.promptWorkPlan(listOf(frozenPrompt)))
+        try {
+            ReportWorkLimits.review(reportId,"${kind.name.lowercase()} result",1,ReportWorkLimits.promptWorkPlan(listOf(frozenPrompt)))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // The UI stages a row before the review. Cancelling that review
+            // must not leave a never-dispatched result spinning indefinitely.
+            withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+                val row = SecondaryResultStorage.get(context, reportId, base.id)
+                if (row != null && row.content.isNullOrBlank() && row.durationMs == null &&
+                    row.executionConfig == null && row.traceFile == null && row.fullCost() == 0.0) {
+                    SecondaryResultStorage.delete(context, reportId, base.id)
+                }
+            }
+            throw e
+        }
         val cooldown = HashMap<String, Long>()
         var sawRateLimit = false
         var lastErr: String? = null
@@ -945,7 +958,30 @@ class SecondaryRunManager(
                 val sourceReport = ReportStorage.getReport(context, reportId) ?: return@launch
                 ReportEvidenceStore.requireHistoricalReport(sourceReport, placeholder)
                 if (placeholder.targetLanguage != null) ReportEvidenceStore.historicalSecondaries(context, placeholder)
-                com.ai.data.ReportWorkLimits.review(reportId, "Retry secondary result", 1)
+                val retryPlan = fallbackProvider?.let { provider ->
+                    val credential = placeholder.executionConfig?.credentialAgentId
+                        ?.let(aiSettings::getAgentById)?.takeIf { it.provider == provider }
+                    val agent = credential ?: Agent(id = "secondary:${placeholder.id}",
+                        name = placeholder.agentName.orEmpty(), provider = provider, model = placeholder.model, apiKey = "")
+                    val execution = placeholder.executionConfig
+                    com.ai.data.ReportWorkPlan(
+                        jobs = listOf("Retry ${metaPrompt.name}"),
+                        recipients = listOf(com.ai.data.ReportRecipient(
+                            "${metaPrompt.name} · ${provider.id}/${placeholder.model}",
+                            execution?.endpointUrl ?: when {
+                                kind == SecondaryKind.MODERATION -> provider.nativeModerationUrl
+                                kind == SecondaryKind.RERANK && aiSettings.getModelType(provider, placeholder.model) == ModelType.RERANK -> provider.nativeRerankUrl
+                                else -> null
+                            } ?: aiSettings.getEffectiveEndpointUrlForAgent(agent))),
+                        instructions = listOf("${metaPrompt.name}\n${execution?.prompt ?: metaPrompt.text}",
+                            "${provider.id}/${placeholder.model}: ${execution?.parameters ?: resolveSecondaryParams(state.generalSettings, aiSettings, emptyList(), null, metaPrompt, credential)}")
+                    )
+                } ?: ReportWorkLimits.promptWorkPlan(listOf(metaPrompt.copy(workers = resolveBatchSwarm(
+                    sourceReport, metaPrompt.workers, null,
+                    alwaysPromptWorkers = kind == SecondaryKind.RERANK || kind == SecondaryKind.MODERATION
+                )).freezeWorkers(aiSettings, state.generalSettings)))
+                    .copy(jobs = listOf("Retry ${metaPrompt.name}"))
+                ReportWorkLimits.review(reportId, "Retry secondary result", 1, retryPlan)
                 withContext(com.ai.data.ReportWorkLimits.reviewedReport.asContextElement(reportId)) {
                     placeholder.fullCost().takeIf { it > 0.0 }?.let {
                         ReportStorage.bumpCostsFromDeletedItems(context, reportId, it)
@@ -1727,6 +1763,33 @@ class SecondaryRunManager(
             return
         }
 
+        val agent = (configuredAgent ?: Agent(
+            id = "secondary:${kind.name}:${provider.id}:$model",
+            name = agentName, provider = provider, model = model, apiKey = apiKey
+        )).copy(provider = provider, model = model, apiKey = apiKey)
+        val isRerankApiPath = kind == SecondaryKind.RERANK && aiSettings.getModelType(provider, model) == ModelType.RERANK
+        val baseUrl = when {
+            kind == SecondaryKind.MODERATION -> provider.nativeModerationUrl
+            isRerankApiPath -> provider.nativeRerankUrl
+            else -> null
+        } ?: aiSettings.getEffectiveEndpointUrlForAgent(agent)
+        val start = System.currentTimeMillis()
+        val secondaryParams = executionWorker?.frozenParameters ?: resolveSecondaryParams(
+            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, metaPrompt, configuredAgent
+        )
+        val storedAttempt = SecondaryResultStorage.get(context,reportId,placeholder.id)
+        val execution = storedAttempt?.takeIf { it.providerId==provider.id && it.model==model }?.executionConfig
+            ?: com.ai.data.ReportExecutionConfig(secondaryParams,executionWorker?.frozenEndpointUrl ?: baseUrl,resolvedPrompt,credentialAgentId=configuredAgent?.id).also {
+                placeholder = placeholder.copy(executionConfig=it)
+                // A fallback changes execution settings, not the already billed
+                // attempts. Stage configuration from the current stored ledger;
+                // the result patch below still contributes only this new call.
+                val staged = (storedAttempt ?: placeholder).copy(providerId=provider.id,model=model,
+                    agentName=agentName,executionConfig=it,content=null,errorMessage=null)
+                check(SecondaryResultStorage.saveIfStillPresent(context,staged,mergeCosts=false,
+                    replaceExecutionConfig=true)) { "Secondary result was removed before dispatch" }
+            }
+
         // Moderation runs through the dedicated /v1/moderations
         // endpoint — one batch call classifying every report response.
         // No chat prompt, no per-response loop here (the API takes the
@@ -1750,11 +1813,11 @@ class SecondaryRunManager(
                     translatedBodies?.get(agent.agentId)
                         ?: agent.responseBody?.takeIf(String::isNotBlank)
                 }
-            val (_, r) = com.ai.data.callModerationApi(provider, apiKey, model, responses)
+            val (_, r) = com.ai.data.callModerationApi(provider, apiKey, model, responses, execution.endpointUrl)
             // Persist Mistral's reported token usage + per-token cost
             // so the result row shows cents like the other meta runs.
             // Falls through to no-cost when the API didn't report usage.
-            val tu = r.tokenUsage
+            val tu = r.tokenUsage?.copy(traceFile = traceSink.get())
             val pricing = PricingCache.getPricing(context, provider, model)
             val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, pricing) }
                 ?: (null to null)
@@ -1782,8 +1845,6 @@ class SecondaryRunManager(
         // scores. Detect that and route to the dedicated rerank API,
         // converting the response back to the structured JSON the rest
         // of the system already consumes (HTML export, Top-Ranked scope).
-        val isRerankApiPath = kind == SecondaryKind.RERANK
-            && aiSettings.getModelType(provider, model) == com.ai.data.ModelType.RERANK
         if (isRerankApiPath) {
             // Honour a selected target language: rank the TRANSLATED query +
             // documents (falling back to the originals per-agent / for the
@@ -1800,7 +1861,7 @@ class SecondaryRunManager(
                     rerankLangCtx?.bodiesByAgentId?.get(agent.agentId)
                         ?: agent.responseBody?.takeIf(String::isNotBlank)
                 }
-            val r = com.ai.data.callRerankApi(provider, apiKey, model, query, docs)
+            val r = com.ai.data.callRerankApi(provider, apiKey, model, query, docs, execution.endpointUrl)
             // Per-query pricing: cost = billedSearchUnits × perQueryPrice.
             // Stored on inputCost so the report cost table renders
             // alongside chat/summarize rows. The provider may omit the
@@ -1830,7 +1891,8 @@ class SecondaryRunManager(
             persistReportCompletion(recordUsage = {
                 if (r.errorMessage == null) {
                     appViewModel.settingsPrefs.updateUsageStatsAsync(
-                        provider, model, rerankTokenUsage ?: com.ai.data.TokenUsage(0, 0), kind = "rerank", searchUnits = units, durationMs = r.durationMs
+                        provider, model, (rerankTokenUsage ?: com.ai.data.TokenUsage(0, 0)).copy(traceFile = traceSink.get()),
+                        kind = "rerank", searchUnits = units, durationMs = r.durationMs
                     )
                 }
             }, saveAnswer = {
@@ -1846,26 +1908,6 @@ class SecondaryRunManager(
             return
         }
 
-        val agent = configuredAgent ?: Agent(
-            id = "secondary:${kind.name}:${provider.id}:$model",
-            name = agentName, provider = provider, model = model, apiKey = apiKey
-        )
-        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-        val start = System.currentTimeMillis()
-        val secondaryParams = executionWorker?.frozenParameters ?: resolveSecondaryParams(
-            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, metaPrompt, configuredAgent
-        )
-        val storedAttempt = SecondaryResultStorage.get(context,reportId,placeholder.id)
-        val execution = storedAttempt?.takeIf { it.providerId==provider.id && it.model==model }?.executionConfig
-            ?: com.ai.data.ReportExecutionConfig(secondaryParams,executionWorker?.frozenEndpointUrl ?: baseUrl,resolvedPrompt,credentialAgentId=configuredAgent?.id).also {
-                placeholder = placeholder.copy(executionConfig=it)
-                // A fallback changes execution settings, not the already billed
-                // attempts. Stage configuration from the current stored ledger;
-                // the result patch below still contributes only this new call.
-                val staged = (storedAttempt ?: placeholder).copy(providerId=provider.id,model=model,
-                    agentName=agentName,executionConfig=it,content=null,errorMessage=null)
-                check(SecondaryResultStorage.saveIfStillPresent(context,staged,mergeCosts=false)) { "Secondary result was removed before dispatch" }
-            }
         val response = try {
             appViewModel.repository.analyzeWithAgent(
                 agent, "", execution.prompt, execution.parameters, null, context, execution.endpointUrl

@@ -152,6 +152,7 @@ internal fun FanMetaL3Screen(
     }
 
     var confirmDelete by remember { mutableStateOf(false) }
+    var showAttempts by remember { mutableStateOf(false) }
     var confirmReloadResponse by remember { mutableStateOf(false) }
 
     // Re-read the row from disk on each refresh tick so picked
@@ -222,7 +223,12 @@ internal fun FanMetaL3Screen(
             // confirmed; a bare tap here silently destroyed the response the
             // kept title/icon describe.
             onReload = { confirmReloadResponse = true },
-            onDelete = { confirmDelete = true }
+            onDelete = { confirmDelete = true },
+            onTrace = if (com.ai.data.ApiTracer.ladybugLinksEnabled) {
+                fresh.fanMetaAttempts.orEmpty().lastOrNull { it.accepted && it.traceFile != null }?.traceFile?.let { file ->
+                    { actions.onNavigateToTraceFile(file) }
+                } ?: fresh.titleRunId?.let { id -> { actions.onNavigateToTraceRunList(id) } }
+            } else null
         )
 
         Column(
@@ -261,6 +267,10 @@ internal fun FanMetaL3Screen(
             }
         }
 
+        OutlinedButton(onClick = { showAttempts = true }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+            Text("API attempts (${fresh.fanMetaAttempts.orEmpty().size})")
+        }
+        Spacer(Modifier.height(8.dp))
         // Two Find-alt buttons.
         OutlinedButton(
             onClick = { actions.onFindAlternativePairIcon(pair.id) },
@@ -286,6 +296,33 @@ internal fun FanMetaL3Screen(
                 maxLines = 1, softWrap = false
             )
         }
+    }
+
+    if (showAttempts) {
+        AlertDialog(
+            onDismissRequest = { showAttempts = false },
+            title = { Text("Fan Meta API attempts") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (fresh.fanMetaAttempts.orEmpty().isEmpty()) {
+                        Text("Exact attempt links were not saved for this historical result. The run traces remain available.")
+                        fresh.titleRunId?.let { id ->
+                            TextButton(onClick = { showAttempts = false; actions.onNavigateToTraceRunList(id) }) { Text("View run traces") }
+                        }
+                    }
+                    fresh.fanMetaAttempts.orEmpty().forEach { attempt ->
+                        Text("${attempt.provider} / ${attempt.model}", fontWeight = FontWeight.SemiBold)
+                        Text(if (attempt.accepted) "Accepted" else attempt.error ?: "Rejected")
+                        Text(com.ai.ui.shared.formatCents(attempt.cost))
+                        attempt.traceFile?.let { file ->
+                            TextButton(onClick = { showAttempts = false; actions.onNavigateToTraceFile(file) }) { Text("View trace") }
+                        } ?: Text("Trace unavailable")
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAttempts = false }) { Text("Close") } }
+        )
     }
 
     if (confirmDelete) {

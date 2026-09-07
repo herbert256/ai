@@ -12,6 +12,19 @@ the per-report **API-call cost ledger** that drives all three.
 
 ## How a call is costed
 
+Fan Meta persists every worker attempt on its secondary pair, including
+paid replies rejected by the output parser. The pair/run subtotal includes
+those attempts while the lifetime ledger records each bill only once.
+Older ambiguous rejected attempts can remain in the report's
+`unattributedFanMetaAttempts`; their run subtotal includes them without
+inventing a source pair. The repair does not add duplicate lifetime ledger rows.
+
+The cost journal serializes flushes separately from enqueue. It releases
+the enqueue monitor before appending to report storage, then acknowledges
+only unchanged captured journal records. UUID deduplication retains crash
+recovery across append/ack interruption. Report UI reads are conflated and
+reuse unchanged file versions to avoid competing full-report reloads.
+
 `PricingCache.computeInOutCost(usage, pricing)`
 (`data/PricingCache.kt:347`) turns a `TokenUsage` + a resolved
 `ModelPricing` into `(inDollars, outDollars)`:

@@ -52,7 +52,7 @@ internal fun buildPrimaryWorkPlan(context: Context, reportId: String, question: 
             jobs += "Optional after answers: question relevance (2+ successful answers) and moderation when a moderation model is configured"
             settings.internalPrompts.filter { it.name in setOf("second-rerank","second-moderation") }.forEach { add(it,it.name) }
             settings.getActiveServices().firstNotNullOfOrNull { provider -> settings.getModels(provider).firstOrNull { settings.getModelType(provider,it)==ModelType.MODERATION }?.let { provider to it } }?.let { (provider, model) ->
-                recipients += ReportRecipient("Moderation · ${provider.id}/$model",settings.getEffectiveEndpointUrlForAgent(com.ai.model.Agent(id="",name="",provider=provider,model=model,apiKey="")))
+                recipients += ReportRecipient("Moderation · ${provider.id}/$model",provider.nativeModerationUrl ?: settings.getEffectiveEndpointUrlForAgent(com.ai.model.Agent(id="",name="",provider=provider,model=model,apiKey="")))
             }
         }
         settings.defaultMetaItems.filter { it.active }.forEach { item ->

@@ -556,6 +556,10 @@ internal fun com.ai.model.InternalPrompt.freezeWorkers(settings: Settings, gener
                 provider = agent.provider.id, model = settings.getEffectiveModelForAgent(agent),
                 credentialAgentId = agent.id.takeIf { it.isNotBlank() },
                 frozenParameters = resolveSecondaryParams(general, settings, emptyList(), null, this, agent),
-                frozenEndpointUrl = settings.getEffectiveEndpointUrlForAgent(agent))
+                frozenEndpointUrl = when (settings.getModelType(agent.provider, settings.getEffectiveModelForAgent(agent))) {
+                    com.ai.data.ModelType.RERANK -> agent.provider.nativeRerankUrl
+                    com.ai.data.ModelType.MODERATION -> agent.provider.nativeModerationUrl
+                    else -> null
+                } ?: settings.getEffectiveEndpointUrlForAgent(agent))
         }
     })

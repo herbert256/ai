@@ -32,10 +32,10 @@ data class RerankApiResult(
  *  rest of the app expects. */
 suspend fun callRerankApi(
     provider: AppService, apiKey: String, model: String,
-    query: String, documents: List<String>
+    query: String, documents: List<String>, endpointUrl: String? = null
 ): RerankApiResult {
     val start = System.currentTimeMillis()
-    val url = provider.nativeRerankUrl
+    val url = provider.nativeRerankUrl?.let { endpointUrl ?: it }
     return if (url != null) {
         callNativeRerank(url, apiKey, model, query, documents, start)
     } else {
@@ -82,10 +82,10 @@ data class ModerationInputResult(
  *  index-aligned with [inputs]. */
 suspend fun callModerationApi(
     provider: AppService, apiKey: String, model: String,
-    inputs: List<String>
+    inputs: List<String>, endpointUrl: String? = null
 ): Pair<List<ModerationInputResult>?, ModerationApiResult> {
     val start = System.currentTimeMillis()
-    val url = provider.nativeModerationUrl
+    val url = provider.nativeModerationUrl?.let { endpointUrl ?: it }
     return if (url != null) {
         callNativeModeration(url, apiKey, model, inputs, start)
     } else {

@@ -567,6 +567,22 @@ gives each fan-out pair a generated **title + icon** — one
 Help topics: `fan_meta_l1` / `fan_meta_l2` / `fan_meta_l3` (the Fan Out
 screens keep `secondary_fan_out_l1/l2/l3`).
 
+The launcher freezes the effective worker pool, endpoints, parameters and
+prompt before the work review. Replacements clear saved metadata only after
+that review succeeds. Preparation progress appears separately from running
+requests. `FanMetaFormat` normalizes Markdown labels, limits titles to 30
+Unicode code points and requires both a title and emoji before accepting a
+worker response.
+
+Each pair retains `fanMetaAttempts`, including rejected replies, costs and
+exact trace references. Pair detail's **API attempts** control opens those
+traces without replacing the original Fan Out trace. Worker cost groups
+include rejected attempts by the provider that billed them; completed-title
+counts still belong to the winner. A one-time local repair cleans older
+titles and links only uniquely matched saved traces. Ambiguous rejected
+attempts remain explicitly attributed to the run, with their cost included
+in its subtotal; no pair link is guessed.
+
 After a fan-out or pair-rerun batch completes normally, Fan Meta can
 auto-start for its successful rows. It requires the master Autostart
 switch, `autostartFanMeta` (default on), and Fan Meta to be enabled. The
@@ -578,8 +594,8 @@ unfinished.
 Pair detail opens the response and source traces by their saved attempt
 filenames. It does not guess by model/timestamp, which can select another
 concurrent pair or a later metadata request. New secondary attempts save
-trace references even for errors and timeouts; older missing references
-are not automatically reconstructed.
+trace references even for errors and timeouts. The Fan Meta repair described
+above is limited to retained, unambiguous metadata evidence.
 
 ## HTML export
 
