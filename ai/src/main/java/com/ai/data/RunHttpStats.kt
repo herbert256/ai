@@ -2,6 +2,9 @@ package com.ai.data
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * In-memory, per-run tally of every HTTP response received, keyed by
@@ -40,6 +43,8 @@ object RunHttpStats {
         )
     }
 
+    private val _revision = MutableStateFlow(0L)
+    val revision = _revision.asStateFlow()
     private val byRun = ConcurrentHashMap<String, ConcurrentHashMap<String, Counts>>()
 
     /** Record one HTTP response for ([runId], [providerId], [model]). No-op
@@ -50,6 +55,7 @@ object RunHttpStats {
         byRun.getOrPut(runId) { ConcurrentHashMap() }
             .getOrPut("$providerId|$model") { Counts() }
             .add(code)
+        _revision.update { it + 1 }
     }
 
     /** True once any response has been recorded for [runId] this session. */

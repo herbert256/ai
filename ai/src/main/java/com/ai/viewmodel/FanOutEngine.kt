@@ -1260,6 +1260,7 @@ class FanOutEngine internal constructor(
                         )
                     }
                     AuditLog.append(reportId, "End Fan Out '${metaPrompt.name}' — ${pending.size} pair(s)")
+                    maybeAutostartFanMeta(context, rk)
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
@@ -1275,6 +1276,20 @@ class FanOutEngine internal constructor(
         }
         registerRunJob(rk, job)
         return job
+    }
+
+    /** Only normal completion may trigger enrichment. Never run from a
+     *  finalizer (cancellation/deletion) or while sibling pairs are unfinished. */
+    private fun maybeAutostartFanMeta(context: Context, runKey: FanOutRunKey) {
+        val general = appViewModel.uiState.value.generalSettings
+        if (!general.autostartItemsEnabled || !general.autostartFanMeta || !general.fanMetaOn()) return
+        val run = _runs.value[runKey] ?: return
+        if (run.pairs.values.any { it.status == PairStatus.PENDING || it.status == PairStatus.RUNNING }) return
+        val successfulIds = run.pairs.values.filter { it.status == PairStatus.DONE }.mapTo(mutableSetOf()) { it.id }
+        if (successfulIds.isEmpty()) return
+        // The shared launcher enforces report metadata settings, deduplicates
+        // active jobs and existing title/icon results, and keeps work reviews.
+        reportViewModel.iconGen.runFanMetaBatch(context, run.reportId, run.metaPrompt.id, rowIds = successfulIds)
     }
 
     /** Run-end finalizer: terminalize (❌) every pair for [metaPromptId]
@@ -1890,6 +1905,7 @@ class FanOutEngine internal constructor(
                     placeholder = r.cleared
                 )
             }
+            maybeAutostartFanMeta(context, runKey)
         }
     }
 

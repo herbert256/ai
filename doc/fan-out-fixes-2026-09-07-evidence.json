@@ -1,0 +1,111 @@
+{
+  "date": "2026-09-07",
+  "regressionCommit": "e87c6b8a2",
+  "fixes": [
+    "FAN01",
+    "FAN02",
+    "FAN03",
+    "FAN04",
+    "FAN05",
+    "FAN06"
+  ],
+  "method": "Actual Android fan-out and Fan Meta engines, local loopback mock API, endpoint-restricted work reviews",
+  "fixture": {
+    "reportId": "audit-fanout-fixes-20260907-b",
+    "runId": "3b6c7afc-aa1a-49ec-8eac-cbd21d58d16f",
+    "uniquePairs": 72,
+    "pairHttpAttempts": 74,
+    "successfulPairs": 67,
+    "intentionalErrors": [
+      {
+        "id": "4aec570f-7028-4e5c-87c6-1e974accbaa2",
+        "model": "mistral-small-latest",
+        "errorMessage": "Response truncated: output token limit reached (finish_reason=length).",
+        "traceFile": "127.0.0.1_20260907_123615_048_75n3_7d1dd380.json"
+      },
+      {
+        "id": "65a2c214-cce4-494d-ab20-35618ac613df",
+        "model": "deepseek-chat",
+        "errorMessage": "No complete answer: the provider filtered the response (finish_reason=content_filter).",
+        "traceFile": "127.0.0.1_20260907_123606_203_75mn_dfce42a0.json"
+      },
+      {
+        "id": "8fbb15aa-b23e-487d-b2c6-ec673443dac7",
+        "model": "glm-4.5-air",
+        "errorMessage": "Fan-out pair timed out after 90s",
+        "traceFile": "127.0.0.1_20260907_123601_294_75mj_2d6cc6cc.json"
+      },
+      {
+        "id": "caab5adc-bda6-4b8d-a7d3-6f4df3e70d1b",
+        "model": "openai/gpt-oss-20b",
+        "errorMessage": "Network error after retry: unexpected end of stream on http://127.0.0.1:18765/...",
+        "traceFile": "127.0.0.1_20260907_123613_563_75mx_4f15eacf.json"
+      },
+      {
+        "id": "ee1e2b00-3003-4be1-a45f-daac57b69185",
+        "model": "google/gemma-3-27b-it",
+        "errorMessage": "No final answer content returned (finish_reason=stop).",
+        "traceFile": "127.0.0.1_20260907_123620_535_75n8_efd89bf4.json"
+      }
+    ],
+    "pair65StartSeconds": 32.604,
+    "lastUniquePairStartSeconds": 38.026,
+    "earlierSlowPairEndSeconds": 54.627,
+    "recovered429Statuses": [
+      429,
+      200
+    ],
+    "directReferencesResolved": 72,
+    "directReferenceIdentityMismatches": 0,
+    "replicateTraceModels": [
+      "meta/meta-llama-3-8b-instruct"
+    ],
+    "fanMetaRequests": 67,
+    "successfulRowsWithTitleAndIcon": 67,
+    "failedRowsWithTitleOrIcon": 0,
+    "httpStatisticsUi": {
+      "totalResponses": 71,
+      "models": 9,
+      "status200": 62,
+      "status201": 8,
+      "status429": 1
+    },
+    "finalBuildErrorTraceUiVerified": {
+      "model": "mistral-small-latest",
+      "source": "QA source 3",
+      "category": "fan_out/response",
+      "finishReason": "length",
+      "traceTimestamp": "2026-09-07 12:36:15.048"
+    },
+    "scopedFinalProcessCrashOrStorageFailureMarkers": 0
+  },
+  "preservation": {
+    "originalReportIdenticalToPreFixAudit": true,
+    "originalSecondaryRowsIdenticalToPreFixAudit": true,
+    "originalPrimaryAgents": 36,
+    "originalSecondaryRows": 1260,
+    "originalLedgerCalls": 1367,
+    "originalRecordedCostUSD": 0.8186242033,
+    "temporaryReportsRemoved": 2,
+    "temporaryUsageRowsRemoved": 29,
+    "temporaryUsageCallsRemoved": 163,
+    "temporaryTracesRemoved": 224,
+    "providersRestored": 91,
+    "nonFixturePreferenceFieldsPreserved": true,
+    "temporaryPreferenceFieldsRestored": [
+      "autostart_items_enabled",
+      "autostart_fan_meta",
+      "batch_item_timeout_sec"
+    ]
+  },
+  "validationScope": {
+    "build": "assembleDebug successful",
+    "emulatorInstall": "install -r successful",
+    "cloudApk": "/Users/herbert/cloud/ai.apk",
+    "unitTests": false,
+    "instrumentedTests": false,
+    "fullPaidFanOutRerun": false,
+    "historicalTraceBackfill": false
+  },
+  "setupIncident": "Initial stdin transport error truncated provider_registry.xml. Recovered 91 shipped definitions, with empty persisted override markers and prior working-default checks. Original registry bytes were unavailable; keys and report files were not affected."
+}

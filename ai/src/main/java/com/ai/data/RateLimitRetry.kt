@@ -301,19 +301,34 @@ internal fun retryAfterHintMs(response: Response, peekedBody: String?): Long? {
  *  carries it in the JSON request body's `model` field. The request
  *  has already been sent by the time this runs, so body re-reading is
  *  only a fallback for untagged calls. */
-internal fun modelForRequest(request: okhttp3.Request): String? {
+internal fun modelForRequest(request: okhttp3.Request, serializedBody: String? = null): String? {
     ApiTracer.currentModel?.takeIf { it.isNotBlank() }?.let { return it }
-    if (request.url.host == "generativelanguage.googleapis.com") {
-        return request.url.pathSegments.lastOrNull()
-            ?.substringBefore(":")?.takeIf { it.isNotBlank() }
+    val segments = request.url.pathSegments
+    val modelsAt = segments.indexOf("models")
+    if (modelsAt >= 0) {
+        val modelPath = segments.drop(modelsAt + 1)
+        // Replicate names models as owner/name, before /predictions. Gemini
+        // uses one segment followed by :generateContent/:streamGenerateContent.
+        if (modelPath.size == 3 && modelPath.last() == "predictions") {
+            return modelPath.take(2).joinToString("/").takeIf { modelPath.take(2).all(String::isNotBlank) }
+        }
+        if (modelPath.size == 1 && ':' in modelPath[0]) {
+            return modelPath[0].substringBefore(':').takeIf(String::isNotBlank)
+        }
     }
-    val body = request.body ?: return null
     return runCatching {
-        val buf = Buffer()
-        body.writeTo(buf)
-        com.google.gson.JsonParser.parseString(buf.readUtf8())
-            .asJsonObject.get("model")?.asString
-    }.getOrNull()?.takeIf { it.isNotBlank() }
+        val json = serializedBody ?: run {
+            val body = request.body ?: return null
+            // Never consume a one-shot/duplex upload or allocate an unbounded
+            // image body just to recover optional telemetry. Generating callers
+            // can supply a model tag without re-reading their payload.
+            if (body.isOneShot() || body.isDuplex() || body.contentLength() !in 0..1_048_576) return null
+            val buf = Buffer()
+            body.writeTo(buf)
+            buf.readUtf8()
+        }
+        com.google.gson.JsonParser.parseString(json).asJsonObject.get("model")?.asString
+    }.getOrNull()?.takeIf(String::isNotBlank)
 }
 
 private fun cohereProviderIdFor(requestHost: String): String? {

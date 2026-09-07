@@ -541,17 +541,29 @@ class AnalysisRepository {
         isPermanentFailure: (T) -> Boolean = { false },
         errorResult: (Exception) -> T
     ): T {
+        fun settled(result: T): T {
+            // A prior transient 429/529 must never requeue a recovered answer
+            // or a terminal semantic/client error at the outer batch layer.
+            if (isSuccess(result) || isPermanentFailure(result)) {
+                ProviderThrottle.benchSignal.get()?.set(false)
+            }
+            return result
+        }
         try {
-            val result = makeCall()
+            val result = settled(makeCall())
             if (isSuccess(result)) return result
             if (isPermanentFailure(result)) {
                 AppLog.w("AiAnalysis", "$label first attempt permanent failure, skipping retry")
                 return result
             }
+            // A fixed-model batch owns this retry: release its permits and
+            // wait for the model bench there. Retrying here bypassed that wait
+            // and left a stale signal that billed successful pairs twice.
+            if (ProviderThrottle.benchSignal.get()?.get() == true) return result
             AppLog.w("AiAnalysis", "$label first attempt failed, retrying...")
             delay(RETRY_DELAY_MS)
             return try {
-                makeCall()
+                settled(makeCall())
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -572,7 +584,7 @@ class AnalysisRepository {
             // and burns 2× the cost / quota on every defective call.
             AppLog.w("AiAnalysis", "$label first attempt I/O failure: ${e.message}, retrying…")
             return try {
-                delay(RETRY_DELAY_MS); makeCall()
+                delay(RETRY_DELAY_MS); settled(makeCall())
             } catch (e2: kotlinx.coroutines.CancellationException) {
                 throw e2
             } catch (e2: java.io.IOException) {

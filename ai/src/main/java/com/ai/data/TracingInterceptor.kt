@@ -52,26 +52,7 @@ class TracingInterceptor : Interceptor {
         // Model + call-site tags resolved BEFORE chain.proceed so even
         // a pre-response failure (DNS, TLS, connect timeout) produces a
         // useful trace with the model and category attached.
-        val modelFromBody = rawRequestBody?.let { body ->
-            try {
-                @Suppress("DEPRECATION")
-                val el = com.google.gson.JsonParser().parse(body)
-                if (el.isJsonObject) el.asJsonObject.get("model")?.asString else null
-            } catch (_: Exception) { null }
-        }
-        // Path-encoded providers (Gemini's /v1beta/models/<model>:generateContent)
-        // don't include `model` in the body. Pull it from the URL segment between
-        // "/models/" and the next "/" or ":" so trace.model still matches.
-        val modelFromUrl: String? = run {
-            val u = request.url.toString()
-            val seg = u.substringAfter("/models/", "")
-            if (seg.isEmpty()) null
-            else seg.substringBefore("/").substringBefore(":").takeIf { it.isNotBlank() }
-        }
-        // An explicit model tag ([withTracerTags] model=) wins — for calls
-        // whose model isn't in the body/URL (the per-model HuggingFace info
-        // lookup tags itself so its trace is model-scoped).
-        val model = ApiTracer.currentModel ?: modelFromBody ?: modelFromUrl
+        val model = modelForRequest(request, rawRequestBody)
 
         // Capture the call-site tags now, on the originating thread —
         // OkHttp may finish the body read on a different worker thread,
@@ -91,6 +72,11 @@ class TracingInterceptor : Interceptor {
         ).joinToString(" ")
         AppLog.i(tag, "→ $callLabel")
         val callStart = System.currentTimeMillis()
+        // Publish the immutable filename before I/O: coroutine cancellation can
+        // finish before OkHttp saves its failure trace. The result can retain
+        // this reference while the same file is finalized by the interceptor.
+        val requestTraceFilename = ApiTracer.newTraceFilename(hostname, timestamp)
+        ApiTracer.traceFilenameSink.get()?.set(requestTraceFilename)
         val response = try {
             chain.proceed(request)
         } catch (e: Exception) {
@@ -105,7 +91,8 @@ class TracingInterceptor : Interceptor {
                     body = "[network failure] ${e.javaClass.simpleName}: ${e.message ?: ""}"
                 ),
                 partial = false
-            ))
+            ), filename = requestTraceFilename)
+            ApiTracer.lastTraceFilename.set(requestTraceFilename)
             throw e
         }
         val durationMs = System.currentTimeMillis() - callStart
@@ -114,7 +101,7 @@ class TracingInterceptor : Interceptor {
             (response.header("Transfer-Encoding") == "chunked" && response.header("Content-Type")?.contains("application/json") != true)
         val responseHeaders = headersToMap(response.headers)
 
-        fun saveWith(body: String?, partial: Boolean = false, filename: String? = null): String? {
+        fun saveWith(body: String?, partial: Boolean = false, filename: String? = requestTraceFilename): String? {
             val fn = ApiTracer.saveTrace(ApiTrace(
                 timestamp, hostname, capturedReportId, model, capturedCategory,
                 runId = capturedRunId,

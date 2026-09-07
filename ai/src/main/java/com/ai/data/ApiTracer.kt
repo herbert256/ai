@@ -146,15 +146,23 @@ object ApiTracer {
         traceDir = File(context.filesDir, TRACE_DIR).also { if (!it.exists()) it.mkdirs() }
     }
 
+    /** Reserve a stable per-request filename before a cancellable network call. */
+    internal fun newTraceFilename(hostname: String, timestamp: Long): String {
+        val ts = dateFormat.format(Instant.ofEpochMilli(timestamp))
+        val seq = fileSequence.incrementAndGet().toString(36)
+        val unique = UUID.randomUUID().toString().take(8)
+        val safeHost = hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
+        return "${safeHost}_${ts}_${seq}_${unique}.json"
+    }
+
     /**
      * Persist [trace] as a JSON file. Returns the resolved filename on
      * success, or null when the write was skipped (tracing disabled, no
      * trace dir initialised) or failed.
      *
-     * When [filename] is null a fresh filename is generated and a new
-     * entry is appended to the in-memory cache. When [filename] is
-     * non-null the existing file is overwritten in place and the
-     * matching cache entry is replaced — used by the streaming
+     * When [filename] is null a fresh filename is generated. A supplied
+     * filename creates or overwrites that file and upserts its cache
+     * entry. This supports preallocated request filenames and the streaming
      * partial → final upgrade path so a process kill mid-stream still
      * leaves a partial trace on disk under its eventual filename.
      *
@@ -171,20 +179,8 @@ object ApiTracer {
         if (!isTracingEnabled && !importExisting) return null
         val dir = traceDir ?: return null
         if (!dir.exists()) dir.mkdirs()
-        val resolvedFilename = filename ?: run {
-            val ts = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
-            val seq = fileSequence.incrementAndGet().toString(36)
-            val unique = UUID.randomUUID().toString().take(8)
-            // Sanitise hostname so a `host:port` style host (some
-            // configurations pass a port through) doesn't produce a
-            // filename with `:` — Android's filesystem rejects that
-            // and the trace silently fails to land. Replace any
-            // non-alphanumeric / dot / dash with `_`.
-            val safeHost = trace.hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
-            "${safeHost}_${ts}_${seq}_${unique}.json"
-        }
+        val resolvedFilename = filename ?: newTraceFilename(trace.hostname, trace.timestamp)
         val normalizedTrace = trace.copy(category = normalizeApiCallCategory(trace.category))
-        val isUpdate = filename != null
         // Step 1 — disk write OUTSIDE the lock (Bug 20). The atomic write is
         // already crash-safe and self-contained; serializing it under the
         // global lock turned every concurrent traced call (50-pair fan-out
@@ -220,19 +216,9 @@ object ApiTracer {
                         normalizedTrace.response.statusCode, normalizedTrace.reportId, normalizedTrace.model,
                         normalizedTrace.category, normalizedTrace.runId, normalizedTrace.partial
                     )
-                    val next = if (isUpdate) {
-                        // Streaming partial → final overwrite reuses the
-                        // filename; replace the existing cache entry in
-                        // place instead of duplicating it.
-                        current.map { if (it.filename == resolvedFilename) info else it }
-                    } else {
-                        // Dedupe by filename: a concurrent getTraceFiles() can
-                        // rebuild the cache from disk (including this just-written
-                        // file) in the window between the disk write and taking
-                        // this lock, so a plain `current + info` would list the
-                        // trace twice. filterNot makes the append idempotent.
-                        current.filterNot { it.filename == resolvedFilename } + info
-                    }
+                    // Upsert both first saves with a preallocated filename
+                    // and subsequent streaming partial → final rewrites.
+                    val next = listOf(info) + current.filterNot { it.filename == resolvedFilename }
                     // Re-sort rather than prepend: trace.timestamp is set
                     // at request-issue time but saveTrace runs at
                     // response-complete time, so concurrent calls can

@@ -1711,7 +1711,8 @@ class SecondaryRunManager(
         // sweep doesn't see a slow-but-running meta/rerank/moderation as
         // "stale" and terminalize it after 3 attempts. Cleared in finally.
         appViewModel.updateRunningSingleSecondaries { it + placeholder.id }
-        try {
+        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>()
+        suspend fun runAttempt() {
 
         // Model benched on a >1h 429 by an earlier call — skip the
         // doomed call but keep the row as a visible red error (don't
@@ -1764,6 +1765,7 @@ class SecondaryRunManager(
                     content = r.content,
                     errorMessage = r.errorMessage,
                     tokenUsage = tu,
+                    traceFile = tu?.traceFile ?: traceSink.get(),
                     inputCost = inCost,
                     outputCost = outCost,
                     durationMs = r.durationMs,
@@ -1923,6 +1925,7 @@ class SecondaryRunManager(
                 content = finalContent,
                 errorMessage = response.error,
                 tokenUsage = tu,
+                traceFile = tu?.traceFile ?: traceSink.get(),
                 inputCost = inCost,
                 outputCost = outCost,
                 durationMs = duration,
@@ -1945,7 +1948,15 @@ class SecondaryRunManager(
             }
             AuditLog.append(reportId, "$what result produced by ${provider.id}/$model")
         }
+        }
+        try {
+            withTracerTags(reportId = reportId, runId = placeholder.runId, model = model) {
+                withTraceFilenameSink(traceSink) { runAttempt() }
+            }
         } finally {
+            withContext(kotlinx.coroutines.NonCancellable) {
+                SecondaryResultStorage.updateTraceFile(context, reportId, placeholder.id, traceSink.get())
+            }
             appViewModel.updateRunningSingleSecondaries { it - placeholder.id }
             // A single secondary (Moderation / Rerank / single Meta) just landed
             // its result, so request a short-delay broken-work refresh. During

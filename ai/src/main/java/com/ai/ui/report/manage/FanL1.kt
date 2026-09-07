@@ -122,6 +122,8 @@ internal fun FanOutL1Screen(
 
     // 🐞 deep-link target — the fan-out that created the rows (runId).
     val l1RunId = run.pairs.values.firstNotNullOfOrNull { it.runId }
+    val httpStatsRevision by com.ai.data.RunHttpStats.revision.collectAsState()
+    val hasHttpStats = remember(l1RunId, httpStatsRevision) { com.ai.data.RunHttpStats.hasRun(l1RunId) }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -135,7 +137,7 @@ internal fun FanOutL1Screen(
             // The HTTP stats are in-memory only (RunHttpStats), so show the icon
             // only when this run has recorded responses this session — after an
             // app restart there's nothing to show.
-            onStats = if (l1RunId != null && com.ai.data.RunHttpStats.hasRun(l1RunId)) onOpenStats else null,
+            onStats = if (hasHttpStats) onOpenStats else null,
             onDelete = { confirmDelete = true },
             onAdd = actions.onCreateNewFanOut,
             onAddNote = { noteEdit = NoteEdit.Add }

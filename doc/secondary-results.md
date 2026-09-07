@@ -567,8 +567,19 @@ gives each fan-out pair a generated **title + icon** — one
 Help topics: `fan_meta_l1` / `fan_meta_l2` / `fan_meta_l3` (the Fan Out
 screens keep `secondary_fan_out_l1/l2/l3`).
 
-The Fan Meta batch auto-starts when a fan-out run finishes with no
-errored pairs (`autostartFanMeta`, default on).
+After a fan-out or pair-rerun batch completes normally, Fan Meta can
+auto-start for its successful rows. It requires the master Autostart
+switch, `autostartFanMeta` (default on), and Fan Meta to be enabled. The
+shared launcher also respects the report metadata switch, skips failed
+or already enriched rows, and preserves the report work review. It does
+not launch from cancellation/deletion finalizers or while pairs remain
+unfinished.
+
+Pair detail opens the response and source traces by their saved attempt
+filenames. It does not guess by model/timestamp, which can select another
+concurrent pair or a later metadata request. New secondary attempts save
+trace references even for errors and timeouts; older missing references
+are not automatically reconstructed.
 
 ## HTML export
 

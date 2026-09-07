@@ -2953,7 +2953,7 @@ class IconGenerationManager(
                         it.metaPromptId == metaPromptId &&
                             it.fanOutSourceAgentId != null &&
                             it.fanInOf == null &&
-                            !it.content.isNullOrBlank() &&
+                            !it.content.isNullOrBlank() && it.errorMessage.isNullOrBlank() &&
                             it.title.isNullOrBlank() && it.icon.isNullOrBlank() &&
                             (rowIds == null || it.id in rowIds)
                     }
@@ -3005,7 +3005,7 @@ class IconGenerationManager(
                     val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                         .filter {
                             it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
-                                it.fanInOf == null && !it.content.isNullOrBlank() &&
+                                it.fanInOf == null && !it.content.isNullOrBlank() && it.errorMessage.isNullOrBlank() &&
                                 it.title.isNullOrBlank() && it.icon.isNullOrBlank() && it.id !in running &&
                                 // Only rows THIS run queued: a rowIds-restricted
                                 // restart must not stamp every other blank pair of

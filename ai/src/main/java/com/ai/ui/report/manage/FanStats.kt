@@ -16,6 +16,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,7 +42,8 @@ internal fun FanOutStatsScreen(
     // In-memory only: every HTTP response (incl. 200 and retried-away 429s) is
     // tallied per run by RunHttpStats. Keyed off the run id carried on the
     // pairs (same source FanL1 uses); resets on app restart.
-    val stats = remember(run) {
+    val revision by RunHttpStats.revision.collectAsState()
+    val stats = remember(run, revision) {
         RunHttpStats.statsForRun(run.pairs.values.firstNotNullOfOrNull { it.runId })
     }
     val subject = run.metaPrompt.title.takeIf { it.isNotBlank() }

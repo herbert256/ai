@@ -32,7 +32,10 @@ internal data class OkHttpCallContext(
 
 internal fun Request.withCapturedOkHttpCallContext(): Request =
     newBuilder()
-        .tag(OkHttpCallContext::class.java, OkHttpCallContext.capture())
+        .tag(OkHttpCallContext::class.java, OkHttpCallContext.capture().let { captured ->
+            val tags = captured.traceTags ?: ApiTracer.TraceTags(null, null, null)
+            captured.copy(traceTags = tags.copy(model = tags.model ?: modelForRequest(this)))
+        })
         .build()
 
 internal class ContextTaggingCallFactory(

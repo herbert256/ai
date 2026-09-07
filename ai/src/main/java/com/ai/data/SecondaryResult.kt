@@ -440,6 +440,11 @@ object SecondaryResultStorage {
         return updated
     }
 
+    /** Trace-only patch, including cancelled/timed-out attempts. Never
+     *  replaces concurrent title, icon, answer, or accumulated cost updates. */
+    fun updateTraceFile(context: Context, reportId: String, resultId: String, traceFile: String?): Boolean =
+        updateResult(context, reportId, resultId) { it.copy(traceFile = traceFile) } != null
+
     /** Replace a fan-out pair's in-report refine-chat conversation
      *  ([SecondaryResult.chatMessages]). Returns false when the row is
      *  gone. Leaves [content] untouched — see [updateContent] for Apply. */

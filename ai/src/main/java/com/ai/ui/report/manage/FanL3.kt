@@ -434,23 +434,10 @@ internal fun FanOutL3Screen(
         }
     }
 
-    // Trace lookups — answerer trace = closest-timestamp trace for
-    // this pair's reportId + model. Source trace = most-recent trace
-    // for the source agent's reportId + model.
-    val answererTrace by produceState<String?>(initialValue = null, pair.id, pair.model, pair.timestamp) {
-        value = withContext(Dispatchers.IO) {
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == run.reportId && it.model == pair.model }
-                .minByOrNull { kotlin.math.abs(it.timestamp - pair.timestamp) }?.filename
-        }
-    }
-    val sourceTrace by produceState<String?>(initialValue = null, run.reportId, sourceAgent?.model) {
-        value = if (sourceAgent == null) null else withContext(Dispatchers.IO) {
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == run.reportId && it.model == sourceAgent.model }
-                .maxByOrNull { it.timestamp }?.filename
-        }
-    }
+    // Use the persisted attempt references. Timestamp/model guesses can open
+    // another pair's call (or its later Fan Meta call) under concurrency.
+    val answererTrace = pairFresh?.traceFile ?: pairFresh?.tokenUsage?.traceFile
+    val sourceTrace = sourceAgent?.traceFile ?: sourceAgent?.tokenUsage?.traceFile
 
     BoxWithConstraints(Modifier.fillMaxSize().background(AppColors.AppBackground)) {
         val halfMax = maxHeight / 2
@@ -482,7 +469,7 @@ internal fun FanOutL3Screen(
                     { actions.onNavigateToModelInfo(svc, pair.model) }
                 },
                 onTrace = if (ApiTracer.ladybugLinksEnabled && answererTrace != null) {
-                    { actions.onNavigateToTraceFile(answererTrace!!) }
+                    { actions.onNavigateToTraceFile(answererTrace) }
                 } else null,
                 onDelete = { confirmDelete = true },
                 onAddNote = { noteEdit = NoteEdit.Add },
@@ -550,7 +537,7 @@ internal fun FanOutL3Screen(
                         Text(
                             com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)
-                                .clickable { actions.onNavigateToTraceFile(sourceTrace!!) }
+                                .clickable { actions.onNavigateToTraceFile(sourceTrace) }
                         )
                     }
                 }
@@ -601,11 +588,13 @@ internal fun FanOutL3Screen(
                                 .clickable { actions.onNavigateToModelInfo(answererProviderService, pair.model) }
                         )
                     }
-                    if (responsePaneIsOther && ApiTracer.ladybugLinksEnabled && answererTrace != null) {
+                    // Keep the result's own trace reachable in either role,
+                    // including when the customizable title-bar action is hidden.
+                    if (ApiTracer.ladybugLinksEnabled && answererTrace != null) {
                         Text(
                             com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)
-                                .clickable { actions.onNavigateToTraceFile(answererTrace!!) }
+                                .clickable { actions.onNavigateToTraceFile(answererTrace) }
                         )
                     }
                     if (pair.responseCost > 0.0) {

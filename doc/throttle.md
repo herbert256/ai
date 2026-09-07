@@ -29,6 +29,15 @@ The two layers compose: a batch acquires its flow sub-cap →
 > default is **3 retries / 1000 ms backoff** (user-tunable,
 > per-provider-overridable).
 
+## Rolling batch admission
+
+`runThrottledBatch` interleaves hosts and admits at most
+`max(64, globalMax)` jobs, bounded by the report work-item limit. Each
+completion immediately admits another item; there are no fixed-window
+barriers. Existing per-flow, global and host permits still control
+actual HTTP concurrency. Cancelling one registered item leaves its
+siblings running; cancelling the batch cancels the whole scope.
+
 ## Singletons
 
 ### `NetworkSettings` (`data/ApiTracer.kt`)
@@ -273,6 +282,11 @@ consecutive benches the item is left errored. The short-bench map is
 session-only (not persisted) and **separate** from the long `cooldownMap`
 so model pickers don't flicker "rate-limited" for a 10 s blip; it drives
 the **Bench** stat column (parked items, not just errored ones).
+
+`AnalysisRepository.withRetry` returns a signalled bench failure to this
+outer scheduler without an extra immediate retry. A successful result or
+permanent failure clears an earlier bench signal, so a recovered answer
+cannot be discarded and generated again.
 
 The three knobs live on `GeneralSettings` (`typeABenchEnabled` /
 `typeABenchSeconds` (10) / `typeABenchMaxAttempts` (5)) and are mirrored

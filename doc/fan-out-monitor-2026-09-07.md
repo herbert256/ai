@@ -7,9 +7,11 @@ The approved fan-out finished at **11:56:57 Europe/Amsterdam**: **1,245 successf
 
 The fan-out added **$0.6977812352 (69.7781¢)** in recorded costs. The whole report now has **1,367 costed calls** and **$0.8186242033 (81.8624¢)** in lifetime costs. These are the app's provider-usage/catalog-price records, not independently reconciled provider invoices.
 
-**Six application findings remain open:** redundant paid generations after recovered rate limits (P1); missing secondary-result trace links, slow fixed-window scheduling, unwired Fan Meta autostart, truncated Replicate trace model IDs, and missing fan-out HTTP statistics (P2). Five were observed during this run and traced to source; Fan Meta autostart is a source-only finding because the master autostart switch was off. No app source was changed during monitoring.
+**Original audit status (superseded by remediation below): six application findings were open:** redundant paid generations after recovered rate limits (P1); missing secondary-result trace links, slow fixed-window scheduling, unwired Fan Meta autostart, truncated Replicate trace model IDs, and missing fan-out HTTP statistics (P2). Five were observed during this run and traced to source; Fan Meta autostart is a source-only finding because the master autostart switch was off. No app source was changed during monitoring.
 
 The final emulator screen is the completed **Fan out / response — Just the response**. All failed rows remain available for inspection; no manual retries, regeneration, Fan Meta or Fan-in were launched.
+
+**Remediation update — 7 September 2026:** all six application findings are fixed. See [fan-out fixes and emulator verification](fan-out-fixes-2026-09-07.md) for the speed-regression cause, controlled checks, preservation record and historical limitations.
 
 ## Run identity and authorization
 
@@ -180,4 +182,4 @@ Captured network outcomes differ from final pair outcomes because they include r
 
 The compact final machine-readable verification, provider totals and failed pair IDs are saved in [fan-out-monitor-2026-09-07-evidence.json](fan-out-monitor-2026-09-07-evidence.json). Detailed temporary evidence remains in `/tmp/funny-fanout-2026-09-07-evidence/` (interval samples, persisted pair/report copies, source bodies and captured traces) and `/tmp/funny-fanout-2026-09-07-run-logcat.log`. Temporary files are not a durable archive; the audit and compact evidence file are committed to the repository. Raw request headers/API credentials were not copied into the audit.
 
-Repair priority: **FAN03 first**, then **FAN02**, then trace/statistics attribution (**FAN01, FAN05, FAN06**), then **FAN04** with the master/per-feature autostart settings respected. Verify fixes with bounded cases that reproduce the specific defects before considering another full fan-out. This task monitored the approved run and recorded findings; the six new issues have not been fixed.
+Repair priority: **FAN03 first**, then **FAN02**, then trace/statistics attribution (**FAN01, FAN05, FAN06**), then **FAN04** with the master/per-feature autostart settings respected. Verify fixes with bounded cases that reproduce the specific defects before considering another full fan-out. This monitoring task originally recorded the six issues without source changes. All six application findings have since been addressed; see [the remediation and verification record](fan-out-fixes-2026-09-07.md). The original provider failures and run evidence above remain historical observations.
