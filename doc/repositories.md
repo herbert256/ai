@@ -407,6 +407,12 @@ HuggingFace's) used on Model Info — see "Per-model live lookup" below.
   blob); `cloudprice_timestamp` in `pricing_cache`. Bundled snapshot in
   `assets/info-providers/`.
 
+The bulk refresh publishes only after pagination finishes. A failed page
+(including HTTP 429), malformed pagination, a repeated token, or reaching
+the 40-page limit with more pages pending fails the refresh and preserves
+the previous cache and timestamp. An incomplete download is never shown
+as a successful refresh.
+
 **Per-model live lookup** (`data/CloudPriceModelCache.kt`, the direct
 sibling of the HuggingFace lookup in §12): independently of the bulk
 catalog above, the Model Info screen also hits
@@ -468,8 +474,13 @@ after first clearing every provider-default agent and emptying the
    reasoning capability sets (`recomputeAllCapabilities`) and saves
    settings;
 2. the **per-provider Worker phase** (`runWorkerPhase`, each provider
-   in parallel: test key → fetch model list if `ModelSource.API` →
-   write the default agent and add it to the `default agents` flock).
+   in parallel: fetch model list if `ModelSource.API` → test the saved
+   default model → write the default agent and add it to the
+   `default agents` flock after a successful test). Discovery runs even
+   if the default has been retired. List and model-test failures appear
+   separately, with full errors and a provider-settings shortcut to
+   choose and test a current default. A model error alone does not
+   establish that a key is invalid; defaults are not silently replaced.
 
 When both phases finish, the progress screen surfaces a **"Restart
 application"** banner (`onRestart`, shown once `state.isFinished`); the
@@ -484,8 +495,13 @@ with one-tap nav-to-edit. The overall run catches `Throwable` (not
 just `Exception`) and falls back to the throwable's class name when
 the message is empty, so an unhandled OOM still surfaces something.
 
-A sibling **Refresh** button runs *only* the Worker phase (key test →
-model list → default agent), skipping every external catalog.
+Each successful nonempty API model-list fetch saves its 24-hour freshness
+timestamp in the same preferences edit as the list. Restart therefore
+uses the fresh cache. Manual edits and cross-provider metadata propagation
+do not renew timestamps; failed or empty fetches retain the prior list.
+
+A sibling **Refresh** button runs *only* the Worker phase (model list →
+default-model test → default agent), skipping every external catalog.
 
 ## Per-provider `/models` endpoints
 

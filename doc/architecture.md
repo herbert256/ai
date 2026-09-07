@@ -823,10 +823,11 @@ search / level / time-range / tag filters with a Copy/Share dialog.
 Threshold is set from Settings → Logging. The `applog/` directory is
 **excluded** from backups (see below). See [applog.md](applog.md).
 
-## Auto-restart
+## Restart after refresh
 
-After a "Refresh all" run, the app restarts itself to pick up
-freshly-persisted caches without forcing the user to swipe the app away:
+After a "Refresh all" run, the user taps **Restart application** to pick
+up freshly persisted caches. Successful model-list fetches save their
+24-hour freshness timestamps, so startup does not fetch them again:
 
 ```kotlin
 val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)

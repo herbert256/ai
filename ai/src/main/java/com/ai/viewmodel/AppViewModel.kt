@@ -1526,6 +1526,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ) }
             try {
                 val fetched = repository.fetchModelsWithKinds(service, apiKey)
+                check(fetched.ids.isNotEmpty()) { "No models returned; previous model list retained" }
                 // Persist the raw /models response to disk under
                 // files/model_lists/<id>.json for later
                 // pricing/capability lookups. Done before the in-memory
@@ -1559,9 +1560,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val final = _uiState.value.aiSettings
                 val cfgSelf = final.getProvider(service)
-                settingsPrefs.saveModelsForProvider(service, fetched.ids, cfgSelf.modelTypes, cfgSelf.visionModels, cfgSelf.modelCapabilities, cfgSelf.modelListRawJson)
-                // saveModelsForProvider only writes the per-key model
-                // set. modelSource was flipped above through
+                settingsPrefs.saveModelsForProvider(service, cfgSelf.models, cfgSelf.modelTypes, cfgSelf.visionModels, cfgSelf.modelCapabilities, cfgSelf.modelListRawJson, refreshedFromApi = true)
+                // saveModelsForProvider writes the list and its freshness
+                // timestamp. modelSource was flipped above through
                 // ProviderRegistry.update (which auto-persists to its
                 // own prefs), so no settings flush needed here.
                 if (service.crossProviderModelList) {
@@ -1572,6 +1573,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 null
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor - service) }
+                throw e
             } catch (e: Exception) {
                 AppLog.w("App", "Failed to fetch models for ${service.id}: ${e.message}")
                 val msg = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
@@ -1684,6 +1688,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.update { it.copy(fetchModelsErrors = it.fetchModelsErrors - service.id) }
                         try {
                             val fetched = repository.fetchModelsWithKinds(service, settings.getApiKey(service))
+                            check(fetched.ids.isNotEmpty()) { "No models returned; previous model list retained" }
                             // Disk-cache the raw response for later
                             // pricing / capability lookups (see
                             // ModelListCache).
@@ -1696,7 +1701,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             val updated = _uiState.updateAndGet { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)) }
                             // Persist with the freshly-merged visionModels (auto + user override), capability map, and raw response snapshot.
                             val cfg = updated.aiSettings.getProvider(service)
-                            settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.types, cfg.visionModels, cfg.modelCapabilities, cfg.modelListRawJson)
+                            settingsPrefs.saveModelsForProvider(service, cfg.models, cfg.modelTypes, cfg.visionModels, cfg.modelCapabilities, cfg.modelListRawJson, refreshedFromApi = true)
                             service to fetched.ids.size
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
@@ -1718,7 +1723,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val successful = results.filter { it.second > 0 }.map { it.first }
-            if (successful.isNotEmpty()) settingsPrefs.updateModelListTimestamps(successful)
             // Final fan out-lookup pass — guarantees that whichever order the parallel
             // fetches finished in, OpenRouter's labels end up applied everywhere.
             _uiState.update { state -> state.copy(aiSettings = state.aiSettings.applyOpenRouterTypes()) }
@@ -1738,9 +1742,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Kick off a Refresh-all run on viewModelScope so the work survives
      *  navigation. Idempotent: a call while a run is in flight is a no-op
-     *  (the caller should observe [refreshAllState] instead). The six
+     *  (the caller should observe [refreshAllState] instead). The eleven
      *  catalog fetches run in parallel with the Workers phase (per-provider
-     *  key test → optional model-list fetch → default-agent write); both
+     *  optional model-list fetch → default-model test → default-agent write); both
      *  phases join before the popup-forcing finish flag flips. */
     fun startRefreshAll() {
         if (_refreshAllState.value != null && _refreshAllState.value?.isFinished == false) return
@@ -1828,7 +1832,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Worker-only variant of [startRefreshAll]. Skips every catalog
      *  fetch (OpenRouter / LiteLLM / models.dev / Helicone / llm-prices
      *  / Artificial Analysis) and runs only the per-provider clean-slate
-     *  + worker phase (test key → fetch model list → write default
+     *  + worker phase (fetch model list → test default → write default
      *  agent). Used by the Housekeeping → Refresh → "Providers / models
      *  / default agents" card so the user can re-seed providers without
      *  paying for every external catalog round-trip. */
@@ -1889,6 +1893,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _refreshAllState.update { st ->
             st ?: return@update null
             st.copy(workerRows = st.workerRows.map { if (it.serviceId == serviceId) it.copy(stage = stage) else it })
+        }
+    }
+
+    private fun setWorkerModelListStatus(serviceId: String, status: RefreshStepStatus) {
+        _refreshAllState.update { st ->
+            st?.copy(workerRows = st.workerRows.map {
+                if (it.serviceId == serviceId) it.copy(modelListStatus = status) else it
+            })
         }
     }
 
@@ -2018,7 +2030,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val n = PricingCache.fetchCloudPriceOnline(app)
                     if (n != null && n > 0) setCatalogStep("cloudprice", RefreshStepStatus.Done("$n models"))
-                    else setCatalogStep("cloudprice", RefreshStepStatus.Failed("no entries · $prev"))
+                    else setCatalogStep("cloudprice", RefreshStepStatus.Failed("incomplete or failed · $prev"))
                 } catch (e: Exception) {
                     setCatalogStep("cloudprice", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
@@ -2043,7 +2055,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Per-provider worker phase. Each provider runs in parallel:
-     *  test key → (if ModelSource.API) fetch model list → write default
+     *  (if ModelSource.API) fetch model list → test default → write default
      *  agent + add to `default agents` flock. The settings copy-on-write
      *  is serialised through [_uiState.update]'s CAS lambda which already
      *  handles concurrent mutators (same pattern as updateProviderState). */
@@ -2056,21 +2068,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val apiKey = snapshot.getApiKey(service)
                     val model = snapshot.getModel(service)
 
-                    setWorkerStage(service.id, WorkerStage.TestingKey)
-                    val testError = try { testAiModel(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
+                    // Discovery must run even when the saved default has been
+                    // retired. Keep its outcome separate from the model probe:
+                    // neither result proves the other endpoint works.
+                    if (resolveModelSource(service) == ModelSource.API) {
+                        setWorkerStage(service.id, WorkerStage.FetchingModels)
+                        setWorkerModelListStatus(service.id, RefreshStepStatus.Running())
+                        val fetchError = fetchModelsAwait(service, apiKey, flipToApiOnSuccess = false)
+                        setWorkerModelListStatus(service.id, if (fetchError == null) {
+                            RefreshStepStatus.Done("${_uiState.value.aiSettings.getProvider(service).models.size} models refreshed")
+                        } else {
+                            RefreshStepStatus.Failed(fetchError)
+                        })
+                    } else {
+                        setWorkerModelListStatus(service.id, RefreshStepStatus.Skipped)
+                    }
+
+                    setWorkerStage(service.id, WorkerStage.TestingModel)
+                    val testError = if (model.isBlank()) "No default model selected" else testAiModel(service, apiKey, model)
                     val passed = testError == null
                     updateProviderState(service, if (passed) "ok" else "error")
                     if (!passed) {
-                        setWorkerStage(service.id, WorkerStage.Failed(testError))
+                        setWorkerStage(service.id, WorkerStage.Failed("Default model '$model': $testError"))
                         return@async
-                    }
-
-                    if (resolveModelSource(service) == ModelSource.API) {
-                        setWorkerStage(service.id, WorkerStage.FetchingModels)
-                        // Model-list fetch failures are non-fatal — we still
-                        // create the default agent against the saved model.
-                        runCatching { fetchModelsAwait(service, apiKey, flipToApiOnSuccess = false) }
-                            .onFailure { AppLog.w("RefreshAll", "model fetch failed for ${service.id}: ${it.message}") }
                     }
 
                     setWorkerStage(service.id, WorkerStage.WritingAgent)
@@ -2110,6 +2130,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val result = repository.testModel(service, apiKey, model)
             if (result == null) settingsPrefs.updateUsageStatsAsync(service, model, 10, 2, 12)
             result
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) { e.message ?: "Test failed" }
     }
 

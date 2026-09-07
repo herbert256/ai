@@ -1804,18 +1804,25 @@ object PricingCache {
             val meta = mutableMapOf<String, CloudPriceMeta>()
             var token: String? = null
             var pages = 0
+            val seenTokens = mutableSetOf<String>()
             do {
                 val url = buildString {
                     append("https://ai.cloudprice.net/api/v1/models?page_size=100")
                     token?.let { append("&next_token="); append(java.net.URLEncoder.encode(it, "UTF-8")) }
                 }
                 val json = ApiFactory.fetchUrlAsString(url)
-                if (json.isNullOrBlank()) break
+                check(!json.isNullOrBlank()) {
+                    "CloudPrice download incomplete at page ${pages + 1}; previous cache retained"
+                }
                 val (m, next) = parseCloudPriceJson(json)
                 meta.putAll(m)
                 token = next
                 pages++
-            } while (token != null && pages < 40)
+                if (token != null) {
+                    check(seenTokens.add(token)) { "CloudPrice repeated a page token; previous cache retained" }
+                    check(pages < 40) { "CloudPrice download exceeds 40 pages; previous cache retained" }
+                }
+            } while (token != null)
             AppLog.i("PricingCache", "CloudPrice parse: ${meta.size} meta entries ($pages pages)")
             if (meta.isEmpty()) return@withContext null
             synchronized(lock) {
@@ -1825,6 +1832,8 @@ object PricingCache {
                 getPrefs(context).edit { putLong(KEY_CLOUDPRICE_TIMESTAMP, cloudPriceTimestamp) }
             }
             meta.size
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLog.e("PricingCache", "CloudPrice refresh failed: ${e.message}", e)
             null

@@ -495,14 +495,18 @@ internal fun parseGenaiPricesJson(json: String): Pair<Map<String, PricingCache.M
 internal fun parseCloudPriceJson(json: String): Pair<Map<String, PricingCache.CloudPriceMeta>, String?> {
     @Suppress("DEPRECATION")
     val root = JsonParser().parse(json)
-    val empty = emptyMap<String, PricingCache.CloudPriceMeta>() to null
-    if (!root.isJsonObject) return empty
+    require(root.isJsonObject) { "CloudPrice page is not an object" }
     val obj = root.asJsonObject
-    val arr = obj.get("data")?.takeIf { it.isJsonArray }?.asJsonArray ?: return empty
+    val arr = requireNotNull(obj.get("data")?.takeIf { it.isJsonArray }?.asJsonArray) {
+        "CloudPrice page has no data array"
+    }
     val pag = obj.get("pagination")?.takeIf { it.isJsonObject }?.asJsonObject
-    val hasNext = pag?.get("has_next")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean ?: false
-    val nextToken = pag?.get("next_token")?.takeIf { it.isJsonPrimitive }?.asString
+    val hasNext = requireNotNull(pag?.get("has_next")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean) {
+        "CloudPrice page has no valid pagination status"
+    }
+    val nextToken = pag.get("next_token")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
         ?.takeIf { hasNext && it.isNotBlank() }
+    require(!hasNext || nextToken != null) { "CloudPrice next page token is missing" }
     val meta = mutableMapOf<String, PricingCache.CloudPriceMeta>()
     for (el in arr) {
         if (!el.isJsonObject) continue

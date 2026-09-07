@@ -445,7 +445,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         service: AppService, models: List<String>, types: Map<String, String> = emptyMap(),
         visionModels: Set<String>? = null,
         modelCapabilities: Map<String, com.ai.data.ModelCapabilities>? = null,
-        modelListRawJson: String? = null
+        modelListRawJson: String? = null,
+        refreshedFromApi: Boolean = false
     ) {
         prefs.edit {
             putString("${service.id}_manual_models", gson.toJson(models))
@@ -458,6 +459,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             }
             if (modelListRawJson != null) {
                 putString("${service.id}_models_response_raw", modelListRawJson)
+            }
+            // Only an actual nonempty API fetch renews freshness. Metadata
+            // propagation and manual edits must not extend another list's TTL.
+            if (refreshedFromApi && models.isNotEmpty()) {
+                putLong(KEY_MODEL_LIST_TIMESTAMP_PREFIX + service.id, System.currentTimeMillis())
             }
         }
     }
@@ -985,11 +991,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun isModelListCacheValid(provider: AppService): Boolean {
         val ts = prefs.getLong(KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.id, 0L)
         return System.currentTimeMillis() - ts < MODEL_LISTS_CACHE_DURATION_MS
-    }
-
-    fun updateModelListTimestamps(providers: List<AppService>) {
-        val now = System.currentTimeMillis()
-        prefs.edit { providers.forEach { putLong(KEY_MODEL_LIST_TIMESTAMP_PREFIX + it.id, now) } }
     }
 
     // ===== Private helpers =====

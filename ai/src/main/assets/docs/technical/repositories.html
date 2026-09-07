@@ -595,10 +595,13 @@ CloudPrice are keyless, so they always run). When the catalogs settle
 it recomputes the precomputed vision/web-search/reasoning capability
 sets (<code>recomputeAllCapabilities</code>) and saves settings;</li>
 <li>the <strong>per-provider Worker phase</strong>
-(<code>runWorkerPhase</code>, each provider in parallel): test key
-&rarr; fetch model list if <code>ModelSource.API</code> &rarr; write
-the default agent and add it to the <code>default agents</code>
-flock.</li>
+(<code>runWorkerPhase</code>, each provider in parallel): fetch model
+list if <code>ModelSource.API</code> &rarr; test the saved default model
+&rarr; create a default agent after a successful test. Discovery runs
+even when the default has been retired. List and model-test failures
+are shown separately, with full errors and a settings shortcut to
+choose and test a current default. A model error alone does not prove
+the key is invalid. Defaults are never silently replaced.</li>
 </ol>
 
 <p>When both phases finish, the progress screen surfaces a
@@ -615,8 +618,18 @@ providers list with one-tap nav-to-edit. The overall run catches
 to the throwable's class name when the message is empty, so an
 unhandled OOM still surfaces something.</p>
 
+<p>Successful nonempty API model-list fetches save their 24-hour
+freshness timestamps in the same preferences edit as the list. Restart
+uses that cache; manual edits and metadata propagation do not renew
+timestamps. Failed or empty fetches retain the previous list.</p>
+
+<p>CloudPrice publishes only after every page completes. A failed page
+(including HTTP 429), invalid pagination, repeated token, or reaching
+the 40-page limit with more pages pending fails the refresh and retains
+the previous cache and timestamp.</p>
+
 <p>A sibling <strong>Refresh</strong> button runs only the Worker phase
-(key test &rarr; model list &rarr; default agent), skipping every
+(model list &rarr; default-model test &rarr; default agent), skipping every
 external catalog.</p>
 
 <h2 id="per-provider">Per-provider /models endpoints</h2>

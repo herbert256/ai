@@ -41,7 +41,7 @@ plain classes that wrap it.</p>
 <li><a href="#streaming">Streaming &amp; the OpenAI dual API</a></li>
 <li><a href="#recovery">State recovery</a></li>
 <li><a href="#logging">In-app logging</a></li>
-<li><a href="#restart">Auto-restart</a></li>
+<li><a href="#restart">Restart after refresh</a></li>
 <li><a href="#persistence">Persistence map</a></li>
 <li><a href="#seeding">First-run seeding + every-start delta merge</a></li>
 </ul>
@@ -931,11 +931,11 @@ with a Copy/Share dialog. Threshold is set from Settings → Logging.
 The <code class="path">applog/</code> directory is excluded from
 backups. See <a href="applog.html">applog</a>.</p>
 
-<h2 id="restart">Auto-restart</h2>
+<h2 id="restart">Restart after refresh</h2>
 
-<p>After a "Refresh all" run, the app restarts itself to pick up
-freshly-persisted caches without forcing the user to swipe the app
-away:</p>
+<p>After a "Refresh all" run, the user taps <strong>Restart application</strong>
+to reload persisted caches. Successful model-list downloads save their
+24-hour freshness timestamps, so startup does not download them again.</p>
 
 <pre><code>val launch = context.packageManager
     .getLaunchIntentForPackage(context.packageName)

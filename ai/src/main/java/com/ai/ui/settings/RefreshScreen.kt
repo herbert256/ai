@@ -131,7 +131,7 @@ fun RefreshScreen(
     // user can back-gesture out, come back, and pick up the live view.
     refreshAllState?.let { state ->
         val failedProviders = remember(state) {
-            state.workerRows.filter { it.stage is WorkerStage.Failed }
+            state.workerRows.filter { it.stage is WorkerStage.Failed || it.modelListStatus is RefreshStepStatus.Failed }
                 .mapNotNull { row -> AppService.entries.find { it.id == row.serviceId } }
         }
         fun doRestart() {
@@ -606,7 +606,7 @@ fun RefreshScreen(
             if (hasAnyKeyedProvider) {
                 RefreshAction(
                     label = "Refresh all",
-                    description = "Refresh the eleven catalog sources and the per-provider workers (key test, model list, default agent) in parallel. Continues in the background if you navigate away.",
+                    description = "Refresh the eleven catalog sources and the per-provider workers (model list, default-model test, default agent) in parallel. Continues in the background if you navigate away.",
                     enabled = !isAnyRunning,
                     onClick = { onStartRefreshAll() }
                 )
@@ -617,7 +617,7 @@ fun RefreshScreen(
                 // round-trip time / quota.
                 RefreshAction(
                     label = "Providers / models / default agents",
-                    description = "Per-provider key test → model list fetch → default agent rewrite, in parallel. Skips every external pricing/spec catalog. Continues in the background if you navigate away.",
+                    description = "Per-provider model list fetch → default-model test → default agent rewrite, in parallel. Skips every external pricing/spec catalog. Continues in the background if you navigate away.",
                     enabled = !isAnyRunning,
                     onClick = { onStartRefreshWorkers() }
                 )
@@ -831,7 +831,9 @@ private fun RefreshAllProgressScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh_all", title = state.title, subject = "Updating catalogs and workers…", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_all", title = state.title,
+            subject = if (state.isFinished) "Refresh finished — review results below" else "Updating catalogs and workers…",
+            onBackClick = onBack)
         if (onRestart != null && restartMessage != null) {
             RestartAppBanner(message = restartMessage, onConfirm = onRestart)
         }
@@ -878,13 +880,22 @@ private fun RefreshAllProgressScreen(
                 state.workerRows.forEach { row ->
                     val (icon, statusText, color, isPending) = when (val stage = row.stage) {
                         WorkerStage.Pending -> WorkerStageView("⏳", "queued", AppColors.TextTertiary, true)
-                        WorkerStage.TestingKey -> WorkerStageView("▶", "testing key", AppColors.WarningAccent, false)
+                        WorkerStage.TestingModel -> WorkerStageView("▶", "testing default model", AppColors.WarningAccent, false)
                         WorkerStage.FetchingModels -> WorkerStageView("▶", "fetching models", AppColors.WarningAccent, false)
                         WorkerStage.WritingAgent -> WorkerStageView("▶", "writing agent", AppColors.WarningAccent, false)
-                        WorkerStage.Done -> WorkerStageView(com.ai.data.MetadataIconsHolder.current.checkMark, "done", AppColors.SuccessAccent, false)
-                        is WorkerStage.Failed -> WorkerStageView(com.ai.data.MetadataIconsHolder.current.crossMark, stage.reason.take(60).ifBlank { "failed" }, AppColors.DangerAccent, false)
+                        WorkerStage.Done -> if (row.modelListStatus is RefreshStepStatus.Failed) {
+                            WorkerStageView("⚠", "model passed · list failed", AppColors.WarningAccent, false)
+                        } else WorkerStageView(com.ai.data.MetadataIconsHolder.current.checkMark, "done", AppColors.SuccessAccent, false)
+                        is WorkerStage.Failed -> WorkerStageView(com.ai.data.MetadataIconsHolder.current.crossMark, "default model failed", AppColors.DangerAccent, false)
                     }
                     CatalogProgressRow(label = row.serviceId, icon = icon, statusText = statusText, color = color, isPending = isPending)
+                    when (val list = row.modelListStatus) {
+                        is RefreshStepStatus.Done -> Text(list.detail ?: "Models refreshed", fontSize = 12.sp,
+                            color = AppColors.SuccessAccent, modifier = Modifier.padding(start = 20.dp))
+                        is RefreshStepStatus.Failed -> Text("Model list failed: ${list.detail}", fontSize = 12.sp,
+                            color = AppColors.DangerAccent, modifier = Modifier.padding(start = 20.dp))
+                        else -> Unit
+                    }
                 }
             }
 
@@ -904,8 +915,9 @@ private fun RefreshAllProgressScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        IconCardHeader(MetadataDefaults.STATUS_FAILED, "Failed provider tests (${failedProviders.size})")
+                        IconCardHeader(MetadataDefaults.STATUS_FAILED, "Providers needing attention (${failedProviders.size})")
                         failedProviders.forEach { svc ->
+                            val row = state.workerRows.first { it.serviceId == svc.id }
                             Row(
                                 modifier = Modifier.fillMaxWidth()
                                     .clickable { onOpenProvider(svc) }
@@ -915,6 +927,17 @@ private fun RefreshAllProgressScreen(
                                 Text(com.ai.data.MetadataIconsHolder.current.crossMark, fontSize = 14.sp, color = AppColors.DangerAccent, modifier = Modifier.width(20.dp))
                                 Text(svc.id, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                                 Text("Open ›", fontSize = 12.sp, color = AppColors.InfoAccent)
+                            }
+                            (row.stage as? WorkerStage.Failed)?.let { failure ->
+                                Text(failure.reason, fontSize = 12.sp, color = AppColors.TextSecondary)
+                                Text(if (row.modelListStatus is RefreshStepStatus.Done) {
+                                    "Models refreshed. Open this provider to choose a current default and test it. A failed model test does not by itself mean the API key is invalid."
+                                } else {
+                                    "Open this provider to review its default model, endpoint and credentials."
+                                }, fontSize = 12.sp, color = AppColors.InfoAccent)
+                            }
+                            (row.modelListStatus as? RefreshStepStatus.Failed)?.let { failure ->
+                                Text("Model list failed: ${failure.detail}", fontSize = 12.sp, color = AppColors.DangerAccent)
                             }
                             HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
                         }

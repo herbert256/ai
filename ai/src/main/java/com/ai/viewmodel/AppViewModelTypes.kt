@@ -678,14 +678,20 @@ data class CatalogStep(val id: String, val label: String, val status: RefreshSte
 
 sealed class WorkerStage {
     object Pending : WorkerStage()
-    object TestingKey : WorkerStage()
+    object TestingModel : WorkerStage()
     object FetchingModels : WorkerStage()
     object WritingAgent : WorkerStage()
     object Done : WorkerStage()
     data class Failed(val reason: String) : WorkerStage()
 }
 
-data class WorkerRow(val serviceId: String, val stage: WorkerStage = WorkerStage.Pending)
+data class WorkerRow(
+    val serviceId: String,
+    val stage: WorkerStage = WorkerStage.Pending,
+    /** Independent from the generation probe: a retired default must not
+     *  prevent discovery, and a working model must not hide a failed list. */
+    val modelListStatus: RefreshStepStatus? = null
+)
 
 data class RefreshAllState(
     val catalogSteps: List<CatalogStep>,
