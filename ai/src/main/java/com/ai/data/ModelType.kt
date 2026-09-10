@@ -62,14 +62,15 @@ object ModelType {
      * Naming-based fallback. Conservative: anything not matching a non-chat pattern
      * is assumed CHAT, which is the right default for the long tail of LLM names.
      *
-     * The gpt-5 / o3 / o4 prefixes that used to live in OpenAI's endpointRules now
-     * live here too — those families ship without a chat-completions endpoint and
-     * have to dispatch through the Responses API.
+     * GPT-5 / GPT-6 and o3 / o4 use the app's Responses API request shape.
+     * Dispatch applies this fallback only to providers with Responses patterns;
+     * chat-only gateways keep using their Chat Completions endpoint.
      */
     fun infer(modelId: String): String {
         val id = modelId.lowercase()
         return when {
-            id.startsWith("gpt-5") || id.startsWith("o3") || id.startsWith("o4") -> RESPONSES
+            id.startsWith("gpt-5") || id.startsWith("gpt-6") ||
+                id.startsWith("o3") || id.startsWith("o4") -> RESPONSES
             "embed" in id -> EMBEDDING
             "rerank" in id -> RERANK
             "classifier" in id || id.endsWith("classify") -> CLASSIFY
@@ -163,7 +164,8 @@ object ModelType {
         return when {
             // OpenAI vision-capable chat families
             "gpt-4o" in id || "gpt-4-vision" in id || "gpt-4-turbo" in id -> true
-            "gpt-5" in id || id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4") -> true
+            "gpt-5" in id || "gpt-6" in id ||
+                id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4") -> true
             "chatgpt-4o" in id -> true
             // Anthropic — every Claude 3.x and 4.x is vision-capable; 2.x is not.
             Regex("""claude-(3|4|opus-4|sonnet-4|haiku-4)""").containsMatchIn(id) -> true

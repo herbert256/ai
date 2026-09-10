@@ -138,7 +138,8 @@ OpenAI uses two separate endpoints depending on the model family:
 
 - **Chat Completions** (`v1/chat/completions`) — `gpt-4o`, `gpt-4`,
   `gpt-3.5-turbo`, etc.
-- **Responses API** (`v1/responses`) — `gpt-5*`, `o1*`, `o3*`, `o4*`,
+- **Responses API** (`v1/responses`) — `gpt-5*`, `gpt-6*` (including
+  `gpt-6-astra`), `o1*`, `o3*`, `o4*`,
   `gpt-4.1*`. Different request shape (`OpenAiResponsesRequest`),
   different response shape (`OpenAiResponsesApiResponse`).
 
@@ -146,16 +147,16 @@ Routing is `usesResponsesApi(service, model)` (in `AnalysisRepository`):
 
 1. **`service.responsesApiPatterns.anyMatches(model)`** — the
    authoritative source, declared in the OpenAI provider's JSON file
-   (`assets/providers/OpenAI.json` carries prefix patterns `gpt-5`,
+   (`assets/providers/OpenAI.json` carries prefix patterns `gpt-5`, `gpt-6`,
    `o1`, `o3`, `o4`, `gpt-4.1`) and editable in Service Settings.
 2. Else, **only when `service.responsesApiPatterns` is non-empty**,
    **`ModelType.infer(model) == ModelType.RESPONSES`** — a naming
-   heuristic catching `gpt-5` / `o3` / `o4` prefixes, used as a
+   heuristic catching `gpt-5` / `gpt-6` / `o3` / `o4` prefixes, used as a
    backstop for models that don't literally match the declared
    patterns on a provider that already exposes some Responses-API
    surface (in practice, just OpenAI). The `isNotEmpty()` guard is
    deliberate: chat-only OpenAI-compatible gateways (Poe, Vivgrid, and
-   most aggregators) also serve `gpt-5` / `o3` / `o4` model ids but
+   most aggregators) also serve `gpt-5` / `gpt-6` / `o3` / `o4` model ids but
    have no `/v1/responses` endpoint at all, so inferring RESPONSES for
    a provider with zero configured patterns would send every call to a
    non-existent path → 404. (`infer` does **not** catch `o1` /
@@ -172,6 +173,13 @@ when it comes back null. Only OpenAI uses this split; other providers
 don't.
 
 Responses-API specifics (`OpenAiResponsesRequest`, `ApiModels.kt`):
+
+- GPT-6 Astra uses this path for report and chat calls, streaming and
+  non-streaming. Sending the app's legacy Chat Completions `max_tokens`
+  field to Astra returns HTTP 400 (`unsupported_parameter`). The OpenAI
+  provider also declares GPT-6 reasoning and web-search support; vision
+  inference recognizes the family. See the
+  [official Astra guide](https://developers.openai.com/api/docs/guides/latest-model).
 
 - The system prompt goes to the top-level `instructions` field, not a
   message.

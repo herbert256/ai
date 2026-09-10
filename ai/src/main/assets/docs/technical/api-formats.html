@@ -197,7 +197,8 @@ set.</dd></div>
 </div>
 <div>
 <dt>Responses API <span class="muted">(v1/responses)</span></dt>
-<dd><code>gpt-5*</code>, <code>o1*</code>, <code>o3*</code>,
+<dd><code>gpt-5*</code>, <code>gpt-6*</code> (including
+<code>gpt-6-astra</code>), <code>o1*</code>, <code>o3*</code>,
 <code>o4*</code>, <code>gpt-4.1*</code>. Different request shape
 (<code>OpenAiResponsesRequest</code>), different response shape
 (<code>OpenAiResponsesApiResponse</code>).</dd>
@@ -210,13 +211,13 @@ set.</dd></div>
 <ol>
 <li><strong><code>service.responsesApiPatterns.anyMatches(model)</code></strong>
 — the authoritative source, declared in OpenAI's provider JSON
-(prefix patterns <code>gpt-5</code>, <code>o1</code>, <code>o3</code>,
+(prefix patterns <code>gpt-5</code>, <code>gpt-6</code>, <code>o1</code>, <code>o3</code>,
 <code>o4</code>, <code>gpt-4.1</code>) and editable in Service
 Settings.</li>
 <li>Else, <strong>only when <code>service.responsesApiPatterns</code>
 is non-empty</strong>, <code>ModelType.infer(model) ==
 ModelType.RESPONSES</code> — a naming-heuristic backstop catching
-<code>gpt-5</code> / <code>o3</code> / <code>o4</code> prefixes for
+<code>gpt-5</code> / <code>gpt-6</code> / <code>o3</code> / <code>o4</code> prefixes for
 models that don't literally match the declared patterns on a provider
 that already exposes some Responses-API surface (in practice, just
 OpenAI).</li>
@@ -225,7 +226,7 @@ OpenAI).</li>
 <div class="callout warn">
 <p>The <code>isNotEmpty()</code> guard on step 2 is deliberate:
 chat-only OpenAI-compatible gateways (Poe, Vivgrid, most aggregators)
-also serve <code>gpt-5</code> / <code>o3</code> / <code>o4</code>
+also serve <code>gpt-5</code> / <code>gpt-6</code> / <code>o3</code> / <code>o4</code>
 model ids but have no <code>/v1/responses</code> endpoint at all —
 inferring RESPONSES for a provider with zero configured patterns would
 send every call to a non-existent path (404). <code>infer</code> does
@@ -246,6 +247,12 @@ type-path defaults), not a stored field, falling back to the literal
 <code>ApiModels.kt</code>):</p>
 
 <ul>
+<li>GPT-6 Astra uses this path for report and chat calls, streaming and
+non-streaming. The app's legacy Chat Completions <code>max_tokens</code>
+field returns HTTP 400 (<code>unsupported_parameter</code>) on Astra.
+The OpenAI provider also declares GPT-6 reasoning and web-search support;
+vision inference recognizes the family. See the
+<a href="https://developers.openai.com/api/docs/guides/latest-model">official Astra guide</a>.</li>
 <li>System prompt goes to the top-level <code>instructions</code>
 field, not a message.</li>
 <li>A single text-only user turn passes <code>input</code> as a bare

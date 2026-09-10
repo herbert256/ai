@@ -618,17 +618,16 @@ class AnalysisRepository {
     /** Route to the Responses API when the provider's configured
      *  responsesApiPatterns match, or — failing that — when the model's
      *  name classifies as RESPONSES. The provider-level patterns are
-     *  the authoritative source (providers.json declares o1 / gpt-4.1
+     *  the authoritative source (assets/providers/OpenAI.json declares o1 / gpt-4.1
      *  there and a user can edit the list in Service Settings); the
-     *  ModelType.infer fallback still catches gpt-5 / o3 / o4 family
-     *  names on custom OpenAI-compatible endpoints that don't carry a
-     *  pattern config. */
+     *  ModelType.infer fallback catches GPT-5 / GPT-6 / o3 / o4 family
+     *  names only on providers with a non-empty Responses pattern config. */
     internal fun usesResponsesApi(service: AppService, model: String): Boolean {
         if (service.responsesApiPatterns.anyMatches(model)) return true
         // Name-based RESPONSES inference is a fallback ONLY for providers that
         // actually expose a Responses API (they declare responsesApiPatterns —
         // currently just OpenAI). Chat-only OpenAI-compatible gateways (Poe,
-        // Vivgrid, and most aggregators) serve gpt-5 / o3 / o4 ids over
+        // Vivgrid, and most aggregators) serve GPT-5 / GPT-6 / o3 / o4 ids over
         // /v1/chat/completions and have no /v1/responses endpoint, so inferring
         // RESPONSES for them sends every call to a non-existent path → 404.
         return service.responsesApiPatterns.isNotEmpty() &&
