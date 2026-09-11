@@ -2405,7 +2405,7 @@ fun HomeIconBar(
  *  [cellWidthDp] is set, every icon uses that fixed width so columns
  *  line up vertically across the two-row layout. */
 @Composable
-private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp, cellWidthDp: Int? = null, cellHeightDp: Int = 32) {
+private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp, cellWidthDp: Float? = null, cellHeightDp: Int = 32) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(gap)
@@ -2414,7 +2414,7 @@ private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp, 
             // Resolve a human label from the stable factory glyph (legendKey)
             // so a screen reader announces "Reload" rather than the 🔄 emoji.
             val desc = com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[it.legendKey]?.first ?: it.emoji
-            TitleBarIcon(it.emoji, it.tint, it.onClick, width = (cellWidthDp ?: it.widthDp).dp, heightDp = cellHeightDp, scale = scale, alpha = it.alpha, fontSize = it.fontSize, contentDescription = desc)
+            TitleBarIcon(it.emoji, it.tint, it.onClick, width = (cellWidthDp ?: it.widthDp.toFloat()).dp, heightDp = cellHeightDp, scale = scale, alpha = it.alpha, fontSize = it.fontSize, contentDescription = desc)
         }
     }
 }
@@ -2630,37 +2630,21 @@ fun BottomIconBar(
             return@BoxWithConstraints
         }
 
-        // Help layout (every non-View screen). Icons render at the fixed
-        // [barIconScale] size and fill each LEFT-aligned row with as many as
-        // actually fit in the available width, wrapping to a new row as
-        // needed; the ❓ help glyph is pinned to the right of the LAST row
-        // (that row keeps room for it). A uniform per-icon cell width keeps
-        // columns aligned vertically across rows.
-        val helpW = 32f
-        val helpGap = 4f
+        // Eight equal columns, with help occupying the rightmost slot(s)
+        // on the bottom row. In Home bar mode that is seven actions + ❔;
+        // above it, each full row holds eight actions. Fill from the bottom
+        // so any partial action row is at the top.
         // White ❔ sits just left of the red ❓ and opens the live
         // "<screen> - icons" overlay (this screen's current bar icons). Shown
         // on every screen with ≥1 non-help bar icon. The red ❓ always
         // navigates to the screen's help page.
         val showSecondHelp = useLegend
         val showScreenHelp = !suppressScreenTraceAndHelp
-        val cell = 24                       // uniform column width (dp) — tight spacing
-        // Wrap by WIDTH, not by a fixed per-row count: at the fixed
-        // [barIconScale] each row takes as many icons as genuinely fit; the
-        // LAST row reserves space for the right-pinned ❔/❓, and the
-        // remainder (smallest) row goes on TOP so the full rows sit at the
-        // bottom. The 1️⃣2️⃣3️⃣ switcher is handled separately (its own row
-        // above) — except with no action icons at all, where it becomes the
-        // single bottom row itself (1️⃣2️⃣3️⃣ left, ❔/❓ right).
         val scale = barIconScale
-        val capacity = available / scale    // row width in unscaled dp
+        val perFull = 8
+        val cell = ((available - (perFull - 1) * extraGap) / perFull / scale).coerceAtLeast(1f)
         val helpCount = (if (showSecondHelp) 1 else 0) + (if (showScreenHelp) 1 else 0)
-        val helpReserve = if (helpCount > 0) helpGap + helpW * helpCount else 0f
-        // Icons that fit in [cap] — at least 1, so a pathologically narrow
-        // bar still renders rather than dividing the list by zero rows.
-        fun fitCount(cap: Float) = ((cap + extraGap) / (cell + extraGap)).toInt().coerceAtLeast(1)
-        val perFull = fitCount(capacity)
-        val perLast = fitCount(capacity - helpReserve)
+        val perLast = perFull - helpCount
         val rows = when {
             actionSpecs.isEmpty() -> listOf(navSpecs)
             actionSpecs.size <= perLast -> listOf(actionSpecs)
@@ -2693,12 +2677,13 @@ fun BottomIconBar(
                     if (isLast) {
                         if (showSecondHelp) {
                             // White ❔ → live "<screen> - icons" overlay.
-                            TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale, contentDescription = "Icon legend")
+                            TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { showLegend = true }, width = cell.dp, heightDp = rowCellH, scale = scale, contentDescription = "Icon legend")
                         }
                         // Red ❓ → the screen's help page. Home bar mode
                         // moves this action to the persistent top bar.
                         if (showScreenHelp) {
-                            TitleBarIcon(barIcons.help, AppColors.InfoAccent, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale, contentDescription = "Help")
+                            if (showSecondHelp) Spacer(Modifier.width(extraGap.dp))
+                            TitleBarIcon(barIcons.help, AppColors.InfoAccent, onHelp, width = cell.dp, heightDp = rowCellH, scale = scale, contentDescription = "Help")
                         }
                     }
                 }
