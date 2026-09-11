@@ -118,6 +118,26 @@ explicit request**. The full procedures live in
 - Do not run an extra build/deploy solely because a commit
   succeeded; the default cycle's pre-commit build/deploy is enough.
 
+## Keep configuration in the repo
+
+- Every durable app-configuration change made or requested by either
+  the user or Codex must also be reflected in the repository. This
+  includes prompts, system prompts, parameters, agents, flocks,
+  swarms, worker membership, provider settings and states, model
+  defaults, feature flags, and UI defaults.
+- A change made through the app or emulator is not complete until
+  the corresponding source, bundled assets, default seeds, or
+  migration logic is updated and committed. Do not leave the only
+  copy in SharedPreferences or another device-local configuration file.
+- Verify the intended runtime setting and repository defaults agree,
+  so a fresh install of the updated APK includes the change. Follow
+  the normal build/deploy/commit cycle for code or bundled-config
+  changes, and preserve unrelated user customizations when migrating
+  existing installations.
+- Keep API keys, credentials, and other secrets out of the repository.
+  Reports, generated results, and other personal app data remain data
+  to back up, not application defaults.
+
 ## Code layout pointers
 
 Top-level under `ai/src/main/java/com/ai/`:
