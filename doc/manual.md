@@ -98,7 +98,7 @@ Tapping **AI Reports** opens named **Create report**, **Search reports** and **B
 
 ### Read, compare and finish a report
 
-Open Manage → **Read answers · Compare · Choose conclusion**. The Answers tab offers reading/refinement, comparison of two selected texts, previous answer versions, and translation of one answer or selected content. Analysis lets you create a synthesis, add an independently authored reference with attribution, and evaluate against a saved reference.
+Open Manage → **📖 Read and finish report** in the bottom bar. The Answers tab offers reading/refinement, comparison of two selected texts, previous answer versions, and translation of one answer or selected content. Analysis lets you create a synthesis, add an independently authored reference with attribution, and evaluate against a saved reference.
 
 Choose an answer or synthesis as your conclusion and record your rationale, uncertainty, disagreements and sources. Saving captures the selected text and its source versions. Later edits do not change your decision. Update it deliberately, clear it, or export it as HTML with an optional evidence appendix. Complete report exports and portable bundles also carry the decision.
 

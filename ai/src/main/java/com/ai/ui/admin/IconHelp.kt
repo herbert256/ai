@@ -45,6 +45,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     // launchers live only on "report_second_results" (no per-screen legend
     // of its own today — falls back to the generic glyph descriptions).
     "report_run" to listOf(
+        Triple("📖", "Read and finish report", "Read answers, compare them and choose a conclusion."),
         Triple("🆕", "New report", "Open the New Report start screen — New report, Start with a previous prompt, or Start with an example prompt."),
         Triple("💬", "Chat", "Start a chat seeded with this report's prompt."),
         Triple("🗂️", "Switch report", "Pick another report to manage."),
@@ -430,6 +431,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
  *  an incomplete) per-screen [SCREEN_ICON_HELP] legend, so every row still
  *  shows an icon + name + description. Per-screen entries take precedence. */
 internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
+    "📖" to ("Read and finish report" to "Read answers, compare them and choose a conclusion."),
     "🆕" to ("Create" to "Add a new item or operation."),
     "🔗" to ("Meta" to "Add a meta analysis (Meta / Compare with meta)."),
     "🔱" to ("Fan Out" to "Open or start a Fan Out."),

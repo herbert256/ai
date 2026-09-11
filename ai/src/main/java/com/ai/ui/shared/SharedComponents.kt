@@ -982,6 +982,8 @@ data class TitleBarIcons(
      *  carries the same glyph as the per-row eye icon on every
      *  reports list. Null → glyph hidden. */
     val onOpenView: (() -> Unit)? = null,
+    /** Open the report's reading, comparison and conclusion screen. */
+    val onReadReport: (() -> Unit)? = null,
     /** Optional 🐜 open-batch-workers hook. Wired from the type-B
      *  batch L1 screens (Tournament / Fan Meta / Translation) to push
      *  that batch's per-worker (model) grouping into its own
@@ -1298,6 +1300,8 @@ fun TitleBar(
      *  there so the bottom bar carries the same glyph as the per-row
      *  eye icon on every reports list. Null → glyph hidden. */
     onOpenView: (() -> Unit)? = null,
+    /** Optional 📖 Read and finish report action on Manage. */
+    onReadReport: (() -> Unit)? = null,
     /** Optional 🐜 open-batch-workers hook (type-B batch L1 screens). */
     onBatchWorkers: (() -> Unit)? = null,
     /** Optional ⚖️ "Judge the judges" launcher (Tournament L1 bottom bar). */
@@ -1515,6 +1519,7 @@ fun TitleBar(
         onWebSearchReplay = onWebSearchReplay,
         onInfo = onInfo,
         onOpenView = onOpenView,
+        onReadReport = onReadReport,
         onBatchWorkers = onBatchWorkers,
         onJudgeJudges = onJudgeJudges,
         batchWorkersActive = batchWorkersActive,
@@ -2148,6 +2153,7 @@ private fun buildBottomBarIcons(
             add(BottomBarIcon(glyph, Color.Unspecified, onClick, 28, alpha = if (idx == nav.active) 1f else 0.35f, isNav = true))
         }
     }
+    icons.onReadReport?.let { add(BottomBarIcon(mi.book, Color.Unspecified, it, 28, legendKey = D.BOOK)) }
     // Reports-hub leading actions: 🆕 New, 🔍 Search, 🗂️ All (replaced the top buttons).
     icons.onNewReport?.let { add(BottomBarIcon(mi.add, Color.Unspecified, it, 28, legendKey = D.ADD)) }
     icons.onSearchReports?.let { add(BottomBarIcon(mi.search, Color.Unspecified, it, 28, legendKey = D.SEARCH)) }

@@ -62,7 +62,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     ),
     "reports_hub" to HelpContent(title="Help - Reports", cards=listOf(
         HelpCard("Start here","Use Create report, Search reports or Browse all reports. Pinned and Latest reports follow, with bundled Examples below. Expert icon shortcuts remain available."),
-        HelpCard("Read and finish","Open a report at Manage, then Read answers · Compare · Choose conclusion. Compare two answers, improve one, translate selected content, add an independent reference or save your final decision."),
+        HelpCard("Read and finish","Open a report at Manage, then tap 📖 in the bottom bar. Compare two answers, improve one, translate selected content, add an independent reference or save your final decision."),
         HelpCard("Per-row icons","The leading icon shows the report emoji, running hourglass or broken-work warning. The row opens Manage; the eye opens the expert View grid; Delete asks for confirmation.")
     )),
 
@@ -210,6 +210,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_run" to HelpContent(
         title = "Help - Report - manage",
         cards = listOf(
+            HelpCard("Read and finish", "Tap 📖 in the bottom bar to read answers, compare them and choose a conclusion."),
             HelpCard("Overview", "The post-Generate page in the report flow. Per-agent rows stream in as each model returns; every operation you can apply to the run sits as an icon on the title bar and bottom bar (see 'Icon-based actions' below). Sibling of the pre-Generate Report - select models — a Generate (or opening a saved report from History) lands you here."),
             HelpCard("Statistics line", "Directly under the title bar's orange title: the report's API-call count, its total API time in seconds, and the running cost in cents (¢). The cost updates live as each call settles; tap the line to open the report's costs screen. The same line appears on Report - titles/icons/... and Report - second results."),
             HelpCard("Per-agent rows", "One card per dispatched model. While the call is in flight the row shows progress; on completion it carries the response, token + cost cell, optional 🐞 trace icon, and the auto-generated per-model emoji once the icon worker finishes."),

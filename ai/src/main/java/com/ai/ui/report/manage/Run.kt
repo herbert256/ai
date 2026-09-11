@@ -671,6 +671,9 @@ internal fun ReportRunScreen(
             // 👁 → the View hub on ALL THREE report layers (Manage /
             // Get-info / second results) — same target as the report icon.
             onOpenView = if (currentReportId != null) onOpenViewReport else null,
+            onReadReport = if (manageLayer && currentReportId != null) {
+                { showReadingHome = true }
+            } else null,
             onChat = if (manageLayer && uiState.genericPromptText.isNotBlank()) {
                 { onChatWithReportPrompt(uiState.genericPromptText) }
             } else null,
@@ -793,12 +796,6 @@ internal fun ReportRunScreen(
                 onReport = goManageScreen, onInfo = goGetInfoScreen, onSecond = goSecondScreen,
                 reportIcon = reportIcon
             )
-        }
-
-        if (manageLayer && currentReportId != null) {
-            androidx.compose.material3.OutlinedButton(onClick={showReadingHome=true},modifier=Modifier.fillMaxWidth()) {
-                Text("Read answers · Compare · Choose conclusion")
-            }
         }
 
         if (currentReportId != null) {
