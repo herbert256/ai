@@ -18,7 +18,7 @@ A sibling feature, **Translation review** (`TRANSRANK`), reviews the produced tr
 
 From Manage, choose Translate, or use **Translate only this answer** in the reading screen.
 
-1. **Content selection** lists each eligible answer, prompt, title and analysis. Select one item, a subset, all answers, or the entire report. The screen shows item counts and character counts. Optional shared terminology/style applies across selected items.
+1. **Content selection** lists each eligible answer, prompt, title and analysis. Select one item, a subset, all answers, or the entire report. The screen shows item counts and character counts. Model labels appear once; distinct custom agent names remain alongside the provider/model, including in the consistent-translator picker. Optional shared terminology/style applies across selected items.
 2. **Translator consistency** lets you choose one existing report model for all selected items, or keep the configured pool. A single explicit translator overrides the report-model pool; automatic fallback to another model is disabled for that choice.
 3. **Language selection** chooses one target language. Conditional worker and runtime prompt editors remain available for configured-pool launches.
 4. **Work review** shows selected items, eligible worker endpoints, frozen prompts and parameters, and request/spend limits. Source hashes detect text changes between scope selection and launch. Cancel sends no translation request.
@@ -235,8 +235,10 @@ user-given name regardless of language.
   lists translation **types** (per trace/cost-type rows, e.g.
   `model_response`, `report_prompt`). Above the list it shows the
   shared `BatchStatsRow` panel (Total / Done / Error / Run / Wait /
-  Queue / Costs — worker-pool batch, so there is no Bench bucket;
-  failed items stay normal failed rows). The title-bar actions are
+  Queue — worker-pool batch, so there is no Bench bucket;
+  failed items stay normal failed rows). Total cost, including the cents
+  unit, has a separate full-width line in both the overview and worker
+  view so it is not clipped into a narrow counter column. The title-bar actions are
   👁 **View**, 🐜 **Translation workers**, 🏅 **Translation review**,
   🔄 **Redo every entry** (deletes every row and re-dispatches the
   full set), 🐞 **trace**, and 🗑 **delete run**. The per-model

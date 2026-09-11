@@ -13,6 +13,18 @@ data class TranslationSelection(
     val sourceDigests: Map<String,String> = emptyMap()
 )
 
+/** Keep custom agent names, without repeating an automatically generated model label. */
+internal fun translationSourceLabel(agent: ReportAgent): String {
+    val provider = AppService.findById(agent.provider)?.id ?: agent.provider
+    val model = shortModelName(agent.model)
+    val identity = "$provider / $model"
+    val name = agent.agentName.trim()
+    val generatedNames = listOf(model, agent.model, identity, "$provider / ${agent.model}")
+    return if (name.isBlank() || generatedNames.any { it.equals(name, ignoreCase = true) })
+        identity
+    else "$name · $identity"
+}
+
 fun translatableReportItems(sourceReport: Report, secondaries: List<SecondaryResult>): List<TranslationItem> {
     val items = mutableListOf<TranslationItem>()
     if (sourceReport.title.isNotBlank()) {
@@ -41,10 +53,9 @@ fun translatableReportItems(sourceReport: Report, secondaries: List<SecondaryRes
         .forEach { agent ->
             val body = agent.responseBody?.takeIf(String::isNotBlank) ?: return@forEach
             if (agent.reportStatus != ReportStatus.SUCCESS) return@forEach
-            val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
             items += TranslationItem(
                 id = "agent:${agent.agentId}",
-                label = "${agent.agentName} · $provDisplay / ${shortModelName(agent.model)}",
+                label = translationSourceLabel(agent),
                 kind = TranslationKind.AGENT_RESPONSE,
                 sourceText = body,
                 target = agent.agentId
@@ -56,10 +67,9 @@ fun translatableReportItems(sourceReport: Report, secondaries: List<SecondaryRes
         .forEach { agent ->
             val title = agent.modelTitle?.takeIf(String::isNotBlank) ?: return@forEach
             if (agent.reportStatus != ReportStatus.SUCCESS) return@forEach
-            val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
             items += TranslationItem(
                 id = "agentTitle:${agent.agentId}",
-                label = "Title: ${agent.agentName} · $provDisplay / ${shortModelName(agent.model)}",
+                label = "Title: ${translationSourceLabel(agent)}",
                 kind = TranslationKind.AGENT_TITLE,
                 sourceText = title,
                 target = agent.agentId

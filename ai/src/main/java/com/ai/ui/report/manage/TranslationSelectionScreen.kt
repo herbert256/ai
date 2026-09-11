@@ -55,7 +55,7 @@ internal fun TranslationSelectionScreen(reportId:String, initial:TranslationSele
                         worker=Worker(provider=agent.provider,model=agent.model,credentialAgentId=agent.agentId,
                             frozenParameters=agent.executionConfig?.parameters,frozenEndpointUrl=agent.executionConfig?.endpointUrl)
                         chooseWorker=false
-                    }) { Text("Use only ${agent.agentName} · ${agent.provider}/${agent.model}") }
+                    }) { Text("Use only ${translationSourceLabel(agent)}") }
                 }
             }
             items(candidates,key={it.id}) { item ->

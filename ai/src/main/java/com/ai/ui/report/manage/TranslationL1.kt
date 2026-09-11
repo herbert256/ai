@@ -56,6 +56,26 @@ private data class TranslationTypeRow(
     val cost: Double
 )
 
+/** Costs need more room than a count, including at the user's chosen text size. */
+@Composable
+private fun TranslationStatsRow(summary: BatchSummary, costDollars: Double) {
+    val counts = summary.counts
+    BatchStatsRow(listOf(
+        Triple("Total", counts.total.toString(), AppColors.InfoAccent),
+        Triple("Done", counts.done.toString(), AppColors.SuccessAccent),
+        Triple("Error", summary.displayError.toString(), AppColors.DangerAccent),
+        Triple("Run", counts.running.toString(), AppColors.WarningAccent),
+        Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
+        Triple("Queue", counts.queued.toString(), AppColors.QueueAccent)
+    ))
+    Text(
+        "Total cost: ${formatTranslationCost(costDollars)}",
+        fontSize = 13.sp, color = AppColors.InfoAccent,
+        fontFamily = FontFamily.Monospace, textAlign = TextAlign.End,
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+    )
+}
+
 /**
  * L1 of the translation run drill-in: the *models* that picked up
  * work in this run, with a stats panel, failure controls, and a
@@ -104,9 +124,6 @@ internal fun TranslationL1Screen(
     val counts = summary.counts
     val doneCount = counts.done
     val errorCount = summary.displayError
-    val runningCount = counts.running
-    val throttledCount = counts.wait
-    val queuedCount = counts.queued
 
     // Per-type rows for the Types preset. Every item carries a traceType
     // (stamped at creation), so unlike modelRows nothing drops out —
@@ -149,15 +166,7 @@ internal fun TranslationL1Screen(
         // (carved out of Queue). Worker-pool batch (category B): no
         // Bench bucket and no cooldown-derived Error split.
         Spacer(modifier = Modifier.height(8.dp))
-        BatchStatsRow(listOf(
-            Triple("Total", total.toString(), AppColors.InfoAccent),
-            Triple("Done", doneCount.toString(), AppColors.SuccessAccent),
-            Triple("Error", errorCount.toString(), AppColors.DangerAccent),
-            Triple("Run", runningCount.toString(), AppColors.WarningAccent),
-            Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
-            Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", formatTranslationCost(run.totalCostDollars), AppColors.InfoAccent)
-        ))
+        TranslationStatsRow(summary, run.totalCostDollars)
 
         // L1 lists translation *types* (per trace/cost-type rows). The
         // per-model ("workers") grouping lives on the 🐜 Translation
@@ -255,7 +264,6 @@ internal fun TranslationWorkersScreen(
 ) {
     val subject = run.targetLanguageName
     val items = run.items.values
-    val total = items.size
     // Worker-pool batch (category B): no Bench bucket — same lens as L1.
     val summary = deriveBatchSummary(
         items = items,
@@ -317,15 +325,7 @@ internal fun TranslationWorkersScreen(
             onDelete = onDelete
         )
         Spacer(modifier = Modifier.height(8.dp))
-        BatchStatsRow(listOf(
-            Triple("Total", total.toString(), AppColors.InfoAccent),
-            Triple("Done", counts.done.toString(), AppColors.SuccessAccent),
-            Triple("Error", summary.displayError.toString(), AppColors.DangerAccent),
-            Triple("Run", counts.running.toString(), AppColors.WarningAccent),
-            Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
-            Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", formatTranslationCost(run.totalCostDollars), AppColors.InfoAccent)
-        ))
+        TranslationStatsRow(summary, run.totalCostDollars)
         Spacer(modifier = Modifier.height(8.dp))
         val showBars = summary.activeOutstanding && !run.cancelled
         if (modelRows.isEmpty()) {
