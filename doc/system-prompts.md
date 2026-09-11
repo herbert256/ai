@@ -21,10 +21,10 @@ stores a single optional `systemPromptId`. A `Parameters` preset can *also* carr
 a free-text `systemPrompt`, and an `InternalPrompt` references a preset by **name**
 (`InternalPrompt.systemPrompt`, default `"*NONE"`).
 
-> Moderation, and every **worker-driven** secondary / metadata call (the main
-> translation, Tournament, Compare, Judges, Transrank, and the initial
-> icon / title / language generation) send **no** system prompt at all — see the
-> three dispatch families under
+> Worker-driven calls use each worker's frozen resolved parameters, including
+> its system prompt. Translation and report/answer title/icon generation add
+> task rules and the configured template there; source text stays in separate
+> user-message blocks. See the dispatch families under
 > [Secondary operations](#secondary-operations--metadata-generation).
 
 ---
@@ -225,6 +225,14 @@ while the original text is sent separately as delimited user data. The same
 separation applies to alternative translation probes in Family 1. See
 [translation.md](translation.md) for saved-run and source-placeholder behavior.
 
+Report/answer titles and icons similarly use `buildMetadataRequest`, including
+alternative candidates and fan-meta. The runtime rules forbid answering or
+executing source requests and distinguish the original question from an actual
+saved answer. `MetadataRequest.workerPrompt` preserves frozen worker settings
+and appends the metadata instructions to the resolved system message; direct
+alternative calls apply the same addition after `resolveSecondaryParams`.
+See [report-icons.md](report-icons.md#source-text-and-metadata-instructions).
+
 ### Family 3 — fixed per-cell dispatch (no system prompt)
 
 Judges (`JudgeEvalEngine`) and Transrank (`TranslatorRankEngine`) do **not** use
@@ -242,8 +250,8 @@ Moderation takes no params and no system prompt at all
 > see [workers.md](workers.md)) swaps the prompts' `workers` for other pools
 > (`withBatchWorkers` / `withReportInfoWorkers` / `withOwnModelWorker`)
 > — i.e. it changes *which* models run, not how (or whether) a system prompt is
-> resolved. For Families 2 & 3 that is still "no system prompt"; for Family 1
-> the runtime → prompt → agent → app-wide chain is unchanged.
+> resolved. Family 2 retains its frozen resolved system prompt and task guards;
+> Family 1 retains the runtime → prompt → agent → app-wide chain.
 
 ### Tournament, Judge-the-judges, Compare-with-meta, Transrank
 

@@ -64,8 +64,8 @@ enum class RegeneratePhase {
      *  AGGREGATE ranking row is recomputed once cells settle. */
     TRANSRANK,
 
-    /** Re-runs the report title workers before icon generation so
-     *  report/icon can derive from the fresh long title. Single
+    /** Re-runs report title workers before the independent icon phase.
+     *  Both describe the original question. Single
      *  synthetic task — rowId == [REPORT_TITLE_ROW_ID]. */
     TITLE,
 

@@ -923,8 +923,8 @@ class RegenerateBatchEngine internal constructor(
         val generalSettings = uiState.generalSettings
         val aiSettings = uiState.aiSettings
 
-        // TITLE — short + long report title workers. Run before the
-        // icon phase so report/icon can derive from the fresh long title.
+        // TITLE — short + long report title workers, before the independent
+        // icon phase. Both use the original question.
         val titlePrompts = aiSettings.internalPrompts.filter {
             it.category == "workers" &&
                 (it.name == "report-title-short" || it.name == "report-title-long")

@@ -36,9 +36,8 @@ import com.ai.viewmodel.ResolvedAltPrompt
 /**
  * Pre-pick "Edit prompt" step shared by every "Find alternative …" flow.
  * Shown the moment a fan-out is launched, BEFORE the model picker: it
- * resolves [flow]'s alt prompt (every @VAR@ marker already replaced with
- * the concrete report / response / language values) and lets the user tweak
- * the exact text the picked models will receive.
+ * lets the user tweak [flow]'s alt prompt. Title/icon and translation sources
+ * remain separate from the editable instructions; their markers stay visible.
  *
  * Tapping Next hands back an [AltEditPayload] (the edited text + the
  * substitutions, so the edit can be persisted back onto the template); the
@@ -104,6 +103,10 @@ internal fun FindAltPromptEditorScreen(
         Text(
             if (flow is AltPromptFlow.TranslationText)
                 "Edit the translation instructions. @TEXT@ or @TITLE@ refers to the original text, which is sent separately. Edits are used this run and saved to the template."
+            else if (flow is AltPromptFlow.ReportTitle || flow is AltPromptFlow.ReportIcon ||
+                flow is AltPromptFlow.ModelTitle || flow is AltPromptFlow.AgentIcon ||
+                flow is AltPromptFlow.PairTitle || flow is AltPromptFlow.PairIcon)
+                "Edit the title or icon instructions. Markers such as @PROMPT@ and @RESPONSE@ refer to the original question or saved answer, which is sent separately. Edits are used this run and saved to the template."
             else
                 "Markers (@…@) are already filled in. Edits here are sent this run, and saved back to the template when they can be cleanly re-applied.",
             color = AppColors.TextTertiary, fontSize = 12.sp,

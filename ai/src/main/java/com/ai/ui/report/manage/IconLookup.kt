@@ -31,6 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +62,11 @@ import com.ai.ui.shared.shareText
 fun IconLookupScreen(ctx: IconLookupContext) {
     BackHandler { ctx.onBack() }
     val context = LocalContext.current
+    val recordedInteraction by produceState<String?>(null, ctx.traceFile) {
+        value = withContext(Dispatchers.IO) { readMetadataApiInteraction(ctx.traceFile) }
+    }
+    val apiInteraction = recordedInteraction ?: if (!ctx.traceFile.isNullOrBlank())
+        "(recorded API interaction unavailable)" else ctx.apiInteraction
     var showManualEdit by remember { mutableStateOf(false) }
     var showSelectIcon by remember { mutableStateOf(false) }
     var manualText by remember { mutableStateOf("") }
@@ -70,11 +78,11 @@ fun IconLookupScreen(ctx: IconLookupContext) {
             onBackClick = ctx.onBack,
             onChat = ctx.onContinueChat,
             onInfo = ctx.onNavigateToModelInfo,
-            onCopy = if (ctx.apiInteraction.isNotBlank())
-                ({ copyToClipboard(context, ctx.apiInteraction, "Icon API interaction") })
+            onCopy = if (apiInteraction.isNotBlank())
+                ({ copyToClipboard(context, apiInteraction, "Icon API interaction") })
             else null,
-            onShare = if (ctx.apiInteraction.isNotBlank())
-                ({ shareText(context, ctx.apiInteraction, ctx.subject) })
+            onShare = if (apiInteraction.isNotBlank())
+                ({ shareText(context, apiInteraction, ctx.subject) })
             else null,
             onReload = ctx.onReload,
             onTrace = ctx.traceFile?.let { tf -> { ctx.onNavigateToTraceFile(tf) } }
@@ -92,7 +100,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
             // placeholders. Replace them with a single explanatory
             // line so the screen stays useful (Find alternative icons
             // button still works to kick off a generation).
-            val noDynamicIconYet = ctx.model.isBlank() && ctx.apiInteraction.isBlank()
+            val noDynamicIconYet = ctx.model.isBlank() && apiInteraction.isBlank()
             if (noDynamicIconYet) {
                 Text(
                     text = "No dynamic icon returned yet",
@@ -140,7 +148,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(bottom = 6.dp))
                         Text(
-                            ctx.apiInteraction.ifBlank { "(no interaction recorded)" },
+                            apiInteraction.ifBlank { "(no interaction recorded)" },
                             fontSize = 13.sp, color = AppColors.TextPrimary, lineHeight = 18.sp,
                             fontFamily = FontFamily.Monospace
                         )

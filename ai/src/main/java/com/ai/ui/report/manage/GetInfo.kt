@@ -230,7 +230,7 @@ fun buildInfoJobs(
         report.iconOutputCost == 0.0
 
     if (iconRowOn && !iconNeverRan) {
-        // 5) report-icon — the report icon, derived from the long title.
+        // 5) report-icon — the report icon, derived from the original question.
         val state = when {
             !report.iconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.icon.isNullOrBlank() -> InfoJobState.DONE

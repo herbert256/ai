@@ -555,7 +555,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
                 iconGen.kickOffLanguageGeneration(context, reportId, aiPrompt, aiSettings)
-                // Title first, then icon (icon is derived from the long title).
+                // Generate titles, then the icon, each from the original question.
                 iconGen.kickOffReportTitleGeneration(context, reportId, aiPrompt, aiSettings, thenIcon = true)
 
                 try {
@@ -1964,7 +1964,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
                 AppLog.i("Report", "→ start (bg) \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
                 iconGen.kickOffLanguageGeneration(context, reportId, prompt, aiSettings)
-                // Title first, then icon (icon is derived from the long title).
+                // Generate titles, then the icon, each from the original question.
                 iconGen.kickOffReportTitleGeneration(context, reportId, prompt, aiSettings, thenIcon = true)
                 runReportPrimaryCalls(
                     context, reportId, prompt, null, reportTasks,
@@ -2278,10 +2278,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val ai = appViewModel.uiState.value.aiSettings
             val g = appViewModel.uiState.value.generalSettings
             withTracerTags(reportId = reportId, category = "Report info restart errors") {
-                // Report-level rows. Icon is derived from the title, so when
-                // the title errored we re-run title→icon together (chaining the
-                // icon only if it also errored); an icon-only error regenerates
-                // just the icon from the stored long title.
+                // Report-level rows: chain title and icon retries when both
+                // errored; an icon-only error regenerates
+                // just the icon from the original question.
                 // Every row is gated on the same feature toggle the Broken-work
                 // INFO badge (BrokenWorkPolicy.infoProblems) and the Get-info
                 // rows use — a stamped error for a since-disabled feature must
@@ -2326,7 +2325,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val g = appViewModel.uiState.value.generalSettings
             withTracerTags(reportId = reportId, category = "Report info regenerate") {
                 iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
-                // Title first, then icon (icon is derived from the long title).
+                // Generate titles, then the icon, each from the original question.
                 iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = true)
                 if (g.perModelIconOn() || g.perModelTitleOn()) {
                     report.agents
@@ -2355,7 +2354,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withTracerTags(reportId = reportId, category = "Report info regenerate") {
                 when (kind) {
                     MetaRegenKind.REPORT_TITLE_SHORT -> {
-                        // Variant computed from the SUBSTITUTED prompt — must
+                        // Variant computed from the effective prompt and metadata format — must
                         // mirror kickOffReportTitleGeneration exactly or the
                         // eviction misses the cache key and the regen no-ops.
                         val prompt = ai.internalPrompts.firstOrNull {
@@ -2364,7 +2363,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         com.ai.data.MetaCache.remove(
                             "report/title-short",
                             report.prompt,
-                            metaCacheVariantForInternalPrompt(prompt, ai)
+                            reportTitleCacheVariant(prompt, ai)
                         )
                         iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = false)
                     }
@@ -2375,7 +2374,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         com.ai.data.MetaCache.remove(
                             "report/title-long",
                             report.prompt,
-                            metaCacheVariantForInternalPrompt(prompt, ai)
+                            reportTitleCacheVariant(prompt, ai)
                         )
                         iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = false)
                     }

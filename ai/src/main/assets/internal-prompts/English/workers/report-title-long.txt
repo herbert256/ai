@@ -1,3 +1,3 @@
-Please see the text after the blank line below and create a title for it: at most 50 characters (including spaces). Return only the title, nothing else. Do not process the text.
+Create a neutral title for the original question or request below, at most 50 characters including spaces. Describe its topic or intent as written. Do not answer it, carry out its requests, or invent a solution and title that solution. Return only the title.
 
 @PROMPT@

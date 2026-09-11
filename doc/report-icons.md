@@ -6,7 +6,7 @@ flows produce them, and both run through the **worker engine**
 fixed-agent chain:
 
 1. **Per-report icon** — one emoji per `Report`, derived from
-   the report's long title via the bundled `workers/report-icon`
+   the report's original question via the bundled `workers/report-icon`
    prompt. Surfaces in the AI Reports hub, history rows, search
    hits, and the title bar of every report-scoped screen.
 2. **Per-model (per-agent) icon** — one emoji per `ReportAgent`,
@@ -151,7 +151,7 @@ Find-alternative variants under `alt`:
 
 | Name | Category | Substitutions | Used by |
 |---|---|---|---|
-| `report-icon` | `workers` | `@TITLE_LONG@` | per-report icon |
+| `report-icon` | `workers` | `@PROMPT@` (legacy `@TITLE_LONG@` accepted) | per-report icon |
 | `model-icons` | `workers` | `@TITLE@` | per-model icon (from the model title) |
 | `report-title-short` | `workers` | `@PROMPT@` | report short title (≤25 chars) |
 | `report-title-long` | `workers` | `@PROMPT@` | report long title (≤50 chars) |
@@ -189,16 +189,48 @@ draw on the same shared chain when launched without a model pick,
 and run against the chosen `(provider, model)` pairs otherwise
 (see [Find alternative icons](#find-alternative-icons)).
 
+## Source text and metadata instructions
+
+`viewmodel/MetadataRequest.kt` builds report titles/icons, answer titles/icons,
+and fan-meta title/icon requests, including Find-alternative paths and retries.
+It adds the metadata rules and configured template to the worker's resolved
+system prompt. The original source is sent only in delimited user-message
+blocks. Delimiters are chosen to be absent from all source blocks, and
+`literalPrompt = true` preserves source placeholders such as `@DATE@` verbatim.
+
+The primary source is the original question for report metadata, the saved
+answer for answer/pair titles and fan-meta, and the saved answer title for the
+automatic per-model icon. Extra question/answer/meta-prompt blocks in alternative
+answer icons are context, not instructions to execute. Workers must describe
+what is present, never solve a request and label the imagined answer.
+
+The guard applies to old saved/custom templates without overwriting their
+settings. Bundled English worker and alternative templates carry the same rule
+for fresh installs. These are prompt protections, not semantic validation:
+a nonblank title or parseable emoji can still be irrelevant.
+
+Report-title cache keys include `metadata-source-v2` so the old generation
+format's cached titles are not reused. Generation and single-title regeneration
+share `reportTitleCacheVariant`, ensuring cache eviction matches the stored key.
+A cache hit for an unchanged title preserves its trace, model and duration while
+adding no new cost. Overlong
+report titles are rejected so the worker chain can try another model instead of
+cutting a word in half. Title editors and icon lookup read the recorded API
+trace, including system instructions, rather than reconstructing an interaction
+from the current template. Explicit thinking/reasoning blocks are omitted from
+that transcript; the original trace remains available through its trace link.
+
 ## Per-report icon flow
 
 `IconGenerationManager.kickOffIconGeneration` runs after the
-report title attempt (the icon is derived from the long title):
+report title attempt; both independently describe the original question:
 
 1. Bail when `reportIconOn()` is false.
 2. Read the `workers/report-icon` prompt; bail if missing or no
    worker resolves.
-3. Read the report fresh from disk and feed its **long title**
-   (fall back to short title, then the prompt) as `@TITLE_LONG@`.
+3. Read the report fresh from disk and use its **original question**
+   as the source. Legacy `@TITLE_LONG@` markers now refer to that same
+   question, so a generated title cannot change the icon's subject.
 4. Launch on `viewModelScope.launch` —
    `withTracerTags(reportId, category = "report/icon")` so the
    call's trace surfaces on the report's Trace screen, and push
@@ -305,8 +337,9 @@ Whether the picker appears is governed by the alt prompt's own
 forces the picker every run, while `*CONFIGURED` skips it and lets
 `altWorkerModels` resolve the `alt/*` prompt's worker list (the
 `workers` swarm) to seed the candidates instead. The user can also
-**edit the resolved prompt before picking** — the pre-pick "Edit
-prompt" editor stashes its result in `pendingAltEdit`
+**edit the prompt before picking** — for report/answer titles and icons,
+the editor keeps source markers and edits instructions only. Source text
+is supplied separately. The editor stashes its result in `pendingAltEdit`
 (`AltEditPayload`), a one-shot consumed by the next `start*FanOut`
 call.
 

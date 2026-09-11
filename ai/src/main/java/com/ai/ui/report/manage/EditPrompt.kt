@@ -161,7 +161,6 @@ fun ReportEditShortTitleScreen(
     helpTopic = "report_edit_short_title",
     fieldLabel = "Short title (list cards)",
     findButtonText = "Find alternative short title",
-    traceCategory = "report/title-short",
     titlePromptName = "report-title-short",
     isLongTitle = false,
     // The short title is the primary one (drives barTitle's fallback), so
@@ -201,7 +200,6 @@ fun ReportEditLongTitleScreen(
     helpTopic = "report_edit_long_title",
     fieldLabel = "Long title (top-bar line)",
     findButtonText = "Find alternative long title",
-    traceCategory = "report/title-long",
     titlePromptName = "report-title-long",
     isLongTitle = true,
     // Blank long title is valid — barTitle falls back to the short one.
@@ -224,7 +222,8 @@ private data class TitleApiCard(
     /** Bundled internal-prompt name that produced this title + its id (for
      *  the edit pencil). Blank id → pencil hidden. */
     val promptName: String,
-    val promptId: String
+    val promptId: String,
+    val traceFile: String? = null
 )
 
 /** Model + API-interaction card pair (Icon-lookup style) for a title
@@ -293,9 +292,8 @@ private fun ColumnScope.TitleApiCards(card: TitleApiCard?) {
  *
  * The title is filled in dynamically by a one-shot API call
  * (IconGenerationManager.kickOffReportTitleGeneration runs two: short +
- * long). Each call traces under its own category, so [traceCategory] picks
- * out this field's call for the 🐞 icon. Read off the main thread —
- * getTraceFiles parses every trace file.
+ * long). Each field's stored trace filename supplies its API transcript
+ * and trace link. Read off the main thread.
  */
 @Composable
 private fun SingleTitleEditScreen(
@@ -306,10 +304,8 @@ private fun SingleTitleEditScreen(
     helpTopic: String,
     fieldLabel: String,
     findButtonText: String,
-    traceCategory: String,
-    /** Bundled internal-prompt name whose template produced this title
-     *  (`report-title-short` / `report-title-long`) — used to rebuild the
-     *  API-interaction card's `[user]` turn. */
+    /** Configured prompt linked from the title editor. The recorded trace
+     * supplies the API-interaction card, independently of later prompt edits. */
     titlePromptName: String,
     isLongTitle: Boolean,
     allowBlank: Boolean,
@@ -329,19 +325,12 @@ private fun SingleTitleEditScreen(
     LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
     val canUpdate = allowBlank || title.trim().isNotBlank()
 
-    val titleTraceFilenameState = produceState<String?>(initialValue = null, reportId, traceCategory) {
-        value = withContext(Dispatchers.IO) {
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == reportId && it.category == traceCategory }
-                .maxByOrNull { it.timestamp }?.filename
-        }
-    }
-    val titleTraceFilename = titleTraceFilenameState.value
+    val traceVersion by ApiTracer.traceVersion.collectAsState()
 
     // The recorded API call that generated this title — Model + API
     // interaction cards, mirroring the Icon lookup screen. Null when the
     // title was set manually / never AI-generated (then the cards are hidden).
-    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, isLongTitle, initialTitle) {
+    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, isLongTitle, initialTitle, traceVersion) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext null
             val model = (if (isLongTitle) r.titleLongModel else r.titleModel).orEmpty()
@@ -362,15 +351,15 @@ private fun SingleTitleEditScreen(
             val template = aiSettings.internalPrompts.firstOrNull {
                 it.category == templateCategory && it.name == templateName
             }
-            val resolved = template?.text?.replace("@PROMPT@", r.prompt).orEmpty()
-            val response = if (isLongTitle) r.titleLong else r.title
+            val traceFile = if (isLongTitle) r.titleLongTraceFile else r.titleTraceFile
             TitleApiCard(
                 providerId = model.substringBefore('/', ""),
                 model = model.substringAfter('/', ""),
                 cost = cost,
-                apiInteraction = buildOneShotApiInteraction(resolved, response),
+                apiInteraction = readMetadataApiInteraction(traceFile) ?: "(recorded API interaction unavailable)",
                 promptName = template?.let { "${it.category}/${it.name}" } ?: "$templateCategory/$templateName",
-                promptId = template?.id.orEmpty()
+                promptId = template?.id.orEmpty(),
+                traceFile = traceFile
             )
         }
     }
@@ -387,7 +376,7 @@ private fun SingleTitleEditScreen(
                     null
                 )
             },
-            onTrace = titleTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } }
+            onTrace = apiCard?.traceFile?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 
         OutlinedButton(
@@ -452,7 +441,8 @@ fun ReportEditModelTitleScreen(
     // The per-model title-generation call (model-titles worker, @RESPONSE@ =
     // this agent's answer) as Model + API-interaction cards — same as the
     // Icon lookup screen. Null when the title was set manually.
-    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, agentId, initialTitle) {
+    val traceVersion by ApiTracer.traceVersion.collectAsState()
+    val apiCard by produceState<TitleApiCard?>(initialValue = null, reportId, agentId, initialTitle, traceVersion) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext null
             val agent = r.agents.firstOrNull { it.agentId == agentId } ?: return@withContext null
@@ -469,14 +459,14 @@ fun ReportEditModelTitleScreen(
             val template = aiSettings.internalPrompts.firstOrNull {
                 it.category == templateCategory && it.name == templateName
             }
-            val resolved = template?.text?.replace("@RESPONSE@", agent.responseBody.orEmpty()).orEmpty()
             TitleApiCard(
                 providerId = model.substringBefore('/', ""),
                 model = model.substringAfter('/', ""),
                 cost = cost,
-                apiInteraction = buildOneShotApiInteraction(resolved, agent.modelTitle),
+                apiInteraction = readMetadataApiInteraction(agent.modelTitleTraceFile) ?: "(recorded API interaction unavailable)",
                 promptName = template?.let { "${it.category}/${it.name}" } ?: "$templateCategory/$templateName",
-                promptId = template?.id.orEmpty()
+                promptId = template?.id.orEmpty(),
+                traceFile = agent.modelTitleTraceFile
             )
         }
     }
@@ -485,7 +475,7 @@ fun ReportEditModelTitleScreen(
         TitleBar(
             helpTopic = "report_edit_model_title", title = "Edit model title", subject = "Rename one model's answer title", onBackClick = onBack,
             onReload = { regenerate(reportId, com.ai.viewmodel.MetaRegenKind.MODEL_TITLE, agentId) },
-            onTrace = traceFilename?.takeIf { it.isNotBlank() }?.let { fn -> { onNavigateToTraceFile(fn) } }
+            onTrace = (apiCard?.traceFile ?: traceFilename)?.takeIf { it.isNotBlank() }?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 
         OutlinedButton(
