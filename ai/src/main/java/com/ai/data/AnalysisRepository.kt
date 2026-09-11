@@ -279,7 +279,9 @@ class AnalysisRepository {
         // model, so retrying a failed/queued call just re-floods that model's
         // rate window — a self-sustaining storm. A failed best-effort call is
         // simply skipped (the user can regenerate info).
-        retry: Boolean = true
+        retry: Boolean = true,
+        // Translation source is literal data: do not expand @DATE@, @MODEL@, etc.
+        literalPrompt: Boolean = false
     ): AnalysisResponse = withContext(Dispatchers.IO) {
         if (com.ai.model.SettingsHolder.current?.getProviderState(agent.provider) == "inactive") {
             return@withContext AnalysisResponse(agent.provider, null,
@@ -317,7 +319,7 @@ class AnalysisRepository {
             }
             if (unsupported.isNotEmpty()) return@withContext AnalysisResponse(agent.provider, null,
                 "Local runtime does not support: ${unsupported.joinToString()}. Clear these controls before running.", agentName = agent.name)
-            val userPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
+            val userPrompt = withRagPrefix(if (literalPrompt) prompt else buildPrompt(prompt, content, agent), ragPrefix)
             val finalPrompt = localParams.systemPrompt?.takeIf { it.isNotBlank() }?.let { "System instructions:\n$it\n\nUser request:\n$userPrompt" } ?: userPrompt
             val out = LocalLlm.generate(context, agent.model, finalPrompt, localParams)
             return@withContext if (out != null) {
@@ -330,7 +332,7 @@ class AnalysisRepository {
         if (agent.apiKey.isBlank()) {
             return@withContext AnalysisResponse(agent.provider, null, "API key not configured for agent ${agent.name}", agentName = agent.name)
         }
-        val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
+        val finalPrompt = withRagPrefix(if (literalPrompt) prompt else buildPrompt(prompt, content, agent), ragPrefix)
         suspend fun makeApiCall(): AnalysisResponse {
             var params = validateParams(mergeParameters(agentResolvedParams, overrideParams), agent.provider)
             if (overrideParams != null && context != null) {

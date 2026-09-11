@@ -450,17 +450,21 @@ class TranslationRunManager(
         // stranded in the in-memory state; a resume/reload re-picks it.
         try {
             AppLog.d("Translation", "→ item ${item.id} \"${item.label}\" kind=${item.kind} srcLen=${item.sourceText.length}")
-            val resolved = if (item.kind.isTitle)
-                prompt.text.replace("@LANGUAGE@", targetLanguageName).replace("@TITLE@", item.sourceText)
-            else
-                prompt.text.replace("@LANGUAGE@", targetLanguageName).replace("@TEXT@", item.sourceText)
+            val request = buildTranslationRequest(prompt.text, targetLanguageName, item.sourceText)
+            val aiSettings = appViewModel.uiState.value.aiSettings
+            val frozenPrompt = prompt.freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings)
+            // Preserve each worker's frozen settings, adding translation rules in
+            // its system message. Legacy saved runs receive the same separation.
+            val translationPrompt = frozenPrompt.copy(workers = frozenPrompt.workers.map { worker ->
+                worker.copy(frozenParameters = request.parameters(worker.frozenParameters ?: AgentParameters()))
+            })
 
             // The pooled per-item shape — worker chain under the per-item
             // "Batch item" ceiling, failures reduced to the standard
             // messages, the winner's spend rolled into AI Usage under this
             // item's per-kind translate/* type. See runPooledItemCall.
             val pooled = runPooledItemCall(
-                appViewModel, rvm.workerRunner, context, prompt, resolved,
+                appViewModel, rvm.workerRunner, context, translationPrompt, request.input,
                 usageKind = item.traceType,
                 timeoutMessage = "translation timed out after ${NetworkSettings.batchItemTimeoutSec}s",
                 rateLimitedMessage = "translate: all workers rate-limited",
@@ -477,7 +481,8 @@ class TranslationRunManager(
                     if (waiting) appViewModel.updateThrottledTranslationItems { it + key }
                     else appViewModel.updateThrottledTranslationItems { it - key }
                 },
-                schedule = schedule
+                schedule = schedule,
+                literalPrompt = true
             ) { resp -> !resp.analysis.isNullOrBlank() }
             if (pooled is PooledItemOutcome.Error) {
                 AppLog.d("Translation", "← item ${item.id} err — ${pooled.message}")
@@ -638,14 +643,12 @@ class TranslationRunManager(
         val rawTemplate = prompt?.text?.takeIf { it.isNotBlank() }
             ?: if (isTitleKind) DEFAULT_TRANSLATE_TITLE_TEMPLATE else ""
         if (rawTemplate.isBlank()) return
-        val resolved = rvm.iconGen.consumeAltEdit()?.edited ?: if (isTitleKind)
-            rawTemplate.replace("@LANGUAGE@", targetLanguageName).replace("@TITLE@", sourceText)
-        else
-            rawTemplate.replace("@LANGUAGE@", targetLanguageName).replace("@TEXT@", sourceText)
+        val template = rvm.iconGen.consumeAltEdit()?.edited ?: rawTemplate
+        val request = buildTranslationRequest(template, targetLanguageName, sourceText)
         appViewModel.updateAltTranslationFanOut(itemId) { unique.map { TranslationCandidate.Running(it.provider, it.model) } }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             unique.forEach { item ->
-                launch { runAltTranslationCandidate(context, reportId, itemId, item, resolved, traceType, aiSettings, paramsIds, systemPromptId, prompt) }
+                launch { runAltTranslationCandidate(context, reportId, itemId, item, request, traceType, aiSettings, paramsIds, systemPromptId, prompt) }
             }
         }
         rvm.registerIconFanOutJob("alttr:$itemId", outer)
@@ -654,7 +657,7 @@ class TranslationRunManager(
     /** One alternative-translation candidate call (non-persisting). */
     private suspend fun runAltTranslationCandidate(
         context: Context, reportId: String, itemId: String,
-        item: ReportModel, resolved: String, traceType: String, aiSettings: Settings,
+        item: ReportModel, request: TranslationRequest, traceType: String, aiSettings: Settings,
         paramsIds: List<String>, systemPromptId: String?, prompt: InternalPrompt?
     ) {
         fun place(c: TranslationCandidate) = appViewModel.updateAltTranslationFanOut(itemId) { list ->
@@ -671,9 +674,9 @@ class TranslationRunManager(
                             apiKey = aiSettings.getApiKey(item.provider)
                         )
                         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
-                        val params = resolveSecondaryParams(
+                        val params = request.parameters(resolveSecondaryParams(
                             appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, prompt
-                        )
+                        ))
                         // Capture this candidate's own trace + duration so a
                         // pick can replace the persisted row's stale trace /
                         // time instead of keeping the prior translation's.
@@ -681,7 +684,7 @@ class TranslationRunManager(
                         val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                         val response = withTraceFilenameSink(traceSink) {
                             appViewModel.repository.analyzeWithAgent(
-                                syntheticAgent, "", resolved, params, null, context, baseUrl
+                                syntheticAgent, "", request.input, params, null, context, baseUrl, literalPrompt = true
                             )
                         }
                         val callDurationMs = System.currentTimeMillis() - callStart

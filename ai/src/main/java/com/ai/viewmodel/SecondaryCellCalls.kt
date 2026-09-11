@@ -60,6 +60,7 @@ internal suspend fun runPooledWorkerCall(
     schedule: WorkerSchedule = WorkerSchedule.Random,
     overrideParams: com.ai.data.AgentParameters? = null,
     onAttempt: (suspend (WorkerAttempt) -> Unit)? = null,
+    literalPrompt: Boolean = false,
     accept: (AnalysisResponse) -> Boolean,
 ): PooledWorkerCall {
     val started = System.currentTimeMillis()
@@ -67,9 +68,9 @@ internal suspend fun runPooledWorkerCall(
     val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(onThrottleWait)) {
         withTraceFilenameSink(traceSink) {
             if (traceCategory != null) withTraceCategory(traceCategory) {
-                workerRunner.run(prompt, resolved, aiSettings, context, schedule, overrideParams, onAttempt, accept)
+                workerRunner.run(prompt, resolved, aiSettings, context, schedule, overrideParams, onAttempt, literalPrompt, accept)
             } else {
-                workerRunner.run(prompt, resolved, aiSettings, context, schedule, overrideParams, onAttempt, accept)
+                workerRunner.run(prompt, resolved, aiSettings, context, schedule, overrideParams, onAttempt, literalPrompt, accept)
             }
         }
     }
@@ -154,12 +155,13 @@ internal suspend fun runPooledItemCall(
     onThrottleWait: (Boolean) -> Unit = {},
     schedule: WorkerSchedule = WorkerSchedule.Random,
     overrideParams: com.ai.data.AgentParameters? = null,
+    literalPrompt: Boolean = false,
     accept: (AnalysisResponse) -> Boolean,
 ): PooledItemOutcome {
     val aiSettings = appViewModel.uiState.value.aiSettings
     val call = try {
         withTimeout(NetworkSettings.batchItemTimeoutMs) {
-            runPooledWorkerCall(workerRunner, aiSettings, context, prompt, resolved, traceCategory, onThrottleWait, schedule, overrideParams, accept = accept)
+            runPooledWorkerCall(workerRunner, aiSettings, context, prompt, resolved, traceCategory, onThrottleWait, schedule, overrideParams, literalPrompt = literalPrompt, accept = accept)
         }
     } catch (e: TimeoutCancellationException) {
         return PooledItemOutcome.Error(timeoutMessage, rateLimited = false)

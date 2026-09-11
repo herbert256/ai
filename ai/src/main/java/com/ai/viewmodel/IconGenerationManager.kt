@@ -324,11 +324,9 @@ class IconGenerationManager(
                 val p = aiSettings.getInternalPromptByName(
                     if (flow.isTitleKind) "translate-title" else "translate-text"
                 )
-                val subs = if (flow.isTitleKind)
-                    listOf("@LANGUAGE@" to flow.targetLanguageName, "@TITLE@" to flow.sourceText)
-                else
-                    listOf("@LANGUAGE@" to flow.targetLanguageName, "@TEXT@" to flow.sourceText)
-                build(p, subs)
+                // Edit instructions only. Keep the source placeholder so no
+                // source content can be copied into the system message.
+                build(p, listOf("@LANGUAGE@" to flow.targetLanguageName))
             }
         }
     }

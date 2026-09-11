@@ -148,25 +148,33 @@ translate:
 | `translate-text` | prompt / agent / meta bodies | `@LANGUAGE@`, `@TEXT@` |
 | `translate-title` | the four title kinds | `@LANGUAGE@`, `@TITLE@` |
 
-The bundled body prompt asks for: "Translate the following text to
-@LANGUAGE@. Preserve markdown formatting (headings, bold, italic,
-lists, code blocks, tables) exactly. Preserve citation references
-like [1] or [N]. Preserve URLs and code identifiers untouched. Do
-NOT add commentary, preface, or explanation — output only the
-translation." followed by `TEXT TO TRANSLATE:` and `@TEXT@`. The
-title prompt is terser: "Translate the following text to
-@LANGUAGE@, give only the translation back, nothing else." followed
-by `@TITLE@`. The main runner needs the `translate-title` row present
+The bundled text and title prompts explicitly say to translate questions,
+commands and instructions in the source without answering or carrying them
+out. They preserve meaning and tone, and request only the translation.
+The body prompt also preserves factual details, Markdown, citations, URLs
+and code identifiers. The main runner needs the `translate-title` row present
 (a missing prompt fails the item); the **Find alternative
-translation** path additionally falls back to a hard-coded
-`DEFAULT_TRANSLATE_TITLE_TEMPLATE` mirroring that asset when the row
-hasn't been delta-merged yet.
+translation** path additionally falls back to the legacy
+`DEFAULT_TRANSLATE_TITLE_TEMPLATE` when the row hasn't been delta-merged
+yet; the request builder adds the same explicit translation rules to it.
 
-Like every other `workers`-category prompt, the translate prompts
-run through `WorkerRunner`, which dispatches each worker call with no
-explicit parameter / system-prompt preset — so `max_tokens` falls
-back to the per-provider `defaultMaxTokens`, the same as the icon /
-title / tournament workers.
+`buildTranslationRequest` separates every report translation into system
+instructions and a user message containing only the delimited source.
+The delimiter is chosen to be absent from the source. The saved/runtime
+template keeps its language, terminology and style instructions, but
+`@TEXT@` / `@TITLE@` becomes a reference to the separate source instead of
+embedding it in the system message. An explicit example explains that
+"Make a complete plan" must remain a request, never become a generated plan.
+
+The runner adds these instructions to each worker's frozen system prompt
+while preserving its other parameters. This applies at dispatch, including
+legacy saved runs, retries, missing items and cross-translations. Alternative
+translation candidates use the same builder; their editor edits instructions
+with source placeholders rather than an embedded copy of the source.
+Literal source tokens such as `@DATE@` / `@MODEL@` bypass the repository's
+normal prompt-variable expansion. Existing saved outputs are not rewritten.
+This is instruction separation, not a semantic quality validator: nonempty
+responses still complete under the existing acceptance rule.
 
 ## Multi-language fan-out for chat-type Meta runs
 

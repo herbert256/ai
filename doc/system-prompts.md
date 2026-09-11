@@ -159,7 +159,7 @@ plus the metadata-gen calls map onto them like this:
 | **Fan-in** | `executeSecondaryTask` | resolved (Family 1) |
 | **Meta edit / replay** | direct `analyzeWithAgent` | resolved (Family 1) |
 | **Find-alternatives** probes (alt icons / alt titles / alt translations) | direct `analyzeWithAgent` | resolved (Family 1) |
-| **Translate** (main text + titles) | `WorkerRunner.run` | none (Family 2) |
+| **Translate** (main text + titles) | `WorkerRunner.run` | frozen worker prompt plus explicit translation instructions (Family 2) |
 | **Tournament** | `WorkerRunner.run` | none (Family 2) |
 | **Compare**-with-meta | `WorkerRunner.run` | none (Family 2) |
 | Initial **report** icon / title / language name + icon | `WorkerRunner.run` | none (Family 2) |
@@ -211,19 +211,19 @@ When a system prompt resolves, `resolveSecondaryParams` returns
 unchanged. (Note this is **first-non-null**, not a merge — there is no
 report-level or provider level in the secondary chain.)
 
-### Family 2 — `WorkerRunner.run` (no system prompt)
+### Family 2 — `WorkerRunner.run` (frozen worker configuration)
 
 Main translation, Tournament, Compare-with-meta, and **all initial
 metadata generation** (report icon / title / language name + icon, per-model
 icons / titles, fan-meta) dispatch through `WorkerRunner.run(prompt,
 resolvedText, aiSettings, context, accept)` (`viewmodel/WorkerRunner.kt`). The
-runner expands the prompt's `workers` to their members, shuffles, and on each
-attempt calls `analyzeWithAgent(agent, "", resolvedText, …)` — with **no**
-`agentResolvedParams` and **no** `overrideParams`. So these calls carry **no
-resolved parameters and no system prompt** (not the worker's, not app-wide):
-they are deterministic JSON-/artifact-emitting utility calls. Consistent with
-that, every bundled `assets/internal-prompts/English/workers/*.json` (and
-`meta_compare/`) seed has `"systemPrompt": "*NONE"`.
+runner expands the prompt's `workers` to their members and dispatches with
+each worker's `frozenParameters`, including its resolved system prompt when
+present. Report translation additionally uses `buildTranslationRequest` to
+put the translation rules and configured template in the system message,
+while the original text is sent separately as delimited user data. The same
+separation applies to alternative translation probes in Family 1. See
+[translation.md](translation.md) for saved-run and source-placeholder behavior.
 
 ### Family 3 — fixed per-cell dispatch (no system prompt)
 

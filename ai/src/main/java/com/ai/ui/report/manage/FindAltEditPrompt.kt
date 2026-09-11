@@ -102,7 +102,10 @@ internal fun FindAltPromptEditorScreen(
         var text by rememberSaveable(resolved.resolved) { mutableStateOf(resolved.resolved) }
 
         Text(
-            "Markers (@…@) are already filled in. Edits here are sent this run, and saved back to the template when they can be cleanly re-applied.",
+            if (flow is AltPromptFlow.TranslationText)
+                "Edit the translation instructions. @TEXT@ or @TITLE@ refers to the original text, which is sent separately. Edits are used this run and saved to the template."
+            else
+                "Markers (@…@) are already filled in. Edits here are sent this run, and saved back to the template when they can be cleanly re-applied.",
             color = AppColors.TextTertiary, fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 8.dp)
         )

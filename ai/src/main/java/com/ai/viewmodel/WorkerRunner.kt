@@ -157,6 +157,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
          *  [accept] so trailing-lambda call sites keep binding to accept. */
         overrideParams: com.ai.data.AgentParameters? = null,
         onAttempt: (suspend (WorkerAttempt) -> Unit)? = null,
+        literalPrompt: Boolean = false,
         accept: (AnalysisResponse) -> Boolean = { true },
     ): WorkerOutcome {
         // Expand each worker into the per-member plain workers we actually
@@ -232,7 +233,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
                     com.ai.data.withTraceFilenameSink(sink) {
                         appViewModel.repository.analyzeWithAgent(
                             agent, "", resolvedText, agentResolvedParams = w.frozenParameters ?: com.ai.data.AgentParameters(), overrideParams = overrideParams,
-                            context = context, baseUrl = baseUrl, retry = false
+                            context = context, baseUrl = baseUrl, retry = false, literalPrompt = literalPrompt
                         )
                     }
                 } catch (e: Exception) {
