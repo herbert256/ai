@@ -230,10 +230,9 @@ internal fun SecondaryResultsListMount(
     }
 }
 
-/** Meta-flow Run page — full-screen prompt editor between the Scope
- *  screen and the model picker. The InternalPrompt store is left
- *  untouched; the edited body rides along on a copy passed to the
- *  picker via [onContinue]. */
+/** Meta-flow Run page — full-screen prompt editor before worker selection
+ *  or direct dispatch, depending on the configured Meta worker plan.
+ *  The edited body is passed as a run-only copy via [onContinue]. */
 @Composable
 internal fun MetaRunScreen(
     metaPrompt: InternalPrompt,
@@ -265,7 +264,7 @@ internal fun MetaRunScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "Tweak the prompt for this run if you want; the saved Internal Prompt template stays untouched. Tap Continue to pick which model the meta runs on.",
+                "Edits apply to this run only. Tap Continue to use the configured Meta workers. If worker selection is required, you'll choose workers first; otherwise the analysis starts immediately.",
                 fontSize = 13.sp, color = AppColors.TextSecondary
             )
             Text("Prompt (edit for this run)", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)

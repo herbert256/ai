@@ -1094,10 +1094,10 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_meta_run" to HelpContent(
         title = "Help - Run a meta prompt",
         cards = listOf(
-            HelpCard("Overview", "Full-screen editor for the meta prompt's text body, shown between the Scope screen and the model picker. Lets you tweak the template for this run only — the stored InternalPrompt is left untouched."),
+            HelpCard("Overview", "Edit the meta prompt before running the analysis. Edits apply to this run only; the saved Internal Prompt template stays unchanged."),
             HelpCard("Title bar — Back", "Cancels and returns to the Scope screen. The state survives the trip so re-entering the Run page shows your unedited starting text again (the editor reseeds from the prompt's stored body)."),
             HelpCard("Prompt editor", "OutlinedTextField (min 8 lines) seeded with `metaPrompt.text`. Edits are local — they don't write back to Settings → AI Setup → Prompt management → Internal prompts. If you want the changes to stick, copy them into the prompt definition by hand after the run."),
-            HelpCard("Continue button", "Hoisted to the top of the page so it's reachable without scrolling past a long template. Passes a copy of the meta prompt with the edited text to the model picker; the original stays unchanged."),
+            HelpCard("Continue button", "Uses your edited prompt and the configured Meta workers. If worker selection is required, you'll choose workers first; otherwise the analysis starts immediately. The button stays at the top so you can reach it without scrolling past a long prompt."),
             HelpCard("Variables", "Substitution placeholders (`@PROMPT@`, `@RESPONSE@`, `@NAME@`, `@TITLE@`, etc.) remain literal in the editor — they're resolved at call time by the engine. Don't expand them by hand."),
             HelpCard("Reached from", "Settings → AI Setup → Prompt management → Internal prompts → run a meta-category prompt, OR from a report's Manage screen → Meta/Create → pick a prompt → Continue (after the Scope screen).")
         )

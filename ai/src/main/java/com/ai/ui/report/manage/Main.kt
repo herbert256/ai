@@ -1159,10 +1159,9 @@ fun ReportsScreen(
         return
     }
 
-    // Meta Run page — full-screen prompt editor inserted between the
-    // Scope screen (or the Default-scope fast-path) and the model
-    // picker. The text the user lands on the picker with is whatever
-    // they leave the field at.
+    // Meta Run page — full-screen prompt editor after scope selection
+    // (or the default-scope fast path). Continue passes the edited copy
+    // to the Meta worker plan, which selects workers or starts directly.
     val metaRunMp = metaRunScreenPrompt
     if (metaRunMp != null && currentReportId != null) {
         CompositionLocalProvider(
