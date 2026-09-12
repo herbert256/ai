@@ -1317,7 +1317,7 @@ class IconGenerationManager(
             // to first-match when the caller didn't track one.
             metaRowId ?: SecondaryResultStorage.listForReport(context, rid)
                 .firstOrNull { sr ->
-                    (sr.metaPromptId != null && sr.metaPromptId == prompt.id) ||
+                    ((sr.fanInOf ?: sr.metaPromptId) == prompt.id) ||
                     (!sr.metaPromptName.isNullOrBlank() && sr.metaPromptName == prompt.name)
                 }
                 ?.id

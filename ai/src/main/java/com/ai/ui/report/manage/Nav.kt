@@ -650,8 +650,8 @@ fun ReportsScreenNav(
         onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId, includeSelf, buildKey ->
             reportViewModel.fanOutEngine.startRun(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId, includeSelfResponses = includeSelf, buildKey = buildKey)
         },
-        onRunFanIn = { reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId, overrideWorkers ->
-            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId, overrideWorkers)
+        onRunFanIn = { reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId, overrideWorkers, sourcePromptId ->
+            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId, overrideWorkers, sourcePromptId)
         },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
@@ -776,7 +776,7 @@ fun ReportsScreenNav(
             scope.launch { reportViewModel.stageModelListForRegenerate(context, rid, edited) }
         },
         onMarkParametersChanged = {
-            reportViewModel.markParametersChanged()
+            reportViewModel.markParametersChanged(context)
         },
         // Title-bar 🔁 → confirm dialog → apply any staged Edit-Models
         // list, then enqueue a Regenerate batch job (app-restart-

@@ -98,12 +98,13 @@ fun AgentEditScreen(
     // existingNames is built by the caller with the source row's name
     // excluded; add it back when we've flipped into duplicate mode.
     val effectiveExistingNames = if (isAddMode && agent != null) {
-        existingNames + agent.name.lowercase()
+        existingNames + agent.name.trim().lowercase(java.util.Locale.ROOT)
     } else existingNames
+    val normalizedExistingNames = effectiveExistingNames.map { it.trim().lowercase(java.util.Locale.ROOT) }.toSet()
 
     val nameError = when {
         name.isBlank() -> "Name is required"
-        name.lowercase() in effectiveExistingNames -> "Name already exists"
+        name.trim().lowercase(java.util.Locale.ROOT) in normalizedExistingNames -> "Name already exists"
         else -> null
     }
 

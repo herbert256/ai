@@ -130,7 +130,7 @@ class MetaEditManager internal constructor(
     ): MetaReplayTask {
         val row = SecondaryResultStorage.get(context, reportId, resultId) ?: error("This result no longer exists")
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val promptId = row.metaPromptId ?: error("This result has no meta prompt")
+        val promptId = (row.fanInOf ?: row.metaPromptId) ?: error("This result has no meta prompt")
         val metaPrompt = aiSettings.getInternalPromptById(promptId)
             ?: row.metaPromptName?.let { aiSettings.getInternalPromptByName(it) }
             ?: error("Meta prompt no longer exists")
@@ -141,7 +141,8 @@ class MetaEditManager internal constructor(
         val systemPromptId = if (overrideProvider != null) overrideSystemPromptId else row.secondarySystemPromptId
         val report = ReportStorage.getReport(context, reportId) ?: error("Report not found")
         val resolvedPrompt = if (row.fanInOf != null) {
-            reportViewModel.secondary.buildFanInResolution(context, reportId, metaPrompt, report, row.targetLanguage)
+            reportViewModel.secondary.buildFanInResolution(context, reportId, metaPrompt, report, row.targetLanguage,
+                row.metaPromptId?.takeIf { it != row.fanInOf })
                 ?.resolvedPrompt
                 ?: error("No fan-out responses available to rebuild this combined report")
         } else {

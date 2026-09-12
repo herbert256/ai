@@ -440,6 +440,7 @@ internal fun ReportRunScreen(
             titleName = titleName,
             specs = rtReq.prompts.map { EditablePromptSpec("Prompt", it) },
             infoLine = infoLine,
+            supportsTemperatureOverride = rtReq.kind == RuntimePromptKind.TOURNAMENT,
             onCancel = { st.runtimePromptReq.value = null },
             onRun = { edited, persist, runTemperature ->
                 st.runtimePromptReq.value = null

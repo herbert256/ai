@@ -462,3 +462,17 @@ AND for `returnCitations`.
 - [datastructures.md](datastructures.md) — full field tables for `Agent` / `Flock` / `Swarm` / `ReportModel`.
 - [report-icons.md](report-icons.md) — the worker engine that drives per-report / per-model / fan-meta internal-prompt calls (`WorkerRunner` picks a random worker per call).
 - [secondary-results.md](secondary-results.md) — fan-out / fan-in over the expanded set of targets.
+
+## Configuration audit examples
+
+Optional `Audit A`, `Audit F` and `Audit S` entries exercise selected-source
+inheritance. Flock parameters merge below each Agent's parameters; its system
+prompt wins over the Agent prompt. Swarm members use the selected Swarm's
+parameters and system prompt. These settings also survive secondary worker
+expansion and are frozen for replay. They do not apply just because a model
+belongs to an unselected group.
+
+`Audit A conflict` deliberately combines reasoning with an incompatible sampling
+control. `Audit F fallback` pairs it with a valid Agent on the same model to
+exercise recovery. Neither is an automatic worker default. See the
+[configuration audit](configuration-audit-2026-09-12.md).

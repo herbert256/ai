@@ -341,6 +341,7 @@ object ReportStorage {
             val id=UUID.randomUUID().toString()
             if (agent.reportStatus == ReportStatus.SUCCESS) archiveAnswer(report, agent)
             agent.executionConfig = config
+            agent.pendingExecutionConfig = null
             agent.attemptId = id
             agent.finishReason = null
             agent.reportStatus = ReportStatus.RUNNING
@@ -932,7 +933,9 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val updated = report.copy(title = newTitle, titleLong = null, prompt = newPrompt,
-                knowledgeContext = null, knowledgeStatus = null, agents = report.agents.map { it.copy(executionConfig = null) }.toMutableList())
+                knowledgeContext = null, knowledgeStatus = null, agents = report.agents.map {
+                    it.copy(pendingExecutionConfig = (it.pendingExecutionConfig ?: it.executionConfig)?.copy(refreshPrompt = true))
+                }.toMutableList())
             saveReport(updated)
             true
         }
@@ -2720,7 +2723,7 @@ object ReportStorage {
                 report.promptHistory + PromptRevision(report.prompt)
             } else report.promptHistory
             saveReport(report.copy(prompt = newPrompt, promptHistory = history, knowledgeContext = null, knowledgeStatus = null,
-                agents = report.agents.map { it.copy(executionConfig = null) }.toMutableList()))
+                agents = report.agents.map { it.copy(pendingExecutionConfig = (it.pendingExecutionConfig ?: it.executionConfig)?.copy(refreshPrompt = true)) }.toMutableList()))
             true
         }
     }
@@ -2851,7 +2854,22 @@ object ReportStorage {
         lock.withLock {
             val report = loadReport(reportId) ?: return
             saveReport(report.copy(selectionParamsById = report.selectionParamsById + (rowId to presetIds),
-                agents = report.agents.map { if (it.agentId == rowId) it.copy(executionConfig = null) else it }.toMutableList()))
+                agents = report.agents.map { if (it.agentId == rowId) it.copy(executionConfig = null, pendingExecutionConfig = null) else it }.toMutableList()))
+        }
+    }
+
+    /** Patch only generation controls so concurrent result/cost writes are retained. */
+    fun updateGenerationParameters(context: Context, reportId: String, presetIds: List<String>,
+        advanced: AgentParameters?, systemPromptId: String?, executions: Map<String, ReportExecutionConfig>) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            saveReport(report.copy(parameterPresetIds = presetIds, advancedParameters = advanced,
+                reportSystemPromptId = systemPromptId,
+                agents = report.agents.map { agent ->
+                    executions[agent.agentId]?.let { next -> agent.copy(pendingExecutionConfig = next.copy(
+                        refreshPrompt = next.refreshPrompt || agent.pendingExecutionConfig?.refreshPrompt == true)) } ?: agent
+                }.toMutableList()))
         }
     }
 

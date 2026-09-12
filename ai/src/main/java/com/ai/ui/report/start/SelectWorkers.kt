@@ -182,8 +182,7 @@ internal fun ReportSelectWorkersScreen(
 
         // ── Card: Parameters (pre-generation host only) ────────────────
         if (onParametersChange != null) {
-            val activeParams = aiSettings.parameters
-                .filter { it.id in parametersIds }
+            val activeParams = parametersIds.mapNotNull { aiSettings.getParametersById(it) }
                 .joinToString(", ") { it.name }
             CollapsibleCard(
                 icon = mi.parameters,

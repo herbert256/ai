@@ -15,7 +15,11 @@ data class ReportSourceSnapshot(val prompt: String, val title: String,
 data class ReportRunManifest(val prompt: InternalPrompt, val sourceSnapshotId: String,
     val parameters: AgentParameters? = null)
 data class ReportExecutionConfig(val parameters: AgentParameters, val endpointUrl: String,
-    val prompt: String, val capturedAt: Long = System.currentTimeMillis(), val credentialAgentId: String? = null)
+    val prompt: String, val capturedAt: Long = System.currentTimeMillis(), val credentialAgentId: String? = null,
+    /** Captured worker/row settings before the report overlay, for later report edits. */
+    val baseParameters: AgentParameters? = null,
+    /** Rebuild only prompt/RAG text after a question edit; retain the saved settings. */
+    val refreshPrompt: Boolean = false)
 
 object ReportEvidenceStore {
     @Volatile private var root: File? = null

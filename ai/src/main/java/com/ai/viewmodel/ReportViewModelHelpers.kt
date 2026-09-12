@@ -549,13 +549,16 @@ internal fun lookupLanguageTranslations(
 
 /** Freeze the expanded pool and non-secret effective configuration before launch.
  * Credentials remain live references so key rotation never requires new runs. */
-internal fun com.ai.model.InternalPrompt.freezeWorkers(settings: Settings, general: GeneralSettings): com.ai.model.InternalPrompt =
+internal fun com.ai.model.InternalPrompt.freezeWorkers(
+    settings: Settings, general: GeneralSettings,
+    paramsIds: List<String> = emptyList(), systemPromptId: String? = null
+): com.ai.model.InternalPrompt =
     copy(workers = workers.flatMap { settings.expandWorker(it) }.mapNotNull { worker ->
         if (worker.frozenParameters != null) worker else settings.resolveWorker(worker)?.let { agent ->
             worker.copy(agent = "*N/A", flock = "*N/A", swarm = "*N/A",
                 provider = agent.provider.id, model = settings.getEffectiveModelForAgent(agent),
                 credentialAgentId = agent.id.takeIf { it.isNotBlank() },
-                frozenParameters = resolveSecondaryParams(general, settings, emptyList(), null, this, agent),
+                frozenParameters = resolveSecondaryParams(general, settings, paramsIds, systemPromptId, this, agent),
                 frozenEndpointUrl = when (settings.getModelType(agent.provider, settings.getEffectiveModelForAgent(agent))) {
                     com.ai.data.ModelType.RERANK -> agent.provider.nativeRerankUrl
                     com.ai.data.ModelType.MODERATION -> agent.provider.nativeModerationUrl

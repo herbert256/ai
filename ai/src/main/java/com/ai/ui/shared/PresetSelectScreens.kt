@@ -59,7 +59,7 @@ fun ParametersSelectScreen(
     BackHandler { onBack() }
     val navigate = LocalNavigateToRoute.current
     val selected = selectedIds.toSet()
-    val activeNames = aiSettings.parameters.filter { it.id in selected }.joinToString(", ") { it.name }
+    val activeNames = selectedIds.mapNotNull { aiSettings.getParametersById(it) }.joinToString(", ") { it.name }
 
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)

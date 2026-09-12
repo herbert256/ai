@@ -290,7 +290,10 @@ data class Worker(
     val swarm: String = "*N/A",
     val frozenParameters: AgentParameters? = null,
     val frozenEndpointUrl: String? = null,
-    val credentialAgentId: String? = null
+    val credentialAgentId: String? = null,
+    /** Selected group defaults carried through expansion until execution is frozen. */
+    val inheritedParametersIds: List<String> = emptyList(),
+    val inheritedSystemPromptId: String? = null
 )
 
 /** Stand-alone example prompt — pure (title, text) pair the user
@@ -767,10 +770,14 @@ data class Settings(
             w.model != "*N/A" && w.model.isNotBlank()) {
             val svc = AppService.findById(w.provider) ?: return null
             val credential = w.credentialAgentId?.let(::getAgentById)?.takeIf { it.provider == svc }
-            return Agent(id = credential?.id.orEmpty(), name = "${w.provider} / ${w.model}", provider = svc, model = w.model, apiKey = credential?.apiKey.orEmpty())
+            return Agent(id = credential?.id.orEmpty(), name = "${w.provider} / ${w.model}", provider = svc, model = w.model, apiKey = credential?.apiKey.orEmpty(),
+                paramsIds = w.inheritedParametersIds, systemPromptId = w.inheritedSystemPromptId)
         }
         if (w.agent != "*N/A" && w.agent.isNotBlank() && w.agent != "*select")
-            return agents.firstOrNull { it.name.equals(w.agent, ignoreCase = true) }
+            return agents.firstOrNull { it.name.equals(w.agent, ignoreCase = true) }?.let { agent ->
+                agent.copy(paramsIds = w.inheritedParametersIds + agent.paramsIds,
+                    systemPromptId = w.inheritedSystemPromptId ?: agent.systemPromptId)
+            }
         return null
     }
 
@@ -795,11 +802,13 @@ data class Settings(
     fun expandWorker(w: Worker): List<Worker> = when {
         isFlock(w) -> getFlockByName(w.flock)?.let { f ->
             getAgentsForFlock(f).filter { isProviderActive(it.provider) }
-                .map { Worker(agent = it.name) }
+                .map { Worker(agent = it.name, inheritedParametersIds = f.paramsIds,
+                    inheritedSystemPromptId = f.systemPromptId) }
         } ?: emptyList()
         isSwarm(w) -> getSwarmByName(w.swarm)?.let { s ->
             s.members.filter { isProviderActive(it.provider) }
-                .map { Worker(agent = "*N/A", provider = it.provider.id, model = it.model) }
+                .map { Worker(agent = "*N/A", provider = it.provider.id, model = it.model,
+                    inheritedParametersIds = s.paramsIds, inheritedSystemPromptId = s.systemPromptId) }
         } ?: emptyList()
         else -> listOf(w)
     }

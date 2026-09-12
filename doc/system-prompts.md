@@ -18,7 +18,7 @@ System prompts live in two places:
 
 Every level (agent / flock / swarm / provider / app-wide / report-model / report)
 stores a single optional `systemPromptId`. A `Parameters` preset can *also* carry
-a free-text `systemPrompt`, and an `InternalPrompt` references a preset by **name**
+a free-text `systemPrompt`, and an `InternalPrompt` references a preset by stable **id** (or legacy name)
 (`InternalPrompt.systemPrompt`, default `"*NONE"`).
 
 > Worker-driven calls use each worker's frozen resolved parameters, including
@@ -39,7 +39,7 @@ a free-text `systemPrompt`, and an `InternalPrompt` references a preset by **nam
 | **Provider** | AI Setup → Providers → a provider → edit (🎭) → `ProviderConfig.systemPromptId` |
 | **App-wide** & **Report-model** | AI Setup → App settings (`appWideSystemPromptId`, `reportModelSystemPromptId` on `GeneralSettings`) |
 | The presets themselves | AI Setup → System prompts (CRUD) |
-| Per **internal prompt** | AI Setup → Prompt management → a prompt → 🎭 (stored by preset **name** in `InternalPrompt.systemPrompt`) |
+| Per **internal prompt** | AI Setup → Prompt management → a prompt → 🎭 (stored by preset **id**, with legacy names supported in `InternalPrompt.systemPrompt`) |
 | **External intent** | `com.ai.ACTION_NEW_REPORT` intent's `"system"` string extra |
 
 The external-intent value is read in `MainActivity.handleIntent` as
@@ -60,9 +60,9 @@ At the report dispatch fold — `AnalysisRepository.analyzeWithAgent`
    *override* `systemPrompt` wins over the agent-resolved one
    (`overrideParams.systemPrompt?.isNotBlank() == true`); otherwise the
    agent-resolved value stays.
-2. **`filterParametersBySupported`** — drops fields the model can't accept
-   (only when an override is present). The **system prompt is never dropped** by
-   this filter — it is copied through verbatim, unlike the numeric params.
+2. Preserve the requested configuration for replay and validate supported values
+   at dispatch. System prompts remain verbatim; numeric controls are no longer
+   silently filtered from report requests.
 
 The merged result is sent as the request's system message by the per-format
 dispatch (Anthropic `system`, Gemini `systemInstruction`, OpenAI Chat
@@ -75,9 +75,7 @@ edit screens surface a warning when the chosen model is known not to.
 
 ## Report generation
 
-`viewmodel/ReportViewModel.kt` → `buildReportTasks`, with helpers
-`resolveSystemPromptText`, `findFlockSystemPromptIdForAgent` and
-`findSwarmSystemPromptIdForMember` in `viewmodel/ReportViewModelHelpers.kt`.
+`viewmodel/ReportViewModel.kt` → `buildReportTasks`, using the selected model's `sourceType` / `sourceId` to identify its group.
 
 The chain is a plain `?:` ladder; the **first non-null wins** and is applied with
 `params.copy(systemPrompt = spText)`.
@@ -86,8 +84,8 @@ The chain is a plain `?:` ladder; the **first non-null wins** and is applied wit
 
 ```
 reportLevelSystemPrompt                              // the report's 🎭
-  ?: resolveSystemPromptText(agent.systemPromptId,   // flock-or-agent (see note)
-                             findFlockSystemPromptIdForAgent(...))
+  ?: selectedFlockSystemPrompt                        // selected source only
+  ?: agentSystemPrompt
   ?: externalSystemPrompt                            // ACTION_NEW_REPORT "system"
   ?: appSp                                            // app-wide default
 ```
@@ -95,25 +93,21 @@ reportLevelSystemPrompt                              // the report's 🎭
 | # (highest wins) | Source |
 |---|---|
 | 1 | **Report-level** prompt (`reportSystemPromptId`, the report's 🎭) |
-| 2 | **Flock** prompt — first flock this agent belongs to that has one (`findFlockSystemPromptIdForAgent`) |
+| 2 | **Selected Flock** prompt — only when selected through that flock |
 | 3 | **Agent** prompt (`agent.systemPromptId`) |
 | 4 | **External-intent** system prompt (`externalSystemPrompt`) |
 | 5 | **App-wide** default (`appWideSystemPromptId`) |
 | — | otherwise none |
 
-> **Flock-vs-agent nuance.** Levels 2 and 3 are resolved together inside the
-> single helper `resolveSystemPromptText(aiSettings, agentSpId, groupSpId)`,
-> whose body is `(groupSpId ?: agentSpId)?.let { … }`. So a flock prompt
-> *overrides* the per-agent prompt, but they form **one** resolution step that
-> sits beneath the report-level prompt and above the external/app-wide levels.
-> There is no independent "flock beats agent beats external" cascade — it's
-> "report → (flock-else-agent) → external → app-wide".
+> Membership alone does not apply a group configuration. Selecting the Agent
+> directly uses its own defaults. When overlapping group selections deduplicate
+> an Agent, the first selected source is retained.
 
 ### Swarm member / bare-direct model
 
 ```
 reportLevelSystemPrompt
-  ?: findSwarmSystemPromptIdForMember(provider, model)   // first matching swarm
+  ?: selectedSwarmSystemPrompt                         // selected source only
   ?: (if (isDirect) providerConfig.systemPromptId else null)
   ?: (if (isDirect) reportModelSystemPromptId else null)
   ?: externalSystemPrompt
@@ -123,7 +117,7 @@ reportLevelSystemPrompt
 | # (highest wins) | Source |
 |---|---|
 | 1 | **Report-level** prompt (`reportSystemPromptId`) |
-| 2 | **Swarm** prompt — first swarm containing this (provider, model) that has one (`findSwarmSystemPromptIdForMember`) |
+| 2 | **Selected Swarm** prompt — only when selected through that swarm |
 | 3 | **Provider** prompt (`providerConfig.systemPromptId`) — *direct models only* |
 | 4 | **Report-model** default (`reportModelSystemPromptId`) — *direct only* |
 | 5 | **External-intent** system prompt |
@@ -139,14 +133,15 @@ its swarm level.
 > That value travels inside the merged `AgentParameters`; the explicit
 > system-prompt chain above is then layered on with `copy(systemPrompt = …)`
 > whenever a level resolves a non-null prompt — so an explicitly-resolved prompt
-> always takes effect for the call, overwriting any preset-carried one.
+> takes effect for that level. An explicit report system prompt also wins over
+> text embedded in a report parameter preset.
 
 ---
 
 ## Secondary operations & metadata generation
 
 There is no single chain here — secondary / metadata calls split into **three
-dispatch families**, and only the first one resolves a system prompt at all. The
+dispatch families**, all of which preserve the applicable resolved system prompt. The
 8 `SecondaryKind` values (`data/SecondaryModels.kt`:
 `RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES, COMPARE, TRANSRANK`)
 plus the metadata-gen calls map onto them like this:
@@ -193,7 +188,7 @@ The **system-prompt id** is picked by first-non-null:
 
 ```kotlin
 val spId = systemPromptId                 // runtime 🎭 pick on the op's selector
-  ?: promptSpId                            // InternalPrompt.systemPrompt, matched by NAME
+  ?: promptSpId                            // InternalPrompt.systemPrompt, matched by id or legacy name
   ?: agent?.systemPromptId                 // bound agent's prompt (if pinned to an agent)
   ?: general.appWideSystemPromptId         // app-wide default
 ```
@@ -201,7 +196,7 @@ val spId = systemPromptId                 // runtime 🎭 pick on the op's selec
 | # (highest wins) | Source |
 |---|---|
 | 1 | **Runtime 🎭 pick** on the op's model selector (`systemPromptId` arg) |
-| 2 | The **internal prompt's own** system prompt (`InternalPrompt.systemPrompt`, matched by *name*, blank / `"*NONE"` ignored) |
+| 2 | The **internal prompt's own** system prompt (`InternalPrompt.systemPrompt`, matched by id or legacy name, blank / `"*NONE"` ignored) |
 | 3 | The **bound agent's** prompt (`agent.systemPromptId`) — only when the prompt is pinned to an agent rather than a bare provider+model pair |
 | 4 | **App-wide** default (`appWideSystemPromptId`) |
 | — | otherwise none |
@@ -233,37 +228,22 @@ and appends the metadata instructions to the resolved system message; direct
 alternative calls apply the same addition after `resolveSecondaryParams`.
 See [report-icons.md](report-icons.md#source-text-and-metadata-instructions).
 
-### Family 3 — fixed per-cell dispatch (no system prompt)
+### Family 3 — fixed per-cell dispatch
 
-Judges (`JudgeEvalEngine`) and Transrank (`TranslatorRankEngine`) do **not** use
-`WorkerRunner`; each cell is scored by a *fixed* judge resolved from the prompt's
-swarm and dispatched with a direct `analyzeWithAgent(agent, "", resolved, …)` —
-again with no `agentResolvedParams`, so **no system prompt** is sent. The seed
-`workers/translate-rank.json` carries `"systemPrompt": "*NONE"`.
+Judge evaluation and Translator ranking freeze each selected worker's resolved
+configuration before dispatch. They use the internal prompt, selected group /
+Agent, and app-wide settings through the same resolution helper. Native
+moderation and rerank endpoints have their own supported schemas.
 
-Moderation takes no params and no system prompt at all
-(`SecondaryRunManager.runModeration` → `executeSecondaryTask` short-circuits on
-`kind == MODERATION` and calls `callModerationApi` directly).
+`Report.workerConfig` selects the worker pool. Selecting a Flock or Swarm carries
+its configuration into that pool: Flock presets merge below member Agent presets,
+and a group system prompt wins over the Agent prompt. Runtime and internal-prompt
+selections take precedence over these worker defaults. Selecting bare report
+models as workers selects their provider/model identities; primary report
+parameter overrides are not automatically inherited.
 
-> **`Report.workerConfig` does not touch system-prompt resolution.**
-> The per-report worker config (Report info / Model info / Worker batches —
-> see [workers.md](workers.md)) swaps the prompts' `workers` for other pools
-> (`withBatchWorkers` / `withReportInfoWorkers` / `withOwnModelWorker`)
-> — i.e. it changes *which* models run, not how (or whether) a system prompt is
-> resolved. Family 2 retains its frozen resolved system prompt and task guards;
-> Family 1 retains the runtime → prompt → agent → app-wide chain.
-
-### Tournament, Judge-the-judges, Compare-with-meta, Transrank
-
-These four are **worker-judged**. Tournament and Compare run the bundled
-`workers/tournament` / `meta_compare` prompt through `WorkerRunner` (Family 2);
-Judges and Transrank score each cell with a fixed judge (Family 3). In **all
-four** the judging model is a resolved worker dispatched with default
-parameters, so **no system prompt is sent** — the worker's own
-agent / provider / app-wide system-prompt levels are *not* consulted, and the
-seeded worker prompts carry `systemPrompt = "*NONE"`. See
-[tournament-judges-compare.md](tournament-judges-compare.md) and
-[secondary-results.md](secondary-results.md).
+Tournament, Compare, Judge evaluation and Translator ranking save frozen worker
+manifests for replay. They do send the resolved system prompt when one is set.
 
 ---
 

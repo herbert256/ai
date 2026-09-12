@@ -15,7 +15,7 @@ internal fun preparePrimaryExecution(
             task.runtimeAgent.provider, task.runtimeAgent.model, context)
         task.reportAgent.executionConfig = ReportExecutionConfig(
             params, settings.getEffectiveEndpointUrlForAgent(task.runtimeAgent),
-            repository.resolveReportPrompt(question, task.runtimeAgent)
+            repository.resolveReportPrompt(question, task.runtimeAgent), baseParameters = task.resolvedParams
         )
     }
     knowledgeBaseIds.firstOrNull()?.let { id ->

@@ -92,8 +92,7 @@ internal fun PromptEditReplayScreen(
 
     val result = state?.result ?: PromptEditReplayResult.Pending
     val running = state?.isRunning == true || result is PromptEditReplayResult.Running
-    val selectedParamNames = aiSettings.parameters
-        .filter { it.id in selectedParamsIds }
+    val selectedParamNames = selectedParamsIds.mapNotNull { aiSettings.getParametersById(it) }
         .joinToString(", ") { it.name }
     val selectedSystemPromptName = selectedSystemPromptId
         ?.let { id -> aiSettings.systemPrompts.firstOrNull { it.id == id }?.name }

@@ -130,10 +130,14 @@ fun AppNavHost(
                 )
             ) {
                 // Bare prompt — pre-fill the editor, no side effects.
-                is com.ai.ui.share.ExternalReportCommand.Prefill ->
+                is com.ai.ui.share.ExternalReportCommand.Prefill -> {
+                    appViewModel.setExternalInstructions(
+                        closeHtml = null, reportType = null, email = null,
+                        systemPrompt = cmd.systemPrompt)
                     navController.navigate(NavRoutes.aiNewReportWithParams(cmd.title, cmd.prompt)) {
                         popUpTo(NavRoutes.AI) { inclusive = false }
                     }
+                }
                 // Instruction-bearing — stage the confirmation overlay.
                 is com.ai.ui.share.ExternalReportCommand.Confirm ->
                     pendingExternalReport.value = cmd.staged

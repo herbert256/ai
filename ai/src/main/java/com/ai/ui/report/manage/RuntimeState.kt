@@ -158,13 +158,16 @@ internal fun rememberReportRuntimeState(
 
     val latestUiState by rememberUpdatedState(uiState)
     val latestIconGenEnabled by rememberUpdatedState(iconGenEnabled)
+    val reportVersion by remember(currentReportId) { ReportDataVersion.versionFor(currentReportId) }.collectAsState()
     LaunchedEffect(currentReportId) {
       var loadedMtime = -1L
+      var loadedVersion = -1L
       var cachedReport: Report? = null
       // Finish one read before consuming the newest refresh; cancelling a blocking
       // disk read on every tick only piles up more readers behind the storage lock.
       snapshotFlow {
-          Triple(latestUiState.iconRefreshTick, latestUiState.aiSettings, latestUiState.generalSettings) to latestIconGenEnabled
+          Triple(latestUiState.iconRefreshTick, latestUiState.aiSettings, latestUiState.generalSettings) to
+              (latestIconGenEnabled to reportVersion)
       }.conflate().collect {
         val uiState = latestUiState
         val rid = currentReportId
@@ -193,10 +196,12 @@ internal fun rememberReportRuntimeState(
             loadedReportTimestamp = 0L
         } else {
             val mtime = withContext(Dispatchers.IO) { ReportStorage.reportLastModified(context, rid) }
-            val r = if (loadedReportId == rid && mtime == loadedMtime) cachedReport
+            val version = reportVersion
+            val r = if (loadedReportId == rid && mtime == loadedMtime && version == loadedVersion) cachedReport
                 else withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid) }
             cachedReport = r
             loadedMtime = mtime
+            loadedVersion = version
             costsFromDeletedItems = r?.costsFromDeletedItems ?: 0.0
             unattributedMetaAttempts = r?.unattributedFanMetaAttempts.orEmpty()
             reportIcon = r?.icon

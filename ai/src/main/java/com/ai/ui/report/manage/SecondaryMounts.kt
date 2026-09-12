@@ -73,6 +73,7 @@ internal fun SecondaryResultsListMount(
      *  so the downstream picker can forward the language to runFanInPrompt
      *  Null when the fan-out ran on the original. */
     onFanInPickerSourceLanguageChange: (String?) -> Unit,
+    onFanInPickerSourcePromptChange: (String?) -> Unit,
     onCloseList: () -> Unit,
     onShowResponses: () -> Unit,
     onShowFanMeta: () -> Unit = {},
@@ -175,6 +176,7 @@ internal fun SecondaryResultsListMount(
             onRunFanIn = if (fanInList.isNotEmpty()) {
                 {
                     onFanInPickerSourceLanguageChange(parentSourceLanguage)
+                    onFanInPickerSourcePromptChange(fanOutPrompt?.id)
                     if (fanInList.size == 1) onFanInPickerPromptChange(fanInList.first())
                     else onShowFanInPromptPickerChange(true)
                 }
@@ -236,16 +238,33 @@ internal fun SecondaryResultsListMount(
 @Composable
 internal fun MetaRunScreen(
     metaPrompt: InternalPrompt,
+    aiSettings: Settings,
     onCancel: () -> Unit,
-    onContinue: (InternalPrompt) -> Unit
+    onContinue: (InternalPrompt, List<String>, String?) -> Unit
 ) {
     BackHandler { onCancel() }
     var editablePrompt by remember(metaPrompt.id) { mutableStateOf(metaPrompt.text) }
+    var paramsIds by remember(metaPrompt.id) { mutableStateOf<List<String>>(emptyList()) }
+    var systemPromptId by remember(metaPrompt.id) { mutableStateOf<String?>(null) }
+    var showParameters by remember { mutableStateOf(false) }
+    var showSystemPrompt by remember { mutableStateOf(false) }
+    if (showParameters) {
+        com.ai.ui.shared.ParametersSelectScreen(aiSettings, paramsIds, { paramsIds = it },
+            { showParameters = false }, onCancel)
+        return
+    }
+    if (showSystemPrompt) {
+        com.ai.ui.shared.SystemPromptSelectScreen(aiSettings, systemPromptId, { systemPromptId = it },
+            { showSystemPrompt = false }, onCancel)
+        return
+    }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_meta_run",
             title = "Run ${metaPrompt.name}", subject = "Tweak the prompt for this run only",
-            onBackClick = onCancel
+            onBackClick = onCancel,
+            onParameters = { showParameters = true },
+            onSystemPrompt = { showSystemPrompt = true }
         )
         // Primary CTA hoisted to the top — one tap to advance
         // regardless of how far the editable prompt has scrolled.
@@ -253,7 +272,7 @@ internal fun MetaRunScreen(
         // this Composable routes Android back to onCancel, so a
         // separate button isn't pulling weight.
         OutlinedButton(
-            onClick = { onContinue(metaPrompt.copy(text = editablePrompt)) },
+            onClick = { onContinue(metaPrompt.copy(text = editablePrompt), paramsIds, systemPromptId) },
             enabled = editablePrompt.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
@@ -267,6 +286,10 @@ internal fun MetaRunScreen(
                 "Edits apply to this run only. Tap Continue to use the configured Meta workers. If worker selection is required, you'll choose workers first; otherwise the analysis starts immediately.",
                 fontSize = 13.sp, color = AppColors.TextSecondary
             )
+            Text("Parameters: " + paramsIds.mapNotNull { aiSettings.getParametersById(it)?.name }
+                .joinToString(", ").ifEmpty { "Prompt / worker defaults" }, fontSize = 12.sp, color = AppColors.TextSecondary)
+            Text("System prompt: " + (systemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
+                ?: "Prompt / worker defaults"), fontSize = 12.sp, color = AppColors.TextSecondary)
             Text("Prompt (edit for this run)", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
             OutlinedTextField(
                 value = editablePrompt,
@@ -301,6 +324,7 @@ internal fun SecondaryRuntimePromptScreen(
     titleName: String,
     specs: List<EditablePromptSpec>,
     infoLine: String? = null,
+    supportsTemperatureOverride: Boolean = false,
     onCancel: () -> Unit,
     /** [temperature] — optional run-only worker temperature (F48); null
      *  when the field is blank (each worker keeps its own settings). */
@@ -313,8 +337,8 @@ internal fun SecondaryRuntimePromptScreen(
     // Run-only temperature (F48) — grid cells used to run only under each
     // worker's own preset; a per-run override needed a settings edit.
     var tempText by remember(editKey) { mutableStateOf("") }
-    val tempValue = tempText.replace(',', '.').toFloatOrNull()?.takeIf { it in 0f..2f }
-    val tempInvalid = tempText.isNotBlank() && tempValue == null
+    val tempValue = if (supportsTemperatureOverride) tempText.replace(',', '.').toFloatOrNull()?.takeIf { it in 0f..2f } else null
+    val tempInvalid = supportsTemperatureOverride && tempText.isNotBlank() && tempValue == null
     val canRun = fields.all { it.value.isNotBlank() } && !tempInvalid
     fun edited() = specs.mapIndexed { i, s -> s.prompt.copy(text = fields[i].value) }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
@@ -351,11 +375,12 @@ internal fun SecondaryRuntimePromptScreen(
             if (infoLine != null) {
                 Text(infoLine, fontSize = 12.sp, color = AppColors.TextTertiary)
             }
-            OutlinedTextField(
+            if (supportsTemperatureOverride) OutlinedTextField(
                 value = tempText,
                 onValueChange = { tempText = it },
                 label = { Text("Temperature for this run (blank = each worker's own)") },
                 isError = tempInvalid,
+                supportingText = if (tempInvalid) { { Text("Enter a number from 0 to 2, or leave blank.", color = AppColors.DangerAccent) } } else null,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedFieldColors()

@@ -165,7 +165,7 @@ test-model).
 | text | `String` | template body. Top-level placeholders: `@QUESTION@`, `@RESULTS@`, `@COUNT@`, `@TITLE@`, `@DATE@`, `@RESPONSE@`, `@PROMPT@`, `@LANGUAGE@`, `@TEXT@`, `@FAN_OUT_COUNT@`, `@MODEL@`, `@PROVIDER@`. Iterable block: `***Report*** @REPORT@@RESPONSES@` (whitespace-tolerant; one expansion per source-report) |
 | title | `String` (default empty) | one-line description shown alongside `name` on Fan out and the prompt-edit screen |
 | provider, model | `String?` | optional alternative to `agent`: pin the prompt directly to a provider id + model (resolved to a synthetic agent, taking precedence over `agent`) |
-| parameters, systemPrompt | `String` (default `"*NONE"`) | per-prompt Parameters preset NAME / System-prompt NAME used for THIS prompt's call, overriding the agent/flock/swarm/provider/app-wide levels (unless a runtime 🌡️/🎭 pick was made) |
+| parameters, systemPrompt | `String` (default `"*NONE"`) | per-prompt Parameters preset id / System-prompt id (legacy names supported) used for THIS prompt's call, overriding the agent/flock/swarm/provider/app-wide levels (unless a runtime 🌡️/🎭 pick was made) |
 | workers | `List<Worker>` (default empty) | only the `workers` category: the ordered fallback chain `WorkerRunner` runs in random order until one succeeds. Each `Worker` is a Model / Agent / Flock / Swarm pick |
 | modelSelection | `String` (default `"*CONFIGURED"`) | worker-selection mode for the kinds this prompt drives (Meta / Fan-in / Rerank / Moderation / the type-B batches / Find-alternative). `*CONFIGURED` runs against the configured `workers`; `*SELECT` pops the +Agent/+Flock/+Swarm/+Model picker at run time and runs against the user's pick (never written back) |
 
@@ -177,6 +177,14 @@ test-model).
 > `ui/report/manage/Nav.kt`. "Compare", "Critique", "Synthesize" etc.
 > are just user-given `meta`-category prompt **names** — the kind is
 > always `META`; only `summarize` and `compare` ship as bundled seeds.
+
+### `Worker`
+
+A Model, Agent, Flock or Swarm reference. Group expansion carries
+`inheritedParametersIds` and `inheritedSystemPromptId` into its members.
+Before launch, `freezeWorkers` records `frozenParameters`, `frozenEndpointUrl`
+and the non-secret `credentialAgentId`. Replays use that frozen configuration;
+API keys remain live lookups.
 
 ### `ExamplePrompt`
 Stand-alone (title, text) pair the user curates as a starter library

@@ -125,6 +125,9 @@ object ApiTracer {
      *  file. Mutations (save / clear / deleteOlderThan) keep it in sync
      *  so subsequent reads stay O(1). All access goes through [lock]. */
     @Volatile private var cachedTraceFiles: List<TraceFileInfo>? = null
+    // Retention metadata is updated per write/delete; never stat the entire
+    // retained model-test directory for every completed streaming request.
+    private var cachedPruneCandidates: MutableMap<String, TracePruneCandidate>? = null
 
     private fun bumpTraceVersionNow() {
         synchronized(versionLock) {
@@ -163,6 +166,7 @@ object ApiTracer {
             }.getOrNull()
             directoryVersion++
             cachedTraceFiles = null
+            cachedPruneCandidates = null
         }
     }
 
@@ -279,6 +283,8 @@ object ApiTracer {
                 AppLog.e("ApiTracer", "Cache update failed for $resolvedFilename — invalidating cache: ${e.message}")
                 cachedTraceFiles = null
             }
+            cachedPruneCandidates?.set(resolvedFilename, TracePruneCandidate(
+                File(dir, resolvedFilename), normalizedTrace.timestamp, File(dir, resolvedFilename).length().coerceAtLeast(0L)))
             val pruned = pruneTraceDirLocked(dir, protectedFilename = resolvedFilename)
             if (pruned > 0) AppLog.i("ApiTracer", "Pruned $pruned old trace file(s)")
             bumpTraceVersionDebounced()
@@ -383,27 +389,31 @@ object ApiTracer {
         // Filenames encode request time; legacy names fall back to file time.
         // In particular, a cold UI listing must not force a full JSON scan
         // under the writer lock on the first response after startup.
-        val cachedByName = cachedTraceFiles?.associateBy { it.filename }.orEmpty()
-        val candidates = dir.listFiles { file -> file.extension == "json" }
-            ?.map { file ->
-                val timestamp = cachedByName[file.name]?.timestamp ?: runCatching {
-                    filenameTimestamp.find(file.name)?.groupValues?.get(1)?.let {
-                        Instant.from(dateFormat.parse(it)).toEpochMilli()
-                    }
-                }.getOrNull() ?: file.lastModified()
-                TracePruneCandidate(file, timestamp, file.length().coerceAtLeast(0L))
-            }
-            ?.sortedByDescending { it.timestamp }
-            ?: return 0
+        val index = cachedPruneCandidates ?: run {
+            val cachedByName = cachedTraceFiles?.associateBy { it.filename }.orEmpty()
+            val scanned = dir.listFiles { file -> file.extension == "json" }
+                ?.map { file ->
+                    val timestamp = cachedByName[file.name]?.timestamp ?: runCatching {
+                        filenameTimestamp.find(file.name)?.groupValues?.get(1)?.let {
+                            Instant.from(dateFormat.parse(it)).toEpochMilli()
+                        }
+                    }.getOrNull() ?: file.lastModified()
+                    TracePruneCandidate(file, timestamp, file.length().coerceAtLeast(0L))
+                }
+                ?: return 0
+            scanned.associateByTo(linkedMapOf()) { it.file.name }.also { cachedPruneCandidates = it }
+        }
+        val candidates = index.values.sortedByDescending { it.timestamp }
         var keptCount = 0
         var keptBytes = 0L
         var testCount = 0
         var testBytes = 0L
         val retention = modelTestRetention
+        val retainedPrefix = retention?.let { testTracePrefix(it.runId) }.orEmpty()
         val deletedNames = mutableSetOf<String>()
         candidates.forEach { candidate ->
             val protected = candidate.file.name == protectedFilename
-            val isTest = retention != null && (candidate.file.name.startsWith(testTracePrefix(retention.runId)) ||
+            val isTest = retention != null && (candidate.file.name.startsWith(retainedPrefix) ||
                 candidate.file.name in retention.legacyFilenames)
             val keepByCount = if (isTest) testCount < MAX_MODEL_TEST_FILES else keptCount < MAX_TRACE_FILES
             val keepByBytes = if (isTest) testBytes + candidate.size <= MAX_MODEL_TEST_BYTES || testCount == 0
@@ -415,6 +425,7 @@ object ApiTracer {
                 deletedNames += candidate.file.name
             }
         }
+        deletedNames.forEach(index::remove)
         cachedTraceFiles = cachedTraceFiles?.filterNot { it.filename in deletedNames }
         return deletedNames.size
     }
@@ -487,6 +498,7 @@ object ApiTracer {
         }
         directoryVersion++
         cachedTraceFiles = null // A failed deletion must remain visible.
+        cachedPruneCandidates = null
         bumpTraceVersionNow()
     }
 
@@ -498,7 +510,7 @@ object ApiTracer {
         val file = java.io.File(dir, filename)
         if (!file.exists()) return false
         val ok = try { file.delete() } catch (_: Exception) { false }
-        if (ok) directoryVersion++
+        if (ok) { directoryVersion++; cachedPruneCandidates?.remove(filename) }
         if (ok) cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename == filename }
         }
@@ -525,7 +537,10 @@ object ApiTracer {
         cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename in deletedNames }
         }
-        if (count > 0) { directoryVersion++; bumpTraceVersionNow() }
+        if (count > 0) {
+            deletedNames.forEach { cachedPruneCandidates?.remove(it) }
+            directoryVersion++; bumpTraceVersionNow()
+        }
         count
     }
 
@@ -548,7 +563,10 @@ object ApiTracer {
         cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename in deletedNames }
         }
-        if (count > 0) { directoryVersion++; bumpTraceVersionNow() }
+        if (count > 0) {
+            deletedNames.forEach { cachedPruneCandidates?.remove(it) }
+            directoryVersion++; bumpTraceVersionNow()
+        }
         count
     }
 

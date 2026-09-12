@@ -93,7 +93,8 @@ class SecondaryRunManager(
          *  separate meta routing instead of the general batches routing. */
         meta: Boolean = false
     ) {
-        val frozenPrompt = contentPrompt.copy(workers=swarm).freezeWorkers(aiSettings,appViewModel.uiState.value.generalSettings)
+        val frozenPrompt = contentPrompt.copy(workers=swarm).freezeWorkers(
+            aiSettings, appViewModel.uiState.value.generalSettings, paramsIds, systemPromptId)
         val members = frozenPrompt.workers
         if (members.isEmpty()) {
             SecondaryResultStorage.saveIfStillPresent(context, base.copy(
@@ -905,7 +906,7 @@ class SecondaryRunManager(
     ): Job? {
         if (placeholder.providerId == "User") return null // authored references are edited by the owner
         if (!rvm.resumingMetaIds.add(placeholder.id)) return null
-        val promptId = placeholder.metaPromptId ?: run {
+        val promptId = (placeholder.fanInOf ?: placeholder.metaPromptId) ?: run {
             rvm.resumingMetaIds.remove(placeholder.id); return null
         }
         val state = appViewModel.uiState.value
@@ -1038,7 +1039,8 @@ class SecondaryRunManager(
                         return@withTracerTags
                     }
                     if (placeholder.fanInOf != null) {
-                        val resolution = buildFanInResolution(context, reportId, metaPrompt, report, lang)
+                        val resolution = buildFanInResolution(context, reportId, metaPrompt, report, lang,
+                            placeholder.metaPromptId?.takeIf { it != placeholder.fanInOf })
                         if (resolution == null) {
                             // The fan-out matrix is gone (run deleted, or every
                             // pair errored) — nothing can re-run. The row was
@@ -1164,7 +1166,8 @@ class SecondaryRunManager(
         systemPromptId: String? = null,
         /** When non-null (the driving prompt is *SELECT), run against these
          *  user-picked workers instead of the configured "fan-in" chain. */
-        overrideWorkers: List<com.ai.model.Worker>? = null
+        overrideWorkers: List<com.ai.model.Worker>? = null,
+        sourcePromptId: String? = null
     ): Job? {
         AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via the Fan-in worker swarm")
         val aiSettings0 = appViewModel.uiState.value.aiSettings
@@ -1184,13 +1187,13 @@ class SecondaryRunManager(
                     // Build the fan-in prompt from the current fan-out
                     // matrix. Shared with the resume / edit paths so the
                     // matrix assembly never drifts (see buildFanInResolution).
-                    val resolution = buildFanInResolution(context, reportId, metaPrompt, report, sourceLanguage)
+                    val resolution = buildFanInResolution(context, reportId, metaPrompt, report, sourceLanguage, sourcePromptId)
                     if (resolution == null) {
                         SecondaryResultStorage.create(
                             context, reportId, SecondaryKind.META, "", "", "Fan-in: ${metaPrompt.name}"
                         ) {
                             it.copy(
-                                metaPromptId = metaPrompt.id,
+                                metaPromptId = sourcePromptId ?: metaPrompt.id,
                                 metaPromptName = metaPrompt.name,
                                 fanInOf = metaPrompt.id,
                                 errorMessage = "No fan-out responses available — run the fan-out prompt first."
@@ -1204,7 +1207,7 @@ class SecondaryRunManager(
                         it.copy(
                             targetLanguage = sourceLanguage,
                             targetLanguageNative = resolution.languageNative,
-                            metaPromptId = metaPrompt.id,
+                            metaPromptId = sourcePromptId ?: metaPrompt.id,
                             metaPromptName = metaPrompt.name,
                             fanInOf = metaPrompt.id,
                             secondaryParameterPresetIds = paramsIds,
@@ -1224,6 +1227,7 @@ class SecondaryRunManager(
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+                withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { rvm.fanOutEngine.hydrate(context, reportId) }
             }
         }
     }
@@ -1249,7 +1253,8 @@ class SecondaryRunManager(
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
         report: Report,
-        sourceLanguage: String?
+        sourceLanguage: String?,
+        sourcePromptId: String? = null
     ): FanInResolution? {
         val successful = report.agents.filter {
             it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
@@ -1262,11 +1267,10 @@ class SecondaryRunManager(
         rvm.fanOutEngine.joinActiveRunsForReport(reportId)
         val fanOutRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
             .filter { it.fanOutSourceAgentId != null }
-            // Drop errored rows before bucketing — without this, the
-            // firstOrNull pick below grabs the OLDEST row (we sort
-            // ascending), which is the failed first attempt. A successful
-            // retry landed afterwards is then ignored. Filtering up front
-            // leaves only valid responses in the bucket.
+            .filter { sourcePromptId == null || it.metaPromptId == sourcePromptId }
+            .filter { it.targetLanguage == sourceLanguage }
+            // Retain only usable rows, then prefer the latest response per
+            // pair while preserving separate same-model answerers.
             .filter { it.errorMessage == null && !it.content.isNullOrBlank() }
         // Bucket fan out rows by (providerId, model, sourceAgentId). Two
         // report rows can legitimately share (provider, model) — e.g. an
@@ -1274,7 +1278,7 @@ class SecondaryRunManager(
         // same model under different agentIds. Bucketing into a list keeps
         // every matching row.
         val byPair = LinkedHashMap<String, MutableList<SecondaryResult>>()
-        fanOutRows.sortedBy { it.timestamp }.forEach { r ->
+        fanOutRows.sortedByDescending { it.timestamp }.forEach { r ->
             val src = r.fanOutSourceAgentId ?: return@forEach
             byPair.getOrPut("${r.providerId}|${r.model}|$src") { mutableListOf() }.add(r)
         }
@@ -1294,7 +1298,8 @@ class SecondaryRunManager(
         val sourceAgents = successful.filter { it.agentId in sourceAgentIdsWithRows }
         val perReport: List<Pair<String, List<String>>> = sourceAgents.mapNotNull { source ->
             val fanOutResponses = successful.mapNotNull other@{ other ->
-                if (other.agentId == source.agentId) return@other null
+                // Self-responses are included only when a matching fan-out
+                // row exists (the originating run explicitly enabled them).
                 // Pick the next un-consumed row for this (provider, model,
                 // source) bucket so two distinct other-agents sharing
                 // (provider, model) each get their own response.
@@ -1736,7 +1741,11 @@ class SecondaryRunManager(
             appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, metaPrompt, configuredAgent
         )
         val storedAttempt = SecondaryResultStorage.get(context,reportId,placeholder.id)
+        val endpoint = executionWorker?.frozenEndpointUrl ?: baseUrl
         val savedExecution = storedAttempt?.takeIf { it.providerId==provider.id && it.model==model }?.executionConfig
+            ?.takeIf { saved -> executionWorker == null ||
+                (saved.parameters == secondaryParams && saved.endpointUrl == endpoint &&
+                    saved.credentialAgentId == configuredAgent?.id && saved.prompt == resolvedPrompt) }
             ?: com.ai.data.ReportExecutionConfig(secondaryParams,executionWorker?.frozenEndpointUrl ?: baseUrl,resolvedPrompt,credentialAgentId=configuredAgent?.id).also {
                 placeholder = placeholder.copy(executionConfig=it)
                 // A fallback changes execution settings, not the already billed

@@ -871,6 +871,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← workers/flocks/ delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms", it)
         }
 
+        if (!prefs.getBoolean("report_config_examples_v2", false)) {
+            ai = com.ai.data.reportAuditExamples(ai)
+            settingsPrefs.saveSettings(ai)
+            prefs.edit().putBoolean("report_config_examples_v2", true).apply()
+        }
+
         // Mirror of the internal-prompts/ / prompts/examples/ delta-merge for
         // excluded.json: append any (provider, model) test-excluded
         // pair not yet present so APK upgrades that ship a curated

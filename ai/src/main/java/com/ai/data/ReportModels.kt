@@ -129,6 +129,8 @@ data class ReportAgent(
      *  Empty on legacy rows / agents never refined. */
     var chatMessages: List<ChatMessage> = emptyList(),
     var executionConfig: ReportExecutionConfig? = null,
+    /** Edited controls for the next attempt; never relabel the existing answer's request. */
+    var pendingExecutionConfig: ReportExecutionConfig? = null,
     var currentAttemptCost: Double? = null,
     var currentAttemptUsage: TokenUsage? = null,
     var attemptId: String? = null,

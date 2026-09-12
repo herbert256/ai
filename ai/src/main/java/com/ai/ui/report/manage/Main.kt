@@ -226,7 +226,7 @@ fun ReportsScreen(
      *  to ReportViewModel.translateMissingItems. */
     onTranslateMissingItems: (String, List<com.ai.viewmodel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
     onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?, Boolean, String?) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
-    onRunFanIn: (String, com.ai.model.InternalPrompt, String?, List<String>, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _, _, _, _ -> },
+    onRunFanIn: (String, com.ai.model.InternalPrompt, String?, List<String>, String?, List<com.ai.model.Worker>?, String?) -> Unit = { _, _, _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
      *  active model. The new report's id is built inside the
@@ -680,6 +680,8 @@ fun ReportsScreen(
     // single run; nulled out after the user picks a model. Mirrors
     // FanOutConfirmScreen's per-run prompt edit.
     var metaRunScreenPrompt by st.metaRunScreenPrompt
+    var pendingMetaParamsIds by remember(currentReportId) { mutableStateOf<List<String>>(emptyList()) }
+    var pendingMetaSystemPromptId by remember(currentReportId) { mutableStateOf<String?>(null) }
     var secondaryScopeMetaPrompt by st.secondaryScopeMetaPrompt
     var pendingSecondaryScope by st.pendingSecondaryScope
     var pendingLanguageScope by st.pendingLanguageScope
@@ -700,6 +702,7 @@ fun ReportsScreen(
     // chain can forward it to runFanInPrompt without re-reading the
     // engine.
     var fanInPickerSourceLanguage by st.fanInPickerSourceLanguage
+    var fanInPickerSourcePromptId by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
     // First step of the fan_in flow: pick which fan_in prompt
     // to run. Once chosen we hand off to fanInPickerPrompt above.
     var showFanInPromptPicker by st.showFanInPromptPicker
@@ -1174,8 +1177,11 @@ fun ReportsScreen(
         ) {
             MetaRunScreen(
                 metaPrompt = metaRunMp,
+                aiSettings = aiSettings,
                 onCancel = { metaRunScreenPrompt = null },
-                onContinue = { edited ->
+                onContinue = { edited, paramsIds, systemPromptId ->
+                    pendingMetaParamsIds = paramsIds
+                    pendingMetaSystemPromptId = systemPromptId
                     metaRunScreenPrompt = null
                     secondaryPickerMetaPrompt = edited
                 }
@@ -1211,7 +1217,11 @@ fun ReportsScreen(
         val rid = currentReportId
         val scope = pendingSecondaryScope
         val ls = pendingLanguageScope
+        val paramsIds = pendingMetaParamsIds
+        val systemPromptId = pendingMetaSystemPromptId
         LaunchedEffect(pickerMetaPrompt) {
+            pendingMetaParamsIds = emptyList()
+            pendingMetaSystemPromptId = null
             secondaryPickerMetaPrompt = null
             secondaryScopeMetaPrompt = null
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
@@ -1220,7 +1230,7 @@ fun ReportsScreen(
                 st.runtimeWorkerPick, context, st.screenScope, rid,
                 aiSettings.workerPromptByName("meta"), "Meta — pick workers",
                 meta = true
-            ) { picked -> onRunSecondary(rid, pickerMetaPrompt, scope, ls, emptyList(), null, picked); goToSecondResults() }
+            ) { picked -> onRunSecondary(rid, pickerMetaPrompt, scope, ls, paramsIds, systemPromptId, picked); goToSecondResults() }
         }
         return
     }
@@ -1257,7 +1267,7 @@ fun ReportsScreen(
                             launchWithWorkerPlan(
                                 st.runtimeWorkerPick, context, st.screenScope, rid,
                                 aiSettings.workerPromptByName("fan-in"), "Fan-in — pick workers", meta = true
-                            ) { picked -> onRunFanIn(rid, editedPrompt, rtReqMain.sourceLanguage, emptyList(), null, picked) }
+                            ) { picked -> onRunFanIn(rid, editedPrompt, rtReqMain.sourceLanguage, emptyList(), null, picked, rtReqMain.ctxId) }
                         }
                         RuntimePromptKind.TRANSLATE -> {
                             val bodyText = edited.getOrNull(0)?.text
@@ -1298,6 +1308,7 @@ fun ReportsScreen(
     if (fanInPicker != null && currentReportId != null) {
         val rid = currentReportId
         val srcLang = fanInPickerSourceLanguage
+        val sourcePromptId = fanInPickerSourcePromptId
         LaunchedEffect(fanInPicker) {
             // Runtime parameters on → edit the fan-in prompt first (the mount
             // below runs it); else launch straight onto the worker plan.
@@ -1309,16 +1320,17 @@ fun ReportsScreen(
             // launch before it ever reaches the worker plan.
             fanInPickerPrompt = null
             fanInPickerSourceLanguage = null
+            fanInPickerSourcePromptId = null
             if (rt) {
                 st.runtimePromptReq.value = RuntimePromptReq(
-                    kind = RuntimePromptKind.FAN_IN, prompts = listOf(fanInPicker), sourceLanguage = srcLang
+                    kind = RuntimePromptKind.FAN_IN, prompts = listOf(fanInPicker), sourceLanguage = srcLang, ctxId = sourcePromptId
                 )
             } else {
                 launchWithWorkerPlan(
                     st.runtimeWorkerPick, context, st.screenScope, rid,
                     aiSettings.workerPromptByName("fan-in"), "Fan-in — pick workers",
                     meta = true
-                ) { picked -> onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, picked) }
+                ) { picked -> onRunFanIn(rid, fanInPicker, srcLang, emptyList(), null, picked, sourcePromptId) }
             }
         }
         return
@@ -1819,6 +1831,7 @@ fun ReportsScreen(
             onShowFanInPromptPickerChange = { showFanInPromptPicker = it },
             onFanInPickerPromptChange = { fanInPickerPrompt = it },
             onFanInPickerSourceLanguageChange = { fanInPickerSourceLanguage = it },
+            onFanInPickerSourcePromptChange = { fanInPickerSourcePromptId = it },
             onCloseList = {
                 listKind = null
                 listFilterByName = null

@@ -56,12 +56,13 @@ fun SwarmEditScreen(
     )
     val isAddMode = dup.isAddMode
     val effectiveExistingNames = if (isAddMode && swarm != null) {
-        existingNames + swarm.name.lowercase()
+        existingNames + swarm.name.trim().lowercase(java.util.Locale.ROOT)
     } else existingNames
+    val normalizedExistingNames = effectiveExistingNames.map { it.trim().lowercase(java.util.Locale.ROOT) }.toSet()
 
     val nameError = when {
         name.isBlank() -> "Name is required"
-        name.lowercase() in effectiveExistingNames -> "Name already exists"
+        name.trim().lowercase(java.util.Locale.ROOT) in normalizedExistingNames -> "Name already exists"
         else -> null
     }
 
@@ -151,7 +152,8 @@ fun SwarmEditScreen(
             value = name, onValueChange = { name = it },
             label = { Text("Swarm name") }, modifier = Modifier.fillMaxWidth(),
             singleLine = true, colors = AppColors.outlinedFieldColors(),
-            isError = name.isNotBlank() && nameError != null
+            isError = name.isNotBlank() && nameError != null,
+            supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError, color = AppColors.DangerAccent) } } else null
         )
 
         // System prompt + parameters now live on the bottom-bar 🎭 / 🌡️ icons.

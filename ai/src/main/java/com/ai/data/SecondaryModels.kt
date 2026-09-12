@@ -106,7 +106,8 @@ data class SecondaryResult(
     /** For fan_in-type Meta runs: id of the [com.ai.model.InternalPrompt]
      *  that produced this combined-report row. Lets the fan out detail
      *  screen distinguish the single combined output from the per-pair
-     *  response rows even though both share `metaPromptName`. Null on
+     *  response rows. New rows keep the parent fan-out prompt id in
+     *  `metaPromptId`; `metaPromptName` names the combine template. Null on
      *  every non-fan_in row. */
     val fanInOf: String? = null,
     /** Encoded [SecondaryScope] used when this row was originally

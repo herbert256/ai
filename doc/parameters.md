@@ -132,7 +132,8 @@ the dispatch fold.
 values from that picker (`reportAdvancedParameters`). It then folds in the
 per-report 🌐 web-search and 🧠 reasoning-effort toggles
 (`reportWebSearchTool` → `webSearchTool = true`, `reportReasoningEffort` →
-`reasoningEffort`).
+`reasoningEffort`). The explicitly selected report system prompt is applied last,
+including over system text embedded in a parameter preset.
 
 This bundle is **not** merged into the per-model presets during `buildReportTasks`.
 It is passed straight to `executeReportTask` as `overrideParams`, so the
@@ -148,13 +149,12 @@ report).
 |---|---|
 | 1 | **Selection pick** for this agent (`selectionParamsById[agent.id]`) |
 | 2 | **Agent** preset (`agent.paramsIds`) |
-| 3 | **App-wide** default (`appWideParametersIds`) |
-| 4 | empty `AgentParameters()` |
+| 3 | **Selected Flock** presets (only when this agent was selected through that flock) |
+| 4 | **App-wide** default (`appWideParametersIds`) |
+| 5 | empty `AgentParameters()` |
 
-(A flock's members are agents, so they resolve by this same agent chain; a flock
-only contributes a *system prompt*, not parameters — flock and agent param
-presets are concatenated at model-expansion time in `expandFlockToModels`, but
-the report-task chain above re-resolves from `agent.paramsIds`.)
+Flock and agent preset lists are concatenated in that order at expansion time.
+The selected source is preserved; membership in an unrelated flock has no effect.
 
 ### Swarm member / bare-direct model
 The task id (`sid`) is `swarm:<providerId>:<model>`. "Direct" means the model was
@@ -163,9 +163,10 @@ picked straight from the list (not via a swarm).
 | # (highest wins) | Source |
 |---|---|
 | 1 | **Selection pick** for this model (`selectionParamsById[sid]`) |
+| 2 | **Selected Swarm** presets — swarm members only |
 | 2 | **Provider** preset (`providerConfig.parametersIds`) — *direct models only* |
 | 3 | **Report-model** default (`reportModelParametersIds`) — *direct only, and only when no pre-gen override is active* |
-| 4 | **App-wide** default (`appWideParametersIds`) — *only when no pre-gen override is active* |
+| 4 | **App-wide** default (`appWideParametersIds`) |
 | 5 | empty `AgentParameters()` |
 
 Then, for every task, the **dispatch fold** applies (`overrideParams` carries the
@@ -188,7 +189,9 @@ through one helper: `viewmodel/ReportViewModelHelpers.kt` →
 
 WorkerRunner and fixed-judge calls now resolve the internal prompt's parameters
 and system prompt, then the bound Agent's settings, then the app-wide defaults.
-Explicit per-operation parameters take precedence. Parameter preset lists use
+Selected Flock defaults are merged below its member Agent defaults; selected
+Swarm defaults apply to each member. The group system prompt wins over the
+member Agent system prompt. Explicit per-operation parameters take precedence. Parameter preset lists use
 the first non-empty level; fields within that list are folded by `mergeParameters`.
 System prompts resolve independently: runtime selection → internal prompt →
 Agent → app-wide. Rerank and Moderation dedicated APIs expose only their API's
@@ -198,6 +201,7 @@ supported controls.
 
 `InternalPrompt.freezeWorkers` expands configured Agent/Flock/Swarm references
 once, recording provider, model, endpoint and resolved parameters on each worker.
+Per-run preset and system-prompt selections are resolved before freezing.
 Credentials remain live lookups; secrets are not copied into the manifest.
 Tournament, Compare, Judge evaluation, Translation and Translation review save
 run manifests before dispatch. Tournament's explicit runtime temperature is
@@ -206,7 +210,13 @@ settings. Legacy runs with no manifest can only use available current settings.
 
 Primary Report attempts save `ReportExecutionConfig` before calling the model.
 It includes the resolved prompt, system/generation parameters and endpoint.
-Report or row parameter edits invalidate this configuration for the next run.
+Report parameter/system edits are stored as `pendingExecutionConfig` for the
+next attempt. The existing answer retains its actual request evidence. Reopening
+a report restores the saved selections. Question edits rebuild prompt/RAG text
+while retaining the saved settings and endpoint. New reports also retain
+`baseParameters`, the configuration below the report overlay, so clearing an
+override restores it. Older reports without that baseline preserve their captured
+settings as the fallback rather than guessing a different group.
 A report's primary controls do not claim to override every worker or metadata
 call; each operation resolves the control scope described above.
 
@@ -241,9 +251,8 @@ recorded on the Tournament / Translation run it evaluates. **Meta and Fan-in**
 route on their own mirror set (`metaBatches` / `metaBatchWorkers`, same option
 set) so they can draw from a different pool than the batches above. The
 Report-info / Model-info cards swap the metadata prompts' chains likewise.
-Like `*SELECT`, all of it changes only the worker set; parameters resolve
-exactly as above (empty for worker-grid kinds, `resolveSecondaryParams` for
-single-result kinds).
+The selection mode changes the worker pool. Each selected worker retains its
+applicable group / Agent configuration, resolved and frozen as described above.
 
 ---
 
@@ -286,11 +295,12 @@ reasoning value is also re-validated against the model's advertised
    secondary ops take the **first non-empty** level only.
 3. Fall back to the **app-wide** (and, for bare report models, report-model)
    defaults.
-4. The **dispatch fold** lets the per-report override win over all of it, then
-   clamps values to provider-valid ranges, and — when an override was present —
-   drops anything the model can't accept. `reasoning_effort` is gated once more at
-   the wire by `isReasoningCapableForDispatch`.
-5. **Worker-grid flows are the exception**: Tournament / Judges / Compare /
-   TransRank (and the main Translate batch run) send **no** resolved
-   parameters — provider defaults only. `*SELECT` and `Report.workerConfig`
-   change *which* workers run, never the params.
+4. The **dispatch fold** lets the per-report override win, then validates
+   requested values and model compatibility. Unsupported combinations produce
+   an explicit configuration error instead of silently dropping controls.
+5. Worker-grid flows freeze their resolved prompt / worker configuration before
+   launch. Tournament also supports a run-only temperature override.
+
+Optional `Audit config` presets, system prompts, Agents, Flocks, Swarms and
+internal prompts are seeded by `ReportAuditExamples.kt`. See the
+[configuration audit](configuration-audit-2026-09-12.md) for the exercised scopes.

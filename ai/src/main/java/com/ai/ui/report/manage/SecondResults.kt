@@ -348,7 +348,7 @@ internal fun LazyListScope.secondaryResultRows(
                     aiSettings.internalPrompts.map { "${it.id}|${it.name}|${it.title}" }
                 ) {
                     aiSettings.internalPrompts.firstOrNull {
-                        it.id == run.fanInOf || it.id == run.metaPromptId
+                        it.id == (run.fanInOf ?: run.metaPromptId)
                     }
                 }
                 when {
@@ -438,7 +438,7 @@ internal fun LazyListScope.secondaryResultRows(
                 Column(modifier = Modifier.weight(1f)) {
                     val text = if (run.fanInOf != null) {
                         val prompt = aiSettings.internalPrompts.firstOrNull {
-                            it.id == run.fanInOf || it.id == run.metaPromptId
+                            it.id == (run.fanInOf ?: run.metaPromptId)
                         }
                         val label = prompt?.title?.takeIf { it.isNotBlank() }
                             ?: prompt?.name?.takeIf { it.isNotBlank() }

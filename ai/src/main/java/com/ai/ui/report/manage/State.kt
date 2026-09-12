@@ -213,7 +213,7 @@ internal enum class RuntimePromptKind { COMPARE, FAN_IN, TOURNAMENT, JUDGES, TRA
 internal data class RuntimePromptReq(
     val kind: RuntimePromptKind,
     val prompts: List<InternalPrompt>,
-    /** Compare: picked meta-result id. TransRank: source translation run id. */
+    /** Compare: picked meta-result id. TransRank: source translation run id. Fan-in: source fan-out prompt id. */
     val ctxId: String? = null,
     /** Translate / TransRank: target language name + native name. */
     val lang: String? = null,

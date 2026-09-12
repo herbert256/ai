@@ -164,16 +164,9 @@ class FanOutEngine internal constructor(
             .groupBy { it.metaPromptId.orEmpty() }
             .filterKeys { it.isNotBlank() }
 
-        // Group fan-in (combined report) rows by metaPromptId — note
-        // these reference the fan-OUT prompt's id via metaPromptId
-        // (the SecondaryResult.fanInOf carries the FAN-IN prompt id;
-        // historically there's no explicit fan-out↔fan-in link).
-        // We attach every fan-in row whose metaPromptName matches one
-        // of the fan-out runs — best-effort grouping that matches
-        // the old buildFanOutSummaries behaviour.
-        val fanInRowsByName = all
-            .filter { it.fanInOf != null && it.fanOutSourceAgentId == null }
-            .groupBy { it.metaPromptName.orEmpty() }
+        // New fan-in rows identify the parent via metaPromptId and the
+        // combine template via fanInOf. Legacy rows have no explicit parent.
+        val fanInRows = all.filter { it.fanInOf != null && it.fanOutSourceAgentId == null }
 
         // (provider, model) → agentId index for the per-row answerer
         // lookup below. First agent wins on duplicate (provider, model)
@@ -240,12 +233,11 @@ class FanOutEngine internal constructor(
             // re-fires against the same translation.
             val sourceLanguage = rows.firstNotNullOfOrNull { it.targetLanguage }
 
-            // Combined-report rows attached to this run. We match by
-            // metaPromptName since fan-in rows don't carry the fan-out
-            // prompt id. Best-effort; legacy data may not group
-            // perfectly, but the UI section can tolerate that.
-            val combinedRows = fanInRowsByName[prompt.name].orEmpty()
-                .mapNotNull { it.toCombinedReportState() }
+            val combinedRows = fanInRows.filter { row ->
+                row.targetLanguage == sourceLanguage &&
+                    if (row.metaPromptId != null && row.metaPromptId != row.fanInOf) row.metaPromptId == metaPromptId
+                    else row.metaPromptName == prompt.name // legacy best-effort association
+            }.mapNotNull { it.toCombinedReportState() }
 
             newRuns[key] = FanOutRunState(
                 key = key,
@@ -2302,7 +2294,7 @@ class FanOutEngine internal constructor(
         fanInPrompt: InternalPrompt
     ): Job? {
         val run = _runs.value[runKey] ?: return null
-        val job = reportViewModel.secondary.runFanInPrompt(context, run.reportId, fanInPrompt, run.sourceLanguage)
+        val job = reportViewModel.secondary.runFanInPrompt(context, run.reportId, fanInPrompt, run.sourceLanguage, sourcePromptId = run.metaPrompt.id)
         // Re-hydrate after the call completes to surface the new combined-report row.
         job?.invokeOnCompletion {
             appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) { hydrate(context, run.reportId) }

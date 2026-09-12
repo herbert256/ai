@@ -9,7 +9,7 @@ sealed interface ExternalReportCommand {
     /** Bare prompt — no `<instructions>` block and no `-- end prompt --`
      *  marker. Only pre-fills the new-report editor; the user still picks
      *  models and taps Generate, so no API credits move without consent. */
-    data class Prefill(val title: String, val prompt: String) : ExternalReportCommand
+    data class Prefill(val title: String, val prompt: String, val systemPrompt: String? = null) : ExternalReportCommand
 
     /** Instruction-bearing — must pass through [ExternalIntentConfirmScreen]
      *  before any auto-generate / email / share / finish side effect runs. */
@@ -43,7 +43,7 @@ object ExternalAppCommandParser {
                 val parts = prompt.split(MARKER, limit = 2)
                 aiPrompt = parts[0].trim(); instr = parts.getOrElse(1) { "" }
             }
-            else -> return ExternalReportCommand.Prefill(title ?: "", prompt)
+            else -> return ExternalReportCommand.Prefill(title ?: "", prompt, systemPrompt)
         }
 
         return ExternalReportCommand.Confirm(

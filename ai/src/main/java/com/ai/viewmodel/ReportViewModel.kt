@@ -185,6 +185,7 @@ enum class MetaRegenKind {
 class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private var reportGenerationJob: Job? = null
+    private var configurationSaveJob: Job? = null
     /** Report id the single [reportGenerationJob] is currently producing, or
      *  null when no primary generation is in flight. The job itself carries
      *  no id, so the Broken-work scan reads this to tell a live run's
@@ -445,7 +446,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // them. Bool fields OR upward.
             val overrideParams = resolveReportOverrideParams(
                 aiSettings, parametersIds, state.reportAdvancedParameters,
-                state.reportWebSearchTool, state.reportReasoningEffort
+                state.reportWebSearchTool, state.reportReasoningEffort, state.reportSystemPromptId
             )
 
             val agents = selectedAgentIds.mapNotNull { aiSettings.getAgentById(it) }
@@ -477,14 +478,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val allModelMembers = uniqueSwarmMembers + directModels
             val allModelIds = uniqueSwarmMemberIds + uniqueDirectModelIds
 
-            val reportLevelSystemPrompt = state.reportSystemPromptId
-                ?.let { aiSettings.getSystemPromptById(it)?.prompt }
             val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             val preGenParamsActive = state.reportAdvancedParameters != null ||
                 state.reportWebSearchTool || state.reportReasoningEffort != null
             val reportTasks = buildReportTasks(
                 aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt,
-                reportLevelSystemPrompt, state.generalSettings, directModelSids, preGenParamsActive, selectedModels
+                state.generalSettings, directModelSids, preGenParamsActive, selectedModels
             )
 
             _agentResults.value = emptyMap()
@@ -614,7 +613,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         parameterPresetIds: List<String>,
         advanced: AgentParameters?,
         webSearchTool: Boolean,
-        reasoningEffort: String?
+        reasoningEffort: String?,
+        reportSystemPromptId: String? = null
     ): AgentParameters? {
         val mergedParams = aiSettings.mergeParameters(parameterPresetIds)
         val baseOverride = when {
@@ -640,17 +640,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             )
         }
         val withWeb = if (webSearchTool) (baseOverride ?: AgentParameters()).copy(webSearchTool = true) else baseOverride
-        return if (reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = reasoningEffort) else withWeb
+        val withReasoning = if (reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = reasoningEffort) else withWeb
+        // The explicit report system prompt also wins over text embedded in a preset.
+        val system = reportSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+        return if (system != null) (withReasoning ?: AgentParameters()).copy(systemPrompt = system) else withReasoning
     }
 
     private fun buildReportTasks(
         aiSettings: Settings, agents: List<Agent>, modelMembers: List<SwarmMember>,
         selectionParamsById: Map<String, List<String>>, externalSystemPrompt: String?,
-        /** Optional per-report system prompt picked on the model-selection
-         *  screen. When non-null, wins over agent / flock / external; when
-         *  null, the existing per-agent → per-flock → external resolution
-         *  chain applies. */
-        reportLevelSystemPrompt: String? = null,
         /** App-wide / report-model default presets from GeneralSettings.
          *  App-wide is the universal lowest fallback; report-model applies
          *  to bare/direct models only and is skipped when a pre-gen
@@ -691,8 +689,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             var params = aiSettings.mergeParameters(
                 general.appWideParametersIds + (selections[agent.id]?.paramsIds ?: agent.paramsIds) + (selectionParamsById[agent.id] ?: emptyList())
             ) ?: AgentParameters()
-            val spText = reportLevelSystemPrompt
-                ?: groupPrompt(agent.id)
+            val spText = groupPrompt(agent.id)
                 ?: agent.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
                 ?: externalSystemPrompt
                 ?: appSp
@@ -708,8 +705,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // swarm members get only their swarm level. App-wide is the
             // universal floor for both.
             val providerConfig = aiSettings.getProvider(member.provider)
-            val spText = reportLevelSystemPrompt
-                ?: groupPrompt(sid)
+            val spText = groupPrompt(sid)
                 ?: (if (isDirect) providerConfig.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt } else null)
                 ?: (if (isDirect) rmSp else null)
                 ?: externalSystemPrompt
@@ -735,12 +731,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 params
             )
         }
-        // One task per provider:model. Agent-sourced tasks lead and
-        // win over swarm / direct-model tasks of the same pair —
-        // swarms are re-expanded wholesale here from their ids, so
-        // without this the generation total drifts above the count
-        // the model picker showed (the picker's deduplicateModels
-        // already collapsed these cross-source duplicates).
+        // Preserve each named Agent's identity, even when Agents share a model.
+        // Bare model tasks deduplicate by their provider/model result id.
         val seen = mutableSetOf<String>()
         return (agentTasks + modelTasks).filter { task ->
             seen.add(task.resultId)
@@ -763,8 +755,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     internal fun buildTemperatureSweepTask(report: Report, state: UiState, reportAgent: ReportAgent): ReportTask? {
         val ai = state.aiSettings
         val provider = AppService.findById(reportAgent.provider) ?: return null
-        val reportLevelSystemPrompt = report.reportSystemPromptId
-            ?.let { ai.getSystemPromptById(it)?.prompt }
         val preGenParamsActive = reportPreGenParamsActive(report)
         val currentAgent = reportAgent.agentId
             .takeUnless { it.startsWith("swarm:") }
@@ -773,13 +763,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val task = if (currentAgent != null) {
             buildReportTasks(
                 ai, listOf(currentAgent.copy(provider = provider, model = reportAgent.model)), emptyList(), report.selectionParamsById,
-                state.externalSystemPrompt, reportLevelSystemPrompt,
+                state.externalSystemPrompt,
                 state.generalSettings, emptySet(), preGenParamsActive
             ).firstOrNull()
         } else {
             buildReportTasks(
                 ai, emptyList(), listOf(SwarmMember(provider, reportAgent.model)),
-                report.selectionParamsById, state.externalSystemPrompt, reportLevelSystemPrompt,
+                report.selectionParamsById, state.externalSystemPrompt,
                 state.generalSettings, setOf(sid), preGenParamsActive
             ).firstOrNull()
         } ?: ReportTask(reportAgent.agentId, reportAgent,
@@ -804,7 +794,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             resultId = reportAgent.agentId,
             reportAgent = reportAgent.copy(reportStatus = ReportStatus.PENDING),
             runtimeAgent = runtimeAgent,
-            resolvedParams = reportAgent.executionConfig?.parameters ?: task.resolvedParams
+            resolvedParams = reportAgent.pendingExecutionConfig?.parameters ?: reportAgent.executionConfig?.parameters ?: task.resolvedParams
         )
     }
 
@@ -959,8 +949,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val storedReport = ReportKnowledge.prepare(context, reportId, appViewModel.repository,
             appViewModel.uiState.value.aiSettings) ?: return
         val previous = storedReport.agents.firstOrNull { it.agentId == task.resultId } ?: return
-        val execution = previous.executionConfig?.let { saved ->
-            if (isRegeneration) saved else storedReport.knowledgeContext?.takeIf { it.isNotBlank() }
+        val execution = (previous.pendingExecutionConfig ?: previous.executionConfig)?.let { saved ->
+            if (saved.refreshPrompt) {
+                val question = appViewModel.repository.resolveReportPrompt(aiPrompt, task.runtimeAgent)
+                val prompt = storedReport.knowledgeContext?.takeIf { it.isNotBlank() }?.let { "$it\n\n$question" } ?: question
+                saved.copy(prompt = prompt, refreshPrompt = false, capturedAt = System.currentTimeMillis())
+            } else if (isRegeneration) saved else storedReport.knowledgeContext?.takeIf { it.isNotBlank() }
                 ?.let { saved.copy(prompt="$it\n\n${saved.prompt}") } ?: saved
         } ?: run {
             val params = appViewModel.repository.effectiveReportParameters(task.resolvedParams, overrideParams,
@@ -968,7 +962,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val question = appViewModel.repository.resolveReportPrompt(aiPrompt, task.runtimeAgent)
             val prompt = storedReport.knowledgeContext?.takeIf { it.isNotBlank() }?.let { "$it\n\n$question" } ?: question
             com.ai.data.ReportExecutionConfig(params,
-                appViewModel.uiState.value.aiSettings.getEffectiveEndpointUrlForAgent(task.runtimeAgent), prompt)
+                appViewModel.uiState.value.aiSettings.getEffectiveEndpointUrlForAgent(task.runtimeAgent), prompt,
+                baseParameters = task.resolvedParams)
         }
         val attemptId = ReportStorage.beginAgentAttempt(context, reportId, task.resultId, execution) ?: return
         val knowledgeBaseIds = emptyList<String>() // context is part of the saved execution prompt
@@ -1195,7 +1190,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val canVision = ai.isVisionCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
                 val baseOverride = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
-                    report.webSearchTool, report.reasoningEffort
+                    report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
                 )
                 val gatedOverride = (baseOverride ?: AgentParameters()).copy(
                     webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
@@ -1381,7 +1376,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val canVision = ai.isVisionCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
                 val baseOverride = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
-                    report.webSearchTool, report.reasoningEffort
+                    report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
                 )
                 val baseNoReasoningOverride = (baseOverride ?: AgentParameters()).copy(
                     webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
@@ -1567,7 +1562,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val canVision = ai.isVisionCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
                 val baseOverride = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
-                    report.webSearchTool, report.reasoningEffort
+                    report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
                 )
                 val webOverride = (baseOverride ?: AgentParameters()).copy(
                     webSearchTool = true,
@@ -1749,7 +1744,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val canVision = ai.isVisionCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
                 val baseOverride = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
-                    report.webSearchTool, report.reasoningEffort
+                    report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
                 )
                 val gatedOverride = (baseOverride ?: AgentParameters()).copy(
                     webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
@@ -1924,16 +1919,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
-            val swarmMembers = aiSettings.getMembersForSwarms(setOf(swarmId))
+            val selected = aiSettings.getSwarmById(swarmId)?.let { com.ai.model.expandSwarmToModels(it, aiSettings) }.orEmpty()
+            val swarmMembers = selected.map { SwarmMember(it.provider, it.model) }
             val reportTasks = buildReportTasks(
-                aiSettings, emptyList(), swarmMembers, emptyMap(), state.externalSystemPrompt,
-                null, state.generalSettings, emptySet(), false
+                aiSettings, emptyList(), swarmMembers, emptyMap(), null,
+                state.generalSettings, emptySet(), false, selected
             )
             if (reportTasks.isEmpty()) {
                 AppLog.w("Report", "background report skipped — no active models for swarm $swarmId")
                 return@launch
             }
             val runId = java.util.UUID.randomUUID().toString()
+            preparePrimaryExecution(context, prompt, reportTasks, null, emptyList(), aiSettings, appViewModel.repository)
             val report = ReportStorage.createReportAsync(
                 context = context, title = title.ifBlank { "AI Report" },
                 prompt = prompt, agents = reportTasks.map { it.reportAgent },
@@ -2024,10 +2021,27 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     /** Edit / Parameters saved new values for the open report — raise the
      *  pending-changes banner on it (and only it). */
-    fun markParametersChanged() {
+    fun markParametersChanged(context: Context) {
+        val state = appViewModel.uiState.value
+        val rid = state.currentReportId ?: return
         appViewModel.updateUiState { s ->
-            val rid = s.currentReportId ?: return@updateUiState s
             s.withStagedOwner(rid).copy(hasPendingParametersChange = true)
+        }
+        val previousSave = configurationSaveJob
+        configurationSaveJob = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
+            previousSave?.join()
+            val report = ReportStorage.getReport(context, rid) ?: return@launch
+            val overlay = resolveReportOverrideParams(state.aiSettings, state.reportParametersIds,
+                state.reportAdvancedParameters, report.webSearchTool, report.reasoningEffort, state.reportSystemPromptId)
+            val executions = report.agents.mapNotNull { agent -> (agent.pendingExecutionConfig ?: agent.executionConfig)?.let { saved ->
+                // Older reports did not retain their lower-level defaults; preserve the
+                // captured configuration rather than guessing an unrelated group.
+                val base = saved.baseParameters ?: saved.parameters
+                agent.agentId to saved.copy(parameters = appViewModel.repository.mergeParameters(base, overlay),
+                    baseParameters = base, capturedAt = System.currentTimeMillis())
+            } }.toMap()
+            ReportStorage.updateGenerationParameters(context, rid, state.reportParametersIds,
+                state.reportAdvancedParameters, state.reportSystemPromptId, executions)
         }
     }
 
@@ -2042,6 +2056,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      */
     fun regenerateReportBatch(context: Context, reportId: String, erroredOnly: Boolean = false) {
         appViewModel.viewModelScope.launch(reportLogContext()) {
+            configurationSaveJob?.join()
             if (!erroredOnly) {
                 // "Retry failed" must NOT consume staged Edit-Models changes —
                 // it re-runs only what already errored; the staged list stays
@@ -2112,14 +2127,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         // Replay the report's CAPTURED generation config for the new rows,
         // matching forceRegenerateAllAgents (NOT the live UiState).
-        val reportLevelSystemPrompt = report.reportSystemPromptId
-            ?.let { ai.getSystemPromptById(it)?.prompt }
         val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
         val preGenParamsActive = reportPreGenParamsActive(report)
         val tasks = buildReportTasks(
             ai, agents, swarmMembers + directModels, report.selectionParamsById,
-            state.externalSystemPrompt, reportLevelSystemPrompt,
-            state.generalSettings, directModelSids, preGenParamsActive
+            state.externalSystemPrompt,
+            state.generalSettings, directModelSids, preGenParamsActive, staged
         )
         if (tasks.isEmpty()) {
             // Every staged entry was filtered out (orphaned agent ids /
@@ -2133,7 +2146,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             return null
         }
         val existingIds = report.agents.map { it.agentId }.toSet()
-        val newAgents = tasks.filter { it.resultId !in existingIds }.map { it.reportAgent }
+        val overlay = resolveReportOverrideParams(ai, report.parameterPresetIds, report.advancedParameters,
+            report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId)
+        val newAgents = tasks.filter { it.resultId !in existingIds }.map { task ->
+            task.reportAgent.copy(executionConfig = com.ai.data.ReportExecutionConfig(
+                appViewModel.repository.mergeParameters(task.resolvedParams, overlay),
+                ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent), report.prompt,
+                baseParameters = task.resolvedParams, refreshPrompt = true))
+        }
         val removedIds = existingIds - tasks.map { it.resultId }.toSet()
         withContext(Dispatchers.IO) {
             for (id in removedIds) {
@@ -2463,7 +2483,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // with regenerateReport so both paths replay identically.
                 val overrideParams = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
-                    report.webSearchTool, report.reasoningEffort
+                    report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
                 )
                 interleaveByHost(tasks) { providerHost(it.runtimeAgent.provider) }.chunked(64).forEach { window ->
                 coroutineScope {
@@ -2661,6 +2681,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * / Browser / Email / Trace action row, etc.
      */
     suspend fun restoreCompletedReport(context: Context, reportId: String) {
+        configurationSaveJob?.join()
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
         // Only rebuild entries for agents that actually FINISHED
         // (SUCCESS / ERROR / STOPPED). A report opened while it's still
@@ -2697,6 +2718,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericPromptTitle = report.title,
             genericPromptTitleLong = report.titleLong.orEmpty(),
             genericPromptText = report.prompt,
+            reportParametersIds = report.parameterPresetIds,
+            reportAdvancedParameters = report.advancedParameters,
+            reportSystemPromptId = report.reportSystemPromptId,
             showGenericReportsDialog = true
         ) }
         // Close the open-mid-run race: a task that landed between the
@@ -2908,7 +2932,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // folded in below through the capability gates.
             val baseOverride = resolveReportOverrideParams(
                 aiSettings, report.parameterPresetIds, report.advancedParameters,
-                webSearchTool = false, reasoningEffort = null
+                webSearchTool = false, reasoningEffort = null, reportSystemPromptId = report.reportSystemPromptId
             )
             // The "off" branches must always materialise an override so
             // the dispatcher receives an explicit webSearchTool=false /

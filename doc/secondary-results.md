@@ -208,7 +208,7 @@ launch the CRUD is the source of truth.
    • For META rows with reference = true: a deterministic
      "## References" legend is appended at storage time
    • Fan-out rows carry fanOutSourceAgentId
-   • Fan-in rows carry fanInOf = <metaPromptId>
+   • Fan-in rows carry fanInOf = <combine prompt id>, metaPromptId = <parent fan-out prompt id>
    • Tournament / Judges / Compare rows carry run + cell metadata
      described in tournament-judges-compare.md
 ```
@@ -525,13 +525,13 @@ Fan-out is owned by **`FanOutEngine`**
   "Fan-Out" button → `onShowResponses`, both flipping that flag); each
   screen's top-level back closes to the report's secondary list.
 
-- **Fan-in** runs the chosen `category = "fan_in"` Internal Prompt
-  once per **source agent** (NOT once per answerer × source pair).
+- **Fan-in** makes one combined call using the chosen `category = "fan_in"` Internal Prompt.
   The `***Report*** @REPORT@@RESPONSES@` iterable block is matched
   whitespace-tolerantly and expanded once per source agent, with
-  `@RESPONSES@` populated by every fan-out response for that source.
-  Output rows carry `fanInOf = <metaPromptId>` so the drill-in
-  distinguishes them from per-pair rows.
+  `@RESPONSES@` populated by successful responses for that source from the
+  selected parent prompt and language. Output rows carry `fanInOf = <combine
+  prompt id>` and `metaPromptId = <parent fan-out prompt id>` so the drill-in
+  distinguishes them from per-pair rows and attaches them to their parent.
 
 The Fan-out drill-in is three levels deep:
 - **L1** — one row per (answerer, prompt). `✅` when done, `❌` when
@@ -762,3 +762,13 @@ the Kotlin compiler lists every site you need to touch. See
 new behaviour you don't need a new kind — adding an Internal Prompt
 in a new category covers any new chat-type analysis without code
 changes.
+
+
+### Fan-in source identity
+
+New Fan-in results store their source Fan Out prompt in `metaPromptId` and the
+combine template in `fanInOf`. `metaPromptName` names the combine template.
+Input assembly uses only successful rows from that parent and source language,
+including self-responses when the originating run enabled them. Replay rebuilds
+from the same parent; completed combined rows refresh in its Fan Out view.
+Legacy results without a parent retain their existing best-effort association.

@@ -426,6 +426,7 @@ internal fun NavGraphBuilder.reportRoutes(
             CompositionLocalProvider(
                 com.ai.ui.shared.LocalSystemPromptChange provides { id ->
                     appViewModel.setReportSystemPromptId(id)
+                    reportViewModel.markParametersChanged(context)
                 },
                 com.ai.ui.shared.LocalGenerateNoteTitle provides { rid, nid, txt ->
                     reportViewModel.generateUserNoteTitle(context, rid, nid, txt)
