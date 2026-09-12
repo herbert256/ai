@@ -1134,6 +1134,9 @@ class SecondaryRunManager(
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
                 rvm.resumingMetaIds.remove(placeholder.id)
+                if (placeholder.fanInOf != null) {
+                    withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { rvm.fanOutEngine.hydrate(context, reportId) }
+                }
             }
         }
     }

@@ -21,6 +21,16 @@ data class ReportExecutionConfig(val parameters: AgentParameters, val endpointUr
     /** Rebuild only prompt/RAG text after a question edit; retain the saved settings. */
     val refreshPrompt: Boolean = false)
 
+/** Request evidence carried by a preview until the user selects its response. */
+data class SecondaryReplayEvidence(
+    val executionConfig: ReportExecutionConfig,
+    val tokenUsage: TokenUsage?,
+    val inputCost: Double?,
+    val outputCost: Double?,
+    val durationMs: Long,
+    val traceFile: String?
+)
+
 object ReportEvidenceStore {
     @Volatile private var root: File? = null
     @Volatile private var appContext: Context? = null

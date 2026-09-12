@@ -197,10 +197,10 @@ internal fun MetaDetailScreen(
 
     // "Changed by <source>: <value>" badge — surfaces when an edit
     // (Reload / Chat / sweep / replay) rewrote this row.
-    val responseChangeLabel = (resultFresh?.responseChangeSource ?: result.responseChangeSource)
+    val responseChangeLabel = (resultFresh ?: result).responseChangeSource
         ?.takeIf { it.isNotBlank() }
         ?.let { source ->
-            (resultFresh?.responseChangeValue ?: result.responseChangeValue)
+            (resultFresh ?: result).responseChangeValue
                 ?.takeIf { it.isNotBlank() }
                 ?.let { value -> "Changed by $source: $value" }
                 ?: "Changed by $source"

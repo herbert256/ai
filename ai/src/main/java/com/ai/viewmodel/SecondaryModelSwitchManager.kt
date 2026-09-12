@@ -39,7 +39,8 @@ data class ModelSwitchSelection(
     val model: String,
     val paramsIds: List<String>,
     val systemPromptId: String?,
-    val label: String
+    val label: String,
+    val credentialAgentId: String? = null
 )
 
 sealed class ModelSwitchResult {
@@ -50,7 +51,8 @@ sealed class ModelSwitchResult {
         val inputCost: Double?,
         val outputCost: Double?,
         val durationMs: Long,
-        val traceFile: String?
+        val traceFile: String?,
+        val executionConfig: com.ai.data.ReportExecutionConfig? = null
     ) : ModelSwitchResult()
     data class Error(
         val message: String,
@@ -131,18 +133,18 @@ class SecondaryModelSwitchManager internal constructor(
         val model = selection.model
         val nativeRerank = row.kind == SecondaryKind.RERANK && aiSettings.getModelType(provider, model) == ModelType.RERANK
         return when {
-            row.kind == SecondaryKind.MODERATION -> runNativeCandidate(context, reportId, row, provider, model, SecondaryKind.MODERATION)
-            nativeRerank -> runNativeCandidate(context, reportId, row, provider, model, SecondaryKind.RERANK)
+            row.kind == SecondaryKind.MODERATION -> runNativeCandidate(context, reportId, row, provider, model, SecondaryKind.MODERATION, selection.credentialAgentId)
+            nativeRerank -> runNativeCandidate(context, reportId, row, provider, model, SecondaryKind.RERANK, selection.credentialAgentId)
             else -> {
                 // Meta / Fan-in / rerank-chat: reuse the existing chat replay.
                 val mr = reportViewModel.metaEditManager.runModelSwitchMeta(
-                    context, reportId, resultId, provider, model, selection.paramsIds, selection.systemPromptId
+                    context, reportId, resultId, provider, model, selection.paramsIds, selection.systemPromptId, selection.credentialAgentId
                 )
                 val r = mr.response
                 if (r.isSuccess && !r.analysis.isNullOrBlank()) {
                     val pricing = PricingCache.getPricing(context, provider, model)
                     val (inCost, outCost) = r.tokenUsage?.let { PricingCache.computeInOutCost(it, pricing) } ?: (null to null)
-                    ModelSwitchResult.Success(r.analysis, r.tokenUsage, inCost, outCost, mr.durationMs, mr.traceFile)
+                    ModelSwitchResult.Success(r.analysis, r.tokenUsage, inCost, outCost, mr.durationMs, mr.traceFile, mr.replayEvidence.executionConfig)
                 } else {
                     ModelSwitchResult.Error(r.error ?: "No response body", r.httpStatusCode, mr.durationMs, mr.traceFile)
                 }
@@ -154,12 +156,21 @@ class SecondaryModelSwitchManager internal constructor(
      *  under the same concurrency caps + rate gate as a normal secondary run. */
     private suspend fun runNativeCandidate(
         context: Context, reportId: String, row: SecondaryResult,
-        provider: AppService, model: String, kind: SecondaryKind
+        provider: AppService, model: String, kind: SecondaryKind, credentialAgentId: String?
     ): ModelSwitchResult = withTracerTags(reportId = reportId, category = "meta/model-switch") {
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val apiKey = aiSettings.getApiKey(provider)
-        val report = ReportStorage.getReport(context, reportId)
+        val credential = credentialAgentId?.let { id ->
+            aiSettings.getAgentById(id)?.takeIf { it.provider == provider }
+                ?: error("The selected credential Agent is unavailable.")
+        }
+        val apiKey = credential?.apiKey?.takeIf { it.isNotBlank() } ?: aiSettings.getApiKey(provider)
+        val currentReport = ReportStorage.getReport(context, reportId)
             ?: return@withTracerTags ModelSwitchResult.Error("Report not found", null, null, null)
+        val report = com.ai.data.ReportEvidenceStore.requireHistoricalReport(currentReport, row)
+        val saved = row.executionConfig
+            ?: return@withTracerTags ModelSwitchResult.Error("Saved request settings are unavailable. Create a new analysis using the current inputs.", null, null, null)
+        val endpoint = (if (kind == SecondaryKind.MODERATION) provider.nativeModerationUrl else provider.nativeRerankUrl)
+            ?: return@withTracerTags ModelSwitchResult.Error("The selected provider has no dedicated endpoint for this operation.", null, null, null)
         val traceSink = AtomicReference<String?>(null)
         ApiCallCaps.fanOut.withPermit {
             ApiCallCaps.global.withPermit {
@@ -167,8 +178,15 @@ class SecondaryModelSwitchManager internal constructor(
                 try {
                     withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                         withTraceFilenameSink(traceSink) {
-                            if (kind == SecondaryKind.MODERATION) moderationCandidate(context, reportId, row, report, provider, apiKey, model, traceSink)
-                            else rerankCandidate(context, reportId, row, report, provider, apiKey, model, traceSink)
+                            val candidate = if (kind == SecondaryKind.MODERATION) moderationCandidate(context, reportId, row, report, provider, apiKey, model, traceSink)
+                                else rerankCandidate(context, reportId, row, report, provider, apiKey, model, traceSink)
+                            if (candidate is ModelSwitchResult.Success) candidate.copy(
+                                // Dedicated APIs do not consume generation controls. Keep the
+                                // captured rubric for a later switch back to a chat model.
+                                executionConfig = com.ai.data.ReportExecutionConfig(
+                                    com.ai.data.AgentParameters(), endpoint, com.ai.data.stripThinkSections(saved.prompt),
+                                    credentialAgentId = credentialAgentId)
+                            ) else candidate
                         }
                     }
                 } finally {
@@ -183,7 +201,7 @@ class SecondaryModelSwitchManager internal constructor(
         provider: AppService, apiKey: String, model: String, traceSink: AtomicReference<String?>
     ): ModelSwitchResult {
         val translatedBodies = row.targetLanguage?.let { lang ->
-            lookupLanguageTranslations(report, SecondaryResultStorage.listForReport(context, reportId), lang)?.bodiesByAgentId
+            lookupLanguageTranslations(report, com.ai.data.ReportEvidenceStore.historicalSecondaries(context, row), lang)?.bodiesByAgentId
         }
         val responses = report.agents
             .mapNotNull {
@@ -205,7 +223,7 @@ class SecondaryModelSwitchManager internal constructor(
         provider: AppService, apiKey: String, model: String, traceSink: AtomicReference<String?>
     ): ModelSwitchResult {
         val langCtx = row.targetLanguage?.let { lang ->
-            lookupLanguageTranslations(report, SecondaryResultStorage.listForReport(context, reportId), lang)
+            lookupLanguageTranslations(report, com.ai.data.ReportEvidenceStore.historicalSecondaries(context, row), lang)
         }
         val query = langCtx?.prompt?.takeIf { it.isNotBlank() } ?: report.prompt
         val docs = report.agents
@@ -259,9 +277,11 @@ class SecondaryModelSwitchManager internal constructor(
                 inputCost = success.inputCost, outputCost = success.outputCost,
                 durationMs = success.durationMs, traceFile = success.traceFile,
                 parameterPresetIds = selection.paramsIds.takeIf { it.isNotEmpty() }, systemPromptId = selection.systemPromptId,
-                changeValue = "${selection.provider.id} / ${selection.model}"
+                changeValue = "${selection.provider.id} / ${selection.model}",
+                executionConfig = success.executionConfig
             )
             ReportStorage.bumpReportTimestamp(context, reportId)
+            if (row.fanInOf != null) reportViewModel.fanOutEngine.hydrate(context, reportId)
             _states.update { it - key }
         }
     }

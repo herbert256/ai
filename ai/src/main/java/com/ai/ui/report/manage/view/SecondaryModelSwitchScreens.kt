@@ -73,7 +73,7 @@ internal fun SecondaryModelSwitchPickScreen(
                 aiSettings = aiSettings,
                 onSelectAgent = { a ->
                     val model = aiSettings.getEffectiveModelForAgent(a)
-                    onPicked(ModelSwitchSelection(a.provider, model, a.paramsIds, a.systemPromptId, "${a.name} — ${a.provider.id} / $model"))
+                    onPicked(ModelSwitchSelection(a.provider, model, a.paramsIds, a.systemPromptId, "${a.name} — ${a.provider.id} / $model", a.id))
                 },
                 onBack = { step = "choose" },
                 onEditAgents = onBack

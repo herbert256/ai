@@ -38,7 +38,8 @@ sealed class TemperatureSweepCandidate(open val temperature: Float) {
         val tokenUsage: TokenUsage?,
         val cost: Double?,
         val durationMs: Long,
-        val traceFile: String?
+        val traceFile: String?,
+        val replayEvidence: SecondaryReplayEvidence? = null
     ) : TemperatureSweepCandidate(temperature)
     data class Error(
         override val temperature: Float,
@@ -70,7 +71,8 @@ sealed class ReasoningEffortCandidate(open val effort: String?) {
         val tokenUsage: TokenUsage?,
         val cost: Double?,
         val durationMs: Long,
-        val traceFile: String?
+        val traceFile: String?,
+        val replayEvidence: SecondaryReplayEvidence? = null
     ) : ReasoningEffortCandidate(effort)
     data class Error(
         override val effort: String?,
@@ -101,7 +103,8 @@ sealed class WebSearchReplayResult {
         val tokenUsage: TokenUsage?,
         val cost: Double?,
         val durationMs: Long,
-        val traceFile: String?
+        val traceFile: String?,
+        val replayEvidence: SecondaryReplayEvidence? = null
     ) : WebSearchReplayResult()
     data class Error(
         val message: String,
@@ -131,7 +134,8 @@ sealed class PromptEditReplayResult {
         val tokenUsage: TokenUsage?,
         val cost: Double?,
         val durationMs: Long,
-        val traceFile: String?
+        val traceFile: String?,
+        val replayEvidence: SecondaryReplayEvidence? = null
     ) : PromptEditReplayResult()
     data class Error(
         val message: String,

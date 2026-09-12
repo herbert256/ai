@@ -233,10 +233,11 @@ internal fun FanOutL3Screen(
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, run.reportId, pair.id) }
     }
     val pairBody = pairFresh?.content ?: pair.content
-    val responseChangeLabel = (pairFresh?.responseChangeSource ?: pair.responseChangeSource)
+    val changeRow = pairFresh
+    val responseChangeLabel = (if (changeRow != null) changeRow.responseChangeSource else pair.responseChangeSource)
         ?.takeIf { it.isNotBlank() }
         ?.let { source ->
-            (pairFresh?.responseChangeValue ?: pair.responseChangeValue)
+            (if (changeRow != null) changeRow.responseChangeValue else pair.responseChangeValue)
                 ?.takeIf { it.isNotBlank() }
                 ?.let { value -> "Changed by $source: $value" }
                 ?: "Changed by $source"
@@ -362,7 +363,11 @@ internal fun FanOutL3Screen(
             temperatureRange = answererProviderService?.let(::temperatureRangeForProvider) ?: TemperatureRange.Default,
             state = temperatureSweepStates[temperatureSweepKey],
             onSubmit = { temps -> engine.startFanOutTemperatureSweep(context, run.key, pair.id, temps) },
-            onUseCandidate = { index -> engine.applyFanOutTemperatureCandidate(context, run.key, pair.id, index) },
+            onUseCandidate = { index ->
+                engine.applyFanOutTemperatureCandidate(context, run.key, pair.id, index)
+                engine.clearFanOutTemperatureSweep(run.reportId, pair.id)
+                showTemperatureSweep = false
+            },
             onTrace = actions.onNavigateToTraceFile,
             onBack = {
                 engine.clearFanOutTemperatureSweep(run.reportId, pair.id)
@@ -378,7 +383,11 @@ internal fun FanOutL3Screen(
             modelLabel = answererLabel,
             state = reasoningEffortSweepStates[reasoningEffortSweepKey],
             onSubmit = { efforts -> engine.startFanOutReasoningEffortSweep(context, run.key, pair.id, efforts) },
-            onUseCandidate = { index -> engine.applyFanOutReasoningEffortCandidate(context, run.key, pair.id, index) },
+            onUseCandidate = { index ->
+                engine.applyFanOutReasoningEffortCandidate(context, run.key, pair.id, index)
+                engine.clearFanOutReasoningEffortSweep(run.reportId, pair.id)
+                showReasoningEffortSweep = false
+            },
             onTrace = actions.onNavigateToTraceFile,
             onBack = {
                 engine.clearFanOutReasoningEffortSweep(run.reportId, pair.id)
@@ -395,7 +404,11 @@ internal fun FanOutL3Screen(
             originalResponse = pairBody,
             state = webSearchReplayStates[webSearchReplayKey],
             onStart = { engine.startFanOutWebSearchReplay(context, run.key, pair.id) },
-            onUseResponse = { engine.applyFanOutWebSearchReplay(context, run.key, pair.id) },
+            onUseResponse = {
+                engine.applyFanOutWebSearchReplay(context, run.key, pair.id)
+                engine.clearFanOutWebSearchReplay(run.reportId, pair.id)
+                showWebSearchReplay = false
+            },
             onTrace = actions.onNavigateToTraceFile,
             onBack = {
                 engine.clearFanOutWebSearchReplay(run.reportId, pair.id)

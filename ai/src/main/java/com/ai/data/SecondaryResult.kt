@@ -458,23 +458,36 @@ object SecondaryResultStorage {
     }
 
     /** Overwrite a fan-out pair's [SecondaryResult.content] with a chosen
-     *  replacement (a fan-out pair or a plain meta row). Leaves
-     *  cost/tokens and metadata untouched. */
+     *  replacement (a fan-out pair or a plain meta row). Generated previews
+     *  carry their request evidence; manual/chat edits retain their provenance. */
     fun updateContent(
         context: Context,
         reportId: String,
         resultId: String,
         content: String,
         changeSource: String? = null,
-        changeValue: String? = null
+        changeValue: String? = null,
+        replayEvidence: SecondaryReplayEvidence? = null
     ): Boolean {
+        var previousCost = 0.0
         val updated = updateResult(context, reportId, resultId) { existing ->
+            if (replayEvidence?.traceFile != null && existing.traceFile == replayEvidence.traceFile) return@updateResult existing
+            if (replayEvidence != null) previousCost = (existing.inputCost ?: 0.0) + (existing.outputCost ?: 0.0)
             existing.copy(
                 content = content,
+                executionConfig = replayEvidence?.executionConfig ?: existing.executionConfig,
+                traceFile = if (replayEvidence != null) replayEvidence.traceFile else existing.traceFile,
+                tokenUsage = if (replayEvidence != null) replayEvidence.tokenUsage else existing.tokenUsage,
+                inputCost = if (replayEvidence != null) replayEvidence.inputCost else existing.inputCost,
+                outputCost = if (replayEvidence != null) replayEvidence.outputCost else existing.outputCost,
+                durationMs = replayEvidence?.durationMs ?: existing.durationMs,
+                errorMessage = null,
+                httpStatusCode = if (replayEvidence != null) null else existing.httpStatusCode,
                 responseChangeSource = changeSource?.takeIf { it.isNotBlank() },
                 responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
             )
         } ?: return false
+        if (previousCost > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, previousCost)
         AuditLog.append(reportId, buildString {
             append("Selected a new response for a result")
             changeSource?.takeIf { it.isNotBlank() }?.let { src ->
@@ -507,7 +520,8 @@ object SecondaryResultStorage {
         traceFile: String?,
         parameterPresetIds: List<String>?,
         systemPromptId: String?,
-        changeValue: String?
+        changeValue: String?,
+        executionConfig: ReportExecutionConfig? = null
     ): SecondaryResult? {
         val updated = updateResult(context, reportId, resultId) { existing ->
             existing.copy(
@@ -520,6 +534,7 @@ object SecondaryResultStorage {
                 outputCost = outputCost,
                 durationMs = durationMs,
                 traceFile = traceFile,
+                executionConfig = executionConfig,
                 // The switched-in model produced this result, so any error from
                 // the replaced run is gone — otherwise the detail screen's error
                 // branch would keep hiding the new content (e.g. switching a

@@ -297,7 +297,7 @@ class FanOutEngine internal constructor(
         }
     }
 
-    internal fun refreshPairFromDisk(context: Context, reportId: String, pairId: String) {
+    internal fun refreshPairFromDisk(context: Context, reportId: String, pairId: String, refreshContent: Boolean = false) {
         val row = SecondaryResultStorage.get(context, reportId, pairId) ?: return
         // The pair row carries its fan-out prompt id, so the run key is
         // direct — no scan over every loaded run's whole pair set. A
@@ -307,7 +307,7 @@ class FanOutEngine internal constructor(
         _runs.update { runs ->
             val run = runs[key] ?: return@update runs
             val cur = run.pairs.values.firstOrNull { it.id == pairId } ?: return@update runs
-            val next = cur.copy(
+            val next = if (refreshContent) row.toPairState(cur.answererAgentId) ?: cur else cur.copy(
                 title = row.title,
                 titleInputCost = row.titleInputCost,
                 titleOutputCost = row.titleOutputCost,
@@ -335,7 +335,8 @@ class FanOutEngine internal constructor(
         pairId: String,
         content: String,
         changeSource: String,
-        changeValue: String? = null
+        changeValue: String? = null,
+        replayEvidence: com.ai.data.SecondaryReplayEvidence? = null
     ) {
         withContext(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@withContext
@@ -346,18 +347,11 @@ class FanOutEngine internal constructor(
                 resultId = pairId,
                 content = content,
                 changeSource = source,
-                changeValue = changeValue
+                changeValue = changeValue,
+                replayEvidence = replayEvidence
             )
             ReportStorage.bumpReportTimestamp(context, run.reportId)
-            transitionPairById(runKey, pairId) {
-                it.copy(
-                    status = PairStatus.DONE,
-                    content = content,
-                    errorMessage = null,
-                    responseChangeSource = source,
-                    responseChangeValue = changeValue?.takeIf { value -> value.isNotBlank() }
-                )
-            }
+            refreshPairFromDisk(context, run.reportId, pairId, refreshContent = true)
         }
     }
 
@@ -473,23 +467,22 @@ class FanOutEngine internal constructor(
         val prompt: String,
         val resolvedParams: AgentParameters,
         val baseUrl: String,
-        val aiSettings: Settings
+        val aiSettings: Settings,
+        val credentialAgentId: String?
     )
 
     private data class FanOutVariationCallResult(
         val response: AnalysisResponse,
         val cost: Double?,
         val durationMs: Long,
-        val traceFile: String?
+        val traceFile: String?,
+        val replayEvidence: com.ai.data.SecondaryReplayEvidence
     )
-
-    private fun resolveFanOutSourceCount(context: Context, report: Report, row: SecondaryResult): Int =
-        resolveFanOutSourceCountForScope(context, report, SecondaryScope.decodeOrAllReports(row.secondaryScope))
 
     /** The scoped source count that resolves the prompt's @COUNT@ token —
      *  the number of report answers the fan-out actually ran over, not the
-     *  full success count. Used by both the single-pair replay (from a row's
-     *  secondaryScope) and the whole-run rerun (from the run's scope). */
+     *  full success count. Used when building a new run's prompt. Pair replay
+     *  retains the count already captured in its execution prompt. */
     private fun resolveFanOutSourceCountForScope(context: Context, report: Report, scope: SecondaryScope): Int {
         val successful = report.agents.filter {
             it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
@@ -511,52 +504,20 @@ class FanOutEngine internal constructor(
         val run = _runs.value[runKey] ?: error("Fan-out run no longer exists")
         val row = SecondaryResultStorage.get(context, run.reportId, pairId)
             ?: error("Fan-out pair no longer exists")
-        val sourceId = row.fanOutSourceAgentId ?: error("This row is not a fan-out pair")
-        val report = ReportStorage.getReport(context, run.reportId) ?: error("Report not found")
+        val saved = row.executionConfig
+            ?: error("Saved request settings are unavailable. Create a new Fan Out to use current inputs.")
         val aiSettings = appViewModel.uiState.value.aiSettings
         val provider = AppService.findById(row.providerId) ?: error("Provider ${row.providerId} is not registered")
-        val metaPrompt = row.metaPromptId?.let { aiSettings.getInternalPromptById(it) }
-            ?: row.metaPromptName?.let { aiSettings.getInternalPromptByName(it) }
-            ?: aiSettings.getInternalPromptById(run.metaPrompt.id)
-            ?: error("Fan-out prompt no longer exists")
-        val source = report.agents.firstOrNull { it.agentId == sourceId }
-            ?: error("Source model response no longer exists")
-        val langCtx = resolveLangCtx(context, run.reportId, report, row.targetLanguage)
-        val sourceBody = langCtx?.bodies?.get(source.agentId) ?: source.responseBody.orEmpty()
-        if (sourceBody.isBlank()) error("Source model response is empty")
-        val question = langCtx?.prompt ?: report.prompt
-        val resolvedBase = resolveSecondaryPrompt(
-            metaPrompt.text,
-            question = question,
-            results = "",
-            count = resolveFanOutSourceCount(context, report, row),
-            title = langCtx?.title ?: report.title
-        )
-        val resolvedPrompt = resolvedBase.replace("@RESPONSE@", sourceBody)
-        val agent = Agent(
-            id = "fanout:${row.id}",
-            name = row.agentName,
-            provider = provider,
-            model = row.model,
-            apiKey = aiSettings.getApiKey(provider)
-        )
-        val params = resolveSecondaryParams(
-            appViewModel.uiState.value.generalSettings,
-            aiSettings,
-            row.secondaryParameterPresetIds.orEmpty(),
-            row.secondarySystemPromptId,
-            metaPrompt
-        )
-        return FanOutPairReplayTask(
-            reportId = run.reportId,
-            provider = provider,
-            model = row.model,
-            agent = agent,
-            prompt = resolvedPrompt,
-            resolvedParams = params,
-            baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent),
-            aiSettings = aiSettings
-        )
+        val credential = saved.credentialAgentId?.takeIf { it.isNotBlank() }?.let { id ->
+            aiSettings.getAgentById(id)?.takeIf { it.provider == provider }
+                ?: error("The saved credential Agent is unavailable. Choose another Agent to continue.")
+        }
+        val agent = (credential ?: Agent(id = "fanout:${row.id}", name = row.agentName,
+            provider = provider, model = row.model, apiKey = aiSettings.getApiKey(provider)))
+            .copy(provider = provider, model = row.model, apiKey = credential?.apiKey?.takeIf { it.isNotBlank() } ?: aiSettings.getApiKey(provider))
+        return FanOutPairReplayTask(run.reportId, provider, row.model, agent,
+            com.ai.data.stripThinkSections(saved.prompt), saved.parameters, saved.endpointUrl, aiSettings,
+            saved.credentialAgentId?.takeIf { it.isNotBlank() })
     }
 
     suspend fun resolveFanOutPairPrompt(context: Context, runKey: FanOutRunKey, pairId: String): String? =
@@ -624,7 +585,14 @@ class FanOutEngine internal constructor(
                 durationMs = durationMs
             )
         }
-        FanOutVariationCallResult(response, cost, durationMs, traceSink.get())
+        val (inputCost, outputCost) = response.tokenUsage?.let {
+            PricingCache.computeInOutCost(it, PricingCache.getPricing(context, task.provider, task.model))
+        } ?: (null to null)
+        val execution = com.ai.data.ReportExecutionConfig(
+            appViewModel.repository.mergeParameters(resolvedParams, overrideParams), task.baseUrl,
+            appViewModel.repository.resolveReportPrompt(prompt, task.agent), credentialAgentId = task.credentialAgentId)
+        FanOutVariationCallResult(response, cost, durationMs, traceSink.get(),
+            com.ai.data.SecondaryReplayEvidence(execution, response.tokenUsage, inputCost, outputCost, durationMs, traceSink.get()))
     }
 
     fun startFanOutTemperatureSweep(
@@ -671,12 +639,7 @@ class FanOutEngine internal constructor(
                     }
                     return@launch
                 }
-                val canReason = task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)
-                val canWeb = task.aiSettings.isWebSearchCapable(task.provider, task.model)
-                val baseParams = task.resolvedParams.copy(
-                    webSearchTool = task.resolvedParams.webSearchTool && canWeb,
-                    reasoningEffort = if (canReason) task.resolvedParams.reasoningEffort else null
-                )
+                val baseParams = task.resolvedParams
                 temps.forEachIndexed { index, temp ->
                     setTemperatureSweepCandidate(key, index, TemperatureSweepCandidate.Running(temp))
                     val result = runFanOutVariationCall(
@@ -694,7 +657,8 @@ class FanOutEngine internal constructor(
                             tokenUsage = response.tokenUsage,
                             cost = result.cost,
                             durationMs = result.durationMs,
-                            traceFile = result.traceFile
+                            traceFile = result.traceFile,
+                            replayEvidence = result.replayEvidence
                         )
                     } else {
                         TemperatureSweepCandidate.Error(
@@ -733,7 +697,8 @@ class FanOutEngine internal constructor(
                 pairId = pairId,
                 content = candidate.response,
                 changeSource = RESPONSE_CHANGE_SOURCE_TEMPERATURE,
-                changeValue = formatSweepTemperature(candidate.temperature)
+                changeValue = formatSweepTemperature(candidate.temperature),
+                replayEvidence = candidate.replayEvidence
             )
             _temperatureSweepStates.update { it - key }
         }
@@ -779,11 +744,7 @@ class FanOutEngine internal constructor(
                     ?.reasoningEffortLevels
                     ?.map { it.lowercase(Locale.US) }
                     ?.toSet()
-                val canWeb = task.aiSettings.isWebSearchCapable(task.provider, task.model)
-                val baseParams = task.resolvedParams.copy(
-                    webSearchTool = task.resolvedParams.webSearchTool && canWeb,
-                    reasoningEffort = null
-                )
+                val baseParams = task.resolvedParams.copy(reasoningEffort = null)
                 requestedEfforts.forEachIndexed { index, effort ->
                     if (effort != null && supportedLevels != null && effort !in supportedLevels) {
                         val msg = "${formatSweepReasoningEffort(effort)} reasoning effort is not reported as supported by " +
@@ -811,7 +772,8 @@ class FanOutEngine internal constructor(
                             tokenUsage = response.tokenUsage,
                             cost = result.cost,
                             durationMs = result.durationMs,
-                            traceFile = result.traceFile
+                            traceFile = result.traceFile,
+                            replayEvidence = result.replayEvidence
                         )
                     } else {
                         ReasoningEffortCandidate.Error(
@@ -850,7 +812,8 @@ class FanOutEngine internal constructor(
                 pairId = pairId,
                 content = candidate.response,
                 changeSource = RESPONSE_CHANGE_SOURCE_REASONING_EFFORT,
-                changeValue = formatSweepReasoningEffort(candidate.effort)
+                changeValue = formatSweepReasoningEffort(candidate.effort),
+                replayEvidence = candidate.replayEvidence
             )
             _reasoningEffortSweepStates.update { it - key }
         }
@@ -883,10 +846,7 @@ class FanOutEngine internal constructor(
                     }
                     return@launch
                 }
-                val canReason = task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)
-                val baseParams = task.resolvedParams.copy(
-                    reasoningEffort = if (canReason) task.resolvedParams.reasoningEffort else null
-                )
+                val baseParams = task.resolvedParams
                 val result = runFanOutVariationCall(
                     context = context,
                     task = task,
@@ -902,7 +862,8 @@ class FanOutEngine internal constructor(
                         tokenUsage = response.tokenUsage,
                         cost = result.cost,
                         durationMs = result.durationMs,
-                        traceFile = result.traceFile
+                        traceFile = result.traceFile,
+                        replayEvidence = result.replayEvidence
                     )
                 } else {
                     WebSearchReplayResult.Error(
@@ -941,7 +902,8 @@ class FanOutEngine internal constructor(
                 runKey = runKey,
                 pairId = pairId,
                 content = result.response,
-                changeSource = RESPONSE_CHANGE_SOURCE_WEB_SEARCH
+                changeSource = RESPONSE_CHANGE_SOURCE_WEB_SEARCH,
+                replayEvidence = result.replayEvidence
             )
             _webSearchReplayStates.update { it - key }
         }
@@ -982,19 +944,9 @@ class FanOutEngine internal constructor(
                     return@launch
                 }
                 val task = buildFanOutPairReplayTask(context, runKey, pairId)
-                val canReason = task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)
-                val canWeb = task.aiSettings.isWebSearchCapable(task.provider, task.model)
-                val baseParams = task.resolvedParams.copy(
-                    webSearchTool = task.resolvedParams.webSearchTool && canWeb,
-                    reasoningEffort = if (canReason) task.resolvedParams.reasoningEffort else null
-                )
+                val baseParams = task.resolvedParams
                 val screenOverride = promptEditOverrideParams(task.aiSettings, parameterPresetIds, systemPromptId)
-                val finalParams = overlayAgentParameters(baseParams, screenOverride)!!.let { merged ->
-                    merged.copy(
-                        webSearchTool = merged.webSearchTool && canWeb,
-                        reasoningEffort = if (canReason) merged.reasoningEffort else null
-                    )
-                }
+                val finalParams = overlayAgentParameters(baseParams, screenOverride)!!
                 val result = runFanOutVariationCall(
                     context = context,
                     task = task,
@@ -1010,7 +962,8 @@ class FanOutEngine internal constructor(
                         tokenUsage = response.tokenUsage,
                         cost = result.cost,
                         durationMs = result.durationMs,
-                        traceFile = result.traceFile
+                        traceFile = result.traceFile,
+                        replayEvidence = result.replayEvidence
                     )
                 } else {
                     PromptEditReplayResult.Error(
@@ -1049,7 +1002,8 @@ class FanOutEngine internal constructor(
                 runKey = runKey,
                 pairId = pairId,
                 content = result.response,
-                changeSource = RESPONSE_CHANGE_SOURCE_EDIT
+                changeSource = RESPONSE_CHANGE_SOURCE_EDIT,
+                replayEvidence = result.replayEvidence
             )
             _promptEditReplayStates.update { it - key }
         }
@@ -1458,16 +1412,18 @@ class FanOutEngine internal constructor(
                     transitionPair(runKey, pk) { it.copy(status = PairStatus.RUNNING) }
                     val pairStart = System.currentTimeMillis()
                     try {
-                        val resolvedBase = resolveSecondaryPrompt(
-                            metaPrompt.text,
-                            question = question,
-                            results = "",
-                            count = sourceCount,
-                            title = title
-                        )
-                        val sourceAnswer = com.ai.data.stripThinkSections(sourceBody)
-                        require(sourceAnswer.isNotBlank()) { "Source response contains no final answer after removing thinking." }
-                        val resolved = resolvedBase.replace("@RESPONSE@", sourceAnswer)
+                        val resolved = placeholder.executionConfig?.prompt ?: run {
+                            val resolvedBase = resolveSecondaryPrompt(
+                                metaPrompt.text,
+                                question = question,
+                                results = "",
+                                count = sourceCount,
+                                title = title
+                            )
+                            val sourceAnswer = com.ai.data.stripThinkSections(sourceBody)
+                            require(sourceAnswer.isNotBlank()) { "Source response contains no final answer after removing thinking." }
+                            resolvedBase.replace("@RESPONSE@", sourceAnswer)
+                        }
                         // Per-pair wall-clock ceiling (the user-tunable
                         // "Batch item" timeout, default 180 s). Stops a
                         // single runaway model (the Qwen2.5-7B word-salad
@@ -1838,8 +1794,12 @@ class FanOutEngine internal constructor(
         if (buildKey != null) appViewModel.beginBuild(buildKey, pairKeys.size, "Re-queuing fan-out")
         for (pk in pairKeys) {
             val pair = run.pairs[pk] ?: continue
-            val source = agentsById[pair.sourceAgentId] ?: continue
             val current = SecondaryResultStorage.get(context, run.reportId, pair.id) ?: continue
+            val source = agentsById[pair.sourceAgentId]
+            // A saved request remains replayable after its current source
+            // changes or disappears. executeSecondaryTask verifies the saved
+            // source evidence before dispatching that captured request.
+            if (source == null && current.executionConfig == null) continue
             // Only the RESPONSE spend is cleared here — the `cleared` copy
             // keeps the Fan-Meta title/icon fields and their costs on the
             // live row (they aren't re-run by a pair rerun). Rolling the full
@@ -1861,7 +1821,7 @@ class FanOutEngine internal constructor(
                     responseChangeValue = null
                 )
             }
-            val body = langCtx?.bodies?.get(pair.sourceAgentId) ?: source.responseBody.orEmpty()
+            val body = langCtx?.bodies?.get(pair.sourceAgentId) ?: source?.responseBody.orEmpty()
             resets.add(Reset(pair, cleared, body))
         }
         // One batched write for all cleared rows (single storage lock +

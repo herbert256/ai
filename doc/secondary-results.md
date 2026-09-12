@@ -449,6 +449,15 @@ edit / Select icon). See [report-icons.md](report-icons.md).
 
 ## Fan-out / Fan-in
 
+Meta/Fan In and individual Fan Out variations replay the saved request text and
+execution settings. Editing a report or an internal prompt afterwards does not
+silently replace those inputs. Applying a generated variation replaces the
+response, execution configuration, trace, usage, cost and duration together;
+the API-call ledger keeps earlier attempts and discarded previews. Manual/chat
+edits retain the existing provenance and carry their separate change marker.
+Fan Out and combined-result state refresh after Apply/Reload so the open parent
+screen reflects the saved row. See [replay-audit-2026-09-12.md](replay-audit-2026-09-12.md).
+
 Report answers discard model-generated `<think>…</think>` sections before
 storage, including streamed output. Thinking-only output remains a failed
 answer. Fan-out also cleans legacy source responses and saved retry prompts,

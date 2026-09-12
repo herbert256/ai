@@ -11,12 +11,8 @@ import com.ai.data.RESPONSE_CHANGE_SOURCE_EDIT
 import com.ai.data.RESPONSE_CHANGE_SOURCE_REASONING_EFFORT
 import com.ai.data.RESPONSE_CHANGE_SOURCE_TEMPERATURE
 import com.ai.data.RESPONSE_CHANGE_SOURCE_WEB_SEARCH
-import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResultStorage
-import com.ai.data.SecondaryScope
-import com.ai.data.extractTopRankedIds
-import com.ai.data.resolveSecondaryPrompt
 import com.ai.data.temperatureRangeForProvider
 import com.ai.data.withTraceFilenameSink
 import com.ai.data.withTracerTags
@@ -102,92 +98,52 @@ class MetaEditManager internal constructor(
         val prompt: String,
         val resolvedParams: AgentParameters,
         val baseUrl: String,
-        val aiSettings: Settings
+        val aiSettings: Settings,
+        val credentialAgentId: String?
     )
 
     internal data class MetaVariationCallResult(
         val response: AnalysisResponse,
         val cost: Double?,
         val durationMs: Long,
-        val traceFile: String?
+        val traceFile: String?,
+        val replayEvidence: com.ai.data.SecondaryReplayEvidence
     )
 
-    /** Rebuild a single META row's call (resolved prompt + model + params).
-     *  Plain meta rows resolve against the report's answers (mirroring
-     *  SecondaryRunManager.resumeStaleMetaPlaceholder); fan-in (combine-
-     *  reports) rows resolve against the fan-out matrix via the shared
-     *  SecondaryRunManager.buildFanInResolution so a sweep / prompt-edit
-     *  replays the SAME call the row was produced by. */
-    /** When [overrideProvider] is non-null the task is rebuilt against a
-     *  DIFFERENT provider/model (+ that selection's param presets / system
-     *  prompt) — the "Switch model / agent" flow — instead of the row's own.
-     *  The prompt resolution (scope / language / fan-in matrix) still comes
-     *  from the row, so only the model changes. */
+    /** Replay the captured request without consulting current source answers or
+     *  prompt templates. A selected Agent supplies its own settings and endpoint;
+     *  a raw model switch keeps the captured parameters. */
     private suspend fun buildMetaReplayTask(
         context: Context, reportId: String, resultId: String,
         overrideProvider: AppService? = null, overrideModel: String? = null,
-        overrideParamsIds: List<String>? = null, overrideSystemPromptId: String? = null
+        overrideParamsIds: List<String>? = null, overrideSystemPromptId: String? = null,
+        overrideCredentialAgentId: String? = null
     ): MetaReplayTask {
         val row = SecondaryResultStorage.get(context, reportId, resultId) ?: error("This result no longer exists")
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val promptId = (row.fanInOf ?: row.metaPromptId) ?: error("This result has no meta prompt")
-        val metaPrompt = aiSettings.getInternalPromptById(promptId)
-            ?: row.metaPromptName?.let { aiSettings.getInternalPromptByName(it) }
-            ?: error("Meta prompt no longer exists")
+        val saved = row.executionConfig
+            ?: error("Saved request settings are unavailable. Create a new analysis to use current inputs.")
         val provider = overrideProvider ?: AppService.findById(row.providerId)
             ?: error("Provider ${row.providerId} is not registered")
         val model = overrideModel ?: row.model
-        val paramsIds = if (overrideProvider != null) (overrideParamsIds ?: emptyList()) else row.secondaryParameterPresetIds.orEmpty()
-        val systemPromptId = if (overrideProvider != null) overrideSystemPromptId else row.secondarySystemPromptId
-        val report = ReportStorage.getReport(context, reportId) ?: error("Report not found")
-        val resolvedPrompt = if (row.fanInOf != null) {
-            reportViewModel.secondary.buildFanInResolution(context, reportId, metaPrompt, report, row.targetLanguage,
-                row.metaPromptId?.takeIf { it != row.fanInOf })
-                ?.resolvedPrompt
-                ?: error("No fan-out responses available to rebuild this combined report")
-        } else {
-            val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
-            val scope = SecondaryScope.decodeOrAllReports(row.secondaryScope)
-            val lang = row.targetLanguage
-            val includeIds: Set<Int>? = when (scope) {
-                SecondaryScope.AllReports -> null
-                is SecondaryScope.TopRanked -> {
-                    // Snapshot-mapped resolution — same as runMetaPrompt — so a
-                    // success-set change doesn't reselect different models than
-                    // the rerank ranked (see resolveTopRankedAgents).
-                    val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
-                    val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    val topAgents = com.ai.data.resolveTopRankedAgents(rerank, scope.count, successful)
-                    val positions = topAgents.map { a -> successful.indexOfFirst { it.agentId == a.agentId } + 1 }.filter { it >= 1 }.toSet()
-                    positions.ifEmpty { null }
-                }
-                is SecondaryScope.Manual -> {
-                    val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    val ids = successful.mapIndexedNotNull { idx, a -> if (a.agentId in scope.agentIds) idx + 1 else null }
-                    if (ids.isEmpty()) null else ids.toSet()
-                }
-            }
-            val successfulCount = if (includeIds != null) includeIds.size
-                else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-            val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
-            resolveSecondaryPrompt(
-                metaPrompt.text, question = translatedPrompt, results = resultsBlock,
-                count = successfulCount, title = report.title
-            )
+        val credentialId = if (overrideProvider != null) overrideCredentialAgentId else saved.credentialAgentId
+        val credential = credentialId?.takeIf { it.isNotBlank() }?.let { id ->
+            aiSettings.getAgentById(id)?.takeIf { it.provider == provider }
+                ?: error("The saved credential Agent is unavailable. Choose another Agent to continue.")
         }
-        val agent = Agent(
-            id = "meta:${row.id}", name = row.agentName,
-            provider = provider, model = model, apiKey = aiSettings.getApiKey(provider)
-        )
-        val params = resolveSecondaryParams(
-            appViewModel.uiState.value.generalSettings, aiSettings,
-            paramsIds, systemPromptId, metaPrompt
-        )
-        return MetaReplayTask(
-            reportId = reportId, resultId = resultId, provider = provider, model = model,
-            agent = agent, prompt = resolvedPrompt, resolvedParams = params,
-            baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent), aiSettings = aiSettings
-        )
+        val agent = (credential ?: Agent(id = "meta:${row.id}", name = row.agentName,
+            provider = provider, model = model, apiKey = aiSettings.getApiKey(provider)))
+            .copy(provider = provider, model = model, apiKey = credential?.apiKey?.takeIf { it.isNotBlank() } ?: aiSettings.getApiKey(provider))
+        val params = if (overrideProvider == null || overrideCredentialAgentId == null) saved.parameters else {
+            val promptId = row.fanInOf ?: row.metaPromptId
+            val metaPrompt = promptId?.let(aiSettings::getInternalPromptById)
+            resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings,
+                overrideParamsIds.orEmpty(), overrideSystemPromptId, metaPrompt, credential)
+        }
+        return MetaReplayTask(reportId, resultId, provider, model, agent,
+            com.ai.data.stripThinkSections(saved.prompt), params,
+            if (overrideProvider == null) saved.endpointUrl else aiSettings.getEffectiveEndpointUrlForAgent(agent),
+            aiSettings, credentialId?.takeIf { it.isNotBlank() })
     }
 
     private fun webSearchPrompt(prompt: String): String =
@@ -232,18 +188,29 @@ class MetaEditManager internal constructor(
             val u = response.tokenUsage
             appViewModel.settingsPrefs.updateUsageStatsAsync(task.provider, task.model, u, kind = kind, durationMs = durationMs)
         }
-        MetaVariationCallResult(response, cost, durationMs, traceSink.get())
+        val (inputCost, outputCost) = response.tokenUsage?.let {
+            PricingCache.computeInOutCost(it, PricingCache.getPricing(context, task.provider, task.model))
+        } ?: (null to null)
+        val execution = com.ai.data.ReportExecutionConfig(
+            appViewModel.repository.mergeParameters(resolvedParams, overrideParams), task.baseUrl,
+            appViewModel.repository.resolveReportPrompt(prompt, task.agent), credentialAgentId = task.credentialAgentId)
+        MetaVariationCallResult(response, cost, durationMs, traceSink.get(),
+            com.ai.data.SecondaryReplayEvidence(execution, response.tokenUsage, inputCost, outputCost, durationMs, traceSink.get()))
     }
 
     /** Commit a chosen candidate / chat reply onto the meta row. */
     suspend fun applyMetaContent(
         context: Context, reportId: String, resultId: String,
-        content: String, changeSource: String, changeValue: String? = null
+        content: String, changeSource: String, changeValue: String? = null,
+        replayEvidence: com.ai.data.SecondaryReplayEvidence? = null
     ) {
         withContext(Dispatchers.IO) {
             val source = changeSource.takeIf { it.isNotBlank() } ?: return@withContext
-            SecondaryResultStorage.updateContent(context, reportId, resultId, content, source, changeValue)
+            SecondaryResultStorage.updateContent(context, reportId, resultId, content, source, changeValue, replayEvidence)
             ReportStorage.bumpReportTimestamp(context, reportId)
+            if (SecondaryResultStorage.get(context, reportId, resultId)?.fanInOf != null) {
+                reportViewModel.fanOutEngine.hydrate(context, reportId)
+            }
         }
     }
 
@@ -259,9 +226,9 @@ class MetaEditManager internal constructor(
      *  candidate is NOT written to the row until the user applies it. */
     internal suspend fun runModelSwitchMeta(
         context: Context, reportId: String, resultId: String,
-        provider: AppService, model: String, paramsIds: List<String>, systemPromptId: String?
+        provider: AppService, model: String, paramsIds: List<String>, systemPromptId: String?, credentialAgentId: String? = null
     ): MetaVariationCallResult {
-        val task = buildMetaReplayTask(context, reportId, resultId, provider, model, paramsIds, systemPromptId)
+        val task = buildMetaReplayTask(context, reportId, resultId, provider, model, paramsIds, systemPromptId, credentialAgentId)
         return runMetaVariationCall(context, task, MODEL_SWITCH_KIND)
     }
 
@@ -284,19 +251,14 @@ class MetaEditManager internal constructor(
                     updateTemperatureSweepState(key) { s -> s.copy(isRunning = false, unavailableMessage = msg, candidates = s.candidates.map { TemperatureSweepCandidate.Error(it.temperature, msg, null, null, null) }) }
                     return@launch
                 }
-                val canReason = task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)
-                val canWeb = task.aiSettings.isWebSearchCapable(task.provider, task.model)
-                val baseParams = task.resolvedParams.copy(
-                    webSearchTool = task.resolvedParams.webSearchTool && canWeb,
-                    reasoningEffort = if (canReason) task.resolvedParams.reasoningEffort else null
-                )
+                val baseParams = task.resolvedParams
                 temps.forEachIndexed { index, temp ->
                     setTemperatureSweepCandidate(key, index, TemperatureSweepCandidate.Running(temp))
                     val result = runMetaVariationCall(context, task, TEMPERATURE_KIND, resolvedParams = baseParams, overrideParams = AgentParameters(temperature = temp))
                     val r = result.response
                     setTemperatureSweepCandidate(key, index,
                         if (r.isSuccess && !r.analysis.isNullOrBlank())
-                            TemperatureSweepCandidate.Success(temp, r.analysis, r.tokenUsage, result.cost, result.durationMs, result.traceFile)
+                            TemperatureSweepCandidate.Success(temp, r.analysis, r.tokenUsage, result.cost, result.durationMs, result.traceFile, result.replayEvidence)
                         else TemperatureSweepCandidate.Error(temp, r.error ?: "No response body", r.httpStatusCode, result.durationMs, result.traceFile))
                 }
                 updateTemperatureSweepState(key) { it.copy(isRunning = false) }
@@ -314,7 +276,7 @@ class MetaEditManager internal constructor(
         val key = TemperatureSweepState.key(reportId, resultId)
         val c = temperatureTrack.get(key)?.candidates?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            applyMetaContent(context, reportId, resultId, c.response, RESPONSE_CHANGE_SOURCE_TEMPERATURE, formatSweepTemperature(c.temperature))
+            applyMetaContent(context, reportId, resultId, c.response, RESPONSE_CHANGE_SOURCE_TEMPERATURE, formatSweepTemperature(c.temperature), c.replayEvidence)
             temperatureTrack.drop(key)
         }
     }
@@ -334,8 +296,7 @@ class MetaEditManager internal constructor(
                 }
                 val supportedLevels = task.aiSettings.getProvider(task.provider).modelCapabilities[task.model]
                     ?.reasoningEffortLevels?.map { it.lowercase(Locale.US) }?.toSet()
-                val canWeb = task.aiSettings.isWebSearchCapable(task.provider, task.model)
-                val baseParams = task.resolvedParams.copy(webSearchTool = task.resolvedParams.webSearchTool && canWeb, reasoningEffort = null)
+                val baseParams = task.resolvedParams.copy(reasoningEffort = null)
                 efforts.forEachIndexed { index, effort ->
                     if (effort != null && supportedLevels != null && effort !in supportedLevels) {
                         val msg = "${formatSweepReasoningEffort(effort)} reasoning effort is not reported as supported by ${task.provider.id}/${task.model}."
@@ -348,7 +309,7 @@ class MetaEditManager internal constructor(
                     val r = result.response
                     setReasoningEffortCandidate(key, index,
                         if (r.isSuccess && !r.analysis.isNullOrBlank())
-                            ReasoningEffortCandidate.Success(effort, r.analysis, r.tokenUsage, result.cost, result.durationMs, result.traceFile)
+                            ReasoningEffortCandidate.Success(effort, r.analysis, r.tokenUsage, result.cost, result.durationMs, result.traceFile, result.replayEvidence)
                         else ReasoningEffortCandidate.Error(effort, r.error ?: "No response body", r.httpStatusCode, result.durationMs, result.traceFile))
                 }
                 updateReasoningEffortSweepState(key) { it.copy(isRunning = false) }
@@ -366,7 +327,7 @@ class MetaEditManager internal constructor(
         val key = ReasoningEffortSweepState.key(reportId, resultId)
         val c = reasoningEffortTrack.get(key)?.candidates?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            applyMetaContent(context, reportId, resultId, c.response, RESPONSE_CHANGE_SOURCE_REASONING_EFFORT, formatSweepReasoningEffort(c.effort))
+            applyMetaContent(context, reportId, resultId, c.response, RESPONSE_CHANGE_SOURCE_REASONING_EFFORT, formatSweepReasoningEffort(c.effort), c.replayEvidence)
             reasoningEffortTrack.drop(key)
         }
     }
@@ -384,13 +345,12 @@ class MetaEditManager internal constructor(
                     updateWebSearchReplayState(key) { it.copy(isRunning = false, result = WebSearchReplayResult.Error(msg, null, null, null), unavailableMessage = msg) }
                     return@launch
                 }
-                val canReason = task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)
-                val baseParams = task.resolvedParams.copy(reasoningEffort = if (canReason) task.resolvedParams.reasoningEffort else null)
+                val baseParams = task.resolvedParams
                 val result = runMetaVariationCall(context, task, WEB_SEARCH_KIND, prompt = webSearchPrompt(task.prompt), resolvedParams = baseParams, overrideParams = AgentParameters(webSearchTool = true))
                 val r = result.response
                 updateWebSearchReplayState(key) {
                     it.copy(isRunning = false, result = if (r.isSuccess && !r.analysis.isNullOrBlank())
-                        WebSearchReplayResult.Success(r.analysis, r.tokenUsage, result.cost, result.durationMs, result.traceFile)
+                        WebSearchReplayResult.Success(r.analysis, r.tokenUsage, result.cost, result.durationMs, result.traceFile, result.replayEvidence)
                     else WebSearchReplayResult.Error(r.error ?: "No response body", r.httpStatusCode, result.durationMs, result.traceFile))
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -408,7 +368,7 @@ class MetaEditManager internal constructor(
         val key = WebSearchReplayState.key(reportId, resultId)
         val result = webSearchReplayTrack.get(key)?.result as? WebSearchReplayResult.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            applyMetaContent(context, reportId, resultId, result.response, RESPONSE_CHANGE_SOURCE_WEB_SEARCH)
+            applyMetaContent(context, reportId, resultId, result.response, RESPONSE_CHANGE_SOURCE_WEB_SEARCH, replayEvidence = result.replayEvidence)
             webSearchReplayTrack.drop(key)
         }
     }
@@ -426,21 +386,14 @@ class MetaEditManager internal constructor(
                     return@launch
                 }
                 val task = buildMetaReplayTask(context, reportId, resultId)
-                val canReason = task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)
-                val canWeb = task.aiSettings.isWebSearchCapable(task.provider, task.model)
-                val baseParams = task.resolvedParams.copy(
-                    webSearchTool = task.resolvedParams.webSearchTool && canWeb,
-                    reasoningEffort = if (canReason) task.resolvedParams.reasoningEffort else null
-                )
+                val baseParams = task.resolvedParams
                 val screenOverride = promptEditOverrideParams(task.aiSettings, parameterPresetIds, systemPromptId)
-                val finalParams = overlayAgentParameters(baseParams, screenOverride)!!.let { merged ->
-                    merged.copy(webSearchTool = merged.webSearchTool && canWeb, reasoningEffort = if (canReason) merged.reasoningEffort else null)
-                }
+                val finalParams = overlayAgentParameters(baseParams, screenOverride)!!
                 val result = runMetaVariationCall(context, task, PROMPT_EDIT_KIND, prompt = editedPrompt, resolvedParams = finalParams, overrideParams = null)
                 val r = result.response
                 updatePromptEditReplayState(key) {
                     it.copy(isRunning = false, result = if (r.isSuccess && !r.analysis.isNullOrBlank())
-                        PromptEditReplayResult.Success(r.analysis, r.tokenUsage, result.cost, result.durationMs, result.traceFile)
+                        PromptEditReplayResult.Success(r.analysis, r.tokenUsage, result.cost, result.durationMs, result.traceFile, result.replayEvidence)
                     else PromptEditReplayResult.Error(r.error ?: "No response body", r.httpStatusCode, result.durationMs, result.traceFile))
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -458,7 +411,7 @@ class MetaEditManager internal constructor(
         val key = PromptEditReplayState.key(reportId, resultId)
         val result = promptEditReplayTrack.get(key)?.result as? PromptEditReplayResult.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            applyMetaContent(context, reportId, resultId, result.response, RESPONSE_CHANGE_SOURCE_EDIT)
+            applyMetaContent(context, reportId, resultId, result.response, RESPONSE_CHANGE_SOURCE_EDIT, replayEvidence = result.replayEvidence)
             promptEditReplayTrack.drop(key)
         }
     }

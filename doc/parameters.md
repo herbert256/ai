@@ -220,6 +220,16 @@ settings as the fallback rather than guessing a different group.
 A report's primary controls do not claim to override every worker or metadata
 call; each operation resolves the control scope described above.
 
+Meta, Fan In and individual Fan Out variations start from their captured
+`ReportExecutionConfig`, including the resolved input text, system prompt,
+parameters and endpoint. A temperature, reasoning, web-search or prompt-edit
+variation changes only its requested controls. Applying a generated candidate
+saves that candidate's execution evidence. Switching to an Agent resolves the
+chosen Agent's configuration and credential reference; choosing a bare model
+keeps the captured parameters. Legacy rows without captured request settings
+cannot faithfully replay and show an explicit unavailable message. See the
+[secondary replay audit](replay-audit-2026-09-12.md) for live verification.
+
 ### `modelSelection` — `*CONFIGURED` vs `*SELECT`
 
 A worker-carrying `InternalPrompt` has a `modelSelection` field
