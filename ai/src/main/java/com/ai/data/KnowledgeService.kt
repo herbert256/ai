@@ -234,7 +234,7 @@ object KnowledgeService {
             val service = AppService.findById(first.embedderProviderId) ?: throw java.io.IOException("Knowledge embedder provider is unavailable")
             val apiKey = aiSettings.getApiKey(service)
             if (apiKey.isBlank()) throw java.io.IOException("Knowledge embedder API key is missing")
-            repository.embed(service, apiKey, first.embedderModel, listOf(query))?.firstOrNull()
+            repository.embed(service, apiKey, first.embedderModel, listOf(query), isQuery = true)?.firstOrNull()
         } ?: throw java.io.IOException("Knowledge query embedding failed")
         // Convert once to match the chunk-side FloatArray representation; the
         // primitive-array cosine path is the hot loop now.

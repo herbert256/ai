@@ -1,5 +1,7 @@
 # Test all Models — 12 September 2026
 
+Follow-up: [implemented fixes and live verification](model-test-fixes-2026-09-12.md). The observations below preserve the original pre-fix run.
+
 Ran **Housekeeping → Test → Test all models → all 33 selected providers** on `emulator-5554`. One fresh sweep; no rerun of errors. Start **12:13:35**, completion **12:28:26.270 Europe/Amsterdam**. Run ID: `f9f261d8-f34d-4b1e-a159-a65ba6e32b66`.
 
 The installed APK matched the repository's built debug APK by SHA-256 (`fe4ec11613ae799245c950900114a1a8fc15dec4807981970e8c77e4bc73ef11`), version `26.249.607`; repository HEAD at launch was `80a162f31`. No source or provider configuration was edited to conduct the run. Diagnostic state changes below were produced by the existing test engine.

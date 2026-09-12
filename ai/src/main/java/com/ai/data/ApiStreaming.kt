@@ -134,6 +134,16 @@ internal fun parseSseStream(
                     extractUsage(eventType, data)?.let { (u, raw) -> if (u != null) onUsage(u, raw) }
                 } catch (_: Exception) { /* usage is best-effort — never break the content stream */ }
             }
+            if (eventType == "response.incomplete" || eventType == "response.failed") {
+                // Usage above is still billable; preserve it before rejecting
+                // an incomplete report or chat answer.
+                val reason = runCatching {
+                    gson.fromJson(data, com.google.gson.JsonObject::class.java)
+                        ?.getAsJsonObject("response")?.getAsJsonObject("incomplete_details")
+                        ?.get("reason")?.asString
+                }.getOrNull()
+                throw java.io.IOException("${eventType}${reason?.let { ": $it" }.orEmpty()}")
+            }
             val content = extractContent(eventType, data)
             // Per-chunk TRACE: log the event-type tag and payload size
             // (not the payload itself — that would duplicate the trace
@@ -230,7 +240,7 @@ internal fun extractOpenAiUsage(service: AppService): (String?, String) -> Pair<
 
 /** OpenAI Responses API: the `response.completed` event holds response.usage. */
 internal fun extractResponsesApiUsage(service: AppService): (String?, String) -> Pair<TokenUsage?, String?>? = fn@{ eventType, data ->
-    if (eventType != "response.completed") return@fn null
+    if (eventType !in setOf("response.completed", "response.incomplete", "response.failed")) return@fn null
     try {
         val usageObj = gson.fromJson(data, com.google.gson.JsonObject::class.java)
             ?.getAsJsonObject("response")?.getAsJsonObject("usage") ?: return@fn null
@@ -377,6 +387,7 @@ private fun AnalysisRepository.streamOpenAi(
         }
         val request = OpenAiResponsesRequest(
             model = model, input = input, instructions = systemPrompt, stream = true,
+            max_output_tokens = params.maxTokens,
             tools = if (params.webSearchTool) responsesWebSearchTool() else null,
             reasoning = reasoningField(service, model, params.reasoningEffort)
         )

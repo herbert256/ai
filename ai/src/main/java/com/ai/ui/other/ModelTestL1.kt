@@ -78,7 +78,7 @@ internal fun ModelTestL1Screen(
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_l1",
-            title = "Test all models", subject = "Per-provider pass rate, tap to drill in",
+            title = "Test all models", subject = "Reachability and provider outcomes; tap for details",
             onTrace = runScopedTraceClick,
             onBackClick = onBack,
             // ⚙️ → AI Setup → Models → Test-excluded models (which this
@@ -99,7 +99,6 @@ internal fun ModelTestL1Screen(
             val benchCount = run.items.values.count {
                 it.status == TestStatus.FAIL && benched(it.providerId, it.model)
             }
-            val errorCount = run.errorCount - benchCount
             val throttledHere = remember(run, throttledKeys) {
                 run.items.values.count { it.key in throttledKeys }
             }
@@ -138,9 +137,9 @@ internal fun ModelTestL1Screen(
                     run.noChatAtStart + forTesting
                 val topStats = listOf(
                     Triple("Total", topTotal.toString(), AppColors.InfoAccent),
-                    Triple("Inaccessible", run.inaccessibleAtStart.toString(), AppColors.PrimaryAccent),
+                    Triple("Inacc. before", run.inaccessibleAtStart.toString(), AppColors.PrimaryAccent),
                     Triple("Excluded", run.excludedAtStart.toString(), AppColors.CautionAccent),
-                    Triple("No chat", run.noChatAtStart.toString(), AppColors.WarningAccent),
+                    Triple("Other types", run.noChatAtStart.toString(), AppColors.WarningAccent),
                     Triple("For testing", forTesting.toString(), AppColors.InfoAccent),
                     // Costs replaces the standalone "Total costs" header
                     // row that used to live above the provider list — same
@@ -163,12 +162,10 @@ internal fun ModelTestL1Screen(
                 // list owns that, aligned with the per-provider cost
                 // column).
                 val stats = listOf(
-                    Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
-                    Triple("Errors", errorCount.toString(), AppColors.DangerAccent),
-                    Triple("Bench", benchCount.toString(), AppColors.InfoAccent),
-                    Triple("Running", run.runningCount.toString(), AppColors.WarningAccent),
-                    Triple("Throttled", throttledHere.toString(), AppColors.CautionAccent),
-                    Triple("Queued", queuedCount.toString(), AppColors.PrimaryAccent)
+                    Triple("Reachable", run.doneCount.toString(), AppColors.SuccessAccent),
+                    Triple("Inaccessible", run.inaccessibleCount.toString(), AppColors.CautionAccent),
+                    Triple("Unsupported", run.unsupportedCount.toString(), AppColors.TextTertiary),
+                    Triple("Failed", run.errorCount.toString(), AppColors.DangerAccent)
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     stats.forEach { (label, _, color) ->
@@ -182,12 +179,18 @@ internal fun ModelTestL1Screen(
                 }
             }
 
+            Text("Completed ${run.finishedCount}/${run.total} · Running ${run.runningCount} · Throttled $throttledHere · Queued $queuedCount",
+                fontSize = 11.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 6.dp))
+            if (benchCount > 0) Text("$benchCount failures are on provider cooldown", fontSize = 11.sp, color = AppColors.InfoAccent)
+            Text("Costs show each model's latest attempt. Estimates and token limits are not spending guarantees.",
+                fontSize = 10.sp, color = AppColors.TextTertiary)
+
             // Progress bar — shown while items are still pending or
             // running. Counts every PASS/FAIL as finished.
             val pending = run.queuedCount + run.runningCount
             if (pending > 0 && run.total > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
-                val finished = (run.doneCount + run.errorCount).toFloat() / run.total
+                val finished = run.finishedCount.toFloat() / run.total
                 LinearProgressIndicator(
                     progress = { finished },
                     modifier = Modifier.fillMaxWidth().height(6.dp),
@@ -221,14 +224,16 @@ internal fun ModelTestL1Screen(
                     val total = items.size
                     val ok = items.count { it.status == TestStatus.PASS }
                     val err = items.count { it.status == TestStatus.FAIL }
+                    val inaccessible = items.count { it.status == TestStatus.INACCESSIBLE }
+                    val unsupported = items.count { it.status == TestStatus.UNSUPPORTED }
                     val running = items.count { it.status == TestStatus.RUNNING }
                     val cost = items.sumOf { it.totalCost }
                     val label = AppService.findById(pid)?.id ?: pid
                     // Green fill = how much of this provider is *tested*
                     // (pass + fail), i.e. progress — not the pass rate.
-                    val tested = ok + err
+                    val tested = items.count { it.status.isTerminal }
                     val progressFraction = if (total > 0) tested / total.toFloat() else 0f
-                    val progressColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
+                    val progressColor = AppColors.InfoAccent.copy(alpha = 0.30f)
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .drawBehind {
@@ -243,13 +248,15 @@ internal fun ModelTestL1Screen(
                             .clickable { onOpenProvider(pid) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (!allDone) {
+                        run {
                             val icon = when {
                                 running > 0 -> "⏳"
                                 total == 0 -> com.ai.data.MetadataIconsHolder.current.add
                                 err > 0 && err == total -> com.ai.data.MetadataIconsHolder.current.statusFailed
                                 ok == total -> com.ai.data.MetadataIconsHolder.current.statusDone
                                 err > 0 -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                                inaccessible > 0 -> "⛔"
+                                unsupported > 0 -> "—"
                                 else -> com.ai.data.MetadataIconsHolder.current.clockQueued
                             }
                             if (icon == "⏳") {
@@ -260,12 +267,12 @@ internal fun ModelTestL1Screen(
                                 Text(icon, fontSize = 16.sp, modifier = Modifier.width(20.dp))
                             }
                         }
-                        Text(
-                            label,
-                            fontSize = 14.sp, color = AppColors.TextPrimary,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(start = 4.dp)
-                        )
+                        Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                            Text(label, fontSize = 14.sp, color = AppColors.TextPrimary,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Reachable $ok · Inaccessible $inaccessible", fontSize = 10.sp, color = AppColors.TextSecondary)
+                            Text("Unsupported $unsupported · Failed $err · ${tested}/$total complete", fontSize = 10.sp, color = AppColors.TextSecondary)
+                        }
                         if (cost > 0.0) {
                             Text(
                                 formatCents(cost), fontSize = 11.sp,
@@ -310,17 +317,16 @@ internal fun ModelTestL1Screen(
                 }
                 // Re-probe just the previously-errored models — shown only
                 // when there's an idle run with errors.
-                if (run != null && run.errorCount > 0) {
+                if (run != null && run.errorCount + run.unsupportedCount > 0) {
                     OutlinedButton(
                         onClick = { actions.onRerunErrors() },
                         modifier = Modifier.weight(1f),
                         colors = AppColors.outlinedButtonColors()
                     ) {
-                        Text("Rerun Errors (${run.errorCount})", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                        Text("Retry (${run.errorCount + run.unsupportedCount})", fontSize = 13.sp, maxLines = 1, softWrap = false)
                     }
                 }
             }
         }
     }
 }
-

@@ -466,6 +466,9 @@ data class Settings(
      *  output via the early return. */
     fun getModelType(service: AppService, modelId: String): String? {
         modelTypeOverrides.firstOrNull { it.providerId == service.id && it.modelId == modelId }?.let { return it.type }
+        // Native endpoint exceptions outrank stale fetched types, after explicit user overrides.
+        if (service.id == "OpenAI" && modelId.startsWith("gpt-5-search-api")) return com.ai.data.ModelType.CHAT
+        if (service.id == "xAI" && "multi-agent" in modelId) return com.ai.data.ModelType.RESPONSES
         com.ai.data.PricingCache.liteLLMModelType(service, modelId)?.let {
             if (it != com.ai.data.ModelType.CHAT) return it
         }

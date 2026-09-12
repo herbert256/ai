@@ -625,6 +625,9 @@ class AnalysisRepository {
      *  ModelType.infer fallback catches GPT-5 / GPT-6 / o3 / o4 family
      *  names only on providers with a non-empty Responses pattern config. */
     internal fun usesResponsesApi(service: AppService, model: String): Boolean {
+        // Native endpoint exceptions precede broad family patterns.
+        if (service.id == "OpenAI" && model.startsWith("gpt-5-search-api")) return false
+        if (service.id == "xAI" && "multi-agent" in model) return true
         if (service.responsesApiPatterns.anyMatches(model)) return true
         // Name-based RESPONSES inference is a fallback ONLY for providers that
         // actually expose a Responses API (they declare responsesApiPatterns —

@@ -63,12 +63,13 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
     "test_all_models_l1" to HelpContent(
         title = "Help - Test all models",
         cards = listOf(
-            HelpCard("What you're seeing", "One row per active provider. Each row shows that provider's models-passed count and a green progress fill. Tap a provider to drill into its model list."),
-            HelpCard("The stats panel", "Two rows. Top row is the catalog snapshot frozen at run start: Total · Inaccessible · Excluded · No chat · For testing · Costs. Bottom row is live run progress: Done · Errors · Bench · Running · Throttled · Queued. Bench counts models whose key is on a >1h-429 cooldown — they failed only because they're rate-limited and will recover on their own, so they're split out from genuine Errors."),
+            HelpCard("What you're seeing", "One row per provider, with permanent reachable, inaccessible, unsupported and failed counts. Blue fill shows completed work while running. Reachability does not measure answer quality. Tap a provider for its model list."),
+            HelpCard("The stats panel", "The top row preserves the catalog and skips before the run. The outcome row separately counts reachable, newly inaccessible, unsupported and failed probes. These outcomes plus unfinished work equal For testing. Completed includes every terminal outcome. Provider cooldowns are identified separately within failures."),
             HelpCard("Test all models button", "Opens the provider picker, where you choose which providers to test before a fresh run starts. The run replaces the previous run's results and can be hundreds of API calls."),
             HelpCard("Cancel test button", "Appears next to \"Check current test run\" while a run is in flight — tap it to stop. Models that hadn't finished are marked as a \"Cancelled\" failure so the run stays a complete, consistent snapshot."),
             HelpCard("Check current test run button", "A run reloaded from disk after the app was killed can still show queued / running models even though nothing is actually working on them. Tap this to check: if the run is genuinely active it just says so, but if it had stalled it restarts the unfinished models (already-passed results are kept)."),
-            HelpCard("Rerun Errors again button", "Once a run is finished with at least one error, a \"Rerun Errors (N)\" button appears alongside \"Test all models\". Tap it to re-probe just the FAILed models — passes are kept untouched. Useful after fixing the parser, raising max_tokens, sleeping off transient 429s, or pruning the catalog."),
+            HelpCard("Retry button", "Retries failures and previously unsupported requests that the app can now probe. Known unsupported types and exclusions remain in the snapshot without sending a request. The catalog denominator and already-reachable results stay fixed."),
+            HelpCard("Probe budget", "Requests use a 64-token limit and a 60-second timeout. Costs are estimates; providers can exceed requested token limits or charge for internal tools. Groq Compound is skipped before dispatch because it exceeded this budget. A probe costing more than 5¢ is excluded from later sweeps."),
             HelpCard("Persistence", "The last run is kept on disk and reloaded every time you open this screen, so you can leave and come back to review results. Starting a fresh run overwrites it; Housekeeping → Manage data → Reset → Clear runtime data drops it."),
         )
     ),
@@ -83,15 +84,16 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
     "test_all_models_l2" to HelpContent(
         title = "Help - Test all models - provider",
         cards = listOf(
-            HelpCard("What you're seeing", "Every configured model of one provider, each with its test status — ✅ passed, ❌ failed, ⏳ running, 🕓 queued. Tap a model for the full result detail."),
-            HelpCard("Costs", "Per-model cost is shown when the probe reported token usage; the footer totals the provider's spend for this run."),
+            HelpCard("What you're seeing", "Every selected model of one provider: ✅ reachable, ⛔ inaccessible, — unsupported probe, ❌ failed, ⏳ running, 🕓 queued. Status icons remain visible after completion. Tap a model for evidence."),
+            HelpCard("Costs", "Per-model cost is shown when the probe reported token usage; the footer sums the latest attempt for each model. Retrying replaces that model's displayed estimate, so this is not a cumulative bill. Earlier attempts remain in the run's API traces while retained."),
         )
     ),
     "test_all_models_l3" to HelpContent(
         title = "Help - Test all models - model",
         cards = listOf(
-            HelpCard("What you're seeing", "One model's test result: pass/fail, the error message when it failed, call latency, cost, and the model's actual reply to the \"Reply with exactly: OK\" probe."),
-            HelpCard("Trace link", "When API tracing is enabled (Settings → Log/trace/audit/statistics), the 🐞 icon opens the captured request/response for this probe."),
+            HelpCard("What you're seeing", "One model's reachability outcome, original error, latency, estimated cost and actual reply to the \"Reply with exactly: OK\" probe."),
+            HelpCard("Retry this model", "Rechecks this model while preserving all other results. Test exclusions still apply. A successful retry clears the model's previous blocked or inaccessible state."),
+            HelpCard("Trace link", "The 🐞 icon opens this exact request, including an inaccessible or failed response. The latest sweep has a separate retention allowance of 10,000 traces / 128 MiB. Starting a new sweep releases the old allowance. Explicit cleanup can remove traces; missing evidence is labelled in the detail screen."),
             HelpCard("Prev / Next", "Swipe left/right on the content area to step through the same provider-scoped model list the previous screen shows, without going back."),
         )
     ),

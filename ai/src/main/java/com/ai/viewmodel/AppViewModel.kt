@@ -54,13 +54,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     internal val settingsPrefs = SettingsPreferences(prefs, application.filesDir)
 
-    // Seed the persisted GeneralSettings synchronously so the very first
-    // composition already knows appHomeMode (Home bar vs Home screen) — the
-    // async bootstrap in init{} refreshes everything shortly after. Without
-    // this seed appHomeMode is the HOME_SCREEN default for a frame, so the
-    // home hub flashes before the Home-bar redirect. loadGeneralSettings() is
-    // a pure SharedPreferences read, safe to call at construction.
-    private val _uiState = MutableStateFlow(UiState(generalSettings = settingsPrefs.loadGeneralSettings()))
+    // SharedPreferences getters wait for the entire XML to load. Keep that
+    // wait in bootstrap's IO coroutine; navigation waits for settingsReady.
+    private val _uiState = MutableStateFlow(UiState())
+    private val _settingsReady = MutableStateFlow(false)
+    val settingsReady: StateFlow<Boolean> = _settingsReady.asStateFlow()
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     /** Singleton Job for the app-wide read-only broken-work scan
@@ -469,13 +467,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // launch) must not leak a trace before we know the master + the
         // user's tracing choice are both on.
         ApiTracer.isTracingEnabled = false
-        // Preload pricing independently of bootstrap. Trace prewarming
-        // starts in bootstrap after ApiTracer.init supplies its directory;
-        // launching it here could return early with no directory to scan.
-        AppLog.d("App.start", "→ Prewarm PricingCache")
-        PricingCache.preloadAsync(application, viewModelScope)
-        AppLog.d("App.start", "← PricingCache prewarm dispatched (background)")
-
         // Stall watchdog. Every 15s WHILE work is in flight, log the cap
         // snapshot + per-host throttle state. If the global in-flight count
         // doesn't change for 60s straight (4 ticks) while still > 0, that's
@@ -508,7 +499,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val startTag = "App.start"
-            val bs = bootstrap(application)
+            // SharedPreferences loads the whole XML. Let that finish on IO
+            // before launching allocation-heavy catalog preloads; concurrent
+            // warmup can starve the preference loader on small emulators.
+            prefs.contains(KEY_FIRST_RUN_BOOTSTRAPPED)
+            PricingCache.preloadAsync(application, viewModelScope)
+            val loaded = bootstrap(application)
+            val repaired = com.ai.data.ModelTestMigration.repair(application, loaded.second)
+            if (repaired != loaded.second) settingsPrefs.saveSettings(repaired)
+            val bs = loaded.first to repaired
 
             AppLog.d(startTag, "→ Apply general settings to global singletons")
             ModelType.userDefaults = bs.first.defaultTypePaths
@@ -588,6 +587,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             AppLog.d(startTag, "→ Publish initial UiState")
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
+            _settingsReady.value = true
             AppLog.d(startTag, "← Publish initial UiState done")
 
             AppLog.d(startTag, "→ refreshAllModelLists (cache-respecting)")
@@ -1363,7 +1363,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *     excluded (no-clobber). */
     fun applyTestItemIncrement(item: com.ai.data.ModelTestState) {
         val status = item.status
-        if (status != com.ai.data.TestStatus.PASS && status != com.ai.data.TestStatus.FAIL) return
+        if (!status.isTerminal) return
         val onCooldown = com.ai.data.ModelCooldownStore.isUnavailable(item.providerId, item.model)
         _uiState.update { current ->
             val s = current.aiSettings
@@ -1372,8 +1372,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             // Always start by dropping any existing entry for this
             // (provider, model); FAIL-not-on-cooldown re-adds with the
             // fresh error message below.
-            if (blocked.any { it.key == key }) {
-                blocked = blocked.filterNot { it.key == key }
+            blocked = blocked.filterNot {
+                it.key == key && (status == com.ai.data.TestStatus.PASS || status == com.ai.data.TestStatus.FAIL ||
+                    (item.previousErrorMessage != null && it.reason == item.previousErrorMessage.take(300)))
             }
             if (status == com.ai.data.TestStatus.FAIL && !onCooldown) {
                 blocked = blocked + com.ai.model.BlockedModel(
@@ -1385,8 +1386,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (item.totalCost > COSTLY_PROBE_USD_THRESHOLD && excluded.none { it.key == key }) {
                 excluded = excluded + com.ai.model.TestExcludedModel(item.providerId, item.model)
             }
-            if (blocked === s.blockedModels && excluded === s.testExcludedModels) return@update current
-            current.copy(aiSettings = s.copy(blockedModels = blocked, testExcludedModels = excluded))
+            // An explicit successful retry supersedes the previous access failure.
+            val inaccessible = if (status == com.ai.data.TestStatus.PASS)
+                s.inaccessibleModels.filterNot { it.key == key } else s.inaccessibleModels
+            if (blocked == s.blockedModels && excluded == s.testExcludedModels && inaccessible == s.inaccessibleModels) return@update current
+            current.copy(aiSettings = s.copy(blockedModels = blocked, testExcludedModels = excluded, inaccessibleModels = inaccessible))
         }
     }
 
@@ -2241,37 +2245,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     } catch (_: Exception) { null }
 
-    suspend fun testModelWithPrompt(service: AppService, apiKey: String, model: String, prompt: String): Pair<Boolean, String?> {
-        return try {
-            val traceCountBefore = ApiTracer.getTraceCount()
-            val (responseText, _) = repository.testModelWithPrompt(service, apiKey, model, prompt)
-            val traceFile = ApiTracer.getTraceFiles().firstOrNull()?.let {
-                if (ApiTracer.getTraceCount() > traceCountBefore) it.filename else null
-            } ?: ApiTracer.getTraceFiles().firstOrNull()?.filename
-            Pair(responseText != null && responseText.isNotBlank(), traceFile)
-        } catch (_: Exception) { Pair(false, ApiTracer.getTraceFiles().firstOrNull()?.filename) }
-    }
+    suspend fun testModelWithPrompt(service: AppService, apiKey: String, model: String, prompt: String): Pair<Boolean, String?> =
+        testSpecificModel(service, apiKey, model, prompt)
 
-    /**
-     * Per-model test variant safe to run concurrently. Captures startTime before the
-     * call and then resolves the trace file by matching model name + timestamp, so
-     * five parallel "Test all models" calls don't all collapse onto whichever trace
-     * happened to land last globally.
-     */
+    /** Exact request identity also applies to concurrent provider-screen probes. */
     suspend fun testSpecificModel(service: AppService, apiKey: String, model: String, prompt: String): Pair<Boolean, String?> {
-        val startTime = System.currentTimeMillis()
+        val sink = java.util.concurrent.atomic.AtomicReference<String?>(null)
         return try {
-            val (responseText, _) = repository.testModelWithPrompt(service, apiKey, model, prompt)
-            val traceFile = ApiTracer.getTraceFiles()
-                .firstOrNull { it.model == model && it.timestamp >= startTime }
-                ?.filename
-            Pair(responseText != null && responseText.isNotBlank(), traceFile)
-        } catch (_: Exception) {
-            val traceFile = ApiTracer.getTraceFiles()
-                .firstOrNull { it.model == model && it.timestamp >= startTime }
-                ?.filename
-            Pair(false, traceFile)
-        }
+            val (responseText, error) = com.ai.data.withTraceFilenameSink(sink) {
+                repository.testModelWithPrompt(service, apiKey, model, prompt)
+            }
+            Pair(error == null && !responseText.isNullOrBlank(), sink.get())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) { Pair(false, sink.get()) }
     }
 
     // ===== External Intent =====

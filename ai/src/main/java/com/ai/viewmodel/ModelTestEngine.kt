@@ -5,6 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.ai.data.AgentParameters
 import com.ai.data.AnalysisRepository
 import com.ai.data.ApiCallCaps
+import com.ai.data.ModelCooldownStore
+import com.ai.data.ModelProbePolicy
+import com.ai.data.withTraceFilenameSink
+import com.ai.data.ApiTracer
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
+import java.util.concurrent.atomic.AtomicReference
 import com.ai.data.ModelType
 import com.ai.data.TokenUsage
 import com.ai.data.callModerationApi
@@ -140,7 +147,7 @@ class ModelTestEngine internal constructor(
         var total = 0; var inacc = 0; var excl = 0; var noChat = 0
         for (pid in providerIds) {
             val svc = AppService.findById(pid) ?: continue
-            for (model in aiSettings.getProvider(svc).models) {
+            for (model in aiSettings.getProvider(svc).models.distinct()) {
                 if (model.isBlank()) continue
                 total++
                 if (modelTestKey(pid, model) in itemKeys) continue
@@ -204,6 +211,7 @@ class ModelTestEngine internal constructor(
         _run.value = ModelTestRunState(
             startedAt = System.currentTimeMillis(),
             runId = java.util.UUID.randomUUID().toString(),
+            policyVersion = ModelProbePolicy.VERSION,
             items = items,
             catalogTotal = stats.total,
             inaccessibleAtStart = stats.inaccessible,
@@ -257,24 +265,20 @@ class ModelTestEngine internal constructor(
      *  [syncTestRunSideEffects] hook fires, so Blocked-models +
      *  Test-excluded stay consistent with the merged state.
      *
-     *  Also drops FAIL items that should never have been in the sweep
-     *  to begin with: test-excluded models (added since the original
-     *  run) and non-testable types ([NON_TESTABLE_TYPES] — images,
-     *  TTS, STT, etc., possibly inherited from a run that predates the
-     *  type filter). These are removed from `_run.items` entirely so
-     *  the L1 Total reflects what's actually testable. */
+     *  Unsupported, excluded and inaccessible entries stay in the snapshot;
+     *  retrying never changes the original catalog denominator. */
     fun rerunErrors(context: Context): RerunErrorsOutcome {
         if (runJob?.isActive == true) return RerunErrorsOutcome.ALREADY_RUNNING
         val run = _run.value ?: return RerunErrorsOutcome.NO_RUN
         val aiSettings = appViewModel.uiState.value.aiSettings
 
         val originalFailedKeys = run.items.values
-            .filter { it.status == TestStatus.FAIL }
+            .filter { it.status == TestStatus.FAIL || it.status == TestStatus.UNSUPPORTED }
             .map { it.key }
             .toSet()
         // Stale FAIL items — items that wouldn't be in a fresh sweep
         // today (test-excluded, inaccessible, or non-testable type).
-        // Drop them entirely rather than re-probing them every rerun.
+        // Retain their terminal outcome without re-probing them.
         val staleKeys = run.items.values
             .filter { st ->
                 if (st.key !in originalFailedKeys) return@filter false
@@ -282,7 +286,7 @@ class ModelTestEngine internal constructor(
                 if (aiSettings.isInaccessible(st.providerId, st.model)) return@filter true
                 val svc = AppService.findById(st.providerId) ?: return@filter false
                 val t = aiSettings.getModelType(svc, st.model)
-                t != null && t in NON_TESTABLE_TYPES
+                ModelProbePolicy.unsupportedReason(svc, st.model, t) != null
             }
             .map { it.key }
             .toSet()
@@ -290,30 +294,47 @@ class ModelTestEngine internal constructor(
 
         if (toRerunKeys.isEmpty()) {
             if (staleKeys.isNotEmpty()) {
-                _run.update { r -> r?.copy(items = r.items.filterKeys { it !in staleKeys }) }
-                AppLog.i("ModelTest", "↻ rerunErrors dropped ${staleKeys.size} stale, nothing to rerun")
-                _run.value?.let { ModelTestRunStore.save(context, it) }
+                _run.update { r -> r?.copy(items = r.items.mapValues { (k, st) ->
+                    if (k in staleKeys) st.copy(status = if (aiSettings.isInaccessible(st.providerId, st.model))
+                        TestStatus.INACCESSIBLE else TestStatus.UNSUPPORTED) else st
+                }) }
+                AppLog.i("ModelTest", "↻ rerunErrors retained ${staleKeys.size} unsupported or excluded, nothing to rerun")
+                appViewModel.viewModelScope.launch(Dispatchers.IO) { persist(context) }
             }
             return RerunErrorsOutcome.NO_ERRORS
         }
 
         cancelItemJobs()
         _throttledKeys.value = emptySet()
-        // One atomic StateFlow update: drop stale items, flip the
-        // rerun set back to PENDING.
+        // One atomic StateFlow update: preserve skipped items, reset retry candidates.
         _run.update { r ->
             r?.copy(items = r.items
-                .filterKeys { it !in staleKeys }
                 .mapValues { (k, st) ->
-                    if (k in toRerunKeys) st.copy(status = TestStatus.PENDING) else st
+                    when (k) {
+                        in toRerunKeys -> st.copy(status = TestStatus.PENDING)
+                        in staleKeys -> st.copy(status = if (aiSettings.isInaccessible(st.providerId, st.model))
+                            TestStatus.INACCESSIBLE else TestStatus.UNSUPPORTED)
+                        else -> st
+                    }
                 })
         }
         if (staleKeys.isNotEmpty()) {
-            AppLog.i("ModelTest", "↻ rerunErrors dropped ${staleKeys.size} stale items")
+            AppLog.i("ModelTest", "↻ rerunErrors retained ${staleKeys.size} unsupported or excluded items")
         }
         AppLog.i("ModelTest", "↻ rerunErrors ${toRerunKeys.size} previously-failed models")
         dispatch(context, toRerunKeys.toList())
         return RerunErrorsOutcome.RESTARTED
+    }
+
+    /** Recheck one result after an integration fix without repeating a whole provider. */
+    fun retryItem(context: Context, key: ModelTestKey): Boolean {
+        if (isRunning) return false
+        val item = _run.value?.items?.get(key) ?: return false
+        val settings = appViewModel.uiState.value.aiSettings
+        if (settings.isTestExcluded(item.providerId, item.model)) return false
+        transition(key) { it.copy(status = TestStatus.PENDING) }
+        dispatch(context, listOf(key))
+        return true
     }
 
     /** Launch the outer coroutine that runs per-item workers for
@@ -331,6 +352,7 @@ class ModelTestEngine internal constructor(
                     // single global "Concurrent API calls" cap (the shared
                     // global semaphore in runThrottledBatch still applies on
                     // top; this local cap matches it so it never binds tighter).
+                    _run.value?.runId?.let { ApiTracer.retainModelTestRun(it) }
                     val cap = appViewModel.uiState.value.generalSettings.maxConcurrentApiCalls.coerceAtLeast(1)
                     val ioCap = Semaphore(cap)
                     val items = keys.mapNotNull { _run.value?.items?.get(it) }
@@ -392,7 +414,7 @@ class ModelTestEngine internal constructor(
                 // Subtract test-excluded + inaccessible + non-testable
                 // model types so the count matches what the sweep will
                 // actually probe.
-                val n = config.models.count { m ->
+                val n = config.models.distinct().count { m ->
                     if (m.isBlank()) return@count false
                     if (aiSettings.isTestExcluded(service.id, m)) return@count false
                     if (aiSettings.isInaccessible(service.id, m)) return@count false
@@ -453,167 +475,75 @@ class ModelTestEngine internal constructor(
     // withTimeout + suppressInlineRetry (see below).
     private suspend fun runOne(context: Context, key: ModelTestKey) {
         val item = _run.value?.items?.get(key) ?: return
-        val service = AppService.findById(item.providerId) ?: run {
-            transition(key) { it.copy(status = TestStatus.FAIL, errorMessage = "Provider not registered") }
-            _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
-            persist(context)
-            return
-        }
-        val aiSettings = appViewModel.uiState.value.aiSettings
-        val apiKey = aiSettings.getApiKey(service)
-        val type = aiSettings.getModelType(service, item.model)
-                try {
-                    transition(key) { it.copy(status = TestStatus.RUNNING) }
-                    val t0 = System.currentTimeMillis()
-                    try {
-                        // acquireOrRequeue already holds the per-host
-                        // throttle permit — flag it so the OkHttp
-                        // interceptor skips its own acquire. Without
-                        // this the interceptor re-acquires on the same
-                        // per-host semaphore and three same-host probes
-                        // self-deadlock (each waits on a permit its own
-                        // coroutine holds).
-                        //
-                        // suppressInlineRetry: a 429 / 529 here is a
-                        // result worth recording, not something to
-                        // sleep-and-retry — the sleeping retry loop
-                        // would pin this ioCap permit for tens of
-                        // seconds and stall the whole sweep.
-                        val probe = try {
-                            // Per-probe 60s ceiling. A single hung model
-                            // (e.g. an OpenRouter free-tier worker that
-                            // just stops responding) would otherwise pin
-                            // its per-host semaphore slot for the full
-                            // network read timeout (~120s) and block
-                            // every sibling probe queued behind it. The
-                            // longest legitimate Test-all run we see is
-                            // ~18s on gpt-5-pro/o3-pro; 60s gives 3x
-                            // headroom while keeping a stuck probe from
-                            // stalling the sweep.
-                            withTimeout(60_000) {
-                                withContext(
-                                    ProviderThrottle.permitPreAcquired.asContextElement(true) +
-                                        ProviderThrottle.suppressInlineRetry.asContextElement(true)
-                                ) {
-                                    withTraceCategory("Test all models") {
-                                        when (type) {
-                                            ModelType.EMBEDDING -> probeEmbedding(service, apiKey, item.model)
-                                            ModelType.RERANK -> probeRerank(service, apiKey, item.model)
-                                            ModelType.MODERATION -> probeModeration(service, apiKey, item.model)
-                                            // CHAT, RESPONSES, UNKNOWN, null →
-                                            // the existing chat-completions probe.
-                                            else -> probeChat(service, apiKey, item.model)
-                                        }
-                                    }
+        val traceSink = AtomicReference<String?>(null)
+        val t0 = System.currentTimeMillis()
+        try {
+            val service = AppService.findById(item.providerId)
+            val settings = appViewModel.uiState.value.aiSettings
+            val type = service?.let { settings.getModelType(it, item.model) }
+            val unsupported = service?.let { ModelProbePolicy.unsupportedReason(it, item.model, type) }
+                ?: if (service == null) "Provider not registered in this app." else null
+            if (unsupported != null || service == null) {
+                transition(key) { it.copy(status = TestStatus.UNSUPPORTED, errorMessage = unsupported,
+                    responseText = null, previousErrorMessage = item.errorMessage, traceFilename = null, durationMs = 0L) }
+                _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
+                return
+            }
+            transition(key) { it.copy(status = TestStatus.RUNNING, errorMessage = null,
+                responseText = null, traceFilename = null) }
+            val probe = try {
+                withTraceFilenameSink(traceSink) {
+                    withTimeout(ModelProbePolicy.TIMEOUT_MS) {
+                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true) +
+                            ProviderThrottle.suppressInlineRetry.asContextElement(true)) {
+                            withTraceCategory("Test all models") {
+                                val apiKey = settings.getApiKey(service)
+                                when (type) {
+                                    ModelType.EMBEDDING -> probeEmbedding(service, apiKey, item.model)
+                                    ModelType.RERANK -> probeRerank(service, apiKey, item.model)
+                                    ModelType.MODERATION -> probeModeration(service, apiKey, item.model)
+                                    else -> probeChat(service, apiKey, item.model)
                                 }
                             }
-                        } catch (e: TimeoutCancellationException) {
-                            ProbeResult(
-                                isSuccess = false,
-                                errorMessage = "Test timed out after 60s",
-                                responseText = null,
-                                durationMs = System.currentTimeMillis() - t0,
-                                tokenUsage = null
-                            )
                         }
-                        // Tier-gating: a probe that came back with a
-                        // "model not reachable on this account" signal
-                        // isn't really a failure — the model just isn't
-                        // available here. Move it to the Inaccessible
-                        // list (skipped next sweep) and count this run's
-                        // item as Done — keep it in _run.items so the
-                        // run's Total stays stable.
-                        //   - "non-serverless" — Together's dedicated-
-                        //     only entries (~60 of them).
-                        //   - "is not available on" — SambaNova's HTTP
-                        //     410 wording for retired/unprovisioned
-                        //     model ids (DeepSeek-R1, Qwen3-32B, etc).
-                        //   - HTTP 404 — generic "endpoint / model id
-                        //     not found" from every provider. In a
-                        //     probe context the model id we requested
-                        //     simply doesn't exist anywhere reachable
-                        //     on this account, so it's functionally
-                        //     Inaccessible. Catches Google's retired
-                        //     gemini-robotics-* and Together's "Model
-                        //     not found, inaccessible, and/or not
-                        //     deployed" without per-provider patterns.
-                        val errMsg = probe.errorMessage
-                        val isHttp404 = errMsg != null && (
-                            errMsg.contains("API error: 404", ignoreCase = true) ||
-                                errMsg.contains("\"code\":404", ignoreCase = true)
-                        )
-                        val isTierGated = errMsg != null && (
-                            errMsg.contains("non-serverless", ignoreCase = true) ||
-                                errMsg.contains("is not available on", ignoreCase = true) ||
-                                isHttp404
-                        )
-                        if (isTierGated) {
-                            appViewModel.upsertInaccessibleModel(
-                                com.ai.model.InaccessibleModel(
-                                    item.providerId, item.model, errMsg.take(200)
-                                )
-                            )
-                            val durationMs = probe.durationMs.takeIf { it > 0 } ?: (System.currentTimeMillis() - t0)
-                            transition(key) {
-                                it.copy(
-                                    status = TestStatus.PASS,
-                                    errorMessage = null,
-                                    responseText = "Inaccessible — tier-gated, will be skipped next sweep",
-                                    durationMs = durationMs
-                                )
-                            }
-                        } else {
-                            val durationMs = probe.durationMs.takeIf { it > 0 } ?: (System.currentTimeMillis() - t0)
-                            val (inCost, outCost) = probe.tokenUsage?.let { usage ->
-                                PricingCache.computeInOutCost(
-                                    usage, PricingCache.getPricing(context, service, item.model)
-                                )
-                            } ?: (0.0 to 0.0)
-                            val trace = if (com.ai.data.ApiTracer.isTracingEnabled) {
-                                com.ai.data.ApiTracer.getTraceFiles()
-                                    .firstOrNull { it.model == item.model && it.timestamp >= t0 }
-                                    ?.filename
-                            } else null
-                            transition(key) {
-                                it.copy(
-                                    status = if (probe.isSuccess) TestStatus.PASS else TestStatus.FAIL,
-                                    errorMessage = probe.errorMessage,
-                                    responseText = probe.responseText,
-                                    durationMs = durationMs,
-                                    inputCost = inCost,
-                                    outputCost = outCost,
-                                    traceFilename = trace
-                                )
-                            }
-                            // A passing probe means the model is healthy
-                            // again — drop any stale >1h-429 cooldown so
-                            // future calls aren't gratuitously dimmed.
-                            if (probe.isSuccess) {
-                                com.ai.data.ModelCooldownStore.remove(item.providerId, item.model)
-                            }
-                            // Live-sync this item's outcome into the
-                            // Blocked / Test-excluded lists so the user
-                            // sees entries appear as the sweep progresses.
-                            // Disk flush happens once at end-of-run /
-                            // cancel.
-                            _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
-                        }
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        transition(key) {
-                            it.copy(
-                                status = TestStatus.FAIL,
-                                errorMessage = e.message ?: "Connection error",
-                                durationMs = System.currentTimeMillis() - t0
-                            )
-                        }
-                        _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
                     }
-                } finally {
-                    _throttledKeys.update { it - key }
-                    persist(context)
                 }
+            } catch (e: TimeoutCancellationException) {
+                currentCoroutineContext().ensureActive()
+                ProbeResult(false, "Test timed out after 60s", null,
+                    System.currentTimeMillis() - t0, null)
+            }
+            val status = when {
+                probe.isSuccess -> TestStatus.PASS
+                ModelProbePolicy.isUnsupportedError(probe.errorMessage) -> TestStatus.UNSUPPORTED
+                ModelProbePolicy.isInaccessibleError(probe.errorMessage) -> TestStatus.INACCESSIBLE
+                else -> TestStatus.FAIL
+            }
+            val (inCost, outCost) = probe.tokenUsage?.let {
+                PricingCache.computeInOutCost(it, PricingCache.getPricing(context, service, item.model))
+            } ?: (0.0 to 0.0)
+            transition(key) { it.copy(status = status, errorMessage = probe.errorMessage, previousErrorMessage = item.errorMessage,
+                responseText = probe.responseText,
+                durationMs = probe.durationMs.takeIf { ms -> ms > 0 } ?: (System.currentTimeMillis() - t0),
+                inputCost = inCost, outputCost = outCost, traceFilename = traceSink.get()) }
+            if (status == TestStatus.INACCESSIBLE) {
+                appViewModel.upsertInaccessibleModel(com.ai.model.InaccessibleModel(
+                    item.providerId, item.model, probe.errorMessage.orEmpty().take(300)))
+            }
+            if (status == TestStatus.PASS) ModelCooldownStore.remove(item.providerId, item.model)
+            _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Keep the exact reserved filename even if its failure trace finishes later.
+            transition(key) { it.copy(traceFilename = traceSink.get() ?: it.traceFilename) }
+            throw e
+        } catch (e: Exception) {
+            transition(key) { it.copy(status = TestStatus.FAIL, errorMessage = e.message ?: "Connection error",
+                durationMs = System.currentTimeMillis() - t0, traceFilename = traceSink.get()) }
+            _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
+        } finally {
+            _throttledKeys.update { it - key }
+            persist(context)
+        }
     }
 
     /** Generic outcome of a per-(provider, model) probe — chat /
@@ -645,16 +575,19 @@ class ModelTestEngine internal constructor(
         val t0 = System.currentTimeMillis()
         val r = appViewModel.repository.analyze(
             service, apiKey, AnalysisRepository.TEST_PROMPT, model,
-            params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
+            params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS,
+                systemPrompt = if (service.id == "NVIDIA" && "topic-control" in model)
+                    "Requests about confirming system health are on-topic. Other topics are off-topic." else null)
         )
         val outputTokens = r.tokenUsage?.outputTokens ?: 0
         val reasoningTokens = r.tokenUsage?.reasoningTokens ?: 0
         val emittedTokens = outputTokens + reasoningTokens
-        val reachableViaReasoning = !r.isSuccess && r.httpStatusCode == 200 && emittedTokens > 0
+        val reachable = ModelProbePolicy.reachable(r)
+        val reachableViaReasoning = reachable && r.analysis.isNullOrBlank() && emittedTokens > 0
         return ProbeResult(
-            isSuccess = r.isSuccess || reachableViaReasoning,
-            errorMessage = if (reachableViaReasoning) null else r.error,
-            responseText = r.analysis
+            isSuccess = reachable,
+            errorMessage = if (reachable) null else r.error,
+            responseText = r.analysis?.takeIf { it.isNotBlank() }
                 ?: if (reachableViaReasoning) "Reachable — emitted $emittedTokens reasoning tokens, no visible content" else null,
             durationMs = System.currentTimeMillis() - t0,
             tokenUsage = r.tokenUsage

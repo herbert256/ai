@@ -32,7 +32,10 @@ internal fun buildOpenAiRequest(service: AppService, model: String, messages: Li
         // Fall back to a bounded default so balance-gating providers
         // (OpenRouter) don't pre-authorise the model's whole output
         // window — see [defaultMaxTokens].
-        max_tokens = params?.maxTokens ?: defaultMaxTokens(service, model),
+        max_tokens = if (ModelProbePolicy.usesCompletionTokenLimit(service, model)) null
+            else params?.maxTokens ?: defaultMaxTokens(service, model),
+        max_completion_tokens = if (ModelProbePolicy.usesCompletionTokenLimit(service, model))
+            params?.maxTokens ?: defaultMaxTokens(service, model) else null,
         temperature = params?.temperature,
         top_p = params?.topP, top_k = params?.topK,
         frequency_penalty = params?.frequencyPenalty, presence_penalty = params?.presencePenalty,
@@ -91,6 +94,18 @@ internal fun validateOpenAiReportCompletion(response: AnalysisResponse, finishRe
     }
     return response.copy(finishReason = reason, error = failure ?: response.error,
         generationFailed = response.generationFailed || failure != null)
+}
+
+/** Capped Responses calls can return partial text with HTTP 200. */
+internal fun validateResponsesCompletion(response: AnalysisResponse, body: OpenAiResponsesApiResponse?): AnalysisResponse {
+    val status = body?.status
+    val error = when {
+        body?.error != null -> body.error.message ?: "Response failed"
+        status in setOf("incomplete", "failed", "cancelled") ->
+            "Response $status${body?.incomplete_details?.get("reason")?.let { ": $it" }.orEmpty()}"
+        else -> null
+    }
+    return if (error == null) response else response.copy(error = error, generationFailed = true, finishReason = status)
 }
 
 internal fun extractResponsesApiContent(body: OpenAiResponsesApiResponse?): String? {

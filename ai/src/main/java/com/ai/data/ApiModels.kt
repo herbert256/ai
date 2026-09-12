@@ -185,6 +185,7 @@ data class OpenAiRequest(
     val messages: List<OpenAiMessage>,
     val stream: Boolean? = null,
     val max_tokens: Int? = null,
+    val max_completion_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val top_k: Int? = null,
@@ -238,6 +239,7 @@ data class OpenAiUsage(
     val cost_in_usd_ticks: Long? = null,
     val cost_usd: UsageCost? = null,
     val prompt_tokens_details: OpenAiPromptTokensDetails? = null,
+    val input_tokens_details: OpenAiPromptTokensDetails? = null, // Responses API
     val prompt_cache_hit_tokens: Int? = null,   // DeepSeek
     val prompt_cache_miss_tokens: Int? = null,  // DeepSeek
     val cached_tokens: Int? = null              // some xAI / others flatten this
@@ -246,7 +248,10 @@ data class OpenAiUsage(
 data class SearchResult(val name: String?, val url: String?, val snippet: String?)
 
 // Embeddings (OpenAI-compatible — providers all use the same shape).
-data class OpenAiEmbeddingRequest(val model: String, val input: List<String>, val encoding_format: String = "float")
+data class OpenAiEmbeddingRequest(
+    val model: String, val input: List<String>, val encoding_format: String = "float",
+    val input_type: String? = null
+)
 data class OpenAiEmbeddingResponse(
     val data: List<OpenAiEmbeddingItem>?,
     val usage: OpenAiUsage? = null,
@@ -270,6 +275,8 @@ data class OpenAiError(val message: String?, val type: String?)
 data class OpenAiResponsesRequest(
     val model: String,
     val input: Any,
+    /** Includes reasoning tokens; preserve an explicitly requested output cap. */
+    val max_output_tokens: Int? = null,
     val instructions: String? = null,
     val stream: Boolean? = null,
     val tools: List<Any>? = null,
@@ -319,7 +326,8 @@ data class OpenAiResponsesApiResponse(
     val status: String?,
     val error: OpenAiResponsesError?,
     val output: List<OpenAiResponsesOutputMessage>?,
-    val usage: OpenAiUsage?
+    val usage: OpenAiUsage?,
+    val incomplete_details: Map<String, String>? = null
 )
 
 data class OpenAiResponsesError(val message: String?, val type: String?, val code: String?)
@@ -509,6 +517,7 @@ data class OpenAiModelsResponse(val data: List<OpenAiModel>?)
  *  whatever extra metadata a provider includes without forking parsers. */
 data class OpenAiModel(
     val id: String?,
+    val type: String? = null,
     val owned_by: String? = null,
     @JsonAdapter(LenientModelCapabilitiesDeserializer::class)
     val capabilities: MistralCapabilities? = null,
@@ -912,11 +921,13 @@ data class HuggingFaceSibling(val rfilename: String? = null)
 fun OpenAiUsage.toTokenUsage(provider: AppService? = null): TokenUsage {
     val total = prompt_tokens ?: input_tokens ?: 0
     val cached = prompt_tokens_details?.cached_tokens
+        ?: input_tokens_details?.cached_tokens
         ?: prompt_cache_hit_tokens
         ?: cached_tokens
         ?: 0
     val fresh = prompt_cache_miss_tokens
-        ?: if (provider?.promptTokensIncludeCachedTokens == false) total else (total - cached).coerceAtLeast(0)
+        ?: if (input_tokens_details == null && provider?.promptTokensIncludeCachedTokens == false) total
+        else (total - cached).coerceAtLeast(0)
     return TokenUsage(
         inputTokens = fresh,
         outputTokens = completion_tokens ?: output_tokens ?: 0,

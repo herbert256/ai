@@ -28,6 +28,11 @@ import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.ModelTestRunState
 import com.ai.data.TestStatus
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.ai.data.modelTestKey
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
@@ -74,7 +79,8 @@ internal fun ModelTestL3Screen(
                     when (p.status) {
                         TestStatus.RUNNING, TestStatus.PENDING -> 0
                         TestStatus.FAIL -> 1
-                        TestStatus.PASS -> 2
+                        TestStatus.INACCESSIBLE, TestStatus.UNSUPPORTED -> 2
+                        TestStatus.PASS -> 3
                     }
                 },
                 { p -> p.model.lowercase() }
@@ -84,6 +90,12 @@ internal fun ModelTestL3Screen(
     val curIdx = siblings.indexOfFirst { it.key == item.key }
     val prev = if (curIdx > 0) siblings[curIdx - 1] else null
     val next = if (curIdx in 0 until siblings.size - 1) siblings[curIdx + 1] else null
+    val traceVersion by ApiTracer.traceVersion.collectAsState()
+    val traceAvailable by produceState<Boolean?>(null, item.traceFilename, traceVersion) {
+        value = item.traceFilename?.let { filename ->
+            withContext(Dispatchers.IO) { ApiTracer.getTraceFiles().any { it.filename == filename } }
+        }
+    }
     val mi = com.ai.ui.shared.LocalMetadataIcons.current
 
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
@@ -95,7 +107,7 @@ internal fun ModelTestL3Screen(
             subjectModel = model,
             onBackClick = onBack,
             onInfo = service?.let { svc -> { actions.onNavigateToModelInfo(svc, model) } },
-            onTrace = if (ApiTracer.ladybugLinksEnabled && item.traceFilename != null) {
+            onTrace = if (ApiTracer.ladybugLinksEnabled && item.traceFilename != null && traceAvailable == true) {
                 { actions.onNavigateToTraceFile(item.traceFilename) }
             } else null
         )
@@ -119,9 +131,17 @@ internal fun ModelTestL3Screen(
             Text("Model: $model", color = AppColors.TextSecondary, fontSize = 13.sp)
             Spacer(Modifier.height(8.dp))
 
+            androidx.compose.material3.OutlinedButton(
+                onClick = { actions.onRetryModel(item.key) },
+                enabled = run.runningCount + run.queuedCount == 0,
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Retry this model") }
+
             // Status line.
             when (item.status) {
-                TestStatus.PASS -> Text("${mi.statusDone} Passed", color = AppColors.SuccessAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                TestStatus.PASS -> Text("${mi.statusDone} Reachable", color = AppColors.SuccessAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                TestStatus.INACCESSIBLE -> Text("⛔ Inaccessible", color = AppColors.CautionAccent, fontSize = 15.sp)
+                TestStatus.UNSUPPORTED -> Text("— Unsupported probe", color = AppColors.TextSecondary, fontSize = 15.sp)
                 TestStatus.FAIL -> Text("${mi.statusFailed} Failed", color = AppColors.DangerAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 TestStatus.RUNNING -> Row(verticalAlignment = Alignment.CenterVertically) {
                     AnimatedHourglass(fontSize = 16.sp)
@@ -130,9 +150,14 @@ internal fun ModelTestL3Screen(
                 TestStatus.PENDING -> Text("${mi.clockQueued} Queued", color = AppColors.TextTertiary, fontSize = 15.sp)
             }
 
+            if (item.traceFilename != null && traceAvailable == false) {
+                Text("Trace unavailable: it was removed or has not finished writing.", color = AppColors.TextTertiary, fontSize = 12.sp)
+            } else if (item.traceFilename == null && item.status.isTerminal) {
+                Text("No request trace was recorded for this result.", color = AppColors.TextTertiary, fontSize = 12.sp)
+            }
             if (!item.errorMessage.isNullOrBlank()) {
                 Spacer(Modifier.height(8.dp))
-                Text(item.errorMessage, color = AppColors.DangerAccent, fontSize = 13.sp)
+                Text(item.errorMessage, color = if (item.status == TestStatus.FAIL) AppColors.DangerAccent else AppColors.TextSecondary, fontSize = 13.sp)
             }
 
             Spacer(Modifier.height(8.dp))

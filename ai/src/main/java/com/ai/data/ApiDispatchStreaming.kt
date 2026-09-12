@@ -107,7 +107,7 @@ internal suspend fun AnalysisRepository.streamResponsesApiReport(
         ))
     } else prompt
     val request = OpenAiResponsesRequest(
-        model = model, input = input,
+        model = model, input = input, max_output_tokens = params?.maxTokens,
         instructions = params?.systemPrompt?.takeIf { it.isNotBlank() },
         stream = true,
         tools = if (params?.webSearchTool == true) responsesWebSearchTool() else null,

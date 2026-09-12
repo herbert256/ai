@@ -67,6 +67,7 @@ data class ModelTestActions(
     val onCancelRun: () -> Unit = {},
     val onCheckRun: () -> Unit = {},
     val onRerunErrors: () -> Unit = {},
+    val onRetryModel: (String) -> Unit = {},
     val onNavigateToTraceFile: (String) -> Unit = {},
     /** Open the trace list filtered to one Test-all-models run's
      *  runId. Wired on the L1 🐞 icon. */
@@ -151,6 +152,10 @@ fun ModelTestScreen(
                 ModelTestEngine.RerunErrorsOutcome.RESTARTED -> "Rerunning failed models"
             }
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        },
+        onRetryModel = { key ->
+            if (!engine.retryItem(context, key)) Toast.makeText(context,
+                "A test is already active or this model is excluded from testing", Toast.LENGTH_SHORT).show()
         },
         onNavigateToTraceFile = onNavigateToTraceFile,
         onNavigateToTraceRunList = onNavigateToTraceRunList,

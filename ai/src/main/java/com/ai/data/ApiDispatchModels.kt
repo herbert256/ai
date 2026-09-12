@@ -129,6 +129,7 @@ internal suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, a
 
     val types = ids.associateWith { id ->
         cohereByName[id]?.type
+            ?: ModelType.fromNativeType(rawModels.firstOrNull { it.id == id }?.type)
             // Mistral capabilities are per-modality booleans; pick the
             // non-chat one when set so the picker auto-tags the right
             // ModelType. Order matters — moderation > stt > tts > ocr

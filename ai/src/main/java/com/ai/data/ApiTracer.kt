@@ -37,6 +37,14 @@ object ApiTracer {
     private const val TRACE_DIR = "trace"
     private const val MAX_TRACE_FILES = 2_000
     private const val MAX_TRACE_BYTES = 50L * 1024L * 1024L
+    // Latest model sweep has its own bounded allowance. Ordinary traces keep
+    // their existing budget. Replacing/clearing the run releases protection.
+    private const val MAX_MODEL_TEST_FILES = 10_000
+    private const val MAX_MODEL_TEST_BYTES = 128L * 1024L * 1024L
+    private const val MODEL_TEST_RETENTION_FILE = ".model-test-retention"
+    private data class ModelTestRetention(val runId: String, val legacyFilenames: Set<String> = emptySet())
+    @Volatile private var modelTestRetention: ModelTestRetention? = null
+    private fun testTracePrefix(runId: String) = "test_${runId.replace(Regex("[^A-Za-z0-9-]"), "_")}_"
     private const val TRACE_VERSION_DEBOUNCE_MS = 750L
     private var traceDir: File? = null
     private val gson = createAppGson(prettyPrint = true)
@@ -148,9 +156,42 @@ object ApiTracer {
         val dir = File(context.filesDir, TRACE_DIR).also { if (!it.exists()) it.mkdirs() }
         if (traceDir != dir) {
             traceDir = dir
+            modelTestRetention = runCatching {
+                File(dir, MODEL_TEST_RETENTION_FILE).bufferedReader().use {
+                    gson.fromJson(it, ModelTestRetention::class.java)
+                }
+            }.getOrNull()
             directoryVersion++
             cachedTraceFiles = null
         }
+    }
+
+    /** Called on IO before dispatch or when migrating an older run. Same-root
+     * files remain visible to trace lists, backup, export and explicit cleanup. */
+    fun retainModelTestRun(runId: String) {
+        val existing = getTraceFiles().filter { it.runId == runId }.map { it.filename }.toSet()
+        lock.withLock {
+            val dir = traceDir ?: return
+            val retention = ModelTestRetention(runId, existing.filterNot { it.startsWith(testTracePrefix(runId)) }.toSet())
+            if (!File(dir, MODEL_TEST_RETENTION_FILE).writeTextAtomic(gson.toJson(retention))) {
+                AppLog.e("ApiTracer", "Unable to persist latest model-test trace retention")
+                return
+            }
+            modelTestRetention = retention
+            directoryVersion++
+            pruneTraceDirLocked(dir)
+            bumpTraceVersionNow()
+        }
+    }
+
+    fun releaseModelTestRun() = lock.withLock {
+        modelTestRetention = null
+        traceDir?.let { dir ->
+            File(dir, MODEL_TEST_RETENTION_FILE).delete()
+            pruneTraceDirLocked(dir)
+        }
+        directoryVersion++
+        bumpTraceVersionNow()
     }
 
     /** Reserve a stable per-request filename before a cancellable network call. */
@@ -159,7 +200,8 @@ object ApiTracer {
         val seq = fileSequence.incrementAndGet().toString(36)
         val unique = UUID.randomUUID().toString().take(8)
         val safeHost = hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
-        return "${safeHost}_${ts}_${seq}_${unique}.json"
+        val prefix = if (currentCategory == "Test all models") currentRunId?.let(::testTracePrefix).orEmpty() else ""
+        return "$prefix${safeHost}_${ts}_${seq}_${unique}.json"
     }
 
     /**
@@ -336,7 +378,7 @@ object ApiTracer {
 
     private data class TracePruneCandidate(val file: File, val timestamp: Long, val size: Long)
 
-    private fun pruneTraceDirLocked(dir: File, protectedFilename: String): Int {
+    private fun pruneTraceDirLocked(dir: File, protectedFilename: String? = null): Int {
         // Retention needs only age and size, not request/response JSON.
         // Filenames encode request time; legacy names fall back to file time.
         // In particular, a cold UI listing must not force a full JSON scan
@@ -355,14 +397,20 @@ object ApiTracer {
             ?: return 0
         var keptCount = 0
         var keptBytes = 0L
+        var testCount = 0
+        var testBytes = 0L
+        val retention = modelTestRetention
         val deletedNames = mutableSetOf<String>()
         candidates.forEach { candidate ->
             val protected = candidate.file.name == protectedFilename
-            val keepByCount = keptCount < MAX_TRACE_FILES
-            val keepByBytes = keptBytes + candidate.size <= MAX_TRACE_BYTES || keptCount == 0
+            val isTest = retention != null && (candidate.file.name.startsWith(testTracePrefix(retention.runId)) ||
+                candidate.file.name in retention.legacyFilenames)
+            val keepByCount = if (isTest) testCount < MAX_MODEL_TEST_FILES else keptCount < MAX_TRACE_FILES
+            val keepByBytes = if (isTest) testBytes + candidate.size <= MAX_MODEL_TEST_BYTES || testCount == 0
+                else keptBytes + candidate.size <= MAX_TRACE_BYTES || keptCount == 0
             if (protected || (keepByCount && keepByBytes)) {
-                keptCount++
-                keptBytes += candidate.size
+                if (isTest) { testCount++; testBytes += candidate.size }
+                else { keptCount++; keptBytes += candidate.size }
             } else if (candidate.file.delete()) {
                 deletedNames += candidate.file.name
             }
@@ -430,8 +478,15 @@ object ApiTracer {
 
     fun clearTraces() = lock.withLock {
         traceDir?.listFiles()?.forEach { if (it.extension == "json") it.delete() }
+        // Clear captured evidence, but keep the active/latest run's allowance
+        // for requests arriving after this explicit clear.
+        modelTestRetention = modelTestRetention?.copy(legacyFilenames = emptySet())
+        traceDir?.let { dir ->
+            val stateFile = File(dir, MODEL_TEST_RETENTION_FILE)
+            modelTestRetention?.let { stateFile.writeTextAtomic(gson.toJson(it)) } ?: stateFile.delete()
+        }
         directoryVersion++
-        cachedTraceFiles = emptyList()
+        cachedTraceFiles = null // A failed deletion must remain visible.
         bumpTraceVersionNow()
     }
 

@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: AppViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
+            val settingsReady by viewModel.settingsReady.collectAsState()
             // User-controlled "Full screen" setting is the only thing
             // that hides the Android status bar now. The earlier
             // per-View counter mechanism (LocalStatusBarHideCount)
@@ -130,7 +131,11 @@ class MainActivity : ComponentActivity() {
                     modifier = if (hideStatusBar) Modifier.fillMaxSize().imePadding()
                                else Modifier.fillMaxSize().statusBarsPadding().imePadding()
                 ) { innerPadding ->
-                    AppNavHost(
+                    if (!settingsReady) {
+                        Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                            Text("Loading settings…")
+                        }
+                    } else AppNavHost(
                         modifier = Modifier.padding(innerPadding),
                         externalTitle = externalTitle.value,
                         externalSystem = externalSystem.value,

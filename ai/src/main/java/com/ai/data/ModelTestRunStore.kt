@@ -49,5 +49,6 @@ object ModelTestRunStore {
     /** Drop the persisted run (runtime-data reset path). */
     fun delete(context: Context) = lock.withLock {
         try { file(context).delete() } catch (_: Exception) {}
+        ApiTracer.releaseModelTestRun()
     }
 }

@@ -263,6 +263,7 @@ object ApiFactory {
         // ahead of TracingInterceptor so a timeout cancellation still
         // produces a captured trace.
         .addInterceptor(TestCallTimeoutInterceptor())
+        .addInterceptor(ProviderJsonContentTypeInterceptor())
         .addInterceptor(TracingInterceptor())
         // Innermost: tally every network response code (and failures as 0)
         // into HttpStatusStats for the Live Dashboard's HTTP-responses card.
@@ -315,6 +316,7 @@ object ApiFactory {
         addInterceptor(ProviderThrottleInterceptor())
         addInterceptor(ReadTimeoutInterceptor())
         addInterceptor(TestCallTimeoutInterceptor())
+        addInterceptor(ProviderJsonContentTypeInterceptor())
         addInterceptor(TracingInterceptor())
         // Inherits the network-level work limit, including redirect destinations.
         addInterceptor(HttpStatusStatsInterceptor())

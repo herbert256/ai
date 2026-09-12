@@ -59,7 +59,8 @@ internal fun ModelTestL2Screen(
                     when (p.status) {
                         TestStatus.RUNNING, TestStatus.PENDING -> 0
                         TestStatus.FAIL -> 1
-                        TestStatus.PASS -> 2
+                        TestStatus.INACCESSIBLE, TestStatus.UNSUPPORTED -> 2
+                        TestStatus.PASS -> 3
                     }
                 },
                 { p -> p.model.lowercase() }
@@ -83,7 +84,6 @@ internal fun ModelTestL2Screen(
             }
         } else {
             val rowsTotalCost = rows.sumOf { it.totalCost }
-            val allDone = rows.isNotEmpty() && rows.all { it.status == TestStatus.PASS }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
                     Row(
@@ -92,10 +92,12 @@ internal fun ModelTestL2Screen(
                             .clickable { onOpenModel(p.model) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (!allDone) {
+                        run {
                             val icon = when (p.status) {
                                 TestStatus.FAIL -> com.ai.data.MetadataIconsHolder.current.statusFailed
                                 TestStatus.PASS -> com.ai.data.MetadataIconsHolder.current.statusDone
+                                TestStatus.INACCESSIBLE -> "⛔"
+                                TestStatus.UNSUPPORTED -> "—"
                                 TestStatus.RUNNING -> "⏳"
                                 TestStatus.PENDING -> com.ai.data.MetadataIconsHolder.current.clockQueued
                             }

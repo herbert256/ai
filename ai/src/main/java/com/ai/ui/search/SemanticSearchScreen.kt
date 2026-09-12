@@ -247,7 +247,7 @@ private suspend fun runEmbeddingSearch(
     query: String,
     onProgress: suspend (String) -> Unit
 ): List<SearchHit> {
-    val queryVec = repository.embed(service, apiKey, model, listOf(query))?.firstOrNull() ?: return emptyList()
+    val queryVec = repository.embed(service, apiKey, model, listOf(query), isQuery = true)?.firstOrNull() ?: return emptyList()
     val reports: List<Report> = ReportStorage.getAllReports(context)
     val iconById = reports.associate { it.id to it.icon }
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)

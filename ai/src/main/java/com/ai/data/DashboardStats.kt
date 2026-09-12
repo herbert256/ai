@@ -75,6 +75,7 @@ internal data class ProviderRow(
 /** Summary of the last persisted "Test all models" run. */
 internal data class TestRunSummary(
     val forTesting: Int, val passed: Int, val failed: Int, val cost: Double, val startedAt: Long,
+    val inaccessible: Int, val unsupported: Int, val completed: Int,
 )
 
 /** Provider / model fleet stats — the "Providers / Models" screen. All
@@ -645,7 +646,7 @@ internal suspend fun computeProviderModelStats(
         flocks = aiSettings.flocks.size,
         swarms = aiSettings.swarms.size,
         lastTest = lastRun?.let {
-            TestRunSummary(it.forTestingAtStart, it.doneCount, it.errorCount, it.totalCost, it.startedAt)
+            TestRunSummary(it.forTestingAtStart, it.doneCount, it.errorCount, it.totalCost, it.startedAt, it.inaccessibleCount, it.unsupportedCount, it.finishedCount)
         },
         providers = rows.sortedWith(compareByDescending<ProviderRow> { it.active }.thenByDescending { it.models }),
         fnCalling = fnCalling,

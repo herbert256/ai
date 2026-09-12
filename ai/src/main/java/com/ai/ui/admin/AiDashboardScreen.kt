@@ -967,8 +967,11 @@ fun AiStatProvidersScreen(
                     item {
                         SectionCard("🧪", "Last test-all-models", AppColors.PrimaryAccent) {
                             KeyVal("For testing", "${t.forTesting}")
-                            KeyVal("Passed", "${t.passed}", AppColors.SuccessAccent)
+                            KeyVal("Reachable", "${t.passed}", AppColors.SuccessAccent)
                             KeyVal("Failed", "${t.failed}", if (t.failed > 0) AppColors.DangerAccent else AppColors.TextPrimary)
+                            KeyVal("Inaccessible", "${t.inaccessible}")
+                            KeyVal("Unsupported", "${t.unsupported}")
+                            KeyVal("Completed", "${t.completed}/${t.forTesting}")
                             KeyVal("Cost", money(t.cost), AppColors.SuccessAccent)
                             KeyVal("When", fmtFetched(t.startedAt))
                         }

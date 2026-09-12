@@ -646,3 +646,19 @@ restore does not live-reload.
 `ReportAgent.answerHistory` archives replaced answer bodies, execution prompts, model identity, timestamps, costs and citations. `Report.conclusion` stores the owner-selected body, rationale, uncertainty, dissent, sources, and immutable source snapshot ID. Both are nested report fields; bodies and history prompts participate in the existing content store. Old reports have no conclusion and empty answer history. Portable Report bundle version remains 2; imports remap conclusion source IDs and evidence hashes.
 
 The work-review popup and its per-report request, spend and endpoint restrictions have been removed. Legacy `report_work_limits/<reportId>.json` files are ignored entirely, including after restoring an older backup. The 5,000-item batch-size limit and provider rate/concurrency controls remain active. Existing `ReportWorkerConfig.primaryAnswersOnly` values still suppress optional automatic analyses, while `metadataDisabled` suppresses metadata; new reports use their selected generation settings directly.
+
+### Latest model-test trace retention
+
+`trace/.model-test-retention` identifies the latest protected model-test
+run and any legacy trace filenames belonging to it. New probe filenames
+include the run ID. This run receives a separate 10,000-file / 128-MiB
+allowance; ordinary traces retain their 2,000-file / 50-MiB allowance. A
+new run releases the preceding run's protection. Explicit trace deletion,
+age cleanup and reset still apply. Files remain under `trace/`, so existing
+trace lists, readers, export and backup include them. The detail screen
+labels absent evidence instead of opening a missing file.
+
+`test_run.json` now records distinct `INACCESSIBLE` and `UNSUPPORTED`
+outcomes, a diagnostic `policyVersion`, and `previousErrorMessage` where
+needed to reconcile an unchanged automatic block after migration/retry.
+These are personal runtime results, never bundled application defaults.

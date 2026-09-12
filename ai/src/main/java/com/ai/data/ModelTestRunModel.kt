@@ -31,7 +31,15 @@ enum class TestStatus {
     PASS,
 
     /** Probe call failed (HTTP error, parse error, network). UI: ❌. */
-    FAIL
+    FAIL,
+
+    /** Provider explicitly says this model is unavailable. Not reachable. */
+    INACCESSIBLE,
+
+    /** The app cannot issue a suitable bounded probe. Not a health failure. */
+    UNSUPPORTED;
+
+    val isTerminal: Boolean get() = this != PENDING && this != RUNNING
 }
 
 /** One (provider, model) unit of work. Mirrors [PairState]. */
@@ -42,6 +50,8 @@ data class ModelTestState(
     val status: TestStatus,
     val errorMessage: String? = null,
     val responseText: String? = null,
+    /** Previous diagnostic reason, used only to reconcile matching auto-blocks. */
+    val previousErrorMessage: String? = null,
     val durationMs: Long? = null,
     val inputCost: Double? = null,
     val outputCost: Double? = null,
@@ -75,7 +85,9 @@ data class ModelTestRunState(
     val catalogTotal: Int = 0,
     val inaccessibleAtStart: Int = 0,
     val excludedAtStart: Int = 0,
-    val noChatAtStart: Int = 0
+    val noChatAtStart: Int = 0,
+    /** Diagnostic-policy migration version, not a claim of a new probe. */
+    val policyVersion: Int = 0
 ) {
     val total: Int get() = items.size
     val doneCount: Int get() = items.values.count { it.status == TestStatus.PASS }
@@ -83,6 +95,9 @@ data class ModelTestRunState(
      *  this always sum back to [catalogTotal]. */
     val forTestingAtStart: Int
         get() = (catalogTotal - inaccessibleAtStart - excludedAtStart - noChatAtStart).coerceAtLeast(0)
+    val inaccessibleCount: Int get() = items.values.count { it.status == TestStatus.INACCESSIBLE }
+    val unsupportedCount: Int get() = items.values.count { it.status == TestStatus.UNSUPPORTED }
+    val finishedCount: Int get() = items.values.count { it.status.isTerminal }
     val errorCount: Int get() = items.values.count { it.status == TestStatus.FAIL }
     val runningCount: Int get() = items.values.count { it.status == TestStatus.RUNNING }
     val queuedCount: Int get() = items.values.count { it.status == TestStatus.PENDING }

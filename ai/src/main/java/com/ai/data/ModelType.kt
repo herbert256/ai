@@ -27,17 +27,21 @@ object ModelType {
      *  entries; the dispatcher tags those with this constant so the
      *  picker can group / surface them as a distinct model kind. */
     const val OCR = "ocr"
+    const val VIDEO = "video"
+    const val REALTIME = "realtime"
+    const val INTERACTIONS = "interactions"
+    const val COMPLETION = "completion"
     const val UNKNOWN = "unknown"
 
     /** Every type the user can configure paths for, in display order. UNKNOWN is
      *  intentionally excluded — it's a runtime fallback, not a configurable kind. */
-    val ALL: List<String> = listOf(CHAT, RESPONSES, EMBEDDING, RERANK, IMAGE, TTS, STT, MODERATION, CLASSIFY, OCR)
+    val ALL: List<String> = listOf(CHAT, RESPONSES, EMBEDDING, RERANK, IMAGE, TTS, STT, MODERATION, CLASSIFY, OCR, VIDEO, REALTIME, INTERACTIONS, COMPLETION)
 
     /** Types the app has no chat-shaped dispatch for. Used by the Test
      *  all models sweep to skip these at enumeration, and by the main
      *  model pickers (AI Report, AI Chat) to dim them — selecting one
      *  for a chat flow will fail at runtime. */
-    val NON_TESTABLE_TYPES: Set<String> = setOf(IMAGE, TTS, STT, CLASSIFY, OCR)
+    val NON_TESTABLE_TYPES: Set<String> = setOf(IMAGE, TTS, STT, CLASSIFY, OCR, VIDEO, REALTIME, INTERACTIONS, COMPLETION)
 
     /** User-supplied global defaults from AI Setup → Model Types. Sits between the
      *  per-provider override and the hardcoded DEFAULT_PATHS. AppViewModel keeps
@@ -67,18 +71,28 @@ object ModelType {
      * chat-only gateways keep using their Chat Completions endpoint.
      */
     fun infer(modelId: String): String {
-        val id = modelId.lowercase()
+        val id = modelId.substringAfterLast('/').lowercase()
         return when {
+            id.startsWith("gpt-5-search-api") -> CHAT
+            "multi-agent" in id -> RESPONSES
+            ("gemini" in id && "omni" in id) || id.startsWith("deep-research-") || id.startsWith("antigravity-") -> INTERACTIONS
+            id.startsWith("parse-") || "nemotron-parse" in id -> OCR
+            "realtime" in id || id.startsWith("grok-voice-") -> REALTIME
+            id.startsWith("gpt-3.5-turbo-instruct") -> COMPLETION
+            id.endsWith("-video") || "-video-" in id || "-t2v" in id || "-i2v" in id || id.startsWith("wan-") ||
+                id.startsWith("wan2.") || id.startsWith("veo-") || id.startsWith("sora-") ||
+                id.startsWith("kling-") || id.startsWith("minimax-h3") -> VIDEO
+            id.startsWith("recraft-") || modelId.startsWith("quiverai/arrow-") -> IMAGE
             id.startsWith("gpt-5") || id.startsWith("gpt-6") ||
                 id.startsWith("o3") || id.startsWith("o4") -> RESPONSES
             "embed" in id -> EMBEDDING
             "rerank" in id -> RERANK
             "classifier" in id || id.endsWith("classify") -> CLASSIFY
             "moderation" in id -> MODERATION
-            "whisper" in id || "transcrib" in id -> STT
+            "whisper" in id || "transcrib" in id || id.endsWith("-stt") -> STT
             "tts" in id || "speech-2" in id || "text-to-speech" in id ||
                 "cosyvoice" in id || "orpheus" in id ||
-                "fish-speech" in id || "tts-preview" in id -> TTS
+                "fish-speech" in id || modelId.startsWith("fish-audio/") || "tts-preview" in id -> TTS
             // Audio-modality chat (gpt-audio*, gpt-4o-audio-preview,
             // *-realtime-*) routes via /v1/realtime (WebSocket) or
             // requires audio modality — neither is wired in the app.
@@ -86,37 +100,40 @@ object ModelType {
             // skips them.
             "realtime" in id || "-audio-" in id || id.startsWith("gpt-audio") ||
                 "audio-preview" in id -> TTS
-            // Legacy completion-only / dedicated-endpoint chat models
-            // that exist in provider catalogs but don't dispatch as
-            // chat-completions: OpenAI's gpt-3.5-turbo-instruct (the
-            // text-completion endpoint), xAI's grok-*-multi-agent (a
-            // separate multi-agent endpoint), Google's deep-research-*
-            // (Interactions API only) and computer-use-* (needs the
-            // Computer Use tool). Same TTS-as-skip precedent as the
-            // audio-modality entries above. `deep-research-` is
-            // anchored at startsWith so Perplexity's sonar-deep-research
-            // (a real chat model) is *not* caught.
-            id.startsWith("gpt-3.5-turbo-instruct") ||
-                "multi-agent" in id ||
-                id.startsWith("deep-research-") ||
-                "computer-use" in id -> TTS
+            // Computer-use models require a dedicated tool fixture.
+            "computer-use" in id -> INTERACTIONS
             // Image / video / music generation — none have a chat-shaped
             // dispatch in the app today.
             "dall-e" in id || id.startsWith("gpt-image-") || "chatgpt-image-" in id ||
                 "imagen" in id || "flux" in id || "stable-diffusion" in id ||
-                "sdxl" in id || "nano-banana" in id || id.startsWith("bria/") ||
+                "sdxl" in id || "nano-banana" in id || modelId.lowercase().startsWith("bria/") ||
                 id.startsWith("bria-") || "lyria" in id || "-t2v-" in id ||
                 "-i2v-" in id || "text-to-video" in id || "image-preview" in id ||
                 id.startsWith("grok-imagine-") ||
                 // Catalog patterns picked up from sweep "Model does not
                 // exist" fails on DeepInfra / SiliconFlow.
                 "qwen-image" in id || "seedream" in id || "seedance" in id ||
-                "janus-pro" in id || id.startsWith("clarityai/") ||
+                "janus-pro" in id || modelId.lowercase().startsWith("clarityai/") ||
                 "z-image" in id || id.endsWith("-image") ||
-                ("prunaai/" in id && "image" in id) ||
+                ("prunaai/" in modelId.lowercase() && "image" in id) ||
                 (("wan2.6" in id || "wan2.7" in id) && ("image" in id || "t2i" in id)) -> IMAGE
             else -> CHAT
         }
+    }
+
+    /** Preserve explicit model-list modalities from OpenAI-compatible catalogs. */
+    fun fromNativeType(type: String?): String? = when (type?.lowercase()) {
+        "language", "chat", "text", "text-generation" -> CHAT
+        "embedding", "embeddings", "text-embedding" -> EMBEDDING
+        "rerank", "reranking" -> RERANK
+        "image", "image-generation", "text-to-image" -> IMAGE
+        "video", "video-generation", "text-to-video", "image-to-video" -> VIDEO
+        "speech", "tts", "text-to-speech" -> TTS
+        "transcription", "stt", "speech-to-text" -> STT
+        "realtime" -> REALTIME
+        "ocr", "parse" -> OCR
+        "moderation" -> MODERATION
+        else -> null
     }
 
     /** Map an OpenRouter `architecture.modality` value to a type. */
@@ -124,6 +141,7 @@ object ModelType {
         if (modality.isNullOrBlank()) return null
         val output = modality.substringAfter("->", missingDelimiterValue = modality)
         return when {
+            "video" in output -> VIDEO
             "image" in output -> IMAGE
             "audio" in output -> TTS
             "text" in output -> CHAT
@@ -136,6 +154,7 @@ object ModelType {
         if (endpoints.isNullOrEmpty()) return null
         val lower = endpoints.map { it.lowercase() }
         return when {
+            "parse" in lower -> OCR
             "embed" in lower -> EMBEDDING
             "rerank" in lower -> RERANK
             "classify" in lower -> CLASSIFY

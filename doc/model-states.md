@@ -136,14 +136,13 @@ Pairs genuinely unreachable on the user's account/tier (e.g. Together
 or OpenRouter non-serverless catalog entries). Carries a **required**
 `reason` ([model/SettingsModels.kt:184](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 
-- **Populated** by the test engine when a probe's error matches a
-  tier-gating signal — `non-serverless` (Together dedicated-only
-  entries), `is not available on` (SambaNova's HTTP 410 wording), or a
-  bare HTTP 404 (model id not found anywhere reachable on this account)
-  — `upsertInaccessibleModel` records it (reason `take(200)`,
-  [viewmodel/ModelTestEngine.kt:551](../ai/src/main/java/com/ai/viewmodel/ModelTestEngine.kt))
-  and the item is marked PASS (kept in the run so Total stays stable)
-  rather than counted as FAIL.
+- **Populated** only when a probe reports an explicit model/access signal
+  (for example non-serverless, retired model, unavailable region, or a
+  function not found for the account). A bare HTTP 404 is not sufficient:
+  it may indicate a wrong endpoint. The item is `INACCESSIBLE`, retains
+  its original error and exact request trace, and contributes to completed
+  work but never to reachable models. `UNSUPPORTED` separately records
+  unsupported APIs, modalities and request contracts without auto-blocking.
   Also **seeded** from `assets/inaccessible.json` on start
   (`InaccessibleSeed.ensureAllPresent`,
   [data/InaccessibleSeed.kt:49](../ai/src/main/java/com/ai/data/InaccessibleSeed.kt));
@@ -163,9 +162,9 @@ Per-model API-type assignments that win over autodetection — a flat,
 cross-provider CRUD list living at the `Settings` root (one entry per
 override, identified by UUID `id`), rather than one map per provider
 ([model/SettingsModels.kt:310](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
-Each entry sets a `type` — one of the ten type tokens in `ModelType.ALL`
+Each entry sets a `type` — one of the type tokens in `ModelType.ALL`
 (`chat`, `responses`, `embedding`, `rerank`, `image`, `tts`, `stt`,
-`moderation`, `classify`, `ocr`;
+`moderation`, `classify`, `ocr`, `video`, `realtime`, `interactions`, `completion`;
 [data/ModelType.kt:34](../ai/src/main/java/com/ai/data/ModelType.kt) — note
 `ModelType` is an `object` of `const String`s, not an enum) — plus three
 optional capability flags: `supportsVision` 👁, `supportsWebSearch` 🌐,
@@ -236,3 +235,27 @@ in this set — its `traces` sidecar stays device-local.
 - [persistent.md](persistent.md) — the prefs keys and seed assets above.
 - [development.md](development.md) — adding a provider / model-type /
   SecondaryKind.
+
+## Probe outcomes and migration
+
+Health probes accept an actual response or emitted reasoning tokens on a
+successful HTTP response even if a report would reject it as truncated.
+Report generation still rejects incomplete answers. Every terminal outcome stays in
+the original catalog snapshot; retries cannot shrink its denominator.
+
+`ModelTestMigration` repairs legacy inaccessible-PASS records, uniquely
+resolves old traces by run/provider/model, and corrects the known timeout
+label. It removes an old automatic block only if its reason still matches
+the recorded probe error; manually edited reasons are preserved. Original
+rejection reasons remain available. An unsupported result can be retried
+after its request contract is supported.
+
+Batch-only OpenRouter entries and specialized code-editing models are
+explicitly unsupported by the synchronous probe. A successful individual
+retry clears the previous blocked or inaccessible state. Cost totals sum
+the latest attempt per model, not cumulative spending across retries.
+
+Groq Compound is skipped before spending because it exceeded the requested
+64-token cap. Other probes still use the existing 60-second ceiling and
+5-cent post-call exclusion rule. Provider token limits are not a billing
+guarantee.

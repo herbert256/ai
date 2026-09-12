@@ -1,6 +1,7 @@
 package com.ai.data
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -97,6 +98,9 @@ internal suspend fun <T> withApiCallTimeout(
     return try {
         kotlinx.coroutines.withTimeout(ceilingMs) { block() }
     } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+        // An enclosing timeout (e.g. the 60s health probe) owns its label.
+        // Only translate our own timeout while the caller is still active.
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
         val kind = if (streamingOpen) "stream open" else "API call"
         throw java.io.IOException("$kind timed out after ${ceilingMs / 1000}s (no response — possible network/DNS hang)")
     }
@@ -283,7 +287,8 @@ suspend fun AnalysisRepository.embedWithStatus(
     apiKey: String,
     model: String,
     texts: List<String>,
-    baseUrl: String = service.baseUrl
+    baseUrl: String = service.baseUrl,
+    isQuery: Boolean = false
 ): EmbedResult = withContext(Dispatchers.IO) {
     val t0 = System.currentTimeMillis()
     if (apiKey.isBlank()) {
@@ -302,7 +307,8 @@ suspend fun AnalysisRepository.embedWithStatus(
         val embedPath = service.pathFor(ModelType.EMBEDDING) ?: ModelType.DEFAULT_PATHS[ModelType.EMBEDDING]!!
         val url = buildChatUrl(baseUrl, embedPath, service.knownEndpointPaths())
         val response = withApiCallTimeout {
-            api.embeddings(url, "Bearer $apiKey", OpenAiEmbeddingRequest(model = model, input = texts))
+            api.embeddings(url, "Bearer $apiKey", OpenAiEmbeddingRequest(model = model, input = texts,
+                input_type = if (service.id == "NVIDIA") { if (isQuery) "query" else "passage" } else null))
         }
         val durationMs = System.currentTimeMillis() - t0
         if (!response.isSuccessful) {
@@ -414,8 +420,9 @@ suspend fun AnalysisRepository.embed(
     service: AppService,
     apiKey: String,
     model: String,
-    texts: List<String>
-): List<List<Double>>? = embedWithStatus(service, apiKey, model, texts).vectors
+    texts: List<String>,
+    isQuery: Boolean = false
+): List<List<Double>>? = embedWithStatus(service, apiKey, model, texts, isQuery = isQuery).vectors
 
 // ============================================================================
 // Analyze implementations
@@ -459,6 +466,7 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
     val request = OpenAiResponsesRequest(
         model = model,
         input = input,
+        max_output_tokens = params?.maxTokens,
         instructions = params?.systemPrompt?.takeIf { it.isNotBlank() },
         tools = if (params?.webSearchTool == true) responsesWebSearchTool() else null,
         reasoning = reasoningField(service, model, params?.reasoningEffort)
@@ -470,9 +478,9 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
         val body = response.body()
         val content = extractResponsesApiContent(body)
         val rawUsageJson = formatUsageJson(body?.usage)
-        val usage = body?.usage?.toTokenUsage()
+        val usage = body?.usage?.toTokenUsage(service)
         val webData = extractResponsesWebSearch(body)
-        if (content != null) AnalysisResponse(
+        val result = if (content != null) AnalysisResponse(
             service, content, null, usage,
             citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
@@ -483,6 +491,7 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
         // "Test all models" probe) treat 200 + outputTokens > 0 as
         // reachable rather than a hard failure.
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        validateResponsesCompletion(result, body)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
@@ -673,13 +682,13 @@ private suspend fun AnalysisRepository.chatResponsesApiResponse(
             }
             mapOf("role" to msg.role, "content" to parts)
         }
-        OpenAiResponsesRequest(model = model, input = inputItems, instructions = systemPrompt, tools = tools, reasoning = reasoning)
+        OpenAiResponsesRequest(model = model, input = inputItems, instructions = systemPrompt, tools = tools, reasoning = reasoning, max_output_tokens = params.maxTokens)
     } else {
         val inputMessages = nonSystem.map { OpenAiResponsesInputMessage(it.role, it.content) }
         if (inputMessages.size == 1 && inputMessages.first().role == "user") {
-            OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt, tools = tools, reasoning = reasoning)
+            OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt, tools = tools, reasoning = reasoning, max_output_tokens = params.maxTokens)
         } else {
-            OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt, tools = tools, reasoning = reasoning)
+            OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt, tools = tools, reasoning = reasoning, max_output_tokens = params.maxTokens)
         }
     }
     val response = api.responses(responsesUrl, "Bearer $apiKey", request)
@@ -689,11 +698,12 @@ private suspend fun AnalysisRepository.chatResponsesApiResponse(
         val body = response.body()
         val content = extractResponsesApiContent(body)
         val usage = body?.usage?.toTokenUsage(service)
-        return if (content != null) {
+        val result = if (content != null) {
             AnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
         } else {
             AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, httpHeaders = headers, httpStatusCode = statusCode)
         }
+        return validateResponsesCompletion(result, body)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         return AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
@@ -873,7 +883,7 @@ suspend fun AnalysisRepository.testModel(
                 kotlinx.coroutines.delay(waitMs)
                 response = probe()
             }
-            if (response.isSuccess) null else response.error ?: "Unknown error"
+            if (ModelProbePolicy.reachable(response)) null else response.error ?: "Unknown error"
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) { e.message ?: "Connection error" }
@@ -889,7 +899,9 @@ suspend fun AnalysisRepository.testModelWithPrompt(
                 service, apiKey, prompt, model,
                 params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
             )
-            if (response.isSuccess) Pair(response.analysis, null) else Pair(null, response.error ?: "Unknown error")
+            if (ModelProbePolicy.reachable(response)) Pair(response.analysis?.takeIf { it.isNotBlank() }
+                ?: "Reachable — provider emitted tokens without visible content", null)
+            else Pair(null, response.error ?: "Unknown error")
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) { Pair(null, e.message ?: "Connection error") }
