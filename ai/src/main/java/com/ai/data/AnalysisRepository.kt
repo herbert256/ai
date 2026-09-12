@@ -81,7 +81,9 @@ data class AnalysisResponse(
 /**
  * Repository for making AI analysis requests to various AI services.
  */
-class AnalysisRepository {
+class AnalysisRepository(
+    internal val onInterruptedReportUsage: (suspend (AppService, String, TokenUsage, Long) -> Unit)? = null
+) {
     companion object {
         internal const val RETRY_DELAY_MS = 500L
         /** Body of the OK-probe sent by every model-test path

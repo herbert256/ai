@@ -72,6 +72,13 @@ internal fun ReportCreateOverviewScreen(
             Spacer(modifier = Modifier.height(4.dp))
             CreateRow(com.ai.data.MetadataIconsHolder.current.meta, "Meta", "Compare, critique or synthesize the answers", metaEnabled, onMeta)
             CreateRow(com.ai.data.MetadataIconsHolder.current.compare, "Compare with meta", "Score each answer's similarity to a meta result", compareEnabled, onCompare)
+            if (!compareEnabled) {
+                Text(
+                    "Requires a successful answer and a completed Meta result with a matching comparison prompt (for example, summarize).",
+                    color = AppColors.TextTertiary,
+                    fontSize = 13.sp
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
         }
     }

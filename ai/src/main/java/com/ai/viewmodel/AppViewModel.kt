@@ -50,9 +50,11 @@ class BatchBuildScope internal constructor(
 }
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
-    internal val repository = AnalysisRepository()
     internal val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     internal val settingsPrefs = SettingsPreferences(prefs, application.filesDir)
+    internal val repository = AnalysisRepository { provider, model, usage, duration ->
+        settingsPrefs.updateUsageStatsAsync(provider, model, usage, durationMs = duration)
+    }
 
     // SharedPreferences getters wait for the entire XML to load. Keep that
     // wait in bootstrap's IO coroutine; navigation waits for settingsReady.

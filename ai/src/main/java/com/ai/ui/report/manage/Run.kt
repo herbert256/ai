@@ -434,7 +434,7 @@ internal fun ReportRunScreen(
             RuntimePromptKind.COMPARE -> "compare"
             RuntimePromptKind.TOURNAMENT -> "tournament"
             RuntimePromptKind.JUDGES -> "judge the judges"
-            else -> "rank the translators"
+            else -> "translation review"
         }
         SecondaryRuntimePromptScreen(
             titleName = titleName,

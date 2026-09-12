@@ -137,7 +137,7 @@ internal fun SecondaryResultsListMount(
             }
         ) {
             ReportSelectInternalPromptScreen(
-                titleText = "Run an fan-in prompt",
+                titleText = "Run a fan-in prompt",
                 category = "fan_in",
                 prompts = fanInList,
                 onSelectPrompt = {

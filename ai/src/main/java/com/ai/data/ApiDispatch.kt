@@ -761,14 +761,28 @@ internal suspend fun AnalysisRepository.auditApiCall(
     val url = dispatchUrl(service, model, baseUrl)
     val callerSink = ApiTracer.traceFilenameSink.get()
     val traceSink = java.util.concurrent.atomic.AtomicReference<String?>()
+    val started = System.currentTimeMillis()
     try {
         val resp = withTraceFilenameSink(traceSink) { block() }
         AuditLog.appendApiCall(reportId, service, model, url, resp.tokenUsage, resp.httpStatusCode, resp.error, traceSink.get())
         return resp.copy(tokenUsage = resp.tokenUsage?.copy(traceFile = traceSink.get()))
-    } catch (e: kotlinx.coroutines.CancellationException) {
-        throw e
     } catch (e: Throwable) {
-        AuditLog.appendApiCall(reportId, service, model, url, null, null, e.message ?: e.javaClass.simpleName, traceSink.get())
+        // Retrofit can finish a billable response before cancellation prevents
+        // delivery to its caller (including a timeout followed by a retry).
+        // Preserve provider-reported usage from that exact completed trace;
+        // never estimate spend for an incomplete/network-failure response.
+        withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+            try {
+                ReportStorage.completedUsageForInterruptedCall(reportId, service, model, traceSink.get())?.let { usage ->
+                    onInterruptedReportUsage?.invoke(service, model, usage, System.currentTimeMillis() - started)
+                }
+            } catch (accountingError: Exception) {
+                AppLog.e("ReportCosts", "Could not preserve interrupted call usage: ${traceSink.get()}", accountingError)
+            }
+            if (e !is kotlinx.coroutines.CancellationException) {
+                AuditLog.appendApiCall(reportId, service, model, url, null, null, e.message ?: e.javaClass.simpleName, traceSink.get())
+            }
+        }
         throw e
     } finally {
         // A nested audit must hand its result back to the originating report

@@ -4,6 +4,8 @@
 
 The 7 September Report monitor follow-up upgrades version-3 ledgers to version 4 without replacing their existing rows. Missing short/long report-title amounts are recovered from saved cost fields, with existing title rows deducted to prevent double counting. Global usage already counted these titles, so this migration repairs only report attribution and its aggregate. Available historical traces can restore unambiguous links; deleted traces remain unavailable. New calls carry their trace filename with the usage hand-off, and report-title accounting retains its report/category context. Manage observes persisted report versions and labels the ledger-row count **costed calls**, distinct from raw HTTP attempts. Its shared headline total uses the same lifetime ledger as Costs, including billed earlier attempts after a retry; updates follow the existing per-call journal flush.
 
+The 12 September follow-up upgrades complete version-3/4 ledgers to version 5. It appends missing calls only when retained, completed successful traces contain provider usage, preserving existing rows and skipping ambiguous unlinked historical entries. API-reported costs are retained; other recovered calls use the available pricing catalog. Newly interrupted report dispatches preserve usage from their exact completed trace before propagating cancellation or failure, so a later retry cannot hide that earlier billable attempt. Missing, partial, or unreadable traces cannot establish spend and are not estimated by this recovery path.
+
 Every billable LLM / rerank call is costed from its token usage ×
 the resolved per-model price. The same machinery feeds four
 surfaces: the global **Spend & usage** dashboard, the per-report

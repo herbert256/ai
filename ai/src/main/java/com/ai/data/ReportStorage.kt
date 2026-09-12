@@ -124,7 +124,7 @@ data class AgentStatusPatch(
  */
 object ReportStorage {
     private const val REPORTS_DIR = "reports"
-    private const val API_CALL_COST_LEDGER_VERSION = 4
+    private const val API_CALL_COST_LEDGER_VERSION = 5
     /** iconCalls `type` values for the report-level Find-alt title
      *  fan-out (short + long report title, per-model title). These are
      *  the only alt records with no structured cost field; see
@@ -133,7 +133,9 @@ object ReportStorage {
      *  that being null. */
     private val TITLE_ALT_TYPES = setOf("alt/report_title", "alt/report_title_long", "alt/model_title")
     private val gson = createAppGson()
-    private val lock = ReentrantLock()
+    // Concurrent metadata writers must not repeatedly barge ahead of report
+    // navigation and the durable cost flush during a report batch.
+    private val lock = ReentrantLock(true)
     @Volatile private var reportsDir: File? = null
     @Volatile private var importsRecovered = false
     @Volatile private var lastLoadFailures: List<ReportLoadFailure> = emptyList()
@@ -595,7 +597,7 @@ object ReportStorage {
         if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) return 0L
         return target.lastModified()
     }
-    fun getAllReports(context: Context): List<Report> { init(context); return lock.withLock { loadAllReports().sortedByDescending { it.timestamp } } }
+    fun getAllReports(context: Context): List<Report> { init(context); return loadAllReports().sortedByDescending { it.timestamp } }
     fun getLastLoadFailures(context: Context): List<ReportLoadFailure> {
         init(context)
         return lastLoadFailures
@@ -745,11 +747,17 @@ object ReportStorage {
     }
 
     private fun loadAllReports(): List<Report> {
-        val files = reportsDir?.listFiles { f -> f.extension == "json" } ?: return emptyList()
+        val files = lock.withLock { reportsDir?.listFiles { f -> f.extension == "json" } } ?: return emptyList()
         val failures = mutableListOf<ReportLoadFailure>()
         val reports = files.mapNotNull { file ->
             try {
-                gson.fromJson(ReportContentStore.unpack(file.parentFile!!.parentFile!!, file.nameWithoutExtension, file.readText()), Report::class.java)?.let(::normalizeReport)
+                // Keep each report read coherent with deletion/blob writes,
+                // but let queued writers and single-report readers proceed
+                // between files. Never hold the global lock across a catalog scan.
+                lock.withLock {
+                    if (!file.exists()) return@mapNotNull null
+                    gson.fromJson(ReportContentStore.unpackElement(file.parentFile!!.parentFile!!, file.nameWithoutExtension, file.readText()), Report::class.java)?.let(::normalizeReport)
+                }
                     ?: run {
                         failures += ReportLoadFailure(file.name, "Invalid report data")
                         null
@@ -1812,18 +1820,35 @@ object ReportStorage {
         // without rebuilding from current answers (which would erase billed
         // retries and earlier answer versions). Title usage was already in
         // global statistics; only the report attribution was missing.
-        if (initial.apiCallCostsVersion == 3 && initial.apiCallCostsComplete) {
-            val repaired = ReportAuditRepair.repair(context, initial)
+        if (initial.apiCallCostsVersion in 3..4 && initial.apiCallCostsComplete) {
+            val repaired = if (initial.apiCallCostsVersion == 3) ReportAuditRepair.repair(context, initial) else initial
+            ApiTracer.init(context)
+            val used = repaired.apiCallCosts.mapNotNullTo(HashSet()) { it.traceFile }
+            val missing = ApiTracer.getTraceFilesForReport(reportId).mapNotNull { info ->
+                if (info.filename in used) return@mapNotNull null
+                val trace = ApiTracer.readTraceFile(info.filename) ?: return@mapNotNull null
+                if (trace.partial || trace.response.statusCode !in 200..299 || trace.reportId != reportId) return@mapNotNull null
+                val row = apiCallCostFromTrace(context, info, trace) ?: return@mapNotNull null
+                // An old row without a trace link may already account for this
+                // call. Leave ambiguous evidence alone instead of charging twice.
+                if (repaired.apiCallCosts.any { old -> old.traceFile == null &&
+                    old.provider == row.provider && old.model == row.model &&
+                    old.inputTokens == row.inputTokens && old.outputTokens == row.outputTokens }) return@mapNotNull null
+                row
+            }
             return lock.withLock {
                 val current = loadReport(reportId) ?: return@withLock null
                 if (isApiCallCostLedgerCurrent(current)) return@withLock null
                 // Do not overwrite work completed while evidence was read.
                 if (current != initial) return@withLock null
-                val updated = repaired.copy(apiCallCostsVersion = API_CALL_COST_LEDGER_VERSION)
+                val updated = repaired.copy(
+                    apiCallCosts = (repaired.apiCallCosts + missing).toMutableList(),
+                    apiCallCostsVersion = API_CALL_COST_LEDGER_VERSION
+                )
                 updated.totalCost = ledgerTotalCost(updated)
                 saveReport(updated)
                 ApiCallCostLedgerDelta(updated.id, updated.barTitle, updated.createdAt,
-                    current.apiCallCosts.toList(), updated.apiCallCosts.toList(), adjustAggregateStats = false)
+                    repaired.apiCallCosts.toList(), updated.apiCallCosts.toList(), adjustAggregateStats = missing.isNotEmpty())
             }
         }
 
@@ -2210,6 +2235,15 @@ object ReportStorage {
             outputCost = outputCost,
             traceFile = info.filename
         )
+    }
+
+    internal fun completedUsageForInterruptedCall(
+        reportId: String, provider: AppService, model: String, filename: String?
+    ): TokenUsage? {
+        val trace = filename?.let(ApiTracer::readTraceFile) ?: return null
+        if (trace.partial || trace.response.statusCode !in 200..299 ||
+            trace.reportId != reportId || trace.model != model) return null
+        return extractTokenUsageFromTrace(trace, provider)?.copy(traceFile = filename)
     }
 
     private fun extractTokenUsageFromTrace(trace: ApiTrace, provider: AppService): TokenUsage? {

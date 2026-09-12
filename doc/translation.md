@@ -86,8 +86,8 @@ state, and `cancelTranslation(runId)` can target one specific run.
 
 ## What gets translated
 
-A Translate run covers the whole report — there is no scope subset to
-pick. For the chosen language, one TRANSLATE call is made per:
+A Translate run covers only the items selected at launch. For the chosen
+language, one TRANSLATE call is made per selected item from these categories:
 
 - **The prompt** — `translateSourceKind = "PROMPT"`,
   `translateSourceTargetId = "prompt"`.

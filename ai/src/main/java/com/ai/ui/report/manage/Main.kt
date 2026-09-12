@@ -1299,13 +1299,16 @@ fun ReportsScreen(
         val rid = currentReportId
         val srcLang = fanInPickerSourceLanguage
         LaunchedEffect(fanInPicker) {
-            fanInPickerPrompt = null
-            fanInPickerSourceLanguage = null
             // Runtime parameters on → edit the fan-in prompt first (the mount
             // below runs it); else launch straight onto the worker plan.
             val rt = withContext(Dispatchers.IO) {
                 com.ai.data.ReportStorage.getReport(context, rid)?.workerConfig?.secondResultRuntimeParams ?: false
             }
+            // Clearing the picker removes this effect from composition. Wait
+            // until its suspending read finishes or recomposition cancels the
+            // launch before it ever reaches the worker plan.
+            fanInPickerPrompt = null
+            fanInPickerSourceLanguage = null
             if (rt) {
                 st.runtimePromptReq.value = RuntimePromptReq(
                     kind = RuntimePromptKind.FAN_IN, prompts = listOf(fanInPicker), sourceLanguage = srcLang
@@ -1564,7 +1567,7 @@ fun ReportsScreen(
                 LocalNavigateToCurrentReport provides { st.runtimePromptReq.value = null }
             ) {
                 SecondaryRuntimePromptScreen(
-                    titleName = "rank the translators",
+                    titleName = "translation review",
                     specs = rtReqRun.prompts.map { EditablePromptSpec("Prompt", it) },
                     onCancel = { st.runtimePromptReq.value = null },
                     onRun = { edited, persist, _ ->

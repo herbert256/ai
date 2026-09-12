@@ -2116,6 +2116,8 @@ private data class BottomBarIcon(
     val fontSize: androidx.compose.ui.unit.TextUnit = 16.sp,
     val alpha: Float = 1f,
     val legendKey: String = emoji,
+    /** Actions sharing a glyph still need distinct accessible names and help. */
+    val actionHelp: Pair<String, String>? = null,
     /** The 1️⃣ 2️⃣ 3️⃣ report-screen switcher. These get their own dedicated
      *  row (always in 1-2-3 order, never sharing with other icons). */
     val isNav: Boolean = false
@@ -2184,7 +2186,8 @@ private fun buildBottomBarIcons(
     if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon(addGlyph, Color.Unspecified, it, 28, legendKey = addGlyph)) }
     icons.onFanOut?.let { add(BottomBarIcon(icons.fanOutIcon.ifBlank { mi.fanOutRow }, Color.Unspecified, it, 28, legendKey = D.FAN_OUT)) }
     icons.onTournament?.let { add(BottomBarIcon(icons.tournamentIcon.ifBlank { mi.tournament }, Color.Unspecified, it, 28, legendKey = D.TOURNAMENT)) }
-    icons.onTranslate?.let { add(BottomBarIcon(icons.translateIcon.ifBlank { mi.translationRow }, Color.Unspecified, it, 28, legendKey = D.TRANSLATE)) }
+    icons.onTranslate?.let { add(BottomBarIcon(icons.translateIcon.ifBlank { mi.translationRow }, Color.Unspecified, it, 28, legendKey = D.TRANSLATE,
+        actionHelp = "Translate" to "Open translations and create a translation of selected report content.")) }
     icons.onRerank?.let { add(BottomBarIcon(icons.rerankIcon.ifBlank { mi.rerank }, Color.Unspecified, it, 28, legendKey = D.RERANK)) }
     icons.onModeration?.let { add(BottomBarIcon(icons.moderationIcon.ifBlank { mi.moderate }, Color.Unspecified, it, 28, legendKey = D.MODERATE)) }
     // Chat slot — normally 💬 chat; when swapped (Model response) the 🔄
@@ -2413,7 +2416,7 @@ private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp, 
         specs.forEach {
             // Resolve a human label from the stable factory glyph (legendKey)
             // so a screen reader announces "Reload" rather than the 🔄 emoji.
-            val desc = com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[it.legendKey]?.first ?: it.emoji
+            val desc = it.actionHelp?.first ?: com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[it.legendKey]?.first ?: it.emoji
             TitleBarIcon(it.emoji, it.tint, it.onClick, width = (cellWidthDp ?: it.widthDp.toFloat()).dp, heightDp = cellHeightDp, scale = scale, alpha = it.alpha, fontSize = it.fontSize, contentDescription = desc)
         }
     }
@@ -2755,7 +2758,7 @@ private fun IconLegendOverlay(
                             // Key the legend label off the stable factory glyph
                             // (legendKey), not the live one — so a user-overridden
                             // glyph still resolves its name + description.
-                            val entry = legend[spec.legendKey] ?: com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[spec.legendKey]
+                            val entry = spec.actionHelp ?: legend[spec.legendKey] ?: com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[spec.legendKey]
                             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                                 // No maxLines / ellipsis — let the name and
                                 // description wrap to as many lines as they need
