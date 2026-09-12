@@ -33,10 +33,11 @@ fun ParametersEditScreen(
     var frequencyPenalty by remember(resetTick) { mutableStateOf(params?.frequencyPenalty?.toString() ?: "") }
     var presencePenalty by remember(resetTick) { mutableStateOf(params?.presencePenalty?.toString() ?: "") }
     var seed by remember(resetTick) { mutableStateOf(params?.seed?.toString() ?: "") }
+    var stopSequences by remember(resetTick) { mutableStateOf(params?.stopSequences?.joinToString("\n") ?: "") }
     var systemPrompt by remember(resetTick) { mutableStateOf(params?.systemPrompt ?: "") }
     var responseFormatJson by remember(resetTick) { mutableStateOf(params?.responseFormatJson ?: false) }
     var searchEnabled by remember(resetTick) { mutableStateOf(params?.searchEnabled ?: false) }
-    var returnCitations by remember(resetTick) { mutableStateOf(params?.returnCitations ?: false) }
+    var returnCitations by remember(resetTick) { mutableStateOf(params?.returnCitations ?: true) }
     var searchRecency by remember(resetTick) { mutableStateOf(params?.searchRecency ?: "") }
     var webSearchTool by remember(resetTick) { mutableStateOf(params?.webSearchTool ?: false) }
     var reasoningEffort by remember(resetTick) { mutableStateOf(params?.reasoningEffort ?: "") }
@@ -47,30 +48,47 @@ fun ParametersEditScreen(
     )
     val isAddMode = forceAdd || dup.isAddMode
     val effectiveExistingNames = if (isAddMode && isEditing) {
-        existingNames + params.name.lowercase()
+        existingNames + params.name.trim().lowercase(java.util.Locale.ROOT)
     } else existingNames
 
     val nameError = when {
         name.isBlank() -> "Name is required"
-        name.lowercase() in effectiveExistingNames -> "Name already exists"
+        name.trim().lowercase(java.util.Locale.ROOT) in effectiveExistingNames -> "Name already exists"
         else -> null
     }
 
     // comma→dot before parsing: the Decimal keyboard surfaces a comma key on
     // comma-decimal locales (nl-NL) and toFloatOrNull is dot-only.
-    fun String.decimalToFloat(): Float? = replace(',', '.').toFloatOrNull()
+    fun String.decimalToFloat(): Float? = trim().replace(',', '.').toFloatOrNull()
     fun buildParams(id: String) = Parameters(
-        id, name.trim(), temperature.decimalToFloat(), maxTokens.toIntOrNull(),
-        topP.decimalToFloat(), topK.toIntOrNull(), frequencyPenalty.decimalToFloat(),
+        id, name.trim(), temperature.decimalToFloat(), maxTokens.trim().toIntOrNull(),
+        topP.decimalToFloat(), topK.trim().toIntOrNull(), frequencyPenalty.decimalToFloat(),
         presencePenalty.decimalToFloat(), systemPrompt.takeIf { it.isNotBlank() },
-        params?.stopSequences,
-        seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
+        stopSequences.lines().filter { it.isNotEmpty() }.takeIf { it.isNotEmpty() },
+        seed.trim().toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
         searchRecency.takeIf { it.isNotBlank() },
         webSearchTool,
         reasoningEffort.takeIf { it.isNotBlank() }
     )
+    val numericErrors = buildList {
+        fun decimal(label: String, text: String, min: Float, max: Float) {
+            val value = text.decimalToFloat()
+            if (text.isNotBlank() && (value == null || !value.isFinite() || value !in min..max)) add("$label must be $min..$max")
+        }
+        fun integer(label: String, text: String, positive: Boolean = true) {
+            val value = text.trim().toIntOrNull()
+            if (text.isNotBlank() && (value == null || positive && value < 1)) add("$label must be ${if (positive) "a positive" else "a 32-bit"} integer")
+        }
+        decimal("Temperature", temperature, 0f, 2f)
+        decimal("Top P", topP, 0f, 1f)
+        decimal("Frequency penalty", frequencyPenalty, -2f, 2f)
+        decimal("Presence penalty", presencePenalty, -2f, 2f)
+        integer("Max tokens", maxTokens)
+        integer("Top K", topK)
+        integer("Seed", seed, false)
+    }
     val paramsId = remember { java.util.UUID.randomUUID().toString() }
-    val current = if (nameError == null) buildParams(if (isAddMode) paramsId else params!!.id) else null
+    val current = if (nameError == null && numericErrors.isEmpty()) buildParams(if (isAddMode) paramsId else params!!.id) else null
     val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
     BackHandler { back() }
 
@@ -112,6 +130,8 @@ fun ParametersEditScreen(
             val decKb = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
             val intKb = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
             Text("Parameters", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
+            Text("Support and ranges depend on the provider, model and reasoning mode. Blank inherits other selected or default settings. Temperature 0 and a seed do not guarantee identical answers.", fontSize = 12.sp, color = AppColors.TextTertiary)
+            numericErrors.forEach { Text(it, fontSize = 12.sp, color = AppColors.DangerAccent) }
             OutlinedTextField(value = temperature, onValueChange = { temperature = it }, label = { Text("Temperature (0.0 - 2.0)") }, keyboardOptions = decKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = maxTokens, onValueChange = { maxTokens = it }, label = { Text("Max tokens") }, keyboardOptions = intKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = topP, onValueChange = { topP = it }, label = { Text("Top P (0.0 - 1.0)") }, keyboardOptions = decKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
@@ -120,6 +140,9 @@ fun ParametersEditScreen(
             OutlinedTextField(value = presencePenalty, onValueChange = { presencePenalty = it }, label = { Text("Presence penalty (-2.0 - 2.0)") }, keyboardOptions = decKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = seed, onValueChange = { seed = it }, label = { Text("Seed") }, keyboardOptions = intKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
 
+            OutlinedTextField(value = stopSequences, onValueChange = { stopSequences = it },
+                label = { Text("Stop sequences (one per line)") }, modifier = Modifier.fillMaxWidth(),
+                minLines = 2, colors = AppColors.outlinedFieldColors())
             Text("System Prompt", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
             OutlinedTextField(
                 value = systemPrompt, onValueChange = { systemPrompt = it },
@@ -157,7 +180,7 @@ fun ParametersEditScreen(
             }
 
             Text("Reasoning Effort", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
-            Text("Only honored on reasoning-capable models (gpt-5/o-series, Gemini thinking, Claude with extended thinking). Ignored elsewhere.",
+            Text("Supported levels and sampling combinations depend on the model. None leaves the effort unset; it does not switch off reasoning.",
                 fontSize = 11.sp, color = AppColors.TextTertiary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("", "low", "medium", "high").forEach { option ->

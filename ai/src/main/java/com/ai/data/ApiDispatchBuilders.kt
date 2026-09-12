@@ -86,6 +86,9 @@ internal fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService,
 internal fun validateOpenAiReportCompletion(response: AnalysisResponse, finishReason: String?): AnalysisResponse {
     val reason = finishReason?.lowercase()
     if (response.httpStatusCode !in 200..299) return response.copy(finishReason = reason)
+    // Preserve a stream timeout/transport error instead of replacing it with
+    // "No final answer". A started 200 response must not trigger a paid fallback.
+    if (response.error != null) return response.copy(generationFailed = true, finishReason = reason ?: response.finishReason)
     val failure = when (reason) {
         "length", "max_tokens" -> "Response truncated: output token limit reached (finish_reason=$reason)."
         "content_filter" -> "No complete answer: the provider filtered the response (finish_reason=$reason)."
@@ -240,7 +243,7 @@ internal fun isReasoningCapableForDispatch(service: AppService, model: String): 
  *  (`thinking.type:"adaptive"` + `output_config.effort`) per the
  *  provider's [AppService.adaptiveThinkingPatterns]. Older models
  *  still use the budget_tokens shape. */
-private fun claudeUsesAdaptiveThinking(service: AppService, model: String): Boolean =
+internal fun claudeUsesAdaptiveThinking(service: AppService, model: String): Boolean =
     service.adaptiveThinkingPatterns.anyMatches(model)
 
 /** Build the OpenAI Responses-API `reasoning` field — `{effort: <value>}` —
@@ -439,4 +442,12 @@ internal fun ChatMessage.toGeminiContent(): GeminiContent {
         if (content.isNotBlank()) add(GeminiPart(text = content))
     }
     return GeminiContent(parts.ifEmpty { listOf(GeminiPart(text = "")) }, role)
+}
+
+/** A clean HTTP/SSE ending can still be an incomplete answer. Keep partial text and billing. */
+internal fun validateNativeReportCompletion(response: AnalysisResponse, reason: String?): AnalysisResponse {
+    return if (reason in setOf("max_tokens", "MAX_TOKENS")) response.copy(
+        error = "Response truncated: output token limit reached. Increase max tokens and retry.",
+        generationFailed = true, finishReason = reason
+    ) else response.copy(finishReason = reason)
 }

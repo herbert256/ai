@@ -155,6 +155,7 @@ suspend fun AnalysisRepository.analyze(
     imageMime: String? = null
 ): AnalysisResponse = withContext(Dispatchers.IO) {
     AppLog.d("ApiDispatch", "analyze ${service.id}/$model fmt=${service.apiFormat} promptLen=${prompt.length} img=${imageBase64 != null}")
+    reportParameterError(service, model, params)?.let { return@withContext rejectedReportParameters(service, it) }
     auditApiCall(service, model, baseUrl) {
         withHostGate(baseUrl) {
             withApiCallTimeout {
@@ -196,6 +197,7 @@ suspend fun AnalysisRepository.sendChatResponse(
     params: ChatParameters,
     baseUrl: String = service.baseUrl
 ): AnalysisResponse = withContext(Dispatchers.IO) {
+    reportParameterError(service, model, params.forParameterValidation())?.let { return@withContext rejectedReportParameters(service, it) }
     AppLog.d("ApiDispatch", "sendChat ${service.id}/$model fmt=${service.apiFormat} msgs=${messages.size}")
     withHostGate(baseUrl) {
         withApiCallTimeout {
@@ -469,7 +471,8 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
         max_output_tokens = params?.maxTokens,
         instructions = params?.systemPrompt?.takeIf { it.isNotBlank() },
         tools = if (params?.webSearchTool == true) responsesWebSearchTool() else null,
-        reasoning = reasoningField(service, model, params?.reasoningEffort)
+        reasoning = reasoningField(service, model, params?.reasoningEffort),
+        temperature = params?.temperature, top_p = params?.topP, text = responsesJsonText(params)
     )
     val response = api.responses(responsesUrl, "Bearer $apiKey", request)
     val headers = formatHeaders(response.headers())
@@ -538,12 +541,13 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.toTokenUsage()
         val webData = extractClaudeWebSearch(body)
-        if (content != null) AnalysisResponse(
+        val result = if (content != null) AnalysisResponse(
             service, content, null, usage,
             citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
         )
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        validateNativeReportCompletion(result, body?.stop_reason)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
@@ -558,7 +562,8 @@ private suspend fun AnalysisRepository.analyzeGemini(
         GeminiGenerationConfig(it.temperature, it.topP, it.topK, it.maxTokens,
             it.stopSequences?.takeIf { s -> s.isNotEmpty() }, it.frequencyPenalty, it.presencePenalty, it.seed,
             if (it.searchEnabled) true else null,
-            thinkingConfig = geminiThinkingConfigField(service, model, it.reasoningEffort))
+            thinkingConfig = geminiThinkingConfigField(service, model, it.reasoningEffort),
+            responseMimeType = if (it.responseFormatJson) "application/json" else null)
     }
     val systemInstruction = params?.systemPrompt?.takeIf { it.isNotBlank() }?.let {
         GeminiContent(listOf(GeminiPart(text = it)))
@@ -588,12 +593,13 @@ private suspend fun AnalysisRepository.analyzeGemini(
         val rawUsageJson = formatUsageJson(body?.usageMetadata)
         val usage = body?.usageMetadata?.toTokenUsage()
         val webData = extractGeminiWebSearch(body)
-        if (content != null) AnalysisResponse(
+        val result = if (content != null) AnalysisResponse(
             service, content, null, usage,
             citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
         )
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        validateNativeReportCompletion(result, body?.candidates?.firstOrNull()?.finishReason)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
@@ -682,13 +688,13 @@ private suspend fun AnalysisRepository.chatResponsesApiResponse(
             }
             mapOf("role" to msg.role, "content" to parts)
         }
-        OpenAiResponsesRequest(model = model, input = inputItems, instructions = systemPrompt, tools = tools, reasoning = reasoning, max_output_tokens = params.maxTokens)
+        OpenAiResponsesRequest(model = model, input = inputItems, instructions = systemPrompt, tools = tools, reasoning = reasoning, max_output_tokens = params.maxTokens, temperature = params.temperature, top_p = params.topP)
     } else {
         val inputMessages = nonSystem.map { OpenAiResponsesInputMessage(it.role, it.content) }
         if (inputMessages.size == 1 && inputMessages.first().role == "user") {
-            OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt, tools = tools, reasoning = reasoning, max_output_tokens = params.maxTokens)
+            OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt, tools = tools, reasoning = reasoning, max_output_tokens = params.maxTokens, temperature = params.temperature, top_p = params.topP)
         } else {
-            OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt, tools = tools, reasoning = reasoning, max_output_tokens = params.maxTokens)
+            OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt, tools = tools, reasoning = reasoning, max_output_tokens = params.maxTokens, temperature = params.temperature, top_p = params.topP)
         }
     }
     val response = api.responses(responsesUrl, "Bearer $apiKey", request)
@@ -1017,6 +1023,7 @@ internal suspend fun AnalysisRepository.analyzeAgentStreaming(
     imageBase64: String? = null, imageMime: String? = null,
     onDelta: (String) -> Unit
 ): AnalysisResponse = withContext(Dispatchers.IO) {
+    reportParameterError(service, model, params)?.let { return@withContext rejectedReportParameters(service, it) }
     auditApiCall(service, model, baseUrl) {
         // No withApiCallTimeout here: the full SSE body is drained inside
         // these stream*Report calls (collectStreamResponse), and wrapping

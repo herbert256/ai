@@ -111,7 +111,8 @@ internal suspend fun AnalysisRepository.streamResponsesApiReport(
         instructions = params?.systemPrompt?.takeIf { it.isNotBlank() },
         stream = true,
         tools = if (params?.webSearchTool == true) responsesWebSearchTool() else null,
-        reasoning = reasoningField(service, model, params?.reasoningEffort)
+        reasoning = reasoningField(service, model, params?.reasoningEffort),
+        temperature = params?.temperature, top_p = params?.topP, text = responsesJsonText(params)
     )
     val response = api.responsesStream(responsesUrl, "Bearer $apiKey", request)
     return collectStreamResponse(
@@ -146,14 +147,19 @@ internal suspend fun AnalysisRepository.streamAnthropicReport(
         output_config = bundle.outputConfig
     )
     val response = api.createMessageStream(apiKey, request = request)
-    return collectStreamResponse(
+    var finishReason: String? = null
+    val result = collectStreamResponse(
         service,
         response,
-        ::extractClaudeContent,
+        { event, data ->
+            runCatching { gson.fromJson(data, ClaudeStreamEvent::class.java)?.delta?.stop_reason }.getOrNull()?.let { finishReason = it }
+            extractClaudeContent(event, data)
+        },
         extractClaudeUsage,
         requireTerminator = true,
         onDelta = onDelta
     )
+    return validateNativeReportCompletion(result, finishReason)
 }
 
 internal suspend fun AnalysisRepository.streamGeminiReport(
@@ -164,7 +170,8 @@ internal suspend fun AnalysisRepository.streamGeminiReport(
         GeminiGenerationConfig(it.temperature, it.topP, it.topK, it.maxTokens,
             it.stopSequences?.takeIf { s -> s.isNotEmpty() }, it.frequencyPenalty, it.presencePenalty, it.seed,
             if (it.searchEnabled) true else null,
-            thinkingConfig = geminiThinkingConfigField(service, model, it.reasoningEffort))
+            thinkingConfig = geminiThinkingConfigField(service, model, it.reasoningEffort),
+            responseMimeType = if (it.responseFormatJson) "application/json" else null)
     }
     val systemInstruction = params?.systemPrompt?.takeIf { it.isNotBlank() }?.let {
         GeminiContent(listOf(GeminiPart(text = it)))
@@ -178,13 +185,18 @@ internal suspend fun AnalysisRepository.streamGeminiReport(
     )
     val api = ApiFactory.createGeminiApi(service.baseUrl)
     val response = api.streamGenerateContent(model, apiKey, request = request)
-    return collectStreamResponse(
+    var finishReason: String? = null
+    val result = collectStreamResponse(
         service,
         response,
-        ::extractGeminiContent,
+        { event, data ->
+            runCatching { gson.fromJson(data, GeminiStreamChunk::class.java)?.candidates?.firstOrNull()?.finishReason }.getOrNull()?.let { finishReason = it }
+            extractGeminiContent(event, data)
+        },
         extractGeminiUsage,
         ::isGeminiFinalChunk,
         requireTerminator = true,
         onDelta = onDelta
     )
+    return validateNativeReportCompletion(result, finishReason)
 }

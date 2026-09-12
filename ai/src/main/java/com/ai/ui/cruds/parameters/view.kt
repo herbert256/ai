@@ -5,7 +5,7 @@ import com.ai.model.Parameters
 import com.ai.ui.cruds.framework.CrudField
 import com.ai.ui.cruds.framework.CrudViewPage
 
-private fun rows(p: Parameters): List<Pair<String, String>> = buildList {
+internal fun parameterRows(p: Parameters): List<Pair<String, String>> = buildList {
     p.temperature?.let { add("Temperature" to it.toString()) }
     p.maxTokens?.let { add("Max tokens" to it.toString()) }
     p.topP?.let { add("top_p" to it.toString()) }
@@ -17,6 +17,7 @@ private fun rows(p: Parameters): List<Pair<String, String>> = buildList {
     if (p.responseFormatJson) add("Response format" to "JSON")
     if (p.searchEnabled) add("Search" to "enabled")
     if (p.webSearchTool) add("Web-search tool" to "enabled")
+    if (!p.returnCitations) add("Return citations" to "disabled")
     p.searchRecency?.takeIf { it.isNotBlank() }?.let { add("Search recency" to it) }
     p.stopSequences?.takeIf { it.isNotEmpty() }?.let { add("Stop sequences" to it.joinToString(", ")) }
     p.systemPrompt?.takeIf { it.isNotBlank() }?.let { add("System prompt" to it) }
@@ -37,7 +38,7 @@ internal fun ParametersView(
         helpTopic = "crud_parameters"
     ) {
         CrudField("Name", item.name)
-        val r = rows(item)
+        val r = parameterRows(item)
         if (r.isEmpty()) CrudField("Parameters", "(none set)")
         else r.forEach { (k, v) -> CrudField(k, v) }
     }

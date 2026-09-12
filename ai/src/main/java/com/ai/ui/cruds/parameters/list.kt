@@ -16,12 +16,6 @@ private sealed interface Mode {
     data class Add(val prefill: Parameters?) : Mode
 }
 
-private fun setCount(p: Parameters): Int = listOfNotNull(
-    p.temperature, p.maxTokens, p.topP, p.topK, p.frequencyPenalty,
-    p.presencePenalty, p.seed, p.systemPrompt?.takeIf { it.isNotBlank() },
-    p.reasoningEffort?.takeIf { it.isNotBlank() }
-).size + (if (p.searchEnabled) 1 else 0) + (if (p.webSearchTool) 1 else 0)
-
 @Composable
 fun ParametersCrud(
     aiSettings: Settings,
@@ -44,7 +38,7 @@ fun ParametersCrud(
             subject = "Saved temperature / token presets",
             helpTopic = "crud_parameters",
             items = aiSettings.parameters.sortedBy { it.name.lowercase() },
-            line = { "${it.name} · ${setCount(it)} set" },
+            line = { "${it.name} · ${parameterRows(it).size} set" },
             itemKey = { it.id },
             onView = { mode = Mode.View(it) },
             onAdd = { mode = Mode.Add(null) },

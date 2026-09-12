@@ -29,7 +29,7 @@ internal fun ParametersEditForm(
         params = item,
         existingNames = aiSettings.parameters
             .filter { it.id != excludeId }
-            .map { it.name.lowercase(Locale.ROOT) }.toSet(),
+            .map { it.name.trim().lowercase(Locale.ROOT) }.toSet(),
         onSave = onSaved,
         onBack = onBack,
         onNavigateHome = onNavigateHome,

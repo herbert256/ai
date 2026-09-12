@@ -1168,20 +1168,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                     return@launch
                 }
-                val supportedParams = PricingCache.getSupportedParameters(context, task.runtimeAgent.provider, task.runtimeAgent.model)
-                if (supportedParams != null && supportedParams.none { it.equals("temperature", ignoreCase = true) }) {
-                    val msg = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} does not report temperature support."
-                    updateTemperatureSweepState(key) { sweep ->
-                        sweep.copy(
-                            isRunning = false,
-                            unavailableMessage = msg,
-                            candidates = sweep.candidates.map { candidate ->
-                                TemperatureSweepCandidate.Error(candidate.temperature, msg, null, null, null)
-                            }
-                        )
-                    }
-                    return@launch
-                }
+                // The cached catalog can describe a different endpoint or reasoning
+                // mode. Shared dispatch validates the actual requested experiment.
                 val temperatureRange = temperatureRangeForProvider(task.runtimeAgent.provider)
                 val invalidTemp = temps.firstOrNull { !temperatureRange.contains(it) }
                 if (temps.isEmpty() || invalidTemp != null) {

@@ -26,6 +26,7 @@ fun AnalysisRepository.sendChatStream(
 ): Flow<String> {
     val effectiveUrl = baseUrl ?: service.baseUrl
     val inner: Flow<String> = flow {
+        reportParameterError(service, model, params.forParameterValidation())?.let { throw IllegalArgumentException(it) }
         // LiteLLM gating: when the model is known not to support native SSE
         // streaming, route through the non-streaming sendChat path and emit
         // the full response as a single chunk. The chat UI's accumulator
@@ -389,7 +390,8 @@ private fun AnalysisRepository.streamOpenAi(
             model = model, input = input, instructions = systemPrompt, stream = true,
             max_output_tokens = params.maxTokens,
             tools = if (params.webSearchTool) responsesWebSearchTool() else null,
-            reasoning = reasoningField(service, model, params.reasoningEffort)
+            reasoning = reasoningField(service, model, params.reasoningEffort),
+            temperature = params.temperature, top_p = params.topP
         )
         val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) } }
         if (response.isSuccessful) {

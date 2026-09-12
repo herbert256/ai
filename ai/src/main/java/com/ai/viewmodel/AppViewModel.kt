@@ -657,6 +657,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.d(tag, "  internalPrompts=${ai.internalPrompts.size} examplePrompts=${ai.examplePrompts.size} parameters=${ai.parameters.size} systemPrompts=${ai.systemPrompts.size}")
         AppLog.d(tag, "← Load prefs done in ${System.currentTimeMillis() - tLoad}ms")
 
+        // Install optional parameter examples once; preserve edits, names and deletions.
+        if (!prefs.getBoolean("parameter_examples_v2", false)) {
+            val existingIds = ai.parameters.map { it.id }.toSet()
+            val existingNames = ai.parameters.map { it.name.trim().lowercase(java.util.Locale.ROOT) }.toSet()
+            val additions = com.ai.data.parameterExamples().filter {
+                it.id !in existingIds && it.name.lowercase(java.util.Locale.ROOT) !in existingNames
+            }
+            if (additions.isNotEmpty()) {
+                ai = ai.copy(parameters = ai.parameters + additions)
+                settingsPrefs.saveSettings(ai)
+            }
+            prefs.edit().putBoolean("parameter_examples_v2", true).apply()
+        }
+
         // First-run seeding from bundled assets. Flag wiped on data
         // clear / reinstall (which is exactly when we want to seed
         // again); persists across APK upgrades.

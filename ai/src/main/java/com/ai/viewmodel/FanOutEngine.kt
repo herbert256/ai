@@ -657,20 +657,8 @@ class FanOutEngine internal constructor(
         val job = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             try {
                 val task = buildFanOutPairReplayTask(context, runKey, pairId)
-                val supportedParams = PricingCache.getSupportedParameters(context, task.provider, task.model)
-                if (supportedParams != null && supportedParams.none { it.equals("temperature", ignoreCase = true) }) {
-                    val msg = "${task.provider.id}/${task.model} does not report temperature support."
-                    updateTemperatureSweepState(key) { sweep ->
-                        sweep.copy(
-                            isRunning = false,
-                            unavailableMessage = msg,
-                            candidates = sweep.candidates.map { candidate ->
-                                TemperatureSweepCandidate.Error(candidate.temperature, msg, null, null, null)
-                            }
-                        )
-                    }
-                    return@launch
-                }
+                // The cached catalog can describe a different endpoint or reasoning
+                // mode. Shared dispatch validates the actual requested experiment.
                 val range = temperatureRangeForProvider(task.provider)
                 val invalidTemp = temps.firstOrNull { !range.contains(it) }
                 if (temps.isEmpty() || invalidTemp != null) {

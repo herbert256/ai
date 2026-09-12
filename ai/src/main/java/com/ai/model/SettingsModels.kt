@@ -626,8 +626,8 @@ data class Settings(
      *  performs reasoning" (drives the 🧠 badge); this says "the model
      *  exposes a controllable `reasoning_effort` / `thinking` parameter
      *  we can attach to the request". xAI ships several
-     *  reasoning-capable but always-on models (grok-4.3,
-     *  grok-4.20-multi-agent-0309, grok-code-fast-1) that 400 when
+     *  reasoning-capable but always-on models (grok-4.20-multi-agent-0309,
+     *  grok-code-fast-1) that 400 when
      *  `reasoning_effort` is sent, so for
      *  [ModelType.externalReasoningSignalUntrusted] providers we narrow
      *  via [ModelType.inferAcceptsReasoningEffortParam]. */

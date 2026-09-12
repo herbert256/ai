@@ -157,6 +157,7 @@ definition (`AppService.defaultModel` / `defaultModelSource`), so
 | `ai_flocks` | JSON List<Flock> | includes the reserved `"default agents"` flock |
 | `ai_swarms` | JSON List<Swarm> | flat groups of `(provider, model)` pairs |
 | `ai_parameters` | JSON List<Parameters> | |
+| `parameter_examples_v2` | Boolean | optional parameter examples installed once; preserves user edits and deletions |
 | `ai_system_prompts` | JSON List<SystemPrompt> | |
 | `ai_meta_prompts` | JSON List<InternalPrompt> | despite the legacy `meta` name in the key, this holds **every** Internal Prompt — Meta / Fan-out / Fan-in / workers / alt / internal categories — so seeded entries survive the rename to InternalPrompt |
 | `ai_example_prompts` | JSON List<ExamplePrompt> | starter library for the New Report flow |

@@ -283,7 +283,10 @@ data class OpenAiResponsesRequest(
     /** Reasoning hint — `{"effort": "low"|"medium"|"high"}` — supported on
      *  gpt-5/o-series. Stripped at dispatch when LiteLLM says the model
      *  isn't reasoning-capable. */
-    val reasoning: Map<String, Any>? = null
+    val reasoning: Map<String, Any>? = null,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val text: Map<String, Any>? = null
 )
 
 data class OpenAiResponsesInputMessage(val role: String, val content: String)
@@ -412,7 +415,8 @@ data class ClaudeResponse(
     val id: String?,
     val content: List<ClaudeContentBlock>?,
     val usage: ClaudeUsage?,
-    val error: ClaudeError?
+    val error: ClaudeError?,
+    val stop_reason: String? = null
 )
 
 data class ClaudeError(val type: String?, val message: String?)
@@ -457,12 +461,14 @@ data class GeminiGenerationConfig(
      *  bool}`. Only attached when the model supports thinking; mapped
      *  from the unified effort levels by
      *  [com.ai.data.geminiThinkingConfigField]. */
-    val thinkingConfig: Map<String, Any>? = null
+    val thinkingConfig: Map<String, Any>? = null,
+    val responseMimeType: String? = null
 )
 
 data class GeminiCandidate(
     val content: GeminiContent?,
-    val groundingMetadata: GeminiGroundingMetadata? = null
+    val groundingMetadata: GeminiGroundingMetadata? = null,
+    val finishReason: String? = null
 )
 
 /** Populated by Gemini when the google_search tool runs. groundingChunks

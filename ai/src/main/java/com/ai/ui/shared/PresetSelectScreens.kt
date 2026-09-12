@@ -81,7 +81,14 @@ fun ParametersSelectScreen(
             val details = listOfNotNull(
                 p.temperature?.let { "temp=$it" },
                 p.maxTokens?.let { "max=$it" },
-                p.topP?.let { "topP=$it" }
+                p.topP?.let { "topP=$it" },
+                p.topK?.let { "topK=$it" },
+                p.seed?.let { "seed=$it" },
+                p.frequencyPenalty?.let { "frequency=$it" },
+                p.presencePenalty?.let { "presence=$it" },
+                p.stopSequences?.takeIf { it.isNotEmpty() }?.let { "stop=${it.joinToString()}" },
+                "JSON".takeIf { p.responseFormatJson },
+                p.reasoningEffort?.let { "reasoning=$it" }
             ).joinToString(", ")
             PresetRow(
                 name = p.name,
@@ -154,11 +161,14 @@ private fun PresetPagedList(
         }
         return
     }
-    val rowHeight = 64.dp
-    val indicatorReserve = 28.dp
+    // A name plus two detail lines can occupy 88 dp. Include row gaps and
+    // the page label; using 64 dp previously placed the last option under the bar.
+    val rowHeight = 88.dp
+    val rowSpacing = 6.dp
+    val indicatorReserve = 36.dp
     var page by remember(count) { mutableStateOf(0) }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val pageSize = maxOf(1, ((maxHeight - indicatorReserve) / rowHeight).toInt())
+        val pageSize = maxOf(1, ((maxHeight - indicatorReserve + rowSpacing) / (rowHeight + rowSpacing)).toInt())
         val totalPages = (count + pageSize - 1) / pageSize
         val safePage = page.coerceIn(0, totalPages - 1)
         val start = safePage * pageSize
@@ -178,7 +188,7 @@ private fun PresetPagedList(
                     onSwipeUp = { if (safePage > 0) page = safePage - 1 },
                     onSwipeDown = { if (safePage < totalPages - 1) page = safePage + 1 }
                 ),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(rowSpacing)
         ) {
             if (totalPages > 1) {
                 Text(

@@ -197,8 +197,9 @@ class AnalysisRepository(
     internal fun resolveReportPrompt(prompt: String, agent: com.ai.model.Agent): String = buildPrompt(prompt,"",agent)
     internal fun effectiveReportParameters(base: AgentParameters, overlay: AgentParameters?, provider: AppService,
         model: String, context: Context): AgentParameters {
-        val merged=validateParams(mergeParameters(base,overlay),provider)
-        return if(overlay != null) filterParametersBySupported(merged,PricingCache.getSupportedParameters(context,provider,model)) else merged
+        // Snapshot the requested values. Unsupported controls become explicit errors at
+        // dispatch, so a saved temperature experiment cannot run at a different value.
+        return mergeParameters(base, overlay)
     }
 
     private fun buildPrompt(promptTemplate: String, content: String, agent: com.ai.model.Agent? = null): String {
@@ -235,26 +236,6 @@ class AnalysisRepository(
         )
     }
 
-    private fun filterParametersBySupported(params: AgentParameters, supportedParams: List<String>?): AgentParameters {
-        if (supportedParams == null) return params
-        return AgentParameters(
-            temperature = if ("temperature" in supportedParams) params.temperature else null,
-            maxTokens = if ("max_tokens" in supportedParams) params.maxTokens else null,
-            topP = if ("top_p" in supportedParams) params.topP else null,
-            topK = if ("top_k" in supportedParams) params.topK else null,
-            frequencyPenalty = if ("frequency_penalty" in supportedParams) params.frequencyPenalty else null,
-            presencePenalty = if ("presence_penalty" in supportedParams) params.presencePenalty else null,
-            systemPrompt = params.systemPrompt,
-            stopSequences = if ("stop" in supportedParams) params.stopSequences else null,
-            seed = if ("seed" in supportedParams) params.seed else null,
-            responseFormatJson = if ("response_format" in supportedParams) params.responseFormatJson else false,
-            searchEnabled = params.searchEnabled,
-            returnCitations = params.returnCitations,
-            searchRecency = params.searchRecency,
-            webSearchTool = params.webSearchTool,
-            reasoningEffort = params.reasoningEffort
-        )
-    }
 
     /**
      * Analyze using an Agent configuration with retry logic.
@@ -336,10 +317,7 @@ class AnalysisRepository(
         }
         val finalPrompt = withRagPrefix(if (literalPrompt) prompt else buildPrompt(prompt, content, agent), ragPrefix)
         suspend fun makeApiCall(): AnalysisResponse {
-            var params = validateParams(mergeParameters(agentResolvedParams, overrideParams), agent.provider)
-            if (overrideParams != null && context != null) {
-                params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))
-            }
+            val params = mergeParameters(agentResolvedParams, overrideParams)
             val effectiveBaseUrl = baseUrl ?: agent.provider.baseUrl
             val first = analyze(
                 agent.provider, agent.apiKey, finalPrompt, agent.model, params,
@@ -469,10 +447,7 @@ class AnalysisRepository(
             }.getOrDefault("")
         } else ""
         val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
-        var params = validateParams(merged, agent.provider)
-        if (overrideParams != null && context != null) {
-            params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))
-        }
+        val params = merged
         val effectiveBaseUrl = baseUrl ?: agent.provider.baseUrl
         val answerFilter = ReportAnswerFilter()
         val rawResponse = try {

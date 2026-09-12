@@ -25,6 +25,12 @@
     },
     {
       "suffix": "-reasoning"
+    },
+    {
+      "exact": "grok-4.3"
+    },
+    {
+      "exact": "grok-4.3-latest"
     }
   ],
   "reasoningModelPatterns": [

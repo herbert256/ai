@@ -273,12 +273,8 @@ class MetaEditManager internal constructor(
         val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {
                 val task = buildMetaReplayTask(context, reportId, resultId)
-                val supported = PricingCache.getSupportedParameters(context, task.provider, task.model)
-                if (supported != null && supported.none { it.equals("temperature", ignoreCase = true) }) {
-                    val msg = "${task.provider.id}/${task.model} does not report temperature support."
-                    updateTemperatureSweepState(key) { s -> s.copy(isRunning = false, unavailableMessage = msg, candidates = s.candidates.map { TemperatureSweepCandidate.Error(it.temperature, msg, null, null, null) }) }
-                    return@launch
-                }
+                // The cached catalog can describe a different endpoint or reasoning
+                // mode. Shared dispatch validates the actual requested experiment.
                 val range = temperatureRangeForProvider(task.provider)
                 val invalid = temps.firstOrNull { !range.contains(it) }
                 if (temps.isEmpty() || invalid != null) {

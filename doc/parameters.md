@@ -62,30 +62,41 @@ Every report-generation and secondary call ends here. It receives
    the default-false booleans, AND for `returnCitations`). For `systemPrompt` and
    `stopSequences` the override only wins when it is non-blank / non-empty. If
    `overrideParams` is `null` the agent params pass through untouched.
-2. **`validateParams(...)`** — clamps numerics to valid ranges. The temperature
-   range is **provider-aware**: `0–1.5` for Mistral, `0–1` for Anthropic-format
-   providers, `0–2` otherwise; topP `0–1`, topK / maxTokens `≥1`, the two
-   penalties `−2..2`. This does not change *selection*, only the values.
-3. **`filterParametersBySupported(...)`** — **only when an `overrideParams` was
-   present** (and a `context` is available). Drops any field the target model is
-   known not to accept, using the catalog's supported-parameter list
-   (`PricingCache.getSupportedParameters`). The match keys are the wire names
-   (`temperature`, `max_tokens`, `top_p`, `top_k`, `frequency_penalty`,
-   `presence_penalty`, `stop`, `seed`, `response_format`). **The system prompt is
-   never filtered** (see [system-prompts.md](system-prompts.md)), and the
-   web-search / citation / reasoning fields are passed through untouched.
+2. **Preserve the requested values** in `ReportExecutionConfig`. Reports no longer
+   silently clamp values or remove controls based on the cached supported-parameter
+   list. That list can be stale or describe another endpoint (for example, it
+   removed temperature from GPT-5.4-mini although Responses accepts it without reasoning).
+3. **`reportParameterError(...)`** checks numeric ranges and known endpoint/model
+   restrictions before a report call. Configuration failures retain the requested
+   values, show an actionable error, incur no API call and do not retry. Unknown
+   provider/model restrictions remain provider-validated; HTTP success alone does
+   not establish that the provider honored a control.
 
-So the universal last step is: **`overrideParams` over `agentResolvedParams`,
-then clamp, then (only if an override existed) drop-unsupported.**
+Report temperature ranges are `0..1.5` for Mistral, `0..1` for Anthropic-format
+providers, and `0..2` otherwise. Model/reasoning restrictions can be tighter.
+The preset editor rejects malformed/non-finite numbers and invalid integer/range
+values, accepts comma decimal separators, and supports stop sequences. Presets
+are reusable selections; selecting one does not change app-wide defaults.
 
-> **Reasoning-effort is gated again at the wire.** Even after a `reasoningEffort`
-> value is resolved, the dispatch only attaches `reasoning_effort` when
-> `isReasoningCapableForDispatch(service, model)` is true — a thin delegate to
-> `ModelCapabilityResolver` (Settings reference when published, else a
-> LiteLLM / models.dev / heuristic catalog chain, with an xAI-style
-> always-on-reasoning gate). A model that doesn't accept the parameter
-> silently drops it — so a resolved effort can be a no-op. See
-> `data/ApiDispatchBuilders.kt` and `data/ModelCapabilityResolver.kt`.
+Optional `Audit` presets cover temperature 0/1, top P, top K, seed, penalties,
+JSON, a short token cap, reasoning and stop sequences. `ParameterPresets.kt`
+installs these once on fresh and existing installations, preserving existing
+names, edits and deletions. Generated test reports are not bundled.
+
+At dispatch, Responses maps JSON mode to `text.format.type=json_object` and
+passes supported temperature/top-p fields. Gemini maps JSON to
+`generationConfig.responseMimeType=application/json`. Its other fields use
+camelCase. Mistral maps seed to `random_seed`; Anthropic uses `stop_sequences`.
+The same number is not a calibrated cross-model randomness or quality score.
+Even temperature zero or a seed does not guarantee identical outputs.
+
+Token limits can include hidden reasoning. Explicit caps are preserved; Claude
+requests that conflict with the chosen thinking budget fail rather than raising
+the cap. Truncated Claude/Gemini/OpenAI report responses retain partial output
+and usage but are marked failed, preventing an automatic paid retry.
+
+See the [parameter audit](parameter-audit-2026-09-12.md) for observed results and
+provider documentation. Native rerank/moderation have separate parameter schemas.
 
 ---
 
@@ -212,7 +223,7 @@ A worker-carrying `InternalPrompt` has a `modelSelection` field
 
 This only changes **which** workers run; it does **not** change parameter
 resolution — the single-result kinds still resolve params via
-`resolveSecondaryParams`, and the worker-grid kinds still send empty params.
+`resolveSecondaryParams`, and worker-grid kinds resolve their frozen prompt/worker configuration.
 
 ### `Report.workerConfig` ("Report - select workers")
 

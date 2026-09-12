@@ -323,13 +323,13 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "parameters_edit" to HelpContent(
         title = "Help - Parameters edit",
         cards = listOf(
-            HelpCard("Overview", "Form for one preset. Save / Create activates once the name is valid; every other field is optional and blank means \"don't send this parameter\"."),
-            HelpCard("Parameters block", "Temperature (0.0–2.0), Max tokens, Top P (0.0–1.0), Top K, Frequency / Presence penalty (-2.0–2.0), Seed. All free-text — ill-typed values become null on save."),
+            HelpCard("Overview", "Form for one preset. Save / Create activates once the name and entered values are valid. Fields are optional; blank inherits other selected or default settings."),
+            HelpCard("Parameters block", "Temperature (0.0–2.0), Max tokens, Top P (0.0–1.0), Top K, Frequency / Presence penalty (-2.0–2.0), Seed. Invalid numbers, non-finite values and out-of-range values block saving. Comma decimal separators are accepted. Stop sequences can be entered one per line."),
             HelpCard("System Prompt", "Multi-line text (3–6 visible lines). Sent as the system role to providers that accept it; folded into the user message for those that don't (Anthropic with thinking-only models, Mistral cohorts)."),
             HelpCard("Options", "Response format JSON, Enable web search (search:true flag — Perplexity-style), Web search tool (Anthropic / Gemini / OpenAI Responses-style tool block), Return citations."),
             HelpCard("Search Recency", "Filter chips: None / day / week / month / year. Honored only by providers that report supportsSearchRecency=true."),
-            HelpCard("Reasoning Effort", "Filter chips: None / low / medium / high. Sent only to reasoning-capable models (gpt-5/o-series, Gemini thinking, Claude with extended thinking) — ignored by everything else."),
-            HelpCard("Tips", "Numeric fields tolerate empty input — a blank stays null in the saved preset.")
+            HelpCard("Reasoning Effort", "Filter chips: None / low / medium / high. Supported levels depend on the model. None leaves the effort unset; it does not disable reasoning. Known unsupported combinations fail before a report request is sent."),
+            HelpCard("Tips", "Use one sampling control at a time. Model support and ranges differ: Anthropic temperature is at most 1, and some reasoning models do not accept temperature at all. Temperature zero and seed values do not guarantee identical answers. Optional Audit presets provide individual controls to try.")
         )
     ),
     "system_prompts" to HelpContent(
