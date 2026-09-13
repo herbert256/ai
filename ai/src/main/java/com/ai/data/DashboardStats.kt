@@ -12,8 +12,10 @@ import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.providerHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
 
-/** Report + secondary-result lifetime totals — the "Reports" stats screen.
+/** Current reports/results and their recorded spending — the "Reports" stats screen.
  *  Heavy (one report scan + a secondary read per report). */
 internal data class ReportSectionData(
     val reports: ReportStats,
@@ -22,13 +24,16 @@ internal data class ReportSectionData(
     // Agent-call status breakdown (erroredCalls/stopped live on ReportStats).
     val agentSuccess: Int,
     val agentPending: Int,                 // PENDING + RUNNING
-    // Tokens & compute across all agent calls.
+    // Billed tokens & compute across current primary results.
     val inputTokens: Long,
     val outputTokens: Long,
     val totalDurationMs: Long,
     // Secondary spend / tokens.
     val secondaryCost: Double,
     val secondaryTokens: Long,
+    // Null if any report lacks a complete ledger: never divide a full cost
+    // by a partial or current-result call count.
+    val recordedCalls: Int?,
     // Report-level feature usage.
     val pinned: Int,
     val withImage: Int,
@@ -206,10 +211,11 @@ private fun buildUsageTypeGroups(groups: List<ProviderCostGroup>): List<UsageTyp
         .sortedByDescending { it.totalCost }
 
 private fun buildUsageReportRows(context: Context, stats: Map<String, UsageReportStats>): List<UsageReportRow> =
-    stats.values.filter { row -> ReportStorage.reportLastModified(context, row.reportId) > 0L }.map { row ->
+    stats.values.mapNotNull { row ->
+        val report = ReportStorage.getReport(context, row.reportId) ?: return@mapNotNull null
         UsageReportRow(
             reportId = row.reportId,
-            title = row.title,
+            title = report.title.ifBlank { "Untitled report" },
             calls = row.callCount,
             tokens = row.totalTokens,
             totalCost = row.totalCost,
@@ -442,6 +448,16 @@ internal data class ReportStats(
 
 private const val MODEL_CACHE_STALE_MS = 7L * 24 * 60 * 60 * 1000
 
+/** Local midnight respects timezone and DST; rolling windows stay elapsed-time based. */
+private fun startOfToday(now: Long): Long {
+    val zone = ZoneId.systemDefault()
+    return Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        .atStartOfDay(zone).toInstant().toEpochMilli()
+}
+
+private fun String?.enablesReasoning(): Boolean =
+    !isNullOrBlank() && !equals("none", ignoreCase = true)
+
 /** Reports + secondaries for the "Statistics - Reports" screen. Reuses the
  *  hub's running/problems predicates so the numbers match the AI Reports hub.
  *  Disk-heavy: one report scan + a secondary read per report. */
@@ -463,15 +479,22 @@ internal suspend fun computeReportStats(
     val problems = all.count { it.id in problemReportIds }
 
     // One secondary read per report feeds the by-kind counts + cost/tokens.
-    val secByKind = linkedMapOf(
-        SecondaryKind.RERANK to 0, SecondaryKind.META to 0,
-        SecondaryKind.MODERATION to 0, SecondaryKind.TRANSLATE to 0
-    )
+    val secByKind = SecondaryKind.entries.associateWithTo(linkedMapOf()) { 0 }
     val metaByName = HashMap<String, Int>()
     var secondaryCost = 0.0
     var secondaryTokens = 0L
+    var withWebSearch = 0
+    var withReasoning = 0
+    var translated = 0
     for (r in all) {
         val secs = SecondaryResultStorage.listForReport(context, r.id)
+        val parameters = r.agents.mapNotNull { it.executionConfig?.parameters } +
+            secs.mapNotNull { it.executionConfig?.parameters }
+        if (r.webSearchTool || parameters.any { it.webSearchTool || it.searchEnabled }) withWebSearch++
+        if (r.reasoningEffort.enablesReasoning() || parameters.any { it.reasoningEffort.enablesReasoning() } ||
+            r.agents.any { (it.tokenUsage?.reasoningTokens ?: 0) > 0 } ||
+            secs.any { (it.tokenUsage?.reasoningTokens ?: 0) > 0 }) withReasoning++
+        if (r.sourceReportId != null || secs.any { it.kind == SecondaryKind.TRANSLATE }) translated++
         for (s in secs) {
             secByKind[s.kind] = (secByKind[s.kind] ?: 0) + 1
             if (s.kind == SecondaryKind.META) {
@@ -486,6 +509,7 @@ internal suspend fun computeReportStats(
     // Agent-call rollups (status, tokens, compute, leaderboards) + report-level
     // feature usage + activity-over-time, all in one in-memory pass.
     val now = System.currentTimeMillis()
+    val todayStart = startOfToday(now)
     val dayMs = 24L * 60 * 60 * 1000
     var agentCalls = 0; var errored = 0; var stopped = 0; var success = 0; var pending = 0
     var inputTokens = 0L; var outputTokens = 0L; var totalDurationMs = 0L
@@ -499,7 +523,7 @@ internal suspend fun computeReportStats(
             ReportStatus.SUCCESS -> success++
             ReportStatus.PENDING, ReportStatus.RUNNING -> pending++
         }
-        a.tokenUsage?.let { inputTokens += it.inputTokens.toLong(); outputTokens += it.outputTokens.toLong() }
+        a.tokenUsage?.let { inputTokens += it.billedInputTokens.toLong(); outputTokens += it.billedOutputTokens.toLong() }
         a.durationMs?.let { totalDurationMs += it }
         if (a.model.isNotBlank()) modelCalls[a.model] = (modelCalls[a.model] ?: 0) + 1
         if (a.provider.isNotBlank()) providerCalls[a.provider] = (providerCalls[a.provider] ?: 0) + 1
@@ -527,16 +551,18 @@ internal suspend fun computeReportStats(
         totalDurationMs = totalDurationMs,
         secondaryCost = secondaryCost,
         secondaryTokens = secondaryTokens,
+        recordedCalls = if (all.all { ReportStorage.isApiCallCostLedgerCurrent(it) })
+            all.sumOf { it.apiCallCosts.size } else null,
         pinned = all.count { it.pinned },
-        withImage = all.count { it.imageBase64 != null },
-        withWebSearch = all.count { it.webSearchTool },
-        withReasoning = all.count { it.reasoningEffort != null },
+        withImage = all.count { !it.imageBase64.isNullOrBlank() },
+        withWebSearch = withWebSearch,
+        withReasoning = withReasoning,
         withKnowledge = all.count { it.knowledgeBaseIds.isNotEmpty() },
-        translated = all.count { it.sourceReportId != null },
+        translated = translated,
         tableReports = all.count { it.reportType == ReportType.TABLE },
-        createdToday = all.count { now - createdAtOf(it) < dayMs },
-        created7d = all.count { now - createdAtOf(it) < 7 * dayMs },
-        created30d = all.count { now - createdAtOf(it) < 30 * dayMs },
+        createdToday = all.count { createdAtOf(it) in todayStart..now },
+        created7d = all.count { now - createdAtOf(it) in 0 until 7 * dayMs },
+        created30d = all.count { now - createdAtOf(it) in 0 until 30 * dayMs },
         oldestCreatedAt = all.minOfOrNull { createdAtOf(it) }?.takeIf { it > 0L },
         topModels = modelCalls.entries.sortedByDescending { it.value }.take(6).map { it.key to it.value },
         topProviders = providerCalls.entries.sortedByDescending { it.value }.take(6).map { it.key to it.value },
@@ -564,6 +590,7 @@ internal suspend fun computeProviderModelStats(
         val cfg = aiSettings.getProvider(p)
         val models = cfg.models.filter { it.isNotBlank() }
         val modelSet = models.toHashSet()
+        val overrides = aiSettings.modelTypeOverrides.filter { it.providerId == p.id }
         val typeCounts = LinkedHashMap<String, Int>()
         for (m in models) {
             val t = aiSettings.getModelType(p, m) ?: ModelType.UNKNOWN
@@ -597,9 +624,9 @@ internal suspend fun computeProviderModelStats(
             defaultModel = p.defaultModel,
             hasKey = aiSettings.getApiKey(p).isNotBlank(),
             models = models.size,
-            vision = cfg.visionCapableComputed.count { it in modelSet },
-            webSearch = cfg.webSearchCapableComputed.count { it in modelSet },
-            reasoning = cfg.reasoningCapableComputed.count { it in modelSet },
+            vision = (cfg.visionCapableComputed + cfg.visionModels + overrides.filter { it.supportsVision }.map { it.modelId }).count { it in modelSet },
+            webSearch = (cfg.webSearchCapableComputed + cfg.webSearchModels + overrides.filter { it.supportsWebSearch }.map { it.modelId }).count { it in modelSet },
+            reasoning = (cfg.reasoningCapableComputed + cfg.reasoningModels + overrides.filter { it.supportsReasoning }.map { it.modelId }).count { it in modelSet },
             embedding = typeCounts[ModelType.EMBEDDING] ?: 0,
             blocked = models.count { aiSettings.isBlocked(p.id, it) },
             inaccessible = models.count { aiSettings.isInaccessible(p.id, it) },
@@ -711,6 +738,7 @@ private fun <T> sortedDesc(counts: Map<T, Int>): List<Pair<T, Int>> =
 internal suspend fun computeTraceStats(): TraceStatsData = withContext(Dispatchers.IO) {
     val traces = ApiTracer.getTraceFiles()
     val now = System.currentTimeMillis()
+    val todayStart = startOfToday(now)
     val dayMs = 24L * 60 * 60 * 1000
     val hosts = HashMap<String, Int>()
     val models = HashMap<String, Int>()
@@ -736,9 +764,9 @@ internal suspend fun computeTraceStats(): TraceStatsData = withContext(Dispatche
         t.runId?.let { runs.add(it) }
         t.reportId?.let { withReport++; reports.add(it) }
         val age = now - t.timestamp
-        if (age < dayMs) today++
-        if (age < 7 * dayMs) w7++
-        if (age < 30 * dayMs) w30++
+        if (t.timestamp in todayStart..now) today++
+        if (age in 0 until 7 * dayMs) w7++
+        if (age in 0 until 30 * dayMs) w30++
     }
     TraceStatsData(
         tracingEnabled = ApiTracer.isTracingEnabled,
@@ -772,14 +800,13 @@ internal data class LogStatsData(
 /** Header line of a log entry: "yyyy-MM-dd HH:mm:ss.SSS LEVEL Tag: message".
  *  Continuation lines (stack traces) don't match. */
 private val LOG_HEADER = Regex("""^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} (\w+) ([^:\s]+)""")
-private const val LOG_FILES_TO_PARSE = 14
 
 internal suspend fun computeLogStats(): LogStatsData = withContext(Dispatchers.IO) {
     val files = AppLog.getLogFiles()                 // newest-first
     val byLevel = linkedMapOf("ERROR" to 0, "WARN" to 0, "INFO" to 0, "DEBUG" to 0)
     val tags = HashMap<String, Int>()
     var entries = 0
-    for (f in files.take(LOG_FILES_TO_PARSE)) {
+    for (f in files) {
         val content = AppLog.readLogFile(f.filename) ?: continue
         for (line in content.lineSequence()) {
             val m = LOG_HEADER.find(line) ?: continue
@@ -801,6 +828,6 @@ internal suspend fun computeLogStats(): LogStatsData = withContext(Dispatchers.I
         totalEntries = entries,
         byLevel = byLevel,
         topTags = top(tags, 10),
-        files = files.take(LOG_FILES_TO_PARSE).map { it.date to it.sizeBytes },
+        files = files.map { it.date to it.sizeBytes },
     )
 }

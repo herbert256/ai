@@ -45,10 +45,10 @@ screens use the generic `TitleBar`.
 | Alternative translations | Live translations from several models |
 | Answer matrix | \<report title\> |
 | API Test | Hand-craft a raw API call to a model |
-| API trace statistics | What hit the network |
+| API trace statistics | Retained API traces |
 | API Traces | Every captured API request & response |
 | API Traces | \<active trace filter\> |
-| App log statistics | The in-app log |
+| App log statistics | All retained application logs |
 | App settings | App-wide & report-model default prompt / parameters |
 | Application log | Daily app logs for diagnosing issues |
 | assets/*.json | Restore providers/prompts from defaults |
@@ -80,7 +80,7 @@ screens use the generic `TitleBar`.
 | Costs | Correct model prices used in cost totals |
 | Costs | Where the money went, per call |
 | Costs | \<report title\> |
-| Costs tiers | Pricing tier per model + catalog freshness |
+| Costs tiers | Current pricing sources and catalog freshness |
 | Create analysis | Run a meta prompt over the answers |
 | Crash report | \<crash file\> |
 | Crash reports | Captured errors — tap to view & share |
@@ -212,7 +212,7 @@ screens use the generic `TitleBar`.
 | Model responses | \<report title\> |
 | Model Types | Default API path per model type |
 | Models | Fetch, test and edit a provider's models |
-| Models | The whole catalog |
+| Models | Configured cloud catalog entries |
 | Models | \<provider id\> |
 | Models setup | Models, types and manual overrides |
 | Moderation | \<report title\> |
@@ -271,7 +271,7 @@ screens use the generic `TitleBar`.
 | Report information | Everything we know about this report |
 | Report information | \<report title\> |
 | Reports | Create, browse and search your reports |
-| Reports | Reports and secondary results |
+| Reports | Saved results and recorded spending |
 | Rerank | \<report title\> |
 | Reset application | Factory reset; only API keys are kept |
 | Restore | Restore the whole app from a backup zip |
@@ -293,7 +293,7 @@ screens use the generic `TitleBar`.
 | Setup | Providers, models, workers & prompts |
 | Source | \<model name\> |
 | Spend & usage | Calls, tokens and cost by provider, type, report and model |
-| Statistics | Lifetime aggregates across the app |
+| Statistics | Saved data, usage and diagnostics |
 | Stress test | Report every example prompt with swarm "Level 2" |
 | Supported params | OpenRouter per-model supported parameters |
 | Swarm | \<swarm name\> |

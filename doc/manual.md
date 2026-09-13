@@ -52,7 +52,7 @@ report.
   are both enabled ([knowledge.md](knowledge.md), [experimental.md](experimental.md)).
 - **AI Monitor** — the observability hub. Drills into **Live
   Dashboard** (in-flight calls, caps and throttle state), **API
-  Traces**, **Application log**, **Audit**, **Statistics** (lifetime
+  Traces**, **Application log**, **Audit**, **Statistics** (saved-data
   totals across reports, providers, models, spend and the model
   fleet), and **Crash reports** (only when crashes exist). Models,
   Usage/Spend, Traces, and the App log all live under here now — they
@@ -644,7 +644,7 @@ The observability hub. Its drill-ins:
 - **Application log** — see [Application log](#application-log) below.
 - **Audit** — per-report trail of mutating actions, batches, and
   API calls (when the Audit log is enabled).
-- **Statistics** — lifetime aggregates: **Models** (capabilities,
+- **Statistics** — saved-data and diagnostic totals: **Models** (capabilities,
   types, context, states), **Reports** (reports + secondary results),
   **Providers / Models** (the whole model fleet), and **Spend &
   usage** (calls, tokens and cost broken down by provider, type,

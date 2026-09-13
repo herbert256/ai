@@ -341,13 +341,25 @@ Reports**):
 loaded, with entry counts) on its result for the dashboard hub.
 
 The 🧮 **Costs tiers** dashboard card opens `AiCostsTierScreen`
-(`AiDashboardScreen.kt:1996`, help `ai_costs_tier`) — which pricing
-tier `getPricing` would pick, counted per `source`, in two side-by-side
-columns: **Config** (every configured model, via `computeTierCounts`,
-`data/DashboardStats.kt:374`) and **Runtime** (only the models actually
-called, read from the API traces via `computeTierCountsRuntime`,
-`data/DashboardStats.kt:397`), plus catalog freshness from
-`catalogStats`.
+(help `ai_costs_tier`). **Config** counts configured cloud provider/model
+entries; **Traced** counts distinct provider/model pairs found in retained
+traces, including failed calls. Both columns resolve the currently loaded
+pricing sources. The **API cost enabled** row represents a provider setting,
+not evidence that every call returned a cost. Catalog refreshes can change
+both columns; retention changes the Traced population. **Default estimate**
+is the $25/$75-per-million placeholder. Catalog freshness appears below.
+
+The **Statistics → Reports** page keeps current primary/secondary result
+tokens separate from recorded report spending. Primary input includes cached
+and cache-creation tokens, and output includes hidden reasoning tokens.
+Report totals already contain secondary spending; the page counts that cost
+once and divides by complete ledger call counts for its per-call average.
+The average is unavailable when any report lacks complete call history.
+All dashboard cost amounts use the same numeric cents scale.
+
+Spend & usage resolves current report names when building its Reports tab.
+The Models tab groups matching raw IDs across providers and opens Model Info
+using the actual provider attribution, with a chooser for multiple providers.
 
 CSV: the layered-cost CSV export/import lives on the **Costs
 maintenance** screen below, not here.

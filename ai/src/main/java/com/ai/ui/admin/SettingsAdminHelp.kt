@@ -830,27 +830,24 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_statistics" to HelpContent(
         title = "Help - Statistics",
         cards = listOf(
-            HelpCard("Overview", "The hub for every lifetime-aggregate stat page. Opened from the 📊 Statistics card on the Monitor hub. Each row opens its own screen, so the heavier breakdowns only compute when opened; the cheap Knowledge totals show inline. The 📈 icon on each sub-page jumps back here."),
-            HelpCard("📋 Reports →", "Own page: report totals (running / problems / completed, agent calls, error rate, spend) and secondary-result counts by kind."),
-            HelpCard("🔌 Providers →", "Own page: per-provider keys, API formats, catalog caches, throttle caps, and last test-run results."),
-            HelpCard("🧠 Models →", "Own page: capabilities, types, context-length buckets, model states, deprecation, and models-per-provider."),
-            HelpCard("💰 Spend & usage →", "Own page: calls / tokens / cost over expandable per-provider cards, model→Model Info drill-in, and 🧹 clear-stats. Runs getPricing per used model."),
-            HelpCard("🧮 Costs tiers →", "Own page: which pricing tier each model resolves to (Config vs Runtime columns) plus the pricing-cache catalog table."),
-            HelpCard("🐞 Trace statistics →", "Own page: aggregate stats over the API traces — status split, top hosts / models / categories, activity, and report linkage. Also reachable from the 📈 icon on the API Traces screen."),
-            HelpCard("📜 App log statistics →", "Own page: aggregate stats over the application log — health, by-level and by-tag counts, and per-file sizes. Also reachable from the 📈 icon on the Application log screen."),
-            HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Shown inline; hidden when there are no knowledge bases."),
-            HelpCard("📡 🐞 📜 📊 jump row", "Every screen under Monitor — this hub, its stat pages, the Live Dashboard, API Traces and Application log — carries these four icons at the start of the bottom bar, one per Monitor section, so you can hop straight between them without backing out to the hub. On the four main sections the icon for the screen you're already on is dropped."),
+            HelpCard("Overview", "Saved data, recorded usage and retained diagnostics. Each card opens its own screen. Reports and models describe saved/configured state; usage describes recorded calls; trace and log totals cover retained files. The chart icon on a sub-page returns here."),
+            HelpCard("Reports", "Current primary results, complete secondary-result counts, tokens, recorded spending, activity and report features."),
+            HelpCard("Providers and Models", "Cloud provider settings, formats, caches, workers and the last model test; configured provider/model entries and their saved capability metadata."),
+            HelpCard("Spend & usage", "Calls, tokens and cost in cents by provider, model ID, type or saved report. Tap a model for provider-specific Model Info."),
+            HelpCard("Costs tiers", "Current pricing sources for configured entries and entries found in retained traces, plus catalog freshness."),
+            HelpCard("Trace statistics and App log statistics", "Retained diagnostic records grouped by status, model, host, category, severity and tag. Tracing and log-level settings affect what is recorded."),
+            HelpCard("Knowledge", "Knowledge-base count, chunks, indexed characters, failed sources and source types. Shown inline when knowledge bases exist."),
         )
     ),
     "ai_trace_stats" to HelpContent(
         title = "Help - API trace statistics",
         cards = listOf(
-            HelpCard("Overview", "Aggregate stats over the API traces (the per-call request/response records the 🐞 viewer shows individually). Reached from the 📈 icon on the API Traces screen or the 🐞 card on the Statistics hub. Reads the cached trace list, so it's fast. Empty when tracing is off."),
-            HelpCard("🐞 Overview", "Whether tracing is on, total traces, distinct batch runs, and how many are partial (a streaming response still being read)."),
-            HelpCard("📡 Status", "HTTP outcome split — 2xx success / 429 rate-limited / other 4xx / 5xx / transport-failed (status 0) / other. Tap any row to open the API Traces list showing only that outcome."),
-            HelpCard("Top hosts / models / categories", "The busiest provider hosts, models, and call categories (Report / meta / chat / pricing fetch / …) by trace count. Shows the top 5; tap the card to see every entry, then tap a row to open the traces for just that host / model / category."),
-            HelpCard("🗓️ Activity", "Traces from today / the last 7 / 30 days, plus the timestamps of the oldest and newest trace."),
-            HelpCard("📋 Reports", "How many traces are tied to a report, across how many distinct reports, and the average traces per report."),
+            HelpCard("Overview", "Counts only retained API traces. Tracing being off stops new records but does not hide existing ones. Retention or deletion can reduce these totals."),
+            HelpCard("Overview card", "Tracing status, retained trace count, distinct runs and partial streaming records."),
+            HelpCard("Status", "2xx success, 429 rate-limited, other 4xx, 5xx, transport failures (status 0), and other outcomes. Tap an outcome to open exactly that subset."),
+            HelpCard("Top hosts / models / categories", "The top five groups by trace count. Tap a card for the full breakdown, then a row to open its traces."),
+            HelpCard("Activity", "Today is the current local calendar day. The 7- and 30-day windows use elapsed time. Future-dated records are excluded. Today refreshes after midnight while the page is open."),
+            HelpCard("Reports", "Report-linked traces, distinct report IDs and average retained traces per report."),
         )
     ),
     "ai_trace_breakdown" to HelpContent(
@@ -864,33 +861,32 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_log_stats" to HelpContent(
         title = "Help - App log statistics",
         cards = listOf(
-            HelpCard("Overview", "Aggregate stats over the in-app application log (what the App log viewer shows line by line). Reached from the 📈 icon on the Application log screen or the 📜 card on the Statistics hub. File-level numbers are instant; line-level counts parse the most recent log files."),
-            HelpCard("🩺 Health", "The current log level (Settings → Logging), whether the file writer is OK, and how many lines were dropped on write failures."),
-            HelpCard("📊 By level", "Entry counts by level — Error / Warn / Info / Debug / Trace — plus the total entries parsed."),
-            HelpCard("🏷️ Top tags", "The most frequent log tags (ApiTrace / Throttle / FanOut / Report / …)."),
-            HelpCard("🗂️ Files", "Number of daily log files, total size on disk, the date range, and a per-file size list (most recent first)."),
-            HelpCard("Pitfalls", "To stay fast, line-level counts (levels / tags / total entries) parse only the most recent ~14 daily files; file count and total size cover them all."),
+            HelpCard("Overview", "All retained application log files contribute to entry, severity and tag totals, as well as file count and size. Stack-trace continuation lines are not additional entries."),
+            HelpCard("Current session health", "The current recording threshold, writer health and dropped-line count since this app process started. These are separate from the retained historical entry counts."),
+            HelpCard("By level and Top tags", "Counts of recorded Error, Warn, Info and Debug entries and the most frequent tags. A WARN threshold normally leaves INFO and DEBUG at zero."),
+            HelpCard("Files", "Every retained daily log file, newest first, with its size. The date range and total bytes cover the same set of files as the entry totals."),
+            HelpCard("Refresh", "Recomputed when opened or resumed. Large retained logs can take longer to scan."),
         )
     ),
     "ai_stat_reports" to HelpContent(
         title = "Help - Reports",
         cards = listOf(
-            HelpCard("Overview", "Everything the reports on disk add up to, re-read on resume and every ~10 s. Reached from the Statistics hub."),
-            HelpCard("📋 Reports", "Total / running / problems / completed, total agent calls, error rate, stopped agents, report spend. Running/problems use the same predicates as the AI Reports hub."),
-            HelpCard("🤖 Agent calls", "Status split (success / error / stopped / in-flight) across every per-model call in every report, the error-rate bar, and the average number of models per report."),
-            HelpCard("💵 Tokens & spend", "Input / output / total tokens over all agent calls, plus secondary tokens; report spend, secondary spend and the combined total; average cost per report and per call; and total compute time (summed call durations)."),
-            HelpCard("🗓️ Activity", "Reports created today / in the last 7 / 30 days, how many are pinned, and the age of the oldest report (by stable creation time, falling back to last-changed for legacy reports)."),
-            HelpCard("✨ Features used", "How many reports used Vision (image), Web search, Reasoning, Knowledge (RAG), are Translated copies, or are Table-type reports."),
-            HelpCard("🏆 Top models / 🔌 Top providers", "The six most-called models and providers across all reports, by number of agent calls."),
-            HelpCard("🔗 Secondary results", "Counts of every stored secondary by kind (Rerank / Meta / Moderation / Translate) plus the top meta-prompt names."),
-            HelpCard("Pitfalls", "Heavy — one report scan plus a secondary read per report — so it lives on its own page and refreshes on a 10 s tick. Token/duration totals only count what providers reported."),
+            HelpCard("Overview", "Saved reports and current results, plus their recorded spending. Refreshes on resume, report/result changes and local calendar-day changes."),
+            HelpCard("Reports", "Total, running, problems and completed reports. Completed means the run finished and can coexist with problems. Running and problems follow the shared report/broken-work state."),
+            HelpCard("Current primary results", "Success/error/stopped/in-flight counts, error rate and average current results per report. Earlier attempts and supporting calls are represented in recorded spending rather than these current-result counts."),
+            HelpCard("Tokens in current results", "Primary input includes cached and cache-creation tokens; primary output includes hidden reasoning tokens. Secondary tokens use the same complete definition. Total result tokens adds primary and secondary tokens. Compute time covers the current primary results."),
+            HelpCard("Recorded spending", "Total cost for saved reports already includes secondary and supporting calls. It is counted once. Average per recorded call uses the complete report call ledgers; the call count and average are unavailable if any older report lacks a complete ledger. Current secondary response spend is shown separately as context and is not added to the total again. Costs use cents without a unit symbol."),
+            HelpCard("Activity", "Today is the local calendar day; 7 and 30 days are rolling elapsed-time windows. Future dates are excluded. Creation time falls back to the report timestamp for legacy data."),
+            HelpCard("Features in saved reports", "Counts reports with images, search/reasoning settings saved at report or primary/secondary execution level, recorded reasoning tokens, knowledge bases, translation copies/results or table format. These describe saved settings/evidence, not a live capability test."),
+            HelpCard("Top models / Top providers", "The six largest groups of current primary results."),
+            HelpCard("Secondary results", "Every stored kind is included: Rerank, Meta, Moderation, Translate, Tournament, Judge evaluation, Compare and Translator ranking. Includes a total and the six most frequent meta-prompt names."),
         )
     ),
     "ai_stat_providers" to HelpContent(
         title = "Help - Providers",
         cards = listOf(
             HelpCard("Overview", "A provider-focused view — aggregate cards on top, then one expandable card per provider. All in-memory or a cheap file-stat, so it opens fast (no pricing lookups or network). Model-level stats are on the separate Models page."),
-            HelpCard("Aggregate cards", "Providers (configured / active / with key / inactive); API formats (OpenAI-compatible / Anthropic / Google); Catalog cache (cached / stale > 7 days / never fetched); Workers (agents / flocks / swarms); and the last Test-all-models result when one exists."),
+            HelpCard("Aggregate cards", "Providers (configured / active / with key / inactive); API formats (OpenAI-compatible / Anthropic / Google / Replicate); Catalog cache (cached / stale > 7 days / never fetched); Workers (agents / flocks / swarms); and the last Test-all-models result when one exists."),
             HelpCard("Per-provider rows", "One card per provider, active first then by model count. Header: a green/grey dot for active, the provider id, an API-format tag, and the model count; a compact line shows the non-zero signals (👁 vision, 🌐 web, 🧠 reasoning, ❄️ cooling, ⛔ blocked) and \"no key\" if unconfigured."),
             HelpCard("Expand a provider", "Tap to reveal: default model, host, API key, the concurrency + per-minute caps (the per-provider override or the inherited global), catalog age, a by-type breakdown, a model-state breakdown, and this provider's passed/failed from the last Test-all-models run."),
         )
@@ -898,25 +894,23 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_stat_models" to HelpContent(
         title = "Help - Models",
         cards = listOf(
-            HelpCard("Overview", "Catalog-wide model stats across every configured model. In-memory; opens fast. Provider-level info is on the separate Providers page."),
-            HelpCard("🧠 Models", "Total configured models plus how many are Vision / Web-search / Reasoning capable and how many are Embedding models."),
-            HelpCard("🛠️ Capabilities", "From each provider's /models metadata: models supporting function calling, native PDF input, exposing reasoning-effort levels, and how many have capability metadata at all."),
-            HelpCard("🏷️ By type", "Model count per type (chat / image / tts / embedding / rerank / …)."),
-            HelpCard("📏 Context length", "Models bucketed by context window (< 32K / 32–128K / 128K–1M / ≥ 1M / unknown) plus the single largest-context model."),
-            HelpCard("🚦 States", "Blocked / inaccessible / test-excluded / cooling counts — matches Housekeeping → Model states."),
-            HelpCard("⚰️ Deprecated / 🔌 Models per provider", "How many models carry a deprecation flag, and the average / max models per provider with a top-6 leaderboard."),
+            HelpCard("Overview", "Configured cloud provider/model entries. A model offered by several providers contributes one entry for each provider. Synthetic on-device Local is outside these cloud totals."),
+            HelpCard("Capability counts", "Vision, search and reasoning counts use saved computed metadata and explicit capability overrides. They describe recorded classifications, not independently tested support."),
+            HelpCard("Native capability metadata", "Function calling, PDF input and reasoning-level lists come from provider model metadata. Missing metadata means unknown support, not proof that a feature is unsupported."),
+            HelpCard("Types and context", "Types use the app classification rules. Context buckets use native metadata and explicitly include unknown entries."),
+            HelpCard("States", "Blocked, inaccessible, test-excluded and cooling counts over configured entries. Flags can overlap."),
+            HelpCard("Models per provider", "Shows the number of providers with at least one model, the average across those providers, the maximum and the six largest catalogs."),
         )
     ),
     "ai_spend_usage" to HelpContent(
         title = "Help - Spend & usage",
         cards = listOf(
-            HelpCard("Overview", "Calls, tokens and cost across every model you've actually called. Reached from the Statistics hub. Computed only when opened (it runs getPricing per used model), and on entry it refreshes OpenRouter pricing once if a key is set."),
-            HelpCard("Summary", "Top card: total calls, total tokens, and total cost in cents (green)."),
-            HelpCard("Tabs", "Providers groups by provider, Types lists the raw Trace/Costs category such as report/prompt or after/rerank, and Reports lists saved reports by report-scoped spend. Tap a Types row to see every entry for that category."),
-            HelpCard("Provider table", "Columns Provider · Calls · Tokens · Cost, one row per provider, sorted by spend. Tap a row to open that provider's usage detail."),
-            HelpCard("Provider detail", "The detail page shows totals + avg/call, a By type breakdown (report / meta / rerank / translate / …), a By pricing source breakdown, and a per-model list (tap a model → Model Info). All costs are shown in cents."),
-            HelpCard("Clear", "The 🧹 in the title bar clears every usage counter back to zero (confirm dialog). Cannot be undone."),
-            HelpCard("Pitfalls", "Rerank rows bill per search-unit, not per token. A model never called won't appear; costs need pricing data loaded."),
+            HelpCard("Overview", "Persisted calls, billed tokens and costs. Recorded costs are kept at call time; older entries without stored costs use the available pricing catalog. Opening the page also reconciles report accounting and may refresh stale OpenRouter pricing."),
+            HelpCard("Tabs", "Providers, Models and Types total all recorded usage. Reports includes only reports that still exist, using their current saved names. The report subtotal can therefore differ from the other tabs."),
+            HelpCard("Models", "Matching raw model IDs are combined across providers. Tap a model to open Model Info; when several providers served it, choose the provider first."),
+            HelpCard("Details and sorting", "Provider rows open provider totals and model/type breakdowns. Type rows open their category breakdown. Column headers sort by name, calls, tokens or cost; a second tap reverses direction."),
+            HelpCard("Units", "Costs are shown in cents without a unit symbol. Tokens include cached input, cache creation and reasoning where recorded. Rerank usage can bill by search unit."),
+            HelpCard("Clear", "The Delete action opens a confirmation before clearing usage counters."),
         )
     ),
     "ai_usage_type" to HelpContent(
@@ -941,13 +935,12 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_costs_tier" to HelpContent(
         title = "Help - Costs tiers",
         cards = listOf(
-            HelpCard("Overview", "Which pricing tier PricingCache.getPricing resolves each model to, counted per tier. Reached from the Statistics hub; runs getPricing per model, so it's computed only when opened."),
-            HelpCard("Config / Runtime columns", "Two columns side by side. Config = every configured model in each provider's catalog. Runtime = only the DISTINCT (provider, model) pairs that were actually called, read from the API traces (host → provider, plus the recorded model). Runtime mirrors Config but over what really happened."),
-            HelpCard("API-reported", "First row: models whose provider ships the per-call cost in the response (OpenRouter, Together, Perplexity, xAI — anything with Extract API cost or a cost-ticks divisor). Their real cost is read off the body, so no pricing tier applies and they're counted here instead of in a tier."),
-            HelpCard("Tiers", "The rest, by the source tag the lookup returns: Manual override, LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Together, Helicone, then the 25/75 default fallback for models no catalog covers."),
-            HelpCard("25/75 default", "A big default count means those models have no real catalog price and would bill at the $25/$75-per-million placeholder. Add a manual override or refresh catalogs to fix."),
-            HelpCard("🏷️ Pricing cache", "Below the tiers: a table of the eleven external pricing/capability info-providers (LiteLLM, models.dev, llm-prices, Artificial Analysis, llm-stats, OpenRouter, Requesty, genai-prices, TrueFoundry, CloudPrice, Helicone) with each catalog's entry count and when it was last retrieved ('never' if not yet fetched). A 🐞 after the timestamp opens the API Traces for that source's retrieve (shown only when the retrieve was captured). These catalogs are exactly what feeds the tier resolution above. Refresh or export them from Housekeeping → Costs."),
-            HelpCard("Pitfalls", "Tier resolution reflects the catalogs currently loaded — a model can shift tiers after a refresh. Runtime depends on tracing having been enabled when the calls were made; with no traces it shows zeros."),
+            HelpCard("Overview", "Current pricing-source resolution over cloud provider/model entries, with catalog freshness below. This table counts entries, not calls or money."),
+            HelpCard("Config / Traced", "Config covers configured entries. Traced covers distinct provider/model pairs found in retained traces, including failed calls. Unmapped hosts and missing model IDs are skipped. Both columns use the catalogs loaded now; this is not a historical call-time tier breakdown."),
+            HelpCard("API cost enabled", "Models whose provider has API-cost extraction or a cost-ticks divisor enabled are grouped here. This setting does not establish that every call actually returned a cost. Recorded call costs are available in Spend & usage and report Costs."),
+            HelpCard("Pricing sources", "Manual override and catalog sources are shown by name. Default estimate is the placeholder used where no catalog price is available: 25 dollars per million input tokens and 75 dollars per million output tokens."),
+            HelpCard("Pricing cache", "Entry count and last retrieval for the pricing/capability catalogs. CloudPrice contributes capabilities only. A trace button appears when the catalog retrieval has a retained trace."),
+            HelpCard("Refresh and retention", "A catalog refresh can change both columns. Trace deletion or retention changes the Traced population; disabled tracing limits coverage."),
         )
     ),
     "cost_config" to HelpContent(

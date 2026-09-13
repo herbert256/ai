@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -58,7 +59,7 @@ import com.ai.data.ApiTracer
 import com.ai.data.ApiUsageRates
 import com.ai.data.AppLog
 import com.ai.data.AppService
-import com.ai.ui.shared.modelInfoClickable
+import com.ai.ui.shared.LocalNavigateToModelInfo
 import com.ai.data.DiskUsageStats
 import com.ai.data.HttpStatusStats
 import com.ai.data.RetryStats
@@ -112,8 +113,7 @@ import java.util.Locale
  *    that only reads cheap in-memory snapshots; it stops the moment the screen
  *    leaves composition.
  *  - [AiMonitorScreen] — the hub. Below the live + per-call screens it lists
- *    the **lifetime aggregate** pages (Statistics was retired and merged in
- *    here): Knowledge totals inline; Reports/secondaries ([AiStatReportsScreen]),
+ *    the **saved-data aggregate** pages (under Statistics): Knowledge totals inline; Reports/secondaries ([AiStatReportsScreen]),
  *    providers/models ([AiStatProvidersScreen]), spend & usage
  *    ([AiSpendUsageScreen]) and cost tiers ([AiCostsTierScreen]) each on their
  *    own page so they compute only when opened. The per-subject aggregate
@@ -302,7 +302,7 @@ private fun DashboardCard(
 
 /** AI Monitor — the hub for the live + per-call observability streams:
  *  the Live Dashboard, the API Traces and the Application log. The
- *  lifetime-aggregate stat pages live one level down under
+ *  saved-data and diagnostic stat pages live one level down under
  *  [AiStatisticsScreen], reached from the 📊 Statistics card here. */
 @Composable
 fun AiMonitorScreen(
@@ -347,7 +347,7 @@ fun AiMonitorScreen(
             item { LinkCard(com.ai.data.MetadataDefaults.TRACES, "API Traces", "Per-call request/response records", onNavigateToTraces) }
             item { LinkCard(com.ai.data.MetadataDefaults.APP_LOG, "Application log", "The in-app application log, line by line", onNavigateToAppLog) }
             item { LinkCard(com.ai.data.MetadataDefaults.AUDIT, "Audit", "Per-report trail of actions, batches and API calls", onNavigateToAudit) }
-            item { LinkCard(com.ai.data.MetadataDefaults.STATISTICS_MONITOR, "Statistics", "Lifetime totals across reports, providers, models, spend and logs", onNavigateToStatistics) }
+            item { LinkCard(com.ai.data.MetadataDefaults.STATISTICS_MONITOR, "Statistics", "Saved data, usage and diagnostics", onNavigateToStatistics) }
             if (hasCrashReports) {
                 item { LinkCard("💥", "Crash reports", "Captured app errors — tap to view and share", onNavigateToCrashReports) }
             }
@@ -480,7 +480,7 @@ fun AiCrashReportsScreen(
     }
 }
 
-/** Statistics — the hub for every lifetime-aggregate stat page. Sits one
+/** Statistics — the hub for saved-data and diagnostic totals. Sits one
  *  level under the Monitor hub (reached from its 📊 Statistics card). Each
  *  row opens its own page so the heavier breakdowns only compute when
  *  opened; the cheap Knowledge totals show inline. The two per-subject
@@ -515,7 +515,7 @@ fun AiStatisticsScreen(
         TitleBar(
             helpTopic = "ai_statistics",
             title = "Statistics",
-            subject = "Lifetime aggregates across the app",
+            subject = "Saved data, usage and diagnostics",
             onBackClick = onBack,
             reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.chart, reportIconGoesHome = true,
             onTitleClick = onNavigateHome,
@@ -550,14 +550,15 @@ fun AiTraceStatsScreen(
 ) {
     BackHandler { onBack() }
     val refreshTick = resumeRefreshTick()
-    val d by produceState<TraceStatsData?>(null, refreshTick) { value = computeTraceStats() }
+    val calendarDay = statisticsCalendarDay()
+    val d by produceState<TraceStatsData?>(null, refreshTick, calendarDay) { value = computeTraceStats() }
 
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            helpTopic = "ai_trace_stats", title = "API trace statistics", subject = "What hit the network",
+            helpTopic = "ai_trace_stats", title = "API trace statistics", subject = "Retained API traces",
             onBackClick = onBack, reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
         )
@@ -574,7 +575,7 @@ fun AiTraceStatsScreen(
                 item {
                     SectionCard("🐞", "Overview", AppColors.SecondaryAccent) {
                         KeyVal("Tracing", if (s.tracingEnabled) "on" else "off", if (s.tracingEnabled) AppColors.SuccessAccent else AppColors.WarningAccent)
-                        KeyVal("Total traces", "${s.total}")
+                        KeyVal("Retained traces", "${s.total}")
                         KeyVal("Distinct runs", "${s.runs}")
                         if (s.partial > 0) KeyVal("Partial (streaming)", "${s.partial}", AppColors.TextSecondary)
                     }
@@ -698,7 +699,7 @@ fun AiLogStatsScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            helpTopic = "ai_log_stats", title = "App log statistics", subject = "The in-app log",
+            helpTopic = "ai_log_stats", title = "App log statistics", subject = "All retained application logs",
             onBackClick = onBack, reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
         )
@@ -709,11 +710,11 @@ fun AiLogStatsScreen(
             else -> LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Spacer(Modifier.height(4.dp)) }
                 item {
-                    SectionCard("🩺", "Health", AppColors.SuccessAccent) {
+                    SectionCard("🩺", "Current session health", AppColors.SuccessAccent) {
                         KeyVal("Log level", s.level)
                         KeyVal("Writer", if (s.writerError == null) "OK" else "ERROR", if (s.writerError == null) AppColors.SuccessAccent else AppColors.DangerAccent)
                         if (s.writerError != null) Text(s.writerError, fontSize = 11.sp, color = AppColors.DangerAccent)
-                        KeyVal("Dropped lines", "${s.droppedLines}", if (s.droppedLines > 0) AppColors.WarningAccent else AppColors.TextPrimary)
+                        KeyVal("Dropped lines this session", "${s.droppedLines}", if (s.droppedLines > 0) AppColors.WarningAccent else AppColors.TextPrimary)
                     }
                 }
                 item {
@@ -758,7 +759,7 @@ private fun fmtBytes(b: Long): String = when {
     else -> "$b B"
 }
 
-/** Statistics - Reports — report + secondary-result lifetime totals. */
+/** Statistics - Reports — current results and recorded report spending. */
 @Composable
 fun AiStatReportsScreen(
     reportViewModel: ReportViewModel,
@@ -769,6 +770,7 @@ fun AiStatReportsScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val refreshTick = resumeRefreshTick()
+    val calendarDay = statisticsCalendarDay()
     // Report-stat card refreshes when reports / secondaries actually change,
     // not on a blind 10s timer (audit U12). translationRuns + problemReportIds
     // below already cover the live-run deltas.
@@ -780,7 +782,7 @@ fun AiStatReportsScreen(
     val brokenBatches by reportViewModel.brokenBatches.collectAsState()
     val problemReportIds = remember(brokenBatches) { brokenBatches.mapTo(HashSet()) { it.reportId } }
     LaunchedEffect(refreshTick) { reportViewModel.secondary.refreshBrokenBatches(context) }
-    val data by produceState<ReportSectionData?>(null, refreshTick, reportDataVersion, secondaryDataVersion, translationRuns, problemReportIds) {
+    val data by produceState<ReportSectionData?>(null, refreshTick, calendarDay, reportDataVersion, secondaryDataVersion, translationRuns, problemReportIds) {
         value = computeReportStats(context, translationRuns, problemReportIds)
     }
 
@@ -792,7 +794,7 @@ fun AiStatReportsScreen(
         TitleBar(
             helpTopic = "ai_stat_reports",
             title = "Reports",
-            subject = "Reports and secondary results",
+            subject = "Saved results and recorded spending",
             onBackClick = onBack,
             reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics,
@@ -807,7 +809,7 @@ fun AiStatReportsScreen(
                 item { ReportsSection(d.reports) }
 
                 item {
-                    SectionCard("🤖", "Agent calls", AppColors.InfoAccent) {
+                    SectionCard("🤖", "Current primary results", AppColors.InfoAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             StatChip("✅", "Success", d.agentSuccess, AppColors.SuccessAccent)
                             StatChip("❌", "Error", d.reports.erroredCalls, if (d.reports.erroredCalls > 0) AppColors.DangerAccent else AppColors.TextDim)
@@ -820,25 +822,32 @@ fun AiStatReportsScreen(
                             if (errRate >= 10.0) AppColors.DangerAccent else if (errRate > 0) AppColors.WarningAccent else AppColors.SuccessAccent)
                         Bar(if (d.reports.agentCalls > 0) d.reports.erroredCalls.toFloat() / d.reports.agentCalls else 0f, AppColors.DangerAccent)
                         val avgAgents = if (d.reports.total > 0) d.reports.agentCalls.toDouble() / d.reports.total else 0.0
-                        KeyVal("Avg models / report", String.format(Locale.US, "%.1f", avgAgents))
+                        KeyVal("Avg results / report", String.format(Locale.US, "%.1f", avgAgents))
                     }
                 }
 
                 item {
-                    SectionCard("💵", "Tokens & spend", AppColors.SuccessAccent) {
-                        KeyVal("Input tokens", formatCompactNumber(d.inputTokens))
-                        KeyVal("Output tokens", formatCompactNumber(d.outputTokens))
-                        KeyVal("Total tokens", formatCompactNumber(d.inputTokens + d.outputTokens))
+                    SectionCard("🔢", "Tokens in current results", AppColors.SuccessAccent) {
+                        KeyVal("Primary input (incl. cache)", formatCompactNumber(d.inputTokens))
+                        KeyVal("Primary output (incl. reasoning)", formatCompactNumber(d.outputTokens))
+                        KeyVal("Primary tokens", formatCompactNumber(d.inputTokens + d.outputTokens))
                         KeyVal("Secondary tokens", formatCompactNumber(d.secondaryTokens), AppColors.TextSecondary)
-                        Spacer(Modifier.height(4.dp))
-                        KeyVal("Report spend", money(d.reports.spend), AppColors.SuccessAccent)
-                        KeyVal("Secondary spend", money(d.secondaryCost), AppColors.SuccessAccent)
-                        KeyVal("Total spend", money(d.reports.spend + d.secondaryCost), AppColors.SuccessAccent)
+                        KeyVal("Total result tokens", formatCompactNumber(d.inputTokens + d.outputTokens + d.secondaryTokens))
+                        KeyVal("Primary compute time", fmtDuration(d.totalDurationMs))
+                    }
+                }
+
+                item {
+                    SectionCard("💵", "Recorded spending", AppColors.SuccessAccent) {
+                        Text("Includes primary, secondary and supporting calls for saved reports.", fontSize = 11.sp, color = AppColors.TextTertiary)
+                        KeyVal("Total spend", cents(d.reports.spend), AppColors.SuccessAccent)
+                        KeyVal("Recorded calls", d.recordedCalls?.toString() ?: "—")
                         val avgPerReport = if (d.reports.total > 0) d.reports.spend / d.reports.total else 0.0
-                        val avgPerCall = if (d.reports.agentCalls > 0) d.reports.spend / d.reports.agentCalls else 0.0
-                        KeyVal("Avg / report", money(avgPerReport), AppColors.TextSecondary)
-                        KeyVal("Avg / call", money(avgPerCall), AppColors.TextSecondary)
-                        KeyVal("Total compute", fmtDuration(d.totalDurationMs))
+                        val avgPerCall = d.recordedCalls?.takeIf { it > 0 }?.let { d.reports.spend / it }
+                        KeyVal("Avg / report", cents(avgPerReport), AppColors.TextSecondary)
+                        KeyVal("Avg / recorded call", avgPerCall?.let { cents(it, 4) } ?: "—", AppColors.TextSecondary)
+                        if (d.recordedCalls == null) Text("Call history is incomplete for older reports.", fontSize = 11.sp, color = AppColors.TextTertiary)
+                        KeyVal("Current secondary response spend", cents(d.secondaryCost), AppColors.TextSecondary)
                     }
                 }
 
@@ -858,25 +867,26 @@ fun AiStatReportsScreen(
                 }
 
                 item {
-                    SectionCard("✨", "Features used", AppColors.PrimaryAccent) {
+                    SectionCard("✨", "Features in saved reports", AppColors.PrimaryAccent) {
+                        Text("Includes settings and evidence saved with primary and secondary runs.", fontSize = 11.sp, color = AppColors.TextTertiary)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             StatChip("👁", "Vision", d.withImage, AppColors.InfoAccent)
                             StatChip("🌐", "Web search", d.withWebSearch, AppColors.SuccessAccent)
                             StatChip("🧠", "Reasoning", d.withReasoning, AppColors.PrimaryAccent)
                             StatChip("📚", "Knowledge", d.withKnowledge, AppColors.CautionAccent)
-                            StatChip("🌍", "Translated", d.translated, AppColors.InfoAccent)
+                            StatChip("🌍", "Translation", d.translated, AppColors.InfoAccent)
                             StatChip("📊", "Table", d.tableReports, AppColors.TextSecondary)
                         }
                     }
                 }
 
                 if (d.topModels.isNotEmpty()) item {
-                    SectionCard("🏆", "Top models (by calls)", AppColors.WarningAccent) {
+                    SectionCard("🏆", "Top models (primary results)", AppColors.WarningAccent) {
                         d.topModels.forEach { (model, calls) -> KeyVal(com.ai.ui.shared.shortModelName(model), "$calls") }
                     }
                 }
                 if (d.topProviders.isNotEmpty()) item {
-                    SectionCard("🔌", "Top providers (by calls)", AppColors.InfoAccent) {
+                    SectionCard("🔌", "Top providers (primary results)", AppColors.InfoAccent) {
                         d.topProviders.forEach { (provider, calls) -> KeyVal(provider, "$calls") }
                     }
                 }
@@ -900,7 +910,7 @@ fun AiStatProvidersScreen(
     val context = LocalContext.current
     val uiState by appViewModel.uiState.collectAsState()
     val refreshTick = resumeRefreshTick()
-    val data by produceState<ProviderModelData?>(null, refreshTick) {
+    val data by produceState<ProviderModelData?>(null, refreshTick, uiState.aiSettings) {
         value = computeProviderModelStats(context, uiState.aiSettings)
     }
     var expanded by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
@@ -942,6 +952,7 @@ fun AiStatProvidersScreen(
                             StatChip("🤝", "OpenAI-compatible", d.byFormat["OPENAI_COMPATIBLE"] ?: 0, AppColors.SuccessAccent)
                             StatChip("🅰️", "Anthropic", d.byFormat["ANTHROPIC"] ?: 0, AppColors.WarningAccent)
                             StatChip("🔷", "Google", d.byFormat["GOOGLE"] ?: 0, AppColors.InfoAccent)
+                            StatChip("🔁", "Replicate", d.byFormat["REPLICATE"] ?: 0, AppColors.SecondaryAccent)
                         }
                     }
                 }
@@ -1006,7 +1017,7 @@ fun AiStatModelsScreen(
     val context = LocalContext.current
     val uiState by appViewModel.uiState.collectAsState()
     val refreshTick = resumeRefreshTick()
-    val data by produceState<ProviderModelData?>(null, refreshTick) {
+    val data by produceState<ProviderModelData?>(null, refreshTick, uiState.aiSettings) {
         value = computeProviderModelStats(context, uiState.aiSettings)
     }
 
@@ -1015,7 +1026,7 @@ fun AiStatModelsScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            helpTopic = "ai_stat_models", title = "Models", subject = "The whole catalog",
+            helpTopic = "ai_stat_models", title = "Models", subject = "Configured cloud catalog entries",
             onBackClick = onBack, reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
         )
@@ -1027,7 +1038,8 @@ fun AiStatModelsScreen(
                 item { Spacer(Modifier.height(4.dp)) }
                 item {
                     SectionCard("🧠", "Models", AppColors.PrimaryAccent) {
-                        KeyVal("Total configured", "${d.totalModels}")
+                        KeyVal("Provider/model entries", "${d.totalModels}")
+                        Text("Capability counts reflect saved metadata and configured overrides.", fontSize = 11.sp, color = AppColors.TextTertiary)
                         Spacer(Modifier.height(6.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             StatChip("👁", "Vision", d.vision, AppColors.InfoAccent)
@@ -1038,7 +1050,8 @@ fun AiStatModelsScreen(
                     }
                 }
                 item {
-                    SectionCard("🛠️", "Capabilities", AppColors.InfoAccent) {
+                    SectionCard("🛠️", "Native capability metadata", AppColors.InfoAccent) {
+                        Text("Missing metadata leaves support unknown.", fontSize = 11.sp, color = AppColors.TextTertiary)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             StatChip("🧰", "Function calling", d.fnCalling, AppColors.SuccessAccent)
                             StatChip("📄", "PDF input", d.pdfInput, AppColors.InfoAccent)
@@ -1084,7 +1097,8 @@ fun AiStatModelsScreen(
                     SectionCard("🔌", "Models per provider", AppColors.InfoAccent) {
                         val withModels = d.providers.filter { it.models > 0 }
                         val avg = if (withModels.isNotEmpty()) withModels.sumOf { it.models }.toDouble() / withModels.size else 0.0
-                        KeyVal("Avg per provider", String.format(Locale.US, "%.1f", avg))
+                        KeyVal("Providers with models", "${withModels.size}")
+                        KeyVal("Avg across these providers", String.format(Locale.US, "%.1f", avg))
                         KeyVal("Max", "${withModels.maxOfOrNull { it.models } ?: 0}")
                         Spacer(Modifier.height(4.dp))
                         withModels.sortedByDescending { it.models }.take(6).forEach { KeyVal(it.id, "${it.models}") }
@@ -1579,6 +1593,8 @@ private fun ColumnScope.SpendUsageModelsTab(
     sortAsc: Boolean,
     onSort: (UsageSort) -> Unit,
 ) {
+    val navigateToModelInfo = LocalNavigateToModelInfo.current
+    var providerChoice by remember { mutableStateOf<ModelUsageRow?>(null) }
     // Flatten every provider's per-model stat rows and re-aggregate by
     // model id, so the same model served by two providers shows as one
     // line. Costs/tokens/calls are summed.
@@ -1588,6 +1604,7 @@ private fun ColumnScope.SpendUsageModelsTab(
             .map { (model, rows) ->
                 ModelUsageRow(
                     model = model,
+                    providerIds = rows.map { it.stat.provider.id }.distinct().sorted(),
                     calls = rows.sumOf { it.stat.callCount },
                     tokens = rows.sumOf { it.stat.totalTokens },
                     totalCost = rows.sumOf { it.totalCost },
@@ -1606,7 +1623,30 @@ private fun ColumnScope.SpendUsageModelsTab(
         modelRows.sumOf { it.tokens },
         modelRows.sumOf { it.totalCost }
     )
+    Text("Matching model IDs are combined across providers. Tap a model for its information.",
+        fontSize = 11.sp, color = AppColors.TextTertiary)
     Spacer(Modifier.height(8.dp))
+
+    providerChoice?.let { selected ->
+        AlertDialog(
+            onDismissRequest = { providerChoice = null },
+            title = { Text("Choose provider") },
+            text = {
+                Column {
+                    Text(selected.model, fontSize = 13.sp)
+                    Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                        selected.providerIds.mapNotNull(AppService::findById).forEach { provider ->
+                            TextButton(onClick = {
+                                providerChoice = null
+                                navigateToModelInfo(provider, selected.model)
+                            }) { Text(provider.id) }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { providerChoice = null }) { Text("Cancel") } },
+        )
+    }
 
     val cName = 184.dp; val cCalls = 56.dp; val cTok = 78.dp
     val cGap = 18.dp; val cCost = 92.dp; val cBugGap = 12.dp; val cBug = 28.dp
@@ -1624,12 +1664,16 @@ private fun ColumnScope.SpendUsageModelsTab(
     Column(modifier = Modifier.align(Alignment.CenterHorizontally).weight(1f).verticalScroll(rememberScrollState())) {
         SpendUsageTableHeader("Model", cName, cCalls, cTok, cGap, cCost, cBugGap, cBug, sortCol, sortAsc, onSort)
         rows.forEach { row ->
+            val providers = row.providerIds.mapNotNull(AppService::findById)
             Row(
                 modifier = Modifier.padding(vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(com.ai.ui.shared.shortModelName(row.model), fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.width(cName).modelInfoClickable(AppService.findById(row.model.substringBefore('/')), row.model))
+                    modifier = Modifier.width(cName).clickable(enabled = providers.isNotEmpty()) {
+                        if (providers.size == 1) navigateToModelInfo(providers.single(), row.model)
+                        else providerChoice = row
+                    })
                 Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                 Text(formatCompactNumber(row.tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
                 Spacer(Modifier.width(cGap))
@@ -2009,9 +2053,9 @@ fun AiCostsTierScreen(
     val context = LocalContext.current
     val uiState by appViewModel.uiState.collectAsState()
     val refreshTick = resumeRefreshTick()
-    // Two columns side by side: Config = every configured model; Runtime =
-    // only the models actually called (read from the API traces).
-    val tierData by produceState<Pair<Map<String, Int>, Map<String, Int>>?>(null, refreshTick) {
+    // Config covers configured entries; Traced covers distinct entries in
+    // retained traces. Both columns resolve current pricing sources.
+    val tierData by produceState<Pair<Map<String, Int>, Map<String, Int>>?>(null, refreshTick, uiState.aiSettings) {
         val config = computeTierCounts(context, uiState.aiSettings)
         val runtime = computeTierCountsRuntime(context)
         value = config to runtime
@@ -2034,7 +2078,7 @@ fun AiCostsTierScreen(
         TitleBar(
             helpTopic = "ai_costs_tier",
             title = "Costs tiers",
-            subject = "Pricing tier per model + catalog freshness",
+            subject = "Current pricing sources and catalog freshness",
             onBackClick = onBack,
             reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics,
@@ -2687,7 +2731,7 @@ private fun ReportsSection(rs: ReportStats) {
             StatChip("✅", "Completed", rs.completed, AppColors.SuccessAccent)
         }
         Spacer(Modifier.height(8.dp))
-        KeyVal("Agent calls", "${rs.agentCalls}")
+        KeyVal("Current primary results", "${rs.agentCalls}")
         val errRate = if (rs.agentCalls > 0) rs.erroredCalls * 100.0 / rs.agentCalls else 0.0
         KeyVal(
             "Error rate", String.format(Locale.US, "%.1f%%  (%d)", errRate, rs.erroredCalls),
@@ -2696,18 +2740,28 @@ private fun ReportsSection(rs: ReportStats) {
         Bar(if (rs.agentCalls > 0) (rs.erroredCalls.toFloat() / rs.agentCalls) else 0f, AppColors.DangerAccent)
         if (rs.stopped > 0) KeyVal("Stopped agents", "${rs.stopped}", AppColors.TextSecondary)
         Spacer(Modifier.height(4.dp))
-        KeyVal("Report spend", money(rs.spend), AppColors.SuccessAccent)
+        KeyVal("Recorded spend", cents(rs.spend), AppColors.SuccessAccent)
     }
 }
 
 @Composable
 private fun SecondariesSection(byKind: Map<SecondaryKind, Int>, metaByName: Map<String, Int>) {
     SectionCard("🔗", "Secondary results", AppColors.SecondaryAccent) {
+        KeyVal("Total results", "${byKind.values.sum()}")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            StatChip("🔀", "Rerank", byKind[SecondaryKind.RERANK] ?: 0, AppColors.WarningAccent)
-            StatChip("🧩", "Meta", byKind[SecondaryKind.META] ?: 0, AppColors.PrimaryAccent)
-            StatChip("🛡️", "Moderation", byKind[SecondaryKind.MODERATION] ?: 0, AppColors.DangerAccent)
-            StatChip("🌐", "Translate", byKind[SecondaryKind.TRANSLATE] ?: 0, AppColors.InfoAccent)
+            SecondaryKind.entries.forEach { kind ->
+                val (icon, label, color) = when (kind) {
+                    SecondaryKind.RERANK -> Triple("🔀", "Rerank", AppColors.WarningAccent)
+                    SecondaryKind.META -> Triple("🧩", "Meta", AppColors.PrimaryAccent)
+                    SecondaryKind.MODERATION -> Triple("🛡️", "Moderation", AppColors.DangerAccent)
+                    SecondaryKind.TRANSLATE -> Triple("🌐", "Translate", AppColors.InfoAccent)
+                    SecondaryKind.TOURNAMENT -> Triple("🏆", "Tournament", AppColors.WarningAccent)
+                    SecondaryKind.JUDGES -> Triple("⚖️", "Judge evaluation", AppColors.CautionAccent)
+                    SecondaryKind.COMPARE -> Triple("🔎", "Compare", AppColors.SuccessAccent)
+                    SecondaryKind.TRANSRANK -> Triple("🌍", "Translator ranking", AppColors.SecondaryAccent)
+                }
+                StatChip(icon, label, byKind[kind] ?: 0, color)
+            }
         }
         if (metaByName.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
@@ -2738,11 +2792,14 @@ private fun KnowledgeSection(d: KnowledgeData) {
 @Composable
 private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>) {
     SectionCard("🧮", "Costs tiers", AppColors.InfoAccent) {
+        Text("Current pricing sources for configured entries and entries found in retained traces, including failed calls.", fontSize = 11.sp, color = AppColors.TextTertiary)
+        Text("API cost enabled groups providers configured to return cost. Actual call costs are in Spend & usage.", fontSize = 11.sp, color = AppColors.TextTertiary)
+        Spacer(Modifier.height(6.dp))
         // Header
         Row(Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
             Text("Tier", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1.6f))
             Text("Config", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
-            Text("Runtime", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+            Text("Traced", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
         }
         // Union of keys, config order first (both seed PRICING_TIER_ORDER).
         val keys = (config.keys + runtime.keys)
@@ -2752,14 +2809,14 @@ private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>)
             // All rows render uniformly (no per-row dimming) so a zero-count
             // tier like "Manual override" matches the rest.
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(tierLabel(src), fontSize = 12.sp, color = AppColors.TextPrimary, maxLines = 1, modifier = Modifier.weight(1.6f))
+                Text(if (src == "API_REPORTED") "API cost enabled" else tierLabel(src), fontSize = 12.sp, color = AppColors.TextPrimary, maxLines = 1, modifier = Modifier.weight(1.6f))
                 Text("$cfg", fontSize = 12.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
                 Text("$rt", fontSize = 12.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
             }
         }
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-            Text("Total models", fontSize = 12.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1.6f))
+            Text("Provider/model entries", fontSize = 12.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1.6f))
             Text("${config.values.sum()}", fontSize = 12.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
             Text("${runtime.values.sum()}", fontSize = 12.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
         }
@@ -2778,7 +2835,11 @@ private fun tierLabel(src: String): String = when (src) {
     "OPENROUTER" -> "OpenRouter"
     "TOGETHER" -> "Together"
     "HELICONE" -> "Helicone"
-    "DEFAULT" -> "25/75 default"
+    "LLMSTATS" -> "llm-stats"
+    "REQUESTY" -> "Requesty"
+    "GENAIPRICES" -> "genai-prices"
+    "TRUEFOUNDRY" -> "TrueFoundry"
+    "DEFAULT" -> "Default estimate"
     else -> src
 }
 
@@ -2953,9 +3014,20 @@ private fun StatRow(label: String, value: String, valueColor: Color = AppColors.
     }
 }
 
-private fun money(v: Double): String =
-    if (v > 0 && v < 0.01) String.format(Locale.US, "$%.6f", v)
-    else String.format(Locale.US, "$%.4f", v)
+private fun money(v: Double): String = cents(v, if (v > 0 && v < 0.0001) 4 else 2)
+
+/** Refresh calendar-day totals after midnight or a timezone change while open. */
+@Composable
+private fun statisticsCalendarDay(): String {
+    fun key(): String = "${java.time.ZoneId.systemDefault()}/${java.time.LocalDate.now()}"
+    val day by produceState(key()) {
+        while (true) {
+            delay(60_000)
+            value = key()
+        }
+    }
+    return day
+}
 
 /** Sortable columns of the Spend & usage table. */
 private enum class UsageSort { PROVIDER, CALLS, TOKENS, COST }
@@ -2971,6 +3043,7 @@ private enum class SpendUsageMode(val label: String) {
  *  id summed across every provider that served it. */
 private data class ModelUsageRow(
     val model: String,
+    val providerIds: List<String>,
     val calls: Int,
     val tokens: Long,
     val totalCost: Double,
