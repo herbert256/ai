@@ -35,6 +35,9 @@ import kotlinx.coroutines.withContext
 class SettingsPreferences(private val prefs: SharedPreferences, private val filesDir: File? = null) {
 
     private val gson = createAppGson()
+    private val catalogs = CatalogPreferences(prefs, filesDir)
+    private fun SharedPreferences.Editor.putCatalogString(key: String, value: String?) = catalogs.putString(this, key, value)
+    fun pruneCatalogRevisions() = catalogs.pruneUnused()
     init { if (filesDir != null) scheduleUsageStatsFlush() }
 
     // Per-domain persistence is being split out of this class (audit D01). The
@@ -67,7 +70,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ===== General Settings =====
 
     fun loadGeneralSettings(): GeneralSettings {
-        val typePathsJson = prefs.getString(KEY_DEFAULT_TYPE_PATHS, null)
+        val typePathsJson = catalogs.getString(KEY_DEFAULT_TYPE_PATHS, null)
         val defaultTypePaths: Map<String, String> = typePathsJson?.let {
             try {
                 // Use a concrete TypeToken<Map<String,String>> so Gson
@@ -77,22 +80,22 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 gson.fromJson<Map<String, String>>(it, TypeTokens.mapStringStringType) ?: emptyMap()
             } catch (_: Exception) { emptyMap() }
         } ?: emptyMap()
-        val layoutName = prefs.getString(KEY_MODEL_NAME_LAYOUT, null)
+        val layoutName = catalogs.getString(KEY_MODEL_NAME_LAYOUT, null)
         val modelNameLayout = layoutName?.let {
             try { ModelNameLayout.valueOf(it) } catch (_: Exception) { null }
         } ?: ModelNameLayout.MODEL_ONLY
-        val homeModeName = prefs.getString(KEY_APP_HOME, null)
+        val homeModeName = catalogs.getString(KEY_APP_HOME, null)
         val appHomeMode = homeModeName?.let {
             try { AppHomeMode.valueOf(it) } catch (_: Exception) { null }
         } ?: AppHomeMode.HOME_BAR
-        val titleModeName = prefs.getString(KEY_REPORT_TITLE_MODE, null)
+        val titleModeName = catalogs.getString(KEY_REPORT_TITLE_MODE, null)
         val reportTitleMode = titleModeName?.let {
             try { com.ai.viewmodel.ReportTitleMode.valueOf(it) } catch (_: Exception) { null }
         } ?: com.ai.viewmodel.ReportTitleMode.AI
         // sanitized(): newer MetadataIcons fields are absent from older stored
         // JSON; Gson leaves them null (it bypasses the Kotlin constructor), so
         // backfill the factory defaults before the bars read them.
-        val metadataIcons: com.ai.data.MetadataIcons = (prefs.getString(KEY_METADATA_ICONS, null)?.let {
+        val metadataIcons: com.ai.data.MetadataIcons = (catalogs.getString(KEY_METADATA_ICONS, null)?.let {
             try { gson.fromJson(it, com.ai.data.MetadataIcons::class.java) } catch (_: Exception) { null }
         } ?: com.ai.data.MetadataIcons()).sanitized()
         val uiColorOverrides = loadUiColorOverrides()
@@ -101,12 +104,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         // used to diverge: load → 30/3/50, reset/data-class → 60/5/100).
         val defaults = GeneralSettings()
         return GeneralSettings(
-            userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
-            huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
-            openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
-            artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
-            llmStatsApiKey = prefs.getString(KEY_LLMSTATS_API_KEY, "") ?: "",
-            defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
+            userName = catalogs.getString(KEY_USER_NAME, "user") ?: "user",
+            huggingFaceApiKey = catalogs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
+            openRouterApiKey = catalogs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
+            artificialAnalysisApiKey = catalogs.getString(KEY_AA_API_KEY, "") ?: "",
+            llmStatsApiKey = catalogs.getString(KEY_LLMSTATS_API_KEY, "") ?: "",
+            defaultEmail = catalogs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
             loggingMasterEnabled = prefs.getBoolean(KEY_LOGGING_MASTER_ENABLED, true),
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
@@ -118,10 +121,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             uiCardBackgroundArgb = uiColorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
             uiButtonBackgroundArgb = uiColorOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
             uiColorOverrides = uiColorOverrides,
-            uiColorOverridesDay = prefs.getString(KEY_UI_COLOR_OVERRIDES_DAY, null)?.let {
+            uiColorOverridesDay = catalogs.getString(KEY_UI_COLOR_OVERRIDES_DAY, null)?.let {
                 try { gson.fromJson<Map<String, Int>>(it, TypeTokens.mapStringIntType) } catch (_: Exception) { null }
             }.orEmpty(),
-            uiColorMode = prefs.getString(KEY_UI_COLOR_MODE, null)?.let {
+            uiColorMode = catalogs.getString(KEY_UI_COLOR_MODE, null)?.let {
                 try { com.ai.viewmodel.UiColorMode.valueOf(it) } catch (_: Exception) { null }
             } ?: com.ai.viewmodel.UiColorMode.NIGHT,
             metadataEnabled = prefs.getBoolean(KEY_METADATA_ENABLED, true),
@@ -135,9 +138,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             autostartFanMeta = prefs.getBoolean(KEY_AUTOSTART_FAN_META, true),
             autoCreateRerankAndModeration = prefs.getBoolean(KEY_AUTO_CREATE_RERANK_MODERATION, true),
             metadataIcons = metadataIcons,
-            appWideSystemPromptId = prefs.getString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, null),
+            appWideSystemPromptId = catalogs.getString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, null),
             appWideParametersIds = loadJsonList(KEY_APP_WIDE_PARAMETERS_IDS) ?: emptyList(),
-            reportModelSystemPromptId = prefs.getString(KEY_REPORT_MODEL_SYSTEM_PROMPT_ID, null),
+            reportModelSystemPromptId = catalogs.getString(KEY_REPORT_MODEL_SYSTEM_PROMPT_ID, null),
             reportModelParametersIds = loadJsonList(KEY_REPORT_MODEL_PARAMETERS_IDS) ?: emptyList(),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             experimentalFeaturesEnabled = prefs.getBoolean(KEY_EXPERIMENTAL_FEATURES, false),
@@ -147,7 +150,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             pinnedDashboardCards = if (prefs.contains(KEY_PINNED_DASHBOARD_CARDS)) loadJsonStringSet(KEY_PINNED_DASHBOARD_CARDS)
                 else GeneralSettings().pinnedDashboardCards,
             dashboardCardOrder = loadJsonList(KEY_DASHBOARD_CARD_ORDER) ?: emptyList(),
-            recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
+            recentReportModels = catalogs.getString(KEY_RECENT_REPORT_MODELS, null)
                 ?.split("\n")?.filter { it.isNotBlank() }
                 ?: emptyList(),
             streamingReadTimeoutSec = prefs.getInt(
@@ -170,10 +173,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             typeABenchSeconds = prefs.getInt(KEY_TYPE_A_BENCH_SECONDS, 10),
             typeABenchMaxAttempts = prefs.getInt(KEY_TYPE_A_BENCH_MAX_ATTEMPTS, 5),
             showLadybugIcons = prefs.getBoolean(KEY_SHOW_LADYBUG_ICONS, true),
-            rankingWeights = prefs.getString(KEY_RANKING_WEIGHTS, null)?.let {
+            rankingWeights = catalogs.getString(KEY_RANKING_WEIGHTS, null)?.let {
                 try { gson.fromJson<Map<String, Int>>(it, TypeTokens.mapStringIntType) } catch (_: Exception) { null }
             }.orEmpty(),
-            logLevel = prefs.getString(KEY_LOG_LEVEL, null)?.let {
+            logLevel = catalogs.getString(KEY_LOG_LEVEL, null)?.let {
                 try { com.ai.data.LogLevel.valueOf(it) } catch (_: Exception) { null }
             } ?: com.ai.data.LogLevel.WARN
         ).also {
@@ -263,6 +266,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ===== AI Settings =====
 
     fun loadSettings(): Settings {
+        catalogs.migrateLegacy()
         val providerSettings = loadProviderSettings()
         val rawAgents = loadList<Agent>(KEY_AI_AGENTS, TypeTokens.listAgentType)
         val providersWithMigratedAgentKeys = rawAgents.fold(providerSettings.providers) { providers, agent ->
@@ -337,12 +341,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 loadJsonList("${key}_manual_models") ?: defaults.models
             else
                 loadJsonList("${key}_manual_models") ?: emptyList()
-            val storedTypes: Map<String, String> = prefs.getString("${key}_model_types", null)?.let {
+            val storedTypes: Map<String, String> = catalogs.getString("${key}_model_types", null)?.let {
                 try {
                     gson.fromJson<Map<String, String>>(it, TypeTokens.mapStringStringType)
                 } catch (_: Exception) { null }
             } ?: emptyMap()
-            val types = models.associateWith { id -> storedTypes[id] ?: com.ai.data.ModelType.infer(id) }
+            val types = storedTypes + models.associateWith { id -> storedTypes[id] ?: com.ai.data.ModelType.infer(id) }
 
             val visionModels = loadJsonStringSet("${key}_vision_models")
             val webSearchModels = loadJsonStringSet("${key}_web_search_models")
@@ -350,22 +354,36 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             val visionCapableComputed = loadJsonStringSet("${key}_vision_capable_computed")
             val webSearchCapableComputed = loadJsonStringSet("${key}_web_search_capable_computed")
             val reasoningCapableComputed = loadJsonStringSet("${key}_reasoning_capable_computed")
-            val modelPricing: Map<String, com.ai.data.PricingCache.ModelPricing> = prefs.getString("${key}_model_pricing", null)?.let {
+            val modelPricing: Map<String, com.ai.data.PricingCache.ModelPricing> = catalogs.getString("${key}_model_pricing", null)?.let {
                 try {
                     val mapType = object : com.google.gson.reflect.TypeToken<Map<String, com.ai.data.PricingCache.ModelPricing>>() {}.type
                     gson.fromJson(it, mapType) ?: emptyMap()
                 } catch (_: Exception) { null }
             } ?: emptyMap()
-            val modelCapabilities: Map<String, com.ai.data.ModelCapabilities> = prefs.getString("${key}_model_capabilities", null)?.let {
+            var modelCapabilities: Map<String, com.ai.data.ModelCapabilities> = catalogs.getString("${key}_model_capabilities", null)?.let {
                 try {
                     val mapType = object : com.google.gson.reflect.TypeToken<Map<String, com.ai.data.ModelCapabilities>>() {}.type
                     gson.fromJson(it, mapType) ?: emptyMap()
                 } catch (_: Exception) { null }
             } ?: emptyMap()
-            val modelListRawJson = prefs.getString("${key}_models_response_raw", null)
+            val rawStored = prefs.contains("${key}_models_response_raw")
+            if (service.apiFormat == com.ai.data.ApiFormat.OPENAI_COMPATIBLE && !service.crossProviderModelList && rawStored) {
+                val revisionKey = "${key}_token_limits_revision"
+                val rawHash = catalogs.revision("${key}_models_response_raw")
+                val previousRevision = "1:$rawHash:${catalogs.revision("${key}_model_capabilities")}"
+                if (prefs.getString(revisionKey, null) != previousRevision) {
+                    val recovered = backfillCachedTokenLimits(catalogs.getString("${key}_models_response_raw"), modelCapabilities, gson)
+                    catalogs.edit {
+                        val caps = if (recovered !== modelCapabilities) gson.toJson(recovered) else null
+                        if (caps != null) putCatalogString("${key}_model_capabilities", caps)
+                        putString(revisionKey, if (caps != null) "1:$rawHash:${CatalogPreferences.digest(caps)}" else previousRevision)
+                    }
+                    modelCapabilities = recovered
+                }
+            }
 
             ProviderConfig(
-                apiKey = prefs.getString("${key}_api_key", "") ?: "",
+                apiKey = catalogs.getString("${key}_api_key", "") ?: "",
                 models = models, modelTypes = types,
                 visionModels = visionModels, webSearchModels = webSearchModels,
                 reasoningModels = reasoningModels,
@@ -373,19 +391,17 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 webSearchCapableComputed = webSearchCapableComputed,
                 reasoningCapableComputed = reasoningCapableComputed,
                 modelPricing = modelPricing,
-                modelCapabilities = if (service.apiFormat == com.ai.data.ApiFormat.OPENAI_COMPATIBLE && !service.crossProviderModelList)
-                    backfillCachedTokenLimits(modelListRawJson, modelCapabilities, gson)
-                else modelCapabilities,
-                modelListRawJson = modelListRawJson,
+                modelCapabilities = modelCapabilities,
+                modelListRawJsonStored = rawStored,
                 parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList(),
-                systemPromptId = prefs.getString("${key}_system_prompt_id", null)
+                systemPromptId = catalogs.getString("${key}_system_prompt_id", null)
             )
         }
         return Settings(providers = providers)
     }
 
     private fun loadJsonStringSet(key: String): Set<String> {
-        val json = prefs.getString(key, null) ?: return emptySet()
+        val json = catalogs.getString(key, null) ?: return emptySet()
         return try {
             gson.fromJson<List<String>>(json, TypeTokens.listStringType)?.toSet() ?: emptySet()
         } catch (_: Exception) { emptySet() }
@@ -396,52 +412,65 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             .filter { it.apiKey.isNotBlank() }
             .associate { it.provider to it.apiKey }
         val agentsToStore = scrubAgentApiKeys(settings.agents)
-        prefs.edit {
+        catalogs.edit {
             for (service in AppService.entries) {
                 val key = service.id
                 val config = settings.providers[service] ?: defaultProviderConfig(service)
-                putString("${key}_api_key", config.apiKey.ifBlank { providerKeyFallbacks[service].orEmpty() })
-                putString("${key}_manual_models", gson.toJson(config.models))
-                putString("${key}_model_types", gson.toJson(config.modelTypes))
+                putCatalogString("${key}_api_key", config.apiKey.ifBlank { providerKeyFallbacks[service].orEmpty() })
+                putCatalogString("${key}_manual_models", gson.toJson(config.models))
+                putCatalogString("${key}_model_types", gson.toJson(config.modelTypes))
                 // User-curated vision / web-search overrides + the per-fetch
                 // capability sidecar. Without these the in-memory state was
                 // dropping on every app restart, and the backup zip never
                 // saw it either.
-                putString("${key}_vision_models", if (config.visionModels.isEmpty()) null else gson.toJson(config.visionModels.toList()))
-                putString("${key}_web_search_models", if (config.webSearchModels.isEmpty()) null else gson.toJson(config.webSearchModels.toList()))
-                putString("${key}_reasoning_models", if (config.reasoningModels.isEmpty()) null else gson.toJson(config.reasoningModels.toList()))
+                putCatalogString("${key}_vision_models", if (config.visionModels.isEmpty()) null else gson.toJson(config.visionModels.toList()))
+                putCatalogString("${key}_web_search_models", if (config.webSearchModels.isEmpty()) null else gson.toJson(config.webSearchModels.toList()))
+                putCatalogString("${key}_reasoning_models", if (config.reasoningModels.isEmpty()) null else gson.toJson(config.reasoningModels.toList()))
                 // Pre-computed result of the layered isVisionCapable /
                 // isWebSearchCapable / isReasoningCapable lookup — stored
                 // so list-render code can short-circuit through a Set
                 // membership check instead of re-running ~1k-entry
                 // catalog scans on every row.
-                putString("${key}_vision_capable_computed", if (config.visionCapableComputed.isEmpty()) null else gson.toJson(config.visionCapableComputed.toList()))
-                putString("${key}_web_search_capable_computed", if (config.webSearchCapableComputed.isEmpty()) null else gson.toJson(config.webSearchCapableComputed.toList()))
-                putString("${key}_reasoning_capable_computed", if (config.reasoningCapableComputed.isEmpty()) null else gson.toJson(config.reasoningCapableComputed.toList()))
-                putString("${key}_model_pricing", if (config.modelPricing.isEmpty()) null else gson.toJson(config.modelPricing))
-                putString("${key}_model_capabilities", if (config.modelCapabilities.isEmpty()) null else gson.toJson(config.modelCapabilities))
+                putCatalogString("${key}_vision_capable_computed", if (config.visionCapableComputed.isEmpty()) null else gson.toJson(config.visionCapableComputed.toList()))
+                putCatalogString("${key}_web_search_capable_computed", if (config.webSearchCapableComputed.isEmpty()) null else gson.toJson(config.webSearchCapableComputed.toList()))
+                putCatalogString("${key}_reasoning_capable_computed", if (config.reasoningCapableComputed.isEmpty()) null else gson.toJson(config.reasoningCapableComputed.toList()))
+                putCatalogString("${key}_model_pricing", if (config.modelPricing.isEmpty()) null else gson.toJson(config.modelPricing))
+                putCatalogString("${key}_model_capabilities", if (config.modelCapabilities.isEmpty()) null else gson.toJson(config.modelCapabilities))
                 // Raw /models response — kept verbatim so a later parser
                 // revision can pull out new fields without forcing a refetch.
-                putString("${key}_models_response_raw", config.modelListRawJson)
-                putString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
-                putString("${key}_system_prompt_id", config.systemPromptId)
+                if (config.modelListRawJson != null || !config.modelListRawJsonStored)
+                    putCatalogString("${key}_models_response_raw", config.modelListRawJson)
+                putCatalogString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
+                putCatalogString("${key}_system_prompt_id", config.systemPromptId)
             }
-            putString(KEY_AI_AGENTS, gson.toJson(agentsToStore))
-            putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
-            putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
-            putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
-            putString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
-            putString(KEY_AI_INTERNAL_PROMPTS, gson.toJson(settings.internalPrompts))
-            putString(KEY_AI_EXAMPLE_PROMPTS, gson.toJson(settings.examplePrompts))
-            putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
-            putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
-            putString(KEY_AI_MODEL_TYPE_OVERRIDES, gson.toJson(settings.modelTypeOverrides))
-            putString(KEY_AI_BLOCKED_MODELS, if (settings.blockedModels.isEmpty()) null else gson.toJson(settings.blockedModels))
-            putString(KEY_AI_TEST_EXCLUDED_MODELS, if (settings.testExcludedModels.isEmpty()) null else gson.toJson(settings.testExcludedModels))
-            putString(KEY_AI_INACCESSIBLE_MODELS, if (settings.inaccessibleModels.isEmpty()) null else gson.toJson(settings.inaccessibleModels))
-            putString(KEY_AI_DEFAULT_META_ITEMS, if (settings.defaultMetaItems.isEmpty()) null else gson.toJson(settings.defaultMetaItems))
-            putString(KEY_AI_DISABLED_INFO_PROVIDERS, if (settings.disabledInfoProviders.isEmpty()) null else gson.toJson(settings.disabledInfoProviders.toList()))
+            putCatalogString(KEY_AI_AGENTS, gson.toJson(agentsToStore))
+            putCatalogString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
+            putCatalogString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
+            putCatalogString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
+            putCatalogString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
+            putCatalogString(KEY_AI_INTERNAL_PROMPTS, gson.toJson(settings.internalPrompts))
+            putCatalogString(KEY_AI_EXAMPLE_PROMPTS, gson.toJson(settings.examplePrompts))
+            putCatalogString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
+            putCatalogString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
+            putCatalogString(KEY_AI_MODEL_TYPE_OVERRIDES, gson.toJson(settings.modelTypeOverrides))
+            putCatalogString(KEY_AI_BLOCKED_MODELS, if (settings.blockedModels.isEmpty()) null else gson.toJson(settings.blockedModels))
+            putCatalogString(KEY_AI_TEST_EXCLUDED_MODELS, if (settings.testExcludedModels.isEmpty()) null else gson.toJson(settings.testExcludedModels))
+            putCatalogString(KEY_AI_INACCESSIBLE_MODELS, if (settings.inaccessibleModels.isEmpty()) null else gson.toJson(settings.inaccessibleModels))
+            putCatalogString(KEY_AI_DEFAULT_META_ITEMS, if (settings.defaultMetaItems.isEmpty()) null else gson.toJson(settings.defaultMetaItems))
+            putCatalogString(KEY_AI_DISABLED_INFO_PROVIDERS, if (settings.disabledInfoProviders.isEmpty()) null else gson.toJson(settings.disabledInfoProviders.toList()))
         }
+    }
+
+    /** Updating derived snapshots must not normalize or replace user settings. */
+    fun saveDerivedCapabilities(settings: Settings, revision: String) = catalogs.edit {
+        for ((service, config) in settings.providers) {
+            val key = service.id
+            putCatalogString("${key}_vision_capable_computed", if (config.visionCapableComputed.isEmpty()) null else gson.toJson(config.visionCapableComputed.toList()))
+            putCatalogString("${key}_web_search_capable_computed", if (config.webSearchCapableComputed.isEmpty()) null else gson.toJson(config.webSearchCapableComputed.toList()))
+            putCatalogString("${key}_reasoning_capable_computed", if (config.reasoningCapableComputed.isEmpty()) null else gson.toJson(config.reasoningCapableComputed.toList()))
+            putCatalogString("${key}_model_pricing", if (config.modelPricing.isEmpty()) null else gson.toJson(config.modelPricing))
+        }
+        putString("capabilities_snapshot_revision", revision)
     }
 
     /** Refresh checkpoints must not rewrite unrelated model catalogs from
@@ -461,17 +490,17 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         modelListRawJson: String? = null,
         refreshedFromApi: Boolean = false
     ) {
-        prefs.edit {
-            putString("${service.id}_manual_models", gson.toJson(models))
-            putString("${service.id}_model_types", gson.toJson(types))
+        catalogs.edit {
+            putCatalogString("${service.id}_manual_models", gson.toJson(models))
+            putCatalogString("${service.id}_model_types", gson.toJson(types))
             if (visionModels != null) {
-                putString("${service.id}_vision_models", if (visionModels.isEmpty()) null else gson.toJson(visionModels.toList()))
+                putCatalogString("${service.id}_vision_models", if (visionModels.isEmpty()) null else gson.toJson(visionModels.toList()))
             }
             if (modelCapabilities != null) {
-                putString("${service.id}_model_capabilities", if (modelCapabilities.isEmpty()) null else gson.toJson(modelCapabilities))
+                putCatalogString("${service.id}_model_capabilities", if (modelCapabilities.isEmpty()) null else gson.toJson(modelCapabilities))
             }
             if (modelListRawJson != null) {
-                putString("${service.id}_models_response_raw", modelListRawJson)
+                putCatalogString("${service.id}_models_response_raw", modelListRawJson)
             }
             // Only an actual nonempty API fetch renews freshness. Metadata
             // propagation and manual edits must not extend another list's TTL.
@@ -595,8 +624,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun reconcileReportCostLedgers(context: android.content.Context): Boolean {
-        val reports = ReportStorage.getAllReports(context)
-        val deltas = reports.mapNotNull { ReportStorage.reconcileApiCallCostLedger(context, it.id) }
+        val pending = ReportStorage.reportIdsNeedingLedgerRepair(context)
+        AppLog.d("ReportAccounting", "${pending.size} reports need ledger repair")
+        val deltas = pending.mapNotNull { ReportStorage.reconcileApiCallCostLedger(context, it) }
         if (deltas.isEmpty()) return false
         val usageStats = ensureUsageStatsCache()
         val categoryStats = ensureUsageCategoryStatsCache()
@@ -1011,13 +1041,13 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ===== Private helpers =====
 
     private fun loadJsonList(key: String): List<String>? {
-        val json = prefs.getString(key, null) ?: return null
+        val json = catalogs.getString(key, null) ?: return null
         return try { gson.fromJson(json, TypeTokens.listStringType) } catch (_: Exception) { null }
     }
 
     @Suppress("UNCHECKED_CAST")
     private fun <T> loadList(key: String, type: Type, transform: ((Any?) -> List<T>)? = null): List<T> {
-        val json = prefs.getString(key, null) ?: return emptyList()
+        val json = catalogs.getString(key, null) ?: return emptyList()
         return try {
             val raw = gson.fromJson<Any>(json, type)
             if (transform != null) transform(raw) else (raw as? List<T>) ?: emptyList()
@@ -1038,12 +1068,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     private fun loadMap(key: String): Map<String, String> {
-        val json = prefs.getString(key, null) ?: return emptyMap()
+        val json = catalogs.getString(key, null) ?: return emptyMap()
         return try { gson.fromJson(json, TypeTokens.mapStringStringType) ?: emptyMap() } catch (_: Exception) { emptyMap() }
     }
 
     private fun loadUiColorOverrides(): Map<String, Int> {
-        val stored = prefs.getString(KEY_UI_COLOR_OVERRIDES, null)?.let {
+        val stored = catalogs.getString(KEY_UI_COLOR_OVERRIDES, null)?.let {
             try { gson.fromJson<Map<String, Int>>(it, TypeTokens.mapStringIntType) } catch (_: Exception) { null }
         }.orEmpty()
         val colors = AppColors.normalizeUiColorOverrides(stored).toMutableMap()
@@ -1057,7 +1087,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     private fun loadEndpoints(): Map<AppService, List<Endpoint>> {
-        val json = prefs.getString(KEY_AI_ENDPOINTS, null) ?: return emptyMap()
+        val json = catalogs.getString(KEY_AI_ENDPOINTS, null) ?: return emptyMap()
         return try {
             val rawMap: Map<String, List<Endpoint>>? = gson.fromJson(json, TypeTokens.mapEndpointsType)
             rawMap?.mapKeys { AppService.findById(it.key) }?.entries?.mapNotNull { (k, v) -> k?.let { it to v } }?.toMap() ?: emptyMap()

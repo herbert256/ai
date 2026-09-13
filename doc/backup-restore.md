@@ -145,6 +145,15 @@ New prefs files added to the app must be added to
 
 ### Files (under `<filesDir>`)
 
+Provider catalogs may use `@catalog:v1:` references in the live `eval_prefs`.
+Backup resolves these under the catalog-write lock and serializes the original
+inline strings in `prefs/eval_prefs.json`. Thus the preferences backup is
+self-contained and remains readable by older builds without a manifest-version
+change. The file mirror also includes `provider_catalogs/`; a restored current
+build migrates inline values back into the compact live representation.
+`metadata_indexes/` contains disposable report/trace headers; restored source
+file identities invalidate them automatically.
+
 Everything in `<filesDir>` is mirrored into `files/` **except**
 the four top-level `FILES_DIR_BACKUP_EXCLUDES` subdirs (below).
 Notable contents:

@@ -654,6 +654,7 @@ class SecondaryRunManager(
         appViewModel.backgroundResumeSweepJob = appViewModel.viewModelScope.launch(
             rvm.reportLogContext()
         ) {
+            appViewModel.awaitStartupBackgroundScanWindow()
             // One-time pass first: a hard-killed batch leaves blank placeholder
             // cells whose run is no longer active. Mark them interrupted up front
             // so the very first scan flags them, instead of waiting out the
@@ -691,20 +692,18 @@ class SecondaryRunManager(
      *  (kind, run) that carries interrupted and/or errored work. Sequential
      *  per-report disk scan — same cost profile as the old resume sweep,
      *  minus all dispatch. Sorted newest-first for the list. */
-    private suspend fun scanBrokenRunsForRecentReports(context: Context): List<BrokenBatch> {
+    private suspend fun scanBrokenRunsForRecentReports(context: Context): List<BrokenBatch> = withContext(Dispatchers.IO) {
         val cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
         // The currently-open report is always scanned, whatever its age —
         // its Manage screens show red crosses for exactly the problems this
         // scan flags, and the ⚠️ badge must agree with what's on screen.
         val currentId = appViewModel.uiState.value.currentReportId
-        val recent = withContext(Dispatchers.IO) {
-            ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff || it.id == currentId }
-        }
-        if (recent.isEmpty()) return emptyList()
+        val recent = ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff || it.id == currentId }
+        if (recent.isEmpty()) return@withContext emptyList()
         val batches = recent.flatMap { report -> detectBrokenBatchesForReport(context, report) }
             .sortedByDescending { it.timestamp }
         AppLog.d("BrokenScan", "scanned ${recent.size} report${if (recent.size == 1) "" else "s"} (7d) → ${batches.size} broken batch${if (batches.size == 1) "" else "es"}")
-        return batches
+        batches
     }
 
     /** Force one Broken-work scan now. Used after manual recovery actions so
@@ -756,7 +755,7 @@ class SecondaryRunManager(
      *  Meta's title/icon sub-state, which isn't a blank placeholder). */
     private suspend fun finalizeAbandonedLeftovers(context: Context) = withContext(Dispatchers.IO) {
         val cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
-        val recent = ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff }
+        val recent = ReportStorage.getReportHeaders(context).filter { it.timestamp >= cutoff }
         var marked = 0
         recent.forEach { report ->
             val rows = SecondaryResultStorage.listForReport(context, report.id)

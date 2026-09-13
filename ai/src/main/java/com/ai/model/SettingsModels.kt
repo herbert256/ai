@@ -32,9 +32,12 @@ data class ProviderConfig(
     val modelCapabilities: Map<String, com.ai.data.ModelCapabilities> = emptyMap(),
     /** Raw JSON body of the provider's last /models response — preserved
      *  so a future parser revision can extract additional fields without
-     *  forcing the user to re-fetch. Lives in eval_prefs and round-trips
-     *  through the backup zip. */
+     *  forcing the user to re-fetch. Loaded lazily from provider_catalogs;
+     *  backups expand it to the original inline preference format. */
     val modelListRawJson: String? = null,
+    /** A persisted raw response can stay on disk until a parser migration.
+     * A null in-memory body must not erase that stored response on save. */
+    val modelListRawJsonStored: Boolean = false,
     /** Set of model ids the user has explicitly flagged as supporting the
      *  web-search tool descriptor (Anthropic web_search_20250305 / Gemini
      *  google_search / OpenAI Responses web_search_preview). Same pattern

@@ -502,6 +502,7 @@ data class FetchModelsError(val message: String, val traceFile: String?)
 
 // Main UI state
 data class UiState(
+    val pricingReady: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val generalSettings: GeneralSettings = GeneralSettings(),

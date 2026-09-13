@@ -786,6 +786,27 @@ after a LiteLLM or models.dev catalog refresh so the picker badges
 pick up new catalog answers (Helicone is pricing-only — no
 recompute). `withModels` funnels every model list through
 `List.distinct` so duplicates can't crash the keyed LazyColumns.
-There is **no** `CAPS_PRECOMPUTED_VERSION` migration flag in the
-current code — capability sets are recomputed eagerly on the
-relevant refresh, not gated behind a version constant.
+Explicit catalog refreshes still recompute the affected derived fields.
+At startup, `capabilities_snapshot_revision` avoids repeating the full pass
+when the installed APK, pricing-file metadata, manual overrides and enabled
+info-provider set have not changed. Manual override edits invalidate the
+snapshot and publish one combined settings update.
+
+## Startup performance
+
+The essential startup path loads preferences, applies configuration migrations,
+flushes the pending-cost journal, checks report ledger headers, and publishes
+`settingsReady`. Large provider catalogs live behind content-addressed file
+references; raw `/models` bodies are read only when parser revisions require it.
+A first upgrade must still parse and migrate the old preferences XML once.
+
+One second after settings are ready, pricing catalogs load on IO. Main-thread
+price lookups use native/manual prices and saved price snapshots during this
+window; unknown models use the existing default fallback. Background billing
+lookups wait for full catalogs. A thin progress indicator shows this warmup.
+Derived capabilities/prices update once, only when their revision changes.
+Trace-index warmup then runs, followed by broken-work recovery scans on IO.
+The log records XML wait separately from bootstrap, and `MetadataIndex` reports
+how many source files needed parsing. Do not sum overlapping phase durations.
+
+See [the startup audit](startup-audit-2026-09-13.md) for measurements and limits.

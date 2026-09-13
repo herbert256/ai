@@ -35,6 +35,15 @@ old `translation_modes` prefs file is gone — per-report translation
 modes are no longer persisted in their own prefs file.)
 
 ### `eval_prefs` — main settings
+
+Large provider catalog values are stored through `CatalogPreferences`. Values
+over 512 characters for `*_manual_models`, `*_model_types`,
+`*_model_capabilities`, `*_model_pricing`, `*_models_response_raw`, and the
+three computed capability sets become `@catalog:v1:<sha256>` references.
+Read these through `SettingsPreferences`, not raw `SharedPreferences.getString`.
+Other preferences, including credentials and worker configuration, remain inline.
+`*_token_limits_revision` skips unchanged raw-catalog parser migrations;
+`capabilities_snapshot_revision` skips unchanged derived price/capability work.
 By far the largest. Loaded by `SettingsPreferences`, which defines
 73 `KEY_*` constants. (Note: where a value below shows a default, it
 is the `prefs.getX(key, default)` *read-fallback* used when the key
@@ -297,6 +306,26 @@ Almost every JSON write goes through `writeTextAtomic` — a
 `Files.move(ATOMIC_MOVE)` of an fsync'd temp file, with parent-dir
 auto-mkdir. Most writes are also taken under a per-storage-object
 `ReentrantLock`.
+
+### `provider_catalogs/<sha256>.json`
+
+Immutable large provider catalog values referenced by `eval_prefs`.
+`CatalogPreferences` verifies the hash on load, writes each blob atomically
+before publishing its reference, and falls back to inline storage if a write
+fails. Existing inline values migrate once during startup. Raw model responses
+stay on disk until needed by a parser migration; normal settings saves retain
+their reference. Optional maintenance prunes unreferenced revisions after
+flushing preferences. Backups expand references into inline values in the
+preferences payload, retaining compatibility with the existing backup format.
+
+### `metadata_indexes/*.json`
+
+Rebuildable `api-traces-v1.json` and `report-headers-v1.json` indexes used by
+startup/recovery. Each entry records source filename, file identity, nanosecond
+mtime, length and small header fields. Every scan checks source metadata;
+missing, changed, invalid or replaced entries are reparsed. Report/trace JSON
+remains authoritative. Clearing all reports/traces clears its corresponding
+index. Imported/restored files invalidate cached entries by file identity.
 
 ### `pricing/<key>.json`
 Tier blobs for `PricingCache`. One file per (tier, payload):

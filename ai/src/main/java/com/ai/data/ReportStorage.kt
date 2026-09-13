@@ -140,6 +140,44 @@ object ReportStorage {
     @Volatile private var importsRecovered = false
     @Volatile private var lastLoadFailures: List<ReportLoadFailure> = emptyList()
 
+    /** Small fields used by startup accounting and recovery scans. */
+    data class Header(val id: String, val title: String, val timestamp: Long,
+        val ledgerComplete: Boolean, val ledgerVersion: Int)
+    private val headerIndex = JsonFileIndex("report-headers-v1", Header::class.java) { file, header ->
+        header.id == file.nameWithoutExtension && header.title != null && header.ledgerVersion >= 0
+    }
+
+    fun getReportHeaders(context: Context): List<Header> {
+        init(context)
+        val dir = reportsDir ?: return emptyList()
+        return headerIndex.read(dir, dir.listFiles()?.filter { it.extension == "json" }.orEmpty()) { file ->
+            runCatching {
+                com.google.gson.stream.JsonReader(file.bufferedReader()).use { reader ->
+                    var id = file.nameWithoutExtension
+                    var title = ""
+                    var timestamp = 0L
+                    var complete = false
+                    var version = 0
+                    reader.beginObject()
+                    while (reader.hasNext()) when (reader.nextName()) {
+                        "id" -> id = reader.nextString()
+                        "title" -> if (reader.peek() == com.google.gson.stream.JsonToken.NULL) reader.nextNull() else title = reader.nextString()
+                        "timestamp" -> timestamp = reader.nextLong()
+                        "apiCallCostsComplete" -> complete = reader.nextBoolean()
+                        "apiCallCostsVersion" -> version = reader.nextInt()
+                        else -> reader.skipValue()
+                    }
+                    reader.endObject()
+                    check(id == file.nameWithoutExtension && isSafeFlatId(id))
+                    Header(id, title, timestamp, complete, version)
+                }
+            }.onFailure { AppLog.w("ReportStorage", "Cannot read report header: ${file.name}", it) }.getOrNull()
+        }
+    }
+
+    fun reportIdsNeedingLedgerRepair(context: Context): List<String> = getReportHeaders(context)
+        .filter { !it.ledgerComplete || it.ledgerVersion < API_CALL_COST_LEDGER_VERSION }.map { it.id }
+
     data class ApiCallCostLedgerDelta(
         val reportId: String,
         val title: String,
@@ -652,6 +690,7 @@ object ReportStorage {
             reportsDir?.listFiles { f -> f.extension == "json" }?.forEach { f ->
                 if (f.delete()) deletedIds += f.nameWithoutExtension
             }
+            reportsDir?.let(headerIndex::clear)
         }
         deletedIds.forEach { reportId ->
             SecondaryResultStorage.deleteAllForReport(context, reportId)

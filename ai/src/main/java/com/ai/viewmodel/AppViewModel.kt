@@ -62,6 +62,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(UiState())
     private val _settingsReady = MutableStateFlow(false)
     val settingsReady: StateFlow<Boolean> = _settingsReady.asStateFlow()
+    private val capabilitySnapshotsReady = MutableStateFlow(false)
+    private val startupMaintenanceReady = MutableStateFlow(false)
+    suspend fun awaitStartupBackgroundScanWindow() { startupMaintenanceReady.first { it } }
+    suspend fun awaitStartupMaintenanceWindow() {
+        settingsReady.first { it }
+        kotlinx.coroutines.delay(1_000)
+    }
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     /** Singleton Job for the app-wide read-only broken-work scan
@@ -502,12 +509,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val startTag = "App.start"
+            val launchStarted = android.os.SystemClock.elapsedRealtime()
+            AppLog.d(startTag, "→ Load preferences XML")
             // SharedPreferences loads the whole XML. Let that finish on IO
             // before launching allocation-heavy catalog preloads; concurrent
             // warmup can starve the preference loader on small emulators.
             prefs.contains(KEY_FIRST_RUN_BOOTSTRAPPED)
-            PricingCache.preloadAsync(application, viewModelScope)
+            AppLog.d(startTag, "← Preferences XML ready in ${android.os.SystemClock.elapsedRealtime() - launchStarted}ms")
             val loaded = bootstrap(application)
+            PricingCache.prepareStartupPricing(application,
+                loaded.second.providers.mapKeys { it.key.id }.mapValues { it.value.modelPricing })
             val repaired = com.ai.data.ModelTestMigration.repair(application, loaded.second)
             if (repaired != loaded.second) settingsPrefs.saveSettings(repaired)
             val bs = loaded.first to repaired
@@ -592,12 +603,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
             _settingsReady.value = true
             AppLog.d(startTag, "← Publish initial UiState done")
+            AppLog.d(startTag, "Settings ready including XML load: ${android.os.SystemClock.elapsedRealtime() - launchStarted}ms")
 
             AppLog.d(startTag, "→ refreshAllModelLists (cache-respecting)")
             val tRefresh = System.currentTimeMillis()
             val refreshed = refreshAllModelLists(bs.second)
             AppLog.d(startTag, "  refreshed ${refreshed.size} provider(s): ${refreshed.entries.joinToString { "${it.key}=${it.value}" }}")
             AppLog.d(startTag, "← refreshAllModelLists done in ${System.currentTimeMillis() - tRefresh}ms")
+        }
+        viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
+            awaitStartupMaintenanceWindow()
+            capabilitySnapshotsReady.first { it }
+            try {
+                settingsPrefs.pruneCatalogRevisions()
+                // Sequence optional work rather than competing with first render.
+                ApiTracer.getTraceFiles()
+            } finally { startupMaintenanceReady.value = true }
         }
         // Mirror the latest aiSettings to a static holder so the
         // dispatcher helpers (which can't easily thread Settings
@@ -609,11 +630,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         // Pickers use precomputed model prices. Manual edits live outside
         // Settings, so invalidate those snapshots on every override change.
-        viewModelScope.launch(Dispatchers.IO) {
-            settingsReady.first { it }
-            PricingCache.manualPricingVersion.collect {
+        viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
+            awaitStartupMaintenanceWindow()
+            val preloadStarted = android.os.SystemClock.elapsedRealtime()
+            try {
                 PricingCache.ensureLoadedBlocking(application)
-                recomputeRefreshedCapabilities()
+            } catch (e: Exception) {
+                capabilitySnapshotsReady.value = true
+                _uiState.update { it.copy(pricingReady = true) }
+                throw e
+            }
+            _uiState.update { it.copy(pricingReady = true) }
+            AppLog.d("App.start", "Pricing catalogs ready in ${android.os.SystemClock.elapsedRealtime() - preloadStarted}ms (background)")
+            PricingCache.manualPricingVersion.collect {
+                try {
+                    val revision = PricingCache.snapshotRevision(application, _uiState.value.aiSettings.disabledInfoProviders)
+                    if (prefs.getString("capabilities_snapshot_revision", null) != revision) {
+                        recomputeRefreshedCapabilities()
+                        settingsPrefs.saveDerivedCapabilities(_uiState.value.aiSettings, revision)
+                        AppLog.d("App.start", "Derived model snapshots updated")
+                    } else AppLog.d("App.start", "Derived model snapshots unchanged; skipped")
+                } finally { capabilitySnapshotsReady.value = true }
             }
         }
     }
@@ -645,7 +682,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.d(tag, "→ Singletons init")
         AppLog.d(tag, "  init AppLog"); AppLog.init(application)
         AppLog.d(tag, "  init ApiTracer"); ApiTracer.init(application)
-        ApiTracer.prewarmCache(viewModelScope)
         AppLog.d(tag, "  init AuditLog"); AuditLog.init(application)
         AppLog.d(tag, "  init ChatHistoryManager"); ChatHistoryManager.init(application)
         AppLog.d(tag, "  init ReportStorage"); ReportStorage.init(application)
@@ -967,10 +1003,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Flush completed attempts before upgrading legacy accounting. This
         // also repairs saved trace links and proven reasoning-only successes
         // before a report is opened after an APK update.
+        val accountingStart = android.os.SystemClock.elapsedRealtime()
         runCatching {
             com.ai.data.ReportCostJournal.flush(application.filesDir)
             settingsPrefs.reconcileReportCostLedgers(application)
         }.onFailure { AppLog.w(tag, "Report accounting repair will retry: ${it.message}") }
+        AppLog.d(tag, "Report accounting checked in ${android.os.SystemClock.elapsedRealtime() - accountingStart}ms")
 
         AppLog.d(tag, "bootstrap total ${System.currentTimeMillis() - bootStart}ms")
         return gs to ai
@@ -1568,6 +1606,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 visionModels = current.visionModels + fetched.visionModels,
                 modelCapabilities = computed.modelCapabilities,
                 modelListRawJson = computed.modelListRawJson,
+                modelListRawJsonStored = computed.modelListRawJsonStored,
                 visionCapableComputed = computed.visionCapableComputed,
                 webSearchCapableComputed = computed.webSearchCapableComputed,
                 reasoningCapableComputed = computed.reasoningCapableComputed,
@@ -1577,36 +1616,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }.aiSettings.getProvider(service)
     }
 
-    /** After catalog downloads join, refresh derived fields once. A CAS
-     *  retry caused by another provider reuses the computed result. Only a
-     *  change to this provider's inputs requires computing it again. */
-    private suspend fun recomputeRefreshedCapabilities() = coroutineScope {
-        AppService.entries.map { service ->
-            launch(Dispatchers.Default) {
-                while (true) {
-                    val base = _uiState.value.aiSettings
-                    val before = base.getProvider(service)
-                    val computed = base.recomputeCapabilities(service).getProvider(service)
-                    var applied = false
-                    _uiState.update { state ->
-                        val current = state.aiSettings.getProvider(service)
-                        applied = current.models === before.models &&
-                            current.modelCapabilities === before.modelCapabilities &&
-                            state.aiSettings.disabledInfoProviders == base.disabledInfoProviders
-                        if (!applied) state else state.copy(aiSettings = state.aiSettings.withProvider(
-                            service, current.copy(
-                                visionCapableComputed = computed.visionCapableComputed,
-                                webSearchCapableComputed = computed.webSearchCapableComputed,
-                                reasoningCapableComputed = computed.reasoningCapableComputed,
-                                modelPricing = computed.modelPricing
-                            )
-                        ))
-                    }
-                    if (applied) break
-                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                }
+    /** Refresh all derived fields in one publication; retry if settings
+     * changed while the background computation was running. */
+    private suspend fun recomputeRefreshedCapabilities() = withContext(Dispatchers.Default) {
+        // One publication for the whole snapshot prevents 91 bursts of UI work.
+        // Retry from current inputs if a provider changed during computation.
+        while (true) {
+            val base = _uiState.value.aiSettings
+            val computed = base.recomputeAllCapabilities()
+            var applied = false
+            _uiState.update { state ->
+                applied = state.aiSettings === base
+                if (applied) state.copy(aiSettings = computed) else state
             }
-        }.forEach { it.join() }
+            if (applied) break
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        }
     }
 
     fun fetchModels(service: AppService, apiKey: String, flipToApiOnSuccess: Boolean = false) {

@@ -8,6 +8,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -152,6 +157,13 @@ class MainActivity : ComponentActivity() {
                         appViewModel = viewModel
                     )
                     com.ai.ui.shared.ReportSaveRecoveryDialog()
+                }
+                if (settingsReady && !uiState.pricingReady) {
+                    androidx.compose.material3.LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth().height(2.dp)
+                            .align(androidx.compose.ui.Alignment.BottomCenter)
+                            .semantics { contentDescription = "Loading model details" }
+                    )
                 }
               }
 

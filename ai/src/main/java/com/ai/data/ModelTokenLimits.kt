@@ -1,7 +1,9 @@
 package com.ai.data
 
 import com.google.gson.Gson
-import com.google.gson.JsonParser
+import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonToken
+import java.io.StringReader
 
 /** Context aliases used by OpenAI-compatible providers, including Novita. */
 internal val OpenAiModel.nativeContextLength: Int?
@@ -17,29 +19,53 @@ internal val OpenAiModel.nativeContextLength: Int?
 internal fun backfillCachedTokenLimits(
     rawJson: String?,
     capabilities: Map<String, ModelCapabilities>,
-    gson: Gson
+    @Suppress("UNUSED_PARAMETER") gson: Gson
 ): Map<String, ModelCapabilities> {
     if (rawJson.isNullOrBlank() ||
         (!rawJson.contains("\"context_size\"") && !rawJson.contains("\"max_output_tokens\""))) {
         return capabilities
     }
     return try {
-        val root = JsonParser.parseString(rawJson)
-        val entries = when {
-            root.isJsonArray -> root.asJsonArray
-            root.isJsonObject -> root.asJsonObject.get("data")?.takeIf { it.isJsonArray }?.asJsonArray
-            else -> null
-        } ?: return capabilities
         val updated = capabilities.toMutableMap()
-        for (entry in entries) {
-            // A malformed entry must not discard limits recovered for other models.
-            val model = runCatching { gson.fromJson(entry, OpenAiModel::class.java) }.getOrNull() ?: continue
-            val id = model.id?.takeIf { it.isNotBlank() } ?: continue
-            val previous = capabilities[id] ?: ModelCapabilities()
-            val context = previous.contextLength?.takeIf { it > 0 } ?: model.nativeContextLength
-            val output = previous.maxOutputTokens?.takeIf { it > 0 } ?: model.max_output_tokens?.takeIf { it > 0 }
-            if (context != null || output != null) {
-                updated[id] = previous.copy(contextLength = context, maxOutputTokens = output)
+        JsonReader(StringReader(rawJson)).use { reader ->
+            fun text(): String? = when (reader.peek()) {
+                JsonToken.NUMBER, JsonToken.STRING -> reader.nextString()
+                else -> { reader.skipValue(); null }
+            }
+            fun positiveInt(): Int? = text()?.toIntOrNull()?.takeIf { it > 0 }
+            fun entries() {
+                if (reader.peek() != JsonToken.BEGIN_ARRAY) { reader.skipValue(); return }
+                reader.beginArray()
+                while (reader.hasNext()) {
+                    if (reader.peek() != JsonToken.BEGIN_OBJECT) { reader.skipValue(); continue }
+                    var id: String? = null
+                    val context = arrayOfNulls<Int>(4)
+                    var output: Int? = null
+                    reader.beginObject()
+                    while (reader.hasNext()) when (reader.nextName()) {
+                        "id" -> id = text()
+                        "max_context_length" -> context[0] = positiveInt()
+                        "context_length" -> context[1] = positiveInt()
+                        "context_window" -> context[2] = positiveInt()
+                        "context_size" -> context[3] = positiveInt()
+                        "max_output_tokens" -> output = positiveInt()
+                        else -> reader.skipValue()
+                    }
+                    reader.endObject()
+                    val modelId = id?.takeIf { it.isNotBlank() } ?: continue
+                    val previous = capabilities[modelId] ?: ModelCapabilities()
+                    val recoveredContext = previous.contextLength?.takeIf { it > 0 } ?: context.firstOrNull { it != null }
+                    val recoveredOutput = previous.maxOutputTokens?.takeIf { it > 0 } ?: output
+                    if (recoveredContext != null || recoveredOutput != null)
+                        updated[modelId] = previous.copy(contextLength = recoveredContext, maxOutputTokens = recoveredOutput)
+                }
+                reader.endArray()
+            }
+            if (reader.peek() == JsonToken.BEGIN_ARRAY) entries()
+            else if (reader.peek() == JsonToken.BEGIN_OBJECT) {
+                reader.beginObject()
+                while (reader.hasNext()) { if (reader.nextName() == "data") entries() else reader.skipValue() }
+                reader.endObject()
             }
         }
         if (updated == capabilities) capabilities else updated

@@ -537,7 +537,10 @@ object BackupManager {
     private fun serializePrefs(context: Context, name: String): ByteArray {
         val prefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
         val out = mutableListOf<Map<String, Any?>>()
-        for ((key, value) in prefs.all) {
+        val values = if (name == MAIN_PREFS)
+            com.ai.data.preferences.CatalogPreferences(prefs, context.filesDir).snapshotForBackup()
+        else prefs.all
+        for ((key, value) in values) {
             val entry: Map<String, Any?> = when (value) {
                 is String -> mapOf("k" to key, "t" to "s", "v" to value)
                 is Boolean -> mapOf("k" to key, "t" to "b", "v" to value)

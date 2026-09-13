@@ -51,6 +51,9 @@ object ApiTracer {
     private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.US).withZone(ZoneId.systemDefault())
     private val lock = ReentrantLock()
     private var directoryVersion = 0L
+    private val metadataIndex = JsonFileIndex("api-traces-v1", TraceFileInfo::class.java) { file, info ->
+        info.filename == file.name && !info.hostname.isNullOrBlank() && info.timestamp > 0
+    }
     private val filenameTimestamp = Regex("_(\\d{8}_\\d{6}_\\d{3})_")
     // Seed with a random offset rather than 0 (Bug 21a): the sequence is
     // in-memory only, so after a process restart a new trace written in the
@@ -299,13 +302,12 @@ object ApiTracer {
                 val dir = traceDir ?: return emptyList()
                 dir to directoryVersion
             }
-            // A cold listing can parse 50 MiB. Never hold the writer lock
-            // while doing that: streaming responses must be able to finish.
-            val list = dir.listFiles()
-                ?.filter { it.extension == "json" }
-                ?.mapNotNull { parseTraceFileInfoStreaming(it) }
-                ?.sortedByDescending { it.timestamp }
-                ?: emptyList()
+            // Validate the small metadata index against source file stamps.
+            // Only new/replaced files require parsing. Never hold the writer
+            // lock while rebuilding: streaming responses must be able to finish.
+            val list = metadataIndex.read(dir,
+                dir.listFiles()?.filter { it.extension == "json" }.orEmpty(), ::parseTraceFileInfoStreaming)
+                .sortedByDescending { it.timestamp }
             val published = lock.withLock {
                 cachedTraceFiles ?: if (version == directoryVersion) {
                     cachedTraceFiles = list
@@ -489,6 +491,7 @@ object ApiTracer {
 
     fun clearTraces() = lock.withLock {
         traceDir?.listFiles()?.forEach { if (it.extension == "json") it.delete() }
+        traceDir?.let(metadataIndex::clear)
         // Clear captured evidence, but keep the active/latest run's allowance
         // for requests arriving after this explicit clear.
         modelTestRetention = modelTestRetention?.copy(legacyFilenames = emptySet())

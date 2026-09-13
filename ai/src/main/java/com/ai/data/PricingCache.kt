@@ -88,6 +88,8 @@ object PricingCache {
 
     private val gson = createAppGson()
     private val lock = Any()
+    private val manualLock = Any()
+    @Volatile private var startupPricing: Map<String, Map<String, ModelPricing>> = emptyMap()
     private val mapModelPricingType: Type = object : TypeToken<Map<String, ModelPricing>>() {}.type
     private val mutableMapModelPricingType: Type = object : TypeToken<MutableMap<String, ModelPricing>>() {}.type
     private val mapStringMapType: Type = object : TypeToken<Map<String, Map<String, Any>>>() {}.type
@@ -224,25 +226,39 @@ object PricingCache {
         return togetherPricing?.get(model)
     }
 
-    // Manual pricing overrides
-    fun setManualPricing(context: Context, provider: AppService, model: String, promptPrice: Double, completionPrice: Double) = synchronized(lock) {
+    /** Essential saved prices are available while optional tier catalogs load. */
+    fun prepareStartupPricing(context: Context, snapshots: Map<String, Map<String, ModelPricing>>) {
+        startupPricing = snapshots
+        synchronized(manualLock) { if (manualPricing == null) loadManualPricing(context) }
+        // Native OpenRouter/Together prices outrank manual entries. These two
+        // small maps are sufficient to preserve that precedence during warmup.
+        synchronized(lock) { if (openRouterPricing == null) loadFromPrefs(context) }
+    }
+
+    private fun startupPrice(provider: AppService, model: String): ModelPricing {
+        if (provider.crossProviderModelList) findOpenRouterPricing(provider, model)?.let { return it }
+        findTogetherPricing(provider, model)?.let { return it }
+        manualPricing?.get("${provider.id}:$model")?.let { return it }
+        return startupPricing[provider.id]?.get(model)?.takeUnless { it.source == "OVERRIDE" } ?: DEFAULT_PRICING
+    }
+
+    // Manual CRUD only needs the tiny manual map. It must not wait for the
+    // bulk catalog lock from a UI click during background startup preload.
+    fun setManualPricing(context: Context, provider: AppService, model: String, promptPrice: Double, completionPrice: Double) = synchronized(manualLock) {
         require(model.isNotBlank() && model == model.trim()) { "A trimmed model ID is required" }
         require(promptPrice.isFinite() && promptPrice >= 0.0 && completionPrice.isFinite() && completionPrice >= 0.0) {
             "Manual prices must be finite and non-negative"
         }
-        ensureLoaded(context)
-        // A write during the cold UI window must not replace unloaded overrides.
         if (manualPricing == null) loadManualPricing(context)
-        val key = "${provider.id}:$model"
-        val map = manualPricing ?: mutableMapOf<String, ModelPricing>().also { manualPricing = it }
-        map[key] = ModelPricing(model, promptPrice, completionPrice, "OVERRIDE")
+        manualPricing = manualPricing.orEmpty().toMutableMap().also {
+            it["${provider.id}:$model"] = ModelPricing(model, promptPrice, completionPrice, "OVERRIDE")
+        }
         saveManualPricing(context)
     }
 
-    fun removeManualPricing(context: Context, provider: AppService, model: String) = synchronized(lock) {
-        ensureLoaded(context)
+    fun removeManualPricing(context: Context, provider: AppService, model: String) = synchronized(manualLock) {
         if (manualPricing == null) loadManualPricing(context)
-        manualPricing?.remove("${provider.id}:$model")
+        manualPricing = manualPricing.orEmpty().toMutableMap().also { it.remove("${provider.id}:$model") }
         saveManualPricing(context)
     }
 
@@ -251,31 +267,38 @@ object PricingCache {
      * alone is not redundancy: manual prices beat curated catalogs. */
     fun cleanupRedundantManualOverrides(context: Context): Int = synchronized(lock) {
         ensureLoaded(context)
-        val entries = manualPricing?.toMap() ?: return 0
-        var removed = 0
-        for ((key, override) in entries) {
-            val parts = key.split(":", limit = 2)
-            val providerId = parts.getOrNull(0) ?: continue
-            val modelId = parts.getOrNull(1) ?: continue
-            val service = AppService.findById(providerId) ?: continue
-            val withoutOverride = getPricingWithoutOverride(context, service, modelId)
-            val shouldRemove = override.copy(modelId = withoutOverride.modelId, source = withoutOverride.source) == withoutOverride
-            if (shouldRemove) {
-                manualPricing?.remove(key)
-                removed++
+        synchronized(manualLock) {
+            val entries = manualPricing.orEmpty().toMap()
+            val remaining = entries.toMutableMap()
+            var removed = 0
+            for ((key, override) in entries) {
+                val parts = key.split(":", limit = 2)
+                val providerId = parts.getOrNull(0) ?: continue
+                val modelId = parts.getOrNull(1) ?: continue
+                val service = AppService.findById(providerId) ?: continue
+                val withoutOverride = getPricingWithoutOverride(context, service, modelId)
+                val shouldRemove = override.copy(modelId = withoutOverride.modelId, source = withoutOverride.source) == withoutOverride
+                if (shouldRemove) {
+                    remaining.remove(key)
+                    removed++
+                }
             }
+            if (removed > 0) { manualPricing = remaining; saveManualPricing(context) }
+            removed
         }
-        if (removed > 0) saveManualPricing(context)
-        removed
     }
 
-    fun getManualPricing(context: Context, provider: AppService, model: String): ModelPricing? {
-        ensureLoaded(context); return manualPricing?.get("${provider.id}:$model")
+    fun getManualPricing(context: Context, provider: AppService, model: String): ModelPricing? = synchronized(manualLock) {
+        if (manualPricing == null) loadManualPricing(context)
+        manualPricing?.get("${provider.id}:$model")
     }
 
-    fun getAllManualPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return manualPricing?.toMap() ?: emptyMap() }
+    fun getAllManualPricing(context: Context): Map<String, ModelPricing> = synchronized(manualLock) {
+        if (manualPricing == null) loadManualPricing(context)
+        manualPricing?.toMap() ?: emptyMap()
+    }
 
-    fun setAllManualPricing(context: Context, pricing: Map<String, ModelPricing>) = synchronized(lock) {
+    fun setAllManualPricing(context: Context, pricing: Map<String, ModelPricing>) = synchronized(manualLock) {
         require(pricing.values.all { it.promptPrice.isFinite() && it.promptPrice >= 0.0 && it.completionPrice.isFinite() && it.completionPrice >= 0.0 })
         manualPricing = pricing.toMutableMap(); saveManualPricing(context)
     }
@@ -354,11 +377,19 @@ object PricingCache {
         return inCost to outCost
     }
 
-    /**
-     * Warm the in-memory caches in the background. Safe to call repeatedly; only runs once.
-     * Compose code that calls [getPricing] synchronously won't have to block on a 1.2MB
-     * asset parse on first use.
-     */
+    /** Persisted derived settings are reusable until a catalog, override or
+     * APK changes. This only stats the small tier directory; no JSON parsing. */
+    fun snapshotRevision(context: Context, disabledInfoProviders: Set<String>): String {
+        val files = java.io.File(context.filesDir, "pricing").listFiles().orEmpty()
+            .filter { it.extension == "json" }.sortedBy { it.name }
+            .joinToString(";") { "${it.name}:${it.length()}:${it.lastModified()}" }
+        val apk = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+        val manual = getPrefs(context).getString(KEY_MANUAL_PRICING, "").orEmpty()
+        return com.ai.data.preferences.CatalogPreferences.digest(
+            "v1;$apk;$files;$manual;${disabledInfoProviders.sorted().joinToString()}")
+    }
+
+    /** Pre-load pricing catalogs off the main thread. */
     fun preloadAsync(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
         if (preloadCompleted) return
         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -407,11 +438,11 @@ object PricingCache {
      * class KDoc above.
      *
      * If preload hasn't finished (caches still null) and this was called from the main thread,
-     * avoid the synchronous 1.2MB parse by returning DEFAULT_PRICING — the UI will refresh
-     * once the preload completes and recomposition reads fresh values.
+     * return native/manual prices or the saved startup snapshot, with DEFAULT_PRICING
+     * for an unknown model. Background callers still load the full catalogs before billing.
      */
     fun getPricing(context: Context, provider: AppService, model: String): ModelPricing {
-        if (!preloadCompleted && isMainThread()) return DEFAULT_PRICING
+        if (!preloadCompleted && isMainThread()) return startupPrice(provider, model)
         ensureLoaded(context)
         findPricingMatch(provider, model, includeOverride = true)?.let {
             return tracePricing(provider, model, it.tier, it.pricing)
@@ -1948,7 +1979,7 @@ object PricingCache {
     }
 
     private fun ensureLoadedLocked(context: Context) {
-        if (manualPricing == null) loadManualPricing(context)
+        synchronized(manualLock) { if (manualPricing == null) loadManualPricing(context) }
         if (openRouterPricing == null) loadFromPrefs(context)
         // LiteLLM: no bundled asset (network only). The user populates the
         // tier with Refresh → LiteLLM; subsequent app starts read from
@@ -2125,6 +2156,7 @@ object PricingCache {
         // marked it complete, so main-thread getPricing kept returning
         // DEFAULT_PRICING long after every blob was already in memory.
         preloadCompleted = true
+        startupPricing = emptyMap()
     }
 
     private fun loadFromPrefs(context: Context) {
@@ -2476,11 +2508,14 @@ object PricingCache {
             java.io.File(context.filesDir, "model_supported_parameters.json").delete()
         } catch (_: Exception) {}
         // Prefs: wipe the whole pricing_cache file.
-        getPrefs(context).edit { clear(); putString(KEY_MANUAL_PRICING, "{}") }
+        synchronized(manualLock) {
+            getPrefs(context).edit { clear(); putString(KEY_MANUAL_PRICING, "{}") }
+            manualPricing = null
+            _manualPricingVersion.value = _manualPricingVersion.value + 1
+        }
         // In-memory: drop every loaded tier + lookup memo so the next
         // ensureLoaded call repopulates from the now-empty stores.
-        manualPricing = null
-        _manualPricingVersion.value = _manualPricingVersion.value + 1
+        startupPricing = emptyMap()
         openRouterPricing = null
         togetherPricing = null
         togetherTimestamp = 0
